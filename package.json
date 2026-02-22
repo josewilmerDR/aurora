@@ -1,0 +1,17 @@
+{
+  "name": "pineapp-gestion",
+  "version": "1.0.0",
+  "description": "Aplicación para la gestión de cultivos de piña",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.14.1",
+    "express": "^4.19.2",
+    "twilio": "^5.2.2"
+  }
+}
