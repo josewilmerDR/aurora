@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aurora - Panel de Administración de Cultivos</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Gestor de Paquetes Técnicos para Cultivos</h1>
+            <p>Crea y administra las "recetas" para tus cultivos de piña.</p>
+        </header>
+
+        <main>
+            <form id="package-form" class="form-card">
+                <h2>Nuevo Paquete Técnico</h2>
+                
+                <div class="form-group">
+                    <label for="package-name">Nombre del Paquete</label>
+                    <input type="text" id="package-name" name="packageName" placeholder="Ej: Cosecha I - Suelos Arcillosos" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="harvest-type">Tipo de Cosecha</label>
+                    <select id="harvest-type" name="harvestType" required>
+                        <option value="" disabled selected>Selecciona un tipo</option>
+                        <option value="I">Cosecha I</option>
+                        <option value="II">Cosecha II</option>
+                        <option value="III">Cosecha III</option>
+                        <option value="Semillero">Semillero</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="crop-stage">Etapa del Cultivo</label>
+                    <input type="text" id="crop-stage" name="cropStage" placeholder="Ej: Preparación y Siembra" required>
+                </div>
+
+                <fieldset>
+                    <legend>Cronograma de Actividades</legend>
+                    <div id="activities-container">
+                        <!-- Las actividades se insertarán aquí dinámicamente -->
+                    </div>
+                    <button type="button" id="add-activity-btn" class="btn btn-secondary">Añadir Actividad</button>
+                </fieldset>
+
+                <button type="submit" class="btn btn-primary">Guardar Paquete Técnico</button>
+            </form>
+        </main>
+    </div>
+
+    <script src="scripts.js"></script>
+</body>
+</html>
