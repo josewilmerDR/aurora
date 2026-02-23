@@ -1,3 +1,5 @@
+require('dotenv').config(); // Carga las variables de entorno del archivo .env
+
 const express = require('express');
 const twilio = require('twilio');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -13,7 +15,6 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = new twilio(accountSid, authToken);
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// --- CORRECCIÓN: Cambiado a un modelo más rápido para evitar timeouts ---
 const model = genAI.getGenerativeModel({ model: "gemini-flash-latest"});
 
 app.get('/', (req, res) => {
@@ -49,6 +50,32 @@ app.post('/whatsapp-webhook', async (req, res) => {
   res.writeHead(200, {'Content-Type': 'text/xml'});
   res.end(twiml.toString());
 });
+
+// --- INICIO: NUEVO ENDPOINT PARA PRUEBAS DE ENVÍO ---
+app.get('/send-message', async (req, res) => {
+  console.log('[PRUEBA] Iniciando envío de mensaje de prueba...');
+  try {
+    const to_number = process.env.TO_WHATSAPP_NUMBER;
+    const from_number = 'whatsapp:+14155238886'; // Tu número de sandbox de Twilio
+
+    if (!to_number || to_number === 'whatsapp:+XXXXXXXXXX') {
+      throw new Error('La variable de entorno TO_WHATSAPP_NUMBER no está definida o no ha sido actualizada en tu archivo .env');
+    }
+
+    const message = await client.messages.create({
+      body: 'Hola 👋 ¡Este es un mensaje de prueba desde tu app Aurora!',
+      from: from_number,
+      to: to_number
+    });
+
+    console.log(`[PRUEBA] Mensaje enviado con éxito. SID: ${message.sid}`);
+    res.status(200).send(`Mensaje enviado con éxito a ${to_number}. SID: ${message.sid}`);
+  } catch (error) {
+    console.error('[PRUEBA ERROR] No se pudo enviar el mensaje:', error);
+    res.status(500).send(`Error al enviar el mensaje: ${error.message}`);
+  }
+});
+// --- FIN: NUEVO ENDPOINT PARA PRUEBAS DE ENVÍO ---
 
 app.listen(port, () => {
   console.log(`El servidor se está ejecutando en http://localhost:${port}.`);
