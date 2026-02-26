@@ -1,95 +1,140 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const addActivityBtn = document.getElementById('add-activity-btn');
-    const activitiesContainer = document.getElementById('activities-container');
+    // --- SELECTORES DE ELEMENTOS DEL DOM ---
     const form = document.getElementById('package-form');
-    let activityCounter = 0;
+    const listContainer = document.getElementById('packages-list-container');
+    const activitiesContainer = document.getElementById('activities-container');
+    const addActivityBtn = document.getElementById('add-activity-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    const formTitle = document.getElementById('form-title');
+    const hiddenIdInput = document.getElementById('edit-package-id');
 
-    const createActivityRow = () => {
-        activityCounter++;
+    // --- FUNCIÓN PARA CREAR UNA FILA DE ACTIVIDAD ---
+    const createActivityRow = (activity = { day: '', name: '', responsible: '' }) => {
         const row = document.createElement('div');
         row.classList.add('activity-row');
-        row.setAttribute('data-id', activityCounter);
         row.innerHTML = `
-            <div class="form-group day-input">
-                <label for="day-${activityCounter}">Día</label>
-                <input type="number" id="day-${activityCounter}" name="day" placeholder="Ej: 1" required>
-            </div>
-            <div class="form-group name-input">
-                <label for="activity-name-${activityCounter}">Nombre de la Actividad</label>
-                <input type="text" id="activity-name-${activityCounter}" name="activityName" placeholder="Ej: Limpieza de Lote" required>
-            </div>
-            <div class="form-group responsible-input">
-                <label for="responsible-${activityCounter}">Responsable</label>
-                <input type="text" id="responsible-${activityCounter}" name="responsible" placeholder="Ej: Juan" required>
-            </div>
+            <div class="form-group day-input"><label>Día</label><input type="number" name="day" value="${activity.day}" required></div>
+            <div class="form-group name-input"><label>Nombre</label><input type="text" name="activityName" value="${activity.name}" required></div>
+            <div class="form-group responsible-input"><label>Responsable</label><input type="text" name="responsible" value="${activity.responsible}" required></div>
             <button type="button" class="btn btn-danger remove-activity-btn">Eliminar</button>
         `;
         activitiesContainer.appendChild(row);
     };
 
-    createActivityRow();
-    addActivityBtn.addEventListener('click', createActivityRow);
+    // --- FUNCIÓN PARA RESETEAR EL FORMULARIO ---
+    const resetForm = () => {
+        form.reset();
+        hiddenIdInput.value = '';
+        formTitle.textContent = 'Nuevo Paquete Técnico';
+        cancelEditBtn.style.display = 'none';
+        form.querySelector('button[type="submit"]').textContent = 'Guardar Paquete Técnico';
+        activitiesContainer.innerHTML = '';
+        createActivityRow();
+    };
 
-    activitiesContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-activity-btn')) {
-            e.target.closest('.activity-row').remove();
+    // --- FUNCIÓN PARA OBTENER Y MOSTRAR PAQUETES (VERSIÓN CORREGIDA) ---
+    const fetchAndDisplayPackages = async () => {
+        try {
+            const response = await fetch('/api/packages');
+            if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+            const packages = await response.json();
+            listContainer.innerHTML = '';
+            if (packages.length === 0) {
+                listContainer.innerHTML = '<p>No hay paquetes guardados. ¡Crea el primero!</p>';
+                return;
+            }
+            packages.forEach(pkg => {
+                const card = document.createElement('div');
+                card.classList.add('package-card');
+                card.setAttribute('data-id', pkg.id);
+                card.innerHTML = `
+                    <div class="package-card-header"><h4>${pkg.packageName}</h4><span class="package-card-harvest">${pkg.harvestType} - ${pkg.cropStage}</span></div>
+                    <div class="package-card-actions"><button class="btn btn-sm btn-secondary edit-btn">Editar</button><button class="btn btn-sm btn-danger delete-btn">Eliminar</button></div>
+                `;
+                listContainer.appendChild(card);
+            });
+        } catch (error) {
+            console.error('Error al obtener los paquetes:', error);
+            listContainer.innerHTML = '<p style="color: red;">Error al cargar los paquetes. Intenta recargar la página.</p>';
+        }
+    };
+
+    // --- EVENT LISTENERS ---
+
+    // 1. Clics en la lista (EDITAR / ELIMINAR)
+    listContainer.addEventListener('click', async (e) => {
+        const target = e.target;
+        const packageCard = target.closest('.package-card');
+        if (!packageCard) return;
+        const packageId = packageCard.getAttribute('data-id');
+
+        // LÓGICA DE EDITAR
+        if (target.classList.contains('edit-btn')) {
+            try {
+                const response = await fetch(`/api/packages/${packageId}`);
+                if (!response.ok) throw new Error('No se pudo cargar el paquete para editar.');
+                const pkg = await response.json();
+                hiddenIdInput.value = pkg.id;
+                document.getElementById('package-name').value = pkg.packageName;
+                document.getElementById('harvest-type').value = pkg.harvestType;
+                document.getElementById('crop-stage').value = pkg.cropStage;
+                activitiesContainer.innerHTML = '';
+                pkg.activities.forEach(createActivityRow);
+                formTitle.textContent = 'Editando Paquete Técnico';
+                form.querySelector('button[type="submit"]').textContent = 'Actualizar Paquete';
+                cancelEditBtn.style.display = 'inline-block';
+                window.scrollTo(0, form.offsetTop);
+            } catch (error) { alert(error.message); }
+        }
+
+        // LÓGICA DE ELIMINAR (VERSIÓN CORREGIDA)
+        if (target.classList.contains('delete-btn')) {
+            if (confirm('¿Estás seguro de que quieres eliminar este paquete?')) {
+                try {
+                    const response = await fetch(`/api/packages/${packageId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('El servidor no pudo eliminar el paquete.');
+                    packageCard.remove();
+                } catch (error) { alert(error.message); }
+            }
         }
     });
 
-    // --- LÓGICA DE ENVÍO MODIFICADA PARA MEJOR DEBUGGING ---
+    // 2. Envío del formulario (CREAR o ACTUALIZAR)
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const submitButton = form.querySelector('button[type="submit"]');
-        submitButton.disabled = true;
-        submitButton.textContent = 'Guardando...';
-
+        const isEditing = !!hiddenIdInput.value;
         const packageData = {
             packageName: document.getElementById('package-name').value,
             harvestType: document.getElementById('harvest-type').value,
             cropStage: document.getElementById('crop-stage').value,
-            activities: []
+            activities: Array.from(activitiesContainer.querySelectorAll('.activity-row')).map(row => ({
+                day: row.querySelector('[name="day"]').value,
+                name: row.querySelector('[name="activityName"]').value,
+                responsible: row.querySelector('[name="responsible"]').value
+            }))
         };
-
-        const activityRows = activitiesContainer.querySelectorAll('.activity-row');
-        activityRows.forEach(row => {
-            packageData.activities.push({
-                day: row.querySelector('input[name="day"]').value,
-                name: row.querySelector('input[name="activityName"]').value,
-                responsible: row.querySelector('input[name="responsible"]').value
-            });
-        });
-
         try {
-            const response = await fetch('/api/packages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(packageData),
-            });
+            const url = isEditing ? `/api/packages/${hiddenIdInput.value}` : '/api/packages';
+            const method = isEditing ? 'PUT' : 'POST';
+            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(packageData) });
+            if (!response.ok) throw new Error(`Error al ${isEditing ? 'actualizar' : 'crear'} el paquete.`);
+            resetForm();
+            fetchAndDisplayPackages();
+        } catch (error) { alert(error.message); }
+    });
 
-            const result = await response.json(); // Leer el cuerpo de la respuesta, sea de éxito o de error.
-
-            if (response.ok) {
-                alert('¡Éxito! ' + result.message);
-                form.reset();
-                activitiesContainer.innerHTML = '';
-                createActivityRow();
-            } else {
-                // ¡AQUÍ ESTÁ LA MAGIA!
-                // Si la respuesta es un error, lo mostramos en la consola y en una alerta más detallada.
-                console.error("Error devuelto por el servidor:", result);
-                const detailedError = result.error || result.message;
-                alert(`Error al guardar: ${detailedError}\n\nRevisa la consola del navegador (F12) para ver el objeto de error completo.`);
-            }
-
-        } catch (error) {
-            // Este bloque ahora atrapará errores de red u otros problemas ANTES de obtener una respuesta del servidor.
-            console.error('Error de red o al procesar el fetch:', error);
-            alert('Error de conexión. No se pudo contactar al servidor. Revisa la consola del navegador (F12).');
-        } finally {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Guardar Paquete Técnico';
+    // 3. Otros botones
+    addActivityBtn.addEventListener('click', () => createActivityRow());
+    cancelEditBtn.addEventListener('click', resetForm);
+    activitiesContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-activity-btn')) {
+            if (activitiesContainer.querySelectorAll('.activity-row').length > 1) {
+                e.target.closest('.activity-row').remove();
+            } else { alert('Debe haber al menos una actividad.'); }
         }
     });
+
+    // --- INICIALIZACIÓN ---
+    resetForm();
+    fetchAndDisplayPackages();
 });

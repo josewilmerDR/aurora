@@ -1,6 +1,10 @@
 { pkgs, ... }: {
   channel = "stable-24.05";
-  packages = [ pkgs.nodejs_20 ];
+  # Se añade nodemon para que el servidor se reinicie automáticamente con los cambios.
+  packages = [ 
+    pkgs.nodejs_20
+    pkgs.nodePackages.nodemon
+  ];
   idx = {
     extensions = [ "dbaeumer.vscode-eslint" ];
     workspace = {
@@ -10,10 +14,11 @@
       onStart = {}; 
     };
     previews = {
-      enable = true; # Corrección: Cambiado , por ;
+      enable = true;
       previews = {
         web = {
-          command = ["node" "index.js"];
+          # Se usa nodemon para que el servidor se actualice al detectar cambios en el código.
+          command = ["nodemon" "index.js"];
           manager = "web";
         };
       };
