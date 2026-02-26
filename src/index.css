@@ -1,0 +1,6 @@
+body { font-family: sans-serif; padding: 20px; }
+.package-list, .package-form { border: 1px solid #ccc; padding: 15px; margin-top: 20px; border-radius: 5px; }
+.package-card { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+.activity-row { display: flex; gap: 10px; margin-bottom: 10px; }
+input { padding: 8px; border: 1px solid #ccc; border-radius: 3px; }
+button { padding: 8px 12px; border-radius: 3px; cursor: pointer; border: 1px solid transparent; }
