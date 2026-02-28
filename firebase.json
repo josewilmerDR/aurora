@@ -4,6 +4,7 @@
     "source": "functions"
   },
   "hosting": {
+    "site": "aurora-7dc9b",
     "public": "dist",
     "ignore": [
       "firebase.json",

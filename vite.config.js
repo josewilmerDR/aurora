@@ -9,9 +9,9 @@ export default defineConfig({
     // al Firebase Hosting Emulator que corre en el puerto 5000.
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5001',
         changeOrigin: true,
-        secure: false,
+        rewrite: (path) => `/aurora-7dc9b/us-central1/api${path}`,
       },
     },
   },

@@ -14,7 +14,7 @@ const twilioWhatsappFrom = defineSecret("TWILIO_WHATSAPP_FROM");
 // --- INICIALIZACIÓN UNIVERSAL DE CLIENTES ---
 // Se inicializa sin parámetros para que funcione tanto en el emulador como en producción.
 admin.initializeApp();
-const db = getFirestore();
+const db = getFirestore(admin.app(), 'auroradatabase');
 
 // El cliente de Twilio se declarará y se inicializará "perezosamente" (lazy)
 // solo cuando sea necesario, para evitar errores de despliegue.
@@ -24,7 +24,7 @@ const app = express();
 const ID_FINCA_ACTUAL = 'finca_aurora_test';
 
 // URL de la app desplegada (¡IMPORTANTE!)
-const APP_URL = 'https://studio-1637802616-92118.web.app';
+const APP_URL = 'https://aurora-7dc9b.web.app';
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());

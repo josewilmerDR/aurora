@@ -13,7 +13,7 @@ function Dashboard() {
   const getTaskStatus = (task) => {
     if (task.status === 'completed_by_user') return 'completed';
     const today = new Date();
-    const dueDate = new Date(task.dueDate._seconds * 1000);
+    const dueDate = new Date(task.dueDate);
     const dueDateDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     if (dueDateDay < todayDay) return 'overdue';
@@ -41,7 +41,7 @@ function Dashboard() {
             }
         });
 
-      pendingTasks.sort((a, b) => a.dueDate._seconds - b.dueDate._seconds);
+      pendingTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
       setStats(taskStats);
       setUpcomingTasks(pendingTasks.slice(0, 5));
@@ -97,7 +97,7 @@ function Dashboard() {
                     <div className="item-main-text">{task.activityName}</div>
                     <div className="item-sub-text">Lote: {task.loteName}</div>
                   </div>
-                  <div className="item-sub-text">{new Date(task.dueDate._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</div>
+                  <div className="item-sub-text">{new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</div>
                 </li>
               ))}
             </ul>

@@ -21,7 +21,7 @@ function TaskTracking() {
     fetch('/api/tasks')
       .then(res => res.ok ? res.json() : Promise.reject('Error de red'))
       .then(data => {
-        data.sort((a, b) => a.dueDate._seconds - b.dueDate._seconds);
+        data.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
         setTasks(data);
       })
       .catch(err => setError(err.toString()))
@@ -33,7 +33,7 @@ function TaskTracking() {
       return { text: 'Hecha', className: 'status-completed', key: 'completed' };
     }
     const today = new Date();
-    const dueDate = new Date(task.dueDate._seconds * 1000);
+    const dueDate = new Date(task.dueDate);
     const dueDateDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     if (dueDateDay < todayDay) {
@@ -59,7 +59,7 @@ function TaskTracking() {
             <span className="task-detail"><strong>Responsable:</strong> {task.responsableName}</span>
         </div>
         <div className="task-card-footer">
-            <span>{new Date(task.dueDate._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
+            <span>{new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
             <span className="task-status-badge">{task.displayStatus.text}</span>
         </div>
     </div>
