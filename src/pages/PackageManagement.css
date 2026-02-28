@@ -1,0 +1,45 @@
+/* Reutilizamos el layout de LoteManagement */
+@import url('./LoteManagement.css');
+
+/* Estilos específicos para la tabla de actividades */
+.activities-table {
+  margin-top: 20px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.activities-table th,
+.activities-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.activities-table th {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+/* Ajustamos el ancho de las columnas */
+.activities-table .col-day { width: 80px; }
+.activities-table .col-name { width: auto; }
+.activities-table .col-user { width: 150px; }
+.activities-table .col-action { width: 50px; text-align: right; }
+
+.activities-table input,
+.activities-table select {
+  width: 100%;
+  padding: 8px; /* Un poco más pequeño para que quepa en la tabla */
+}
+
+.add-activity-btn-container {
+    margin-top: 15px;
+}
+
+/* Estilos para el listado de paquetes */
+.package-sub-info {
+    font-size: 0.9em;
+    color: var(--aurora-light);
+    opacity: 0.6;
+}

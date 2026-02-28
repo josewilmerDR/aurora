@@ -1,22 +1,30 @@
-# Dependencies
+# Dependencias
 /node_modules
+/functions/node_modules
 
-# Environment variables
-.env
+# Archivos de build
+/dist
 
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+ui-debug.log
 
-# Editor directories and files
-.vscode
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
+# Archivos de entorno locales (¡MUY IMPORTANTE!)
+.env
+.env.*
+!/.env.example
+/functions/.env.local
 
-# OS-specific files
+# Datos y caché de Firebase
+.firebase/
+.firebaserc
+
+# Archivos del sistema operativo
 .DS_Store
-Thumbs.db
+
+# Archivos de configuración del editor
+.vscode/
+.idea/

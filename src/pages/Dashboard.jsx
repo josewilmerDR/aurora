@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import './Dashboard.css'; // Importamos los nuevos estilos del Dashboard
 
 function Dashboard() {
   const [stats, setStats] = useState({ overdue: 0, pending: 0, completed: 0 });
@@ -8,19 +9,14 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Lógica para determinar el estado, similar a TaskTracking
+  // La lógica para obtener el estado de la tarea se mantiene igual
   const getTaskStatus = (task) => {
-    if (task.status === 'completed_by_user') {
-      return 'completed';
-    }
+    if (task.status === 'completed_by_user') return 'completed';
     const today = new Date();
     const dueDate = new Date(task.dueDate._seconds * 1000);
     const dueDateDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-    if (dueDateDay < todayDay) {
-      return 'overdue';
-    }
+    if (dueDateDay < todayDay) return 'overdue';
     return 'pending';
   };
 
@@ -30,24 +26,21 @@ function Dashboard() {
       fetch('/api/tasks').then(res => res.json()),
       fetch('/api/lotes').then(res => res.json())
     ]).then(([tasksData, lotesData]) => {
-      
-      // 1. Calcular estadísticas de tareas
       const taskStats = { overdue: 0, pending: 0, completed: 0 };
       const pendingTasks = [];
 
       tasksData
-        .filter(task => task.type !== 'REMINDER_3_DAY') // Excluir recordatorios
+        .filter(task => task.type !== 'REMINDER_3_DAY')
         .forEach(task => {
             const status = getTaskStatus(task);
             if (status === 'completed') taskStats.completed++;
             else if (status === 'overdue') taskStats.overdue++;
             else {
                 taskStats.pending++;
-                pendingTasks.push(task); // Guardar para la lista de próximas tareas
+                pendingTasks.push(task);
             }
         });
 
-      // 2. Ordenar tareas pendientes por fecha y obtener las próximas 5
       pendingTasks.sort((a, b) => a.dueDate._seconds - b.dueDate._seconds);
 
       setStats(taskStats);
@@ -57,68 +50,77 @@ function Dashboard() {
 
     }).catch(err => {
       console.error("Error fetching dashboard data:", err);
-      setError("No se pudieron cargar los datos del dashboard. Revisa la consola para más detalles.");
+      setError("No se pudieron cargar los datos del dashboard.");
       setLoading(false);
     });
   }, []);
 
   if (loading) {
-    return <div>Cargando panel de control...</div>;
+    return <div>Cargando...</div>;
   }
 
   if (error) {
-    return <p>{error}</p>;
+    return <div className="empty-state">{error}</div>;
   }
 
   return (
-    <div className="dashboard-container">
-      <h2>Panel de Control</h2>
+    <div>
+      <div className="dashboard-header">
+        <h1>Panel de Control</h1>
+      </div>
       
-      <div className="summary-cards">
-        <Link to="/tasks?filter=overdue" className="summary-card status-overdue">
-          <h3>{stats.overdue}</h3>
-          <p>Tareas Vencidas</p>
+      {/* Tarjetas de Estadísticas */}
+      <div className="dashboard-grid">
+        <Link to="/tasks?filter=overdue" className="stat-card overdue">
+          <div className="count">{stats.overdue}</div>
+          <div className="label">Tareas Vencidas</div>
         </Link>
-        <Link to="/tasks?filter=pending" className="summary-card status-pending">
-          <h3>{stats.pending}</h3>
-          <p>Tareas Pendientes</p>
+        <Link to="/tasks?filter=pending" className="stat-card pending">
+          <div className="count">{stats.pending}</div>
+          <div className="label">Tareas Pendientes</div>
         </Link>
-        <Link to="/tasks?filter=completed" className="summary-card status-completed">
-          <h3>{stats.completed}</h3>
-          <p>Tareas Hechas</p>
+        <Link to="/tasks?filter=completed" className="stat-card completed">
+          <div className="count">{stats.completed}</div>
+          <div className="label">Tareas Hechas</div>
         </Link>
       </div>
 
-      <div className="dashboard-columns">
-        <div className="column-upcoming-tasks">
-          <h3>Próximas 5 Tareas Pendientes</h3>
+      {/* Columnas de Información */}
+      <div className="dashboard-columns-grid">
+        <div className="info-card">
+          <h3>Próximas 5 Tareas</h3>
           {upcomingTasks.length > 0 ? (
-            <ul className="upcoming-tasks-list">
+            <ul className="info-list">
               {upcomingTasks.map(task => (
                 <li key={task.id}>
-                  <strong>{task.activityName}</strong> (Lote: {task.loteName})
-                  <span>Vence: {new Date(task.dueDate._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
+                  <div>
+                    <div className="item-main-text">{task.activityName}</div>
+                    <div className="item-sub-text">Lote: {task.loteName}</div>
+                  </div>
+                  <div className="item-sub-text">{new Date(task.dueDate._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</div>
                 </li>
               ))}
             </ul>
           ) : (
-            <p>No hay tareas pendientes.</p>
+            <p className="empty-state">¡Todo al día!</p>
           )}
         </div>
 
-        <div className="column-active-lotes">
+        <div className="info-card">
           <h3>Lotes Activos</h3>
           {lotes.length > 0 ? (
-            <ul className="active-lotes-list">
-                {lotes.map(lote => (
-                    <li key={lote.id}>
-                        <strong>{lote.nombreLote}</strong>
-                        <span>Creado: {new Date(lote.fechaCreacion._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
-                    </li>
-                ))}
+            <ul className="info-list">
+              {lotes.map(lote => (
+                  <li key={lote.id}>
+                      <div className="item-main-text">{lote.nombreLote}</div>
+                      <div className="item-sub-text">
+                        Creado: {new Date(lote.fechaCreacion._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}
+                      </div>
+                  </li>
+              ))}
             </ul>
           ) : (
-             <p>No hay lotes creados.</p>
+             <p className="empty-state">No hay lotes creados.</p>
           )}
         </div>
       </div>

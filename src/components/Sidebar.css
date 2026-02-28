@@ -1,0 +1,91 @@
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background-color: var(--aurora-background);
+  border-right: 1px solid var(--aurora-border);
+  transition: width 0.3s ease;
+}
+
+.sidebar-header {
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.sidebar-logo-text {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--aurora-green);
+  letter-spacing: 4px;
+}
+
+.sidebar-links {
+  flex-grow: 1;
+  padding-top: 15px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  color: var(--aurora-light);
+  transition: background-color 0.2s, color 0.2s;
+  white-space: nowrap; /* Evita que el texto se parta en dos líneas */
+  overflow: hidden; /* Oculta el texto que desborda */
+}
+
+.sidebar-link:hover {
+  background-color: rgba(51, 255, 153, 0.1);
+}
+
+.sidebar-link.active {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  font-weight: 600;
+}
+
+.sidebar-link svg {
+  min-width: 22px; /* Asegura que el icono siempre tenga espacio */
+  margin-right: 20px;
+}
+
+.sidebar-footer {
+  padding-bottom: 15px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+/* --- Estilos para móviles --- */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 70px;
+  }
+
+  .sidebar .link-text,
+  .sidebar-logo-text {
+    /* Ocultamos el texto y solo dejamos el ícono/logo corto */
+    opacity: 0;
+    width: 0;
+    pointer-events: none; /* No se puede interactuar con el texto oculto */
+  }
+
+  .sidebar-logo-text {
+    /* Ajustamos el logo para la vista colapsada */
+    font-size: 1.5rem;
+    opacity: 1;
+    width: auto;
+  }
+
+  .sidebar-link {
+    justify-content: center;
+  }
+
+  .sidebar-link svg {
+    margin-right: 0;
+  }
+}

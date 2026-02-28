@@ -1,20 +1,31 @@
-require('dotenv').config();
+
+const functions = require("firebase-functions");
+const { defineSecret } = require("firebase-functions/params");
 const express = require('express');
 const twilio = require('twilio');
 const admin = require('firebase-admin');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 
-// --- INICIALIZACIÓN DE CLIENTES ---
-admin.initializeApp({ projectId: 'studio-1637802616-92118' });
-const db = getFirestore('auroradatabase');
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+// --- DEFINICIÓN DE SECRETOS CON EL NUEVO SISTEMA "PARAMS" ---
+const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
+const twilioAuthToken = defineSecret("TWILIO_AUTH_TOKEN");
+const twilioWhatsappFrom = defineSecret("TWILIO_WHATSAPP_FROM");
+
+// --- INICIALIZACIÓN UNIVERSAL DE CLIENTES ---
+// Se inicializa sin parámetros para que funcione tanto en el emulador como en producción.
+admin.initializeApp();
+const db = getFirestore();
+
+// El cliente de Twilio se declarará y se inicializará "perezosamente" (lazy)
+// solo cuando sea necesario, para evitar errores de despliegue.
+let twilioClient;
 
 const app = express();
-const port = process.env.PORT || 3000;
 const ID_FINCA_ACTUAL = 'finca_aurora_test';
-const APP_URL = process.env.APP_URL || 'http://localhost:5173'; // URL base de tu frontend
 
-app.use(express.static('dist')); // Servir los archivos del frontend desde 'dist'
+// URL de la app desplegada (¡IMPORTANTE!)
+const APP_URL = 'https://studio-1637802616-92118.web.app';
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -42,7 +53,7 @@ const enrichTask = async (taskDoc) => {
     loteName: lote ? lote.nombreLote : 'Lote no encontrado',
     responsableName: responsable ? responsable.nombre : 'Usuario no encontrado',
     responsableTel: responsable ? responsable.telefono : 'Sin teléfono',
-    dueDate: task.executeAt.toDate().toISOString(), // Usar ISO para consistencia
+    dueDate: task.executeAt.toDate().toISOString(),
     status: task.status,
     type: task.type,
     ...task,
@@ -62,45 +73,35 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-// NUEVO ENDPOINT: Obtener una sola tarea por ID
 app.get('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const taskDoc = await db.collection('scheduled_tasks').doc(id).get();
-
     if (!taskDoc.exists) {
       return res.status(404).json({ message: 'Tarea no encontrada.' });
     }
-
     const enrichedTask = await enrichTask(taskDoc);
     res.status(200).json(enrichedTask);
-
   } catch (error) {
     console.error(`Error fetching task ${req.params.id}:`, error);
     res.status(500).json({ message: 'Error al obtener la tarea.' });
   }
 });
 
-// NUEVO ENDPOINT: Actualizar una tarea (ej. para cambiar estado)
 app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-
-    // No permitir que se actualicen campos críticos
     delete updateData.id;
     delete updateData.loteId;
     delete updateData.fincaId;
-
     await db.collection('scheduled_tasks').doc(id).update(updateData);
     res.status(200).json({ id, ...updateData });
-
   } catch (error) {
     console.error(`Error updating task ${req.params.id}:`, error);
     res.status(500).json({ message: 'Error al actualizar la tarea.' });
   }
 });
-
 
 // --- API ENDPOINTS: USERS ---
 app.get('/api/users', async (req, res) => {
@@ -204,13 +205,19 @@ app.get('/api/lotes', async (req, res) => {
 // LÓGICA DE NOTIFICACIÓN CON ENLACE
 const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
   try {
+    // Se inicializa el cliente de Twilio aquí, solo cuando se va a usar.
+    // Esto asegura que .value() se llama en tiempo de ejecución.
+    if (!twilioClient) {
+      twilioClient = twilio(twilioAccountSid.value(), twilioAuthToken.value());
+    }
+
     const userDoc = await db.collection('users').doc(taskData.activity.responsableId).get();
     if (!userDoc.exists || !userDoc.data().telefono) return;
 
     const userData = userDoc.data();
     const cleanPhoneNumber = userData.telefono.replace(/\s+/g, '');
     const to = `whatsapp:${cleanPhoneNumber}`;
-    const from = `whatsapp:${process.env.TWILIO_WHATSAPP_FROM}`;
+    const from = `whatsapp:${twilioWhatsappFrom.value()}`;
 
     let messageIntro;
     const activityDay = parseInt(taskData.activity.day);
@@ -225,7 +232,7 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
     const body = `${messageIntro}\n*Actividad:* \"${taskData.activity.name}\"\n*Lote:* ${loteNombre}\n\n*Gestiona esta tarea aquí:*\n${taskUrl}`;
     
     await twilioClient.messages.create({ body, from, to });
-    await taskRef.update({ status: 'notified' }); // Marcar como notificada
+    await taskRef.update({ status: 'notified' });
     console.log(`Notificación con ENLACE enviada para tarea ${taskRef.id} a ${cleanPhoneNumber}`);
 
   } catch (error) {
@@ -287,9 +294,6 @@ app.post('/api/lotes', async (req, res) => {
 });
 
 app.put('/api/lotes/:id', async (req, res) => {
-    // Esta función ahora es mucho más compleja si se quiere re-notificar, por simplicidad, 
-    // la modificación de un lote simplemente recreará las tareas pero no enviará notificaciones inmediatas.
-    // El cron job se encargará de ellas.
     try {
         const { id } = req.params;
         const loteData = { ...req.body };
@@ -360,53 +364,8 @@ app.delete('/api/lotes/:id', async (req, res) => {
     }
 });
 
-// --- PROCESO CRON MEJORADO ---
-async function processScheduledTasks() {
-    const now = Timestamp.now();
-    const query = db.collection('scheduled_tasks').where('status', '==', 'pending').where('executeAt', '<=', now);
+// El cron job se elimina de aquí. Debería ser una función separada
+// con un trigger de schedule si es necesario.
 
-    try {
-        const snapshot = await query.get();
-        if (snapshot.empty) return;
-
-        for (const doc of snapshot.docs) {
-            const task = doc.data();
-            const loteDoc = await db.collection('lotes').doc(task.loteId).get();
-            if (!loteDoc.exists) continue;
-            const loteNombre = loteDoc.data().nombreLote;
-            
-            if (task.type === 'REMINDER_3_DAY') {
-                // Lógica de recordatorio de 3 días (se mantiene simple)
-                // A futuro se podría cambiar para que también use un enlace
-                const userDoc = await db.collection('users').doc(task.activity.responsableId).get();
-                if (!userDoc.exists || !userDoc.data().telefono) continue;
-                const userData = userDoc.data();
-                const cleanPhoneNumber = userData.telefono.replace(/\s+/g, '');
-                const to = `whatsapp:${cleanPhoneNumber}`;
-                const from = `whatsapp:${process.env.TWILIO_WHATSAPP_FROM}`;
-                const body = `Hola ${userData.nombre}, te recordamos que en 3 días tienes que realizar la actividad: \"${task.activity.name}\".`;
-                await twilioClient.messages.create({ body, from, to });
-                await doc.ref.update({ status: 'completed' });
-
-            } else if (task.type === 'REMINDER_DUE_DAY') {
-                // La notificación del día de vencimiento ahora también usa un enlace
-                await sendNotificationWithLink(doc.ref, task, loteNombre);
-            }
-        }
-    } catch (error) {
-        console.error('[CRON ERROR]', error);
-    }
-}
-
-setInterval(processScheduledTasks, 60000); // Se puede espaciar más, ej. 1 minuto
-processScheduledTasks();
-
-// --- SERVIDOR WEB ---
-// Una ruta catch-all para servir index.html en una SPA (Single Page Application)
-app.get('*', (req, res) => {
-  res.sendFile(__dirname + '/dist/index.html');
-});
-
-app.listen(port, () => {
-  console.log(`Servidor escuchando en http://localhost:${port}.`);
-});
+// Se exporta la app de Express, inyectando los secretos necesarios.
+exports.api = functions.runWith({ secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom] }).https.onRequest(app);

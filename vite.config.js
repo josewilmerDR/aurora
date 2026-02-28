@@ -6,10 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // Configuración del proxy para redirigir las llamadas a la API
-    // al backend que se ejecuta en el puerto 3000.
+    // al Firebase Hosting Emulator que corre en el puerto 5000.
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
       },

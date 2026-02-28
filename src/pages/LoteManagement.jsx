@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import './LoteManagement.css'; // Importamos los nuevos estilos
+import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi'; // Importamos iconos
 
 function LoteManagement() {
   const [lotes, setLotes] = useState([]);
@@ -11,35 +13,24 @@ function LoteManagement() {
     paqueteId: ''
   });
 
-  // Cargar datos iniciales
+  // --- LÓGICA DE DATOS (sin cambios) ---
   const fetchLotes = () => {
-    fetch('/api/lotes')
-      .then(res => res.json())
-      .then(data => setLotes(data))
-      .catch(err => console.error("Error fetching lotes:", err));
+    fetch('/api/lotes').then(res => res.json()).then(setLotes).catch(console.error);
   };
-
   const fetchPackages = () => {
-    fetch('/api/packages')
-      .then(res => res.json())
-      .then(data => setPackages(data))
-      .catch(err => console.error("Error fetching packages:", err));
+    fetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
   };
-
   useEffect(() => {
     fetchLotes();
     fetchPackages();
   }, []);
 
-  // Convertir timestamp a formato YYYY-MM-DD para el input[type=date]
   const formatDateForInput = (timestamp) => {
     const date = new Date(timestamp._seconds * 1000);
-    // Ajustar por la zona horaria para evitar el día anterior
     date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
     return date.toISOString().split('T')[0];
   }
 
-  // Manejadores de eventos
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -62,76 +53,95 @@ function LoteManagement() {
   };
 
   const handleDelete = async (loteId) => {
-    if (confirm('¿Seguro que quieres eliminar este lote? Todas sus tareas programadas también se borrarán.')) {
+    if (window.confirm('¿Seguro que quieres eliminar este lote? Todas sus tareas también se borrarán.')) {
       try {
-        const response = await fetch(`/api/lotes/${loteId}`, { method: 'DELETE' });
-        if (!response.ok) throw new Error('Error al eliminar el lote');
-        fetchLotes(); // Recargar lista
+        const res = await fetch(`/api/lotes/${loteId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Error al eliminar');
+        fetchLotes();
       } catch (error) {
-        console.error("Delete lote error:", error);
-        alert('Error al eliminar.');
+        alert('Error al eliminar el lote.');
       }
     }
   };
 
-  // Submit (Crear o Actualizar)
   const handleSubmit = async (e) => {
     e.preventDefault();
     const url = isEditing ? `/api/lotes/${formData.id}` : '/api/lotes';
     const method = isEditing ? 'PUT' : 'POST';
-
     try {
-      const response = await fetch(url, {
-        method,
+      const res = await fetch(url, { 
+        method, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-
-      if (!response.ok) throw new Error(isEditing ? 'Error al actualizar' : 'Error al crear');
-      
+      if (!res.ok) throw new Error('Error al guardar el lote');
       fetchLotes();
       resetForm();
-
     } catch (error) {
-      console.error("Submit lote error:", error);
       alert('Ocurrió un error al guardar.');
     }
   };
+  // --- FIN DE LA LÓGICA ---
 
   return (
-    <div>
-      <h2>Gestión de Lotes</h2>
-
-      <form onSubmit={handleSubmit} className="lote-form">
-        <h3>{isEditing ? 'Editando Lote' : 'Crear Nuevo Lote'}</h3>
-        <input name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} placeholder="Nombre del Lote" required />
-        <input name="fechaCreacion" value={formData.fechaCreacion} onChange={handleInputChange} type="date" required />
-        <select name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} required>
-          <option value="">-- Seleccionar Paquete --</option>
-          {packages.map(pkg => (
-            <option key={pkg.id} value={pkg.id}>{pkg.nombrePaquete}</option>
-          ))}
-        </select>
-        <button type="submit">{isEditing ? 'Actualizar Lote' : 'Crear y Programar'}</button>
-        {isEditing && <button type="button" onClick={resetForm}>Cancelar Edición</button>}
-      </form>
-
-      <hr />
-
-      <div className="lote-list">
-        <h3>Lotes Existentes</h3>
-        {lotes.map(lote => (
-          <div key={lote.id} className="lote-card">
-             <div>
-                <p><strong>Nombre:</strong> {lote.nombreLote}</p>
-                <p><strong>Fecha Creación:</strong> {new Date(lote.fechaCreacion._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</p>
-             </div>
-             <div className="user-actions">
-                <button onClick={() => handleEdit(lote)}>Editar</button>
-                <button onClick={() => handleDelete(lote.id)}>Eliminar</button>
+    <div className="lote-management-layout">
+      {/* --- TARJETA DEL FORMULARIO --- */}
+      <div className="form-card">
+        <h2>{isEditing ? 'Editando Lote' : 'Crear Nuevo Lote'}</h2>
+        <form onSubmit={handleSubmit} className="lote-form">
+          <div className="form-grid">
+            <div className="form-control">
+              <label htmlFor="nombreLote">Nombre del Lote</label>
+              <input id="nombreLote" name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} required />
+            </div>
+            <div className="form-control">
+              <label htmlFor="fechaCreacion">Fecha de Creación</label>
+              <input id="fechaCreacion" name="fechaCreacion" value={formData.fechaCreacion} onChange={handleInputChange} type="date" required />
+            </div>
+            <div className="form-control">
+              <label htmlFor="paqueteId">Paquete de Tareas</label>
+              <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} required>
+                <option value="">-- Seleccionar Paquete --</option>
+                {packages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.nombrePaquete}</option>)}
+              </select>
             </div>
           </div>
-        ))}
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary">
+              <FiPlus />
+              {isEditing ? 'Actualizar Lote' : 'Crear y Programar'}
+            </button>
+            {isEditing && (
+              <button type="button" onClick={resetForm} className="btn btn-secondary">
+                Cancelar
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {/* --- TARJETA DE LA LISTA --- */}
+      <div className="list-card">
+        <h2>Lotes Existentes</h2>
+        <ul className="info-list">
+          {lotes.map(lote => (
+            <li key={lote.id}>
+              <div>
+                <div className="item-main-text">{lote.nombreLote}</div>
+                <div className="item-sub-text">Creado: {new Date(lote.fechaCreacion._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</div>
+              </div>
+              <div className="lote-actions">
+                <button onClick={() => handleEdit(lote)} className="icon-btn" title="Editar">
+                  <FiEdit size={18} />
+                </button>
+                <button onClick={() => handleDelete(lote.id)} className="icon-btn delete" title="Eliminar">
+                  <FiTrash2 size={18} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {lotes.length === 0 && <p className="empty-state">No hay lotes creados.</p>}
       </div>
     </div>
   );

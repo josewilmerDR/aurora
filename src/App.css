@@ -1,0 +1,37 @@
+.app-layout {
+  display: flex;
+}
+
+.content-area {
+  flex-grow: 1;
+  padding: 30px;
+  margin-left: 250px; /* Ancho de la Sidebar en escritorio */
+  transition: margin-left 0.3s ease;
+}
+
+/* Nuevo Header Principal */
+.main-header {
+  margin-bottom: 25px;
+}
+
+.main-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.page-content {
+  /* Este div contendrá el contenido específico de la página (las tarjetas, etc) */
+}
+
+/* En pantallas pequeñas, el contenido se desplaza menos para acomodar la sidebar colapsada */
+@media (max-width: 768px) {
+  .content-area {
+    margin-left: 70px; /* Ancho de la Sidebar en móvil */
+    padding: 15px;
+  }
+
+  .main-header h1 {
+    font-size: 1.5rem;
+  }
+}

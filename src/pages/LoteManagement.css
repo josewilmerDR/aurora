@@ -1,0 +1,121 @@
+/* Contenedor principal para alinear el formulario y la lista */
+.lote-management-layout {
+  display: grid;
+  grid-template-columns: 1fr; /* Una columna por defecto */
+  gap: 30px;
+}
+
+/* Estilos para el formulario y la lista, reutilizando la clase info-card */
+.form-card,
+.list-card {
+  background-color: var(--aurora-background);
+  padding: 25px;
+  border-radius: 8px;
+  border: 1px solid var(--aurora-border);
+}
+
+.form-card h2, .list-card h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--aurora-border);
+  padding-bottom: 10px;
+}
+
+/* Estilos para el formulario */
+.lote-form .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.form-control {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-control label {
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.9;
+}
+
+.form-control input,
+.form-control select {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  padding: 12px;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.form-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 15px;
+}
+
+/* Estilos para los botones */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+}
+
+.btn-secondary {
+  background-color: var(--aurora-border);
+  color: var(--aurora-light);
+}
+
+.btn-danger {
+  background-color: var(--aurora-magenta);
+  color: var(--aurora-light);
+}
+
+/* Estilos para la lista de lotes */
+.lote-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  transition: color 0.2s, opacity 0.2s;
+}
+
+.icon-btn:hover {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+.icon-btn.delete:hover {
+  color: var(--aurora-magenta);
+}
+
+/* En pantallas más grandes, colocar formulario y lista lado a lado */
+@media (min-width: 1200px) {
+  .lote-management-layout {
+    grid-template-columns: 400px 1fr; /* Formulario a la izquierda, lista a la derecha */
+  }
+}

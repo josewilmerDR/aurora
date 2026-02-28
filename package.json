@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "emulators": "firebase emulators:start --import=./.firebase/emulators-data --export-on-exit=./.firebase/emulators-data"
   },
   "dependencies": {
     "@google/generative-ai": "^0.11.2",
@@ -15,6 +16,7 @@
     "firebase-admin": "^11.10.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.13.1",
     "twilio": "^4.14.1"
   },

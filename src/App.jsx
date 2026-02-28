@@ -1,33 +1,47 @@
-import { BrowserRouter as Router, Routes, Route, Link, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import UserManagement from './pages/UserManagement';
 import PackageManagement from './pages/PackageManagement';
 import LoteManagement from './pages/LoteManagement';
 import TaskTracking from './pages/TaskTracking';
 import Dashboard from './pages/Dashboard';
-import TaskAction from './pages/TaskAction'; // Importar la nueva página
+import TaskAction from './pages/TaskAction';
+import Sidebar from './components/Sidebar';
+
 import './index.css';
+import './App.css';
+
+// Mapeo de rutas a títulos
+const routeTitles = {
+  '/': 'Panel de Control',
+  '/users': 'Gestión de Usuarios',
+  '/packages': 'Gestión de Paquetes',
+  '/lotes': 'Gestión de Lotes',
+  '/tasks': 'Seguimiento de Tareas'
+};
 
 // --- Layouts ---
 
-// 1. Layout Principal con la barra de navegación
-const MainLayout = () => (
-  <div className="App">
-    <nav>
-      <ul>
-        <li><Link to="/">Panel de Control</Link></li>
-        <li><Link to="/packages">Gestión de Paquetes</Link></li>
-        <li><Link to="/users">Gestión de Usuarios</Link></li>
-        <li><Link to="/lotes">Gestión de Lotes</Link></li>
-        <li><Link to="/tasks">Seguimiento de Tareas</Link></li>
-      </ul>
-    </nav>
-    <main>
-      <Outlet /> 
-    </main>
-  </div>
-);
+// 1. Nuevo Layout Principal con Sidebar y Header dinámico
+const MainLayout = () => {
+  const location = useLocation();
+  const title = routeTitles[location.pathname] || 'Aurora';
 
-// 2. Layout Sencillo, sin navegación, para páginas de acción directa
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <main className="content-area">
+        <header className="main-header">
+          <h1>{title}</h1>
+        </header>
+        <div className="page-content">
+          <Outlet /> 
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// 2. Layout Sencillo, sin navegación (se mantiene igual)
 const SimpleLayout = () => (
     <div className="SimpleApp">
         <main>
@@ -42,7 +56,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* 3. Rutas que usan el Layout Principal (con navegación) */}
+        {/* 3. Rutas que usan el Layout Principal con Sidebar */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<Dashboard />} /> 
           <Route path="/users" element={<UserManagement />} />
@@ -51,8 +65,8 @@ function App() {
           <Route path="/tasks" element={<TaskTracking />} />
         </Route>
 
-        {/* 4. Rutas que usan el Layout Sencillo (sin navegación) */}
-        <Route element={<SimpleLayout />}>
+        {/* 4. Rutas que usan el Layout Sencillo (se mantiene igual) */}
+        <Route element={<SimpleLayout />}>\
             <Route path="/task/:taskId" element={<TaskAction />} />
         </Route>
       </Routes>
