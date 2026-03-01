@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import './PackageManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiX } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye } from 'react-icons/fi';
 
 function PackageManagement() {
   const [packages, setPackages] = useState([]);
   const [users, setUsers] = useState([]);
   const [productos, setProductos] = useState([]);
+  const [plantillas, setPlantillas] = useState([]);
   const [formData, setFormData] = useState({
     id: null,
     nombrePaquete: '',
@@ -14,11 +15,13 @@ function PackageManagement() {
     activities: []
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [expandedActivities, setExpandedActivities] = useState(new Set());
 
   useEffect(() => {
     fetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
     fetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
     fetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
+    fetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
   }, []);
 
   const handleInputChange = (e) => {
@@ -31,6 +34,7 @@ function PackageManagement() {
     updatedActivities[index] = { ...updatedActivities[index], [field]: value };
     if (field === 'type' && value === 'notificacion') {
       updatedActivities[index].productos = [];
+      setExpandedActivities(prev => { const next = new Set(prev); next.delete(index); return next; });
     }
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
   };
@@ -44,6 +48,20 @@ function PackageManagement() {
 
   const removeActivity = (index) => {
     setFormData(prev => ({ ...prev, activities: prev.activities.filter((_, i) => i !== index) }));
+    setExpandedActivities(prev => {
+      const next = new Set();
+      prev.forEach(i => { if (i < index) next.add(i); else if (i > index) next.add(i - 1); });
+      return next;
+    });
+  };
+
+  const toggleActivityExpand = (index) => {
+    setExpandedActivities(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   };
 
   const addProductToActivity = (activityIndex, productoId) => {
@@ -90,6 +108,33 @@ function PackageManagement() {
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
   };
 
+  const aplicarPlantillaAActividad = (activityIndex, plantillaId) => {
+    const plantilla = plantillas.find(p => p.id === plantillaId);
+    if (!plantilla) return;
+    const productosDeActividad = plantilla.productos
+      .map(tp => {
+        const cat = productos.find(p => p.id === tp.productoId);
+        if (!cat) return null;
+        return {
+          productoId: cat.id,
+          nombreComercial: cat.nombreComercial,
+          cantidadPorHa: tp.cantidad || 0,
+          unidad: cat.unidad,
+          periodoReingreso: cat.periodoReingreso,
+          periodoACosecha: cat.periodoACosecha,
+        };
+      })
+      .filter(Boolean);
+    const updatedActivities = [...formData.activities];
+    updatedActivities[activityIndex] = {
+      ...updatedActivities[activityIndex],
+      responsableId: plantilla.responsableId || updatedActivities[activityIndex].responsableId,
+      productos: productosDeActividad,
+    };
+    setFormData(prev => ({ ...prev, activities: updatedActivities }));
+    setExpandedActivities(prev => new Set(prev).add(activityIndex));
+  };
+
   const handleEdit = (pkg) => {
     const normalizedActivities = (pkg.activities || []).map(a => ({
       type: 'notificacion',
@@ -98,12 +143,14 @@ function PackageManagement() {
     }));
     setFormData({ ...pkg, activities: normalizedActivities });
     setIsEditing(true);
+    setExpandedActivities(new Set());
     window.scrollTo(0, 0);
   };
 
   const resetForm = () => {
     setFormData({ id: null, nombrePaquete: '', tipoCosecha: '', etapaCultivo: '', activities: [] });
     setIsEditing(false);
+    setExpandedActivities(new Set());
   };
 
   const handleSubmit = async (e) => {
@@ -192,16 +239,42 @@ function PackageManagement() {
                         </select>
                       </td>
                       <td>
-                        <button type="button" onClick={() => removeActivity(index)} className="icon-btn delete" title="Eliminar Actividad">
-                          <FiX size={16} />
-                        </button>
+                        <div className="activity-row-actions">
+                          <button type="button" onClick={() => removeActivity(index)} className="icon-btn pkg-action-btn" title="Eliminar Actividad">
+                            <FiX size={16} />
+                          </button>
+                          {activity.type === 'aplicacion' && (
+                            <button
+                              type="button"
+                              onClick={() => toggleActivityExpand(index)}
+                              className={`icon-btn pkg-action-btn${expandedActivities.has(index) ? ' expanded' : ''}`}
+                              title={expandedActivities.has(index) ? 'Ocultar productos' : 'Ver productos'}
+                            >
+                              <FiEye size={16} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                    {activity.type === 'aplicacion' && (
+                    {activity.type === 'aplicacion' && expandedActivities.has(index) && (
                       <tr key={`products-${index}`} className="products-subrow-tr">
                         <td colSpan="5">
                           <div className="products-subrow">
-                            <span className="products-subrow-label">Productos de mezcla:</span>
+                            <div className="products-subrow-header">
+                              <span className="products-subrow-label">Productos de mezcla:</span>
+                              {plantillas.length > 0 && (
+                                <select
+                                  className="load-template-select"
+                                  value=""
+                                  onChange={e => { aplicarPlantillaAActividad(index, e.target.value); e.target.value = ''; }}
+                                >
+                                  <option value="" disabled>📋 Cargar desde plantilla…</option>
+                                  {plantillas.map(p => (
+                                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                             <div className="products-tags">
                               {(activity.productos || []).map(p => (
                                 <span key={p.productoId} className="product-tag">

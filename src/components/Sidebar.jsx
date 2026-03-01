@@ -9,6 +9,7 @@ import {
   FiArchive,
   FiCheckSquare,
   FiDroplet,
+  FiFileText,
   FiLogOut
 } from 'react-icons/fi';
 
@@ -42,6 +43,10 @@ const Sidebar = () => {
         <NavLink to="/productos" className="sidebar-link" title="Bodega Agroquímicos">
           <FiDroplet size={22} />
           <span className="link-text">Bodega Agroquímicos</span>
+        </NavLink>
+        <NavLink to="/compras" className="sidebar-link" title="Registrar Compra">
+          <FiFileText size={22} />
+          <span className="link-text">Registrar Compra</span>
         </NavLink>
       </div>
       <div className="sidebar-footer">

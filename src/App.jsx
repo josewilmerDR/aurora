@@ -6,6 +6,7 @@ import TaskTracking from './pages/TaskTracking';
 import Dashboard from './pages/Dashboard';
 import TaskAction from './pages/TaskAction';
 import ProductManagement from './pages/ProductManagement';
+import InvoiceScan from './pages/InvoiceScan';
 import Sidebar from './components/Sidebar';
 
 import './index.css';
@@ -18,7 +19,8 @@ const routeTitles = {
   '/packages': 'Gestión de Paquetes',
   '/lotes': 'Gestión de Lotes',
   '/tasks': 'Seguimiento de Tareas',
-  '/productos': 'Bodega de Agroquímicos'
+  '/productos': 'Bodega de Agroquímicos',
+  '/compras': 'Registrar Compra'
 };
 
 // --- Layouts ---
@@ -66,6 +68,7 @@ function App() {
           <Route path="/lotes" element={<LoteManagement />} />
           <Route path="/tasks" element={<TaskTracking />} />
           <Route path="/productos" element={<ProductManagement />} />
+          <Route path="/compras" element={<InvoiceScan />} />
         </Route>
 
         {/* 4. Rutas que usan el Layout Sencillo (se mantiene igual) */}

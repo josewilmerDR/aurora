@@ -5,12 +5,316 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 25px;
 }
 
 .task-tracking-header h2 {
   font-size: 1.5rem;
   font-weight: 600;
+}
+
+.task-tracking-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Botón "Nueva Aplicación" */
+.btn-nueva-aplicacion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--aurora-green);
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--aurora-green);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.btn-nueva-aplicacion:hover,
+.btn-nueva-aplicacion.active {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+}
+
+/* ── Panel de creación de tarea ── */
+.nueva-aplicacion-panel {
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.na-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--aurora-light);
+}
+
+.na-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.na-form-grid .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.na-form-grid .form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.na-form-grid input,
+.na-form-grid select {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 9px 12px;
+  font-size: 0.95rem;
+}
+
+.na-form-grid input:focus,
+.na-form-grid select:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+/* Sección de productos */
+.na-productos-section {
+  margin-bottom: 20px;
+}
+
+.na-productos-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.na-producto-select {
+  width: 100%;
+  background-color: var(--aurora-background);
+  border: 1px dashed var(--aurora-green);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 9px 12px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.na-producto-select:focus {
+  outline: none;
+  border-style: solid;
+}
+
+.na-productos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.na-productos-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.na-productos-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  vertical-align: middle;
+}
+
+.na-qty-input {
+  width: 90px;
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.na-qty-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.na-btn-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: border-color 0.2s, opacity 0.2s, color 0.2s;
+  padding: 0;
+}
+
+.na-btn-remove:hover {
+  border-color: var(--aurora-magenta);
+  color: var(--aurora-magenta);
+  opacity: 1;
+}
+
+.na-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+/* ── Plantillas guardadas ── */
+.na-plantillas-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.na-plantillas-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.na-plantillas-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.na-plantilla-chip {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--aurora-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.na-plantilla-apply {
+  background: transparent;
+  border: none;
+  padding: 5px 12px;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.na-plantilla-apply:hover {
+  background-color: rgba(51, 255, 153, 0.08);
+  color: var(--aurora-green);
+}
+
+.na-plantilla-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  opacity: 0.45;
+  cursor: pointer;
+  transition: color 0.2s, opacity 0.2s;
+  padding: 0;
+}
+
+.na-plantilla-delete:hover {
+  color: var(--aurora-magenta);
+  opacity: 1;
+}
+
+/* Botón "Guardar como plantilla" */
+.btn-guardar-plantilla {
+  background: transparent;
+  border: 1px dashed var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.65;
+  white-space: nowrap;
+  transition: opacity 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.btn-guardar-plantilla:hover:not(:disabled) {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.btn-guardar-plantilla:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.btn-guardar-plantilla.saved {
+  border-style: solid;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  opacity: 1;
+}
+
+/* ── Badge "Aplicación" en tarjetas ── */
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-aplicacion-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background-color: rgba(204, 51, 255, 0.12);
+  color: var(--aurora-magenta);
+  border: 1px solid rgba(204, 51, 255, 0.3);
 }
 
 /* Contenedor para los botones de filtro */

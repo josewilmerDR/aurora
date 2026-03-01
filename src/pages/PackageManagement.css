@@ -26,7 +26,7 @@
 .activities-table .col-name { width: auto; }
 .activities-table .col-user { width: 140px; }
 .activities-table .col-type { width: 130px; }
-.activities-table .col-action { width: 44px; text-align: right; }
+.activities-table .col-action { width: 84px; text-align: right; }
 
 .activities-table-wrapper {
   overflow-x: auto;
@@ -61,7 +61,13 @@
 
 .products-subrow {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.products-subrow-header {
+  display: flex;
+  align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -73,7 +79,25 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  padding-top: 6px;
+}
+
+/* Selector "Cargar desde plantilla" */
+.load-template-select {
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  background-color: var(--aurora-dark-blue);
+  border: 1px dashed rgba(100, 181, 246, 0.5);
+  border-radius: 6px;
+  color: #64b5f6;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.load-template-select:hover,
+.load-template-select:focus {
+  border-style: solid;
+  border-color: #64b5f6;
+  outline: none;
 }
 
 .products-tags {
@@ -139,6 +163,29 @@
   border-radius: 6px;
   color: var(--aurora-light);
   cursor: pointer;
+}
+
+/* Botones de acción por fila de actividad */
+.activity-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.pkg-action-btn {
+  color: var(--aurora-green);
+  opacity: 0.65;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.pkg-action-btn:hover {
+  opacity: 1;
+}
+
+.pkg-action-btn.expanded {
+  opacity: 1;
+  background-color: rgba(51, 255, 153, 0.08);
 }
 
 /* Estilos para el listado de paquetes */

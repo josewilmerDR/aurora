@@ -5,20 +5,23 @@ const express = require('express');
 const twilio = require('twilio');
 const admin = require('firebase-admin');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
+const Anthropic = require('@anthropic-ai/sdk');
 
 // --- DEFINICIÓN DE SECRETOS CON EL NUEVO SISTEMA "PARAMS" ---
 const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
 const twilioAuthToken = defineSecret("TWILIO_AUTH_TOKEN");
 const twilioWhatsappFrom = defineSecret("TWILIO_WHATSAPP_FROM");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 // --- INICIALIZACIÓN UNIVERSAL DE CLIENTES ---
 // Se inicializa sin parámetros para que funcione tanto en el emulador como en producción.
 admin.initializeApp();
 const db = getFirestore(admin.app(), 'auroradatabase');
 
-// El cliente de Twilio se declarará y se inicializará "perezosamente" (lazy)
-// solo cuando sea necesario, para evitar errores de despliegue.
+// Los clientes externos se inicializan "perezosamente" (lazy) para evitar
+// errores de despliegue cuando los secretos aún no están disponibles.
 let twilioClient;
+let anthropicClient;
 
 const app = express();
 const ID_FINCA_ACTUAL = 'finca_aurora_test';
@@ -27,7 +30,7 @@ const ID_FINCA_ACTUAL = 'finca_aurora_test';
 const APP_URL = 'https://aurora-7dc9b.web.app';
 
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // --- MIDDLEWARE DE LOGGING ---
 app.use((req, res, next) => {
@@ -74,6 +77,41 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const { nombre, loteId, responsableId, fecha, productos } = req.body;
+    if (!nombre || !loteId || !responsableId || !fecha || !Array.isArray(productos) || !productos.length) {
+      return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    }
+    const newTask = {
+      type: 'MANUAL_APLICACION',
+      executeAt: Timestamp.fromDate(new Date(fecha + 'T08:00:00')),
+      status: 'pending',
+      loteId,
+      fincaId: ID_FINCA_ACTUAL,
+      activity: {
+        name: nombre,
+        type: 'aplicacion',
+        responsableId,
+        productos: productos.map(p => ({
+          productoId: p.productoId,
+          nombreComercial: p.nombreComercial,
+          cantidad: parseFloat(p.cantidad) || 0,
+          unidad: p.unidad,
+          periodoReingreso: p.periodoReingreso || 0,
+          periodoACosecha: p.periodoACosecha || 0,
+        })),
+      },
+    };
+    const docRef = await db.collection('scheduled_tasks').add(newTask);
+    const enriched = await enrichTask(await docRef.get());
+    res.status(201).json(enriched);
+  } catch (error) {
+    console.error('Error creating task:', error);
+    res.status(500).json({ message: 'Error al crear la tarea.' });
+  }
+});
+
 app.get('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -108,8 +146,12 @@ app.put('/api/tasks/:id', async (req, res) => {
           const batch = db.batch();
           batch.update(db.collection('scheduled_tasks').doc(id), updateData);
           for (const prod of productos) {
+            // Tareas ad-hoc usan `cantidad` absoluta; tareas de paquete usan `cantidadPorHa × hectareas`
+            const deduccion = prod.cantidad !== undefined
+              ? prod.cantidad
+              : prod.cantidadPorHa * hectareas;
             const prodRef = db.collection('productos').doc(prod.productoId);
-            batch.update(prodRef, { stockActual: FieldValue.increment(-(prod.cantidadPorHa * hectareas)) });
+            batch.update(prodRef, { stockActual: FieldValue.increment(-deduccion) });
           }
           await batch.commit();
           return res.status(200).json({ id, ...updateData });
@@ -122,6 +164,45 @@ app.put('/api/tasks/:id', async (req, res) => {
   } catch (error) {
     console.error(`Error updating task ${req.params.id}:`, error);
     res.status(500).json({ message: 'Error al actualizar la tarea.' });
+  }
+});
+
+// --- API ENDPOINTS: TASK TEMPLATES ---
+app.get('/api/task-templates', async (req, res) => {
+  try {
+    const snapshot = await db.collection('task_templates')
+      .where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    res.json(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener plantillas.' });
+  }
+});
+
+app.post('/api/task-templates', async (req, res) => {
+  try {
+    const { nombre, responsableId, productos } = req.body;
+    if (!nombre || !productos?.length)
+      return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const template = {
+      nombre,
+      responsableId: responsableId || '',
+      productos,
+      fincaId: ID_FINCA_ACTUAL,
+      creadoEn: Timestamp.now(),
+    };
+    const docRef = await db.collection('task_templates').add(template);
+    res.status(201).json({ id: docRef.id, ...template });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear plantilla.' });
+  }
+});
+
+app.delete('/api/task-templates/:id', async (req, res) => {
+  try {
+    await db.collection('task_templates').doc(req.params.id).delete();
+    res.json({ message: 'Plantilla eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar plantilla.' });
   }
 });
 
@@ -472,5 +553,194 @@ app.post('/api/tasks/:id/reassign', async (req, res) => {
     }
 });
 
+// --- API ENDPOINTS: COMPRAS (ESCANEO DE FACTURAS) ---
+
+app.get('/api/compras', async (req, res) => {
+  try {
+    const snapshot = await db.collection('compras')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+    const compras = snapshot.docs.map(doc => {
+      const data = doc.data();
+      // No devolver la imagen en el listado (puede ser pesada)
+      const { imageBase64, ...rest } = data;
+      return { id: doc.id, tieneImagen: !!imageBase64, ...rest };
+    });
+    res.status(200).json(compras);
+  } catch (error) {
+    console.error("Error fetching compras:", error);
+    res.status(500).json({ message: 'Error al obtener el historial de compras.' });
+  }
+});
+
+app.post('/api/compras/escanear', async (req, res) => {
+  try {
+    const { imageBase64, mediaType } = req.body;
+    if (!imageBase64 || !mediaType) {
+      return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+    }
+
+    // Obtener catálogo de productos actual para que Claude pueda hacer el match
+    const productosSnap = await db.collection('productos')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .get();
+    const catalogo = productosSnap.docs.map(doc => ({
+      id: doc.id,
+      idProducto: doc.data().idProducto,
+      nombreComercial: doc.data().nombreComercial,
+      unidad: doc.data().unidad,
+      stockActual: doc.data().stockActual,
+    }));
+
+    // Inicializar Anthropic de forma lazy
+    if (!anthropicClient) {
+      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+    }
+
+    const catalogoTexto = catalogo.length > 0
+      ? catalogo.map(p => `- ID: "${p.id}" | Código: ${p.idProducto} | Nombre: ${p.nombreComercial} | Unidad: ${p.unidad}`).join('\n')
+      : '(catálogo vacío)';
+
+    const prompt = `Eres un experto en inventario agrícola. Analiza esta imagen de factura de agroquímicos.
+
+Catálogo de productos existente en nuestra bodega:
+${catalogoTexto}
+
+Extrae cada línea de producto de la factura y devuelve un arreglo JSON con este formato exacto:
+[
+  {
+    "productoId": "ID del catálogo si hay coincidencia, o null si no hay",
+    "nombreFactura": "nombre exacto como aparece en la factura",
+    "cantidadFactura": 2.0,
+    "unidadFactura": "unidad como aparece en factura (ej: Galón, Pichinga 5L, kg, L)",
+    "cantidadCatalogo": 7.57,
+    "unidadCatalogo": "unidad del catálogo (ej: L, kg, mL, g)",
+    "notas": "conversión realizada u observación, o vacío"
+  }
+]
+
+Reglas importantes:
+1. Convierte automáticamente las unidades al sistema métrico del catálogo (ej: 1 Galón = 3.785 L, 1 Pichinga 5L = 5 L).
+2. Si en el catálogo hay un producto con nombre similar, asigna su ID en "productoId".
+3. Si no hay coincidencia, usa null en "productoId" y mantén la unidad de la factura.
+4. Devuelve SOLO el arreglo JSON, sin texto adicional, sin markdown, sin bloques de código.`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: imageBase64 },
+            },
+            { type: 'text', text: prompt },
+          ],
+        },
+      ],
+    });
+
+    const rawText = response.content[0].text.trim();
+
+    // Limpiar posibles bloques de código si Claude los incluyó de todas formas
+    const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+
+    let lineas;
+    try {
+      lineas = JSON.parse(jsonText);
+    } catch {
+      console.error("Claude devolvió texto no parseable:", rawText);
+      return res.status(422).json({ message: 'La IA no pudo interpretar la factura. Intenta con una imagen más clara.', raw: rawText });
+    }
+
+    res.status(200).json({ lineas, catalogo });
+  } catch (error) {
+    console.error("Error en escanear factura:", error);
+    res.status(500).json({ message: 'Error al procesar la imagen con IA.' });
+  }
+});
+
+app.post('/api/compras/confirmar', async (req, res) => {
+  try {
+    const { imageBase64, mediaType, proveedor, fecha, lineas } = req.body;
+
+    if (!Array.isArray(lineas) || lineas.length === 0) {
+      return res.status(400).json({ message: 'Se requiere al menos una línea de producto.' });
+    }
+
+    const batch = db.batch();
+    let stockActualizados = 0;
+    let productosCreados = 0;
+
+    for (const linea of lineas) {
+      const cantidad = parseFloat(linea.cantidadIngresada) || 0;
+      if (cantidad <= 0) continue;
+
+      if (linea.productoId) {
+        // ── Producto existente: solo incrementar stock ──
+        const prodRef = db.collection('productos').doc(linea.productoId);
+        batch.update(prodRef, { stockActual: FieldValue.increment(cantidad) });
+        stockActualizados++;
+      } else if (linea.ingredienteActivo) {
+        // ── Producto nuevo: crear con todos los campos del formulario ──
+        const newProdRef = db.collection('productos').doc();
+        batch.set(newProdRef, {
+          idProducto: linea.idProducto || `PD-${Date.now()}`,
+          nombreComercial: linea.nombreComercial || linea.nombreFactura || '',
+          ingredienteActivo: linea.ingredienteActivo,
+          tipo: linea.tipo || '',
+          plagaQueControla: linea.plagaQueControla || '',
+          periodoReingreso: parseFloat(linea.periodoReingreso) || 0,
+          periodoACosecha: parseFloat(linea.periodoACosecha) || 0,
+          unidad: linea.unidad || 'L',
+          stockActual: cantidad,
+          stockMinimo: parseFloat(linea.stockMinimo) || 0,
+          moneda: linea.moneda || 'USD',
+          tipoCambio: parseFloat(linea.tipoCambio) || 1,
+          precioUnitario: parseFloat(linea.precioUnitario) || 0,
+          proveedor: proveedor || '',
+          fincaId: ID_FINCA_ACTUAL,
+        });
+        productosCreados++;
+      }
+      // Si no tiene productoId ni ingredienteActivo: se ignora (incompleto)
+    }
+
+    // Guardar registro de compra
+    const compraRef = db.collection('compras').doc();
+    batch.set(compraRef, {
+      fincaId: ID_FINCA_ACTUAL,
+      proveedor: proveedor || '',
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      lineas: lineas.map(l => ({
+        productoId: l.productoId || null,
+        nombreFactura: l.nombreFactura || '',
+        cantidadIngresada: parseFloat(l.cantidadIngresada) || 0,
+        unidad: l.unidad || '',
+      })),
+      imageBase64: imageBase64 || null,
+      mediaType: mediaType || null,
+      createdAt: Timestamp.now(),
+    });
+
+    await batch.commit();
+    res.status(201).json({
+      id: compraRef.id,
+      stockActualizados,
+      productosCreados,
+      message: 'Compra registrada exitosamente.',
+    });
+  } catch (error) {
+    console.error("Error confirmando compra:", error);
+    res.status(500).json({ message: 'Error al registrar la compra.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
-exports.api = functions.runWith({ secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom] }).https.onRequest(app);
+exports.api = functions.runWith({
+  secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey]
+}).https.onRequest(app);

@@ -140,46 +140,57 @@ const TaskAction = () => {
           </div>
         )}
 
-        {isAplicacion && task.activity?.productos?.length > 0 && (
-          <div className="recipe-panel">
-            <h2 className="recipe-title">Instrucciones de Mezcla</h2>
-            <p className="recipe-subtitle">
-              Área del lote: <strong>{loteHectareas} ha</strong>
-            </p>
-            <table className="recipe-table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Dosis/Ha</th>
-                  <th>Total</th>
-                  <th>Unidad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {task.activity.productos.map(p => (
-                  <tr key={p.productoId}>
-                    <td>{p.nombreComercial}</td>
-                    <td>{p.cantidadPorHa}</td>
-                    <td><strong>{(p.cantidadPorHa * loteHectareas).toFixed(2)}</strong></td>
-                    <td>{p.unidad}</td>
+        {isAplicacion && task.activity?.productos?.length > 0 && (() => {
+          // Tarea ad-hoc: cantidad absoluta por producto (sin cantidadPorHa)
+          const isAdHoc = task.activity.productos.every(p => p.cantidad !== undefined);
+          return (
+            <div className="recipe-panel">
+              <h2 className="recipe-title">Instrucciones de Mezcla</h2>
+              {!isAdHoc && (
+                <p className="recipe-subtitle">
+                  Área del lote: <strong>{loteHectareas} ha</strong>
+                </p>
+              )}
+              <table className="recipe-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    {!isAdHoc && <th>Dosis/Ha</th>}
+                    <th>Cantidad total</th>
+                    <th>Unidad</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="recipe-warnings">
-              {task.activity.productos.some(p => p.periodoReingreso > 0) && (
-                <span className="recipe-warning">
-                  ⚠ Reingreso: {Math.max(...task.activity.productos.map(p => p.periodoReingreso || 0))} h
-                </span>
-              )}
-              {task.activity.productos.some(p => p.periodoACosecha > 0) && (
-                <span className="recipe-warning">
-                  ⚠ Carencia: {Math.max(...task.activity.productos.map(p => p.periodoACosecha || 0))} días
-                </span>
-              )}
+                </thead>
+                <tbody>
+                  {task.activity.productos.map(p => {
+                    const total = isAdHoc
+                      ? p.cantidad
+                      : (p.cantidadPorHa * loteHectareas).toFixed(2);
+                    return (
+                      <tr key={p.productoId}>
+                        <td>{p.nombreComercial}</td>
+                        {!isAdHoc && <td>{p.cantidadPorHa}</td>}
+                        <td><strong>{total}</strong></td>
+                        <td>{p.unidad}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="recipe-warnings">
+                {task.activity.productos.some(p => p.periodoReingreso > 0) && (
+                  <span className="recipe-warning">
+                    ⚠ Reingreso: {Math.max(...task.activity.productos.map(p => p.periodoReingreso || 0))} h
+                  </span>
+                )}
+                {task.activity.productos.some(p => p.periodoACosecha > 0) && (
+                  <span className="recipe-warning">
+                    ⚠ Carencia: {Math.max(...task.activity.productos.map(p => p.periodoACosecha || 0))} días
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {!successMessage && (
           <div className="task-actions-section">
