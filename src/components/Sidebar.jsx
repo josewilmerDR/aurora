@@ -2,12 +2,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import './Sidebar.css';
-import { 
-  FiGrid, 
-  FiPackage, 
-  FiUsers, 
-  FiArchive, 
+import {
+  FiGrid,
+  FiPackage,
+  FiUsers,
+  FiArchive,
   FiCheckSquare,
+  FiDroplet,
   FiLogOut
 } from 'react-icons/fi';
 
@@ -37,6 +38,10 @@ const Sidebar = () => {
         <NavLink to="/tasks" className="sidebar-link" title="Seguimiento de Tareas">
           <FiCheckSquare size={22} />
           <span className="link-text">Seguimiento de Tareas</span>
+        </NavLink>
+        <NavLink to="/productos" className="sidebar-link" title="Bodega Agroquímicos">
+          <FiDroplet size={22} />
+          <span className="link-text">Bodega Agroquímicos</span>
         </NavLink>
       </div>
       <div className="sidebar-footer">

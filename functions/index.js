@@ -4,7 +4,7 @@ const { defineSecret } = require("firebase-functions/params");
 const express = require('express');
 const twilio = require('twilio');
 const admin = require('firebase-admin');
-const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 
 // --- DEFINICIÓN DE SECRETOS CON EL NUEVO SISTEMA "PARAMS" ---
 const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
@@ -51,6 +51,7 @@ const enrichTask = async (taskDoc) => {
     id: taskDoc.id,
     activityName: task.activity.name,
     loteName: lote ? lote.nombreLote : 'Lote no encontrado',
+    loteHectareas: lote ? (lote.hectareas || 1) : 1,
     responsableName: responsable ? responsable.nombre : 'Usuario no encontrado',
     responsableTel: responsable ? responsable.telefono : 'Sin teléfono',
     dueDate: task.executeAt.toDate().toISOString(),
@@ -95,6 +96,27 @@ app.put('/api/tasks/:id', async (req, res) => {
     delete updateData.id;
     delete updateData.loteId;
     delete updateData.fincaId;
+
+    if (updateData.status === 'completed_by_user') {
+      const taskDoc = await db.collection('scheduled_tasks').doc(id).get();
+      if (taskDoc.exists) {
+        const taskData = taskDoc.data();
+        const productos = taskData.activity?.productos;
+        if (taskData.activity?.type === 'aplicacion' && Array.isArray(productos) && productos.length > 0) {
+          const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
+          const hectareas = loteDoc.exists ? (loteDoc.data().hectareas || 1) : 1;
+          const batch = db.batch();
+          batch.update(db.collection('scheduled_tasks').doc(id), updateData);
+          for (const prod of productos) {
+            const prodRef = db.collection('productos').doc(prod.productoId);
+            batch.update(prodRef, { stockActual: FieldValue.increment(-(prod.cantidadPorHa * hectareas)) });
+          }
+          await batch.commit();
+          return res.status(200).json({ id, ...updateData });
+        }
+      }
+    }
+
     await db.collection('scheduled_tasks').doc(id).update(updateData);
     res.status(200).json({ id, ...updateData });
   } catch (error) {
@@ -144,6 +166,50 @@ app.delete('/api/users/:id', async (req, res) => {
     res.status(200).json({ message: 'Usuario eliminado correctamente.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar usuario.' });
+  }
+});
+
+// --- API ENDPOINTS: PRODUCTOS ---
+app.get('/api/productos', async (req, res) => {
+  try {
+    const snapshot = await db.collection('productos').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const productos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(productos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener productos.' });
+  }
+});
+
+app.post('/api/productos', async (req, res) => {
+  try {
+    const producto = { ...req.body, fincaId: ID_FINCA_ACTUAL };
+    delete producto.id;
+    const docRef = await db.collection('productos').add(producto);
+    res.status(201).json({ id: docRef.id, ...producto });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear producto.' });
+  }
+});
+
+app.put('/api/productos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const productoData = { ...req.body };
+    delete productoData.id;
+    await db.collection('productos').doc(id).update(productoData);
+    res.status(200).json({ id, ...productoData });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar producto.' });
+  }
+});
+
+app.delete('/api/productos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection('productos').doc(id).delete();
+    res.status(200).json({ message: 'Producto eliminado correctamente.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar producto.' });
   }
 });
 
@@ -242,13 +308,13 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
 
 
 app.post('/api/lotes', async (req, res) => {
-    const { nombreLote, fechaCreacion, paqueteId } = req.body;
+    const { nombreLote, fechaCreacion, paqueteId, hectareas } = req.body;
     if (!nombreLote || !fechaCreacion || !paqueteId) {
         return res.status(400).json({ message: 'Faltan datos para crear el lote.' });
     }
 
     try {
-        const loteRef = await db.collection('lotes').add({ nombreLote, fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, fincaId: ID_FINCA_ACTUAL });
+        const loteRef = await db.collection('lotes').add({ nombreLote, fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, hectareas: parseFloat(hectareas) || 1, fincaId: ID_FINCA_ACTUAL });
         const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
         if (!paqueteDoc.exists) throw new Error('Paquete no encontrado');
         const paqueteData = paqueteDoc.data();
@@ -364,8 +430,47 @@ app.delete('/api/lotes/:id', async (req, res) => {
     }
 });
 
-// El cron job se elimina de aquí. Debería ser una función separada
-// con un trigger de schedule si es necesario.
+// --- API ENDPOINTS: TASK ACTIONS ---
+
+app.post('/api/tasks/:id/reschedule', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newDate } = req.body;
+        if (!newDate) return res.status(400).json({ message: 'Falta la nueva fecha.' });
+        const newTimestamp = Timestamp.fromDate(new Date(newDate));
+        await db.collection('scheduled_tasks').doc(id).update({ executeAt: newTimestamp });
+        res.status(200).json({ message: 'Tarea reprogramada correctamente.' });
+    } catch (error) {
+        console.error('Error rescheduling task:', error);
+        res.status(500).json({ message: 'Error al reprogramar la tarea.' });
+    }
+});
+
+app.post('/api/tasks/:id/reassign', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newUserId } = req.body;
+        if (!newUserId) return res.status(400).json({ message: 'Falta el nuevo responsable.' });
+
+        const taskRef = db.collection('scheduled_tasks').doc(id);
+        const taskDoc = await taskRef.get();
+        if (!taskDoc.exists) return res.status(404).json({ message: 'Tarea no encontrada.' });
+
+        const taskData = taskDoc.data();
+        const updatedActivity = { ...taskData.activity, responsableId: newUserId };
+        await taskRef.update({ activity: updatedActivity, status: 'pending' });
+
+        const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
+        const loteNombre = loteDoc.exists ? loteDoc.data().nombreLote : 'Lote desconocido';
+        const updatedTaskData = { ...taskData, activity: updatedActivity };
+        await sendNotificationWithLink(taskRef, updatedTaskData, loteNombre);
+
+        res.status(200).json({ message: 'Tarea reasignada y notificación enviada.' });
+    } catch (error) {
+        console.error('Error reassigning task:', error);
+        res.status(500).json({ message: 'Error al reasignar la tarea.' });
+    }
+});
 
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.runWith({ secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom] }).https.onRequest(app);

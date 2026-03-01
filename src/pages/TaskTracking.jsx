@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './TaskTracking.css'; // Importamos los nuevos estilos
 
 // Helper para parsear los query params de la URL
@@ -11,7 +11,8 @@ function TaskTracking() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+  const navigate = useNavigate();
+
   // El filtro ahora se controla por la URL para enlazar desde el Dashboard
   const query = useQuery();
   const [filter, setFilter] = useState(query.get('filter') || 'all');
@@ -50,7 +51,7 @@ function TaskTracking() {
   const filteredTasks = tasksWithStatus.filter(task => filter === 'all' || task.displayStatus.key === filter);
 
   const renderTaskCard = (task) => (
-    <div key={task.id} className={`task-card ${task.displayStatus.className}`}>
+    <div key={task.id} className={`task-card ${task.displayStatus.className}`} onClick={() => navigate(`/task/${task.id}`)} style={{ cursor: 'pointer' }}>
         <div className="task-card-header">
             <h4>{task.activityName}</h4>
         </div>

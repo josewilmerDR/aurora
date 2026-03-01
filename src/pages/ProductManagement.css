@@ -1,0 +1,126 @@
+@import url('./LoteManagement.css');
+
+.product-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.form-control-wide {
+  grid-column: 1 / -1;
+}
+
+.product-id-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background-color: var(--aurora-border);
+  color: var(--aurora-light);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 8px;
+  opacity: 0.9;
+  letter-spacing: 0.04em;
+}
+
+.product-list-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.stock-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.stock-ok {
+  background-color: rgba(51, 255, 153, 0.15);
+  color: var(--aurora-green);
+  border: 1px solid var(--aurora-green);
+}
+
+.stock-bajo {
+  background-color: rgba(204, 51, 255, 0.15);
+  color: var(--aurora-magenta);
+  border: 1px solid var(--aurora-magenta);
+}
+
+/* Sección de importación Excel */
+.import-section {
+  margin-bottom: 4px;
+}
+
+.import-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin-bottom: 10px;
+}
+
+.import-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.import-result {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.import-ok {
+  background-color: rgba(51, 255, 153, 0.1);
+  color: var(--aurora-green);
+  border: 1px solid var(--aurora-green);
+}
+
+.import-error {
+  background-color: rgba(204, 51, 255, 0.1);
+  color: var(--aurora-magenta);
+  border: 1px solid var(--aurora-magenta);
+}
+
+.form-section-divider {
+  border: none;
+  border-top: 1px solid var(--aurora-border);
+  margin: 20px 0;
+}
+
+.form-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin-bottom: 14px;
+}
+
+/* Lista con info comercial */
+.product-list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-proveedor {
+  color: #64b5f6;
+}
+
+.product-total-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  opacity: 0.85;
+  margin-top: 3px;
+}

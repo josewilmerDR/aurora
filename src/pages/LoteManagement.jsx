@@ -10,7 +10,8 @@ function LoteManagement() {
     id: null,
     nombreLote: '',
     fechaCreacion: '',
-    paqueteId: ''
+    paqueteId: '',
+    hectareas: ''
   });
 
   // --- LÓGICA DE DATOS (sin cambios) ---
@@ -38,7 +39,7 @@ function LoteManagement() {
 
   const resetForm = () => {
     setIsEditing(false);
-    setFormData({ id: null, nombreLote: '', fechaCreacion: '', paqueteId: '' });
+    setFormData({ id: null, nombreLote: '', fechaCreacion: '', paqueteId: '', hectareas: '' });
   };
 
   const handleEdit = (lote) => {
@@ -47,7 +48,8 @@ function LoteManagement() {
       id: lote.id,
       nombreLote: lote.nombreLote,
       fechaCreacion: formatDateForInput(lote.fechaCreacion),
-      paqueteId: lote.paqueteId
+      paqueteId: lote.paqueteId,
+      hectareas: lote.hectareas || ''
     });
     window.scrollTo(0, 0);
   };
@@ -104,6 +106,10 @@ function LoteManagement() {
                 <option value="">-- Seleccionar Paquete --</option>
                 {packages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.nombrePaquete}</option>)}
               </select>
+            </div>
+            <div className="form-control">
+              <label htmlFor="hectareas">Hectáreas</label>
+              <input id="hectareas" name="hectareas" type="number" step="0.01" min="0.01" value={formData.hectareas} onChange={handleInputChange} placeholder="Ej: 2.5" required />
             </div>
           </div>
           <div className="form-actions">

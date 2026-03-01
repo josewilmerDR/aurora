@@ -1,0 +1,350 @@
+.task-action-wrapper {
+  min-height: 100vh;
+  background-color: var(--aurora-dark-blue);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.task-action-card {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  padding: 32px;
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Back nav button */
+.btn-back-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+  transition: opacity 0.2s;
+}
+
+.btn-back-nav:hover {
+  opacity: 1;
+}
+
+/* Header */
+.task-action-card h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+/* Info grid */
+.task-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 20px;
+  margin-bottom: 28px;
+}
+
+.task-info-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.task-info-value {
+  font-size: 1rem;
+  color: var(--aurora-light);
+}
+
+.task-status-badge-action {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background-color: #f0ad4e;
+  color: var(--aurora-dark-blue);
+}
+
+.task-status-badge-action.completed {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+}
+
+/* Recipe panel for application tasks */
+.recipe-panel {
+  margin-bottom: 24px;
+  padding: 20px;
+  background-color: rgba(100, 181, 246, 0.06);
+  border: 1px solid rgba(100, 181, 246, 0.35);
+  border-radius: 10px;
+}
+
+.recipe-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #64b5f6;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.recipe-subtitle {
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  margin-bottom: 14px;
+}
+
+.recipe-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+}
+
+.recipe-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid rgba(100, 181, 246, 0.2);
+}
+
+.recipe-table td {
+  padding: 8px 10px;
+  color: var(--aurora-light);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.recipe-table tr:last-child td {
+  border-bottom: none;
+}
+
+.recipe-table td strong {
+  color: #64b5f6;
+  font-size: 1rem;
+}
+
+.recipe-warnings {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.recipe-warning {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f0ad4e;
+}
+
+/* Actions section */
+.task-actions-section {
+  border-top: 1px solid var(--aurora-border);
+  padding-top: 24px;
+}
+
+.task-actions-section h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.8;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Buttons */
+.btn-complete {
+  width: 100%;
+  padding: 14px;
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  font-weight: 700;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  margin-bottom: 12px;
+}
+
+.btn-complete:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.action-buttons-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-action {
+  flex: 1;
+  padding: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: 1px solid var(--aurora-border);
+}
+
+.btn-action.reschedule {
+  background-color: transparent;
+  color: #64b5f6;
+  border-color: #64b5f6;
+}
+.btn-action.reschedule:hover,
+.btn-action.reschedule.active {
+  background-color: #64b5f6;
+  color: var(--aurora-dark-blue);
+}
+
+.btn-action.reassign {
+  background-color: transparent;
+  color: var(--aurora-magenta);
+  border-color: var(--aurora-magenta);
+}
+.btn-action.reassign:hover,
+.btn-action.reassign.active {
+  background-color: var(--aurora-magenta);
+  color: white;
+}
+
+/* Action panels */
+.action-panel {
+  margin-top: 16px;
+  padding: 20px;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.action-panel label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.action-panel input[type="date"],
+.action-panel select {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 1rem;
+  margin-bottom: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.action-panel input[type="date"]:focus,
+.action-panel select:focus {
+  border-color: var(--aurora-green);
+}
+
+.action-panel select option {
+  background-color: var(--aurora-background);
+}
+
+.btn-confirm {
+  width: 100%;
+  padding: 11px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-confirm:disabled {
+  background-color: var(--aurora-border);
+  color: var(--aurora-light);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-confirm.reschedule {
+  background-color: #64b5f6;
+  color: var(--aurora-dark-blue);
+}
+
+.btn-confirm.reassign {
+  background-color: var(--aurora-magenta);
+  color: white;
+}
+
+.btn-confirm:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+/* Success message */
+.success-message {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: rgba(51, 255, 153, 0.1);
+  border: 1px solid var(--aurora-green);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--aurora-green);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.btn-back {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 10px 24px;
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-back:hover {
+  opacity: 0.85;
+}
+
+/* States */
+.task-action-state {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  font-size: 1.1rem;
+}
+
+.task-action-state.error {
+  color: var(--aurora-magenta);
+  opacity: 1;
+}

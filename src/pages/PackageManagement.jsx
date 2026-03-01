@@ -1,23 +1,24 @@
 import { useState, useEffect } from 'react';
-import './PackageManagement.css'; // Importamos los nuevos estilos
+import './PackageManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiX } from 'react-icons/fi';
 
 function PackageManagement() {
   const [packages, setPackages] = useState([]);
   const [users, setUsers] = useState([]);
-  const [formData, setFormData] = useState({ 
-    id: null, 
-    nombrePaquete: '', 
-    tipoCosecha: '', 
-    etapaCultivo: '', 
-    activities: [] 
+  const [productos, setProductos] = useState([]);
+  const [formData, setFormData] = useState({
+    id: null,
+    nombrePaquete: '',
+    tipoCosecha: '',
+    etapaCultivo: '',
+    activities: []
   });
   const [isEditing, setIsEditing] = useState(false);
 
-  // --- LÓGICA DE DATOS (sin cambios) ---
   useEffect(() => {
     fetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
     fetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
+    fetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
   }, []);
 
   const handleInputChange = (e) => {
@@ -27,32 +28,83 @@ function PackageManagement() {
 
   const handleActivityChange = (index, field, value) => {
     const updatedActivities = [...formData.activities];
-    updatedActivities[index][field] = value;
+    updatedActivities[index] = { ...updatedActivities[index], [field]: value };
+    if (field === 'type' && value === 'notificacion') {
+      updatedActivities[index].productos = [];
+    }
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
   };
 
   const addActivity = () => {
-    setFormData(prev => ({ 
-      ...prev, 
-      activities: [...prev.activities, { day: '', name: '', responsableId: '' }] 
+    setFormData(prev => ({
+      ...prev,
+      activities: [...prev.activities, { day: '', name: '', responsableId: '', type: 'notificacion', productos: [] }]
     }));
   };
 
   const removeActivity = (index) => {
-    const updatedActivities = formData.activities.filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, activities: prev.activities.filter((_, i) => i !== index) }));
+  };
+
+  const addProductToActivity = (activityIndex, productoId) => {
+    if (!productoId) return;
+    const producto = productos.find(p => p.id === productoId);
+    if (!producto) return;
+    const updatedActivities = [...formData.activities];
+    const existing = updatedActivities[activityIndex].productos || [];
+    if (existing.find(p => p.productoId === productoId)) return;
+    updatedActivities[activityIndex] = {
+      ...updatedActivities[activityIndex],
+      productos: [
+        ...existing,
+        {
+          productoId: producto.id,
+          nombreComercial: producto.nombreComercial,
+          cantidadPorHa: 0,
+          unidad: producto.unidad,
+          periodoReingreso: producto.periodoReingreso,
+          periodoACosecha: producto.periodoACosecha,
+        },
+      ],
+    };
+    setFormData(prev => ({ ...prev, activities: updatedActivities }));
+  };
+
+  const removeProductFromActivity = (activityIndex, productoId) => {
+    const updatedActivities = [...formData.activities];
+    updatedActivities[activityIndex] = {
+      ...updatedActivities[activityIndex],
+      productos: updatedActivities[activityIndex].productos.filter(p => p.productoId !== productoId),
+    };
+    setFormData(prev => ({ ...prev, activities: updatedActivities }));
+  };
+
+  const updateProductCantidad = (activityIndex, productoId, newCantidad) => {
+    const updatedActivities = [...formData.activities];
+    updatedActivities[activityIndex] = {
+      ...updatedActivities[activityIndex],
+      productos: updatedActivities[activityIndex].productos.map(p =>
+        p.productoId === productoId ? { ...p, cantidadPorHa: parseFloat(newCantidad) || 0 } : p
+      ),
+    };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
   };
 
   const handleEdit = (pkg) => {
-    setFormData({ ...pkg });
+    const normalizedActivities = (pkg.activities || []).map(a => ({
+      type: 'notificacion',
+      productos: [],
+      ...a,
+    }));
+    setFormData({ ...pkg, activities: normalizedActivities });
     setIsEditing(true);
     window.scrollTo(0, 0);
   };
-  
+
   const resetForm = () => {
     setFormData({ id: null, nombrePaquete: '', tipoCosecha: '', etapaCultivo: '', activities: [] });
     setIsEditing(false);
-  }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -84,14 +136,11 @@ function PackageManagement() {
       }
     }
   };
-  // --- FIN DE LA LÓGICA ---
 
   return (
-    <div className="lote-management-layout"> {/* Reutilizamos el layout principal */}
-      {/* --- TARJETA DEL FORMULARIO --- */}
+    <div className="lote-management-layout">
       <div className="form-card">
         <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Tareas'}</h2>
-        {/* AÑADIMOS LA CLASE `lote-form` QUE FALTABA */}
         <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
             <div className="form-control">
@@ -109,39 +158,99 @@ function PackageManagement() {
           </div>
 
           <h3>Actividades Programadas</h3>
-          <table className="activities-table">
-            <thead>
-              <tr>
-                <th className="col-day">Día</th>
-                <th className="col-name">Actividad</th>
-                <th className="col-user">Responsable</th>
-                <th className="col-action"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {formData.activities.map((activity, index) => (
-                <tr key={index}>
-                  <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" required/></td>
-                  <td><input value={activity.name} onChange={(e) => handleActivityChange(index, 'name', e.target.value)} required/></td>
-                  <td>
-                    <select value={activity.responsableId} onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)} required>
-                      <option value="">-- Asignar --</option>
-                      {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <button type="button" onClick={() => removeActivity(index)} className="icon-btn delete" title="Eliminar Actividad">
-                        <FiX size={16} />
-                    </button>
-                  </td>
+          <div className="activities-table-wrapper">
+            <table className="activities-table">
+              <thead>
+                <tr>
+                  <th className="col-day">Día</th>
+                  <th className="col-name">Actividad</th>
+                  <th className="col-user">Responsable</th>
+                  <th className="col-type">Tipo</th>
+                  <th className="col-action"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {formData.activities.map((activity, index) => (
+                  <>
+                    <tr key={`row-${index}`}>
+                      <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" required /></td>
+                      <td><input value={activity.name} onChange={(e) => handleActivityChange(index, 'name', e.target.value)} required /></td>
+                      <td>
+                        <select value={activity.responsableId} onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)} required>
+                          <option value="">-- Asignar --</option>
+                          {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={activity.type || 'notificacion'}
+                          onChange={(e) => handleActivityChange(index, 'type', e.target.value)}
+                          className={`type-select ${activity.type === 'aplicacion' ? 'type-aplicacion' : ''}`}
+                        >
+                          <option value="notificacion">Notificación</option>
+                          <option value="aplicacion">Aplicación</option>
+                        </select>
+                      </td>
+                      <td>
+                        <button type="button" onClick={() => removeActivity(index)} className="icon-btn delete" title="Eliminar Actividad">
+                          <FiX size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                    {activity.type === 'aplicacion' && (
+                      <tr key={`products-${index}`} className="products-subrow-tr">
+                        <td colSpan="5">
+                          <div className="products-subrow">
+                            <span className="products-subrow-label">Productos de mezcla:</span>
+                            <div className="products-tags">
+                              {(activity.productos || []).map(p => (
+                                <span key={p.productoId} className="product-tag">
+                                  <strong>{p.nombreComercial}</strong>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={p.cantidadPorHa}
+                                    onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
+                                    className="product-tag-qty"
+                                    title="Cantidad por Ha"
+                                  />
+                                  <span className="product-tag-unit">{p.unidad}/Ha</span>
+                                  <button
+                                    type="button"
+                                    className="product-tag-remove"
+                                    onClick={() => removeProductFromActivity(index, p.productoId)}
+                                    title="Quitar producto"
+                                  >
+                                    <FiX size={12} />
+                                  </button>
+                                </span>
+                              ))}
+                              <select
+                                className="add-product-select"
+                                onChange={(e) => { addProductToActivity(index, e.target.value); e.target.value = ''; }}
+                                defaultValue=""
+                              >
+                                <option value="" disabled>+ Agregar producto</option>
+                                {productos
+                                  .filter(p => !(activity.productos || []).find(ap => ap.productoId === p.id))
+                                  .map(p => <option key={p.id} value={p.id}>{p.nombreComercial}</option>)
+                                }
+                              </select>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="add-activity-btn-container">
             <button type="button" onClick={addActivity} className="btn btn-secondary">
-                <FiPlus />
-                Añadir Actividad
+              <FiPlus />
+              Añadir Actividad
             </button>
           </div>
 
@@ -152,7 +261,6 @@ function PackageManagement() {
         </form>
       </div>
 
-      {/* --- TARJETA DE LA LISTA DE PAQUETES --- */}
       <div className="list-card">
         <h2>Paquetes Existentes</h2>
         <ul className="info-list">
@@ -164,7 +272,7 @@ function PackageManagement() {
                   <span>{pkg.tipoCosecha}</span> | <span>{pkg.etapaCultivo}</span> | <span>{pkg.activities.length} actividades</span>
                 </div>
               </div>
-              <div className="lote-actions"> { /* Reutilizamos la clase de lote-actions */}
+              <div className="lote-actions">
                 <button onClick={() => handleEdit(pkg)} className="icon-btn" title="Editar">
                   <FiEdit size={18} />
                 </button>

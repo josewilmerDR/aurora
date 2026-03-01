@@ -22,10 +22,15 @@
 }
 
 /* Ajustamos el ancho de las columnas */
-.activities-table .col-day { width: 80px; }
+.activities-table .col-day { width: 70px; }
 .activities-table .col-name { width: auto; }
-.activities-table .col-user { width: 150px; }
-.activities-table .col-action { width: 50px; text-align: right; }
+.activities-table .col-user { width: 140px; }
+.activities-table .col-type { width: 130px; }
+.activities-table .col-action { width: 44px; text-align: right; }
+
+.activities-table-wrapper {
+  overflow-x: auto;
+}
 
 .activities-table input,
 .activities-table select {
@@ -35,6 +40,105 @@
 
 .add-activity-btn-container {
     margin-top: 15px;
+}
+
+/* Tipo de actividad selector */
+.type-select {
+  font-size: 0.85rem;
+}
+
+.type-select.type-aplicacion {
+  color: #64b5f6;
+  border-color: #64b5f6;
+}
+
+/* Fila de productos de una actividad de aplicación */
+.products-subrow-tr td {
+  background-color: rgba(100, 181, 246, 0.05);
+  border-bottom: 2px solid rgba(100, 181, 246, 0.2);
+  padding: 10px 12px;
+}
+
+.products-subrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.products-subrow-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64b5f6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding-top: 6px;
+}
+
+.products-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.product-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(100, 181, 246, 0.1);
+  border: 1px solid rgba(100, 181, 246, 0.4);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+}
+
+.product-tag strong {
+  color: #64b5f6;
+}
+
+.product-tag-qty {
+  width: 60px;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  color: var(--aurora-light);
+  text-align: center;
+}
+
+.product-tag-unit {
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+.product-tag-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-magenta);
+  opacity: 0.7;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s;
+}
+
+.product-tag-remove:hover {
+  opacity: 1;
+}
+
+.add-product-select {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  background-color: var(--aurora-dark-blue);
+  border: 1px dashed var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  cursor: pointer;
 }
 
 /* Estilos para el listado de paquetes */
