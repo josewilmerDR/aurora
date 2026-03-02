@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import './UserManagement.css'; // Importamos los estilos reutilizados
-import { FiEdit, FiTrash2, FiPlus, FiUserPlus } from 'react-icons/fi';
+import './UserManagement.css';
+import { FiEdit, FiTrash2, FiUserPlus } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 function UserManagement() {
   const [users, setUsers] = useState([]);
   const [formData, setFormData] = useState({ id: null, nombre: '', email: '', telefono: '' });
   const [isEditing, setIsEditing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => setToast({ message, type });
 
   // --- LÓGICA DE DATOS (sin cambios) ---
   const fetchUsers = () => {
@@ -38,8 +41,9 @@ function UserManagement() {
         const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Error al eliminar');
         fetchUsers();
+        showToast('Usuario eliminado correctamente');
       } catch (error) {
-        alert('Error al eliminar el usuario.');
+        showToast('Error al eliminar el usuario.', 'error');
       }
     }
   };
@@ -57,14 +61,16 @@ function UserManagement() {
       if (!res.ok) throw new Error('Error al guardar');
       fetchUsers();
       resetForm();
+      showToast(isEditing ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente');
     } catch (error) {
-      alert('Ocurrió un error al guardar.');
+      showToast('Ocurrió un error al guardar.', 'error');
     }
   };
   // --- FIN DE LA LÓGICA ---
 
   return (
-    <div className="lote-management-layout"> {/* Reutilizamos la clase principal de layout */}
+    <div className="lote-management-layout">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {/* --- TARJETA DEL FORMULARIO --- */}
       <div className="form-card">
         <h2>{isEditing ? 'Editando Usuario' : 'Añadir Nuevo Usuario'}</h2>

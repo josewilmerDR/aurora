@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import './ProductManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiUpload, FiDownload } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const UNIDADES = ['L', 'mL', 'kg', 'g'];
@@ -45,6 +46,8 @@ function ProductManagement() {
   const [importResult, setImportResult] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => setToast({ message, type });
   const fileInputRef = useRef(null);
 
   const fetchProductos = () => {
@@ -77,8 +80,9 @@ function ProductManagement() {
         const res = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error();
         fetchProductos();
+        showToast('Producto eliminado correctamente');
       } catch {
-        alert('Error al eliminar el producto.');
+        showToast('Error al eliminar el producto.', 'error');
       }
     }
   };
@@ -106,8 +110,9 @@ function ProductManagement() {
       if (!res.ok) throw new Error();
       fetchProductos();
       resetForm();
+      showToast(isEditing ? 'Producto actualizado correctamente' : 'Producto guardado correctamente');
     } catch {
-      alert('Ocurrió un error al guardar.');
+      showToast('Ocurrió un error al guardar.', 'error');
     }
   };
 
@@ -183,6 +188,7 @@ function ProductManagement() {
 
   return (
     <div className="lote-management-layout">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="form-card">
         {/* ── Importación Excel ── */}
         <div className="import-section">

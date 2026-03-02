@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './PackageManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 function PackageManagement() {
   const [packages, setPackages] = useState([]);
@@ -16,6 +17,8 @@ function PackageManagement() {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
     fetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
@@ -167,8 +170,9 @@ function PackageManagement() {
       const updatedPackages = await fetch('/api/packages').then(res => res.json());
       setPackages(updatedPackages);
       resetForm();
+      showToast(isEditing ? 'Paquete actualizado correctamente' : 'Paquete guardado correctamente');
     } catch (error) {
-      console.error("Error en el submit:", error);
+      showToast('Ocurrió un error al guardar.', 'error');
     }
   };
 
@@ -178,14 +182,16 @@ function PackageManagement() {
         const response = await fetch(`/api/packages/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Error al eliminar el paquete');
         setPackages(packages.filter(p => p.id !== id));
+        showToast('Paquete eliminado correctamente');
       } catch (error) {
-        console.error("Error al eliminar:", error);
+        showToast('Error al eliminar el paquete.', 'error');
       }
     }
   };
 
   return (
     <div className="lote-management-layout">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="form-card">
         <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Tareas'}</h2>
         <form onSubmit={handleSubmit} className="lote-form">

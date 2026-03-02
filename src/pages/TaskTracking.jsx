@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FiPlus, FiX } from 'react-icons/fi';
 import './TaskTracking.css';
+import Toast from '../components/Toast';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -29,6 +30,8 @@ function TaskTracking() {
   const [plantillas, setPlantillas] = useState([]);
   const [savingPlantilla, setSavingPlantilla] = useState(false);
   const [plantillaSaved, setPlantillaSaved] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
     fetch('/api/tasks')
@@ -125,7 +128,7 @@ function TaskTracking() {
       setPlantillaSaved(true);
       setTimeout(() => setPlantillaSaved(false), 2500);
     } catch {
-      alert('Error al guardar la plantilla.');
+      showToast('Error al guardar la plantilla.', 'error');
     } finally {
       setSavingPlantilla(false);
     }
@@ -136,7 +139,7 @@ function TaskTracking() {
       await fetch(`/api/task-templates/${id}`, { method: 'DELETE' });
       setPlantillas(prev => prev.filter(p => p.id !== id));
     } catch {
-      alert('Error al eliminar la plantilla.');
+      showToast('Error al eliminar la plantilla.', 'error');
     }
   };
 
@@ -157,8 +160,9 @@ function TaskTracking() {
       const newTask = await res.json();
       setTasks(prev => [...prev, newTask].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)));
       resetForm();
+      showToast('Tarea creada correctamente');
     } catch {
-      alert('Error al crear la tarea. Intenta de nuevo.');
+      showToast('Error al crear la tarea. Intenta de nuevo.', 'error');
     } finally {
       setFormSaving(false);
     }
@@ -217,6 +221,7 @@ function TaskTracking() {
 
   return (
     <div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="task-tracking-header">
         <h2>Seguimiento de Tareas</h2>
         <div className="task-tracking-controls">

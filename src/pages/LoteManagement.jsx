@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import './LoteManagement.css'; // Importamos los nuevos estilos
-import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi'; // Importamos iconos
+import './LoteManagement.css';
+import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 function LoteManagement() {
   const [lotes, setLotes] = useState([]);
   const [packages, setPackages] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => setToast({ message, type });
   const [formData, setFormData] = useState({
     id: null,
     nombreLote: '',
@@ -60,8 +63,9 @@ function LoteManagement() {
         const res = await fetch(`/api/lotes/${loteId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Error al eliminar');
         fetchLotes();
+        showToast('Lote eliminado correctamente');
       } catch (error) {
-        alert('Error al eliminar el lote.');
+        showToast('Error al eliminar el lote.', 'error');
       }
     }
   };
@@ -79,14 +83,16 @@ function LoteManagement() {
       if (!res.ok) throw new Error('Error al guardar el lote');
       fetchLotes();
       resetForm();
+      showToast(isEditing ? 'Lote actualizado correctamente' : 'Lote creado y tareas programadas');
     } catch (error) {
-      alert('Ocurrió un error al guardar.');
+      showToast('Ocurrió un error al guardar.', 'error');
     }
   };
   // --- FIN DE LA LÓGICA ---
 
   return (
     <div className="lote-management-layout">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {/* --- TARJETA DEL FORMULARIO --- */}
       <div className="form-card">
         <h2>{isEditing ? 'Editando Lote' : 'Crear Nuevo Lote'}</h2>
