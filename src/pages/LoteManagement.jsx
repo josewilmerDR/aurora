@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './LoteManagement.css';
 import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import ConfirmModal from '../components/ConfirmModal';
 
 function LoteManagement() {
   const [lotes, setLotes] = useState([]);
@@ -9,6 +10,8 @@ function LoteManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
+  const [confirmModal, setConfirmModal] = useState(null); // { loteId, loteName, taskCount }
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     id: null,
     nombreLote: '',
@@ -57,16 +60,28 @@ function LoteManagement() {
     window.scrollTo(0, 0);
   };
 
-  const handleDelete = async (loteId) => {
-    if (window.confirm('¿Seguro que quieres eliminar este lote? Todas sus tareas también se borrarán.')) {
-      try {
-        const res = await fetch(`/api/lotes/${loteId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Error al eliminar');
-        fetchLotes();
-        showToast('Lote eliminado correctamente');
-      } catch (error) {
-        showToast('Error al eliminar el lote.', 'error');
-      }
+  const handleDeleteClick = async (lote) => {
+    try {
+      const res = await fetch(`/api/lotes/${lote.id}/task-count`);
+      const { count } = await res.json();
+      setConfirmModal({ loteId: lote.id, loteName: lote.nombreLote, taskCount: count });
+    } catch {
+      showToast('Error al verificar las tareas del lote.', 'error');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/lotes/${confirmModal.loteId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Error al eliminar');
+      setConfirmModal(null);
+      fetchLotes();
+      showToast('Lote eliminado correctamente');
+    } catch {
+      showToast('Error al eliminar el lote.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -93,6 +108,19 @@ function LoteManagement() {
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {confirmModal && (
+        <ConfirmModal
+          title={`¿Eliminar "${confirmModal.loteName}"?`}
+          message={
+            confirmModal.taskCount > 0
+              ? `Esta acción eliminará permanentemente el lote y sus ${confirmModal.taskCount} tarea(s) programada(s). No se puede deshacer.`
+              : 'Este lote no tiene tareas asociadas. Solo se eliminará el registro del lote. No se puede deshacer.'
+          }
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setConfirmModal(null)}
+          loading={deleting}
+        />
+      )}
       {/* --- TARJETA DEL FORMULARIO --- */}
       <div className="form-card">
         <h2>{isEditing ? 'Editando Lote' : 'Crear Nuevo Lote'}</h2>
@@ -146,7 +174,7 @@ function LoteManagement() {
                 <button onClick={() => handleEdit(lote)} className="icon-btn" title="Editar">
                   <FiEdit size={18} />
                 </button>
-                <button onClick={() => handleDelete(lote.id)} className="icon-btn delete" title="Eliminar">
+                <button onClick={() => handleDeleteClick(lote)} className="icon-btn delete" title="Eliminar">
                   <FiTrash2 size={18} />
                 </button>
               </div>

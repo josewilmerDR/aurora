@@ -494,6 +494,19 @@ app.put('/api/lotes/:id', async (req, res) => {
     }
 });
 
+app.get('/api/lotes/:id/task-count', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const snapshot = await db.collection('scheduled_tasks')
+            .where('loteId', '==', id)
+            .get();
+        const count = snapshot.docs.filter(doc => doc.data().type !== 'REMINDER_3_DAY').length;
+        res.status(200).json({ count });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al contar tareas.' });
+    }
+});
+
 app.delete('/api/lotes/:id', async (req, res) => {
     try {
         const { id } = req.params;
