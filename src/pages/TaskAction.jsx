@@ -11,6 +11,7 @@ const TaskAction = () => {
   const [successMessage, setSuccessMessage] = useState(null);
 
   const [action, setAction] = useState(null); // null | 'reschedule' | 'reassign'
+  const [saving, setSaving] = useState(false);
   const [newDate, setNewDate] = useState('');
   const [users, setUsers] = useState([]);
   const [newUserId, setNewUserId] = useState('');
@@ -43,6 +44,7 @@ const TaskAction = () => {
   }, [taskId]);
 
   const handleCompleteTask = async () => {
+    setSaving(true);
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PUT',
@@ -54,11 +56,14 @@ const TaskAction = () => {
       setSuccessMessage(`¡Tarea "${task.activityName}" marcada como hecha!`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleReschedule = async () => {
     if (!newDate) return;
+    setSaving(true);
     try {
       const res = await fetch(`/api/tasks/${taskId}/reschedule`, {
         method: 'POST',
@@ -70,11 +75,14 @@ const TaskAction = () => {
       setSuccessMessage(`Tarea reprogramada para el ${new Date(newDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}.`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleReassign = async () => {
     if (!newUserId) return;
+    setSaving(true);
     try {
       const res = await fetch(`/api/tasks/${taskId}/reassign`, {
         method: 'POST',
@@ -87,6 +95,8 @@ const TaskAction = () => {
       setSuccessMessage(`Tarea reasignada a ${newUser?.nombre || 'nuevo responsable'}. Se envió notificación por WhatsApp.`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -197,8 +207,8 @@ const TaskAction = () => {
             <h2>Acciones</h2>
 
             {!isCompleted && (
-              <button className="btn-complete" onClick={handleCompleteTask}>
-                ✓ Marcar como Hecha
+              <button className="btn-complete" onClick={handleCompleteTask} disabled={saving}>
+                {saving ? 'Guardando…' : '✓ Marcar como Hecha'}
               </button>
             )}
 
@@ -229,9 +239,9 @@ const TaskAction = () => {
                 <button
                   className="btn-confirm reschedule"
                   onClick={handleReschedule}
-                  disabled={!newDate}
+                  disabled={!newDate || saving}
                 >
-                  Confirmar nueva fecha
+                  {saving ? 'Guardando…' : 'Confirmar nueva fecha'}
                 </button>
               </div>
             )}
@@ -253,9 +263,9 @@ const TaskAction = () => {
                 <button
                   className="btn-confirm reassign"
                   onClick={handleReassign}
-                  disabled={!newUserId}
+                  disabled={!newUserId || saving}
                 >
-                  Confirmar y enviar WhatsApp
+                  {saving ? 'Enviando…' : 'Confirmar y enviar WhatsApp'}
                 </button>
               </div>
             )}
