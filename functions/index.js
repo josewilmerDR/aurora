@@ -112,6 +112,22 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+app.get('/api/tasks/overdue-count', async (_req, res) => {
+  try {
+    const now = Timestamp.now();
+    const snapshot = await db.collection('scheduled_tasks')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('type', '==', 'REMINDER_DUE_DAY')
+      .where('executeAt', '<', now)
+      .get();
+    const count = snapshot.docs.filter(doc => doc.data().status !== 'completed_by_user').length;
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error('Error counting overdue tasks:', error);
+    res.status(500).json({ message: 'Error al contar tareas vencidas.' });
+  }
+});
+
 app.get('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;

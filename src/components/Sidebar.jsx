@@ -15,11 +15,16 @@ import {
 
 const Sidebar = () => {
   const [stockBajoCount, setStockBajoCount] = useState(0);
+  const [tareasVencidasCount, setTareasVencidasCount] = useState(0);
 
   useEffect(() => {
     fetch('/api/productos')
       .then(res => res.json())
       .then(data => setStockBajoCount(data.filter(p => p.stockActual <= p.stockMinimo).length))
+      .catch(() => {});
+    fetch('/api/tasks/overdue-count')
+      .then(res => res.json())
+      .then(data => setTareasVencidasCount(data.count || 0))
       .catch(() => {});
   }, []);
 
@@ -48,6 +53,7 @@ const Sidebar = () => {
         <NavLink to="/tasks" className="sidebar-link" title="Seguimiento de Tareas">
           <FiCheckSquare size={22} />
           <span className="link-text">Seguimiento de Tareas</span>
+          {tareasVencidasCount > 0 && <span className="sidebar-badge">{tareasVencidasCount}</span>}
         </NavLink>
         <NavLink to="/productos" className="sidebar-link" title="Bodega Agroquímicos">
           <FiDroplet size={22} />
