@@ -163,3 +163,77 @@
   opacity: 0.85;
   margin-top: 3px;
 }
+
+/* Historial de movimientos */
+.historial-card {
+  grid-column: 1 / -1;
+}
+
+.movimientos-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mov-fecha {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.mov-tipo-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.mov-ingreso {
+  background-color: rgba(51, 255, 153, 0.08);
+  border: 1px solid rgba(51, 255, 153, 0.2);
+  color: var(--aurora-green);
+}
+
+.mov-egreso {
+  background-color: rgba(204, 51, 255, 0.12);
+  border: 1px solid rgba(204, 51, 255, 0.3);
+  color: var(--aurora-magenta);
+}
+
+.mov-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mov-nombre {
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+}
+
+.mov-motivo {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.mov-cantidad {
+  font-size: 0.9rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mov-pos {
+  color: var(--aurora-green);
+}
+
+.mov-neg {
+  color: var(--aurora-magenta);
+}

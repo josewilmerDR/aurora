@@ -47,6 +47,7 @@ function ProductManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
   const [toast, setToast] = useState(null);
+  const [movimientos, setMovimientos] = useState([]);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const fileInputRef = useRef(null);
 
@@ -54,8 +55,13 @@ function ProductManagement() {
     fetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
   };
 
+  const fetchMovimientos = () => {
+    fetch('/api/movimientos').then(res => res.json()).then(setMovimientos).catch(console.error);
+  };
+
   useEffect(() => {
     fetchProductos();
+    fetchMovimientos();
   }, []);
 
   const handleInputChange = (e) => {
@@ -390,6 +396,33 @@ function ProductManagement() {
           return matchSearch && matchTipo;
         }).length === 0 && (
           <p className="empty-state">Sin resultados para la búsqueda actual.</p>
+        )}
+      </div>
+
+      <div className="list-card historial-card">
+        <h2>Historial de Movimientos</h2>
+        {movimientos.length === 0 ? (
+          <p className="empty-state">No hay movimientos registrados aún.</p>
+        ) : (
+          <ul className="info-list movimientos-list">
+            {movimientos.map(m => (
+              <li key={m.id} className="movimiento-row">
+                <span className="mov-fecha">
+                  {new Date(m.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+                <span className={`mov-tipo-badge ${m.tipo === 'ingreso' ? 'mov-ingreso' : 'mov-egreso'}`}>
+                  {m.tipo}
+                </span>
+                <div className="mov-info">
+                  <span className="mov-nombre">{m.nombreComercial}</span>
+                  <span className="mov-motivo">{m.motivo}{m.loteNombre ? ` · ${m.loteNombre}` : ''}</span>
+                </div>
+                <span className={`mov-cantidad ${m.tipo === 'egreso' ? 'mov-neg' : 'mov-pos'}`}>
+                  {m.tipo === 'egreso' ? '-' : '+'}{m.cantidad} {m.unidad}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

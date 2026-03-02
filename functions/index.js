@@ -143,6 +143,7 @@ app.put('/api/tasks/:id', async (req, res) => {
         if (taskData.activity?.type === 'aplicacion' && Array.isArray(productos) && productos.length > 0) {
           const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
           const hectareas = loteDoc.exists ? (loteDoc.data().hectareas || 1) : 1;
+          const loteNombre = loteDoc.exists ? (loteDoc.data().nombreLote || '') : '';
           const batch = db.batch();
           batch.update(db.collection('scheduled_tasks').doc(id), updateData);
           for (const prod of productos) {
@@ -152,6 +153,19 @@ app.put('/api/tasks/:id', async (req, res) => {
               : prod.cantidadPorHa * hectareas;
             const prodRef = db.collection('productos').doc(prod.productoId);
             batch.update(prodRef, { stockActual: FieldValue.increment(-deduccion) });
+            batch.set(db.collection('movimientos').doc(), {
+              tipo: 'egreso',
+              productoId: prod.productoId,
+              nombreComercial: prod.nombreComercial || '',
+              cantidad: deduccion,
+              unidad: prod.unidad || '',
+              fecha: Timestamp.now(),
+              motivo: taskData.activity.name,
+              tareaId: id,
+              loteId: taskData.loteId,
+              loteNombre,
+              fincaId: ID_FINCA_ACTUAL,
+            });
           }
           await batch.commit();
           return res.status(200).json({ id, ...updateData });
@@ -689,6 +703,10 @@ app.post('/api/compras/confirmar', async (req, res) => {
     let stockActualizados = 0;
     let productosCreados = 0;
 
+    // Pre-generar ID de compra para referenciarlo en los movimientos
+    const compraRef = db.collection('compras').doc();
+    const motivoCompra = proveedor ? `Compra: ${proveedor}` : 'Compra de inventario';
+
     for (const linea of lineas) {
       const cantidad = parseFloat(linea.cantidadIngresada) || 0;
       if (cantidad <= 0) continue;
@@ -697,6 +715,17 @@ app.post('/api/compras/confirmar', async (req, res) => {
         // ── Producto existente: solo incrementar stock ──
         const prodRef = db.collection('productos').doc(linea.productoId);
         batch.update(prodRef, { stockActual: FieldValue.increment(cantidad) });
+        batch.set(db.collection('movimientos').doc(), {
+          tipo: 'ingreso',
+          productoId: linea.productoId,
+          nombreComercial: linea.nombreComercial || linea.nombreFactura || '',
+          cantidad,
+          unidad: linea.unidad || '',
+          fecha: Timestamp.now(),
+          motivo: motivoCompra,
+          compraId: compraRef.id,
+          fincaId: ID_FINCA_ACTUAL,
+        });
         stockActualizados++;
       } else if (linea.ingredienteActivo) {
         // ── Producto nuevo: crear con todos los campos del formulario ──
@@ -718,13 +747,23 @@ app.post('/api/compras/confirmar', async (req, res) => {
           proveedor: proveedor || '',
           fincaId: ID_FINCA_ACTUAL,
         });
+        batch.set(db.collection('movimientos').doc(), {
+          tipo: 'ingreso',
+          productoId: newProdRef.id,
+          nombreComercial: linea.nombreComercial || linea.nombreFactura || '',
+          cantidad,
+          unidad: linea.unidad || 'L',
+          fecha: Timestamp.now(),
+          motivo: motivoCompra,
+          compraId: compraRef.id,
+          fincaId: ID_FINCA_ACTUAL,
+        });
         productosCreados++;
       }
       // Si no tiene productoId ni ingredienteActivo: se ignora (incompleto)
     }
 
-    // Guardar registro de compra
-    const compraRef = db.collection('compras').doc();
+    // Guardar registro de compra (ref pre-generada arriba)
     batch.set(compraRef, {
       fincaId: ID_FINCA_ACTUAL,
       proveedor: proveedor || '',
@@ -750,6 +789,34 @@ app.post('/api/compras/confirmar', async (req, res) => {
   } catch (error) {
     console.error("Error confirmando compra:", error);
     res.status(500).json({ message: 'Error al registrar la compra.' });
+  }
+});
+
+// --- API ENDPOINTS: MOVIMIENTOS ---
+app.get('/api/movimientos', async (req, res) => {
+  try {
+    const { productoId } = req.query;
+    let query = db.collection('movimientos')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('fecha', 'desc')
+      .limit(100);
+    if (productoId) {
+      query = db.collection('movimientos')
+        .where('fincaId', '==', ID_FINCA_ACTUAL)
+        .where('productoId', '==', productoId)
+        .orderBy('fecha', 'desc')
+        .limit(100);
+    }
+    const snapshot = await query.get();
+    const movimientos = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      fecha: doc.data().fecha.toDate().toISOString(),
+    }));
+    res.status(200).json(movimientos);
+  } catch (error) {
+    console.error('Error fetching movimientos:', error);
+    res.status(500).json({ message: 'Error al obtener movimientos.' });
   }
 });
 
