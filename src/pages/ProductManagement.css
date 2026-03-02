@@ -107,6 +107,45 @@
   margin-bottom: 14px;
 }
 
+/* Filtros de búsqueda */
+.product-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.product-search-input {
+  flex: 1;
+  min-width: 180px;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.product-search-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.product-filter-select {
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.product-filter-select:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
 /* Lista con info comercial */
 .product-list-info {
   flex: 1;

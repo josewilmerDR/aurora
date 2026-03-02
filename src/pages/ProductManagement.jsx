@@ -43,6 +43,8 @@ function ProductManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
   const fileInputRef = useRef(null);
 
   const fetchProductos = () => {
@@ -306,8 +308,34 @@ function ProductManagement() {
 
       <div className="list-card">
         <h2>Inventario de Agroquímicos</h2>
+        <div className="product-filters">
+          <input
+            type="text"
+            className="product-search-input"
+            placeholder="Buscar por nombre, ID o ingrediente…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          <select
+            className="product-filter-select"
+            value={filterTipo}
+            onChange={e => setFilterTipo(e.target.value)}
+          >
+            <option value="">Todos los tipos</option>
+            {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
         <ul className="info-list">
-          {productos.map(p => {
+          {productos.filter(p => {
+            const q = searchQuery.toLowerCase();
+            const matchSearch = !q ||
+              p.nombreComercial?.toLowerCase().includes(q) ||
+              p.idProducto?.toLowerCase().includes(q) ||
+              p.ingredienteActivo?.toLowerCase().includes(q) ||
+              p.proveedor?.toLowerCase().includes(q);
+            const matchTipo = !filterTipo || p.tipo === filterTipo;
+            return matchSearch && matchTipo;
+          }).map(p => {
             const stockBajo = p.stockActual <= p.stockMinimo;
             const total = (p.precioUnitario || 0) * (p.stockActual || 0) * (p.tipoCambio || 1);
             return (
@@ -345,6 +373,18 @@ function ProductManagement() {
           })}
         </ul>
         {productos.length === 0 && <p className="empty-state">No hay productos registrados.</p>}
+        {productos.length > 0 && productos.filter(p => {
+          const q = searchQuery.toLowerCase();
+          const matchSearch = !q ||
+            p.nombreComercial?.toLowerCase().includes(q) ||
+            p.idProducto?.toLowerCase().includes(q) ||
+            p.ingredienteActivo?.toLowerCase().includes(q) ||
+            p.proveedor?.toLowerCase().includes(q);
+          const matchTipo = !filterTipo || p.tipo === filterTipo;
+          return matchSearch && matchTipo;
+        }).length === 0 && (
+          <p className="empty-state">Sin resultados para la búsqueda actual.</p>
+        )}
       </div>
     </div>
   );
