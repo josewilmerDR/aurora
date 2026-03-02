@@ -101,9 +101,20 @@
 
   .sidebar-link {
     justify-content: center;
+    position: relative;
   }
 
   .sidebar-link svg {
     margin-right: 0;
+  }
+
+  /* Badge repositioned as small overlay dot on the icon */
+  .sidebar-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 14px;
+    padding: 1px 4px;
+    font-size: 0.6rem;
   }
 }
