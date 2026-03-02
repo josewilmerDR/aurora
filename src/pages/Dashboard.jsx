@@ -6,6 +6,7 @@ function Dashboard() {
   const [stats, setStats] = useState({ overdue: 0, pending: 0, completed: 0 });
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [lotes, setLotes] = useState([]);
+  const [stockBajoCount, setStockBajoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -24,8 +25,9 @@ function Dashboard() {
     setLoading(true);
     Promise.all([
       fetch('/api/tasks').then(res => res.json()),
-      fetch('/api/lotes').then(res => res.json())
-    ]).then(([tasksData, lotesData]) => {
+      fetch('/api/lotes').then(res => res.json()),
+      fetch('/api/productos').then(res => res.json()),
+    ]).then(([tasksData, lotesData, productosData]) => {
       const taskStats = { overdue: 0, pending: 0, completed: 0 };
       const pendingTasks = [];
 
@@ -46,6 +48,7 @@ function Dashboard() {
       setStats(taskStats);
       setUpcomingTasks(pendingTasks.slice(0, 5));
       setLotes(lotesData);
+      setStockBajoCount(productosData.filter(p => p.stockActual <= p.stockMinimo).length);
       setLoading(false);
 
     }).catch(err => {
@@ -82,6 +85,10 @@ function Dashboard() {
         <Link to="/tasks?filter=completed" className="stat-card completed">
           <div className="count">{stats.completed}</div>
           <div className="label">Tareas Hechas</div>
+        </Link>
+        <Link to="/productos" className="stat-card stock-bajo">
+          <div className="count">{stockBajoCount}</div>
+          <div className="label">Stock Bajo</div>
         </Link>
       </div>
 

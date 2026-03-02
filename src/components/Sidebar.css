@@ -55,6 +55,24 @@
   margin-right: 20px;
 }
 
+.sidebar-badge {
+  margin-left: auto;
+  background-color: var(--aurora-magenta);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 2px 7px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebar-link.active .sidebar-badge {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-magenta);
+}
+
 .sidebar-footer {
   padding-bottom: 15px;
   border-top: 1px solid var(--aurora-border);

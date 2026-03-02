@@ -1,5 +1,5 @@
 
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import './Sidebar.css';
 import {
@@ -14,6 +14,15 @@ import {
 } from 'react-icons/fi';
 
 const Sidebar = () => {
+  const [stockBajoCount, setStockBajoCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/productos')
+      .then(res => res.json())
+      .then(data => setStockBajoCount(data.filter(p => p.stockActual <= p.stockMinimo).length))
+      .catch(() => {});
+  }, []);
+
   return (
     <nav className="sidebar">
       <div className="sidebar-header">
@@ -43,6 +52,7 @@ const Sidebar = () => {
         <NavLink to="/productos" className="sidebar-link" title="Bodega Agroquímicos">
           <FiDroplet size={22} />
           <span className="link-text">Bodega Agroquímicos</span>
+          {stockBajoCount > 0 && <span className="sidebar-badge">{stockBajoCount}</span>}
         </NavLink>
         <NavLink to="/compras" className="sidebar-link" title="Registrar Compra">
           <FiFileText size={22} />
