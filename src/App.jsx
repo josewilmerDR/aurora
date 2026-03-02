@@ -6,6 +6,7 @@ import TaskTracking from './pages/TaskTracking';
 import Dashboard from './pages/Dashboard';
 import TaskAction from './pages/TaskAction';
 import ProductManagement from './pages/ProductManagement';
+import ProductCatalog from './pages/ProductCatalog';
 import InvoiceScan from './pages/InvoiceScan';
 import Sidebar from './components/Sidebar';
 
@@ -20,6 +21,7 @@ const routeTitles = {
   '/lotes': 'Gestión de Lotes',
   '/tasks': 'Seguimiento de Tareas',
   '/productos': 'Bodega de Agroquímicos',
+  '/productos/todos': 'Inventario Completo',
   '/compras': 'Registrar Compra'
 };
 
@@ -68,6 +70,7 @@ function App() {
           <Route path="/lotes" element={<LoteManagement />} />
           <Route path="/tasks" element={<TaskTracking />} />
           <Route path="/productos" element={<ProductManagement />} />
+          <Route path="/productos/todos" element={<ProductCatalog />} />
           <Route path="/compras" element={<InvoiceScan />} />
         </Route>
 

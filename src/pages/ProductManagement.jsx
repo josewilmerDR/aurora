@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './ProductManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiUpload, FiDownload } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiUpload, FiDownload, FiChevronRight } from 'react-icons/fi';
 import Toast from '../components/Toast';
+
+const PREVIEW_LIMIT = 7;
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const UNIDADES = ['L', 'mL', 'kg', 'g'];
@@ -39,6 +42,7 @@ function formatCurrency(value, moneda) {
 }
 
 function ProductManagement() {
+  const location = useLocation();
   const [productos, setProductos] = useState([]);
   const [formData, setFormData] = useState(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
@@ -62,6 +66,12 @@ function ProductManagement() {
   useEffect(() => {
     fetchProductos();
     fetchMovimientos();
+    // Pre-populate form if coming back from the catalog with a product to edit
+    if (location.state?.editProducto) {
+      setFormData({ ...emptyForm, ...location.state.editProducto });
+      setIsEditing(true);
+      window.scrollTo(0, 0);
+    }
   }, []);
 
   const handleInputChange = (e) => {
@@ -191,6 +201,20 @@ function ProductManagement() {
       e.target.value = '';
     }
   };
+
+  const isFiltering = searchQuery !== '' || filterTipo !== '';
+  const filteredProductos = productos.filter(p => {
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q ||
+      p.nombreComercial?.toLowerCase().includes(q) ||
+      p.idProducto?.toLowerCase().includes(q) ||
+      p.ingredienteActivo?.toLowerCase().includes(q) ||
+      p.proveedor?.toLowerCase().includes(q);
+    const matchTipo = !filterTipo || p.tipo === filterTipo;
+    return matchSearch && matchTipo;
+  });
+  const displayedProductos = isFiltering ? filteredProductos : filteredProductos.slice(0, PREVIEW_LIMIT);
+  const hasMore = !isFiltering && filteredProductos.length > PREVIEW_LIMIT;
 
   return (
     <div className="lote-management-layout">
@@ -338,16 +362,7 @@ function ProductManagement() {
           </select>
         </div>
         <ul className="info-list">
-          {productos.filter(p => {
-            const q = searchQuery.toLowerCase();
-            const matchSearch = !q ||
-              p.nombreComercial?.toLowerCase().includes(q) ||
-              p.idProducto?.toLowerCase().includes(q) ||
-              p.ingredienteActivo?.toLowerCase().includes(q) ||
-              p.proveedor?.toLowerCase().includes(q);
-            const matchTipo = !filterTipo || p.tipo === filterTipo;
-            return matchSearch && matchTipo;
-          }).map(p => {
+          {displayedProductos.map(p => {
             const stockBajo = p.stockActual <= p.stockMinimo;
             const total = (p.precioUnitario || 0) * (p.stockActual || 0) * (p.tipoCambio || 1);
             return (
@@ -384,18 +399,20 @@ function ProductManagement() {
             );
           })}
         </ul>
-        {productos.length === 0 && <p className="empty-state">No hay productos registrados.</p>}
-        {productos.length > 0 && productos.filter(p => {
-          const q = searchQuery.toLowerCase();
-          const matchSearch = !q ||
-            p.nombreComercial?.toLowerCase().includes(q) ||
-            p.idProducto?.toLowerCase().includes(q) ||
-            p.ingredienteActivo?.toLowerCase().includes(q) ||
-            p.proveedor?.toLowerCase().includes(q);
-          const matchTipo = !filterTipo || p.tipo === filterTipo;
-          return matchSearch && matchTipo;
-        }).length === 0 && (
-          <p className="empty-state">Sin resultados para la búsqueda actual.</p>
+        {displayedProductos.length === 0 && (
+          <p className="empty-state">
+            {productos.length === 0
+              ? 'No hay productos registrados.'
+              : 'Sin resultados para la búsqueda actual.'}
+          </p>
+        )}
+        {hasMore && (
+          <div className="ver-todos-container">
+            <Link to="/productos/todos" className="btn-ver-todos">
+              Ver todos los productos ({filteredProductos.length} en total)
+              <FiChevronRight size={16} />
+            </Link>
+          </div>
         )}
       </div>
 
