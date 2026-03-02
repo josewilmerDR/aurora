@@ -146,6 +146,40 @@ function LoteManagement() {
               <input id="hectareas" name="hectareas" type="number" step="0.01" min="0.01" value={formData.hectareas} onChange={handleInputChange} placeholder="Ej: 2.5" required />
             </div>
           </div>
+          {formData.paqueteId && (() => {
+            const pkg = packages.find(p => p.id === formData.paqueteId);
+            if (!pkg) return null;
+            const sorted = [...pkg.activities].sort((a, b) => Number(a.day) - Number(b.day));
+            return (
+              <div className="package-preview">
+                <div className="package-preview-header">
+                  <span className="package-preview-title">{pkg.activities.length} actividad(es) a programar</span>
+                  <span className="package-preview-meta">{pkg.tipoCosecha} · {pkg.etapaCultivo}</span>
+                </div>
+                <ul className="package-preview-list">
+                  {sorted.map((act, i) => {
+                    let dateStr = null;
+                    if (formData.fechaCreacion) {
+                      const base = new Date(formData.fechaCreacion + 'T00:00:00Z');
+                      const d = new Date(base.getTime() + Number(act.day) * 86400000);
+                      dateStr = d.toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+                    }
+                    return (
+                      <li key={i} className="package-preview-item">
+                        <span className="preview-day">Día {act.day}</span>
+                        <span className="preview-name">{act.name}</span>
+                        {dateStr && <span className="preview-date">{dateStr}</span>}
+                        <span className={`preview-type-badge preview-badge-${act.type || 'notificacion'}`}>
+                          {act.type === 'aplicacion' ? 'Aplicación' : 'Notificación'}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })()}
+
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
               <FiPlus />
