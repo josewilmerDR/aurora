@@ -116,6 +116,6 @@
 /* En pantallas más grandes, colocar formulario y lista lado a lado */
 @media (min-width: 1200px) {
   .lote-management-layout {
-    grid-template-columns: 400px 1fr; /* Formulario a la izquierda, lista a la derecha */
+    grid-template-columns: 800px 1fr; /* Formulario a la izquierda, lista a la derecha */
   }
 }
