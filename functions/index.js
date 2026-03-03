@@ -43,20 +43,30 @@ const enrichTask = async (taskDoc) => {
   const task = taskDoc.data();
   if (!task) return null;
 
-  const lotePromise = db.collection('lotes').doc(task.loteId).get();
-  const userPromise = db.collection('users').doc(task.activity.responsableId).get();
+  const responsableId = task.activity?.responsableId;
+  const hasRealUser = responsableId && responsableId !== 'proveeduria';
+
+  const lotePromise = task.loteId
+    ? db.collection('lotes').doc(task.loteId).get()
+    : Promise.resolve(null);
+  const userPromise = hasRealUser
+    ? db.collection('users').doc(responsableId).get()
+    : Promise.resolve(null);
+
   const [loteDoc, userDoc] = await Promise.all([lotePromise, userPromise]);
 
-  const lote = loteDoc.data();
-  const responsable = userDoc.data();
+  const lote = loteDoc ? loteDoc.data() : null;
+  const responsable = userDoc ? userDoc.data() : null;
 
   return {
     id: taskDoc.id,
-    activityName: task.activity.name,
-    loteName: lote ? lote.nombreLote : 'Lote no encontrado',
+    activityName: task.activity?.name,
+    loteName: lote ? lote.nombreLote : (task.loteId ? 'Lote no encontrado' : '—'),
     loteHectareas: lote ? (lote.hectareas || 1) : 1,
-    responsableName: responsable ? responsable.nombre : 'Usuario no encontrado',
-    responsableTel: responsable ? responsable.telefono : 'Sin teléfono',
+    responsableName: responsable
+      ? responsable.nombre
+      : (task.activity?.responsableNombre || 'Proveeduría'),
+    responsableTel: responsable ? responsable.telefono : '—',
     dueDate: task.executeAt.toDate().toISOString(),
     status: task.status,
     type: task.type,
@@ -834,23 +844,65 @@ app.post('/api/solicitudes-compra', async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un producto.' });
     }
-    const docRef = await db.collection('solicitudes_compra').add({
+
+    const resolvedResponsableId = responsableId || 'proveeduria';
+    const resolvedResponsableNombre = responsableNombre || 'Proveeduría';
+
+    const mappedItems = items.map(i => ({
+      productoId: i.productoId,
+      nombreComercial: i.nombreComercial,
+      cantidadSolicitada: parseFloat(i.cantidadSolicitada) || 0,
+      unidad: i.unidad,
+      stockActual: parseFloat(i.stockActual) || 0,
+      stockMinimo: parseFloat(i.stockMinimo) || 0,
+    }));
+
+    const batch = db.batch();
+
+    // Crear la solicitud de compra
+    const solicitudRef = db.collection('solicitudes_compra').doc();
+    batch.set(solicitudRef, {
       fincaId: ID_FINCA_ACTUAL,
       fechaCreacion: Timestamp.now(),
       estado: 'pendiente',
-      responsableId: responsableId || 'proveeduria',
-      responsableNombre: responsableNombre || 'Proveeduría',
+      responsableId: resolvedResponsableId,
+      responsableNombre: resolvedResponsableNombre,
       notas: notas || '',
-      items: items.map(i => ({
-        productoId: i.productoId,
-        nombreComercial: i.nombreComercial,
-        cantidadSolicitada: parseFloat(i.cantidadSolicitada) || 0,
-        unidad: i.unidad,
-        stockActual: parseFloat(i.stockActual) || 0,
-        stockMinimo: parseFloat(i.stockMinimo) || 0,
-      })),
+      items: mappedItems,
     });
-    res.status(201).json({ id: docRef.id, message: 'Solicitud creada exitosamente.' });
+
+    // Crear tarea asociada en scheduled_tasks
+    const productosResumen = mappedItems
+      .map(i => `${i.nombreComercial} (${i.cantidadSolicitada} ${i.unidad})`)
+      .join(', ');
+    const taskRef = db.collection('scheduled_tasks').doc();
+    batch.set(taskRef, {
+      type: 'SOLICITUD_COMPRA',
+      executeAt: Timestamp.now(),
+      status: 'pending',
+      loteId: null,
+      fincaId: ID_FINCA_ACTUAL,
+      solicitudId: solicitudRef.id,
+      activity: {
+        name: `Solicitud de compra: ${mappedItems.length} producto(s)`,
+        type: 'notificacion',
+        responsableId: resolvedResponsableId,
+        responsableNombre: resolvedResponsableNombre,
+        descripcion: productosResumen,
+        productos: mappedItems.map(i => ({
+          productoId: i.productoId,
+          nombreComercial: i.nombreComercial,
+          cantidad: i.cantidadSolicitada,
+          unidad: i.unidad,
+          stockActual: i.stockActual,
+          stockMinimo: i.stockMinimo,
+        })),
+      },
+      notas: notas || '',
+    });
+
+    await batch.commit();
+    res.status(201).json({ id: solicitudRef.id, taskId: taskRef.id, message: 'Solicitud creada exitosamente.' });
   } catch (error) {
     console.error('Error creating solicitud:', error);
     res.status(500).json({ message: 'Error al crear la solicitud.' });

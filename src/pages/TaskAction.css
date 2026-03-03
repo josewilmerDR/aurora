@@ -93,13 +93,41 @@
   border-radius: 10px;
 }
 
+.recipe-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
 .recipe-title {
   font-size: 1rem;
   font-weight: 700;
   color: #64b5f6;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 4px;
+  margin: 0;
+}
+
+.btn-generate-po {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background-color: var(--aurora-magenta);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.btn-generate-po:hover {
+  opacity: 0.85;
 }
 
 .recipe-subtitle {

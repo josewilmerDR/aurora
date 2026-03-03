@@ -9,6 +9,7 @@ import ProductManagement from './pages/ProductManagement';
 import ProductCatalog from './pages/ProductCatalog';
 import InvoiceScan from './pages/InvoiceScan';
 import PurchaseRequest from './pages/PurchaseRequest';
+import PurchaseOrder from './pages/PurchaseOrder';
 import Sidebar from './components/Sidebar';
 
 import './index.css';
@@ -80,6 +81,7 @@ function App() {
         {/* 4. Rutas que usan el Layout Sencillo (se mantiene igual) */}
         <Route element={<SimpleLayout />}>\
             <Route path="/task/:taskId" element={<TaskAction />} />
+            <Route path="/orden-compra/:taskId" element={<PurchaseOrder />} />
         </Route>
       </Routes>
     </Router>

@@ -107,6 +107,7 @@ const TaskAction = () => {
 
   const isCompleted = task.status === 'completed_by_user';
   const isAplicacion = task.activity?.type === 'aplicacion';
+  const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
   const loteHectareas = task.loteHectareas || 1;
 
   return (
@@ -121,8 +122,12 @@ const TaskAction = () => {
           <span className="task-info-label">Actividad</span>
           <span className="task-info-value">{task.activityName}</span>
 
-          <span className="task-info-label">Lote</span>
-          <span className="task-info-value">{task.loteName}</span>
+          {!isSolicitudCompra && (
+            <>
+              <span className="task-info-label">Lote</span>
+              <span className="task-info-value">{task.loteName}</span>
+            </>
+          )}
 
           <span className="task-info-label">Responsable</span>
           <span className="task-info-value">{task.responsableName}</span>
@@ -201,6 +206,48 @@ const TaskAction = () => {
             </div>
           );
         })()}
+
+        {isSolicitudCompra && task.activity?.productos?.length > 0 && (
+          <div className="recipe-panel">
+            <div className="recipe-panel-header">
+              <h2 className="recipe-title">🛒 Productos Solicitados</h2>
+              <button
+                className="btn-generate-po"
+                onClick={() => navigate(`/orden-compra/${taskId}`)}
+              >
+                📄 Generar Orden de Compra
+              </button>
+            </div>
+            {task.notas && (
+              <p className="recipe-subtitle">
+                Nota del bodeguero: <em>{task.notas}</em>
+              </p>
+            )}
+            <table className="recipe-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Stock actual</th>
+                  <th>Cantidad solicitada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {task.activity.productos.map(p => {
+                  const isLow = p.stockActual <= p.stockMinimo;
+                  return (
+                    <tr key={p.productoId}>
+                      <td>{p.nombreComercial}</td>
+                      <td style={{ color: isLow ? '#ff6b6b' : 'inherit' }}>
+                        {isLow ? '⚠ ' : ''}{p.stockActual} {p.unidad}
+                      </td>
+                      <td><strong>{p.cantidad} {p.unidad}</strong></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {!successMessage && (
           <div className="task-actions-section">

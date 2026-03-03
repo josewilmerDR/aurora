@@ -196,6 +196,9 @@ function TaskTracking() {
         {task.activity?.type === 'aplicacion' && (
           <span className="task-aplicacion-tag">⚗ Aplicación</span>
         )}
+        {task.type === 'SOLICITUD_COMPRA' && (
+          <span className="task-aplicacion-tag" style={{ background: 'var(--aurora-magenta)', color: '#fff' }}>🛒 Compra</span>
+        )}
       </div>
       <div className="task-card-body">
         <span className="task-detail"><strong>Lote:</strong> {task.loteName}</span>
