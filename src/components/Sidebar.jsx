@@ -10,6 +10,7 @@ import {
   FiCheckSquare,
   FiDroplet,
   FiFileText,
+  FiShoppingCart,
   FiLogOut
 } from 'react-icons/fi';
 
@@ -63,6 +64,10 @@ const Sidebar = () => {
         <NavLink to="/compras" className="sidebar-link" title="Registrar Compra">
           <FiFileText size={22} />
           <span className="link-text">Registrar Compra</span>
+        </NavLink>
+        <NavLink to="/solicitudes" className="sidebar-link" title="Solicitar Compra">
+          <FiShoppingCart size={22} />
+          <span className="link-text">Solicitar Compra</span>
         </NavLink>
       </div>
       <div className="sidebar-footer">

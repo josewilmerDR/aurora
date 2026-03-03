@@ -808,6 +808,83 @@ app.post('/api/compras/confirmar', async (req, res) => {
   }
 });
 
+// --- API ENDPOINTS: SOLICITUDES DE COMPRA ---
+app.get('/api/solicitudes-compra', async (req, res) => {
+  try {
+    const snapshot = await db.collection('solicitudes_compra')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('fechaCreacion', 'desc')
+      .limit(50)
+      .get();
+    const solicitudes = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      fechaCreacion: doc.data().fechaCreacion.toDate().toISOString(),
+    }));
+    res.status(200).json(solicitudes);
+  } catch (error) {
+    console.error('Error fetching solicitudes:', error);
+    res.status(500).json({ message: 'Error al obtener solicitudes.' });
+  }
+});
+
+app.post('/api/solicitudes-compra', async (req, res) => {
+  try {
+    const { responsableId, responsableNombre, notas, items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Se requiere al menos un producto.' });
+    }
+    const docRef = await db.collection('solicitudes_compra').add({
+      fincaId: ID_FINCA_ACTUAL,
+      fechaCreacion: Timestamp.now(),
+      estado: 'pendiente',
+      responsableId: responsableId || 'proveeduria',
+      responsableNombre: responsableNombre || 'Proveeduría',
+      notas: notas || '',
+      items: items.map(i => ({
+        productoId: i.productoId,
+        nombreComercial: i.nombreComercial,
+        cantidadSolicitada: parseFloat(i.cantidadSolicitada) || 0,
+        unidad: i.unidad,
+        stockActual: parseFloat(i.stockActual) || 0,
+        stockMinimo: parseFloat(i.stockMinimo) || 0,
+      })),
+    });
+    res.status(201).json({ id: docRef.id, message: 'Solicitud creada exitosamente.' });
+  } catch (error) {
+    console.error('Error creating solicitud:', error);
+    res.status(500).json({ message: 'Error al crear la solicitud.' });
+  }
+});
+
+app.put('/api/solicitudes-compra/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado, items, responsableId, responsableNombre, notas } = req.body;
+    const update = {};
+    if (estado) update.estado = estado;
+    if (items) update.items = items;
+    if (responsableId !== undefined) update.responsableId = responsableId;
+    if (responsableNombre !== undefined) update.responsableNombre = responsableNombre;
+    if (notas !== undefined) update.notas = notas;
+    await db.collection('solicitudes_compra').doc(id).update(update);
+    res.status(200).json({ message: 'Solicitud actualizada.' });
+  } catch (error) {
+    console.error('Error updating solicitud:', error);
+    res.status(500).json({ message: 'Error al actualizar la solicitud.' });
+  }
+});
+
+app.delete('/api/solicitudes-compra/:id', async (req, res) => {
+  try {
+    await db.collection('solicitudes_compra').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Solicitud eliminada.' });
+  } catch (error) {
+    console.error('Error deleting solicitud:', error);
+    res.status(500).json({ message: 'Error al eliminar la solicitud.' });
+  }
+});
+
 // --- API ENDPOINTS: MOVIMIENTOS ---
 app.get('/api/movimientos', async (req, res) => {
   try {

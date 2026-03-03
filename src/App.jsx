@@ -8,6 +8,7 @@ import TaskAction from './pages/TaskAction';
 import ProductManagement from './pages/ProductManagement';
 import ProductCatalog from './pages/ProductCatalog';
 import InvoiceScan from './pages/InvoiceScan';
+import PurchaseRequest from './pages/PurchaseRequest';
 import Sidebar from './components/Sidebar';
 
 import './index.css';
@@ -22,7 +23,8 @@ const routeTitles = {
   '/tasks': 'Seguimiento de Tareas',
   '/productos': 'Bodega de Agroquímicos',
   '/productos/todos': 'Inventario Completo',
-  '/compras': 'Registrar Compra'
+  '/compras': 'Registrar Compra',
+  '/solicitudes': 'Solicitud de Compra'
 };
 
 // --- Layouts ---
@@ -72,6 +74,7 @@ function App() {
           <Route path="/productos" element={<ProductManagement />} />
           <Route path="/productos/todos" element={<ProductCatalog />} />
           <Route path="/compras" element={<InvoiceScan />} />
+          <Route path="/solicitudes" element={<PurchaseRequest />} />
         </Route>
 
         {/* 4. Rutas que usan el Layout Sencillo (se mantiene igual) */}
