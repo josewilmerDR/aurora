@@ -5,7 +5,7 @@
 .content-area {
   flex-grow: 1;
   padding: 30px;
-  margin-left: 250px; /* Ancho de la Sidebar en escritorio */
+  margin-left: 260px; /* Ancho de la Sidebar en escritorio */
   transition: margin-left 0.3s ease;
 }
 

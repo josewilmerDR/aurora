@@ -1149,6 +1149,337 @@ app.post('/api/recepciones', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// API ENDPOINTS: RECURSOS HUMANOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Fichas del Trabajador ────────────────────────────────────────────────────
+app.get('/api/hr/fichas/:userId', async (req, res) => {
+  try {
+    const doc = await db.collection('hr_fichas').doc(req.params.userId).get();
+    res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener ficha.' });
+  }
+});
+
+app.put('/api/hr/fichas/:userId', async (req, res) => {
+  try {
+    await db.collection('hr_fichas').doc(req.params.userId).set(
+      { ...req.body, fincaId: ID_FINCA_ACTUAL, updatedAt: Timestamp.now() },
+      { merge: true }
+    );
+    res.status(200).json({ message: 'Ficha actualizada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al guardar ficha.' });
+  }
+});
+
+// ── Asistencia ───────────────────────────────────────────────────────────────
+app.get('/api/hr/asistencia', async (req, res) => {
+  try {
+    const { mes, anio } = req.query;
+    let query = db.collection('hr_asistencia').where('fincaId', '==', ID_FINCA_ACTUAL);
+    if (mes && anio) {
+      const start = Timestamp.fromDate(new Date(Number(anio), Number(mes) - 1, 1));
+      const end   = Timestamp.fromDate(new Date(Number(anio), Number(mes), 1));
+      query = query.where('fecha', '>=', start).where('fecha', '<', end);
+    }
+    const snap = await query.orderBy('fecha', 'desc').get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener asistencia.' });
+  }
+});
+
+app.post('/api/hr/asistencia', async (req, res) => {
+  try {
+    const { trabajadorId, trabajadorNombre, fecha, estado, horasExtra, notas } = req.body;
+    if (!trabajadorId || !fecha || !estado) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_asistencia').add({
+      trabajadorId, trabajadorNombre: trabajadorNombre || '',
+      fecha: Timestamp.fromDate(new Date(fecha)),
+      estado, horasExtra: Number(horasExtra) || 0, notas: notas || '',
+      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al registrar asistencia.' });
+  }
+});
+
+app.delete('/api/hr/asistencia/:id', async (req, res) => {
+  try {
+    await db.collection('hr_asistencia').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Registro eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar registro.' });
+  }
+});
+
+// ── Horas Extra ──────────────────────────────────────────────────────────────
+app.get('/api/hr/horas-extra', async (req, res) => {
+  try {
+    const { mes, anio } = req.query;
+    let query = db.collection('hr_horas_extra').where('fincaId', '==', ID_FINCA_ACTUAL);
+    if (mes && anio) {
+      const start = Timestamp.fromDate(new Date(Number(anio), Number(mes) - 1, 1));
+      const end   = Timestamp.fromDate(new Date(Number(anio), Number(mes), 1));
+      query = query.where('fecha', '>=', start).where('fecha', '<', end);
+    }
+    const snap = await query.orderBy('fecha', 'desc').get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener horas extra.' });
+  }
+});
+
+app.post('/api/hr/horas-extra', async (req, res) => {
+  try {
+    const { trabajadorId, trabajadorNombre, fecha, horas, motivo } = req.body;
+    if (!trabajadorId || !fecha || !horas) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_horas_extra').add({
+      trabajadorId, trabajadorNombre: trabajadorNombre || '',
+      fecha: Timestamp.fromDate(new Date(fecha)),
+      horas: Number(horas), motivo: motivo || '',
+      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al registrar horas extra.' });
+  }
+});
+
+app.delete('/api/hr/horas-extra/:id', async (req, res) => {
+  try {
+    await db.collection('hr_horas_extra').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Registro eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
+// ── Permisos y Vacaciones ────────────────────────────────────────────────────
+app.get('/api/hr/permisos', async (req, res) => {
+  try {
+    const snap = await db.collection('hr_permisos')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('fechaInicio', 'desc').get();
+    const data = snap.docs.map(d => ({
+      id: d.id, ...d.data(),
+      fechaInicio: d.data().fechaInicio.toDate().toISOString(),
+      fechaFin: d.data().fechaFin.toDate().toISOString(),
+      createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null,
+    }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener permisos.' });
+  }
+});
+
+app.post('/api/hr/permisos', async (req, res) => {
+  try {
+    const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo } = req.body;
+    if (!trabajadorId || !tipo || !fechaInicio || !fechaFin) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_permisos').add({
+      trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
+      fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
+      fechaFin: Timestamp.fromDate(new Date(fechaFin)),
+      dias: Number(dias) || 1, motivo: motivo || '',
+      estado: 'pendiente', fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear permiso.' });
+  }
+});
+
+app.put('/api/hr/permisos/:id', async (req, res) => {
+  try {
+    await db.collection('hr_permisos').doc(req.params.id).update(req.body);
+    res.status(200).json({ message: 'Permiso actualizado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar permiso.' });
+  }
+});
+
+app.delete('/api/hr/permisos/:id', async (req, res) => {
+  try {
+    await db.collection('hr_permisos').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Permiso eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar permiso.' });
+  }
+});
+
+// ── Planilla ─────────────────────────────────────────────────────────────────
+app.get('/api/hr/planilla', async (req, res) => {
+  try {
+    const { mes, anio } = req.query;
+    let query = db.collection('hr_planilla').where('fincaId', '==', ID_FINCA_ACTUAL);
+    if (mes) query = query.where('mes', '==', Number(mes));
+    if (anio) query = query.where('anio', '==', Number(anio));
+    const snap = await query.orderBy('createdAt', 'desc').get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener planilla.' });
+  }
+});
+
+app.post('/api/hr/planilla', async (req, res) => {
+  try {
+    const { trabajadorId, trabajadorNombre, mes, anio, diasTrabajados, horasExtra, salarioBase, deducciones, total } = req.body;
+    if (!trabajadorId || !mes || !anio) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_planilla').add({
+      trabajadorId, trabajadorNombre: trabajadorNombre || '',
+      mes: Number(mes), anio: Number(anio),
+      diasTrabajados: Number(diasTrabajados) || 0,
+      horasExtra: Number(horasExtra) || 0,
+      salarioBase: Number(salarioBase) || 0,
+      deducciones: Number(deducciones) || 0,
+      total: Number(total) || 0,
+      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al guardar planilla.' });
+  }
+});
+
+app.delete('/api/hr/planilla/:id', async (req, res) => {
+  try {
+    await db.collection('hr_planilla').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Registro eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
+// ── Memorándums ───────────────────────────────────────────────────────────────
+app.get('/api/hr/memorandums', async (req, res) => {
+  try {
+    const snap = await db.collection('hr_memorandums')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('fecha', 'desc').get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener memorándums.' });
+  }
+});
+
+app.post('/api/hr/memorandums', async (req, res) => {
+  try {
+    const { trabajadorId, trabajadorNombre, tipo, motivo, descripcion, fecha } = req.body;
+    if (!trabajadorId || !tipo || !motivo) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_memorandums').add({
+      trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
+      motivo, descripcion: descripcion || '',
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear memorándum.' });
+  }
+});
+
+app.delete('/api/hr/memorandums/:id', async (req, res) => {
+  try {
+    await db.collection('hr_memorandums').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Memorándum eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
+// ── Documentos Adjuntos ───────────────────────────────────────────────────────
+app.get('/api/hr/documentos', async (req, res) => {
+  try {
+    const snap = await db.collection('hr_documentos')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('fecha', 'desc').get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener documentos.' });
+  }
+});
+
+app.post('/api/hr/documentos', async (req, res) => {
+  try {
+    const { trabajadorId, trabajadorNombre, nombre, tipo, descripcion, fecha } = req.body;
+    if (!trabajadorId || !nombre || !tipo) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_documentos').add({
+      trabajadorId, trabajadorNombre: trabajadorNombre || '',
+      nombre, tipo, descripcion: descripcion || '',
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al guardar documento.' });
+  }
+});
+
+app.delete('/api/hr/documentos/:id', async (req, res) => {
+  try {
+    await db.collection('hr_documentos').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Documento eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
+// ── Solicitudes de Empleo ─────────────────────────────────────────────────────
+app.get('/api/hr/solicitudes-empleo', async (req, res) => {
+  try {
+    const snap = await db.collection('hr_solicitudes_empleo')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('fechaSolicitud', 'desc').get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fechaSolicitud: d.data().fechaSolicitud.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener solicitudes.' });
+  }
+});
+
+app.post('/api/hr/solicitudes-empleo', async (req, res) => {
+  try {
+    const { nombre, email, telefono, puesto, notas } = req.body;
+    if (!nombre || !puesto) return res.status(400).json({ message: 'Nombre y puesto son obligatorios.' });
+    const ref = await db.collection('hr_solicitudes_empleo').add({
+      nombre, email: email || '', telefono: telefono || '',
+      puesto, notas: notas || '', estado: 'pendiente',
+      fechaSolicitud: Timestamp.now(), fincaId: ID_FINCA_ACTUAL,
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear solicitud.' });
+  }
+});
+
+app.put('/api/hr/solicitudes-empleo/:id', async (req, res) => {
+  try {
+    await db.collection('hr_solicitudes_empleo').doc(req.params.id).update(req.body);
+    res.status(200).json({ message: 'Solicitud actualizada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar.' });
+  }
+});
+
+app.delete('/api/hr/solicitudes-empleo/:id', async (req, res) => {
+  try {
+    await db.collection('hr_solicitudes_empleo').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Solicitud eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.runWith({
   secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey]

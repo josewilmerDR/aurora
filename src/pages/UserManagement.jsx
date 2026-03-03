@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import './UserManagement.css';
 import { FiEdit, FiTrash2, FiUserPlus } from 'react-icons/fi';
+import { ROLE_LABELS } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 
 function UserManagement() {
   const [users, setUsers] = useState([]);
-  const [formData, setFormData] = useState({ id: null, nombre: '', email: '', telefono: '' });
+  const [formData, setFormData] = useState({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador' });
   const [isEditing, setIsEditing] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -25,7 +26,7 @@ function UserManagement() {
   };
 
   const resetForm = () => {
-    setFormData({ id: null, nombre: '', email: '', telefono: '' });
+    setFormData({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador' });
     setIsEditing(false);
   };
 
@@ -88,6 +89,15 @@ function UserManagement() {
               <label htmlFor="telefono">Teléfono</label>
               <input id="telefono" name="telefono" value={formData.telefono} onChange={handleInputChange} required />
             </div>
+            <div className="form-control">
+              <label htmlFor="rol">Rol</label>
+              <select id="rol" name="rol" value={formData.rol} onChange={handleInputChange}>
+                <option value="trabajador">Trabajador</option>
+                <option value="encargado">Encargado</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="administrador">Administrador</option>
+              </select>
+            </div>
           </div>
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
@@ -106,7 +116,10 @@ function UserManagement() {
           {users.map(user => (
             <li key={user.id}>
               <div>
-                <div className="item-main-text">{user.nombre}</div>
+                <div className="item-main-text">
+                  {user.nombre}
+                  <span className={`role-badge role-badge--${user.rol || 'trabajador'}`}>{ROLE_LABELS[user.rol] || 'Trabajador'}</span>
+                </div>
                 <div className="item-sub-text">{user.email} | {user.telefono}</div>
               </div>
               <div className="lote-actions"> {/* Reutilizamos acciones */}

@@ -1,8 +1,8 @@
-
+/* ── Base sidebar ─────────────────────────────────────────────────────────── */
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: 250px;
+  width: 260px;
   height: 100vh;
   position: fixed;
   top: 0;
@@ -10,38 +10,181 @@
   background-color: var(--aurora-background);
   border-right: 1px solid var(--aurora-border);
   transition: width 0.3s ease;
+  overflow: hidden;
 }
 
+/* ── Header / logo ───────────────────────────────────────────────────────── */
 .sidebar-header {
-  padding: 20px;
+  padding: 18px 20px;
   text-align: center;
   border-bottom: 1px solid var(--aurora-border);
+  flex-shrink: 0;
 }
 
 .sidebar-logo-text {
-  font-size: 2rem;
-  font-weight: bold;
+  font-size: 1.8rem;
+  font-weight: 800;
   color: var(--aurora-green);
-  letter-spacing: 4px;
+  letter-spacing: 6px;
 }
 
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--aurora-border);
+  flex-shrink: 0;
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 10px 6px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: opacity 0.2s, color 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-tab:hover {
+  opacity: 0.85;
+}
+
+.sidebar-tab.active {
+  opacity: 1;
+  color: var(--aurora-green);
+  border-bottom: 2px solid var(--aurora-green);
+}
+
+/* ── Scrollable link area ─────────────────────────────────────────────────── */
 .sidebar-links {
-  flex-grow: 1;
-  padding-top: 15px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
+.sidebar-links::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-links::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-links::-webkit-scrollbar-thumb {
+  background: var(--aurora-border);
+  border-radius: 2px;
+}
+
+.tab-content {
+  padding: 8px 0;
+}
+
+/* ── Sections (Fijados / Recientes) ──────────────────────────────────────── */
+.sidebar-section {
+  margin-bottom: 4px;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--aurora-light);
+  opacity: 0.4;
+}
+
+.sidebar-empty-hint {
+  padding: 6px 18px 12px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.inline-link {
+  background: none;
+  border: none;
+  color: var(--aurora-green);
+  font-size: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+/* ── Modules (Todas las funciones) ───────────────────────────────────────── */
+.sidebar-module {
+  margin-bottom: 2px;
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.2s;
+}
+
+.module-header:hover {
+  opacity: 0.85;
+}
+
+.module-header svg:last-child {
+  margin-left: auto;
+}
+
+.module-items {
+  /* indent */
+}
+
+/* ── Nav item row ─────────────────────────────────────────────────────────── */
+.sidebar-item-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.sidebar-item-row:hover .pin-btn {
+  opacity: 1;
+}
+
+/* ── Nav link ─────────────────────────────────────────────────────────────── */
 .sidebar-link {
   display: flex;
   align-items: center;
-  padding: 15px 20px;
+  flex: 1;
+  padding: 11px 18px;
   color: var(--aurora-light);
-  transition: background-color 0.2s, color 0.2s;
-  white-space: nowrap; /* Evita que el texto se parta en dos líneas */
-  overflow: hidden; /* Oculta el texto que desborda */
+  font-size: 0.875rem;
+  transition: background-color 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  gap: 14px;
+  min-width: 0;
 }
 
 .sidebar-link:hover {
-  background-color: rgba(51, 255, 153, 0.1);
+  background-color: rgba(51, 255, 153, 0.08);
 }
 
 .sidebar-link.active {
@@ -51,15 +194,23 @@
 }
 
 .sidebar-link svg {
-  min-width: 22px; /* Asegura que el icono siempre tenga espacio */
-  margin-right: 20px;
+  flex-shrink: 0;
 }
 
+.link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Badge ────────────────────────────────────────────────────────────────── */
 .sidebar-badge {
   margin-left: auto;
   background-color: var(--aurora-magenta);
   color: #fff;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
   border-radius: 10px;
   padding: 2px 7px;
@@ -73,48 +224,148 @@
   color: var(--aurora-magenta);
 }
 
-.sidebar-footer {
-  padding-bottom: 15px;
-  border-top: 1px solid var(--aurora-border);
+/* ── Pin button ───────────────────────────────────────────────────────────── */
+.pin-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-right: 6px;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 
-/* --- Estilos para móviles --- */
+.pin-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.pin-btn.pinned {
+  color: var(--aurora-green);
+  opacity: 1;
+}
+
+/* ── Footer / user chip ───────────────────────────────────────────────────── */
+.sidebar-footer {
+  border-top: 1px solid var(--aurora-border);
+  flex-shrink: 0;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.sidebar-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-user-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.sidebar-user-role {
+  font-size: 0.7rem;
+  color: var(--aurora-green);
+  opacity: 0.85;
+  margin-top: 1px;
+  text-transform: capitalize;
+}
+
+.sidebar-logout-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.sidebar-logout-btn:hover {
+  opacity: 1;
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+/* ── Mobile: icon-only mode ───────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar {
     width: 70px;
   }
 
-  .sidebar .link-text,
   .sidebar-logo-text {
-    /* Ocultamos el texto y solo dejamos el ícono/logo corto */
-    opacity: 0;
-    width: 0;
-    pointer-events: none; /* No se puede interactuar con el texto oculto */
+    font-size: 1.4rem;
+    letter-spacing: 2px;
   }
 
-  .sidebar-logo-text {
-    /* Ajustamos el logo para la vista colapsada */
-    font-size: 1.5rem;
-    opacity: 1;
-    width: auto;
+  .sidebar-tabs {
+    display: none;
+  }
+
+  /* On mobile, show ALL items flat (no tabs) using Todas logic */
+  .tab-content {
+    display: contents;
+  }
+
+  .sidebar-section-header,
+  .module-header,
+  .sidebar-empty-hint,
+  .sidebar-section,
+  .sidebar-module > .module-header,
+  .link-text,
+  .sidebar-user-info,
+  .pin-btn {
+    display: none;
+  }
+
+  /* Show module items even when not expanded */
+  .module-items {
+    display: block !important;
   }
 
   .sidebar-link {
     justify-content: center;
-    position: relative;
+    padding: 13px 0;
   }
 
-  .sidebar-link svg {
-    margin-right: 0;
-  }
-
-  /* Badge repositioned as small overlay dot on the icon */
   .sidebar-badge {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 6px;
+    right: 6px;
     min-width: 14px;
     padding: 1px 4px;
     font-size: 0.6rem;
+  }
+
+  .sidebar-user {
+    justify-content: center;
+    padding: 12px 0;
+  }
+
+  .sidebar-logout-btn {
+    border: none;
+    width: 44px;
+    height: 44px;
   }
 }

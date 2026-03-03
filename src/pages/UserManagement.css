@@ -1,2 +1,25 @@
 /* Reutilizamos el 100% de los estilos de LoteManagement. ¡Eficiencia! */
 @import url('./LoteManagement.css');
+
+/* ── Role badges ──────────────────────────────────────────────────────────── */
+.item-main-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.role-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.role-badge--trabajador  { background: rgba(230,242,255,0.12); color: var(--aurora-light); }
+.role-badge--encargado   { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
+.role-badge--supervisor  { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
+.role-badge--administrador { background: rgba(51,153,255,0.2); color: #5599ff; }

@@ -1,0 +1,136 @@
+.login-page {
+  min-height: 100vh;
+  background-color: var(--aurora-dark-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.login-logo-text {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--aurora-green);
+  letter-spacing: 4px;
+  line-height: 1;
+}
+
+.login-logo-label {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.login-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
+.login-subtitle {
+  font-size: 0.875rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  margin: 0 0 16px 0;
+  text-align: center;
+}
+
+.login-loading {
+  color: var(--aurora-light);
+  opacity: 0.6;
+  font-size: 0.875rem;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-field select {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 1rem;
+  width: 100%;
+  cursor: pointer;
+  appearance: auto;
+  transition: border-color 0.2s;
+}
+
+.login-field select:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.login-error {
+  font-size: 0.85rem;
+  color: #ff6b6b;
+  margin: 0;
+  text-align: center;
+}
+
+.login-btn {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  border: none;
+  border-radius: 8px;
+  padding: 13px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  margin-top: 8px;
+}
+
+.login-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.login-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
