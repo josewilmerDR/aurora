@@ -965,6 +965,190 @@ app.get('/api/movimientos', async (req, res) => {
   }
 });
 
+// --- API ENDPOINTS: ÓRDENES DE COMPRA ---
+app.get('/api/ordenes-compra', async (req, res) => {
+  try {
+    const snapshot = await db.collection('ordenes_compra')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('createdAt', 'desc')
+      .limit(100)
+      .get();
+    let ordenes = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      fecha: doc.data().fecha ? doc.data().fecha.toDate().toISOString() : null,
+      fechaEntrega: doc.data().fechaEntrega ? doc.data().fechaEntrega.toDate().toISOString() : null,
+      createdAt: doc.data().createdAt ? doc.data().createdAt.toDate().toISOString() : null,
+    }));
+    const { estado } = req.query;
+    if (estado) ordenes = ordenes.filter(o => o.estado === estado);
+    res.status(200).json(ordenes);
+  } catch (error) {
+    console.error('Error fetching ordenes:', error);
+    res.status(500).json({ message: 'Error al obtener órdenes de compra.' });
+  }
+});
+
+app.post('/api/ordenes-compra', async (req, res) => {
+  try {
+    const { poNumber, fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Se requiere al menos un producto.' });
+    }
+    const docRef = await db.collection('ordenes_compra').add({
+      fincaId: ID_FINCA_ACTUAL,
+      poNumber: poNumber || `OC-${Date.now()}`,
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega)) : null,
+      proveedor: proveedor || '',
+      direccionProveedor: direccionProveedor || '',
+      elaboradoPor: elaboradoPor || '',
+      notas: notas || '',
+      estado: 'activa',
+      taskId: taskId || null,
+      solicitudId: solicitudId || null,
+      items: items.map(i => ({
+        productoId: i.productoId || null,
+        nombreComercial: i.nombreComercial || '',
+        ingredienteActivo: i.ingredienteActivo || '',
+        cantidad: parseFloat(i.cantidad) || 0,
+        unidad: i.unidad || '',
+        precioUnitario: parseFloat(i.precioUnitario) || 0,
+        moneda: i.moneda || 'USD',
+      })),
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: docRef.id, message: 'Orden de compra guardada.' });
+  } catch (error) {
+    console.error('Error saving orden:', error);
+    res.status(500).json({ message: 'Error al guardar la orden de compra.' });
+  }
+});
+
+// --- API ENDPOINTS: RECEPCIONES DE PRODUCTOS ---
+app.get('/api/recepciones', async (req, res) => {
+  try {
+    const { ordenCompraId } = req.query;
+    let query = db.collection('recepciones').where('fincaId', '==', ID_FINCA_ACTUAL);
+    if (ordenCompraId) {
+      query = query.where('ordenCompraId', '==', ordenCompraId).limit(5);
+    } else {
+      query = query.orderBy('fechaRecepcion', 'desc').limit(50);
+    }
+    const snapshot = await query.get();
+    const recepciones = snapshot.docs.map(doc => {
+      const data = doc.data();
+      // eslint-disable-next-line no-unused-vars
+      const { imageBase64, mediaType, ...rest } = data; // strip legacy base64 fields
+      return {
+        id: doc.id,
+        ...rest,
+        fechaRecepcion: data.fechaRecepcion ? data.fechaRecepcion.toDate().toISOString() : null,
+        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+      };
+    });
+    res.status(200).json(recepciones);
+  } catch (error) {
+    console.error('Error fetching recepciones:', error);
+    res.status(500).json({ message: 'Error al obtener recepciones.' });
+  }
+});
+
+app.post('/api/recepciones', async (req, res) => {
+  try {
+    const { ordenCompraId, poNumber, proveedor, items, notas, imageBase64, mediaType } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
+    }
+    const recibidos = items.filter(i => parseFloat(i.cantidadRecibida) > 0);
+    if (recibidos.length === 0) {
+      return res.status(400).json({ message: 'Al menos un producto debe tener cantidad recibida mayor a cero.' });
+    }
+
+    const recepcionRef = db.collection('recepciones').doc();
+    const motivo = `Recepción OC: ${poNumber || ordenCompraId || 'Manual'}`;
+
+    // Upload image to Firebase Storage (if provided)
+    let imageUrl = null;
+    if (imageBase64) {
+      try {
+        const { randomUUID } = require('crypto');
+        const bucket = admin.storage().bucket();
+        const ext = (mediaType || '').includes('png') ? 'png' : 'jpg';
+        const fileName = `recepciones/${recepcionRef.id}.${ext}`;
+        const file = bucket.file(fileName);
+        const token = randomUUID();
+        await file.save(Buffer.from(imageBase64, 'base64'), {
+          contentType: mediaType || 'image/jpeg',
+          metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+        });
+        const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+        const encodedPath = encodeURIComponent(fileName);
+        imageUrl = isEmulator
+          ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
+          : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+      } catch (storageErr) {
+        console.error('Storage upload failed:', storageErr.message);
+      }
+    }
+
+    const batch = db.batch();
+
+    for (const item of recibidos) {
+      const cantidadRecibida = parseFloat(item.cantidadRecibida);
+      if (item.productoId) {
+        batch.update(db.collection('productos').doc(item.productoId), {
+          stockActual: FieldValue.increment(cantidadRecibida),
+        });
+        batch.set(db.collection('movimientos').doc(), {
+          tipo: 'ingreso',
+          productoId: item.productoId,
+          nombreComercial: item.nombreComercial || '',
+          cantidad: cantidadRecibida,
+          unidad: item.unidad || '',
+          fecha: Timestamp.now(),
+          motivo,
+          recepcionId: recepcionRef.id,
+          fincaId: ID_FINCA_ACTUAL,
+        });
+      }
+    }
+
+    batch.set(recepcionRef, {
+      fincaId: ID_FINCA_ACTUAL,
+      ordenCompraId: ordenCompraId || null,
+      poNumber: poNumber || '',
+      proveedor: proveedor || '',
+      fechaRecepcion: Timestamp.now(),
+      items: recibidos.map(i => ({
+        productoId: i.productoId || null,
+        nombreComercial: i.nombreComercial || '',
+        cantidadOC: parseFloat(i.cantidadOC) || 0,
+        cantidadRecibida: parseFloat(i.cantidadRecibida),
+        unidad: i.unidad || '',
+      })),
+      notas: notas || '',
+      imageUrl: imageUrl || null,
+      createdAt: Timestamp.now(),
+    });
+
+    if (ordenCompraId) {
+      const allReceived = items.every(
+        i => parseFloat(i.cantidadRecibida) >= parseFloat(i.cantidadOC)
+      );
+      batch.update(db.collection('ordenes_compra').doc(ordenCompraId), {
+        estado: allReceived ? 'recibida' : 'recibida_parcial',
+      });
+    }
+
+    await batch.commit();
+    res.status(201).json({ id: recepcionRef.id, message: 'Recepción registrada y stock actualizado.' });
+  } catch (error) {
+    console.error('Error processing recepcion:', error);
+    res.status(500).json({ message: 'Error al registrar la recepción.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.runWith({
   secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey]

@@ -22,6 +22,9 @@
       }
     ]
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "emulators": {
     "functions": {
       "port": 5001
@@ -38,6 +41,9 @@
     },
     "auth": {
       "port": 9099
+    },
+    "storage": {
+      "port": 9199
     }
   }
 }

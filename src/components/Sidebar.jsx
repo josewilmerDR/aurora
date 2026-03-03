@@ -11,6 +11,7 @@ import {
   FiDroplet,
   FiFileText,
   FiShoppingCart,
+  FiTruck,
   FiLogOut
 } from 'react-icons/fi';
 
@@ -68,6 +69,10 @@ const Sidebar = () => {
         <NavLink to="/solicitudes" className="sidebar-link" title="Solicitar Compra">
           <FiShoppingCart size={22} />
           <span className="link-text">Solicitar Compra</span>
+        </NavLink>
+        <NavLink to="/recepcion" className="sidebar-link" title="Recepción de Productos">
+          <FiTruck size={22} />
+          <span className="link-text">Recepción de Productos</span>
         </NavLink>
       </div>
       <div className="sidebar-footer">

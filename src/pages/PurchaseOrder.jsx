@@ -24,6 +24,10 @@ const PurchaseOrder = () => {
 
   const [loading, setLoading] = useState(true);
   const [catalogo, setCatalogo] = useState([]);
+  const [solicitudId, setSolicitudId] = useState(null);
+  const [savedOcId, setSavedOcId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState(null);
 
   // PO header fields
   const [poNumber] = useState(generatePoNumber);
@@ -67,6 +71,7 @@ const PurchaseOrder = () => {
         }));
 
         if (task.notas) setNotas(task.notas);
+        if (task.solicitudId) setSolicitudId(task.solicitudId);
       } catch (e) {
         console.error('Error loading PO data', e);
       } finally {
@@ -125,10 +130,46 @@ const PurchaseOrder = () => {
 
   const handlePrint = () => window.print();
 
+  const handleSaveOC = async () => {
+    const validItems = items.filter(i => i.nombreComercial);
+    if (validItems.length === 0) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/ordenes-compra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poNumber, fecha, fechaEntrega: fechaEntrega || null,
+          proveedor, direccionProveedor, elaboradoPor, notas,
+          items: validItems,
+          taskId: taskId || null,
+          solicitudId: solicitudId || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setSavedOcId(data.id);
+      setSaveToast({ message: 'Orden guardada. Ya aparece en Recepción de Productos.', type: 'success' });
+      setTimeout(() => setSaveToast(null), 4000);
+    } catch {
+      setSaveToast({ message: 'Error al guardar la orden.', type: 'error' });
+      setTimeout(() => setSaveToast(null), 4000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <div className="po-loading">Cargando orden de compra…</div>;
 
   return (
     <div className="po-page">
+
+      {/* ── Save toast ── */}
+      {saveToast && (
+        <div className={`po-save-toast po-save-toast--${saveToast.type}`}>
+          {saveToast.message}
+        </div>
+      )}
 
       {/* ── Top bar (hidden on print) ── */}
       <div className="po-topbar no-print">
@@ -136,9 +177,18 @@ const PurchaseOrder = () => {
           <FiArrowLeft size={16} /> Volver
         </button>
         <span className="po-topbar-title">Editor — Orden de Compra</span>
-        <button className="po-btn-print" onClick={handlePrint}>
-          <FiPrinter size={16} /> Imprimir / Guardar PDF
-        </button>
+        <div className="po-topbar-actions">
+          {savedOcId ? (
+            <span className="po-saved-indicator">✓ OC guardada</span>
+          ) : (
+            <button className="po-btn-save" onClick={handleSaveOC} disabled={saving || items.length === 0}>
+              {saving ? 'Guardando…' : '💾 Guardar OC'}
+            </button>
+          )}
+          <button className="po-btn-print" onClick={handlePrint}>
+            <FiPrinter size={16} /> Imprimir / PDF
+          </button>
+        </div>
       </div>
 
       <div className="po-layout">

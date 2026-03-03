@@ -49,6 +49,74 @@
   color: var(--aurora-green);
 }
 
+.po-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.po-btn-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background-color: var(--aurora-background);
+  color: var(--aurora-green);
+  border: 1px solid var(--aurora-green);
+  padding: 8px 14px;
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.po-btn-save:hover:not(:disabled) {
+  background-color: rgba(51, 255, 153, 0.1);
+}
+
+.po-btn-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.po-saved-indicator {
+  color: var(--aurora-green);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border: 1px solid var(--aurora-green);
+  border-radius: 5px;
+  background-color: rgba(51, 255, 153, 0.08);
+}
+
+.po-save-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  padding: 13px 20px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  z-index: 2000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  animation: po-toast-in 0.2s ease;
+}
+
+@keyframes po-toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.po-save-toast--success {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+}
+
+.po-save-toast--error {
+  background-color: #ff6b6b;
+  color: #fff;
+}
+
 .po-btn-print {
   display: inline-flex;
   align-items: center;

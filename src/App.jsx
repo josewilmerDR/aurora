@@ -10,6 +10,7 @@ import ProductCatalog from './pages/ProductCatalog';
 import InvoiceScan from './pages/InvoiceScan';
 import PurchaseRequest from './pages/PurchaseRequest';
 import PurchaseOrder from './pages/PurchaseOrder';
+import GoodsReceipt from './pages/GoodsReceipt';
 import Sidebar from './components/Sidebar';
 
 import './index.css';
@@ -25,7 +26,8 @@ const routeTitles = {
   '/productos': 'Bodega de Agroquímicos',
   '/productos/todos': 'Inventario Completo',
   '/compras': 'Registrar Compra',
-  '/solicitudes': 'Solicitud de Compra'
+  '/solicitudes': 'Solicitud de Compra',
+  '/recepcion': 'Recepción de Productos'
 };
 
 // --- Layouts ---
@@ -76,6 +78,7 @@ function App() {
           <Route path="/productos/todos" element={<ProductCatalog />} />
           <Route path="/compras" element={<InvoiceScan />} />
           <Route path="/solicitudes" element={<PurchaseRequest />} />
+          <Route path="/recepcion" element={<GoodsReceipt />} />
         </Route>
 
         {/* 4. Rutas que usan el Layout Sencillo (se mantiene igual) */}
