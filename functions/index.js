@@ -1480,6 +1480,191 @@ app.delete('/api/hr/solicitudes-empleo/:id', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// API ENDPOINTS: MONITOREO
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TIPOS_MONITOREO_DEFAULT = [
+  {
+    id: 'plagas_foliares',
+    nombre: 'Plagas Foliares',
+    campos: [
+      { key: 'plaga', label: 'Plaga predominante', type: 'text' },
+      { key: 'infestacion', label: '% Infestación', type: 'percent' },
+      { key: 'severidad', label: 'Severidad', type: 'select', opciones: ['Leve', 'Moderada', 'Severa'] },
+    ],
+    activo: true,
+  },
+  {
+    id: 'plagas_radicales',
+    nombre: 'Plagas Radicales',
+    campos: [
+      { key: 'cochinilla', label: '% Cochinilla', type: 'percent' },
+      { key: 'fusarium', label: '% Fusarium', type: 'percent' },
+    ],
+    activo: true,
+  },
+  {
+    id: 'crecimiento',
+    nombre: 'Crecimiento / Meristemo',
+    campos: [
+      { key: 'plantas_muestreadas', label: '# Plantas muestreadas', type: 'number' },
+      { key: 'altura_promedio', label: 'Altura promedio (cm)', type: 'number' },
+      { key: 'largo_hoja_d', label: 'Largo hoja D (cm)', type: 'number' },
+    ],
+    activo: true,
+  },
+  {
+    id: 'floracion',
+    nombre: 'Floración',
+    campos: [
+      { key: 'porcentaje', label: '% Floración', type: 'percent' },
+      { key: 'fecha_estimada_cosecha', label: 'Fecha estimada cosecha', type: 'date' },
+    ],
+    activo: true,
+  },
+  {
+    id: 'peso_fruta',
+    nombre: 'Peso de Fruta',
+    campos: [
+      { key: 'peso_promedio', label: 'Peso promedio (g)', type: 'number' },
+      { key: 'muestra', label: '# Frutas muestreadas', type: 'number' },
+    ],
+    activo: true,
+  },
+  {
+    id: 'premaduracion',
+    nombre: 'Premaduración',
+    campos: [
+      { key: 'porcentaje_color', label: '% Color', type: 'percent' },
+      { key: 'brix', label: '° Brix', type: 'number' },
+      { key: 'dias_estimados', label: 'Días estimados a cosecha', type: 'number' },
+    ],
+    activo: true,
+  },
+  {
+    id: 'malezas',
+    nombre: 'Malezas',
+    campos: [
+      { key: 'cobertura', label: '% Cobertura', type: 'percent' },
+      { key: 'especies', label: 'Especies predominantes', type: 'text' },
+    ],
+    activo: true,
+  },
+];
+
+// ── Tipos de Monitoreo ────────────────────────────────────────────────────────
+app.get('/api/monitoreo/tipos', async (req, res) => {
+  try {
+    const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    if (!snap.empty) {
+      return res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }
+    // Seed defaults on first call
+    const batch = db.batch();
+    TIPOS_MONITOREO_DEFAULT.forEach(tipo => {
+      const ref = db.collection('tipos_monitoreo').doc();
+      batch.set(ref, { ...tipo, fincaId: ID_FINCA_ACTUAL });
+    });
+    await batch.commit();
+    const snap2 = await db.collection('tipos_monitoreo').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    res.status(200).json(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener tipos de monitoreo.' });
+  }
+});
+
+app.post('/api/monitoreo/tipos', async (req, res) => {
+  try {
+    const { nombre, campos } = req.body;
+    if (!nombre || !Array.isArray(campos) || campos.length === 0)
+      return res.status(400).json({ message: 'Nombre y al menos un campo son obligatorios.' });
+    const ref = await db.collection('tipos_monitoreo').add({
+      nombre, campos, activo: true, fincaId: ID_FINCA_ACTUAL,
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear tipo.' });
+  }
+});
+
+app.put('/api/monitoreo/tipos/:id', async (req, res) => {
+  try {
+    await db.collection('tipos_monitoreo').doc(req.params.id).update(req.body);
+    res.status(200).json({ message: 'Tipo actualizado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar tipo.' });
+  }
+});
+
+app.delete('/api/monitoreo/tipos/:id', async (req, res) => {
+  try {
+    await db.collection('tipos_monitoreo').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Tipo eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar tipo.' });
+  }
+});
+
+// ── Registros de Monitoreo ────────────────────────────────────────────────────
+app.get('/api/monitoreo', async (req, res) => {
+  try {
+    const { loteId, tipoId, desde, hasta } = req.query;
+    let query = db.collection('monitoreos').where('fincaId', '==', ID_FINCA_ACTUAL);
+    if (loteId) query = query.where('loteId', '==', loteId);
+    if (tipoId) query = query.where('tipoId', '==', tipoId);
+    if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
+    if (hasta)  query = query.where('fecha', '<=', Timestamp.fromDate(new Date(hasta)));
+    const snap = await query.orderBy('fecha', 'desc').limit(200).get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener monitoreos.' });
+  }
+});
+
+app.post('/api/monitoreo', async (req, res) => {
+  try {
+    const { loteId, loteNombre, tipoId, tipoNombre, bloque, fecha, responsableId, responsableNombre, datos, observaciones } = req.body;
+    if (!loteId || !tipoId || !fecha)
+      return res.status(400).json({ message: 'Lote, tipo y fecha son obligatorios.' });
+    const ref = await db.collection('monitoreos').add({
+      fincaId: ID_FINCA_ACTUAL,
+      loteId, loteNombre: loteNombre || '',
+      tipoId, tipoNombre: tipoNombre || '',
+      bloque: bloque || '',
+      fecha: Timestamp.fromDate(new Date(fecha)),
+      responsableId: responsableId || '',
+      responsableNombre: responsableNombre || '',
+      datos: datos || {},
+      observaciones: observaciones || '',
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al registrar monitoreo.' });
+  }
+});
+
+app.get('/api/monitoreo/:id', async (req, res) => {
+  try {
+    const doc = await db.collection('monitoreos').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'No encontrado.' });
+    res.status(200).json({ id: doc.id, ...doc.data(), fecha: doc.data().fecha.toDate().toISOString() });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener monitoreo.' });
+  }
+});
+
+app.delete('/api/monitoreo/:id', async (req, res) => {
+  try {
+    await db.collection('monitoreos').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Monitoreo eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar monitoreo.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.runWith({
   secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey]

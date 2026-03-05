@@ -6,6 +6,7 @@ import {
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiBook, FiPaperclip, FiList, FiUserPlus, FiUmbrella,
+  FiActivity, FiBarChart2,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import './Sidebar.css';
@@ -49,6 +50,16 @@ const MODULES = [
       { label: 'Documentos Adjuntos',           to: '/hr/documentos',       icon: FiPaperclip,     minRole: 'encargado'     },
       { label: 'Memorándums y Amonestaciones',  to: '/hr/memorandums',      icon: FiAlertTriangle, minRole: 'supervisor'    },
       { label: 'Solicitud de Empleo',           to: '/hr/solicitud-empleo', icon: FiUserPlus,      minRole: 'administrador' },
+    ],
+  },
+  {
+    id: 'monitoreo',
+    nombre: 'Monitoreo',
+    icon: FiActivity,
+    items: [
+      { label: 'Registrar Monitoreo',   to: '/monitoreo',          icon: FiActivity,  minRole: 'trabajador' },
+      { label: 'Historial',             to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado'  },
+      { label: 'Tipos de Monitoreo',    to: '/monitoreo/config',    icon: FiSettings,  minRole: 'supervisor' },
     ],
   },
   {

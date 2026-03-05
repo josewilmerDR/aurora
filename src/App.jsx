@@ -22,6 +22,9 @@ import HrHistorial from './pages/HrHistorial';
 import HrDocumentos from './pages/HrDocumentos';
 import HrMemorandums from './pages/HrMemorandums';
 import HrSolicitudEmpleo from './pages/HrSolicitudEmpleo';
+import MonitoreoRegistro from './pages/MonitoreoRegistro';
+import MonitoreoHistorial from './pages/MonitoreoHistorial';
+import MonitoreoConfig from './pages/MonitoreoConfig';
 import Sidebar from './components/Sidebar';
 import { UserProvider, useUser } from './contexts/UserContext';
 
@@ -50,6 +53,9 @@ const routeTitles = {
   '/hr/documentos': 'Documentos Adjuntos',
   '/hr/memorandums': 'Memorándums y Amonestaciones',
   '/hr/solicitud-empleo': 'Solicitud de Empleo',
+  '/monitoreo': 'Registrar Monitoreo',
+  '/monitoreo/historial': 'Historial de Monitoreos',
+  '/monitoreo/config': 'Tipos de Monitoreo',
 };
 
 // --- Route guard ---
@@ -137,6 +143,9 @@ function App() {
             <Route path="/hr/documentos" element={<HrDocumentos />} />
             <Route path="/hr/memorandums" element={<HrMemorandums />} />
             <Route path="/hr/solicitud-empleo" element={<HrSolicitudEmpleo />} />
+            <Route path="/monitoreo" element={<MonitoreoRegistro />} />
+            <Route path="/monitoreo/historial" element={<MonitoreoHistorial />} />
+            <Route path="/monitoreo/config" element={<MonitoreoConfig />} />
           </Route>
         </Routes>
       </UserProvider>

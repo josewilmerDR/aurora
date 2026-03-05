@@ -1,0 +1,162 @@
+@import './LoteManagement.css';
+
+/* ── Filtros ───────────────────────────────────────────────────────────────── */
+.monitoreo-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.form-control-btn {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* ── Fila del historial ────────────────────────────────────────────────────── */
+.monitoreo-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.monitoreo-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.monitoreo-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  font-size: 0.82rem;
+}
+
+.monitoreo-tipo-badge {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Detalle expandible ────────────────────────────────────────────────────── */
+.monitoreo-detalle {
+  border-top: 1px solid var(--aurora-border);
+  padding: 0.75rem 1rem;
+}
+
+.monitoreo-datos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.monitoreo-dato-item {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+}
+
+.monitoreo-dato-key {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: capitalize;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  margin-bottom: 2px;
+}
+
+.monitoreo-dato-val {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.monitoreo-obs {
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+  margin: 0.5rem 0;
+}
+
+.monitoreo-detalle-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ── Config: campo editor ──────────────────────────────────────────────────── */
+.campo-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.campo-row input,
+.campo-row select {
+  flex: 1;
+  min-width: 120px;
+}
+
+.tipo-campos-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.campo-chip {
+  background: rgba(204, 51, 255, 0.1);
+  color: var(--aurora-magenta);
+  border: 1px solid rgba(204, 51, 255, 0.25);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.tipo-nombre-input {
+  flex: 1;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 4px 8px;
+  font-size: 0.95rem;
+}
+
+.tipo-campos-edit {
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.tipo-inactivo {
+  opacity: 0.5;
+}
+
+/* ── Misc ─────────────────────────────────────────────────────────────────── */
+.label-optional {
+  font-size: 0.78rem;
+  opacity: 0.6;
+  color: var(--aurora-light);
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.btn-success {
+  color: var(--aurora-green);
+}
