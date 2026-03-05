@@ -6,7 +6,7 @@ import {
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiBook, FiPaperclip, FiList, FiUserPlus, FiUmbrella,
-  FiActivity, FiBarChart2,
+  FiActivity, FiBarChart2, FiSliders, FiSunrise,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import './Sidebar.css';
@@ -18,10 +18,11 @@ const MODULES = [
     nombre: 'Operaciones de Campo',
     icon: FiLayers,
     items: [
-      { label: 'Panel de Control',      to: '/',            icon: FiGrid,         minRole: 'trabajador'    },
-      { label: 'Seguimiento de Tareas', to: '/tasks',       icon: FiCheckSquare,  minRole: 'trabajador'    },
-      { label: 'Gestión de Lotes',      to: '/lotes',       icon: FiArchive,      minRole: 'encargado'     },
-      { label: 'Paquetes Técnicos',     to: '/packages',    icon: FiPackage,      minRole: 'supervisor'    },
+      { label: 'Panel de Control',      to: '/',                    icon: FiGrid,       minRole: 'trabajador' },
+      { label: 'Seguimiento de Tareas', to: '/tasks',               icon: FiCheckSquare, minRole: 'trabajador' },
+      { label: 'Registro de Siembra',   to: '/siembra',             icon: FiSunrise,    minRole: 'encargado'  },
+      { label: 'Gestión de Lotes',      to: '/lotes',               icon: FiArchive,    minRole: 'encargado'  },
+      { label: 'Paquetes Técnicos',     to: '/packages',            icon: FiPackage,    minRole: 'supervisor' },
     ],
   },
   {
@@ -274,6 +275,15 @@ const Sidebar = () => {
               {ROLE_LABELS[currentUser?.rol] || 'Sin rol'}
             </span>
           </div>
+          {hasMinRole(userRole, 'administrador') && (
+            <button
+              className="sidebar-logout-btn"
+              onClick={() => navigate('/config/cuenta')}
+              title="Configuración de cuenta"
+            >
+              <FiSliders size={16} />
+            </button>
+          )}
           <button
             className="sidebar-logout-btn"
             onClick={() => navigate('/logout')}

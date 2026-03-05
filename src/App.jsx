@@ -25,6 +25,9 @@ import HrSolicitudEmpleo from './pages/HrSolicitudEmpleo';
 import MonitoreoRegistro from './pages/MonitoreoRegistro';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
+import ConfigCuenta from './pages/ConfigCuenta';
+import Siembra from './pages/Siembra';
+import SiembraMateriales from './pages/SiembraMateriales';
 import Sidebar from './components/Sidebar';
 import { UserProvider, useUser } from './contexts/UserContext';
 
@@ -56,6 +59,9 @@ const routeTitles = {
   '/monitoreo': 'Registrar Monitoreo',
   '/monitoreo/historial': 'Historial de Monitoreos',
   '/monitoreo/config': 'Tipos de Monitoreo',
+  '/config/cuenta': 'Configuración de Cuenta',
+  '/siembra': 'Registro de Siembra',
+  '/siembra/materiales': 'Materiales de Siembra',
 };
 
 // --- Route guard ---
@@ -146,6 +152,9 @@ function App() {
             <Route path="/monitoreo" element={<MonitoreoRegistro />} />
             <Route path="/monitoreo/historial" element={<MonitoreoHistorial />} />
             <Route path="/monitoreo/config" element={<MonitoreoConfig />} />
+            <Route path="/config/cuenta" element={<ConfigCuenta />} />
+            <Route path="/siembra" element={<Siembra />} />
+            <Route path="/siembra/materiales" element={<SiembraMateriales />} />
           </Route>
         </Routes>
       </UserProvider>

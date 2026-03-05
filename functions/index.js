@@ -430,8 +430,24 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
 
 app.post('/api/lotes', async (req, res) => {
     const { nombreLote, fechaCreacion, paqueteId, hectareas } = req.body;
-    if (!nombreLote || !fechaCreacion || !paqueteId) {
+    if (!nombreLote || !fechaCreacion) {
         return res.status(400).json({ message: 'Faltan datos para crear el lote.' });
+    }
+
+    // Si no hay paquete, crear el lote vacío (sin tareas)
+    if (!paqueteId) {
+        try {
+            const loteRef = await db.collection('lotes').add({
+                nombreLote,
+                fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
+                hectareas: parseFloat(hectareas) || 0,
+                fincaId: ID_FINCA_ACTUAL,
+            });
+            return res.status(201).json({ id: loteRef.id, message: 'Lote creado sin paquete técnico.' });
+        } catch (error) {
+            console.error("[ERROR] Creando lote sin paquete:", error);
+            return res.status(500).json({ message: 'Error al crear el lote.' });
+        }
     }
 
     try {
@@ -1481,6 +1497,59 @@ app.delete('/api/hr/solicitudes-empleo/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// API ENDPOINTS: CONFIGURACIÓN DE CUENTA
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.get('/api/config', async (req, res) => {
+  try {
+    const doc = await db.collection('config').doc(ID_FINCA_ACTUAL).get();
+    res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener configuración.' });
+  }
+});
+
+app.put('/api/config', async (req, res) => {
+  try {
+    const { nombreEmpresa, identificacion, direccion, whatsapp, logoBase64, mediaType } = req.body;
+
+    const data = { fincaId: ID_FINCA_ACTUAL, updatedAt: Timestamp.now() };
+    if (nombreEmpresa  !== undefined) data.nombreEmpresa  = nombreEmpresa;
+    if (identificacion !== undefined) data.identificacion = identificacion;
+    if (direccion      !== undefined) data.direccion      = direccion;
+    if (whatsapp       !== undefined) data.whatsapp       = whatsapp;
+
+    if (logoBase64) {
+      try {
+        const { randomUUID } = require('crypto');
+        const bucket = admin.storage().bucket();
+        const ext = (mediaType || '').includes('png') ? 'png' : 'jpg';
+        const fileName = `config/${ID_FINCA_ACTUAL}/logo.${ext}`;
+        const file = bucket.file(fileName);
+        const token = randomUUID();
+        await file.save(Buffer.from(logoBase64, 'base64'), {
+          contentType: mediaType || 'image/jpeg',
+          metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+        });
+        const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+        const encodedPath = encodeURIComponent(fileName);
+        data.logoUrl = isEmulator
+          ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
+          : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+      } catch (storageErr) {
+        console.error('Logo upload failed:', storageErr.message);
+      }
+    }
+
+    await db.collection('config').doc(ID_FINCA_ACTUAL).set(data, { merge: true });
+    const updated = await db.collection('config').doc(ID_FINCA_ACTUAL).get();
+    res.status(200).json({ id: updated.id, ...updated.data() });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al guardar configuración.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API ENDPOINTS: MONITOREO
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1662,6 +1731,219 @@ app.delete('/api/monitoreo/:id', async (req, res) => {
     res.status(200).json({ message: 'Monitoreo eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar monitoreo.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API ENDPOINTS: SIEMBRA
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Materiales de siembra ────────────────────────────────────────────────────
+app.get('/api/materiales-siembra', async (req, res) => {
+  try {
+    const snap = await db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).orderBy('nombre').get();
+    res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener materiales.' });
+  }
+});
+
+app.post('/api/materiales-siembra', async (req, res) => {
+  try {
+    const { nombre, rangoPesos, variedad } = req.body;
+    if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio.' });
+    const ref = await db.collection('materiales_siembra').add({
+      nombre, rangoPesos: rangoPesos || '', variedad: variedad || '',
+      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear material.' });
+  }
+});
+
+app.put('/api/materiales-siembra/:id', async (req, res) => {
+  try {
+    const { nombre, rangoPesos, variedad } = req.body;
+    await db.collection('materiales_siembra').doc(req.params.id).update({ nombre, rangoPesos, variedad });
+    res.status(200).json({ message: 'Material actualizado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar material.' });
+  }
+});
+
+app.delete('/api/materiales-siembra/:id', async (req, res) => {
+  try {
+    await db.collection('materiales_siembra').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Material eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar material.' });
+  }
+});
+
+// ── Escanear formulario de siembra con IA ────────────────────────────────────
+app.post('/api/siembras/escanear', async (req, res) => {
+  try {
+    const { imageBase64, mediaType } = req.body;
+    if (!imageBase64 || !mediaType) {
+      return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+    }
+
+    const [lotesSnap, matsSnap] = await Promise.all([
+      db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+      db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+    ]);
+
+    const lotes = lotesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombreLote }));
+    const materiales = matsSnap.docs.map(d => ({
+      id: d.id,
+      nombre: d.data().nombre,
+      rangoPesos: d.data().rangoPesos || '',
+      variedad: d.data().variedad || '',
+    }));
+
+    if (!anthropicClient) {
+      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+    }
+
+    const lotesTexto = lotes.length
+      ? lotes.map(l => `- ID: "${l.id}" | Nombre: "${l.nombre}"`).join('\n')
+      : '(sin lotes registrados)';
+    const matsTexto = materiales.length
+      ? materiales.map(m => `- ID: "${m.id}" | Nombre: "${m.nombre}" | RangoPesos: "${m.rangoPesos}" | Variedad: "${m.variedad}"`).join('\n')
+      : '(sin materiales registrados)';
+
+    const prompt = `Eres un asistente agrícola. Analiza este formulario físico de registro de siembra de piña.
+
+Lotes registrados en el sistema:
+${lotesTexto}
+
+Materiales de siembra registrados:
+${matsTexto}
+
+Extrae cada fila de siembra del formulario y devuelve un arreglo JSON con este formato exacto:
+[
+  {
+    "loteId": "ID del lote si el nombre coincide con el catálogo, o null si no hay coincidencia",
+    "loteNombre": "nombre del lote tal como aparece en el formulario",
+    "bloque": "identificador del bloque (letra, número o combinación), o cadena vacía si no aparece",
+    "plantas": 15000,
+    "densidad": 65000,
+    "materialId": "ID del material si el nombre coincide con el catálogo, o null si no hay coincidencia",
+    "materialNombre": "nombre del material tal como aparece en el formulario, o cadena vacía",
+    "rangoPesos": "rango de pesos si aparece en el formulario, o cadena vacía",
+    "variedad": "variedad si aparece en el formulario, o cadena vacía"
+  }
+]
+
+Reglas:
+1. Si el nombre del lote coincide (o es muy similar) con uno del catálogo, usa su ID; si no hay coincidencia, deja loteId como null.
+2. Si el nombre del material coincide con uno del catálogo, usa su ID; si no, deja materialId como null.
+3. Si no aparece densidad en el formulario, usa 65000 como valor por defecto.
+4. plantas y densidad deben ser números enteros, no cadenas.
+5. Devuelve SOLO el arreglo JSON, sin texto adicional ni bloques de código.`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+          { type: 'text', text: prompt },
+        ],
+      }],
+    });
+
+    const rawText = response.content[0].text.trim();
+    const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+
+    let filas;
+    try {
+      filas = JSON.parse(jsonText);
+    } catch {
+      console.error('Claude devolvió texto no parseable:', rawText);
+      return res.status(422).json({ message: 'La IA no pudo interpretar el formulario. Intenta con una imagen más clara.', raw: rawText });
+    }
+
+    res.json({ filas, lotes, materiales });
+  } catch (error) {
+    console.error('Error en escanear siembra:', error);
+    res.status(500).json({ message: 'Error al procesar la imagen con IA.' });
+  }
+});
+
+// ── Registros de siembra ─────────────────────────────────────────────────────
+app.get('/api/siembras', async (req, res) => {
+  try {
+    const { loteId, desde, hasta } = req.query;
+    let query = db.collection('siembras').where('fincaId', '==', ID_FINCA_ACTUAL);
+    if (loteId) query = query.where('loteId', '==', loteId);
+    if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
+    if (hasta)  query = query.where('fecha', '<=', Timestamp.fromDate(new Date(hasta)));
+    const snap = await query.orderBy('fecha', 'desc').limit(300).get();
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener siembras.' });
+  }
+});
+
+app.post('/api/siembras', async (req, res) => {
+  try {
+    const { loteId, loteNombre, bloque, plantas, densidad, materialId, materialNombre, rangoPesos, variedad, cerrado, fecha, responsableId, responsableNombre } = req.body;
+    if (!loteId || !fecha) return res.status(400).json({ message: 'Lote y fecha son obligatorios.' });
+
+    const plantas_ = parseInt(plantas) || 0;
+    const densidad_ = parseFloat(densidad) || 0;
+    const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+
+    const ref = await db.collection('siembras').add({
+      fincaId: ID_FINCA_ACTUAL,
+      loteId, loteNombre: loteNombre || '',
+      bloque: bloque || '',
+      plantas: plantas_, densidad: densidad_,
+      areaCalculada,
+      materialId: materialId || '',
+      materialNombre: materialNombre || '',
+      rangoPesos: rangoPesos || '',
+      variedad: variedad || '',
+      cerrado: cerrado === true || cerrado === 'true',
+      fecha: Timestamp.fromDate(new Date(fecha)),
+      responsableId: responsableId || '',
+      responsableNombre: responsableNombre || '',
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id, areaCalculada });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al registrar siembra.' });
+  }
+});
+
+app.put('/api/siembras/:id', async (req, res) => {
+  try {
+    const updates = { ...req.body };
+    if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
+    if (updates.plantas !== undefined || updates.densidad !== undefined) {
+      const doc = await db.collection('siembras').doc(req.params.id).get();
+      const current = doc.data();
+      const plantas_ = parseInt(updates.plantas ?? current.plantas) || 0;
+      const densidad_ = parseFloat(updates.densidad ?? current.densidad) || 0;
+      updates.areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+    }
+    await db.collection('siembras').doc(req.params.id).update(updates);
+    res.status(200).json({ message: 'Siembra actualizada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar siembra.' });
+  }
+});
+
+app.delete('/api/siembras/:id', async (req, res) => {
+  try {
+    await db.collection('siembras').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Registro eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar siembra.' });
   }
 });
 

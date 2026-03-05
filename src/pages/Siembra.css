@@ -1,0 +1,257 @@
+@import './LoteManagement.css';
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+.siembra-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.siembra-form-card {
+  overflow-x: auto;
+}
+
+.siembra-header-row {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.siembra-materiales-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  text-decoration: none;
+  padding-bottom: 6px;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.siembra-materiales-link:hover {
+  opacity: 0.85;
+  color: var(--aurora-green);
+}
+
+.siembra-fecha {
+  max-width: 200px;
+}
+
+/* ── Tabla de entrada ──────────────────────────────────────────────────────── */
+.siembra-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.siembra-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 900px;
+}
+
+.siembra-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  border-bottom: 1px solid var(--aurora-border);
+  white-space: nowrap;
+}
+
+.th-hint {
+  font-weight: 400;
+  text-transform: none;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.th-center,
+.td-center {
+  text-align: center;
+}
+
+.siembra-table td {
+  padding: 5px 6px;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+}
+
+.siembra-table tbody tr:hover {
+  background: rgba(51, 255, 153, 0.04);
+}
+
+/* ── Inputs dentro de tabla ────────────────────────────────────────────────── */
+.td-input,
+.td-select {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  color: var(--aurora-light);
+  padding: 5px 8px;
+  font-size: 0.83rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.td-input:focus,
+.td-select:focus {
+  border-color: var(--aurora-green);
+}
+
+.td-num {
+  max-width: 90px;
+  text-align: right;
+}
+
+.td-readonly {
+  color: var(--aurora-light);
+  opacity: 0.55;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.td-calc {
+  color: var(--aurora-green);
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.td-lote {
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.siembra-cancel-nuevo {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 6px;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+/* ── Acciones del formulario ────────────────────────────────────────────────── */
+.siembra-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding-top: 0.5rem;
+}
+
+/* ── Historial ──────────────────────────────────────────────────────────────── */
+.siembra-historial {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  overflow-x: auto;
+}
+
+.siembra-historial-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 1rem 0;
+}
+
+.siembra-table-historial {
+  min-width: 860px;
+}
+
+/* Fila cerrada */
+.row-cerrado td {
+  opacity: 0.55;
+}
+
+.row-cerrado td.td-center {
+  opacity: 1;
+}
+
+/* Botón cerrado */
+.siembra-cerrado-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-light);
+  opacity: 0.35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: opacity 0.15s, color 0.15s;
+  margin: 0 auto;
+}
+
+.siembra-cerrado-btn:hover {
+  opacity: 0.8;
+}
+
+.siembra-cerrado-btn.is-cerrado {
+  color: var(--aurora-green);
+  opacity: 1;
+}
+
+.siembra-cerrado-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--aurora-green);
+  opacity: 0.7;
+}
+
+/* ── Materiales page ────────────────────────────────────────────────────────── */
+.material-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.material-chip {
+  background: rgba(51, 255, 153, 0.1);
+  color: var(--aurora-green);
+  border: 1px solid rgba(51, 255, 153, 0.25);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.material-chip-var {
+  background: rgba(204, 51, 255, 0.1);
+  color: var(--aurora-magenta);
+  border-color: rgba(204, 51, 255, 0.25);
+}
+
+.material-edit-row {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.material-edit-row .td-input {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* ── Misc ───────────────────────────────────────────────────────────────────── */
+.btn-success {
+  color: var(--aurora-green);
+}
