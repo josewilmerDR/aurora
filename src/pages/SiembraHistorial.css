@@ -1,0 +1,212 @@
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+.sh-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────────────────── */
+.sh-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sh-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.83rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  text-decoration: none;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.sh-back-link:hover {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+.sh-toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sh-filter-btn {
+  position: relative;
+}
+
+.sh-filter-active {
+  border-color: var(--aurora-green) !important;
+  color: var(--aurora-green) !important;
+}
+
+.sh-filter-badge {
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 9px;
+  padding: 1px 5px;
+  margin-left: 2px;
+}
+
+/* ── Filter panel ───────────────────────────────────────────────────────────── */
+.sh-filter-panel {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.sh-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.sh-filter-grid .form-control label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  display: block;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.sh-filter-grid .form-control input,
+.sh-filter-grid .form-control select {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 5px 8px;
+  font-size: 0.83rem;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.sh-filter-grid .form-control input:focus,
+.sh-filter-grid .form-control select:focus {
+  border-color: var(--aurora-green);
+}
+
+.sh-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.sh-clear-filters:hover {
+  opacity: 0.9;
+  color: var(--aurora-magenta);
+}
+
+/* ── Stats bar ──────────────────────────────────────────────────────────────── */
+.sh-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sh-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0 1.25rem;
+}
+
+.sh-stat:first-child {
+  padding-left: 0;
+}
+
+.sh-stat-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  line-height: 1.2;
+}
+
+.sh-stat-green {
+  color: var(--aurora-green);
+}
+
+.sh-stat-label {
+  font-size: 0.7rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.sh-stat-divider {
+  width: 1px;
+  height: 2rem;
+  background: var(--aurora-border);
+  flex-shrink: 0;
+}
+
+/* ── Table card ─────────────────────────────────────────────────────────────── */
+.sh-table-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  overflow-x: auto;
+}
+
+.sh-result-count {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.4;
+}
+
+/* ── Print styles ───────────────────────────────────────────────────────────── */
+@media print {
+  .print-hide { display: none !important; }
+
+  .sh-layout { gap: 0.5rem; }
+
+  .sh-stats-bar,
+  .sh-table-card {
+    border: 1px solid #ccc;
+    border-radius: 0;
+    background: #fff;
+    color: #000;
+  }
+
+  .siembra-table th,
+  .siembra-table td {
+    color: #000;
+    border-color: #ccc;
+  }
+
+  .td-calc { color: #007a40; }
+
+  .sh-stat-value { color: #000; }
+  .sh-stat-green { color: #007a40; }
+}

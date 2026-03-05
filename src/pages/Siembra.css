@@ -251,6 +251,112 @@
   min-width: 120px;
 }
 
+/* ── Historial: top row (title + sort) ─────────────────────────────────────── */
+.historial-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.historial-top-row .siembra-historial-title {
+  margin: 0;
+}
+
+.historial-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sort-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sort-label {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
+.sort-select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  color: var(--aurora-light);
+  padding: 3px 6px;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.sort-select:focus {
+  border-color: var(--aurora-green);
+}
+
+.sort-dir-btn {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  line-height: 1.4;
+}
+
+.sort-dir-btn:hover:not(:disabled) {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.sort-dir-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Historial: footer row ──────────────────────────────────────────────────── */
+.historial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--aurora-border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.historial-count {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.4;
+}
+
+.ver-todos-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  text-decoration: none;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.ver-todos-link:hover {
+  opacity: 1;
+}
+
 /* ── Misc ───────────────────────────────────────────────────────────────────── */
 .btn-success {
   color: var(--aurora-green);

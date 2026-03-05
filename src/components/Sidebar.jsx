@@ -21,6 +21,7 @@ const MODULES = [
       { label: 'Panel de Control',      to: '/',                    icon: FiGrid,       minRole: 'trabajador' },
       { label: 'Seguimiento de Tareas', to: '/tasks',               icon: FiCheckSquare, minRole: 'trabajador' },
       { label: 'Registro de Siembra',   to: '/siembra',             icon: FiSunrise,    minRole: 'encargado'  },
+      { label: 'Historial de Siembra',  to: '/siembra/historial',   icon: FiBarChart2,  minRole: 'encargado'  },
       { label: 'Gestión de Lotes',      to: '/lotes',               icon: FiArchive,    minRole: 'encargado'  },
       { label: 'Paquetes Técnicos',     to: '/packages',            icon: FiPackage,    minRole: 'supervisor' },
     ],

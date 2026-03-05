@@ -1,10 +1,51 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiCamera } from 'react-icons/fi';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiCamera, FiChevronRight } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 import './Siembra.css';
 
 const HOY = new Date().toISOString().slice(0, 10);
+
+// ── Sort utilities ────────────────────────────────────────────────────────────
+const SORT_FIELDS = [
+  { value: 'fecha',    label: 'Fecha' },
+  { value: 'lote',     label: 'Lote' },
+  { value: 'bloque',   label: 'Bloque' },
+  { value: 'plantas',  label: 'Plantas' },
+  { value: 'area',     label: 'Área' },
+  { value: 'material', label: 'Material' },
+  { value: 'variedad', label: 'Variedad' },
+  { value: 'cerrado',  label: 'Cerrado' },
+];
+
+function getSortVal(r, field) {
+  switch (field) {
+    case 'fecha':    return r.fecha || '';
+    case 'lote':     return (r.loteNombre || '').toLowerCase();
+    case 'bloque':   return (r.bloque || '').toLowerCase();
+    case 'plantas':  return r.plantas || 0;
+    case 'area':     return r.areaCalculada || 0;
+    case 'material': return (r.materialNombre || '').toLowerCase();
+    case 'variedad': return (r.variedad || '').toLowerCase();
+    case 'cerrado':  return r.cerrado ? 1 : 0;
+    default:         return '';
+  }
+}
+
+function applySort(data, sortConfig) {
+  const active = sortConfig.filter(s => s.field);
+  if (!active.length) return [...data];
+  return [...data].sort((a, b) => {
+    for (const { field, dir } of active) {
+      const av = getSortVal(a, field);
+      const bv = getSortVal(b, field);
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
+    }
+    return 0;
+  });
+}
 
 const MAX_IMAGE_PX = 1600;
 function compressImage(file) {
@@ -50,6 +91,15 @@ function Siembra() {
   const [loading, setLoading]       = useState(false);
   const [scanning, setScanning]     = useState(false);
   const [toast, setToast]           = useState(null);
+  const [sortConfig, setSortConfig] = useState([
+    { field: 'fecha', dir: 'desc' },
+    { field: '',      dir: 'asc'  },
+  ]);
+
+  const updateSort = (idx, key, value) =>
+    setSortConfig(prev => prev.map((s, i) => i === idx ? { ...s, [key]: value } : s));
+
+  const displayedRegistros = useMemo(() => applySort(registros, sortConfig).slice(0, 20), [registros, sortConfig]);
   const fileInputRef                = useRef(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
@@ -170,46 +220,63 @@ function Siembra() {
     setLoading(true);
     let errores = 0;
 
+    // Mapas para evitar crear duplicados dentro del mismo guardado
+    const createdLoteMap = {};   // nombreLote -> { id, nombreLote }
+    const createdMatMap  = {};   // nombreMat   -> { id, nombre, rangoPesos, variedad }
+
     for (const row of validos) {
       try {
         let loteId = row.loteId;
         let loteNombre = '';
 
-        // Crear nuevo lote si es necesario
+        // Crear nuevo lote si es necesario (solo una vez por nombre)
         if (loteId === '__nuevo__' && row.loteNuevoNombre.trim()) {
-          const res = await fetch('/api/lotes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombreLote: row.loteNuevoNombre.trim(), fechaCreacion: fecha }),
-          });
-          if (!res.ok) throw new Error('No se pudo crear el lote.');
-          const created = await res.json();
-          loteId = created.id;
-          loteNombre = row.loteNuevoNombre.trim();
-          // Refrescar lista de lotes
-          setLotes(prev => [...prev, { id: loteId, nombreLote: loteNombre }]);
+          const nombre = row.loteNuevoNombre.trim();
+          if (createdLoteMap[nombre]) {
+            loteId     = createdLoteMap[nombre].id;
+            loteNombre = nombre;
+          } else {
+            const res = await fetch('/api/lotes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombreLote: nombre, fechaCreacion: fecha }),
+            });
+            if (!res.ok) throw new Error('No se pudo crear el lote.');
+            const created = await res.json();
+            loteId     = created.id;
+            loteNombre = nombre;
+            createdLoteMap[nombre] = { id: loteId, nombreLote: nombre };
+            setLotes(prev => [...prev, { id: loteId, nombreLote: nombre }]);
+          }
         } else {
           loteNombre = lotes.find(l => l.id === loteId)?.nombreLote || '';
         }
 
-        // Crear nuevo material si es necesario
+        // Crear nuevo material si es necesario (solo una vez por nombre)
         let mat = materialFor(row.materialId);
         let materialId = row.materialId || '';
         if (row.materialId === '__nuevo__' && row.matNuevoNombre.trim()) {
-          const mRes = await fetch('/api/materiales-siembra', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              nombre: row.matNuevoNombre.trim(),
-              rangoPesos: row.matNuevoRangoPesos || '',
-              variedad: row.matNuevoVariedad || '',
-            }),
-          });
-          if (!mRes.ok) throw new Error('No se pudo crear el material.');
-          const mCreated = await mRes.json();
-          mat = { id: mCreated.id, nombre: row.matNuevoNombre.trim(), rangoPesos: row.matNuevoRangoPesos || '', variedad: row.matNuevoVariedad || '' };
-          materialId = mCreated.id;
-          setMateriales(prev => [...prev, mat]);
+          const nombre = row.matNuevoNombre.trim();
+          if (createdMatMap[nombre]) {
+            mat        = createdMatMap[nombre];
+            materialId = mat.id;
+          } else {
+            const mRes = await fetch('/api/materiales-siembra', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                nombre,
+                rangoPesos: row.matNuevoRangoPesos || '',
+                variedad:   row.matNuevoVariedad   || '',
+              }),
+            });
+            if (!mRes.ok) throw new Error('No se pudo crear el material.');
+            const mCreated = await mRes.json();
+            mat        = { id: mCreated.id, nombre, rangoPesos: row.matNuevoRangoPesos || '', variedad: row.matNuevoVariedad || '' };
+            materialId = mCreated.id;
+            createdMatMap[nombre] = mat;
+            setMateriales(prev => [...prev, mat]);
+          }
         }
 
         await fetch('/api/siembras', {
@@ -295,7 +362,7 @@ function Siembra() {
     }
   };
 
-  const formatFecha = (iso) => new Date(iso).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatFecha = (iso) => new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
     <div className="siembra-layout">
@@ -479,7 +546,35 @@ function Siembra() {
 
       {/* ── Historial reciente ─────────────────────────────────────────── */}
       <div className="siembra-historial">
-        <h3 className="siembra-historial-title">Registros de Siembra</h3>
+        <div className="historial-top-row">
+          <h3 className="siembra-historial-title">Registros de Siembra</h3>
+          {/* Sort controls */}
+          <div className="historial-sort-row">
+            {sortConfig.map((s, idx) => (
+              <div key={idx} className="sort-group">
+                <span className="sort-label">{idx === 0 ? 'Ordenar por' : 'Luego por'}</span>
+                <select
+                  className="sort-select"
+                  value={s.field}
+                  onChange={e => updateSort(idx, 'field', e.target.value)}
+                >
+                  <option value="">—</option>
+                  {SORT_FIELDS.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+                <button
+                  className={`sort-dir-btn${!s.field ? ' sort-dir-disabled' : ''}`}
+                  disabled={!s.field}
+                  onClick={() => updateSort(idx, 'dir', s.dir === 'asc' ? 'desc' : 'asc')}
+                  title={s.dir === 'asc' ? 'Ascendente' : 'Descendente'}
+                >
+                  {s.dir === 'asc' ? '↑' : '↓'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {registros.length === 0 ? (
           <p className="empty-state">No hay registros aún.</p>
@@ -500,7 +595,7 @@ function Siembra() {
               </tr>
             </thead>
             <tbody>
-              {registros.map(r => (
+              {displayedRegistros.map(r => (
                 <tr key={r.id} className={r.cerrado ? 'row-cerrado' : ''}>
                   <td className="td-readonly">{formatFecha(r.fecha)}</td>
                   <td>{r.loteNombre}</td>
@@ -516,9 +611,7 @@ function Siembra() {
                       onClick={() => toggleCerrado(r)}
                       title={r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
                     >
-                      {r.cerrado
-                        ? <FiCheckCircle size={18} />
-                        : <FiCircle size={18} />}
+                      {r.cerrado ? <FiCheckCircle size={18} /> : <FiCircle size={18} />}
                     </button>
                   </td>
                   <td>
@@ -537,6 +630,17 @@ function Siembra() {
             <FiAlertCircle size={13} />
             Los bloques cerrados están listos para iniciar aplicaciones.
           </p>
+        )}
+
+        {registros.length > 0 && (
+          <div className="historial-footer">
+            <span className="historial-count">
+              Mostrando {Math.min(20, registros.length)} de {registros.length} registros
+            </span>
+            <Link to="/siembra/historial" className="ver-todos-link">
+              Ver todos los registros <FiChevronRight size={13} />
+            </Link>
+          </div>
         )}
       </div>
     </div>
