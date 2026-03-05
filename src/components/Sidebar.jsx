@@ -20,8 +20,10 @@ const MODULES = [
     items: [
       { label: 'Panel de Control',      to: '/',                    icon: FiGrid,       minRole: 'trabajador' },
       { label: 'Seguimiento de Tareas', to: '/tasks',               icon: FiCheckSquare, minRole: 'trabajador' },
-      { label: 'Registro de Siembra',   to: '/siembra',             icon: FiSunrise,    minRole: 'encargado'  },
-      { label: 'Historial de Siembra',  to: '/siembra/historial',   icon: FiBarChart2,  minRole: 'encargado'  },
+      { label: 'Siembra', icon: FiSunrise, minRole: 'encargado', children: [
+        { label: 'Registro de Siembra',  to: '/siembra',           icon: FiSunrise,   minRole: 'encargado' },
+        { label: 'Historial de Siembra', to: '/siembra/historial', icon: FiBarChart2, minRole: 'encargado' },
+      ]},
       { label: 'Gestión de Lotes',      to: '/lotes',               icon: FiArchive,    minRole: 'encargado'  },
       { label: 'Paquetes Técnicos',     to: '/packages',            icon: FiPackage,    minRole: 'supervisor' },
     ],
@@ -74,7 +76,9 @@ const MODULES = [
   },
 ];
 
-const ALL_ITEMS = MODULES.flatMap((m) => m.items);
+const ALL_ITEMS = MODULES.flatMap((m) =>
+  m.items.flatMap((item) => item.children ? item.children : [item])
+);
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 const getPinned  = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_pinned_${uid}`))  || []; } catch { return []; } };
@@ -91,8 +95,9 @@ const Sidebar = () => {
   const uid      = currentUser?.id   || 'guest';
   const userRole = currentUser?.rol  || 'trabajador';
 
-  const [activeTab, setActiveTab]       = useState('favoritos');
-  const [expandedMods, setExpandedMods] = useState(() => new Set());
+  const [activeTab, setActiveTab]         = useState('favoritos');
+  const [expandedMods, setExpandedMods]   = useState(() => new Set());
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [pinnedRoutes, setPinnedRoutes] = useState(() => getPinned(uid));
   const [recentRoutes, setRecentRoutes] = useState(() => getRecents(uid));
   const [stockBajoCount, setStockBajoCount]           = useState(0);
@@ -136,12 +141,46 @@ const Sidebar = () => {
       return next;
     });
 
+  const toggleGroup = (label) =>
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
+
   const togglePin = (to) =>
     setPinnedRoutes((prev) => {
       const next = prev.includes(to) ? prev.filter((r) => r !== to) : [...prev, to];
       savePinned(uid, next);
       return next;
     });
+
+  // ── Collapsible sub-group ────────────────────────────────────────────────
+  const GroupItem = ({ item }) => {
+    const visibleChildren = item.children.filter(canAccess);
+    if (!visibleChildren.length) return null;
+    const expanded = expandedGroups.has(item.label);
+    const isChildActive = visibleChildren.some(c => location.pathname === c.to);
+    const GroupIcon = item.icon;
+
+    return (
+      <div className="sidebar-subgroup">
+        <button
+          className={`sidebar-subgroup-header${isChildActive && !expanded ? ' subgroup-child-active' : ''}`}
+          onClick={() => toggleGroup(item.label)}
+        >
+          <GroupIcon size={18} />
+          <span className="link-text">{item.label}</span>
+          {expanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+        </button>
+        {expanded && (
+          <div className="sidebar-subgroup-items">
+            {visibleChildren.map((child) => <NavItem key={child.to} item={child} showPinBtn />)}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ── Single nav item ──────────────────────────────────────────────────────
   const NavItem = ({ item, showPinBtn = false }) => {
@@ -153,7 +192,7 @@ const Sidebar = () => {
       <div className="sidebar-item-row">
         <NavLink
           to={item.to}
-          end={item.to === '/'}
+          end
           className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
           title={item.label}
         >
@@ -233,7 +272,11 @@ const Sidebar = () => {
             </button>
             {expanded && (
               <div className="module-items">
-                {visibleItems.map((item) => <NavItem key={item.to} item={item} showPinBtn />)}
+                {visibleItems.map((item) =>
+                  item.children
+                    ? <GroupItem key={item.label} item={item} />
+                    : <NavItem key={item.to} item={item} showPinBtn />
+                )}
               </div>
             )}
           </div>

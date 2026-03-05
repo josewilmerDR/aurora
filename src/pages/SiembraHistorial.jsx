@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle,
   FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX,
@@ -151,6 +152,26 @@ function SiembraHistorial() {
   };
 
   // ── Export CSV ───────────────────────────────────────────────────────────
+  const exportXLSX = () => {
+    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'Responsable'];
+    const rows = displayData.map(r => [
+      r.fecha, r.loteNombre || '', r.bloque || '',
+      r.plantas, r.densidad,
+      r.areaCalculada || '',
+      r.materialNombre || '', r.variedad || '',
+      r.cerrado ? 'Sí' : 'No',
+      r.responsableNombre || '',
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    // Ajustar ancho de columnas automáticamente
+    ws['!cols'] = headers.map((h, i) => ({
+      wch: Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2,
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Siembras');
+    XLSX.writeFile(wb, `siembras_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const exportCSV = () => {
     const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'Responsable'];
     const rows = displayData.map(r => [
@@ -193,6 +214,9 @@ function SiembraHistorial() {
             <FiFilter size={14} />
             Filtros
             {activeFilterCount > 0 && <span className="sh-filter-badge">{activeFilterCount}</span>}
+          </button>
+          <button className="btn btn-secondary" onClick={exportXLSX} title="Exportar a Excel">
+            <FiDownload size={14} /> Exportar Excel
           </button>
           <button className="btn btn-secondary" onClick={exportCSV} title="Exportar a CSV">
             <FiDownload size={14} /> Exportar CSV
