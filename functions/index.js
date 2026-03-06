@@ -306,8 +306,26 @@ app.post('/api/productos', async (req, res) => {
   try {
     const producto = { ...req.body, fincaId: ID_FINCA_ACTUAL };
     delete producto.id;
+
+    // Verificar si ya existe un producto con el mismo idProducto
+    if (producto.idProducto) {
+      const existing = await db.collection('productos')
+        .where('fincaId', '==', ID_FINCA_ACTUAL)
+        .where('idProducto', '==', producto.idProducto)
+        .limit(1)
+        .get();
+
+      if (!existing.empty) {
+        const doc = existing.docs[0];
+        const stockIngresado = parseFloat(producto.stockActual) || 0;
+        await doc.ref.update({ stockActual: FieldValue.increment(stockIngresado) });
+        const updated = { ...doc.data(), stockActual: (doc.data().stockActual || 0) + stockIngresado };
+        return res.status(200).json({ id: doc.id, ...updated, merged: true });
+      }
+    }
+
     const docRef = await db.collection('productos').add(producto);
-    res.status(201).json({ id: docRef.id, ...producto });
+    res.status(201).json({ id: docRef.id, ...producto, merged: false });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear producto.' });
   }

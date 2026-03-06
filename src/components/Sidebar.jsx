@@ -12,22 +12,28 @@ import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import './Sidebar.css';
 
 // ─── Module definitions ───────────────────────────────────────────────────────
+const DASHBOARD_ITEM = { label: 'Panel de Control', to: '/', icon: FiGrid, minRole: 'trabajador' };
+
 const MODULES = [
   {
     id: 'campo',
     nombre: 'Operaciones de Campo',
     icon: FiLayers,
     items: [
-      { label: 'Panel de Control',      to: '/',                    icon: FiGrid,       minRole: 'trabajador' },
-      { label: 'Actividades de Campo', to: '/tasks',               icon: FiCheckSquare, minRole: 'trabajador' },
-      { label: 'Siembra', icon: FiSunrise, minRole: 'encargado', children: [
-        { label: 'Registro de Siembra',  to: '/siembra',           icon: FiSunrise,   minRole: 'encargado' },
-        { label: 'Historial de Siembra', to: '/siembra/historial', icon: FiBarChart2, minRole: 'encargado' },
-      ]},
-      { label: 'Gestión de Lotes',      to: '/lotes',               icon: FiArchive,    minRole: 'encargado'  },
-      { label: 'Aplicaciones', icon: FiPackage, minRole: 'supervisor', children: [
-        { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
-      ]},
+
+      {
+        label: 'Siembra', icon: FiSunrise, minRole: 'encargado', children: [
+          { label: 'Registro de Siembra', to: '/siembra', icon: FiSunrise, minRole: 'encargado' },
+          { label: 'Historial de Siembra', to: '/siembra/historial', icon: FiBarChart2, minRole: 'encargado' },
+        ]
+      },
+      {
+        label: 'Aplicaciones', icon: FiPackage, minRole: 'supervisor', children: [
+          { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
+        ]
+      },
+      { label: 'Gestión de Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
+      { label: 'Actividades de Campo', to: '/tasks', icon: FiCheckSquare, minRole: 'trabajador' }
     ],
   },
   {
@@ -35,10 +41,10 @@ const MODULES = [
     nombre: 'Bodega',
     icon: FiBox,
     items: [
-      { label: 'Inventario Agroquímicos', to: '/productos',   icon: FiDroplet,      minRole: 'encargado'  },
-      { label: 'Solicitar Compra',        to: '/solicitudes', icon: FiShoppingCart, minRole: 'encargado'  },
-      { label: 'Registrar Compra',        to: '/compras',     icon: FiFileText,     minRole: 'supervisor' },
-      { label: 'Recepción de Productos',  to: '/recepcion',   icon: FiTruck,        minRole: 'encargado'  },
+      { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado' },
+      { label: 'Solicitar Compra', to: '/solicitudes', icon: FiShoppingCart, minRole: 'encargado' },
+      { label: 'Registrar Compra', to: '/compras', icon: FiFileText, minRole: 'supervisor' },
+      { label: 'Recepción de Productos', to: '/recepcion', icon: FiTruck, minRole: 'encargado' },
     ],
   },
   {
@@ -46,16 +52,16 @@ const MODULES = [
     nombre: 'Recursos Humanos',
     icon: FiBriefcase,
     items: [
-      { label: 'Ficha del Trabajador',          to: '/hr/ficha',            icon: FiUser,          minRole: 'encargado'     },
-      { label: 'Registro de Asistencia',        to: '/hr/asistencia',       icon: FiCalendar,      minRole: 'encargado'     },
-      { label: 'Horas Extra',                   to: '/hr/horas-extra',      icon: FiClock,         minRole: 'encargado'     },
-      { label: 'Permisos y Vacaciones',         to: '/hr/permisos',         icon: FiUmbrella,      minRole: 'encargado'     },
-      { label: 'Cálculo de Planilla',           to: '/hr/planilla',         icon: FiDollarSign,    minRole: 'supervisor'    },
-      { label: 'Historial de Pagos',            to: '/hr/historial-pagos',  icon: FiList,          minRole: 'supervisor'    },
-      { label: 'Historial del Empleado',        to: '/hr/historial',        icon: FiBook,          minRole: 'encargado'     },
-      { label: 'Documentos Adjuntos',           to: '/hr/documentos',       icon: FiPaperclip,     minRole: 'encargado'     },
-      { label: 'Memorándums y Amonestaciones',  to: '/hr/memorandums',      icon: FiAlertTriangle, minRole: 'supervisor'    },
-      { label: 'Solicitud de Empleo',           to: '/hr/solicitud-empleo', icon: FiUserPlus,      minRole: 'administrador' },
+      { label: 'Ficha del Trabajador', to: '/hr/ficha', icon: FiUser, minRole: 'encargado' },
+      { label: 'Registro de Asistencia', to: '/hr/asistencia', icon: FiCalendar, minRole: 'encargado' },
+      { label: 'Horas Extra', to: '/hr/horas-extra', icon: FiClock, minRole: 'encargado' },
+      { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },
+      { label: 'Cálculo de Planilla', to: '/hr/planilla', icon: FiDollarSign, minRole: 'supervisor' },
+      { label: 'Historial de Pagos', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
+      { label: 'Historial del Empleado', to: '/hr/historial', icon: FiBook, minRole: 'encargado' },
+      { label: 'Documentos Adjuntos', to: '/hr/documentos', icon: FiPaperclip, minRole: 'encargado' },
+      { label: 'Memorándums y Amonestaciones', to: '/hr/memorandums', icon: FiAlertTriangle, minRole: 'supervisor' },
+      { label: 'Solicitud de Empleo', to: '/hr/solicitud-empleo', icon: FiUserPlus, minRole: 'administrador' },
     ],
   },
   {
@@ -63,9 +69,9 @@ const MODULES = [
     nombre: 'Monitoreo',
     icon: FiActivity,
     items: [
-      { label: 'Registrar Monitoreo',   to: '/monitoreo',          icon: FiActivity,  minRole: 'trabajador' },
-      { label: 'Historial',             to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado'  },
-      { label: 'Tipos de Monitoreo',    to: '/monitoreo/config',    icon: FiSettings,  minRole: 'supervisor' },
+      { label: 'Registrar Monitoreo', to: '/monitoreo', icon: FiActivity, minRole: 'trabajador' },
+      { label: 'Historial', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
+      { label: 'Tipos de Monitoreo', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
     ],
   },
   {
@@ -78,14 +84,15 @@ const MODULES = [
   },
 ];
 
-const ALL_ITEMS = MODULES.flatMap((m) =>
-  m.items.flatMap((item) => item.children ? item.children : [item])
-);
+const ALL_ITEMS = [
+  DASHBOARD_ITEM,
+  ...MODULES.flatMap((m) => m.items.flatMap((item) => item.children ? item.children : [item])),
+];
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
-const getPinned  = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_pinned_${uid}`))  || []; } catch { return []; } };
-const getRecents = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_recent_${uid}`))  || []; } catch { return []; } };
-const savePinned  = (uid, arr) => localStorage.setItem(`aurora_pinned_${uid}`, JSON.stringify(arr));
+const getPinned = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_pinned_${uid}`)) || []; } catch { return []; } };
+const getRecents = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_recent_${uid}`)) || []; } catch { return []; } };
+const savePinned = (uid, arr) => localStorage.setItem(`aurora_pinned_${uid}`, JSON.stringify(arr));
 const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${uid}`, JSON.stringify(arr));
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -94,15 +101,15 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const uid      = currentUser?.id   || 'guest';
-  const userRole = currentUser?.rol  || 'trabajador';
+  const uid = currentUser?.id || 'guest';
+  const userRole = currentUser?.rol || 'trabajador';
 
-  const [activeTab, setActiveTab]         = useState('favoritos');
-  const [expandedMods, setExpandedMods]   = useState(() => new Set());
+  const [activeTab, setActiveTab] = useState('favoritos');
+  const [expandedMods, setExpandedMods] = useState(() => new Set());
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [pinnedRoutes, setPinnedRoutes] = useState(() => getPinned(uid));
   const [recentRoutes, setRecentRoutes] = useState(() => getRecents(uid));
-  const [stockBajoCount, setStockBajoCount]           = useState(0);
+  const [stockBajoCount, setStockBajoCount] = useState(0);
   const [tareasVencidasCount, setTareasVencidasCount] = useState(0);
 
   // Track recents on route change
@@ -121,18 +128,18 @@ const Sidebar = () => {
     fetch('/api/productos')
       .then((r) => r.json())
       .then((data) => setStockBajoCount(data.filter((p) => p.stockActual <= p.stockMinimo).length))
-      .catch(() => {});
+      .catch(() => { });
     fetch('/api/tasks/overdue-count')
       .then((r) => r.json())
       .then((data) => setTareasVencidasCount(data.count || 0))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
-  const canAccess   = useCallback((item) => hasMinRole(userRole, item.minRole), [userRole]);
-  const itemFor     = (path) => ALL_ITEMS.find((i) => i.to === path);
-  const badgeFor    = (to) => {
-    if (to === '/tasks'     && tareasVencidasCount > 0) return tareasVencidasCount;
-    if (to === '/productos' && stockBajoCount > 0)     return stockBajoCount;
+  const canAccess = useCallback((item) => hasMinRole(userRole, item.minRole), [userRole]);
+  const itemFor = (path) => ALL_ITEMS.find((i) => i.to === path);
+  const badgeFor = (to) => {
+    if (to === '/tasks' && tareasVencidasCount > 0) return tareasVencidasCount;
+    if (to === '/productos' && stockBajoCount > 0) return stockBajoCount;
     return null;
   };
 
@@ -168,7 +175,7 @@ const Sidebar = () => {
     return (
       <div className="sidebar-subgroup">
         <button
-          className={`sidebar-subgroup-header${isChildActive && !expanded ? ' subgroup-child-active' : ''}`}
+          className={`sidebar-subgroup-header${isChildActive ? ' subgroup-child-active' : ''}`}
           onClick={() => toggleGroup(item.label)}
         >
           <GroupIcon size={18} />
@@ -186,8 +193,8 @@ const Sidebar = () => {
 
   // ── Single nav item ──────────────────────────────────────────────────────
   const NavItem = ({ item, showPinBtn = false }) => {
-    const Icon   = item.icon;
-    const badge  = badgeFor(item.to);
+    const Icon = item.icon;
+    const badge = badgeFor(item.to);
     const pinned = pinnedRoutes.includes(item.to);
 
     return (
@@ -219,7 +226,7 @@ const Sidebar = () => {
   const FavoritosTab = () => {
     const pinnedItems = pinnedRoutes.map(itemFor).filter(Boolean).filter(canAccess);
     const recentItems = recentRoutes.map(itemFor).filter(Boolean).filter(canAccess)
-                          .filter((i) => !pinnedRoutes.includes(i.to));
+      .filter((i) => !pinnedRoutes.includes(i.to));
 
     return (
       <div className="tab-content">
@@ -259,11 +266,16 @@ const Sidebar = () => {
   // ── Todas las funciones tab ──────────────────────────────────────────────
   const TodasTab = () => (
     <div className="tab-content">
+      {canAccess(DASHBOARD_ITEM) && (
+        <div className="sidebar-toplevel">
+          <NavItem item={DASHBOARD_ITEM} showPinBtn />
+        </div>
+      )}
       {MODULES.map((mod) => {
         const visibleItems = mod.items.filter(canAccess);
         if (visibleItems.length === 0) return null;
         const expanded = expandedMods.has(mod.id);
-        const ModIcon  = mod.icon;
+        const ModIcon = mod.icon;
 
         return (
           <div key={mod.id} className="sidebar-module">

@@ -25,6 +25,16 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "firestore": [
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "auroradatabase",
+      "rules": "firestore.rules"
+    }
+  ],
   "emulators": {
     "functions": {
       "port": 5001

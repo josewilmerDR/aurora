@@ -121,6 +121,13 @@
   opacity: 0.85;
 }
 
+/* ── Top-level item (Panel de Control) ───────────────────────────────────── */
+.sidebar-toplevel {
+  border-bottom: 1px solid var(--aurora-border);
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+}
+
 /* ── Modules (Todas las funciones) ───────────────────────────────────────── */
 .sidebar-module {
   margin-bottom: 2px;
@@ -135,7 +142,6 @@
   background: none;
   border: none;
   color: var(--aurora-light);
-  opacity: 0.55;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -146,7 +152,7 @@
 }
 
 .module-header:hover {
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
 .module-header svg:last-child {
@@ -171,7 +177,6 @@
   background: none;
   border: none;
   color: var(--aurora-light);
-  opacity: 0.65;
   font-size: 0.83rem;
   cursor: pointer;
   border-radius: 7px;

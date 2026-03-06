@@ -124,9 +124,14 @@ function ProductManagement() {
         body: JSON.stringify(buildPayload(formData)),
       });
       if (!res.ok) throw new Error();
+      const data = await res.json();
       fetchProductos();
       resetForm();
-      showToast(isEditing ? 'Producto actualizado correctamente' : 'Producto guardado correctamente');
+      if (data.merged) {
+        showToast(`El producto "${data.nombreComercial}" ya existía — se sumó el stock ingresado.`, 'warning');
+      } else {
+        showToast(isEditing ? 'Producto actualizado correctamente' : 'Producto guardado correctamente');
+      }
     } catch {
       showToast('Ocurrió un error al guardar.', 'error');
     }
@@ -159,7 +164,8 @@ function ProductManagement() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-      let success = 0;
+      let created = 0;
+      let merged = 0;
       let errors = 0;
 
       for (const row of rows) {
@@ -188,14 +194,17 @@ function ProductManagement() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(producto),
           });
-          if (res.ok) success++; else errors++;
+          if (res.ok) {
+            const data = await res.json();
+            data.merged ? merged++ : created++;
+          } else { errors++; }
         } catch { errors++; }
       }
 
-      setImportResult({ success, errors });
-      if (success > 0) fetchProductos();
+      setImportResult({ created, merged, errors });
+      if (created + merged > 0) fetchProductos();
     } catch {
-      setImportResult({ success: 0, errors: -1 });
+      setImportResult({ created: 0, merged: 0, errors: -1 });
     } finally {
       setImporting(false);
       e.target.value = '';
@@ -244,10 +253,14 @@ function ProductManagement() {
             />
           </div>
           {importResult && (
-            <p className={`import-result ${importResult.errors === -1 ? 'import-error' : importResult.success > 0 ? 'import-ok' : 'import-error'}`}>
+            <p className={`import-result ${importResult.errors === -1 ? 'import-error' : (importResult.created + importResult.merged) > 0 ? 'import-ok' : 'import-error'}`}>
               {importResult.errors === -1
                 ? '⚠ No se pudo leer el archivo. Usa la plantilla descargada.'
-                : `✓ ${importResult.success} producto(s) importado(s)${importResult.errors > 0 ? ` · ⚠ ${importResult.errors} fila(s) con error` : ''}`}
+                : [
+                    importResult.created > 0 && `✓ ${importResult.created} producto(s) creado(s)`,
+                    importResult.merged  > 0 && `↑ ${importResult.merged} producto(s) con stock actualizado`,
+                    importResult.errors  > 0 && `⚠ ${importResult.errors} fila(s) con error`,
+                  ].filter(Boolean).join(' · ')}
             </p>
           )}
         </div>
