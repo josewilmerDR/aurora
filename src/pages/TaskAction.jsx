@@ -114,7 +114,7 @@ const TaskAction = () => {
     <div className="task-action-wrapper">
       <div className="task-action-card">
         <button className="btn-back-nav" onClick={() => navigate('/tasks')}>
-          ← Volver a Seguimiento de Tareas
+          ← Volver a Seguimiento de Actividades
         </button>
         <h1>Gestionar Tarea</h1>
 

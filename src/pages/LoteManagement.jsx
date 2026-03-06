@@ -136,14 +136,14 @@ function LoteManagement() {
             </div>
             <div className="form-control">
               <label htmlFor="paqueteId">Paquete de Tareas</label>
-              <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} required>
+              <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange}>
                 <option value="">-- Seleccionar Paquete --</option>
                 {packages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.nombrePaquete}</option>)}
               </select>
             </div>
             <div className="form-control">
               <label htmlFor="hectareas">Hectáreas</label>
-              <input id="hectareas" name="hectareas" type="number" step="0.01" min="0.01" value={formData.hectareas} onChange={handleInputChange} placeholder="Ej: 2.5" required />
+              <input id="hectareas" name="hectareas" type="number" step="0.01" min="0.01" value={formData.hectareas} onChange={handleInputChange} placeholder="Ej: 2.5" />
             </div>
           </div>
           {formData.paqueteId && (() => {

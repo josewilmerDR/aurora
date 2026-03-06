@@ -19,13 +19,15 @@ const MODULES = [
     icon: FiLayers,
     items: [
       { label: 'Panel de Control',      to: '/',                    icon: FiGrid,       minRole: 'trabajador' },
-      { label: 'Seguimiento de Tareas', to: '/tasks',               icon: FiCheckSquare, minRole: 'trabajador' },
+      { label: 'Actividades de Campo', to: '/tasks',               icon: FiCheckSquare, minRole: 'trabajador' },
       { label: 'Siembra', icon: FiSunrise, minRole: 'encargado', children: [
         { label: 'Registro de Siembra',  to: '/siembra',           icon: FiSunrise,   minRole: 'encargado' },
         { label: 'Historial de Siembra', to: '/siembra/historial', icon: FiBarChart2, minRole: 'encargado' },
       ]},
       { label: 'Gestión de Lotes',      to: '/lotes',               icon: FiArchive,    minRole: 'encargado'  },
-      { label: 'Paquetes Técnicos',     to: '/packages',            icon: FiPackage,    minRole: 'supervisor' },
+      { label: 'Aplicaciones', icon: FiPackage, minRole: 'supervisor', children: [
+        { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
+      ]},
     ],
   },
   {

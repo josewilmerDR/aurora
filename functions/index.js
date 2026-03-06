@@ -90,9 +90,10 @@ app.get('/api/tasks', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
   try {
     const { nombre, loteId, responsableId, fecha, productos } = req.body;
-    if (!nombre || !loteId || !responsableId || !fecha || !Array.isArray(productos) || !productos.length) {
+    if (!nombre || !loteId || !responsableId || !fecha) {
       return res.status(400).json({ message: 'Faltan campos requeridos.' });
     }
+    const prodList = Array.isArray(productos) ? productos : [];
     const newTask = {
       type: 'MANUAL_APLICACION',
       executeAt: Timestamp.fromDate(new Date(fecha + 'T08:00:00')),
@@ -101,9 +102,9 @@ app.post('/api/tasks', async (req, res) => {
       fincaId: ID_FINCA_ACTUAL,
       activity: {
         name: nombre,
-        type: 'aplicacion',
+        type: prodList.length > 0 ? 'aplicacion' : 'notificacion',
         responsableId,
-        productos: productos.map(p => ({
+        productos: prodList.map(p => ({
           productoId: p.productoId,
           nombreComercial: p.nombreComercial,
           cantidad: parseFloat(p.cantidad) || 0,
@@ -221,12 +222,12 @@ app.get('/api/task-templates', async (req, res) => {
 app.post('/api/task-templates', async (req, res) => {
   try {
     const { nombre, responsableId, productos } = req.body;
-    if (!nombre || !productos?.length)
+    if (!nombre)
       return res.status(400).json({ message: 'Faltan campos requeridos.' });
     const template = {
       nombre,
       responsableId: responsableId || '',
-      productos,
+      productos: productos || [],
       fincaId: ID_FINCA_ACTUAL,
       creadoEn: Timestamp.now(),
     };

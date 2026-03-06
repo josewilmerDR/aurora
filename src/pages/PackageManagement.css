@@ -25,17 +25,60 @@
 .activities-table .col-day { width: 70px; }
 .activities-table .col-name { width: auto; }
 .activities-table .col-user { width: 140px; }
-.activities-table .col-type { width: 130px; }
-.activities-table .col-action { width: 84px; text-align: right; }
+.activities-table .col-action { width: 72px; text-align: right; }
+
+/* Celda de nombre de actividad — select de plantilla + input editable */
+.activity-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-name-cell input {
+  width: 100%;
+  padding: 7px 8px;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.activity-name-cell input:focus {
+  border-color: var(--aurora-green);
+  outline: none;
+}
+
+.plantilla-inline-select {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  background-color: var(--aurora-dark-blue);
+  border: 1px dashed rgba(100, 181, 246, 0.5);
+  border-radius: 6px;
+  color: #64b5f6;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.plantilla-inline-select:hover,
+.plantilla-inline-select:focus {
+  border-style: solid;
+  border-color: #64b5f6;
+  outline: none;
+}
 
 .activities-table-wrapper {
   overflow-x: auto;
 }
 
-.activities-table input,
-.activities-table select {
+.activities-table td > input,
+.activities-table td > select {
   width: 100%;
-  padding: 8px; /* Un poco más pequeño para que quepa en la tabla */
+  padding: 8px;
 }
 
 .add-activity-btn-container {

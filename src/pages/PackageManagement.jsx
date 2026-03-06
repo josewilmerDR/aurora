@@ -17,6 +17,7 @@ function PackageManagement() {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
+  const [hoveredActivity, setHoveredActivity] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -29,23 +30,23 @@ function PackageManagement() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'tipoCosecha' && value === 'Semillero' ? { etapaCultivo: 'N/A' } : {}),
+    }));
   };
 
   const handleActivityChange = (index, field, value) => {
     const updatedActivities = [...formData.activities];
     updatedActivities[index] = { ...updatedActivities[index], [field]: value };
-    if (field === 'type' && value === 'notificacion') {
-      updatedActivities[index].productos = [];
-      setExpandedActivities(prev => { const next = new Set(prev); next.delete(index); return next; });
-    }
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
   };
 
   const addActivity = () => {
     setFormData(prev => ({
       ...prev,
-      activities: [...prev.activities, { day: '', name: '', responsableId: '', type: 'notificacion', productos: [] }]
+      activities: [...prev.activities, { day: '', name: '', responsableId: '', productos: [] }]
     }));
   };
 
@@ -131,6 +132,7 @@ function PackageManagement() {
     const updatedActivities = [...formData.activities];
     updatedActivities[activityIndex] = {
       ...updatedActivities[activityIndex],
+      name: plantilla.nombre || updatedActivities[activityIndex].name,
       responsableId: plantilla.responsableId || updatedActivities[activityIndex].responsableId,
       productos: productosDeActividad,
     };
@@ -160,11 +162,18 @@ function PackageManagement() {
     e.preventDefault();
     const url = isEditing ? `/api/packages/${formData.id}` : '/api/packages';
     const method = isEditing ? 'PUT' : 'POST';
+    const body = {
+      ...formData,
+      activities: formData.activities.map(a => ({
+        ...a,
+        type: (a.productos && a.productos.length > 0) ? 'aplicacion' : 'notificacion',
+      })),
+    };
     try {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('Error al guardar el paquete');
       const updatedPackages = await fetch('/api/packages').then(res => res.json());
@@ -202,11 +211,22 @@ function PackageManagement() {
             </div>
             <div className="form-control">
               <label htmlFor="tipoCosecha">Tipo de Cosecha</label>
-              <input id="tipoCosecha" name="tipoCosecha" value={formData.tipoCosecha} onChange={handleInputChange} required />
+              <select id="tipoCosecha" name="tipoCosecha" value={formData.tipoCosecha} onChange={handleInputChange} required>
+                <option value="">-- Seleccionar --</option>
+                <option value="I Cosecha">I Cosecha</option>
+                <option value="II Cosecha">II Cosecha</option>
+                <option value="III Cosecha">III Cosecha</option>
+                <option value="Semillero">Semillero</option>
+              </select>
             </div>
             <div className="form-control">
               <label htmlFor="etapaCultivo">Etapa del Cultivo</label>
-              <input id="etapaCultivo" name="etapaCultivo" value={formData.etapaCultivo} onChange={handleInputChange} required />
+              <select id="etapaCultivo" name="etapaCultivo" value={formData.etapaCultivo} onChange={handleInputChange} required>
+                <option value="">-- Seleccionar --</option>
+                <option value="Desarrollo">Desarrollo</option>
+                <option value="Postforza">Postforza</option>
+                <option value="N/A">N/A</option>
+              </select>
             </div>
           </div>
 
@@ -218,30 +238,44 @@ function PackageManagement() {
                   <th className="col-day">Día</th>
                   <th className="col-name">Actividad</th>
                   <th className="col-user">Responsable</th>
-                  <th className="col-type">Tipo</th>
                   <th className="col-action"></th>
                 </tr>
               </thead>
               <tbody>
                 {formData.activities.map((activity, index) => (
                   <>
-                    <tr key={`row-${index}`}>
+                    <tr key={`row-${index}`} onMouseEnter={() => setHoveredActivity(index)} onMouseLeave={() => setHoveredActivity(null)}>
                       <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" required /></td>
-                      <td><input value={activity.name} onChange={(e) => handleActivityChange(index, 'name', e.target.value)} required /></td>
                       <td>
-                        <select value={activity.responsableId} onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)} required>
-                          <option value="">-- Asignar --</option>
-                          {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
-                        </select>
+                        <div className="activity-name-cell">
+                          {plantillas.length > 0 && hoveredActivity === index && (
+                            <select
+                              className="plantilla-inline-select"
+                              value=""
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  aplicarPlantillaAActividad(index, e.target.value);
+                                }
+                              }}
+                            >
+                              <option value="">-- Cargar desde plantilla --</option>
+                              {plantillas.map(p => (
+                                <option key={p.id} value={p.id}>{p.nombre}</option>
+                              ))}
+                            </select>
+                          )}
+                          <input
+                            value={activity.name}
+                            onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
+                            placeholder="Nombre de la actividad"
+                            required
+                          />
+                        </div>
                       </td>
                       <td>
-                        <select
-                          value={activity.type || 'notificacion'}
-                          onChange={(e) => handleActivityChange(index, 'type', e.target.value)}
-                          className={`type-select ${activity.type === 'aplicacion' ? 'type-aplicacion' : ''}`}
-                        >
-                          <option value="notificacion">Notificación</option>
-                          <option value="aplicacion">Aplicación</option>
+                        <select value={activity.responsableId} onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}>
+                          <option value="">-- Asignar --</option>
+                          {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
                         </select>
                       </td>
                       <td>
@@ -249,37 +283,23 @@ function PackageManagement() {
                           <button type="button" onClick={() => removeActivity(index)} className="icon-btn pkg-action-btn" title="Eliminar Actividad">
                             <FiX size={16} />
                           </button>
-                          {activity.type === 'aplicacion' && (
-                            <button
-                              type="button"
-                              onClick={() => toggleActivityExpand(index)}
-                              className={`icon-btn pkg-action-btn${expandedActivities.has(index) ? ' expanded' : ''}`}
-                              title={expandedActivities.has(index) ? 'Ocultar productos' : 'Ver productos'}
-                            >
-                              <FiEye size={16} />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleActivityExpand(index)}
+                            className={`icon-btn pkg-action-btn${expandedActivities.has(index) ? ' expanded' : ''}`}
+                            title={expandedActivities.has(index) ? 'Ocultar productos' : 'Agregar productos'}
+                          >
+                            <FiEye size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>
-                    {activity.type === 'aplicacion' && expandedActivities.has(index) && (
+                    {expandedActivities.has(index) && (
                       <tr key={`products-${index}`} className="products-subrow-tr">
-                        <td colSpan="5">
+                        <td colSpan="4">
                           <div className="products-subrow">
                             <div className="products-subrow-header">
                               <span className="products-subrow-label">Productos de mezcla:</span>
-                              {plantillas.length > 0 && (
-                                <select
-                                  className="load-template-select"
-                                  value=""
-                                  onChange={e => { aplicarPlantillaAActividad(index, e.target.value); e.target.value = ''; }}
-                                >
-                                  <option value="" disabled>📋 Cargar desde plantilla…</option>
-                                  {plantillas.map(p => (
-                                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                                  ))}
-                                </select>
-                              )}
                             </div>
                             <div className="products-tags">
                               {(activity.productos || []).map(p => (

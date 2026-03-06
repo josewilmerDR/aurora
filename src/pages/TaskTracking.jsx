@@ -23,7 +23,8 @@ function TaskTracking() {
   const [formUsers, setFormUsers] = useState([]);
   const [formProductos, setFormProductos] = useState([]);
   const [formData, setFormData] = useState({ nombre: '', loteId: '', responsableId: '', fecha: '', productos: [] });
-  const [prodSelect, setProdSelect] = useState('');
+  const [prodSearch, setProdSearch] = useState('');
+  const [showProdDropdown, setShowProdDropdown] = useState(false);
   const [formSaving, setFormSaving] = useState(false);
 
   // --- Estado de plantillas ---
@@ -76,7 +77,8 @@ function TaskTracking() {
         periodoACosecha: p.periodoACosecha || 0,
       }],
     }));
-    setProdSelect('');
+    setProdSearch('');
+    setShowProdDropdown(false);
   };
 
   const removeProductLine = (productoId) => {
@@ -93,7 +95,8 @@ function TaskTracking() {
   const resetForm = () => {
     setShowNewTask(false);
     setFormData({ nombre: '', loteId: '', responsableId: '', fecha: '', productos: [] });
-    setProdSelect('');
+    setProdSearch('');
+    setShowProdDropdown(false);
     setPlantillaSaved(false);
   };
 
@@ -110,7 +113,7 @@ function TaskTracking() {
   };
 
   const guardarComoPlantilla = async () => {
-    if (!formData.nombre || !formData.productos.length) return;
+    if (!formData.nombre) return;
     setSavingPlantilla(true);
     try {
       const res = await fetch('/api/task-templates', {
@@ -144,7 +147,6 @@ function TaskTracking() {
   };
 
   const canSubmit = formData.nombre && formData.loteId && formData.responsableId && formData.fecha
-    && formData.productos.length > 0
     && formData.productos.every(p => parseFloat(p.cantidad) > 0);
 
   const handleCreateTask = async () => {
@@ -160,9 +162,9 @@ function TaskTracking() {
       const newTask = await res.json();
       setTasks(prev => [...prev, newTask].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)));
       resetForm();
-      showToast('Tarea creada correctamente');
+      showToast('Actividad creada correctamente');
     } catch {
-      showToast('Error al crear la tarea. Intenta de nuevo.', 'error');
+      showToast('Error al crear la actividad. Intenta de nuevo.', 'error');
     } finally {
       setFormSaving(false);
     }
@@ -217,7 +219,7 @@ function TaskTracking() {
     completed: tasksWithStatus.filter(t => t.displayStatus.key === 'completed'),
   };
 
-  if (loading) return <div className="empty-state">Cargando tareas...</div>;
+  if (loading) return <div className="empty-state">Cargando actividades...</div>;
   if (error) return <div className="empty-state">Error: {error}</div>;
 
   const availableProductos = formProductos.filter(p => !formData.productos.find(fp => fp.productoId === p.id));
@@ -226,14 +228,13 @@ function TaskTracking() {
     <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="task-tracking-header">
-        <h2>Seguimiento de Tareas</h2>
         <div className="task-tracking-controls">
           <button
             className={`btn-nueva-aplicacion${showNewTask ? ' active' : ''}`}
             onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
           >
             {showNewTask ? <FiX size={15} /> : <FiPlus size={15} />}
-            {showNewTask ? 'Cancelar' : 'Nueva Aplicación'}
+            {showNewTask ? 'Cancelar' : 'Nueva Actividad'}
           </button>
           <div className="filter-pills">
             <button onClick={() => setFilter('all')} className={`pill-btn ${filter === 'all' ? 'active' : ''}`}>Todas</button>
@@ -247,13 +248,124 @@ function TaskTracking() {
       {/* ── Formulario de nueva tarea de aplicación ── */}
       {showNewTask && (
         <div className="nueva-aplicacion-panel">
-          <h3 className="na-title">Registrar Tarea de Aplicación</h3>
+          <div className="na-main-layout">
+            {/* ── Columna izquierda: campos + productos ── */}
+            <div className="na-left-col">
+              <div className="na-form-grid">
+                <div className="form-group">
+                  <label>Nombre de la actividad *</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Fertilización Lote L2601"
+                    value={formData.nombre}
+                    onChange={e => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Lote *</label>
+                  <select value={formData.loteId} onChange={e => setFormData(prev => ({ ...prev, loteId: e.target.value }))}>
+                    <option value="">-- Seleccionar lote --</option>
+                    {formLotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Responsable *</label>
+                  <select value={formData.responsableId} onChange={e => setFormData(prev => ({ ...prev, responsableId: e.target.value }))}>
+                    <option value="">-- Seleccionar responsable --</option>
+                    {formUsers.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Fecha de ejecución *</label>
+                  <input
+                    type="date"
+                    value={formData.fecha}
+                    onChange={e => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
+                  />
+                </div>
+              </div>
 
-          {/* ── Plantillas guardadas ── */}
-          {plantillas.length > 0 && (
-            <div className="na-plantillas-section">
+              <div className="na-productos-section">
+                <label className="na-productos-label">Productos a aplicar</label>
+                <div className="na-producto-search-wrapper">
+                  <input
+                    className="na-producto-search-input"
+                    type="text"
+                    placeholder="🔍 Buscar producto del catálogo..."
+                    value={prodSearch}
+                    onChange={e => { setProdSearch(e.target.value); setShowProdDropdown(true); }}
+                    onFocus={() => setShowProdDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowProdDropdown(false), 150)}
+                  />
+                  {showProdDropdown && (
+                    <div className="na-producto-dropdown">
+                      {availableProductos
+                        .filter(p => p.nombreComercial.toLowerCase().includes(prodSearch.toLowerCase()))
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="na-producto-option"
+                            onMouseDown={() => addProductLine(p.id)}
+                          >
+                            <span>{p.nombreComercial}</span>
+                            <span className="na-producto-stock">stock: {p.stockActual} {p.unidad}</span>
+                          </button>
+                        ))
+                      }
+                      {availableProductos.filter(p => p.nombreComercial.toLowerCase().includes(prodSearch.toLowerCase())).length === 0 && (
+                        <p className="na-producto-empty">Sin resultados</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {formData.productos.length > 0 && (
+                  <table className="na-productos-table">
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Unidad</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {formData.productos.map(p => (
+                        <tr key={p.productoId}>
+                          <td>{p.nombreComercial}</td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0"
+                              value={p.cantidad}
+                              onChange={e => updateProductCantidad(p.productoId, e.target.value)}
+                              className="na-qty-input"
+                            />
+                          </td>
+                          <td>{p.unidad}</td>
+                          <td>
+                            <button className="na-btn-remove" onClick={() => removeProductLine(p.productoId)}>
+                              <FiX size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>{/* fin na-left-col */}
+
+            {/* ── Columna derecha: plantillas ── */}
+            <div className="na-right-col">
               <span className="na-plantillas-label">Plantillas guardadas</span>
               <div className="na-plantillas-list">
+                {plantillas.length === 0 && (
+                  <p className="na-plantillas-empty">Aún no hay plantillas guardadas.</p>
+                )}
                 {plantillas.map(p => (
                   <div key={p.id} className="na-plantilla-chip">
                     <button className="na-plantilla-apply" onClick={() => aplicarPlantilla(p)}>
@@ -265,115 +377,28 @@ function TaskTracking() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div className="na-form-grid">
-            <div className="form-group">
-              <label>Nombre de la tarea *</label>
-              <input
-                type="text"
-                placeholder="Ej: Fertilización Lote L2601"
-                value={formData.nombre}
-                onChange={e => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
-              />
-            </div>
-            <div className="form-group">
-              <label>Lote *</label>
-              <select value={formData.loteId} onChange={e => setFormData(prev => ({ ...prev, loteId: e.target.value }))}>
-                <option value="">-- Seleccionar lote --</option>
-                {formLotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Responsable *</label>
-              <select value={formData.responsableId} onChange={e => setFormData(prev => ({ ...prev, responsableId: e.target.value }))}>
-                <option value="">-- Seleccionar responsable --</option>
-                {formUsers.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Fecha de ejecución *</label>
-              <input
-                type="date"
-                value={formData.fecha}
-                onChange={e => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="na-productos-section">
-            <label className="na-productos-label">Productos a aplicar *</label>
-            <select
-              className="na-producto-select"
-              value={prodSelect}
-              onChange={e => { addProductLine(e.target.value); }}
-            >
-              <option value="">+ Agregar producto del catálogo...</option>
-              {availableProductos.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.nombreComercial} — stock: {p.stockActual} {p.unidad}
-                </option>
-              ))}
-            </select>
-
-            {formData.productos.length > 0 && (
-              <table className="na-productos-table">
-                <thead>
-                  <tr>
-                    <th>Producto</th>
-                    <th>Cantidad</th>
-                    <th>Unidad</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.productos.map(p => (
-                    <tr key={p.productoId}>
-                      <td>{p.nombreComercial}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0"
-                          value={p.cantidad}
-                          onChange={e => updateProductCantidad(p.productoId, e.target.value)}
-                          className="na-qty-input"
-                        />
-                      </td>
-                      <td>{p.unidad}</td>
-                      <td>
-                        <button className="na-btn-remove" onClick={() => removeProductLine(p.productoId)}>
-                          <FiX size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+            </div>{/* fin na-right-col */}
+          </div>{/* fin na-main-layout */}
 
           <div className="na-form-actions">
             <button
               className={`btn-guardar-plantilla${plantillaSaved ? ' saved' : ''}`}
               onClick={guardarComoPlantilla}
-              disabled={savingPlantilla || !formData.nombre || !formData.productos.length}
-              title="Guardar nombre y productos como plantilla reutilizable"
+              disabled={savingPlantilla || !formData.nombre}
+              title="Guardar como plantilla reutilizable"
             >
               {plantillaSaved ? '✓ Guardada' : savingPlantilla ? 'Guardando...' : '📋 Guardar como plantilla'}
             </button>
             <div style={{ flex: 1 }} />
-            <button className="btn-cancel" onClick={resetForm}>Cancelar</button>
-            <button className="btn-primary" onClick={handleCreateTask} disabled={formSaving || !canSubmit}>
-              {formSaving ? 'Guardando...' : 'Crear Tarea'}
+            <button className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
+            <button className="btn btn-primary" onClick={handleCreateTask} disabled={formSaving || !canSubmit}>
+              {formSaving ? 'Guardando...' : 'Crear Actividad'}
             </button>
           </div>
         </div>
       )}
 
-      {filteredTasks.length === 0 && <p className="empty-state">No hay tareas en esta categoría.</p>}
+      {filteredTasks.length === 0 && <p className="empty-state">No hay actividades en esta categoría.</p>}
 
       {filter === 'all' ? (
         <div>
