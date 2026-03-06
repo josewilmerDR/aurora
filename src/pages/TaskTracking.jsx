@@ -189,7 +189,11 @@ function TaskTracking() {
     .filter(task => task.type !== 'REMINDER_3_DAY')
     .map(task => ({ ...task, displayStatus: getTaskDisplayStatus(task) }));
 
-  const filteredTasks = tasksWithStatus.filter(task => filter === 'all' || task.displayStatus.key === filter);
+  const filteredTasks = tasksWithStatus.filter(task => {
+    if (filter === 'all') return true;
+    if (filter === 'unassigned') return !task.activity?.responsableId;
+    return task.displayStatus.key === filter;
+  });
 
   const renderTaskCard = (task) => (
     <div key={task.id} className={`task-card ${task.displayStatus.className}`} onClick={() => navigate(`/task/${task.id}`)} style={{ cursor: 'pointer' }}>
@@ -204,7 +208,7 @@ function TaskTracking() {
       </div>
       <div className="task-card-body">
         <span className="task-detail"><strong>Lote:</strong> {task.loteName}</span>
-        <span className="task-detail"><strong>Responsable:</strong> {task.responsableName}</span>
+        <span className="task-detail"><strong>Responsable:</strong> {task.activity?.responsableId ? task.responsableName : <em style={{ color: 'var(--aurora-magenta)', fontStyle: 'normal' }}>Sin asignar</em>}</span>
       </div>
       <div className="task-card-footer">
         <span>{new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
@@ -241,6 +245,7 @@ function TaskTracking() {
             <button onClick={() => setFilter('overdue')} className={`pill-btn ${filter === 'overdue' ? 'active' : ''}`}>Vencidas</button>
             <button onClick={() => setFilter('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
             <button onClick={() => setFilter('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
+            <button onClick={() => setFilter('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
           </div>
         </div>
       </div>

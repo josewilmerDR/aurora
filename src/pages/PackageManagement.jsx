@@ -17,7 +17,7 @@ function PackageManagement() {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
-  const [hoveredActivity, setHoveredActivity] = useState(null);
+  const [focusedActivity, setFocusedActivity] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -244,17 +244,25 @@ function PackageManagement() {
               <tbody>
                 {formData.activities.map((activity, index) => (
                   <>
-                    <tr key={`row-${index}`} onMouseEnter={() => setHoveredActivity(index)} onMouseLeave={() => setHoveredActivity(null)}>
+                    <tr key={`row-${index}`}>
                       <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" required /></td>
                       <td>
-                        <div className="activity-name-cell">
-                          {plantillas.length > 0 && hoveredActivity === index && (
+                        <div
+                          className="activity-name-cell"
+                          onBlur={(e) => {
+                            if (!e.currentTarget.contains(e.relatedTarget)) {
+                              setFocusedActivity(null);
+                            }
+                          }}
+                        >
+                          {plantillas.length > 0 && focusedActivity === index && (
                             <select
                               className="plantilla-inline-select"
                               value=""
                               onChange={(e) => {
                                 if (e.target.value) {
                                   aplicarPlantillaAActividad(index, e.target.value);
+                                  setFocusedActivity(null);
                                 }
                               }}
                             >
@@ -269,6 +277,7 @@ function PackageManagement() {
                             onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
                             placeholder="Nombre de la actividad"
                             required
+                            onFocus={() => setFocusedActivity(index)}
                           />
                         </div>
                       </td>

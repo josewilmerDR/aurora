@@ -462,8 +462,6 @@ app.post('/api/lotes', async (req, res) => {
         const tasksForImmediateNotification = [];
 
         for (const activity of paqueteData.activities) {
-            if (!activity.responsableId) continue;
-
             const activityDay = parseInt(activity.day);
             const activityDate = new Date(loteCreationDate);
             activityDate.setDate(loteCreationDate.getDate() + activityDay);
@@ -528,7 +526,6 @@ app.put('/api/lotes/:id', async (req, res) => {
                 const tasksBatch = db.batch();
 
                 for (const activity of paqueteData.activities) {
-                    if (!activity.responsableId) continue;
                     const activityDate = new Date(loteCreationDate);
                     activityDate.setDate(loteCreationDate.getDate() + parseInt(activity.day));
                     const reminderDate = new Date(activityDate);
