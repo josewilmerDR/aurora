@@ -1050,6 +1050,13 @@ app.post('/api/ordenes-compra', async (req, res) => {
       })),
       createdAt: Timestamp.now(),
     });
+    if (solicitudId) {
+      await db.collection('scheduled_tasks').doc(solicitudId).update({
+        status: 'completed_by_user',
+        completedAt: Timestamp.now(),
+        ordenCompraId: docRef.id,
+      });
+    }
     res.status(201).json({ id: docRef.id, message: 'Orden de compra guardada.' });
   } catch (error) {
     console.error('Error saving orden:', error);
@@ -1960,6 +1967,75 @@ app.delete('/api/siembras/:id', async (req, res) => {
     res.status(200).json({ message: 'Registro eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar siembra.' });
+  }
+});
+
+// --- API ENDPOINTS: PROVEEDORES ---
+app.get('/api/proveedores', async (req, res) => {
+  try {
+    const snapshot = await db.collection('proveedores')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('nombre', 'asc')
+      .get();
+    const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener proveedores.' });
+  }
+});
+
+app.post('/api/proveedores', async (req, res) => {
+  try {
+    const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas } = req.body;
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ message: 'El nombre del proveedor es obligatorio.' });
+    }
+    const doc = await db.collection('proveedores').add({
+      nombre: nombre.trim(),
+      ruc: ruc?.trim() || '',
+      telefono: telefono?.trim() || '',
+      email: email?.trim() || '',
+      direccion: direccion?.trim() || '',
+      tipoPago: tipoPago || 'contado',
+      diasCredito: tipoPago === 'credito' ? (parseInt(diasCredito) || 30) : null,
+      notas: notas?.trim() || '',
+      fincaId: ID_FINCA_ACTUAL,
+      creadoEn: FieldValue.serverTimestamp(),
+    });
+    res.status(201).json({ id: doc.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear proveedor.' });
+  }
+});
+
+app.put('/api/proveedores/:id', async (req, res) => {
+  try {
+    const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas } = req.body;
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ message: 'El nombre del proveedor es obligatorio.' });
+    }
+    await db.collection('proveedores').doc(req.params.id).update({
+      nombre: nombre.trim(),
+      ruc: ruc?.trim() || '',
+      telefono: telefono?.trim() || '',
+      email: email?.trim() || '',
+      direccion: direccion?.trim() || '',
+      tipoPago: tipoPago || 'contado',
+      diasCredito: tipoPago === 'credito' ? (parseInt(diasCredito) || 30) : null,
+      notas: notas?.trim() || '',
+    });
+    res.json({ message: 'Proveedor actualizado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar proveedor.' });
+  }
+});
+
+app.delete('/api/proveedores/:id', async (req, res) => {
+  try {
+    await db.collection('proveedores').doc(req.params.id).delete();
+    res.json({ message: 'Proveedor eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar proveedor.' });
   }
 });
 

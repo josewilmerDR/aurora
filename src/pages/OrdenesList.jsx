@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   FiFileText, FiExternalLink, FiPackage, FiShoppingCart,
-  FiPlus, FiCheck, FiChevronDown, FiChevronUp,
+  FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useUser } from '../contexts/UserContext';
 import './OrdenesList.css';
+import './PurchaseOrder.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ESTADO_LABELS = { activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada' };
@@ -15,6 +17,13 @@ const generatePoNumber = () => {
   const now = new Date();
   const seq = String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
   return `OC-${now.getFullYear()}-${seq}-${String(Math.floor(Math.random() * 900) + 100)}`;
+};
+
+const formatDateLong = (dateStr) => {
+  if (!dateStr) return '___________________________';
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
 };
 
 const formatDate = (iso) => {
@@ -36,10 +45,10 @@ const newRow = () => ({
   _key: ++_uid,
   productoId: '',
   nombreComercial: '',
-  ingredienteActivo: '',
   cantidad: '',
   unidad: 'L',
   precioUnitario: '',
+  iva: 0,
   moneda: 'USD',
 });
 
@@ -79,6 +88,49 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
               <span className="ac-id">{p.idProducto}</span>
               <span className="ac-name">{p.nombreComercial}</span>
               <span className="ac-unit">{p.unidad}</span>
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ─── ProveedorAutocomplete ────────────────────────────────────────────────────
+function ProveedorAutocomplete({ value, onChange, onSelect, proveedores, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef = useRef(null);
+
+  const filtered = !value.trim()
+    ? []
+    : proveedores.filter(p =>
+        p.nombre?.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 7);
+
+  const calcPos = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + window.scrollY + 3, left: r.left + window.scrollX, width: Math.max(r.width, 260) });
+  };
+
+  return (
+    <div className="ac-wrap">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={e => { onChange(e.target.value); calcPos(); setOpen(true); }}
+        onFocus={() => { calcPos(); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+      />
+      {open && filtered.length > 0 && createPortal(
+        <ul className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
+          {filtered.map(p => (
+            <li key={p.id} onMouseDown={() => { onSelect(p); setOpen(false); }}>
+              <span className="ac-name">{p.nombre}</span>
+              {p.email && <span className="ac-unit">{p.email}</span>}
             </li>
           ))}
         </ul>,
@@ -137,6 +189,8 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
 // ─── Main component ───────────────────────────────────────────────────────────
 const OrdenesList = () => {
   const navigate = useNavigate();
+  const { currentUser } = useUser();
+  const elaboradoPor = currentUser?.nombre || '';
 
   const [solicitudes, setSolicitudes] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
@@ -144,36 +198,53 @@ const OrdenesList = () => {
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
+  // Stable PO number for the session
+  const [poNumber] = useState(generatePoNumber);
+
   // Form — open by default
   const [showForm, setShowForm] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
   const [loadedSolicitudId, setLoadedSolicitudId] = useState(null);
   const [catalogo, setCatalogo] = useState([]);
+  const [proveedoresCatalog, setProveedoresCatalog] = useState([]);
   const [filas, setFilas] = useState([newRow()]);
   const [proveedor, setProveedor] = useState('');
   const [contacto, setContacto] = useState('');
   const [fechaOC, setFechaOC] = useState(new Date().toISOString().split('T')[0]);
   const [fechaEntrega, setFechaEntrega] = useState('');
-  const [elaboradoPor, setElaboradoPor] = useState('');
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
   const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g', 'und']);
+  const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
   const [monedas] = useState(['USD', 'CRC', 'EUR']);
 
   const addUnidad = (val) => { if (!unidades.includes(val)) setUnidades(prev => [...prev, val]); };
+  const addIva = (val) => {
+    const num = parseFloat(val);
+    if (!isNaN(num) && !ivaOpciones.includes(num))
+      setIvaOpciones(prev => [...prev, num].sort((a, b) => a - b));
+  };
 
   const refreshOrdenes = () =>
     fetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(() => {});
+
+  const refreshSolicitudes = () =>
+    fetch('/api/tasks').then(r => r.json())
+      .then(tasks => setSolicitudes(tasks.filter(t => t.type === 'SOLICITUD_COMPRA' && t.status !== 'completed_by_user')))
+      .catch(() => {});
 
   useEffect(() => {
     Promise.all([
       fetch('/api/tasks').then(r => r.json()),
       fetch('/api/ordenes-compra').then(r => r.json()),
       fetch('/api/productos').then(r => r.json()),
+      fetch('/api/proveedores').then(r => r.json()),
     ])
-      .then(([tasks, ocs, prods]) => {
-        setSolicitudes(tasks.filter(t => t.type === 'SOLICITUD_COMPRA'));
+      .then(([tasks, ocs, prods, provs]) => {
+        setSolicitudes(tasks.filter(t => t.type === 'SOLICITUD_COMPRA' && t.status !== 'completed_by_user'));
         setOrdenes(ocs);
         setCatalogo(prods);
+        setProveedoresCatalog(provs);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -187,13 +258,13 @@ const OrdenesList = () => {
             const cat = catalogo.find(c => c.id === p.productoId);
             return {
               _key: ++_uid,
-              productoId:        p.productoId        || '',
-              nombreComercial:   p.nombreComercial   || '',
-              ingredienteActivo: cat?.ingredienteActivo || '',
-              cantidad:          p.cantidad != null ? String(p.cantidad) : '',
-              unidad:            p.unidad || cat?.unidad || 'L',
-              precioUnitario:    cat?.precioUnitario != null ? String(cat.precioUnitario) : '',
-              moneda:            cat?.moneda || 'USD',
+              productoId:      p.productoId      || '',
+              nombreComercial: p.nombreComercial || '',
+              cantidad:        p.cantidad != null ? String(p.cantidad) : '',
+              unidad:          p.unidad || cat?.unidad || 'L',
+              precioUnitario:  cat?.precioUnitario != null ? String(cat.precioUnitario) : '',
+              iva:             cat?.iva ?? 0,
+              moneda:          cat?.moneda || 'USD',
             };
           })
         : [newRow()]
@@ -212,16 +283,20 @@ const OrdenesList = () => {
   const handleAutocompleteSelect = (key, producto) => {
     setFilas(prev => prev.map(f => f._key === key ? {
       ...f,
-      productoId:        producto.id                || f.productoId,
-      nombreComercial:   producto.nombreComercial   || f.nombreComercial,
-      ingredienteActivo: producto.ingredienteActivo || f.ingredienteActivo,
-      unidad:            producto.unidad            || f.unidad,
+      productoId:      producto.id              || f.productoId,
+      nombreComercial: producto.nombreComercial || f.nombreComercial,
+      unidad:          producto.unidad          || f.unidad,
+      iva:             producto.iva ?? f.iva,
     } : f));
   };
 
-  const totalGeneral = filas.reduce((sum, f) => {
-    return sum + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precioUnitario) || 0);
+  const subtotal = filas.reduce((sum, f) =>
+    sum + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precioUnitario) || 0), 0);
+  const ivaTotal = filas.reduce((sum, f) => {
+    const rowSub = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precioUnitario) || 0);
+    return sum + rowSub * ((f.iva || 0) / 100);
   }, 0);
+  const totalGeneral = subtotal + ivaTotal;
 
   const handleGuardarOC = async () => {
     const validItems = filas.filter(f => f.nombreComercial.trim());
@@ -242,26 +317,28 @@ const OrdenesList = () => {
           direccionProveedor: contacto,
           elaboradoPor,
           notas,
-          taskId: null,
-          solicitudId: null,
+          taskId: loadedSolicitudId || null,
+          solicitudId: loadedSolicitudId || null,
           items: validItems.map(f => ({
-            productoId:        f.productoId        || null,
-            nombreComercial:   f.nombreComercial,
-            ingredienteActivo: f.ingredienteActivo,
-            cantidad:          parseFloat(f.cantidad)       || 0,
-            unidad:            f.unidad,
-            precioUnitario:    parseFloat(f.precioUnitario) || 0,
-            moneda:            f.moneda,
+            productoId:     f.productoId     || null,
+            nombreComercial: f.nombreComercial,
+            cantidad:        parseFloat(f.cantidad)       || 0,
+            unidad:          f.unidad,
+            precioUnitario:  parseFloat(f.precioUnitario) || 0,
+            iva:             f.iva ?? 0,
+            moneda:          f.moneda,
           })),
         }),
       });
       if (!res.ok) throw new Error();
       showToast('Orden de compra guardada');
       await refreshOrdenes();
+      if (loadedSolicitudId) await refreshSolicitudes();
       setFilas([newRow()]);
       setProveedor(''); setContacto('');
       setFechaOC(new Date().toISOString().split('T')[0]);
-      setFechaEntrega(''); setElaboradoPor(''); setNotas('');
+      setFechaEntrega(''); setNotas('');
+      setLoadedSolicitudId(null);
     } catch {
       showToast('Error al guardar la orden.', 'error');
     } finally {
@@ -293,7 +370,16 @@ const OrdenesList = () => {
               <div className="ol-oc-header-fields">
                 <div className="ol-oc-field">
                   <label>Proveedor</label>
-                  <input value={proveedor} onChange={e => setProveedor(e.target.value)} placeholder="Nombre del proveedor" />
+                  <ProveedorAutocomplete
+                    value={proveedor}
+                    onChange={setProveedor}
+                    onSelect={p => {
+                      setProveedor(p.nombre);
+                      setContacto(p.email || p.telefono || '');
+                    }}
+                    proveedores={proveedoresCatalog}
+                    placeholder="Nombre del proveedor"
+                  />
                 </div>
                 <div className="ol-oc-field">
                   <label>Dirección / Contacto</label>
@@ -308,10 +394,6 @@ const OrdenesList = () => {
                   <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
                 </div>
                 <div className="ol-oc-field">
-                  <label>Elaborado por</label>
-                  <input value={elaboradoPor} onChange={e => setElaboradoPor(e.target.value)} placeholder="Responsable" />
-                </div>
-                <div className="ol-oc-field">
                   <label>Notas / Condiciones</label>
                   <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Condiciones de pago, urgencia…" />
                 </div>
@@ -321,10 +403,10 @@ const OrdenesList = () => {
                 <table className="ingreso-table">
                   <colgroup>
                     <col className="oc-col-product" />
-                    <col className="oc-col-ai" />
                     <col className="oc-col-narrow" />
                     <col className="oc-col-narrow" />
                     <col className="oc-col-price" />
+                    <col className="oc-col-iva" />
                     <col className="oc-col-currency" />
                     <col className="oc-col-total" />
                     <col className="oc-col-del" />
@@ -332,10 +414,10 @@ const OrdenesList = () => {
                   <thead>
                     <tr>
                       <th>Producto</th>
-                      <th>Ingrediente Activo</th>
                       <th>Cantidad</th>
                       <th>UM</th>
                       <th>Precio Unit.</th>
+                      <th>IVA</th>
                       <th>Moneda</th>
                       <th>Total</th>
                       <th></th>
@@ -355,13 +437,6 @@ const OrdenesList = () => {
                               placeholder="Nombre comercial"
                             />
                           </td>
-                          <td>
-                            <input
-                              value={f.ingredienteActivo}
-                              onChange={e => update(f._key, 'ingredienteActivo', e.target.value)}
-                              placeholder="Ing. activo"
-                            />
-                          </td>
                           <td className="oc-col-narrow">
                             <input type="number" step="0.01" min="0" value={f.cantidad}
                               onChange={e => update(f._key, 'cantidad', e.target.value)} placeholder="0" />
@@ -373,6 +448,15 @@ const OrdenesList = () => {
                           <td className="oc-col-price">
                             <input type="number" step="0.01" min="0" value={f.precioUnitario}
                               onChange={e => update(f._key, 'precioUnitario', e.target.value)} placeholder="0.00" />
+                          </td>
+                          <td className="oc-col-iva">
+                            <EditableSelect
+                              value={f.iva}
+                              options={ivaOpciones}
+                              onChange={val => { const n = parseFloat(val); update(f._key, 'iva', isNaN(n) ? 0 : n); }}
+                              onAddOption={addIva}
+                              renderLabel={v => `${v}%`}
+                            />
                           </td>
                           <td className="oc-col-currency">
                             <select value={f.moneda} onChange={e => update(f._key, 'moneda', e.target.value)}>
@@ -402,14 +486,27 @@ const OrdenesList = () => {
                   </button>
                 </div>
                 <div className="ol-oc-footer-right">
-                  {totalGeneral > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span className="ol-oc-total-label">Total</span>
-                      <span className="ol-oc-total-value">
-                        {totalGeneral.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                  {subtotal > 0 && (
+                    <div className="ol-oc-totals">
+                      {ivaTotal > 0 && (
+                        <div className="ol-oc-total-item">
+                          <span className="ol-oc-total-label">Total IVA</span>
+                          <span className="ol-oc-total-value ol-oc-total-iva">
+                            {ivaTotal.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      <div className="ol-oc-total-item">
+                        <span className="ol-oc-total-label">Total General</span>
+                        <span className="ol-oc-total-value">
+                          {totalGeneral.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
                   )}
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowPreview(true)}>
+                    <FiEye size={15} /> Previsualizar
+                  </button>
                   <button type="button" className="btn btn-primary" onClick={handleGuardarOC} disabled={saving}>
                     <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar OC'}
                   </button>
@@ -548,6 +645,150 @@ const OrdenesList = () => {
           </div>
         )}
       </section>
+
+      {/* ── Preview Modal ── */}
+      {showPreview && createPortal(
+        <div className="ol-preview-backdrop" onClick={() => setShowPreview(false)}>
+          <div className="ol-preview-container" onClick={e => e.stopPropagation()}>
+            <div className="ol-preview-toolbar">
+              <span className="ol-preview-toolbar-title">Vista previa — Orden de Compra</span>
+              <div className="ol-preview-toolbar-actions">
+                <button className="btn btn-secondary" onClick={() => window.print()}>
+                  <FiPrinter size={15} /> Imprimir / PDF
+                </button>
+                <button className="btn btn-secondary" onClick={() => setShowPreview(false)}>
+                  <FiX size={15} /> Cerrar
+                </button>
+              </div>
+            </div>
+
+            <div className="po-doc-wrap">
+              <div className="po-document">
+                {/* Header */}
+                <div className="po-doc-header">
+                  <div className="po-doc-brand">
+                    <div className="po-doc-logo">AU</div>
+                    <div>
+                      <div className="po-doc-brand-name">FINCA AURORA</div>
+                      <div className="po-doc-brand-sub">San José, Costa Rica</div>
+                    </div>
+                  </div>
+                  <div className="po-doc-title-block">
+                    <div className="po-doc-title">ORDEN DE COMPRA</div>
+                    <table className="po-doc-meta-table">
+                      <tbody>
+                        <tr><td>N°:</td><td><strong>{poNumber}</strong></td></tr>
+                        <tr><td>Fecha:</td><td><strong>{formatDateLong(fechaOC)}</strong></td></tr>
+                        {fechaEntrega && (
+                          <tr><td>Entrega:</td><td><strong>{formatDateLong(fechaEntrega)}</strong></td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Parties */}
+                <div className="po-doc-parties">
+                  <div className="po-doc-party">
+                    <div className="po-doc-party-label">PROVEEDOR</div>
+                    <div className="po-doc-party-value">{proveedor || '___________________________'}</div>
+                    {contacto && <div className="po-doc-party-contact">{contacto}</div>}
+                  </div>
+                  <div className="po-doc-party">
+                    <div className="po-doc-party-label">COMPRADOR</div>
+                    <div className="po-doc-party-value">Finca Aurora</div>
+                    <div className="po-doc-party-contact">San José, Costa Rica</div>
+                  </div>
+                </div>
+
+                {/* Items table */}
+                {(() => {
+                  const previewItems = filas.filter(f => f.nombreComercial.trim());
+                  return (
+                    <table className="po-doc-table">
+                      <thead>
+                        <tr>
+                          <th className="po-col-num">#</th>
+                          <th className="po-col-product">Producto</th>
+                          <th className="po-col-qty">Cantidad</th>
+                          <th className="po-col-unit">Unidad</th>
+                          <th className="po-col-price">Precio Unit.</th>
+                          <th className="po-col-price">IVA</th>
+                          <th className="po-col-total">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewItems.length === 0 && (
+                          <tr><td colSpan={7} className="po-table-empty">Sin productos</td></tr>
+                        )}
+                        {previewItems.map((f, idx) => {
+                          const qty = parseFloat(f.cantidad) || 0;
+                          const price = parseFloat(f.precioUnitario) || 0;
+                          const total = qty * price;
+                          return (
+                            <tr key={f._key}>
+                              <td className="po-col-num">{idx + 1}</td>
+                              <td className="po-col-product">{f.nombreComercial}</td>
+                              <td className="po-col-qty">{f.cantidad || '—'}</td>
+                              <td className="po-col-unit">{f.unidad}</td>
+                              <td className="po-col-price">{price > 0 ? `${price.toFixed(2)} ${f.moneda}` : '—'}</td>
+                              <td className="po-col-price">{f.iva > 0 ? `${f.iva}%` : '—'}</td>
+                              <td className="po-col-total">{total > 0 ? `${total.toFixed(2)} ${f.moneda}` : '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {totalGeneral > 0 && (
+                        <tfoot>
+                          {ivaTotal > 0 && (
+                            <tr>
+                              <td colSpan={6} className="po-total-label" style={{ opacity: 0.7 }}>IVA</td>
+                              <td className="po-total-value" style={{ color: '#cc33ff' }}>{ivaTotal.toFixed(2)}</td>
+                            </tr>
+                          )}
+                          <tr>
+                            <td colSpan={6} className="po-total-label">TOTAL ESTIMADO</td>
+                            <td className="po-total-value">{totalGeneral.toFixed(2)}</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  );
+                })()}
+
+                {/* Notes */}
+                {notas && (
+                  <div className="po-doc-notes">
+                    <strong>Notas / Condiciones:</strong> {notas}
+                  </div>
+                )}
+
+                {/* Signatures */}
+                <div className="po-doc-signatures">
+                  <div className="po-sig">
+                    <div className="po-sig-line" />
+                    <div className="po-sig-role">Elaborado por</div>
+                    {elaboradoPor && <div className="po-sig-name">{elaboradoPor}</div>}
+                  </div>
+                  <div className="po-sig">
+                    <div className="po-sig-line" />
+                    <div className="po-sig-role">Aprobado por</div>
+                  </div>
+                  <div className="po-sig">
+                    <div className="po-sig-line" />
+                    <div className="po-sig-role">Recibido por / Fecha</div>
+                  </div>
+                </div>
+
+                <div className="po-doc-footer">
+                  Documento generado por Sistema Aurora · {poNumber}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );

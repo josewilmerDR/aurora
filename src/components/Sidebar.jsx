@@ -80,6 +80,7 @@ const MODULES = [
     icon: FiDollarSign,
     items: [
       { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado' },
+      { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado' },
     ],
   },
   {

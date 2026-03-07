@@ -376,13 +376,13 @@
 }
 
 /* OC grid column widths */
-.oc-col-product { width: 200px; }
-.oc-col-ai      { width: 160px; }
-.oc-col-narrow  { width: 80px;  }
-.oc-col-price   { width: 110px; }
-.oc-col-currency{ width: 78px;  }
-.oc-col-total   { width: 110px; }
-.oc-col-del     { width: 32px;  }
+.oc-col-product  { width: 260px; }
+.oc-col-narrow   { width: 80px;  }
+.oc-col-price    { width: 120px; }
+.oc-col-iva      { width: 82px;  }
+.oc-col-currency { width: 82px;  }
+.oc-col-total    { width: 120px; }
+.oc-col-del      { width: 32px;  }
 
 /* OC totals footer */
 .ol-oc-footer {
@@ -406,6 +406,18 @@
   gap: 16px;
 }
 
+.ol-oc-totals {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ol-oc-total-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .ol-oc-total-label {
   font-size: 0.78rem;
   color: rgba(230, 242, 255, 0.5);
@@ -418,6 +430,11 @@
   font-weight: 700;
   color: var(--aurora-green);
   letter-spacing: 0.02em;
+}
+
+.ol-oc-total-iva {
+  color: var(--aurora-magenta);
+  font-size: 0.88rem;
 }
 
 .ol-col-action {
@@ -467,4 +484,61 @@
 
 .ol-empty-hint strong {
   color: rgba(230, 242, 255, 0.5);
+}
+
+/* ── Preview Modal ── */
+.ol-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 48px;
+}
+
+.ol-preview-container {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ol-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.ol-preview-toolbar-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.ol-preview-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media print {
+  .ol-preview-backdrop {
+    position: static;
+    background: none;
+    padding: 0;
+    overflow: visible;
+  }
+  .ol-preview-toolbar {
+    display: none;
+  }
+  .ol-wrap {
+    display: none !important;
+  }
 }

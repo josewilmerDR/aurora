@@ -26,3 +26,10 @@ a {
   color: var(--aurora-green);
   text-decoration: none;
 }
+
+input[type="date"],
+input[type="month"],
+input[type="time"] {
+  color-scheme: dark;
+  accent-color: var(--aurora-green);
+}
