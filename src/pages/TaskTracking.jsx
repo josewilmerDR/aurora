@@ -196,7 +196,12 @@ function TaskTracking() {
   });
 
   const renderTaskCard = (task) => (
-    <div key={task.id} className={`task-card ${task.displayStatus.className}`} onClick={() => navigate(`/task/${task.id}`)} style={{ cursor: 'pointer' }}>
+    <div
+      key={task.id}
+      className={`task-card ${task.displayStatus.className}`}
+      onClick={() => navigate(task.type === 'SOLICITUD_COMPRA' ? `/orden-compra/${task.id}` : `/task/${task.id}`)}
+      style={{ cursor: 'pointer' }}
+    >
       <div className="task-card-header">
         <h4>{task.activityName}</h4>
         {task.activity?.type === 'aplicacion' && (

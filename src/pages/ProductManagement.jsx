@@ -1,94 +1,30 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './ProductManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiUpload, FiDownload, FiChevronRight } from 'react-icons/fi';
+import { FiEdit, FiTrash2 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 
-const PREVIEW_LIMIT = 7;
-
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
-const UNIDADES = ['L', 'mL', 'kg', 'g'];
-const MONEDAS = ['USD', 'EUR', 'CRC', 'COP', 'MXN', 'BRL', 'PEN', 'GTQ', 'HNL', 'NIO'];
-
-// Encabezados del Excel (deben coincidir exactamente en el archivo importado)
-const EXCEL_HEADERS = [
-  'ID Producto', 'Nombre Comercial', 'Ingrediente Activo', 'Tipo',
-  'Plaga que Controla', 'Período Reingreso (h)', 'Período a Cosecha (días)',
-  'Unidad', 'Stock Actual', 'Stock Mínimo',
-  'Moneda', 'Tipo de Cambio', 'Precio Unitario', 'Proveedor',
-];
-
-const emptyForm = {
-  id: null,
-  idProducto: '',
-  nombreComercial: '',
-  ingredienteActivo: '',
-  tipo: '',
-  plagaQueControla: '',
-  periodoReingreso: '',
-  periodoACosecha: '',
-  unidad: 'L',
-  stockActual: '',
-  stockMinimo: '',
-  moneda: 'USD',
-  tipoCambio: 1,
-  precioUnitario: '',
-  proveedor: '',
-};
 
 function formatCurrency(value, moneda) {
   return `${Number(value).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda || ''}`;
 }
 
 function ProductManagement() {
-  const location = useLocation();
+  const navigate = useNavigate();
   const [productos, setProductos] = useState([]);
-  const [formData, setFormData] = useState(emptyForm);
-  const [isEditing, setIsEditing] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
   const [toast, setToast] = useState(null);
-  const [movimientos, setMovimientos] = useState([]);
   const showToast = (message, type = 'success') => setToast({ message, type });
-  const fileInputRef = useRef(null);
 
   const fetchProductos = () => {
     fetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
   };
 
-  const fetchMovimientos = () => {
-    fetch('/api/movimientos').then(res => res.json()).then(setMovimientos).catch(console.error);
-  };
-
   useEffect(() => {
     fetchProductos();
-    fetchMovimientos();
-    // Pre-populate form if coming back from the catalog with a product to edit
-    if (location.state?.editProducto) {
-      setFormData({ ...emptyForm, ...location.state.editProducto });
-      setIsEditing(true);
-      window.scrollTo(0, 0);
-    }
   }, []);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const resetForm = () => {
-    setFormData(emptyForm);
-    setIsEditing(false);
-  };
-
-  const handleEdit = (producto) => {
-    setFormData({ ...emptyForm, ...producto });
-    setIsEditing(true);
-    window.scrollTo(0, 0);
-  };
 
   const handleDelete = async (id) => {
     if (window.confirm('¿Seguro que quieres eliminar este producto?')) {
@@ -103,115 +39,6 @@ function ProductManagement() {
     }
   };
 
-  const buildPayload = (data) => ({
-    ...data,
-    periodoReingreso: parseFloat(data.periodoReingreso) || 0,
-    periodoACosecha: parseFloat(data.periodoACosecha) || 0,
-    stockActual: parseFloat(data.stockActual) || 0,
-    stockMinimo: parseFloat(data.stockMinimo) || 0,
-    tipoCambio: parseFloat(data.tipoCambio) || 1,
-    precioUnitario: parseFloat(data.precioUnitario) || 0,
-  });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const url = isEditing ? `/api/productos/${formData.id}` : '/api/productos';
-    const method = isEditing ? 'PUT' : 'POST';
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildPayload(formData)),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      fetchProductos();
-      resetForm();
-      if (data.merged) {
-        showToast(`El producto "${data.nombreComercial}" ya existía — se sumó el stock ingresado.`, 'warning');
-      } else {
-        showToast(isEditing ? 'Producto actualizado correctamente' : 'Producto guardado correctamente');
-      }
-    } catch {
-      showToast('Ocurrió un error al guardar.', 'error');
-    }
-  };
-
-  // ── Excel: descargar plantilla ──────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
-    const sampleRow = [
-      'PD-001', 'Round-up', 'Glifosato', 'Herbicida', 'Malezas de hoja ancha',
-      24, 30, 'L', 100, 20, 'USD', 1, 15.50, 'AgroDistribuciones S.A.',
-    ];
-    const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, sampleRow]);
-    // Ancho de columnas
-    ws['!cols'] = EXCEL_HEADERS.map(() => ({ wch: 22 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Productos');
-    XLSX.writeFile(wb, 'plantilla_productos.xlsx');
-  };
-
-  // ── Excel: importar archivo ─────────────────────────────────────────────────
-  const handleExcelImport = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer);
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-      let created = 0;
-      let merged = 0;
-      let errors = 0;
-
-      for (const row of rows) {
-        const producto = {
-          idProducto: String(row['ID Producto'] || '').trim(),
-          nombreComercial: String(row['Nombre Comercial'] || '').trim(),
-          ingredienteActivo: String(row['Ingrediente Activo'] || '').trim(),
-          tipo: String(row['Tipo'] || '').trim(),
-          plagaQueControla: String(row['Plaga que Controla'] || '').trim(),
-          periodoReingreso: parseFloat(row['Período Reingreso (h)']) || 0,
-          periodoACosecha: parseFloat(row['Período a Cosecha (días)']) || 0,
-          unidad: String(row['Unidad'] || 'L').trim(),
-          stockActual: parseFloat(row['Stock Actual']) || 0,
-          stockMinimo: parseFloat(row['Stock Mínimo']) || 0,
-          moneda: String(row['Moneda'] || 'USD').trim(),
-          tipoCambio: parseFloat(row['Tipo de Cambio']) || 1,
-          precioUnitario: parseFloat(row['Precio Unitario']) || 0,
-          proveedor: String(row['Proveedor'] || '').trim(),
-        };
-
-        if (!producto.idProducto || !producto.nombreComercial) { errors++; continue; }
-
-        try {
-          const res = await fetch('/api/productos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(producto),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            data.merged ? merged++ : created++;
-          } else { errors++; }
-        } catch { errors++; }
-      }
-
-      setImportResult({ created, merged, errors });
-      if (created + merged > 0) fetchProductos();
-    } catch {
-      setImportResult({ created: 0, merged: 0, errors: -1 });
-    } finally {
-      setImporting(false);
-      e.target.value = '';
-    }
-  };
-
-  const isFiltering = searchQuery !== '' || filterTipo !== '';
   const filteredProductos = productos.filter(p => {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q ||
@@ -222,140 +49,11 @@ function ProductManagement() {
     const matchTipo = !filterTipo || p.tipo === filterTipo;
     return matchSearch && matchTipo;
   });
-  const displayedProductos = isFiltering ? filteredProductos : filteredProductos.slice(0, PREVIEW_LIMIT);
-  const hasMore = !isFiltering && filteredProductos.length > PREVIEW_LIMIT;
 
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="form-card">
-        {/* ── Importación Excel ── */}
-        <div className="import-section">
-          <span className="import-label">Importación masiva</span>
-          <div className="import-buttons">
-            <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
-              <FiDownload size={15} /> Descargar plantilla
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-            >
-              <FiUpload size={15} /> {importing ? 'Importando…' : 'Importar Excel'}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              style={{ display: 'none' }}
-              onChange={handleExcelImport}
-            />
-          </div>
-          {importResult && (
-            <p className={`import-result ${importResult.errors === -1 ? 'import-error' : (importResult.created + importResult.merged) > 0 ? 'import-ok' : 'import-error'}`}>
-              {importResult.errors === -1
-                ? '⚠ No se pudo leer el archivo. Usa la plantilla descargada.'
-                : [
-                    importResult.created > 0 && `✓ ${importResult.created} producto(s) creado(s)`,
-                    importResult.merged  > 0 && `↑ ${importResult.merged} producto(s) con stock actualizado`,
-                    importResult.errors  > 0 && `⚠ ${importResult.errors} fila(s) con error`,
-                  ].filter(Boolean).join(' · ')}
-            </p>
-          )}
-        </div>
-
-        <div className="form-section-divider" />
-
-        <h2>{isEditing ? 'Editando Producto' : 'Nuevo Producto'}</h2>
-        <form onSubmit={handleSubmit} className="lote-form">
-
-          {/* ── Ficha técnica ── */}
-          <p className="form-section-title">Ficha Técnica</p>
-          <div className="form-grid product-form-grid">
-            <div className="form-control">
-              <label htmlFor="idProducto">ID de Producto</label>
-              <input id="idProducto" name="idProducto" value={formData.idProducto} onChange={handleInputChange} placeholder="Ej: PD-001" required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="nombreComercial">Nombre Comercial</label>
-              <input id="nombreComercial" name="nombreComercial" value={formData.nombreComercial} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="ingredienteActivo">Ingrediente Activo</label>
-              <input id="ingredienteActivo" name="ingredienteActivo" value={formData.ingredienteActivo} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="tipo">Tipo</label>
-              <select id="tipo" name="tipo" value={formData.tipo} onChange={handleInputChange} required>
-                <option value="">-- Seleccionar --</option>
-                {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div className="form-control form-control-wide">
-              <label htmlFor="plagaQueControla">Plaga que Controla</label>
-              <input id="plagaQueControla" name="plagaQueControla" value={formData.plagaQueControla} onChange={handleInputChange} />
-            </div>
-            <div className="form-control">
-              <label htmlFor="periodoReingreso">Período Reingreso (horas)</label>
-              <input id="periodoReingreso" name="periodoReingreso" type="number" min="0" value={formData.periodoReingreso} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="periodoACosecha">Período a Cosecha (días)</label>
-              <input id="periodoACosecha" name="periodoACosecha" type="number" min="0" value={formData.periodoACosecha} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="unidad">Unidad</label>
-              <select id="unidad" name="unidad" value={formData.unidad} onChange={handleInputChange} required>
-                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-              </select>
-            </div>
-            <div className="form-control">
-              <label htmlFor="stockActual">Stock Actual</label>
-              <input id="stockActual" name="stockActual" type="number" step="0.01" min="0" value={formData.stockActual} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="stockMinimo">Stock Mínimo</label>
-              <input id="stockMinimo" name="stockMinimo" type="number" step="0.01" min="0" value={formData.stockMinimo} onChange={handleInputChange} required />
-            </div>
-          </div>
-
-          {/* ── Información Comercial ── */}
-          <p className="form-section-title" style={{ marginTop: '24px' }}>Información Comercial</p>
-          <div className="form-grid product-form-grid">
-            <div className="form-control">
-              <label htmlFor="moneda">Moneda</label>
-              <select id="moneda" name="moneda" value={formData.moneda} onChange={handleInputChange}>
-                {MONEDAS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div className="form-control">
-              <label htmlFor="tipoCambio">Tipo de Cambio</label>
-              <input id="tipoCambio" name="tipoCambio" type="number" step="0.0001" min="0" value={formData.tipoCambio} onChange={handleInputChange} placeholder="1" />
-            </div>
-            <div className="form-control">
-              <label htmlFor="precioUnitario">Precio Unitario</label>
-              <input id="precioUnitario" name="precioUnitario" type="number" step="0.01" min="0" value={formData.precioUnitario} onChange={handleInputChange} placeholder="0.00" />
-            </div>
-            <div className="form-control form-control-wide">
-              <label htmlFor="proveedor">Proveedor</label>
-              <input id="proveedor" name="proveedor" value={formData.proveedor} onChange={handleInputChange} placeholder="Nombre del proveedor" />
-            </div>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary">
-              <FiPlus />
-              {isEditing ? 'Actualizar Producto' : 'Guardar Producto'}
-            </button>
-            {isEditing && (
-              <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
-            )}
-          </div>
-        </form>
-      </div>
-
-      <div className="list-card">
+      <div className="list-card" style={{ gridColumn: '1 / -1' }}>
         <h2>Inventario de Agroquímicos</h2>
         <div className="product-filters">
           <input
@@ -375,7 +73,7 @@ function ProductManagement() {
           </select>
         </div>
         <ul className="info-list">
-          {displayedProductos.map(p => {
+          {filteredProductos.map(p => {
             const stockBajo = p.stockActual <= p.stockMinimo;
             const total = (p.precioUnitario || 0) * (p.stockActual || 0) * (p.tipoCambio || 1);
             return (
@@ -400,7 +98,11 @@ function ProductManagement() {
                     {p.stockActual} {p.unidad}
                   </span>
                   <div className="lote-actions">
-                    <button onClick={() => handleEdit(p)} className="icon-btn" title="Editar">
+                    <button
+                      onClick={() => navigate('/ingreso-productos', { state: { editProducto: p } })}
+                      className="icon-btn"
+                      title="Editar"
+                    >
                       <FiEdit size={18} />
                     </button>
                     <button onClick={() => handleDelete(p.id)} className="icon-btn delete" title="Eliminar">
@@ -412,47 +114,12 @@ function ProductManagement() {
             );
           })}
         </ul>
-        {displayedProductos.length === 0 && (
+        {filteredProductos.length === 0 && (
           <p className="empty-state">
             {productos.length === 0
               ? 'No hay productos registrados.'
               : 'Sin resultados para la búsqueda actual.'}
           </p>
-        )}
-        {hasMore && (
-          <div className="ver-todos-container">
-            <Link to="/productos/todos" className="btn-ver-todos">
-              Ver todos los productos ({filteredProductos.length} en total)
-              <FiChevronRight size={16} />
-            </Link>
-          </div>
-        )}
-      </div>
-
-      <div className="list-card historial-card">
-        <h2>Historial de Movimientos</h2>
-        {movimientos.length === 0 ? (
-          <p className="empty-state">No hay movimientos registrados aún.</p>
-        ) : (
-          <ul className="info-list movimientos-list">
-            {movimientos.map(m => (
-              <li key={m.id} className="movimiento-row">
-                <span className="mov-fecha">
-                  {new Date(m.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>
-                <span className={`mov-tipo-badge ${m.tipo === 'ingreso' ? 'mov-ingreso' : 'mov-egreso'}`}>
-                  {m.tipo}
-                </span>
-                <div className="mov-info">
-                  <span className="mov-nombre">{m.nombreComercial}</span>
-                  <span className="mov-motivo">{m.motivo}{m.loteNombre ? ` · ${m.loteNombre}` : ''}</span>
-                </div>
-                <span className={`mov-cantidad ${m.tipo === 'egreso' ? 'mov-neg' : 'mov-pos'}`}>
-                  {m.tipo === 'egreso' ? '-' : '+'}{m.cantidad} {m.unidad}
-                </span>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
     </div>

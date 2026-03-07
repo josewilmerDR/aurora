@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiGrid, FiPackage, FiUsers, FiArchive, FiCheckSquare,
-  FiDroplet, FiFileText, FiShoppingCart, FiTruck, FiLogOut,
+  FiGrid, FiPackage, FiUsers, FiArchive,
+  FiDroplet, FiFileText, FiShoppingCart, FiTruck, FiLogOut, FiPlusCircle,
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiBook, FiPaperclip, FiList, FiUserPlus, FiUmbrella,
@@ -33,7 +33,6 @@ const MODULES = [
         ]
       },
       { label: 'Gestión de Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
-      { label: 'Actividades de Campo', to: '/tasks', icon: FiCheckSquare, minRole: 'trabajador' }
     ],
   },
   {
@@ -42,6 +41,7 @@ const MODULES = [
     icon: FiBox,
     items: [
       { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado' },
+      { label: 'Ingreso de Productos', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
       { label: 'Solicitar Compra', to: '/solicitudes', icon: FiShoppingCart, minRole: 'encargado' },
       { label: 'Registrar Compra', to: '/compras', icon: FiFileText, minRole: 'supervisor' },
       { label: 'Recepción de Productos', to: '/recepcion', icon: FiTruck, minRole: 'encargado' },
@@ -72,6 +72,14 @@ const MODULES = [
       { label: 'Registrar Monitoreo', to: '/monitoreo', icon: FiActivity, minRole: 'trabajador' },
       { label: 'Historial', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
       { label: 'Tipos de Monitoreo', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
+    ],
+  },
+  {
+    id: 'contabilidad',
+    nombre: 'Contabilidad y Finanzas',
+    icon: FiDollarSign,
+    items: [
+      { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado' },
     ],
   },
   {
@@ -138,7 +146,7 @@ const Sidebar = () => {
   const canAccess = useCallback((item) => hasMinRole(userRole, item.minRole), [userRole]);
   const itemFor = (path) => ALL_ITEMS.find((i) => i.to === path);
   const badgeFor = (to) => {
-    if (to === '/tasks' && tareasVencidasCount > 0) return tareasVencidasCount;
+    if (to === '/' && tareasVencidasCount > 0) return tareasVencidasCount;
     if (to === '/productos' && stockBajoCount > 0) return stockBajoCount;
     return null;
   };

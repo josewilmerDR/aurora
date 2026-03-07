@@ -7,9 +7,11 @@ import Dashboard from './pages/Dashboard';
 import TaskAction from './pages/TaskAction';
 import ProductManagement from './pages/ProductManagement';
 import ProductCatalog from './pages/ProductCatalog';
+import ProductIngreso from './pages/ProductIngreso';
 import InvoiceScan from './pages/InvoiceScan';
 import PurchaseRequest from './pages/PurchaseRequest';
 import PurchaseOrder from './pages/PurchaseOrder';
+import OrdenesList from './pages/OrdenesList';
 import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
 import HrFicha from './pages/HrFicha';
@@ -42,11 +44,13 @@ const routeTitles = {
   '/packages': 'Paquetes Técnicos',
   '/lotes': 'Gestión de Lotes',
   '/tasks': 'Seguimiento de Actividades',
-  '/productos': 'Bodega de Agroquímicos',
+  '/productos': 'Inventario Agroquímicos',
   '/productos/todos': 'Inventario Completo',
+  '/ingreso-productos': 'Ingreso de Productos',
   '/compras': 'Registrar Compra',
   '/solicitudes': 'Solicitud de Compra',
   '/recepcion': 'Recepción de Productos',
+  '/ordenes-compra': 'Órdenes de Compra',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/asistencia': 'Registro de Asistencia',
   '/hr/horas-extra': 'Horas Extra',
@@ -138,9 +142,11 @@ function App() {
             <Route path="/tasks" element={<TaskTracking />} />
             <Route path="/productos" element={<ProductManagement />} />
             <Route path="/productos/todos" element={<ProductCatalog />} />
+            <Route path="/ingreso-productos" element={<ProductIngreso />} />
             <Route path="/compras" element={<InvoiceScan />} />
             <Route path="/solicitudes" element={<PurchaseRequest />} />
             <Route path="/recepcion" element={<GoodsReceipt />} />
+            <Route path="/ordenes-compra" element={<OrdenesList />} />
             <Route path="/hr/ficha" element={<HrFicha />} />
             <Route path="/hr/asistencia" element={<HrAsistencia />} />
             <Route path="/hr/horas-extra" element={<HrHorasExtra />} />

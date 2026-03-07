@@ -1,0 +1,470 @@
+@import './ProductManagement.css';
+
+.ol-wrap {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Sections ── */
+.ol-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ol-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(230, 242, 255, 0.45);
+}
+
+.ol-section-count {
+  margin-left: 4px;
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ol-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.ol-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+
+.ol-table thead th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(230, 242, 255, 0.5);
+  border-bottom: 1px solid var(--aurora-border);
+  white-space: nowrap;
+}
+
+.ol-table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+  vertical-align: middle;
+}
+
+.ol-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ol-row--clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ol-row--clickable:hover {
+  background: rgba(51, 255, 153, 0.04);
+}
+
+.ol-po-number {
+  font-family: monospace;
+  font-size: 0.82rem;
+  color: var(--aurora-green);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.ol-muted {
+  color: rgba(230, 242, 255, 0.35);
+  font-style: italic;
+}
+
+.ol-col-center {
+  text-align: center;
+}
+
+.ol-items-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(230, 242, 255, 0.6);
+  font-size: 0.82rem;
+}
+
+.ol-estado {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ol-estado--activa {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+.ol-estado--completada {
+  background: rgba(100, 180, 255, 0.12);
+  color: #64b4ff;
+}
+
+.ol-estado--cancelada {
+  background: rgba(255, 80, 80, 0.1);
+  color: #ff6b6b;
+}
+
+.ol-estado--overdue {
+  background: rgba(255, 160, 50, 0.12);
+  color: #ffaa44;
+}
+
+.ol-activity-name {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+
+.ol-date--overdue {
+  color: #ffaa44;
+}
+
+.ol-row--done {
+  opacity: 0.55;
+}
+
+.ol-empty--inline {
+  padding: 22px 20px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+}
+
+/* ── Top two-column layout ── */
+.ol-top-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── Solicitudes panel (right column) ── */
+.ol-solicitudes-panel {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ol-solicitudes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.ol-solicitud-card {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--aurora-light);
+}
+
+.ol-solicitud-card:hover {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.04);
+}
+
+.ol-solicitud-card--done {
+  opacity: 0.5;
+}
+
+.ol-solicitud-card--overdue {
+  border-color: rgba(255, 160, 50, 0.3);
+}
+
+.ol-solicitud-card--loaded {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+}
+
+.ol-solicitud-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--aurora-light);
+}
+
+.ol-solicitud-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: rgba(230, 242, 255, 0.45);
+  gap: 6px;
+}
+
+.ol-solicitud-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ol-solicitud-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ol-solicitud-ext {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(230, 242, 255, 0.3);
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.ol-solicitud-ext:hover {
+  color: var(--aurora-green);
+}
+
+.ol-solicitud-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-green);
+}
+
+.ol-solicitud-status.overdue {
+  color: #ffaa44;
+}
+
+.ol-solicitud-status.done {
+  color: #64b4ff;
+}
+
+.ol-solicitudes-empty {
+  padding: 12px 4px;
+  font-size: 0.82rem;
+  color: rgba(230, 242, 255, 0.35);
+  text-align: center;
+}
+
+.ol-solicitudes-empty p {
+  margin: 0 0 4px;
+}
+
+/* ── Nueva OC form ── */
+.ol-nueva-oc-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ol-nueva-oc-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-green);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.ol-nueva-oc-toggle:hover {
+  background: rgba(51, 255, 153, 0.05);
+}
+
+.ol-nueva-oc-toggle svg:last-child {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.ol-nueva-oc-body {
+  padding: 0 16px 20px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+/* Header fields */
+.ol-oc-header-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+  padding: 16px 0 14px;
+}
+
+.ol-oc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ol-oc-field label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(230, 242, 255, 0.45);
+}
+
+.ol-oc-field input,
+.ol-oc-field textarea {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--aurora-light);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ol-oc-field input:focus,
+.ol-oc-field textarea:focus {
+  border-color: var(--aurora-green);
+}
+
+.ol-oc-field textarea {
+  resize: vertical;
+  min-height: 62px;
+  font-family: inherit;
+}
+
+.ol-oc-field--full {
+  grid-column: 1 / -1;
+}
+
+/* OC grid column widths */
+.oc-col-product { width: 200px; }
+.oc-col-ai      { width: 160px; }
+.oc-col-narrow  { width: 80px;  }
+.oc-col-price   { width: 110px; }
+.oc-col-currency{ width: 78px;  }
+.oc-col-total   { width: 110px; }
+.oc-col-del     { width: 32px;  }
+
+/* OC totals footer */
+.ol-oc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  flex-wrap: wrap;
+}
+
+.ol-oc-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ol-oc-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ol-oc-total-label {
+  font-size: 0.78rem;
+  color: rgba(230, 242, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ol-oc-total-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  letter-spacing: 0.02em;
+}
+
+.ol-col-action {
+  text-align: right;
+  padding-right: 10px;
+}
+
+.ol-btn-open {
+  background: none;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--aurora-light);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ol-btn-open:hover {
+  opacity: 1;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.ol-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: rgba(230, 242, 255, 0.4);
+  text-align: center;
+}
+
+.ol-empty p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.ol-empty-hint {
+  font-size: 0.82rem !important;
+  color: rgba(230, 242, 255, 0.3);
+}
+
+.ol-empty-hint strong {
+  color: rgba(230, 242, 255, 0.5);
+}
