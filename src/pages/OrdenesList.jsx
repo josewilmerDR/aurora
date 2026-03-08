@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
-  FiFileText, FiExternalLink, FiPackage, FiShoppingCart,
-  FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX,
+  FiFileText, FiPackage, FiShoppingCart, FiExternalLink,
+  FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX, FiSave, FiShare2,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useUser } from '../contexts/UserContext';
@@ -12,12 +13,6 @@ import './PurchaseOrder.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ESTADO_LABELS = { activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada' };
-
-const generatePoNumber = () => {
-  const now = new Date();
-  const seq = String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-  return `OC-${now.getFullYear()}-${seq}-${String(Math.floor(Math.random() * 900) + 100)}`;
-};
 
 const formatDateLong = (dateStr) => {
   if (!dateStr) return '___________________________';
@@ -84,7 +79,7 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
       {open && filtered.length > 0 && createPortal(
         <ul className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
           {filtered.map(p => (
-            <li key={p.id} onMouseDown={() => { onSelect(p); setOpen(false); }}>
+            <li key={p.id} onMouseDown={() => { onSelect(p); setOpen(false); setTimeout(() => inputRef.current?.focus(), 0); }}>
               <span className="ac-id">{p.idProducto}</span>
               <span className="ac-name">{p.nombreComercial}</span>
               <span className="ac-unit">{p.unidad}</span>
@@ -189,6 +184,7 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
 // ─── Main component ───────────────────────────────────────────────────────────
 const OrdenesList = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useUser();
   const elaboradoPor = currentUser?.nombre || '';
 
@@ -198,25 +194,52 @@ const OrdenesList = () => {
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  // Stable PO number for the session
-  const [poNumber] = useState(generatePoNumber);
 
   // Form — open by default
   const [showForm, setShowForm] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewSaved, setPreviewSaved] = useState(false);
+  const [savedPoNumber, setSavedPoNumber] = useState('');
+  const [savedSnapshot, setSavedSnapshot] = useState(null);
   const [loadedSolicitudId, setLoadedSolicitudId] = useState(null);
   const [catalogo, setCatalogo] = useState([]);
   const [proveedoresCatalog, setProveedoresCatalog] = useState([]);
-  const [filas, setFilas] = useState([newRow()]);
-  const [proveedor, setProveedor] = useState('');
-  const [contacto, setContacto] = useState('');
-  const [fechaOC, setFechaOC] = useState(new Date().toISOString().split('T')[0]);
-  const [fechaEntrega, setFechaEntrega] = useState('');
-  const [notas, setNotas] = useState('');
+  const [empresaConfig, setEmpresaConfig] = useState({});
+  const [filas,       setFilas,       clearFilasDraft]       = useDraft('oc-filas',       () => [newRow()]);
+  const [proveedor,   setProveedor,   clearProveedorDraft]   = useDraft('oc-proveedor',   '');
+  const [contacto,    setContacto,    clearContactoDraft]    = useDraft('oc-contacto',    '');
+  const [fechaOC,     setFechaOC,     clearFechaOCDraft]     = useDraft('oc-fechaOC',     new Date().toISOString().split('T')[0]);
+  const [fechaEntrega,setFechaEntrega,clearFechaEntregaDraft]= useDraft('oc-fechaEntrega','');
+  const [notas,       setNotas,       clearNotasDraft]       = useDraft('oc-notas',       '');
+  const poDocRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g', 'und']);
-  const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
+  const [ivaOpciones, setIvaOpciones] = useState([0, 1, 4, 8, 13, 15]);
   const [monedas] = useState(['USD', 'CRC', 'EUR']);
+
+  // Sync _uid counter with any restored draft keys so new rows don't collide
+  useEffect(() => {
+    const maxKey = Math.max(0, ...filas.map(f => f._key || 0));
+    if (maxKey > _uid) _uid = maxKey;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clearFormDraft = useCallback(() => {
+    clearFilasDraft();
+    clearProveedorDraft();
+    clearContactoDraft();
+    clearFechaOCDraft();
+    clearFechaEntregaDraft();
+    clearNotasDraft();
+    clearDraftActive('oc-nueva');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mark/clear draft active indicator whenever form content changes
+  useEffect(() => {
+    const hasContent = proveedor !== '' || contacto !== '' || notas !== '' ||
+      fechaEntrega !== '' || filas.some(f => f.nombreComercial.trim() !== '');
+    if (hasContent) markDraftActive('oc-nueva');
+    else clearDraftActive('oc-nueva');
+  }, [filas, proveedor, contacto, notas, fechaEntrega]);
 
   const addUnidad = (val) => { if (!unidades.includes(val)) setUnidades(prev => [...prev, val]); };
   const addIva = (val) => {
@@ -239,12 +262,14 @@ const OrdenesList = () => {
       fetch('/api/ordenes-compra').then(r => r.json()),
       fetch('/api/productos').then(r => r.json()),
       fetch('/api/proveedores').then(r => r.json()),
+      fetch('/api/config').then(r => r.json()),
     ])
-      .then(([tasks, ocs, prods, provs]) => {
+      .then(([tasks, ocs, prods, provs, cfg]) => {
         setSolicitudes(tasks.filter(t => t.type === 'SOLICITUD_COMPRA' && t.status !== 'completed_by_user'));
         setOrdenes(ocs);
         setCatalogo(prods);
         setProveedoresCatalog(provs);
+        setEmpresaConfig(cfg || {});
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -273,6 +298,15 @@ const OrdenesList = () => {
     setLoadedSolicitudId(task.id);
     setShowForm(true);
   };
+
+  // Auto-load solicitud when navigating from TaskAction
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    const taskId = location.state?.autoLoadTaskId;
+    if (!taskId || loading || autoLoadedRef.current) return;
+    const task = solicitudes.find(t => t.id === taskId);
+    if (task) { autoLoadedRef.current = true; loadSolicitudIntoForm(task); }
+  }, [location.state, loading, solicitudes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (key, field, val) =>
     setFilas(prev => prev.map(f => f._key === key ? { ...f, [field]: val } : f));
@@ -310,7 +344,6 @@ const OrdenesList = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          poNumber: generatePoNumber(),
           fecha: fechaOC,
           fechaEntrega: fechaEntrega || null,
           proveedor,
@@ -334,10 +367,7 @@ const OrdenesList = () => {
       showToast('Orden de compra guardada');
       await refreshOrdenes();
       if (loadedSolicitudId) await refreshSolicitudes();
-      setFilas([newRow()]);
-      setProveedor(''); setContacto('');
-      setFechaOC(new Date().toISOString().split('T')[0]);
-      setFechaEntrega(''); setNotas('');
+      clearFormDraft();
       setLoadedSolicitudId(null);
     } catch {
       showToast('Error al guardar la orden.', 'error');
@@ -346,7 +376,143 @@ const OrdenesList = () => {
     }
   };
 
+  const handleVisualizarOrden = (orden) => {
+    setSavedPoNumber(orden.poNumber || '');
+    setSavedSnapshot({
+      filas: (orden.items || []).map((item, i) => ({
+        _key: i,
+        productoId:      item.productoId      || '',
+        nombreComercial: item.nombreComercial  || '',
+        cantidad:        String(item.cantidad  ?? ''),
+        unidad:          item.unidad           || 'L',
+        precioUnitario:  String(item.precioUnitario ?? ''),
+        iva:             item.iva              ?? 0,
+        moneda:          item.moneda           || 'USD',
+      })),
+      proveedor:    orden.proveedor             || '',
+      contacto:     orden.direccionProveedor    || '',
+      fechaOC:      (orden.fecha        || '').split('T')[0],
+      fechaEntrega: (orden.fechaEntrega || '').split('T')[0],
+      notas:        orden.notas                 || '',
+    });
+    setPreviewSaved(true);
+    setShowPreview(true);
+  };
+
+  const closePreview = () => {
+    setShowPreview(false);
+    setPreviewSaved(false);
+    setSavedPoNumber('');
+    setSavedSnapshot(null);
+  };
+
+  const handleGuardarDesdePreview = async () => {
+    const validItems = filas.filter(f => f.nombreComercial.trim());
+    if (validItems.length === 0) {
+      showToast('Agrega al menos un producto con nombre.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/ordenes-compra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fecha: fechaOC,
+          fechaEntrega: fechaEntrega || null,
+          proveedor,
+          direccionProveedor: contacto,
+          elaboradoPor,
+          notas,
+          taskId: loadedSolicitudId || null,
+          solicitudId: loadedSolicitudId || null,
+          items: validItems.map(f => ({
+            productoId:      f.productoId     || null,
+            nombreComercial: f.nombreComercial,
+            cantidad:        parseFloat(f.cantidad)       || 0,
+            unidad:          f.unidad,
+            precioUnitario:  parseFloat(f.precioUnitario) || 0,
+            iva:             f.iva ?? 0,
+            moneda:          f.moneda,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setSavedPoNumber(data.poNumber || '');
+      setSavedSnapshot({ filas: [...filas], proveedor, contacto, fechaOC, fechaEntrega, notas });
+      setPreviewSaved(true);
+      showToast('Orden de compra guardada');
+      await refreshOrdenes();
+      if (loadedSolicitudId) await refreshSolicitudes();
+      clearFormDraft();
+      setLoadedSolicitudId(null);
+    } catch {
+      showToast('Error al guardar la orden.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCompartir = async () => {
+    if (!poDocRef.current) return;
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas = await html2canvas(poDocRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      // Multi-page support if content overflows one page
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+        y += pageH;
+      }
+      const filename = `OC-${savedPoNumber || 'borrador'}.pdf`;
+      const blob = pdf.output('blob');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: filename }); } catch {}
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('PDF descargado');
+      }
+    } catch {
+      showToast('No se pudo generar el PDF.', 'error');
+    }
+  };
+
   if (loading) return <div className="ol-empty">Cargando…</div>;
+
+  // Preview data — frozen snapshot after save, live state otherwise
+  const pvSrc = previewSaved && savedSnapshot ? savedSnapshot : { filas, proveedor, contacto, fechaOC, fechaEntrega, notas };
+  const pvFilas      = pvSrc.filas;
+  const pvProveedor  = pvSrc.proveedor;
+  const pvContacto   = pvSrc.contacto;
+  const pvFechaOC    = pvSrc.fechaOC;
+  const pvFechaEntrega = pvSrc.fechaEntrega;
+  const pvNotas      = pvSrc.notas;
+  const pvSubtotal   = pvFilas.reduce((sum, f) => sum + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precioUnitario) || 0), 0);
+  const pvIvaTotal   = pvFilas.reduce((sum, f) => {
+    const rowSub = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precioUnitario) || 0);
+    return sum + rowSub * ((f.iva || 0) / 100);
+  }, 0);
+  const pvTotal      = pvSubtotal + pvIvaTotal;
 
   const pendingCount = solicitudes.filter(t => t.status !== 'completed_by_user').length;
 
@@ -608,11 +774,10 @@ const OrdenesList = () => {
                 </tr>
               </thead>
               <tbody>
-                {ordenes.map((orden) => (
+                {ordenes.slice(0, 20).map((orden) => (
                   <tr
                     key={orden.id}
-                    className={orden.taskId ? 'ol-row ol-row--clickable' : 'ol-row'}
-                    onClick={() => orden.taskId && navigate(`/orden-compra/${orden.taskId}`)}
+                    className="ol-row"
                   >
                     <td className="ol-po-number">{orden.poNumber || '—'}</td>
                     <td>{orden.proveedor || <span className="ol-muted">Sin proveedor</span>}</td>
@@ -630,18 +795,23 @@ const OrdenesList = () => {
                       </span>
                     </td>
                     <td className="ol-col-action">
-                      {orden.taskId && (
-                        <button className="ol-btn-open"
-                          onClick={e => { e.stopPropagation(); navigate(`/orden-compra/${orden.taskId}`); }}
-                          title="Abrir editor">
-                          <FiExternalLink size={15} />
-                        </button>
-                      )}
+                      <button className="ol-btn-open"
+                        onClick={e => { e.stopPropagation(); handleVisualizarOrden(orden); }}
+                        title="Visualizar OC">
+                        <FiEye size={15} />
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {ordenes.length > 20 && (
+          <div className="ol-historial-footer">
+            <Link to="/ordenes-compra/historial" className="ol-ver-todas-link">
+              Ver todas las órdenes ({ordenes.length}) →
+            </Link>
           </div>
         )}
       </section>
@@ -653,34 +823,50 @@ const OrdenesList = () => {
             <div className="ol-preview-toolbar">
               <span className="ol-preview-toolbar-title">Vista previa — Orden de Compra</span>
               <div className="ol-preview-toolbar-actions">
+                {!previewSaved && (
+                  <button className="btn btn-primary" onClick={handleGuardarDesdePreview} disabled={saving}>
+                    <FiSave size={15} /> {saving ? 'Guardando…' : 'Guardar'}
+                  </button>
+                )}
+                {previewSaved && (
+                  <button className="btn btn-secondary" onClick={handleCompartir}>
+                    <FiShare2 size={15} /> Compartir
+                  </button>
+                )}
                 <button className="btn btn-secondary" onClick={() => window.print()}>
                   <FiPrinter size={15} /> Imprimir / PDF
                 </button>
-                <button className="btn btn-secondary" onClick={() => setShowPreview(false)}>
+                <button className="btn btn-secondary" onClick={closePreview}>
                   <FiX size={15} /> Cerrar
                 </button>
               </div>
             </div>
 
             <div className="po-doc-wrap">
-              <div className="po-document">
+              <div className="po-document" ref={poDocRef}>
                 {/* Header */}
                 <div className="po-doc-header">
                   <div className="po-doc-brand">
-                    <div className="po-doc-logo">AU</div>
-                    <div>
-                      <div className="po-doc-brand-name">FINCA AURORA</div>
-                      <div className="po-doc-brand-sub">San José, Costa Rica</div>
+                    {empresaConfig.logoUrl
+                      ? <img src={empresaConfig.logoUrl} alt="Logo" className="po-doc-logo-img" />
+                      : <div className="po-doc-logo">AU</div>
+                    }
+                    <div className="po-doc-brand-info">
+                      <div className="po-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
+                      {empresaConfig.identificacion && <div className="po-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
+                      {empresaConfig.whatsapp      && <div className="po-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
+                      {empresaConfig.correo         && <div className="po-doc-brand-sub">{empresaConfig.correo}</div>}
+                      {empresaConfig.direccion      && <div className="po-doc-brand-sub">{empresaConfig.direccion}</div>}
                     </div>
                   </div>
                   <div className="po-doc-title-block">
                     <div className="po-doc-title">ORDEN DE COMPRA</div>
                     <table className="po-doc-meta-table">
                       <tbody>
-                        <tr><td>N°:</td><td><strong>{poNumber}</strong></td></tr>
-                        <tr><td>Fecha:</td><td><strong>{formatDateLong(fechaOC)}</strong></td></tr>
-                        {fechaEntrega && (
-                          <tr><td>Entrega:</td><td><strong>{formatDateLong(fechaEntrega)}</strong></td></tr>
+                        <tr><td>N°:</td><td><strong>{previewSaved && savedPoNumber ? savedPoNumber : 'OC-######'}</strong></td></tr>
+                        <tr><td>Fecha:</td><td><strong>{formatDateLong(pvFechaOC)}</strong></td></tr>
+                        {pvFechaEntrega && (
+                          <tr><td>Entrega:</td><td><strong>{formatDateLong(pvFechaEntrega)}</strong></td></tr>
                         )}
                       </tbody>
                     </table>
@@ -691,19 +877,14 @@ const OrdenesList = () => {
                 <div className="po-doc-parties">
                   <div className="po-doc-party">
                     <div className="po-doc-party-label">PROVEEDOR</div>
-                    <div className="po-doc-party-value">{proveedor || '___________________________'}</div>
-                    {contacto && <div className="po-doc-party-contact">{contacto}</div>}
-                  </div>
-                  <div className="po-doc-party">
-                    <div className="po-doc-party-label">COMPRADOR</div>
-                    <div className="po-doc-party-value">Finca Aurora</div>
-                    <div className="po-doc-party-contact">San José, Costa Rica</div>
+                    <div className="po-doc-party-value">{pvProveedor || '___________________________'}</div>
+                    {pvContacto && <div className="po-doc-party-contact">{pvContacto}</div>}
                   </div>
                 </div>
 
                 {/* Items table */}
                 {(() => {
-                  const previewItems = filas.filter(f => f.nombreComercial.trim());
+                  const previewItems = pvFilas.filter(f => f.nombreComercial.trim());
                   return (
                     <table className="po-doc-table">
                       <thead>
@@ -738,17 +919,17 @@ const OrdenesList = () => {
                           );
                         })}
                       </tbody>
-                      {totalGeneral > 0 && (
+                      {pvTotal > 0 && (
                         <tfoot>
-                          {ivaTotal > 0 && (
+                          {pvIvaTotal > 0 && (
                             <tr>
                               <td colSpan={6} className="po-total-label" style={{ opacity: 0.7 }}>IVA</td>
-                              <td className="po-total-value" style={{ color: '#cc33ff' }}>{ivaTotal.toFixed(2)}</td>
+                              <td className="po-total-value" style={{ color: '#cc33ff' }}>{pvIvaTotal.toFixed(2)}</td>
                             </tr>
                           )}
                           <tr>
                             <td colSpan={6} className="po-total-label">TOTAL ESTIMADO</td>
-                            <td className="po-total-value">{totalGeneral.toFixed(2)}</td>
+                            <td className="po-total-value">{pvTotal.toFixed(2)}</td>
                           </tr>
                         </tfoot>
                       )}
@@ -757,9 +938,9 @@ const OrdenesList = () => {
                 })()}
 
                 {/* Notes */}
-                {notas && (
+                {pvNotas && (
                   <div className="po-doc-notes">
-                    <strong>Notas / Condiciones:</strong> {notas}
+                    <strong>Notas / Condiciones:</strong> {pvNotas}
                   </div>
                 )}
 
@@ -781,7 +962,7 @@ const OrdenesList = () => {
                 </div>
 
                 <div className="po-doc-footer">
-                  Documento generado por Sistema Aurora · {poNumber}
+                  Documento generado por Sistema Aurora
                 </div>
               </div>
             </div>

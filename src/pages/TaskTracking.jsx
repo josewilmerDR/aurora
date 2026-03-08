@@ -199,7 +199,7 @@ function TaskTracking() {
     <div
       key={task.id}
       className={`task-card ${task.displayStatus.className}`}
-      onClick={() => navigate(task.type === 'SOLICITUD_COMPRA' ? `/orden-compra/${task.id}` : `/task/${task.id}`)}
+      onClick={() => navigate(`/task/${task.id}`)}
       style={{ cursor: 'pointer' }}
     >
       <div className="task-card-header">

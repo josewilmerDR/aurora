@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback } from 'react';
+import { clearAllDrafts } from '../hooks/useDraft';
 
 export const ROLE_LEVELS = {
   trabajador: 1,
@@ -45,7 +46,7 @@ export function UserProvider({ children }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    // Also clear per-user favorites/recents when logging out is handled by Sidebar
+    clearAllDrafts();
     setCurrentUser(null);
   }, []);
 

@@ -209,15 +209,7 @@ const TaskAction = () => {
 
         {isSolicitudCompra && task.activity?.productos?.length > 0 && (
           <div className="recipe-panel">
-            <div className="recipe-panel-header">
-              <h2 className="recipe-title">🛒 Productos Solicitados</h2>
-              <button
-                className="btn-generate-po"
-                onClick={() => navigate(`/orden-compra/${taskId}`)}
-              >
-                📄 Generar Orden de Compra
-              </button>
-            </div>
+            <h2 className="recipe-title">🛒 Productos Solicitados</h2>
             {task.notas && (
               <p className="recipe-subtitle">
                 Nota del bodeguero: <em>{task.notas}</em>
@@ -272,6 +264,14 @@ const TaskAction = () => {
               >
                 👤 Reasignar
               </button>
+              {isSolicitudCompra && (
+                <button
+                  className="btn-action generate-po"
+                  onClick={() => navigate('/ordenes-compra', { state: { autoLoadTaskId: taskId } })}
+                >
+                  🛒 Crear Orden de Compra
+                </button>
+              )}
             </div>
 
             {action === 'reschedule' && (

@@ -4,7 +4,7 @@ import Toast from '../components/Toast';
 import './ConfigCuenta.css';
 
 function ConfigCuenta() {
-  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', direccion: '', whatsapp: '' });
+  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', direccion: '', whatsapp: '', correo: '' });
   const [logoUrl, setLogoUrl] = useState('');
   const [preview, setPreview] = useState('');
   const [logoFile, setLogoFile] = useState(null);
@@ -22,6 +22,7 @@ function ConfigCuenta() {
           identificacion: data.identificacion || '',
           direccion:      data.direccion      || '',
           whatsapp:       data.whatsapp       || '',
+          correo:         data.correo         || '',
         });
         if (data.logoUrl) setLogoUrl(data.logoUrl);
       })
@@ -152,11 +153,19 @@ function ConfigCuenta() {
               />
             </div>
             <div className="form-control">
-              <label htmlFor="whatsapp">WhatsApp</label>
+              <label htmlFor="whatsapp">Teléfono / WhatsApp</label>
               <input
                 id="whatsapp" name="whatsapp"
                 value={form.whatsapp} onChange={handleChange}
                 placeholder="Ej: +506 8888-8888"
+              />
+            </div>
+            <div className="form-control">
+              <label htmlFor="correo">Correo electrónico</label>
+              <input
+                id="correo" name="correo" type="email"
+                value={form.correo} onChange={handleChange}
+                placeholder="Ej: contacto@fincaaurora.com"
               />
             </div>
           </div>

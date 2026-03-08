@@ -256,6 +256,16 @@
   color: white;
 }
 
+.btn-action.generate-po {
+  background-color: transparent;
+  color: var(--aurora-green);
+  border-color: var(--aurora-green);
+}
+.btn-action.generate-po:hover {
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+}
+
 /* Action panels */
 .action-panel {
   margin-top: 16px;

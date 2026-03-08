@@ -12,6 +12,7 @@ import InvoiceScan from './pages/InvoiceScan';
 import PurchaseRequest from './pages/PurchaseRequest';
 import PurchaseOrder from './pages/PurchaseOrder';
 import OrdenesList from './pages/OrdenesList';
+import OrdenesHistorial from './pages/OrdenesHistorial';
 import ProveedoresList from './pages/ProveedoresList';
 import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
@@ -52,6 +53,7 @@ const routeTitles = {
   '/solicitudes': 'Solicitud de Compra',
   '/recepcion': 'Recepción de Productos',
   '/ordenes-compra': 'Órdenes de Compra',
+  '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
   '/proveedores': 'Proveedores',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/asistencia': 'Registro de Asistencia',
@@ -149,6 +151,7 @@ function App() {
             <Route path="/solicitudes" element={<PurchaseRequest />} />
             <Route path="/recepcion" element={<GoodsReceipt />} />
             <Route path="/ordenes-compra" element={<OrdenesList />} />
+            <Route path="/ordenes-compra/historial" element={<OrdenesHistorial />} />
             <Route path="/proveedores" element={<ProveedoresList />} />
             <Route path="/hr/ficha" element={<HrFicha />} />
             <Route path="/hr/asistencia" element={<HrAsistencia />} />

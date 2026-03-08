@@ -1,3 +1,36 @@
+/* ── Icon wrapper (for draft badge overlay) ───────────────────────────────── */
+.icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Draft indicator dot — overlaid on top-right of icon ──────────────────── */
+.draft-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aurora-green);
+  box-shadow: 0 0 5px var(--aurora-green);
+  border: 1.5px solid var(--aurora-background);
+}
+
+/* On active (green bg) links the dot turns dark to stay visible */
+.sidebar-link.active .draft-dot {
+  background: var(--aurora-dark-blue);
+  box-shadow: none;
+  border-color: var(--aurora-green);
+}
+
+/* Module header dot — slightly larger offset to clear the icon */
+.module-header .draft-dot {
+  border-color: var(--aurora-background);
+}
+
 /* ── Base sidebar ─────────────────────────────────────────────────────────── */
 .sidebar {
   display: flex;

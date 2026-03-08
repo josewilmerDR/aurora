@@ -79,7 +79,7 @@ const MODULES = [
     nombre: 'Contabilidad y Finanzas',
     icon: FiDollarSign,
     items: [
-      { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado' },
+      { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
       { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado' },
     ],
   },
@@ -120,6 +120,22 @@ const Sidebar = () => {
   const [recentRoutes, setRecentRoutes] = useState(() => getRecents(uid));
   const [stockBajoCount, setStockBajoCount] = useState(0);
   const [tareasVencidasCount, setTareasVencidasCount] = useState(0);
+
+  const readActiveDrafts = () => {
+    try {
+      return new Set(
+        Object.keys(sessionStorage)
+          .filter(k => k.startsWith('aurora_draftActive_'))
+          .map(k => k.replace('aurora_draftActive_', ''))
+      );
+    } catch { return new Set(); }
+  };
+  const [activeDrafts, setActiveDrafts] = useState(readActiveDrafts);
+  useEffect(() => {
+    const handler = () => setActiveDrafts(readActiveDrafts());
+    window.addEventListener('aurora-draft-change', handler);
+    return () => window.removeEventListener('aurora-draft-change', handler);
+  }, []);
 
   // Track recents on route change
   useEffect(() => {
@@ -205,6 +221,7 @@ const Sidebar = () => {
     const Icon = item.icon;
     const badge = badgeFor(item.to);
     const pinned = pinnedRoutes.includes(item.to);
+    const hasDraft = item.draftKey && activeDrafts.has(item.draftKey);
 
     return (
       <div className="sidebar-item-row">
@@ -214,7 +231,10 @@ const Sidebar = () => {
           className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
           title={item.label}
         >
-          <Icon size={20} />
+          <span className="icon-wrap">
+            <Icon size={20} />
+            {hasDraft && <span className="draft-dot" title="Borrador en progreso" />}
+          </span>
           <span className="link-text">{item.label}</span>
           {badge !== null && <span className="sidebar-badge">{badge}</span>}
         </NavLink>
@@ -285,11 +305,18 @@ const Sidebar = () => {
         if (visibleItems.length === 0) return null;
         const expanded = expandedMods.has(mod.id);
         const ModIcon = mod.icon;
+        const modHasDraft = mod.items.some(item =>
+          item.draftKey ? activeDrafts.has(item.draftKey)
+          : item.children?.some(c => c.draftKey && activeDrafts.has(c.draftKey))
+        );
 
         return (
           <div key={mod.id} className="sidebar-module">
             <button className="module-header" onClick={() => toggleModule(mod.id)}>
-              <ModIcon size={15} />
+              <span className="icon-wrap">
+                <ModIcon size={15} />
+                {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
+              </span>
               <span>{mod.nombre}</span>
               {expanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
             </button>
