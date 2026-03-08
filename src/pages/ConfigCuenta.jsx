@@ -4,7 +4,7 @@ import Toast from '../components/Toast';
 import './ConfigCuenta.css';
 
 function ConfigCuenta() {
-  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', direccion: '', whatsapp: '', correo: '' });
+  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 });
   const [logoUrl, setLogoUrl] = useState('');
   const [preview, setPreview] = useState('');
   const [logoFile, setLogoFile] = useState(null);
@@ -18,11 +18,14 @@ function ConfigCuenta() {
       .then(r => r.json())
       .then(data => {
         setForm({
-          nombreEmpresa:  data.nombreEmpresa  || '',
-          identificacion: data.identificacion || '',
-          direccion:      data.direccion      || '',
-          whatsapp:       data.whatsapp       || '',
-          correo:         data.correo         || '',
+          nombreEmpresa:    data.nombreEmpresa    || '',
+          identificacion:   data.identificacion   || '',
+          direccion:        data.direccion        || '',
+          whatsapp:         data.whatsapp         || '',
+          correo:           data.correo           || '',
+          diasIDesarrollo:  data.diasIDesarrollo  ?? 250,
+          diasIIDesarrollo: data.diasIIDesarrollo ?? 215,
+          diasPostForza:    data.diasPostForza    ?? 150,
         });
         if (data.logoUrl) setLogoUrl(data.logoUrl);
       })
@@ -166,6 +169,35 @@ function ConfigCuenta() {
                 id="correo" name="correo" type="email"
                 value={form.correo} onChange={handleChange}
                 placeholder="Ej: contacto@fincaaurora.com"
+              />
+            </div>
+          </div>
+
+          {/* Parámetros de cosecha */}
+          <p className="form-section-title">Parámetros de Cosecha</p>
+          <div className="form-grid">
+            <div className="form-control">
+              <label htmlFor="diasIDesarrollo">Días a cosecha — I Cosecha (Desarrollo)</label>
+              <input
+                id="diasIDesarrollo" name="diasIDesarrollo" type="number" min="1"
+                value={form.diasIDesarrollo} onChange={handleChange}
+                placeholder="250"
+              />
+            </div>
+            <div className="form-control">
+              <label htmlFor="diasIIDesarrollo">Días a cosecha — II Cosecha (Desarrollo)</label>
+              <input
+                id="diasIIDesarrollo" name="diasIIDesarrollo" type="number" min="1"
+                value={form.diasIIDesarrollo} onChange={handleChange}
+                placeholder="215"
+              />
+            </div>
+            <div className="form-control">
+              <label htmlFor="diasPostForza">Días a cosecha — PostForza</label>
+              <input
+                id="diasPostForza" name="diasPostForza" type="number" min="1"
+                value={form.diasPostForza} onChange={handleChange}
+                placeholder="150"
               />
             </div>
           </div>

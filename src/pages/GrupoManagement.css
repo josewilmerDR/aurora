@@ -94,3 +94,208 @@
   color: var(--aurora-light);
   opacity: 0.5;
 }
+
+/* ── Preview modal ── */
+.gp-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 1000;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 48px;
+}
+
+.gp-preview-container {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gp-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.gp-preview-toolbar-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.gp-preview-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Documento (fondo gris, papel blanco) ── */
+.gp-doc-wrap {
+  background: #c8d8e8;
+  padding: 20px;
+  border-radius: 6px;
+}
+
+.gp-document {
+  background: #ffffff;
+  padding: 36px 40px;
+  font-family: Arial, sans-serif;
+  color: #1a1a1a;
+  font-size: 13px;
+}
+
+.gp-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.gp-doc-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.gp-doc-logo {
+  width: 52px;
+  height: 52px;
+  background: #0d1a26;
+  color: #33ff99;
+  font-weight: 800;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.gp-doc-logo-img {
+  width: 80px;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.gp-doc-brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gp-doc-brand-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.gp-doc-brand-sub {
+  font-size: 0.78rem;
+  color: #555;
+}
+
+.gp-doc-date {
+  font-size: 0.82rem;
+  color: #333;
+  text-align: right;
+  padding-top: 4px;
+}
+
+.gp-doc-divider {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 14px 0 18px;
+}
+
+.gp-doc-grupo-info {
+  background: #f5f7fa;
+  border: 1px solid #d0d8e4;
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+
+.gp-doc-grupo-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 8px;
+}
+
+.gp-doc-grupo-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #444;
+}
+
+/* ── Tabla de bloques ── */
+.gp-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+}
+
+.gp-doc-table th {
+  background: #1a2a3a;
+  color: #ffffff;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.gp-doc-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e8edf2;
+  font-size: 0.85rem;
+  color: #222;
+}
+
+.gp-doc-table tbody tr:hover {
+  background: #f9fbfd;
+}
+
+.gp-doc-table tfoot td {
+  border-top: 2px solid #1a2a3a;
+  border-bottom: none;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  background: #f0f4f8;
+}
+
+.gp-col-num {
+  text-align: right;
+}
+
+.gp-doc-footer {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #999;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 14px;
+  margin-top: 8px;
+}
+
+@media print {
+  .gp-preview-backdrop {
+    position: static;
+    background: none;
+    padding: 0;
+    overflow: visible;
+  }
+  .gp-preview-toolbar { display: none; }
+  .lote-management-layout { display: none !important; }
+}

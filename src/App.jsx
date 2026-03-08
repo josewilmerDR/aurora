@@ -30,6 +30,7 @@ import MonitoreoRegistro from './pages/MonitoreoRegistro';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import ConfigCuenta from './pages/ConfigCuenta';
+import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
 import GrupoManagement from './pages/GrupoManagement';
 import Siembra from './pages/Siembra';
@@ -71,6 +72,7 @@ const routeTitles = {
   '/monitoreo/historial': 'Historial de Monitoreos',
   '/monitoreo/config': 'Tipos de Monitoreo',
   '/config/cuenta': 'Configuración de Cuenta',
+  '/admin/parametros': 'Parámetros y KPI',
   '/admin/maquinaria': 'Lista de Maquinaria',
   '/grupos': 'Grupos',
   '/siembra': 'Registro de Siembra',
@@ -171,6 +173,7 @@ function App() {
             <Route path="/monitoreo/historial" element={<MonitoreoHistorial />} />
             <Route path="/monitoreo/config" element={<MonitoreoConfig />} />
             <Route path="/config/cuenta" element={<ConfigCuenta />} />
+            <Route path="/admin/parametros" element={<Parametros />} />
             <Route path="/admin/maquinaria" element={<MaquinariaList />} />
             <Route path="/grupos" element={<GrupoManagement />} />
             <Route path="/siembra" element={<Siembra />} />

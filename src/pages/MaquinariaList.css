@@ -1,0 +1,288 @@
+@import './LoteManagement.css';
+
+/* ── Layout ── */
+.maq-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.maq-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.maq-search {
+  flex: 1;
+  max-width: 320px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.maq-search:focus { border-color: var(--aurora-green); }
+.maq-search::placeholder { color: rgba(230, 242, 255, 0.3); }
+
+/* ── Form card ── */
+.maq-form-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.maq-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--aurora-border);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.maq-close-btn {
+  background: none;
+  border: none;
+  color: rgba(230, 242, 255, 0.4);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.maq-close-btn:hover { color: var(--aurora-light); }
+
+.maq-form { padding: 18px; }
+
+.maq-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.maq-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.maq-field--full { grid-column: 1 / -1; }
+
+.maq-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(230, 242, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.maq-required {
+  color: var(--aurora-magenta);
+  margin-left: 2px;
+}
+
+.maq-field input,
+.maq-field select,
+.maq-field textarea {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.maq-field input:focus,
+.maq-field select:focus,
+.maq-field textarea:focus { border-color: var(--aurora-green); }
+
+.maq-field textarea { min-height: 60px; }
+
+.maq-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+/* ── Section header ── */
+.maq-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.maq-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(230, 242, 255, 0.45);
+}
+
+.maq-count {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.maq-add-inline {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  color: rgba(230, 242, 255, 0.5);
+  cursor: pointer;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.maq-add-inline:hover {
+  color: var(--aurora-green);
+  border-color: var(--aurora-green);
+}
+
+/* ── Empty state ── */
+.maq-empty {
+  color: rgba(230, 242, 255, 0.4);
+  font-size: 0.88rem;
+}
+
+.maq-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 48px 20px;
+  color: rgba(230, 242, 255, 0.3);
+  text-align: center;
+}
+.maq-empty-state p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.4);
+  margin: 0;
+}
+
+/* ── Table ── */
+.maq-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+}
+
+.maq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.maq-table thead tr {
+  background: var(--aurora-background);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.maq-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(230, 242, 255, 0.45);
+  white-space: nowrap;
+}
+
+.maq-table tbody tr {
+  border-bottom: 1px solid var(--aurora-border);
+  transition: background 0.12s;
+}
+.maq-table tbody tr:last-child { border-bottom: none; }
+.maq-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+
+.maq-table td {
+  padding: 10px 14px;
+  color: var(--aurora-light);
+  vertical-align: middle;
+}
+
+.maq-td-code {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: rgba(230, 242, 255, 0.7);
+  white-space: nowrap;
+}
+
+.maq-td-desc {
+  font-weight: 500;
+}
+
+.maq-td-obs {
+  font-size: 0.8rem;
+  color: rgba(230, 242, 255, 0.55);
+  max-width: 220px;
+}
+
+.maq-td-empty {
+  color: rgba(230, 242, 255, 0.25);
+}
+
+.maq-td-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.maq-tipo-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(51, 255, 153, 0.08);
+  color: rgba(230, 242, 255, 0.65);
+  white-space: nowrap;
+}
+
+.maq-btn-icon {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: rgba(230, 242, 255, 0.4);
+  cursor: pointer;
+  padding: 5px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.maq-btn-icon:hover {
+  color: var(--aurora-green);
+  border-color: var(--aurora-border);
+}
+.maq-btn-danger:hover {
+  color: #ff5555;
+  border-color: var(--aurora-border);
+}

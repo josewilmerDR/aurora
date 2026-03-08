@@ -46,23 +46,27 @@ const enrichTask = async (taskDoc) => {
   const responsableId = task.activity?.responsableId;
   const hasRealUser = responsableId && responsableId !== 'proveeduria';
 
-  const lotePromise = task.loteId
+  const sourcePromise = task.loteId
     ? db.collection('lotes').doc(task.loteId).get()
+    : task.grupoId
+    ? db.collection('grupos').doc(task.grupoId).get()
     : Promise.resolve(null);
   const userPromise = hasRealUser
     ? db.collection('users').doc(responsableId).get()
     : Promise.resolve(null);
 
-  const [loteDoc, userDoc] = await Promise.all([lotePromise, userPromise]);
+  const [sourceDoc, userDoc] = await Promise.all([sourcePromise, userPromise]);
 
-  const lote = loteDoc ? loteDoc.data() : null;
+  const source = sourceDoc ? sourceDoc.data() : null;
   const responsable = userDoc ? userDoc.data() : null;
 
   return {
     id: taskDoc.id,
     activityName: task.activity?.name,
-    loteName: lote ? lote.nombreLote : (task.loteId ? 'Lote no encontrado' : '—'),
-    loteHectareas: lote ? (lote.hectareas || 1) : 1,
+    loteName: source
+      ? (source.nombreLote || source.nombreGrupo || '—')
+      : (task.loteId || task.grupoId) ? 'No encontrado' : '—',
+    loteHectareas: source ? (source.hectareas || 1) : 1,
     responsableName: responsable
       ? responsable.nombre
       : (task.activity?.responsableNombre || 'Proveeduría'),
@@ -613,6 +617,7 @@ app.post('/api/grupos', async (req, res) => {
         if (!nombreGrupo || !fechaCreacion) {
             return res.status(400).json({ message: 'Faltan datos para crear el grupo.' });
         }
+
         const grupoRef = await db.collection('grupos').add({
             nombreGrupo,
             cosecha: cosecha || '',
@@ -622,6 +627,60 @@ app.post('/api/grupos', async (req, res) => {
             paqueteId: paqueteId || '',
             fincaId: ID_FINCA_ACTUAL,
         });
+
+        // Si hay paquete asociado, crear tareas igual que en lotes
+        if (paqueteId) {
+            const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
+            if (paqueteDoc.exists) {
+                const paqueteData = paqueteDoc.data();
+                const grupoCreationDate = new Date(fechaCreacion);
+                const tasksBatch = db.batch();
+                const tasksForImmediateNotification = [];
+
+                for (const activity of paqueteData.activities) {
+                    const activityDay = parseInt(activity.day);
+                    const activityDate = new Date(grupoCreationDate);
+                    activityDate.setDate(grupoCreationDate.getDate() + activityDay);
+
+                    const reminderDate = new Date(activityDate);
+                    reminderDate.setDate(reminderDate.getDate() - 3);
+
+                    const reminderTaskRef = db.collection('scheduled_tasks').doc();
+                    tasksBatch.set(reminderTaskRef, {
+                        type: 'REMINDER_3_DAY',
+                        executeAt: Timestamp.fromDate(reminderDate),
+                        grupoId: grupoRef.id,
+                        activity,
+                        status: 'pending',
+                        fincaId: ID_FINCA_ACTUAL,
+                    });
+
+                    const dueTaskRef = db.collection('scheduled_tasks').doc();
+                    const dueTaskData = {
+                        type: 'REMINDER_DUE_DAY',
+                        executeAt: Timestamp.fromDate(activityDate),
+                        grupoId: grupoRef.id,
+                        activity,
+                        status: 'pending',
+                        fincaId: ID_FINCA_ACTUAL,
+                    };
+                    tasksBatch.set(dueTaskRef, dueTaskData);
+
+                    if (activityDay >= 0 && activityDay <= 3) {
+                        tasksForImmediateNotification.push({ ref: dueTaskRef, data: dueTaskData });
+                    }
+                }
+
+                await tasksBatch.commit();
+
+                for (const taskToNotify of tasksForImmediateNotification) {
+                    await sendNotificationWithLink(taskToNotify.ref, taskToNotify.data, nombreGrupo);
+                }
+
+                return res.status(201).json({ id: grupoRef.id, message: 'Grupo y tareas programadas con éxito.' });
+            }
+        }
+
         res.status(201).json({ id: grupoRef.id, message: 'Grupo creado exitosamente.' });
     } catch (error) {
         console.error('[ERROR] Creando grupo:', error);
@@ -634,12 +693,54 @@ app.put('/api/grupos/:id', async (req, res) => {
         const { id } = req.params;
         const grupoData = { ...req.body };
         delete grupoData.id;
+
+        const originalDoc = await db.collection('grupos').doc(id).get();
+        const originalData = originalDoc.data();
+
         if (grupoData.fechaCreacion && typeof grupoData.fechaCreacion === 'string') {
             grupoData.fechaCreacion = Timestamp.fromDate(new Date(grupoData.fechaCreacion));
         }
+
         await db.collection('grupos').doc(id).update(grupoData);
+
+        const hasDateChanged = originalData.fechaCreacion?.toMillis() !== grupoData.fechaCreacion?.toMillis();
+        const hasPackageChanged = originalData.paqueteId !== grupoData.paqueteId;
+
+        if (hasDateChanged || hasPackageChanged) {
+            // Eliminar tareas anteriores del grupo
+            const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
+            const deleteBatch = db.batch();
+            tasksSnapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
+            await deleteBatch.commit();
+
+            // Crear nuevas tareas si hay paquete
+            if (grupoData.paqueteId) {
+                const paqueteDoc = await db.collection('packages').doc(grupoData.paqueteId).get();
+                if (paqueteDoc.exists) {
+                    const paqueteData = paqueteDoc.data();
+                    const grupoCreationDate = grupoData.fechaCreacion.toDate();
+                    const tasksBatch = db.batch();
+
+                    for (const activity of paqueteData.activities) {
+                        const activityDate = new Date(grupoCreationDate);
+                        activityDate.setDate(grupoCreationDate.getDate() + parseInt(activity.day));
+                        const reminderDate = new Date(activityDate);
+                        reminderDate.setDate(reminderDate.getDate() - 3);
+
+                        const reminderRef = db.collection('scheduled_tasks').doc();
+                        tasksBatch.set(reminderRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), grupoId: id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+
+                        const dueRef = db.collection('scheduled_tasks').doc();
+                        tasksBatch.set(dueRef, { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), grupoId: id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+                    }
+                    await tasksBatch.commit();
+                }
+            }
+        }
+
         res.status(200).json({ id, ...grupoData });
     } catch (error) {
+        console.error('Error updating grupo:', error);
         res.status(500).json({ message: 'Error al actualizar el grupo.' });
     }
 });
@@ -647,8 +748,12 @@ app.put('/api/grupos/:id', async (req, res) => {
 app.delete('/api/grupos/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        await db.collection('grupos').doc(id).delete();
-        res.status(200).json({ message: 'Grupo eliminado correctamente.' });
+        const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
+        const batch = db.batch();
+        tasksSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        batch.delete(db.collection('grupos').doc(id));
+        await batch.commit();
+        res.status(200).json({ message: 'Grupo y tareas asociadas eliminados correctamente.' });
     } catch (error) {
         res.status(500).json({ message: 'Error al eliminar el grupo.' });
     }
@@ -1600,14 +1705,29 @@ app.get('/api/config', async (req, res) => {
 
 app.put('/api/config', async (req, res) => {
   try {
-    const { nombreEmpresa, identificacion, direccion, whatsapp, correo, logoBase64, mediaType } = req.body;
+    const { nombreEmpresa, identificacion, direccion, whatsapp, correo, logoBase64, mediaType,
+            diasIDesarrollo, diasIIDesarrollo, diasPostForza,
+            diasSiembraICosecha, diasForzaICosecha, diasChapeaIICosecha, diasForzaIICosecha,
+            plantasPorHa, kgPorPlanta, kgPorHa, rechazoICosecha, rechazoIICosecha } = req.body;
 
     const data = { fincaId: ID_FINCA_ACTUAL, updatedAt: Timestamp.now() };
-    if (nombreEmpresa  !== undefined) data.nombreEmpresa  = nombreEmpresa;
-    if (identificacion !== undefined) data.identificacion = identificacion;
-    if (direccion      !== undefined) data.direccion      = direccion;
-    if (whatsapp       !== undefined) data.whatsapp       = whatsapp;
-    if (correo         !== undefined) data.correo         = correo;
+    if (nombreEmpresa    !== undefined) data.nombreEmpresa    = nombreEmpresa;
+    if (identificacion   !== undefined) data.identificacion   = identificacion;
+    if (direccion        !== undefined) data.direccion        = direccion;
+    if (whatsapp         !== undefined) data.whatsapp         = whatsapp;
+    if (correo           !== undefined) data.correo           = correo;
+    if (diasIDesarrollo  !== undefined) data.diasIDesarrollo  = Number(diasIDesarrollo);
+    if (diasIIDesarrollo !== undefined) data.diasIIDesarrollo = Number(diasIIDesarrollo);
+    if (diasPostForza    !== undefined) data.diasPostForza    = Number(diasPostForza);
+    if (diasSiembraICosecha !== undefined) data.diasSiembraICosecha = Number(diasSiembraICosecha);
+    if (diasForzaICosecha   !== undefined) data.diasForzaICosecha   = Number(diasForzaICosecha);
+    if (diasChapeaIICosecha !== undefined) data.diasChapeaIICosecha = Number(diasChapeaIICosecha);
+    if (diasForzaIICosecha  !== undefined) data.diasForzaIICosecha  = Number(diasForzaIICosecha);
+    if (plantasPorHa        !== undefined) data.plantasPorHa        = Number(plantasPorHa);
+    if (kgPorPlanta         !== undefined) data.kgPorPlanta         = Number(kgPorPlanta);
+    if (kgPorHa             !== undefined) data.kgPorHa             = Number(kgPorHa);
+    if (rechazoICosecha     !== undefined) data.rechazoICosecha     = Number(rechazoICosecha);
+    if (rechazoIICosecha    !== undefined) data.rechazoIICosecha    = Number(rechazoIICosecha);
 
     if (logoBase64) {
       try {

@@ -91,6 +91,7 @@ const MODULES = [
     items: [
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador' },
       { label: 'Lista de Maquinaria', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
+      { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
     ],
   },
 ];
