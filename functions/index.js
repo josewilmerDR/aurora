@@ -1023,13 +1023,21 @@ app.get('/api/ordenes-compra', async (req, res) => {
 
 app.post('/api/ordenes-compra', async (req, res) => {
   try {
-    const { poNumber, fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId } = req.body;
+    const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un producto.' });
     }
+    const counterRef = db.collection('counters').doc(`oc_${ID_FINCA_ACTUAL}`);
+    let seq;
+    await db.runTransaction(async (t) => {
+      const counterDoc = await t.get(counterRef);
+      seq = (counterDoc.exists ? (counterDoc.data().value || 0) : 0) + 1;
+      t.set(counterRef, { value: seq }, { merge: true });
+    });
+    const poNumber = `OC-${String(seq).padStart(6, '0')}`;
     const docRef = await db.collection('ordenes_compra').add({
       fincaId: ID_FINCA_ACTUAL,
-      poNumber: poNumber || `OC-${Date.now()}`,
+      poNumber,
       fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
       fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega)) : null,
       proveedor: proveedor || '',
@@ -1057,7 +1065,7 @@ app.post('/api/ordenes-compra', async (req, res) => {
         ordenCompraId: docRef.id,
       });
     }
-    res.status(201).json({ id: docRef.id, message: 'Orden de compra guardada.' });
+    res.status(201).json({ id: docRef.id, poNumber, message: 'Orden de compra guardada.' });
   } catch (error) {
     console.error('Error saving orden:', error);
     res.status(500).json({ message: 'Error al guardar la orden de compra.' });
@@ -1534,13 +1542,14 @@ app.get('/api/config', async (req, res) => {
 
 app.put('/api/config', async (req, res) => {
   try {
-    const { nombreEmpresa, identificacion, direccion, whatsapp, logoBase64, mediaType } = req.body;
+    const { nombreEmpresa, identificacion, direccion, whatsapp, correo, logoBase64, mediaType } = req.body;
 
     const data = { fincaId: ID_FINCA_ACTUAL, updatedAt: Timestamp.now() };
     if (nombreEmpresa  !== undefined) data.nombreEmpresa  = nombreEmpresa;
     if (identificacion !== undefined) data.identificacion = identificacion;
     if (direccion      !== undefined) data.direccion      = direccion;
     if (whatsapp       !== undefined) data.whatsapp       = whatsapp;
+    if (correo         !== undefined) data.correo         = correo;
 
     if (logoBase64) {
       try {
