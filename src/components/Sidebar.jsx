@@ -6,7 +6,7 @@ import {
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiBook, FiPaperclip, FiList, FiUserPlus, FiUmbrella,
-  FiActivity, FiBarChart2, FiSliders, FiSunrise,
+  FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import './Sidebar.css';
@@ -33,6 +33,7 @@ const MODULES = [
         ]
       },
       { label: 'Gestión de Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
+      { label: 'Grupos', to: '/grupos', icon: FiLayers, minRole: 'encargado' },
     ],
   },
   {
@@ -89,6 +90,7 @@ const MODULES = [
     icon: FiSettings,
     items: [
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador' },
+      { label: 'Lista de Maquinaria', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
     ],
   },
 ];

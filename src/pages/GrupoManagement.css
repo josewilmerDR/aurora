@@ -1,0 +1,96 @@
+@import './LoteManagement.css';
+
+/* ── Bloques section ── */
+.bloques-section {
+  margin-top: 24px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bloques-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background-color: rgba(51, 255, 153, 0.06);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.bloques-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+}
+
+.bloques-count {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}
+
+.bloques-empty {
+  padding: 16px 14px;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin: 0;
+}
+
+/* Lote group header inside bloques */
+.bloque-lote-group {
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.bloque-lote-group:last-child {
+  border-bottom: none;
+}
+
+.bloque-lote-label {
+  padding: 8px 14px 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-light);
+  opacity: 0.45;
+}
+
+/* Individual checkbox row */
+.bloque-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.bloque-checkbox-row:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.bloque-checkbox-row.checked {
+  background-color: rgba(51, 255, 153, 0.05);
+}
+
+.bloque-checkbox-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--aurora-green);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.bloque-nombre {
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.bloque-meta {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}

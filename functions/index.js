@@ -596,6 +596,64 @@ app.delete('/api/lotes/:id', async (req, res) => {
     }
 });
 
+// --- API ENDPOINTS: GRUPOS ---
+app.get('/api/grupos', async (req, res) => {
+    try {
+        const snapshot = await db.collection('grupos').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+        const grupos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.status(200).json(grupos);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener grupos.' });
+    }
+});
+
+app.post('/api/grupos', async (req, res) => {
+    try {
+        const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId } = req.body;
+        if (!nombreGrupo || !fechaCreacion) {
+            return res.status(400).json({ message: 'Faltan datos para crear el grupo.' });
+        }
+        const grupoRef = await db.collection('grupos').add({
+            nombreGrupo,
+            cosecha: cosecha || '',
+            etapa: etapa || '',
+            fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
+            bloques: Array.isArray(bloques) ? bloques : [],
+            paqueteId: paqueteId || '',
+            fincaId: ID_FINCA_ACTUAL,
+        });
+        res.status(201).json({ id: grupoRef.id, message: 'Grupo creado exitosamente.' });
+    } catch (error) {
+        console.error('[ERROR] Creando grupo:', error);
+        res.status(500).json({ message: 'Error al crear el grupo.' });
+    }
+});
+
+app.put('/api/grupos/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const grupoData = { ...req.body };
+        delete grupoData.id;
+        if (grupoData.fechaCreacion && typeof grupoData.fechaCreacion === 'string') {
+            grupoData.fechaCreacion = Timestamp.fromDate(new Date(grupoData.fechaCreacion));
+        }
+        await db.collection('grupos').doc(id).update(grupoData);
+        res.status(200).json({ id, ...grupoData });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualizar el grupo.' });
+    }
+});
+
+app.delete('/api/grupos/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.collection('grupos').doc(id).delete();
+        res.status(200).json({ message: 'Grupo eliminado correctamente.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al eliminar el grupo.' });
+    }
+});
+
 // --- API ENDPOINTS: TASK ACTIONS ---
 
 app.post('/api/tasks/:id/reschedule', async (req, res) => {
@@ -2045,6 +2103,70 @@ app.delete('/api/proveedores/:id', async (req, res) => {
     res.json({ message: 'Proveedor eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar proveedor.' });
+  }
+});
+
+// --- API ENDPOINTS: MAQUINARIA ---
+app.get('/api/maquinaria', async (req, res) => {
+  try {
+    const snapshot = await db.collection('maquinaria')
+      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .orderBy('descripcion', 'asc')
+      .get();
+    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener maquinaria.' });
+  }
+});
+
+app.post('/api/maquinaria', async (req, res) => {
+  try {
+    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion } = req.body;
+    if (!descripcion || !descripcion.trim()) {
+      return res.status(400).json({ message: 'La descripción es obligatoria.' });
+    }
+    const doc = await db.collection('maquinaria').add({
+      idMaquina: idMaquina?.trim() || '',
+      codigo: codigo?.trim() || '',
+      descripcion: descripcion.trim(),
+      tipo: tipo?.trim() || '',
+      ubicacion: ubicacion?.trim() || '',
+      observacion: observacion?.trim() || '',
+      fincaId: ID_FINCA_ACTUAL,
+      creadoEn: Timestamp.now(),
+    });
+    res.status(201).json({ id: doc.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear maquinaria.' });
+  }
+});
+
+app.put('/api/maquinaria/:id', async (req, res) => {
+  try {
+    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion } = req.body;
+    if (!descripcion || !descripcion.trim()) {
+      return res.status(400).json({ message: 'La descripción es obligatoria.' });
+    }
+    await db.collection('maquinaria').doc(req.params.id).update({
+      idMaquina: idMaquina?.trim() || '',
+      codigo: codigo?.trim() || '',
+      descripcion: descripcion.trim(),
+      tipo: tipo?.trim() || '',
+      ubicacion: ubicacion?.trim() || '',
+      observacion: observacion?.trim() || '',
+    });
+    res.json({ message: 'Actualizado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar maquinaria.' });
+  }
+});
+
+app.delete('/api/maquinaria/:id', async (req, res) => {
+  try {
+    await db.collection('maquinaria').doc(req.params.id).delete();
+    res.json({ message: 'Eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar maquinaria.' });
   }
 });
 
