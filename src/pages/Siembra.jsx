@@ -104,8 +104,8 @@ function Siembra() {
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
-    fetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
-    fetch('/api/materiales-siembra').then(r => r.json()).then(setMateriales).catch(console.error);
+    fetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : [])).catch(console.error);
+    fetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(console.error);
     cargarRegistros();
   }, []);
 

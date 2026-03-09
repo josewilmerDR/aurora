@@ -2452,7 +2452,7 @@ app.post('/api/chat', async (req, res) => {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const systemPrompt = `Eres Aurora AI, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
+    const systemPrompt = `Eres Aurora, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
 Ayudas a los trabajadores a registrar siembras y consultar datos agrícolas.
 Hoy es ${today}. El usuario es ${userName || 'un trabajador de la finca'}.
 

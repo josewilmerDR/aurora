@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    { "collectionGroup": "compras",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
+    { "collectionGroup": "solicitudes_compra",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fechaCreacion",  "order": "DESCENDING" }] },
+    { "collectionGroup": "movimientos",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "movimientos",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "productoId",     "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
+    { "collectionGroup": "ordenes_compra",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
+    { "collectionGroup": "recepciones",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "ordenCompraId",  "order": "ASCENDING"  }, { "fieldPath": "fechaRecepcion", "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_asistencia",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "ASCENDING"  }] },
+    { "collectionGroup": "hr_asistencia",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_horas_extra",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "ASCENDING"  }] },
+    { "collectionGroup": "hr_horas_extra",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_permisos",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fechaInicio",    "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_planilla",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_planilla",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "mes",            "order": "ASCENDING"  }, { "fieldPath": "anio", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_memorandums",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_documentos",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_solicitudes_empleo","queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fechaSolicitud", "order": "DESCENDING" }] },
+    { "collectionGroup": "monitoreos",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "monitoreos",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "loteId",         "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
+    { "collectionGroup": "monitoreos",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "tipoId",         "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
+    { "collectionGroup": "monitoreos",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "loteId",         "order": "ASCENDING"  }, { "fieldPath": "tipoId", "order": "ASCENDING" }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
+    { "collectionGroup": "materiales_siembra",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "nombre",         "order": "ASCENDING"  }] },
+    { "collectionGroup": "siembras",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "siembras",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "loteId",         "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
+    { "collectionGroup": "proveedores",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "nombre",         "order": "ASCENDING"  }] },
+    { "collectionGroup": "maquinaria",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "descripcion",    "order": "ASCENDING"  }] }
+  ],
+  "fieldOverrides": []
+}

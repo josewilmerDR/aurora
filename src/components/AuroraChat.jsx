@@ -38,7 +38,7 @@ export default function AuroraChat() {
   const { currentUser } = useUser();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: '¡Hola! Soy Aurora AI.\nPuedo registrar siembras desde texto, foto o voz. ¿En qué te ayudo?' },
+    { role: 'assistant', text: '¡Hola! Soy Aurora.\nPuedo registrar siembras desde texto, foto o voz. ¿En qué te ayudo?' },
   ]);
   const [input, setInput] = useState('');
   const [image, setImage] = useState(null);
@@ -190,7 +190,7 @@ export default function AuroraChat() {
       {open && (
         <div className="aurora-chat-panel">
           <div className="aurora-chat-header">
-            <span className="aurora-chat-header-title">✦ Aurora AI</span>
+            <span className="aurora-chat-header-title">✦ Aurora</span>
             <button className="aurora-chat-btn" onClick={() => setOpen(false)} title="Cerrar">
               <FiX size={16} />
             </button>
