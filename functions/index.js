@@ -2241,11 +2241,11 @@ app.get('/api/maquinaria', async (req, res) => {
 
 app.post('/api/maquinaria', async (req, res) => {
   try {
-    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion } = req.body;
+    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion, capacidad } = req.body;
     if (!descripcion || !descripcion.trim()) {
       return res.status(400).json({ message: 'La descripción es obligatoria.' });
     }
-    const doc = await db.collection('maquinaria').add({
+    const data = {
       idMaquina: idMaquina?.trim() || '',
       codigo: codigo?.trim() || '',
       descripcion: descripcion.trim(),
@@ -2254,7 +2254,9 @@ app.post('/api/maquinaria', async (req, res) => {
       observacion: observacion?.trim() || '',
       fincaId: ID_FINCA_ACTUAL,
       creadoEn: Timestamp.now(),
-    });
+    };
+    if (capacidad !== undefined && capacidad !== '') data.capacidad = Number(capacidad);
+    const doc = await db.collection('maquinaria').add(data);
     res.status(201).json({ id: doc.id });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear maquinaria.' });
@@ -2263,18 +2265,20 @@ app.post('/api/maquinaria', async (req, res) => {
 
 app.put('/api/maquinaria/:id', async (req, res) => {
   try {
-    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion } = req.body;
+    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion, capacidad } = req.body;
     if (!descripcion || !descripcion.trim()) {
       return res.status(400).json({ message: 'La descripción es obligatoria.' });
     }
-    await db.collection('maquinaria').doc(req.params.id).update({
+    const data = {
       idMaquina: idMaquina?.trim() || '',
       codigo: codigo?.trim() || '',
       descripcion: descripcion.trim(),
       tipo: tipo?.trim() || '',
       ubicacion: ubicacion?.trim() || '',
       observacion: observacion?.trim() || '',
-    });
+      capacidad: (capacidad !== undefined && capacidad !== '') ? Number(capacidad) : null,
+    };
+    await db.collection('maquinaria').doc(req.params.id).update(data);
     res.json({ message: 'Actualizado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar maquinaria.' });

@@ -15,6 +15,8 @@ const TIPOS = [
   'OTRO MAQUINARIA DE CAMPO',
 ];
 
+const TIPO_APLICACIONES = 'MAQUINARIA DE APLICACIONES';
+
 const EMPTY_FORM = {
   id: null,
   idMaquina: '',
@@ -23,6 +25,7 @@ const EMPTY_FORM = {
   tipo: '',
   ubicacion: '',
   observacion: '',
+  capacidad: '',
 };
 
 function MaquinariaList() {
@@ -48,7 +51,12 @@ function MaquinariaList() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm(prev => ({
+      ...prev,
+      [name]: value,
+      // limpiar capacidad si se cambia a un tipo que no es de aplicaciones
+      ...(name === 'tipo' && value !== TIPO_APLICACIONES ? { capacidad: '' } : {}),
+    }));
   };
 
   const resetForm = () => {
@@ -194,6 +202,21 @@ function MaquinariaList() {
                 />
               </div>
 
+              {form.tipo === TIPO_APLICACIONES && (
+                <div className="maq-field">
+                  <label>Capacidad (litros)</label>
+                  <input
+                    name="capacidad"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.capacidad}
+                    onChange={handleChange}
+                    placeholder="Ej. 500"
+                  />
+                </div>
+              )}
+
               <div className="maq-field maq-field--full">
                 <label>Observación</label>
                 <textarea
@@ -265,7 +288,10 @@ function MaquinariaList() {
                     <td className="maq-td-desc">{item.descripcion}</td>
                     <td>
                       {item.tipo
-                        ? <span className="maq-tipo-badge">{item.tipo}</span>
+                        ? <div className="maq-tipo-cell">
+                            <span className="maq-tipo-badge">{item.tipo}</span>
+                            {item.capacidad ? <span className="maq-capacidad-note">{item.capacidad} L</span> : null}
+                          </div>
                         : <span className="maq-td-empty">—</span>}
                     </td>
                     <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>
