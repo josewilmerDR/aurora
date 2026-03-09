@@ -14,6 +14,7 @@ function LoteManagement() {
   const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     id: null,
+    codigoLote: '',
     nombreLote: '',
     fechaCreacion: '',
     paqueteId: '',
@@ -45,14 +46,15 @@ function LoteManagement() {
 
   const resetForm = () => {
     setIsEditing(false);
-    setFormData({ id: null, nombreLote: '', fechaCreacion: '', paqueteId: '', hectareas: '' });
+    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '', paqueteId: '', hectareas: '' });
   };
 
   const handleEdit = (lote) => {
     setIsEditing(true);
     setFormData({
       id: lote.id,
-      nombreLote: lote.nombreLote,
+      codigoLote: lote.codigoLote || '',
+      nombreLote: lote.nombreLote || '',
       fechaCreacion: formatDateForInput(lote.fechaCreacion),
       paqueteId: lote.paqueteId,
       hectareas: lote.hectareas || ''
@@ -127,8 +129,12 @@ function LoteManagement() {
         <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
             <div className="form-control">
-              <label htmlFor="nombreLote">Nombre del Lote</label>
-              <input id="nombreLote" name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} required />
+              <label htmlFor="codigoLote">Código del Lote</label>
+              <input id="codigoLote" name="codigoLote" value={formData.codigoLote} onChange={handleInputChange} placeholder="Ej: L2604" required />
+            </div>
+            <div className="form-control">
+              <label htmlFor="nombreLote">Nombre amigable <span style={{ fontWeight: 400, opacity: 0.7 }}>(opcional)</span></label>
+              <input id="nombreLote" name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} placeholder="Ej: 4, Lote de Aurora" />
             </div>
             <div className="form-control">
               <label htmlFor="fechaCreacion">Fecha de Creación</label>
@@ -201,7 +207,12 @@ function LoteManagement() {
           {lotes.map(lote => (
             <li key={lote.id}>
               <div>
-                <div className="item-main-text">{lote.nombreLote}</div>
+                <div className="item-main-text">
+                  {lote.codigoLote}
+                  {lote.nombreLote && lote.nombreLote !== lote.codigoLote && (
+                    <span style={{ opacity: 0.6, fontWeight: 400, marginLeft: '0.5rem' }}>— {lote.nombreLote}</span>
+                  )}
+                </div>
                 <div className="item-sub-text">Creado: {new Date(lote.fechaCreacion._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</div>
               </div>
               <div className="lote-actions">

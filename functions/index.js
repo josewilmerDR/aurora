@@ -452,8 +452,8 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
 
 
 app.post('/api/lotes', async (req, res) => {
-    const { nombreLote, fechaCreacion, paqueteId, hectareas } = req.body;
-    if (!nombreLote || !fechaCreacion) {
+    const { nombreLote, codigoLote, fechaCreacion, paqueteId, hectareas } = req.body;
+    if (!codigoLote || !fechaCreacion) {
         return res.status(400).json({ message: 'Faltan datos para crear el lote.' });
     }
 
@@ -461,7 +461,8 @@ app.post('/api/lotes', async (req, res) => {
     if (!paqueteId) {
         try {
             const loteRef = await db.collection('lotes').add({
-                nombreLote,
+                codigoLote,
+                ...(nombreLote ? { nombreLote } : {}),
                 fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
                 hectareas: parseFloat(hectareas) || 0,
                 fincaId: ID_FINCA_ACTUAL,
@@ -474,7 +475,7 @@ app.post('/api/lotes', async (req, res) => {
     }
 
     try {
-        const loteRef = await db.collection('lotes').add({ nombreLote, fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, hectareas: parseFloat(hectareas) || 1, fincaId: ID_FINCA_ACTUAL });
+        const loteRef = await db.collection('lotes').add({ codigoLote, ...(nombreLote ? { nombreLote } : {}), fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, hectareas: parseFloat(hectareas) || 1, fincaId: ID_FINCA_ACTUAL });
         const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
         if (!paqueteDoc.exists) throw new Error('Paquete no encontrado');
         const paqueteData = paqueteDoc.data();
@@ -2405,6 +2406,115 @@ async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, respon
   return { registrados: results.length, detalles: results, omitidas };
 }
 
+// Tool: consulta genérica de Firestore para reportes y análisis
+async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }) {
+  const coleccionesPermitidas = ['lotes', 'siembras', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
+  if (!coleccionesPermitidas.includes(coleccion)) {
+    return { error: `Colección no permitida. Usa una de: ${coleccionesPermitidas.join(', ')}` };
+  }
+
+  let query = db.collection(coleccion).where('fincaId', '==', ID_FINCA_ACTUAL);
+
+  for (const f of filtros) {
+    query = query.where(f.campo, f.operador, f.valor);
+  }
+
+  if (ordenarPor) {
+    query = query.orderBy(ordenarPor.campo, ordenarPor.direccion || 'asc');
+  }
+
+  const limiteSeguro = Math.min(parseInt(limite) || 20, 200);
+  query = query.limit(limiteSeguro);
+
+  const snap = await query.get();
+
+  let docs = snap.docs.map(d => {
+    const data = d.data();
+    const doc = { id: d.id };
+    for (const [k, v] of Object.entries(data)) {
+      if (k === 'fincaId') continue;
+      if (v && typeof v.toDate === 'function') {
+        doc[k] = v.toDate().toISOString().slice(0, 10);
+      } else {
+        doc[k] = v;
+      }
+    }
+    return doc;
+  });
+
+  if (campos && campos.length > 0) {
+    docs = docs.map(d => {
+      const projected = { id: d.id };
+      for (const campo of campos) {
+        if (d[campo] !== undefined) projected[campo] = d[campo];
+      }
+      return projected;
+    });
+  }
+
+  return { coleccion, total: docs.length, datos: docs };
+}
+
+// Tool: crea un nuevo lote con sus tareas programadas
+async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas }) {
+  const loteData = {
+    codigoLote,
+    ...(nombreLote ? { nombreLote } : {}),
+    fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
+    hectareas: parseFloat(hectareas) || 0,
+    fincaId: ID_FINCA_ACTUAL,
+  };
+  if (paqueteId) loteData.paqueteId = paqueteId;
+
+  const loteRef = await db.collection('lotes').add(loteData);
+
+  if (!paqueteId) {
+    return { id: loteRef.id, codigoLote, mensaje: `Lote ${codigoLote} creado sin paquete técnico.` };
+  }
+
+  const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
+  if (!paqueteDoc.exists) throw new Error('Paquete no encontrado');
+  const paqueteData = paqueteDoc.data();
+
+  const loteCreationDate = new Date(fechaCreacion);
+  const tasksBatch = db.batch();
+  const tasksForImmediateNotification = [];
+
+  for (const activity of paqueteData.activities) {
+    const activityDay = parseInt(activity.day);
+    const activityDate = new Date(loteCreationDate);
+    activityDate.setDate(loteCreationDate.getDate() + activityDay);
+
+    const reminderDate = new Date(activityDate);
+    reminderDate.setDate(reminderDate.getDate() - 3);
+
+    const reminderTaskRef = db.collection('scheduled_tasks').doc();
+    tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: loteRef.id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+
+    const dueTaskRef = db.collection('scheduled_tasks').doc();
+    const dueTaskData = { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: loteRef.id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL };
+    tasksBatch.set(dueTaskRef, dueTaskData);
+
+    if (activityDay >= 0 && activityDay <= 3) {
+      tasksForImmediateNotification.push({ ref: dueTaskRef, data: dueTaskData });
+    }
+  }
+
+  await tasksBatch.commit();
+
+  const loteNombreDisplay = nombreLote || codigoLote;
+  for (const taskToNotify of tasksForImmediateNotification) {
+    await sendNotificationWithLink(taskToNotify.ref, taskToNotify.data, loteNombreDisplay);
+  }
+
+  return {
+    id: loteRef.id,
+    codigoLote,
+    tareasCreadas: paqueteData.activities.length * 2,
+    mensaje: `Lote ${codigoLote} creado con ${paqueteData.activities.length} actividades programadas.`,
+  };
+}
+
 // Tool: consulta registros de siembra existentes
 async function chatToolConsultarSiembras({ loteId, limite = 10 }) {
   let query = db.collection('siembras')
@@ -2431,11 +2541,16 @@ app.post('/api/chat', async (req, res) => {
     }
 
     // Cargar catálogos para que Claude pueda resolver nombres a IDs
-    const [lotesSnap, matsSnap] = await Promise.all([
+    const [lotesSnap, matsSnap, paquetesSnap] = await Promise.all([
       db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
       db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+      db.collection('packages').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
     ]);
-    const catalogoLotes = lotesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombreLote }));
+    const catalogoLotes = lotesSnap.docs.map(d => ({
+      id: d.id,
+      codigoLote: d.data().codigoLote || '',
+      nombreLote: d.data().nombreLote || '',
+    }));
     const catalogoMateriales = matsSnap.docs.map(d => ({
       id: d.id,
       nombre: d.data().nombre,
@@ -2444,11 +2559,21 @@ app.post('/api/chat', async (req, res) => {
     }));
 
     const lotesTexto = catalogoLotes.length
-      ? catalogoLotes.map(l => `  - ID: "${l.id}" | Nombre: "${l.nombre}"`).join('\n')
+      ? catalogoLotes.map(l => {
+          const parts = [`  - ID interno: "${l.id}"`];
+          if (l.codigoLote) parts.push(`Código: "${l.codigoLote}"`);
+          if (l.nombreLote) parts.push(`Nombre: "${l.nombreLote}"`);
+          return parts.join(' | ');
+        }).join('\n')
       : '  (sin lotes registrados)';
     const matsTexto = catalogoMateriales.length
       ? catalogoMateriales.map(m => `  - ID: "${m.id}" | Nombre: "${m.nombre}"${m.variedad ? ` | Variedad: "${m.variedad}"` : ''}${m.rangoPesos ? ` | Pesos: "${m.rangoPesos}"` : ''}`).join('\n')
       : '  (sin materiales registrados)';
+
+    const catalogoPaquetes = paquetesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombrePaquete, tipo: d.data().tipoCosecha || '', etapa: d.data().etapaCultivo || '' }));
+    const paquetesTexto = catalogoPaquetes.length
+      ? catalogoPaquetes.map(p => `  - ID: "${p.id}" | Nombre: "${p.nombre}"${p.tipo ? ` | Tipo: "${p.tipo}"` : ''}${p.etapa ? ` | Etapa: "${p.etapa}"` : ''}`).join('\n')
+      : '  (sin paquetes registrados)';
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -2464,21 +2589,110 @@ ${lotesTexto}
 Materiales de siembra registrados:
 ${matsTexto}
 
+Paquetes de tareas disponibles:
+${paquetesTexto}
+
 ## Instrucciones
 
 Cuando el usuario pida registrar una siembra por texto (ej: "registra 4345 plantas de Corona Mediana al bloque 4 del lote L2610"):
-1. Busca el lote y el material en los catálogos de arriba usando coincidencia aproximada (ignora mayúsculas, abreviaciones como "CM" = "Corona Mediana").
-2. Si encuentras coincidencias claras, llama directamente a "registrar_siembras" con los IDs correctos.
-3. Si un lote o material no existe en el catálogo, indícalo al usuario antes de registrar.
-4. Usa densidad 65000 por defecto si el usuario no especifica.
+1. Busca el lote en el catálogo usando coincidencia aproximada. El usuario puede referirse a un lote de cualquiera de estas formas:
+   - Por su Código estructurado (ej: "L2610", "lote L2610")
+   - Por su Nombre amigable (ej: "4", "lote 4", "el cuatro", "Lote de Rojas")
+   - Por cualquier combinación o abreviación de los anteriores
+   Siempre resuelve la referencia al "ID interno" correcto antes de registrar.
+2. Busca el material usando coincidencia aproximada (ignora mayúsculas, abreviaciones como "CM" = "Corona Mediana").
+3. Si encuentras coincidencias claras, llama directamente a "registrar_siembras" con los IDs correctos.
+4. Si un lote o material no existe en el catálogo, indícalo al usuario antes de registrar.
+5. Usa densidad 65000 por defecto si el usuario no especifica.
+
+Cuando el usuario pida crear un lote (ej: "crea el lote 6", "registra el lote Norte", "nuevo lote 12"):
+1. Genera automáticamente el codigoLote: "L" + últimos 2 dígitos del año actual + número del lote en 2 dígitos con cero a la izquierda (ej: lote 6 en 2026 → "L2606", lote 12 → "L2612"). Si el lote tiene nombre sin número (ej: "Lote Norte"), el código no lleva número de lote — usa el próximo número libre o pregunta.
+2. El nombreLote es el número o nombre amigable que el usuario mencionó (ej: "6", "Norte").
+3. Si el usuario no proporcionó la fecha de inicio del lote, pregúntala antes de llamar a "crear_lote".
+4. Pregunta también si desea asignar un paquete técnico (muestra los disponibles) y las hectáreas. Si el usuario dice que no o no responde, crea sin ellos.
+5. Llama a "crear_lote" con todos los datos confirmados.
 
 Cuando el usuario pida registrar una siembra con imagen adjunta:
 1. Llama a "escanear_formulario_siembra" para extraer los datos de la imagen.
 2. Muestra un resumen de lo encontrado y llama a "registrar_siembras".
 
-Responde siempre en español, de forma concisa y amigable. Usa formato de lista cuando sea útil.`;
+Cuando el usuario pida un reporte, análisis, proyección o cualquier consulta de datos (ej: "¿cuántas plantas se sembraron este mes?", "¿qué tareas están pendientes?", "¿qué productos están bajo stock?"):
+1. Usa "consultar_datos" con los filtros apropiados para obtener los datos relevantes.
+2. Puedes hacer múltiples llamadas encadenadas para cruzar información entre colecciones (ej: primero lotes, luego siembras de esos lotes).
+3. Analiza los resultados y presenta un resumen claro: totales, promedios, comparaciones o lo que sea útil.
+4. No pidas confirmación para consultas — simplemente ejecuta y responde.
+
+## Esquema de colecciones
+
+- **lotes**: codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas
+- **siembras**: loteId, loteNombre, bloque, plantas, densidad, areaCalculada, materialId, materialNombre, variedad, rangoPesos, fecha, responsableNombre, cerrado
+- **scheduled_tasks**: type (REMINDER_3_DAY|REMINDER_DUE_DAY), status (pending|completed_by_user|skipped|notified), executeAt, loteId, activity{name,day,type,responsableId,productos[]}
+- **productos**: idProducto, nombreComercial, ingredienteActivo, tipo, stockActual, stockMinimo, cantidadPorHa, unidad
+- **users**: nombre, email, telefono, rol (trabajador|encargado|supervisor|administrador)
+- **materiales_siembra**: nombre, variedad, rangoPesos
+- **packages**: nombrePaquete, tipoCosecha, etapaCultivo, activities[]
+
+Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
     const tools = [
+      {
+        name: 'consultar_datos',
+        description: 'Consulta cualquier colección de Firestore de la finca para reportes, análisis y búsquedas. El filtro de fincaId se aplica automáticamente. Puedes hacer múltiples llamadas encadenadas para cruzar información entre colecciones.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            coleccion: {
+              type: 'string',
+              enum: ['lotes', 'siembras', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'],
+              description: 'Colección a consultar',
+            },
+            filtros: {
+              type: 'array',
+              description: 'Filtros WHERE a aplicar (opcional)',
+              items: {
+                type: 'object',
+                properties: {
+                  campo:    { type: 'string' },
+                  operador: { type: 'string', enum: ['==', '!=', '<', '<=', '>', '>=', 'in', 'array-contains'] },
+                  valor:    { description: 'Valor del filtro (string, number, boolean, o array para "in")' },
+                },
+                required: ['campo', 'operador', 'valor'],
+              },
+            },
+            ordenarPor: {
+              type: 'object',
+              description: 'Ordenamiento opcional',
+              properties: {
+                campo:     { type: 'string' },
+                direccion: { type: 'string', enum: ['asc', 'desc'] },
+              },
+              required: ['campo'],
+            },
+            limite: { type: 'number', description: 'Máximo de documentos a devolver (default 20, máximo 200)' },
+            campos: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Campos a incluir en el resultado (opcional, por defecto todos)',
+            },
+          },
+          required: ['coleccion'],
+        },
+      },
+      {
+        name: 'crear_lote',
+        description: 'Crea un nuevo lote en el sistema, con sus tareas programadas si se asigna un paquete. Úsala cuando el usuario pida crear o registrar un nuevo lote.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            codigoLote:    { type: 'string', description: 'Código estructurado del lote, ej: L2606. Generado automáticamente: "L" + año (2 dígitos) + número de lote (2 dígitos).' },
+            nombreLote:    { type: 'string', description: 'Nombre amigable del lote, opcional. Ej: "6", "Norte", "Lote de Rojas".' },
+            fechaCreacion: { type: 'string', description: 'Fecha de inicio del lote en formato YYYY-MM-DD.' },
+            paqueteId:     { type: 'string', description: 'ID del paquete técnico a asignar (opcional).' },
+            hectareas:     { type: 'number', description: 'Superficie del lote en hectáreas (opcional).' },
+          },
+          required: ['codigoLote', 'fechaCreacion'],
+        },
+      },
       {
         name: 'escanear_formulario_siembra',
         description: 'Escanea la imagen de formulario de siembra adjunta por el usuario y extrae los datos estructurados. Úsala cuando el usuario comparte una foto de un formulario físico de siembra.',
@@ -2543,7 +2757,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
 
       const response = await anthropicClient.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: systemPrompt,
         tools,
         messages,
@@ -2573,7 +2787,11 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
 
         let result;
         try {
-          if (block.name === 'escanear_formulario_siembra') {
+          if (block.name === 'consultar_datos') {
+            result = await chatToolConsultarDatos(block.input);
+          } else if (block.name === 'crear_lote') {
+            result = await chatToolCrearLote(block.input);
+            } else if (block.name === 'escanear_formulario_siembra') {
             if (!imageBase64 || !mediaType) {
               result = { error: 'No se adjuntó ninguna imagen. Por favor adjunta una foto del formulario.' };
             } else {
