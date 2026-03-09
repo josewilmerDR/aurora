@@ -173,34 +173,6 @@ function ConfigCuenta() {
             </div>
           </div>
 
-          {/* Parámetros de cosecha */}
-          <p className="form-section-title">Parámetros de Cosecha</p>
-          <div className="form-grid">
-            <div className="form-control">
-              <label htmlFor="diasIDesarrollo">Días a cosecha — I Cosecha (Desarrollo)</label>
-              <input
-                id="diasIDesarrollo" name="diasIDesarrollo" type="number" min="1"
-                value={form.diasIDesarrollo} onChange={handleChange}
-                placeholder="250"
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="diasIIDesarrollo">Días a cosecha — II Cosecha (Desarrollo)</label>
-              <input
-                id="diasIIDesarrollo" name="diasIIDesarrollo" type="number" min="1"
-                value={form.diasIIDesarrollo} onChange={handleChange}
-                placeholder="215"
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="diasPostForza">Días a cosecha — PostForza</label>
-              <input
-                id="diasPostForza" name="diasPostForza" type="number" min="1"
-                value={form.diasPostForza} onChange={handleChange}
-                placeholder="150"
-              />
-            </div>
-          </div>
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={loading}>
