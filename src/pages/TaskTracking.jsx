@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPlus, FiX } from 'react-icons/fi';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { FiPlus, FiX, FiFileText } from 'react-icons/fi';
 import './TaskTracking.css';
 import Toast from '../components/Toast';
 
@@ -218,6 +218,16 @@ function TaskTracking() {
       <div className="task-card-footer">
         <span>{new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
         <span className="task-status-badge">{task.displayStatus.text}</span>
+        {(task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) && (
+          <Link
+            to={`/aplicaciones/cedulas?open=${task.id}`}
+            className="task-cedula-link"
+            onClick={e => e.stopPropagation()}
+            title="Ver Cédula de Aplicación"
+          >
+            <FiFileText size={13} /> Cédula
+          </Link>
+        )}
       </div>
     </div>
   );

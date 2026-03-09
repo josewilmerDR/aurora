@@ -507,6 +507,27 @@
     color: var(--aurora-dark-blue);
 }
 
+.task-cedula-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--aurora-magenta);
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid var(--aurora-magenta);
+  border-radius: 12px;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+  margin-left: auto;
+}
+
+.task-cedula-link:hover {
+  opacity: 1;
+  background: rgba(204, 51, 255, 0.1);
+}
+
 @media (max-width: 768px) {
   .task-tracking-header {
     flex-direction: column;

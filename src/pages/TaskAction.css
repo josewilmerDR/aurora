@@ -266,6 +266,20 @@
   color: var(--aurora-dark-blue);
 }
 
+.btn-action.cedula {
+  background-color: transparent;
+  color: #cc33ff;
+  border-color: #cc33ff;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-action.cedula:hover {
+  background-color: #cc33ff;
+  color: white;
+}
+
 /* Action panels */
 .action-panel {
   margin-top: 16px;

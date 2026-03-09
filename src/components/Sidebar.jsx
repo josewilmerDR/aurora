@@ -28,7 +28,8 @@ const MODULES = [
         ]
       },
       {
-        label: 'Aplicaciones', icon: FiPackage, minRole: 'supervisor', children: [
+        label: 'Aplicaciones', icon: FiPackage, minRole: 'encargado', children: [
+          { label: 'Cédulas de Aplicación', to: '/aplicaciones/cedulas', icon: FiFileText, minRole: 'encargado' },
           { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
         ]
       },

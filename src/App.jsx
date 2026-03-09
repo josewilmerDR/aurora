@@ -33,6 +33,7 @@ import ConfigCuenta from './pages/ConfigCuenta';
 import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
 import GrupoManagement from './pages/GrupoManagement';
+import CedulasAplicacion from './pages/CedulasAplicacion';
 import Siembra from './pages/Siembra';
 import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
@@ -75,6 +76,7 @@ const routeTitles = {
   '/admin/parametros': 'Parámetros y KPI',
   '/admin/maquinaria': 'Lista de Maquinaria',
   '/grupos': 'Grupos',
+  '/aplicaciones/cedulas': 'Cédulas de Aplicación',
   '/siembra': 'Registro de Siembra',
   '/siembra/materiales': 'Materiales de Siembra',
   '/siembra/historial': 'Historial de Siembra',
@@ -176,6 +178,7 @@ function App() {
             <Route path="/admin/parametros" element={<Parametros />} />
             <Route path="/admin/maquinaria" element={<MaquinariaList />} />
             <Route path="/grupos" element={<GrupoManagement />} />
+            <Route path="/aplicaciones/cedulas" element={<CedulasAplicacion />} />
             <Route path="/siembra" element={<Siembra />} />
             <Route path="/siembra/materiales" element={<SiembraMateriales />} />
             <Route path="/siembra/historial" element={<SiembraHistorial />} />

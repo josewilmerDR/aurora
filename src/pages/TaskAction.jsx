@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import './TaskAction.css';
 
 const TaskAction = () => {
@@ -106,7 +106,8 @@ const TaskAction = () => {
   if (error) return <div className="task-action-state error">Error: {error}</div>;
 
   const isCompleted = task.status === 'completed_by_user';
-  const isAplicacion = task.activity?.type === 'aplicacion';
+  const isAplicacion = task.activity?.type === 'aplicacion'
+    || (task.activity?.productos?.length > 0 && !isSolicitudCompra);
   const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
   const loteHectareas = task.loteHectareas || 1;
 
@@ -271,6 +272,14 @@ const TaskAction = () => {
                 >
                   🛒 Crear Orden de Compra
                 </button>
+              )}
+              {isAplicacion && (
+                <Link
+                  to={`/aplicaciones/cedulas?open=${taskId}`}
+                  className="btn-action cedula"
+                >
+                  📋 Ver Cédula de Aplicación
+                </Link>
               )}
             </div>
 
