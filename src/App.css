@@ -24,11 +24,11 @@
   /* Este div contendrá el contenido específico de la página (las tarjetas, etc) */
 }
 
-/* En pantallas pequeñas, el contenido se desplaza menos para acomodar la sidebar colapsada */
+/* En mobile la sidebar desaparece y se usa MobileNav (barra inferior) */
 @media (max-width: 768px) {
   .content-area {
-    margin-left: 70px; /* Ancho de la Sidebar en móvil */
-    padding: 15px;
+    margin-left: 0;
+    padding: 15px 15px calc(62px + 15px); /* espacio para la barra inferior */
   }
 
   .main-header h1 {

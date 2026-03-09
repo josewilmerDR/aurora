@@ -391,64 +391,9 @@
   color: #ff6b6b;
 }
 
-/* ── Mobile: icon-only mode ───────────────────────────────────────────────── */
+/* ── Mobile: sidebar hidden (replaced by MobileNav bottom bar) ────────────── */
 @media (max-width: 768px) {
   .sidebar {
-    width: 70px;
-  }
-
-  .sidebar-logo-text {
-    font-size: 1.4rem;
-    letter-spacing: 2px;
-  }
-
-  .sidebar-tabs {
     display: none;
-  }
-
-  /* On mobile, show ALL items flat (no tabs) using Todas logic */
-  .tab-content {
-    display: contents;
-  }
-
-  .sidebar-section-header,
-  .module-header,
-  .sidebar-empty-hint,
-  .sidebar-section,
-  .sidebar-module > .module-header,
-  .link-text,
-  .sidebar-user-info,
-  .pin-btn {
-    display: none;
-  }
-
-  /* Show module items even when not expanded */
-  .module-items {
-    display: block !important;
-  }
-
-  .sidebar-link {
-    justify-content: center;
-    padding: 13px 0;
-  }
-
-  .sidebar-badge {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    min-width: 14px;
-    padding: 1px 4px;
-    font-size: 0.6rem;
-  }
-
-  .sidebar-user {
-    justify-content: center;
-    padding: 12px 0;
-  }
-
-  .sidebar-logout-btn {
-    border: none;
-    width: 44px;
-    height: 44px;
   }
 }

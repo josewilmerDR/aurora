@@ -38,6 +38,7 @@ import Siembra from './pages/Siembra';
 import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
 import Sidebar from './components/Sidebar';
+import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
 import { UserProvider, useUser } from './contexts/UserContext';
 
@@ -113,6 +114,7 @@ const MainLayout = () => {
           <Outlet />
         </div>
       </main>
+      <MobileNav />
       <AuroraChat />
     </div>
   );

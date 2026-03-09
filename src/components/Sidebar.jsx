@@ -12,9 +12,9 @@ import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import './Sidebar.css';
 
 // ─── Module definitions ───────────────────────────────────────────────────────
-const DASHBOARD_ITEM = { label: 'Panel de Control', to: '/', icon: FiGrid, minRole: 'trabajador' };
+export const DASHBOARD_ITEM = { label: 'Panel de Control', to: '/', icon: FiGrid, minRole: 'trabajador' };
 
-const MODULES = [
+export const MODULES = [
   {
     id: 'campo',
     nombre: 'Operaciones de Campo',
@@ -97,16 +97,16 @@ const MODULES = [
   },
 ];
 
-const ALL_ITEMS = [
+export const ALL_ITEMS = [
   DASHBOARD_ITEM,
   ...MODULES.flatMap((m) => m.items.flatMap((item) => item.children ? item.children : [item])),
 ];
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
-const getPinned = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_pinned_${uid}`)) || []; } catch { return []; } };
-const getRecents = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_recent_${uid}`)) || []; } catch { return []; } };
-const savePinned = (uid, arr) => localStorage.setItem(`aurora_pinned_${uid}`, JSON.stringify(arr));
-const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${uid}`, JSON.stringify(arr));
+export const getPinned  = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_pinned_${uid}`)) || []; } catch { return []; } };
+export const getRecents = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_recent_${uid}`)) || []; } catch { return []; } };
+export const savePinned  = (uid, arr) => localStorage.setItem(`aurora_pinned_${uid}`, JSON.stringify(arr));
+export const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${uid}`, JSON.stringify(arr));
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const Sidebar = () => {

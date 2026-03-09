@@ -308,7 +308,13 @@
   }
 
   .aurora-chat-fab {
-    bottom: 16px;
+    bottom: calc(62px + 14px); /* encima de la barra de navegación inferior */
     right: 16px;
+  }
+
+  /* En mobile con el panel abierto el FAB se oculta:
+     el encabezado del panel ya tiene su propio botón de cierre. */
+  .aurora-chat-fab-open {
+    display: none;
   }
 }
