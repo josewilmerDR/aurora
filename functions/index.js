@@ -2294,6 +2294,320 @@ app.delete('/api/maquinaria/:id', async (req, res) => {
   }
 });
 
+// ── Aurora AI Chat ────────────────────────────────────────────────────────────
+
+// Tool: escanea imagen de siembra y extrae filas estructuradas
+async function chatToolEscanarSiembra(imageBase64, mediaType) {
+  const [lotesSnap, matsSnap] = await Promise.all([
+    db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+    db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+  ]);
+  const lotes = lotesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombreLote }));
+  const materiales = matsSnap.docs.map(d => ({
+    id: d.id,
+    nombre: d.data().nombre,
+    rangoPesos: d.data().rangoPesos || '',
+    variedad: d.data().variedad || '',
+  }));
+
+  const lotesTexto = lotes.length
+    ? lotes.map(l => `- ID: "${l.id}" | Nombre: "${l.nombre}"`).join('\n')
+    : '(sin lotes registrados)';
+  const matsTexto = materiales.length
+    ? materiales.map(m => `- ID: "${m.id}" | Nombre: "${m.nombre}" | RangoPesos: "${m.rangoPesos}" | Variedad: "${m.variedad}"`).join('\n')
+    : '(sin materiales registrados)';
+
+  const prompt = `Eres un asistente agrícola. Analiza este formulario físico de registro de siembra de piña.
+
+Lotes registrados en el sistema:
+${lotesTexto}
+
+Materiales de siembra registrados:
+${matsTexto}
+
+Extrae cada fila de siembra del formulario y devuelve un arreglo JSON con este formato exacto:
+[
+  {
+    "loteId": "ID del lote si el nombre coincide con el catálogo, o null si no hay coincidencia",
+    "loteNombre": "nombre del lote tal como aparece en el formulario",
+    "bloque": "identificador del bloque (letra, número o combinación), o cadena vacía si no aparece",
+    "plantas": 15000,
+    "densidad": 65000,
+    "materialId": "ID del material si el nombre coincide con el catálogo, o null si no hay coincidencia",
+    "materialNombre": "nombre del material tal como aparece en el formulario, o cadena vacía",
+    "rangoPesos": "rango de pesos si aparece en el formulario, o cadena vacía",
+    "variedad": "variedad si aparece en el formulario, o cadena vacía"
+  }
+]
+
+Reglas:
+1. Si el nombre del lote coincide (o es muy similar) con uno del catálogo, usa su ID; si no hay coincidencia, deja loteId como null.
+2. Si el nombre del material coincide con uno del catálogo, usa su ID; si no, deja materialId como null.
+3. Si no aparece densidad en el formulario, usa 65000 como valor por defecto.
+4. plantas y densidad deben ser números enteros, no cadenas.
+5. Devuelve SOLO el arreglo JSON, sin texto adicional ni bloques de código.`;
+
+  const response = await anthropicClient.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+        { type: 'text', text: prompt },
+      ],
+    }],
+  });
+
+  const rawText = response.content[0].text.trim();
+  const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  const filas = JSON.parse(jsonText);
+  return { filas, lotes, materiales };
+}
+
+// Tool: registra filas de siembra en Firestore
+async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, responsableNombre) {
+  const today = new Date().toISOString().slice(0, 10);
+  const fechaFinal = fecha || today;
+  const results = [];
+  const omitidas = [];
+
+  for (const fila of filas) {
+    if (!fila.loteId || !fila.plantas || !fila.densidad) {
+      omitidas.push(fila.loteNombre || '(sin lote)');
+      continue;
+    }
+    const plantas_ = parseInt(fila.plantas) || 0;
+    const densidad_ = parseFloat(fila.densidad) || 0;
+    const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+
+    const ref = await db.collection('siembras').add({
+      fincaId: ID_FINCA_ACTUAL,
+      loteId: fila.loteId,
+      loteNombre: fila.loteNombre || '',
+      bloque: fila.bloque || '',
+      plantas: plantas_,
+      densidad: densidad_,
+      areaCalculada,
+      materialId: fila.materialId || '',
+      materialNombre: fila.materialNombre || '',
+      rangoPesos: fila.rangoPesos || '',
+      variedad: fila.variedad || '',
+      cerrado: false,
+      fecha: Timestamp.fromDate(new Date(fechaFinal)),
+      responsableId: responsableId || '',
+      responsableNombre: responsableNombre || '',
+      createdAt: Timestamp.now(),
+    });
+    results.push({ id: ref.id, loteNombre: fila.loteNombre, bloque: fila.bloque, plantas: plantas_, areaCalculada });
+  }
+
+  return { registrados: results.length, detalles: results, omitidas };
+}
+
+// Tool: consulta registros de siembra existentes
+async function chatToolConsultarSiembras({ loteId, limite = 10 }) {
+  let query = db.collection('siembras')
+    .where('fincaId', '==', ID_FINCA_ACTUAL)
+    .orderBy('fecha', 'desc')
+    .limit(Math.min(limite, 50));
+  if (loteId) query = query.where('loteId', '==', loteId);
+  const snap = await query.get();
+  const siembras = snap.docs.map(d => ({
+    id: d.id,
+    ...d.data(),
+    fecha: d.data().fecha?.toDate().toISOString().slice(0, 10),
+    createdAt: undefined,
+  }));
+  return { siembras, total: siembras.length };
+}
+
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, imageBase64, mediaType, userId, userName } = req.body;
+
+    if (!anthropicClient) {
+      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+    }
+
+    // Cargar catálogos para que Claude pueda resolver nombres a IDs
+    const [lotesSnap, matsSnap] = await Promise.all([
+      db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+      db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+    ]);
+    const catalogoLotes = lotesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombreLote }));
+    const catalogoMateriales = matsSnap.docs.map(d => ({
+      id: d.id,
+      nombre: d.data().nombre,
+      rangoPesos: d.data().rangoPesos || '',
+      variedad: d.data().variedad || '',
+    }));
+
+    const lotesTexto = catalogoLotes.length
+      ? catalogoLotes.map(l => `  - ID: "${l.id}" | Nombre: "${l.nombre}"`).join('\n')
+      : '  (sin lotes registrados)';
+    const matsTexto = catalogoMateriales.length
+      ? catalogoMateriales.map(m => `  - ID: "${m.id}" | Nombre: "${m.nombre}"${m.variedad ? ` | Variedad: "${m.variedad}"` : ''}${m.rangoPesos ? ` | Pesos: "${m.rangoPesos}"` : ''}`).join('\n')
+      : '  (sin materiales registrados)';
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const systemPrompt = `Eres Aurora AI, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
+Ayudas a los trabajadores a registrar siembras y consultar datos agrícolas.
+Hoy es ${today}. El usuario es ${userName || 'un trabajador de la finca'}.
+
+## Catálogo actual del sistema
+
+Lotes registrados:
+${lotesTexto}
+
+Materiales de siembra registrados:
+${matsTexto}
+
+## Instrucciones
+
+Cuando el usuario pida registrar una siembra por texto (ej: "registra 4345 plantas de Corona Mediana al bloque 4 del lote L2610"):
+1. Busca el lote y el material en los catálogos de arriba usando coincidencia aproximada (ignora mayúsculas, abreviaciones como "CM" = "Corona Mediana").
+2. Si encuentras coincidencias claras, llama directamente a "registrar_siembras" con los IDs correctos.
+3. Si un lote o material no existe en el catálogo, indícalo al usuario antes de registrar.
+4. Usa densidad 65000 por defecto si el usuario no especifica.
+
+Cuando el usuario pida registrar una siembra con imagen adjunta:
+1. Llama a "escanear_formulario_siembra" para extraer los datos de la imagen.
+2. Muestra un resumen de lo encontrado y llama a "registrar_siembras".
+
+Responde siempre en español, de forma concisa y amigable. Usa formato de lista cuando sea útil.`;
+
+    const tools = [
+      {
+        name: 'escanear_formulario_siembra',
+        description: 'Escanea la imagen de formulario de siembra adjunta por el usuario y extrae los datos estructurados. Úsala cuando el usuario comparte una foto de un formulario físico de siembra.',
+        input_schema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'registrar_siembras',
+        description: 'Registra filas de siembra en la base de datos. Úsala después de escanear el formulario o cuando el usuario proporcione los datos directamente.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            filas: {
+              type: 'array',
+              description: 'Arreglo de filas de siembra a registrar',
+              items: {
+                type: 'object',
+                properties: {
+                  loteId:        { type: 'string',  description: 'ID del lote en el sistema' },
+                  loteNombre:    { type: 'string',  description: 'Nombre del lote' },
+                  bloque:        { type: 'string',  description: 'Identificador del bloque' },
+                  plantas:       { type: 'number',  description: 'Cantidad de plantas' },
+                  densidad:      { type: 'number',  description: 'Densidad de siembra (pl/ha), default 65000' },
+                  materialId:    { type: 'string',  description: 'ID del material de siembra' },
+                  materialNombre:{ type: 'string',  description: 'Nombre del material' },
+                  rangoPesos:    { type: 'string',  description: 'Rango de pesos del material' },
+                  variedad:      { type: 'string',  description: 'Variedad del material' },
+                },
+                required: ['loteId', 'plantas', 'densidad'],
+              },
+            },
+            fecha: { type: 'string', description: 'Fecha de siembra en formato YYYY-MM-DD. Si no se especifica, usa la fecha de hoy.' },
+          },
+          required: ['filas'],
+        },
+      },
+      {
+        name: 'consultar_siembras',
+        description: 'Consulta los registros de siembra existentes en el sistema.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            loteId: { type: 'string', description: 'Filtrar por ID de lote (opcional)' },
+            limite: { type: 'number', description: 'Máximo de registros a devolver (default 10, máximo 50)' },
+          },
+        },
+      },
+    ];
+
+    // Construir mensaje inicial del usuario
+    const userContent = [];
+    if (imageBase64 && mediaType) {
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } });
+    }
+    userContent.push({ type: 'text', text: message || 'Ayúdame con esta información.' });
+
+    const messages = [{ role: 'user', content: userContent }];
+
+    // Loop agéntico: máximo 6 iteraciones para evitar loops infinitos
+    let iterations = 0;
+    while (iterations < 6) {
+      iterations++;
+
+      const response = await anthropicClient.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools,
+        messages,
+      });
+
+      // Si Claude terminó, devolver respuesta
+      if (response.stop_reason === 'end_turn') {
+        const text = response.content
+          .filter(b => b.type === 'text')
+          .map(b => b.text)
+          .join('\n');
+        return res.json({ reply: text });
+      }
+
+      // Si no hay tool_use, salir
+      if (response.stop_reason !== 'tool_use') {
+        const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+        return res.json({ reply: text || 'No pude procesar la solicitud.' });
+      }
+
+      // Ejecutar herramientas
+      messages.push({ role: 'assistant', content: response.content });
+
+      const toolResults = [];
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue;
+
+        let result;
+        try {
+          if (block.name === 'escanear_formulario_siembra') {
+            if (!imageBase64 || !mediaType) {
+              result = { error: 'No se adjuntó ninguna imagen. Por favor adjunta una foto del formulario.' };
+            } else {
+              result = await chatToolEscanarSiembra(imageBase64, mediaType);
+            }
+          } else if (block.name === 'registrar_siembras') {
+            result = await chatToolRegistrarSiembras(block.input, userId, userName);
+          } else if (block.name === 'consultar_siembras') {
+            result = await chatToolConsultarSiembras(block.input);
+          } else {
+            result = { error: `Herramienta desconocida: ${block.name}` };
+          }
+        } catch (err) {
+          console.error(`Error ejecutando herramienta ${block.name}:`, err);
+          result = { error: err.message };
+        }
+
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: JSON.stringify(result),
+        });
+      }
+
+      messages.push({ role: 'user', content: toolResults });
+    }
+
+    res.json({ reply: 'Lo siento, no pude completar la tarea. Por favor intenta de nuevo.' });
+  } catch (error) {
+    console.error('Error en /api/chat:', error);
+    res.status(500).json({ reply: 'Error interno del servidor.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.runWith({
   secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey]
