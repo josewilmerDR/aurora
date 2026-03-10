@@ -13,6 +13,9 @@ firestore-debug.log
 firebase-export-*/
 *.stackdump
 
+# Service account keys (nunca subir a git)
+scripts/service-account.json
+
 # Environment variables
 .env
 .env.local
