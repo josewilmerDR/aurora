@@ -1,8 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Aurora accesses Firestore exclusively via Cloud Functions (Admin SDK),
+    // which bypasses these rules. No direct client SDK access is needed.
+    // Deny all direct client access to prevent unauthorized data exposure.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
