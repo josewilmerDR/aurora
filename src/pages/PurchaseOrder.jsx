@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiPrinter, FiArrowLeft, FiSearch, FiX } from 'react-icons/fi';
 import './PurchaseOrder.css';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 const generatePoNumber = () => {
   const now = new Date();
@@ -18,6 +19,7 @@ const formatDateLong = (dateStr) => {
 };
 
 const PurchaseOrder = () => {
+  const apiFetch = useApiFetch();
   const { taskId } = useParams();
   const navigate = useNavigate();
   const searchRef = useRef(null);
@@ -49,8 +51,8 @@ const PurchaseOrder = () => {
     const fetchData = async () => {
       try {
         const [taskRes, prodRes] = await Promise.all([
-          fetch(`/api/tasks/${taskId}`),
-          fetch('/api/productos'),
+          apiFetch(`/api/tasks/${taskId}`),
+          apiFetch('/api/productos'),
         ]);
         const task = await taskRes.json();
         const prods = await prodRes.json();
@@ -135,7 +137,7 @@ const PurchaseOrder = () => {
     if (validItems.length === 0) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/ordenes-compra', {
+      const res = await apiFetch('/api/ordenes-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

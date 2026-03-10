@@ -4,6 +4,7 @@ import './GrupoManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDateLong = (date) => {
@@ -37,6 +38,7 @@ const calcFechaCosecha = (grupo, config) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 function GrupoManagement() {
+  const apiFetch = useApiFetch();
   const [grupos,       setGrupos]       = useState([]);
   const [siembras,     setSiembras]     = useState([]);
   const [packages,     setPackages]     = useState([]);
@@ -55,10 +57,10 @@ function GrupoManagement() {
   });
 
   const fetchAll = () => {
-    fetch('/api/grupos').then(r => r.json()).then(setGrupos).catch(console.error);
-    fetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
-    fetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
-    fetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
+    apiFetch('/api/grupos').then(r => r.json()).then(setGrupos).catch(console.error);
+    apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
+    apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
+    apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
   };
 
   useEffect(() => { fetchAll(); }, []);
@@ -150,7 +152,7 @@ function GrupoManagement() {
   const handleDeleteConfirm  = async () => {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/grupos/${confirmModal.grupoId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/grupos/${confirmModal.grupoId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       setConfirmModal(null);
       fetchAll();
@@ -166,7 +168,7 @@ function GrupoManagement() {
     const url    = isEditing ? `/api/grupos/${formData.id}` : '/api/grupos';
     const method = isEditing ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
       if (!res.ok) throw new Error();
       fetchAll();
       resetForm();

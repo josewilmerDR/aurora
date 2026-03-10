@@ -3,6 +3,7 @@ import {
   FiUpload, FiCamera, FiX, FiCheck, FiAlertCircle,
   FiZap, FiChevronLeft, FiChevronRight, FiPlus,
 } from 'react-icons/fi';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './InvoiceScan.css';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
@@ -53,6 +54,7 @@ const emptyNuevoProducto = {
 };
 
 function InvoiceScan() {
+  const apiFetch = useApiFetch();
   const [step, setStep] = useState('upload');
   const [imageData, setImageData] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -120,7 +122,7 @@ function InvoiceScan() {
     setScanning(true);
     setScanError(null);
     try {
-      const res = await fetch('/api/compras/escanear', {
+      const res = await apiFetch('/api/compras/escanear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: imageData.base64, mediaType: imageData.mediaType }),
@@ -191,7 +193,7 @@ function InvoiceScan() {
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch('/api/compras/confirmar', {
+      const res = await apiFetch('/api/compras/confirmar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

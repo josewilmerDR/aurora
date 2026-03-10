@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Siembra.css';
 
 const EMPTY = { nombre: '', rangoPesos: '', variedad: '' };
 
 function SiembraMateriales() {
+  const apiFetch = useApiFetch();
   const [materiales, setMateriales] = useState([]);
   const [showForm, setShowForm]     = useState(false);
   const [form, setForm]             = useState({ ...EMPTY });
@@ -15,14 +17,14 @@ function SiembraMateriales() {
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
-    fetch('/api/materiales-siembra').then(r => r.json()).then(setMateriales).catch(console.error);
+    apiFetch('/api/materiales-siembra').then(r => r.json()).then(setMateriales).catch(console.error);
   }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim()) { showToast('El nombre es obligatorio.', 'error'); return; }
     try {
-      const res = await fetch('/api/materiales-siembra', {
+      const res = await apiFetch('/api/materiales-siembra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -41,7 +43,7 @@ function SiembraMateriales() {
 
   const saveEdit = async () => {
     try {
-      await fetch(`/api/materiales-siembra/${editingId}`, {
+      await apiFetch(`/api/materiales-siembra/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editData),
@@ -57,7 +59,7 @@ function SiembraMateriales() {
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este material?')) return;
     try {
-      await fetch(`/api/materiales-siembra/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/materiales-siembra/${id}`, { method: 'DELETE' });
       setMateriales(prev => prev.filter(m => m.id !== id));
       showToast('Material eliminado.');
     } catch {

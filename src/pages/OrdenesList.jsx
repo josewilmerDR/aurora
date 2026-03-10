@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useUser } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './OrdenesList.css';
 import './PurchaseOrder.css';
 
@@ -183,6 +184,7 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
 
 // ─── Main component ───────────────────────────────────────────────────────────
 const OrdenesList = () => {
+  const apiFetch = useApiFetch();
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useUser();
@@ -249,20 +251,20 @@ const OrdenesList = () => {
   };
 
   const refreshOrdenes = () =>
-    fetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(() => {});
+    apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(() => {});
 
   const refreshSolicitudes = () =>
-    fetch('/api/tasks').then(r => r.json())
+    apiFetch('/api/tasks').then(r => r.json())
       .then(tasks => setSolicitudes(tasks.filter(t => t.type === 'SOLICITUD_COMPRA' && t.status !== 'completed_by_user')))
       .catch(() => {});
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/tasks').then(r => r.json()),
-      fetch('/api/ordenes-compra').then(r => r.json()),
-      fetch('/api/productos').then(r => r.json()),
-      fetch('/api/proveedores').then(r => r.json()),
-      fetch('/api/config').then(r => r.json()),
+      apiFetch('/api/tasks').then(r => r.json()),
+      apiFetch('/api/ordenes-compra').then(r => r.json()),
+      apiFetch('/api/productos').then(r => r.json()),
+      apiFetch('/api/proveedores').then(r => r.json()),
+      apiFetch('/api/config').then(r => r.json()),
     ])
       .then(([tasks, ocs, prods, provs, cfg]) => {
         setSolicitudes(tasks.filter(t => t.type === 'SOLICITUD_COMPRA' && t.status !== 'completed_by_user'));
@@ -340,7 +342,7 @@ const OrdenesList = () => {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/ordenes-compra', {
+      const res = await apiFetch('/api/ordenes-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -414,7 +416,7 @@ const OrdenesList = () => {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/ordenes-compra', {
+      const res = await apiFetch('/api/ordenes-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

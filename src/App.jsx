@@ -16,6 +16,8 @@ import OrdenesHistorial from './pages/OrdenesHistorial';
 import ProveedoresList from './pages/ProveedoresList';
 import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import FincaSelector from './pages/FincaSelector';
 import HrFicha from './pages/HrFicha';
 import HrAsistencia from './pages/HrAsistencia';
 import HrHorasExtra from './pages/HrHorasExtra';
@@ -86,8 +88,12 @@ const routeTitles = {
 
 // --- Route guard ---
 const ProtectedRoute = ({ children }) => {
-  const { isLoggedIn } = useUser();
-  return isLoggedIn ? children : <Navigate to="/login" replace />;
+  const { isLoggedIn, isLoading, needsFincaSelection, needsSetup } = useUser();
+  if (isLoading) return <div className="app-loading">Cargando...</div>;
+  if (!isLoggedIn && !needsFincaSelection && !needsSetup) return <Navigate to="/login" replace />;
+  if (needsSetup) return <Navigate to="/register" replace />;
+  if (needsFincaSelection) return <FincaSelector />;
+  return children;
 };
 
 // --- Logout handler ---
@@ -138,6 +144,7 @@ function App() {
           {/* Public routes */}
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<PurchaseOrder />} />

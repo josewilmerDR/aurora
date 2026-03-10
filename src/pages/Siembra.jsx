@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiCamera, FiChevronRight } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Siembra.css';
 
 const HOY = new Date().toISOString().slice(0, 10);
@@ -82,6 +83,7 @@ const EMPTY_ROW = {
 };
 
 function Siembra() {
+  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [lotes, setLotes]           = useState([]);
   const [materiales, setMateriales] = useState([]);
@@ -104,14 +106,14 @@ function Siembra() {
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
-    fetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : [])).catch(console.error);
-    fetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(console.error);
+    apiFetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : [])).catch(console.error);
+    apiFetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(console.error);
     cargarRegistros();
   }, []);
 
   const cargarRegistros = async () => {
     try {
-      const data = await fetch('/api/siembras').then(r => r.json());
+      const data = await apiFetch('/api/siembras').then(r => r.json());
       setRegistros(Array.isArray(data) ? data : []);
     } catch { /* silent */ }
   };
@@ -163,7 +165,7 @@ function Siembra() {
     setScanning(true);
     try {
       const imageData = await compressImage(file);
-      const res = await fetch('/api/siembras/escanear', {
+      const res = await apiFetch('/api/siembras/escanear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: imageData.base64, mediaType: imageData.mediaType }),
@@ -236,7 +238,7 @@ function Siembra() {
             loteId     = createdLoteMap[nombre].id;
             loteNombre = nombre;
           } else {
-            const res = await fetch('/api/lotes', {
+            const res = await apiFetch('/api/lotes', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ nombreLote: nombre, fechaCreacion: fecha }),
@@ -261,7 +263,7 @@ function Siembra() {
             mat        = createdMatMap[nombre];
             materialId = mat.id;
           } else {
-            const mRes = await fetch('/api/materiales-siembra', {
+            const mRes = await apiFetch('/api/materiales-siembra', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -279,7 +281,7 @@ function Siembra() {
           }
         }
 
-        await fetch('/api/siembras', {
+        await apiFetch('/api/siembras', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -340,7 +342,7 @@ function Siembra() {
     }
 
     try {
-      await fetch(`/api/siembras/${reg.id}`, {
+      await apiFetch(`/api/siembras/${reg.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cerrado: !reg.cerrado }),
@@ -354,7 +356,7 @@ function Siembra() {
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este registro?')) return;
     try {
-      await fetch(`/api/siembras/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
       setRegistros(prev => prev.filter(r => r.id !== id));
       showToast('Registro eliminado.');
     } catch {

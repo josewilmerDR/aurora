@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './AuroraChat.css';
 
 const MAX_IMAGE_PX = 1200;
@@ -35,6 +36,7 @@ function compressImage(file) {
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 export default function AuroraChat() {
+  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -100,7 +102,7 @@ export default function AuroraChat() {
         body.mediaType = sentImage.mediaType;
       }
 
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -112,7 +114,7 @@ export default function AuroraChat() {
     } finally {
       setThinking(false);
     }
-  }, [input, image, thinking, currentUser]);
+  }, [input, image, thinking, currentUser, apiFetch]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

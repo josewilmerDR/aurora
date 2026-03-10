@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { FiFileText, FiPrinter, FiShare2, FiX } from 'react-icons/fi';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './CedulasAplicacion.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ const isOverdue = (task) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 function CedulasAplicacion() {
+  const apiFetch = useApiFetch();
   const [tasks,    setTasks]    = useState([]);
   const [lotes,    setLotes]    = useState([]);
   const [grupos,   setGrupos]   = useState([]);
@@ -50,13 +52,13 @@ function CedulasAplicacion() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/tasks').then(r => r.json()),
-      fetch('/api/lotes').then(r => r.json()),
-      fetch('/api/grupos').then(r => r.json()),
-      fetch('/api/siembras').then(r => r.json()),
-      fetch('/api/packages').then(r => r.json()),
-      fetch('/api/productos').then(r => r.json()),
-      fetch('/api/config').then(r => r.json()),
+      apiFetch('/api/tasks').then(r => r.json()),
+      apiFetch('/api/lotes').then(r => r.json()),
+      apiFetch('/api/grupos').then(r => r.json()),
+      apiFetch('/api/siembras').then(r => r.json()),
+      apiFetch('/api/packages').then(r => r.json()),
+      apiFetch('/api/productos').then(r => r.json()),
+      apiFetch('/api/config').then(r => r.json()),
     ]).then(([t, l, g, s, p, pr, c]) => {
       setTasks(Array.isArray(t) ? t : []);
       setLotes(Array.isArray(l) ? l : []);

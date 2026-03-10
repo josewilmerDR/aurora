@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import './PackageManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 function PackageManagement() {
+  const apiFetch = useApiFetch();
   const [packages, setPackages] = useState([]);
   const [users, setUsers] = useState([]);
   const [productos, setProductos] = useState([]);
@@ -22,10 +24,10 @@ function PackageManagement() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
-    fetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
-    fetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
-    fetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
+    apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
+    apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
+    apiFetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
+    apiFetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
   }, []);
 
   const handleInputChange = (e) => {
@@ -170,13 +172,13 @@ function PackageManagement() {
       })),
     };
     try {
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('Error al guardar el paquete');
-      const updatedPackages = await fetch('/api/packages').then(res => res.json());
+      const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
       setPackages(updatedPackages);
       resetForm();
       showToast(isEditing ? 'Paquete actualizado correctamente' : 'Paquete guardado correctamente');
@@ -188,7 +190,7 @@ function PackageManagement() {
   const handleDelete = async (id) => {
     if (window.confirm('¿Estás seguro?')) {
       try {
-        const response = await fetch(`/api/packages/${id}`, { method: 'DELETE' });
+        const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Error al eliminar el paquete');
         setPackages(packages.filter(p => p.id !== id));
         showToast('Paquete eliminado correctamente');

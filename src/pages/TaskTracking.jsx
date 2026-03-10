@@ -3,12 +3,14 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { FiPlus, FiX, FiFileText } from 'react-icons/fi';
 import './TaskTracking.css';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
 
 function TaskTracking() {
+  const apiFetch = useApiFetch();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,7 +37,7 @@ function TaskTracking() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/tasks')
+    apiFetch('/api/tasks')
       .then(res => res.ok ? res.json() : Promise.reject('Error de red'))
       .then(data => {
         data.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
@@ -49,10 +51,10 @@ function TaskTracking() {
   useEffect(() => {
     if (!showNewTask) return;
     Promise.all([
-      fetch('/api/lotes').then(r => r.json()),
-      fetch('/api/users').then(r => r.json()),
-      fetch('/api/productos').then(r => r.json()),
-      fetch('/api/task-templates').then(r => r.json()),
+      apiFetch('/api/lotes').then(r => r.json()),
+      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/productos').then(r => r.json()),
+      apiFetch('/api/task-templates').then(r => r.json()),
     ]).then(([l, u, p, t]) => {
       setFormLotes(l);
       setFormUsers(u);
@@ -116,7 +118,7 @@ function TaskTracking() {
     if (!formData.nombre) return;
     setSavingPlantilla(true);
     try {
-      const res = await fetch('/api/task-templates', {
+      const res = await apiFetch('/api/task-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,7 +141,7 @@ function TaskTracking() {
 
   const eliminarPlantilla = async (id) => {
     try {
-      await fetch(`/api/task-templates/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/task-templates/${id}`, { method: 'DELETE' });
       setPlantillas(prev => prev.filter(p => p.id !== id));
     } catch {
       showToast('Error al eliminar la plantilla.', 'error');
@@ -153,7 +155,7 @@ function TaskTracking() {
     if (!canSubmit) return;
     setFormSaving(true);
     try {
-      const res = await fetch('/api/tasks', {
+      const res = await apiFetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

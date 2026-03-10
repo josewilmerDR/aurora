@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FiTruck, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiPhone, FiMail, FiMapPin, FiDollarSign } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './ProveedoresList.css';
 
 const EMPTY_FORM = {
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
 const TIPO_PAGO_LABELS = { contado: 'Contado', credito: 'Crédito' };
 
 function ProveedoresList() {
+  const apiFetch = useApiFetch();
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -28,7 +30,7 @@ function ProveedoresList() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchProveedores = () =>
-    fetch('/api/proveedores')
+    apiFetch('/api/proveedores')
       .then(r => r.json())
       .then(setProveedores)
       .catch(() => showToast('Error al cargar proveedores.', 'error'))
@@ -63,7 +65,7 @@ function ProveedoresList() {
   const handleDelete = async (id, nombre) => {
     if (!window.confirm(`¿Eliminar al proveedor "${nombre}"?`)) return;
     try {
-      const res = await fetch(`/api/proveedores/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/proveedores/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       showToast('Proveedor eliminado.');
       fetchProveedores();
@@ -82,7 +84,7 @@ function ProveedoresList() {
     try {
       const url = isEditing ? `/api/proveedores/${form.id}` : '/api/proveedores';
       const method = isEditing ? 'PUT' : 'POST';
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

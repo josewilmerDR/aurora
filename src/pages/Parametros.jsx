@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FiEdit2, FiSave, FiX, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Parametros.css';
 
 // ── Definición de parámetros ──────────────────────────────────────────────────
@@ -110,6 +111,7 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 function Parametros() {
+  const apiFetch = useApiFetch();
   const [saved,       setSaved]       = useState(DEFAULTS);
   const [draft,       setDraft]       = useState(DEFAULTS);
   const [editMode,    setEditMode]    = useState(false);
@@ -119,7 +121,7 @@ function Parametros() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/config')
+    apiFetch('/api/config')
       .then(r => r.json())
       .then(data => { const vals = fromApi(data); setSaved(vals); setDraft(vals); })
       .catch(console.error);
@@ -136,7 +138,7 @@ function Parametros() {
   const handleSaveConfirm = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/config', {
+      const res = await apiFetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),

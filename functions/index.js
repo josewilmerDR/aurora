@@ -24,7 +24,6 @@ let twilioClient;
 let anthropicClient;
 
 const app = express();
-const ID_FINCA_ACTUAL = 'finca_aurora_test';
 
 // URL de la app desplegada (¡IMPORTANTE!)
 const APP_URL = 'https://aurora-7dc9b.web.app';
@@ -39,12 +38,66 @@ const pick = (obj, fields) => fields.reduce((acc, f) => {
   return acc;
 }, {});
 
-// Verifica que un documento exista y pertenezca a la finca actual
-const verifyOwnership = async (collection, docId) => {
+// Verifica que un documento exista y pertenezca a la finca del request
+const verifyOwnership = async (collection, docId, fincaId) => {
   const doc = await db.collection(collection).doc(docId).get();
   if (!doc.exists) return { ok: false, status: 404, message: 'Documento no encontrado.' };
-  if (doc.data().fincaId !== ID_FINCA_ACTUAL) return { ok: false, status: 403, message: 'Acceso no autorizado.' };
+  if (doc.data().fincaId !== fincaId) return { ok: false, status: 403, message: 'Acceso no autorizado.' };
   return { ok: true, doc };
+};
+
+// --- MIDDLEWARE DE AUTENTICACIÓN ---
+// Verifica el Firebase ID Token y la membresía del usuario en la finca indicada.
+// Rutas públicas (WhatsApp) usan skipAuth: true y no pasan por aquí.
+const authenticate = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const fincaId = req.headers['x-finca-id'];
+
+  if (!authHeader?.startsWith('Bearer ') || !fincaId) {
+    return res.status(401).json({ message: 'No autorizado.' });
+  }
+
+  try {
+    const token = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(token);
+    const uid = decoded.uid;
+
+    // Verificar membresía en la finca solicitada
+    const membershipSnap = await db.collection('memberships')
+      .where('uid', '==', uid)
+      .where('fincaId', '==', fincaId)
+      .limit(1)
+      .get();
+
+    if (membershipSnap.empty) {
+      return res.status(403).json({ message: 'No tienes acceso a esta organización.' });
+    }
+
+    req.uid = uid;
+    req.fincaId = fincaId;
+    req.userRole = membershipSnap.docs[0].data().rol;
+    next();
+  } catch (error) {
+    console.error('[AUTH] Token inválido:', error.message);
+    return res.status(401).json({ message: 'Sesión inválida. Inicia sesión de nuevo.' });
+  }
+};
+
+// Middleware solo de token (sin verificar finca) — para endpoints de auth
+const authenticateOnly = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'No autorizado.' });
+  }
+  try {
+    const token = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.uid = decoded.uid;
+    req.userEmail = decoded.email;
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Sesión inválida.' });
+  }
 };
 
 // --- MIDDLEWARE DE LOGGING ---
@@ -93,10 +146,81 @@ const enrichTask = async (taskDoc) => {
   };
 };
 
-// --- API ENDPOINTS: TASKS ---
-app.get('/api/tasks', async (req, res) => {
+// --- API ENDPOINTS: AUTH / MULTI-TENANT ---
+
+// GET /api/auth/memberships — lista las fincas del usuario autenticado
+app.get('/api/auth/memberships', authenticateOnly, async (req, res) => {
   try {
-    const tasksSnapshot = await db.collection('scheduled_tasks').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snap = await db.collection('memberships')
+      .where('uid', '==', req.uid)
+      .get();
+    const memberships = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json({ memberships });
+  } catch (error) {
+    console.error('[AUTH] Error fetching memberships:', error);
+    res.status(500).json({ message: 'Error al obtener las organizaciones.' });
+  }
+});
+
+// GET /api/auth/me — perfil del usuario en la finca activa
+app.get('/api/auth/me', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('memberships')
+      .where('uid', '==', req.uid)
+      .where('fincaId', '==', req.fincaId)
+      .limit(1)
+      .get();
+    if (snap.empty) return res.status(404).json({ message: 'Perfil no encontrado.' });
+    const membership = snap.docs[0].data();
+    const fincaDoc = await db.collection('fincas').doc(req.fincaId).get();
+    res.status(200).json({
+      uid: req.uid,
+      ...membership,
+      fincaNombre: fincaDoc.exists ? fincaDoc.data().nombre : '',
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener el perfil.' });
+  }
+});
+
+// POST /api/auth/register-finca — crea una nueva finca y el admin inicial
+app.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
+  try {
+    const { fincaNombre, nombreAdmin } = req.body;
+    if (!fincaNombre || !nombreAdmin) {
+      return res.status(400).json({ message: 'fincaNombre y nombreAdmin son requeridos.' });
+    }
+    const fincaRef = db.collection('fincas').doc();
+    const batch = db.batch();
+    batch.set(fincaRef, {
+      nombre: fincaNombre,
+      adminUid: req.uid,
+      plan: 'basic',
+      creadoEn: Timestamp.now(),
+    });
+    const membershipRef = db.collection('memberships').doc();
+    batch.set(membershipRef, {
+      uid: req.uid,
+      fincaId: fincaRef.id,
+      fincaNombre,
+      email: req.userEmail || '',
+      nombre: nombreAdmin,
+      telefono: '',
+      rol: 'administrador',
+      creadoEn: Timestamp.now(),
+    });
+    await batch.commit();
+    res.status(201).json({ fincaId: fincaRef.id, message: 'Organización creada exitosamente.' });
+  } catch (error) {
+    console.error('[AUTH] Error creating finca:', error);
+    res.status(500).json({ message: 'Error al crear la organización.' });
+  }
+});
+
+// --- API ENDPOINTS: TASKS ---
+app.get('/api/tasks', authenticate, async (req, res) => {
+  try {
+    const tasksSnapshot = await db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get();
     const enrichedTasksPromises = tasksSnapshot.docs.map(enrichTask);
     const enrichedTasks = await Promise.all(enrichedTasksPromises);
     res.status(200).json(enrichedTasks.filter(t => t !== null));
@@ -106,7 +230,7 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-app.post('/api/tasks', async (req, res) => {
+app.post('/api/tasks', authenticate, async (req, res) => {
   try {
     const { nombre, loteId, responsableId, fecha, productos } = req.body;
     if (!nombre || !loteId || !responsableId || !fecha) {
@@ -118,7 +242,7 @@ app.post('/api/tasks', async (req, res) => {
       executeAt: Timestamp.fromDate(new Date(fecha + 'T08:00:00')),
       status: 'pending',
       loteId,
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       activity: {
         name: nombre,
         type: prodList.length > 0 ? 'aplicacion' : 'notificacion',
@@ -142,11 +266,11 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-app.get('/api/tasks/overdue-count', async (_req, res) => {
+app.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
   try {
     const now = Timestamp.now();
     const snapshot = await db.collection('scheduled_tasks')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .where('type', '==', 'REMINDER_DUE_DAY')
       .where('executeAt', '<', now)
       .get();
@@ -181,7 +305,7 @@ app.put('/api/tasks/:id', async (req, res) => {
     if (updateData.status && !STATUSES_VALIDOS.includes(updateData.status)) {
       return res.status(400).json({ message: 'Estado de tarea inválido.' });
     }
-    const ownership = await verifyOwnership('scheduled_tasks', id);
+    const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
     if (updateData.status === 'completed_by_user') {
@@ -213,7 +337,7 @@ app.put('/api/tasks/:id', async (req, res) => {
               tareaId: id,
               loteId: taskData.loteId,
               loteNombre,
-              fincaId: ID_FINCA_ACTUAL,
+              fincaId: taskData.fincaId,
             });
           }
           await batch.commit();
@@ -231,17 +355,17 @@ app.put('/api/tasks/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: TASK TEMPLATES ---
-app.get('/api/task-templates', async (req, res) => {
+app.get('/api/task-templates', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('task_templates')
-      .where('fincaId', '==', ID_FINCA_ACTUAL).get();
+      .where('fincaId', '==', req.fincaId).get();
     res.json(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener plantillas.' });
   }
 });
 
-app.post('/api/task-templates', async (req, res) => {
+app.post('/api/task-templates', authenticate, async (req, res) => {
   try {
     const { nombre, responsableId, productos } = req.body;
     if (!nombre)
@@ -250,7 +374,7 @@ app.post('/api/task-templates', async (req, res) => {
       nombre,
       responsableId: responsableId || '',
       productos: productos || [],
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       creadoEn: Timestamp.now(),
     };
     const docRef = await db.collection('task_templates').add(template);
@@ -260,7 +384,7 @@ app.post('/api/task-templates', async (req, res) => {
   }
 });
 
-app.delete('/api/task-templates/:id', async (req, res) => {
+app.delete('/api/task-templates/:id', authenticate, async (req, res) => {
   try {
     await db.collection('task_templates').doc(req.params.id).delete();
     res.json({ message: 'Plantilla eliminada.' });
@@ -270,9 +394,9 @@ app.delete('/api/task-templates/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: USERS ---
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticate, async (req, res) => {
   try {
-    const snapshot = await db.collection('users').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snapshot = await db.collection('users').where('fincaId', '==', req.fincaId).get();
     const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(users);
   } catch (error) {
@@ -280,13 +404,13 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authenticate, async (req, res) => {
   try {
     const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'administrador'];
     const { nombre, email, telefono, rol } = req.body;
     if (!nombre || !email) return res.status(400).json({ message: 'nombre y email son requeridos.' });
     if (rol && !ROLES_VALIDOS.includes(rol)) return res.status(400).json({ message: 'Rol inválido.' });
-    const user = { nombre, email, telefono: telefono || '', rol: rol || 'trabajador', fincaId: ID_FINCA_ACTUAL };
+    const user = { nombre, email, telefono: telefono || '', rol: rol || 'trabajador', fincaId: req.fincaId };
     const docRef = await db.collection('users').add(user);
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
@@ -294,10 +418,10 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('users', id);
+    const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'administrador'];
     const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol']);
@@ -309,10 +433,10 @@ app.put('/api/users/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('users', id);
+    const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('users').doc(id).delete();
     res.status(200).json({ message: 'Usuario eliminado correctamente.' });
@@ -322,9 +446,9 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: PRODUCTOS ---
-app.get('/api/productos', async (req, res) => {
+app.get('/api/productos', authenticate, async (req, res) => {
   try {
-    const snapshot = await db.collection('productos').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snapshot = await db.collection('productos').where('fincaId', '==', req.fincaId).get();
     const productos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(productos);
   } catch (error) {
@@ -336,14 +460,14 @@ const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', '
   'plagaQueControla', 'periodoReingreso', 'periodoACosecha', 'cantidadPorHa',
   'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario', 'proveedor'];
 
-app.post('/api/productos', async (req, res) => {
+app.post('/api/productos', authenticate, async (req, res) => {
   try {
-    const producto = { ...pick(req.body, CAMPOS_PRODUCTO), fincaId: ID_FINCA_ACTUAL };
+    const producto = { ...pick(req.body, CAMPOS_PRODUCTO), fincaId: req.fincaId };
 
     // Verificar si ya existe un producto con el mismo idProducto
     if (producto.idProducto) {
       const existing = await db.collection('productos')
-        .where('fincaId', '==', ID_FINCA_ACTUAL)
+        .where('fincaId', '==', req.fincaId)
         .where('idProducto', '==', producto.idProducto)
         .limit(1)
         .get();
@@ -364,10 +488,10 @@ app.post('/api/productos', async (req, res) => {
   }
 });
 
-app.put('/api/productos/:id', async (req, res) => {
+app.put('/api/productos/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('productos', id);
+    const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const productoData = pick(req.body, CAMPOS_PRODUCTO);
     await db.collection('productos').doc(id).update(productoData);
@@ -377,10 +501,10 @@ app.put('/api/productos/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/productos/:id', async (req, res) => {
+app.delete('/api/productos/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('productos', id);
+    const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('productos').doc(id).delete();
     res.status(200).json({ message: 'Producto eliminado correctamente.' });
@@ -390,9 +514,9 @@ app.delete('/api/productos/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: PACKAGES (PLANTILLAS) ---
-app.get('/api/packages', async (req, res) => {
+app.get('/api/packages', authenticate, async (req, res) => {
   try {
-    const snapshot = await db.collection('packages').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snapshot = await db.collection('packages').where('fincaId', '==', req.fincaId).get();
     const packages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(packages);
   } catch (error) {
@@ -400,11 +524,11 @@ app.get('/api/packages', async (req, res) => {
   }
 });
 
-app.post('/api/packages', async (req, res) => {
+app.post('/api/packages', authenticate, async (req, res) => {
   try {
     const { nombrePaquete } = req.body;
     if (!nombrePaquete) return res.status(400).json({ message: 'nombrePaquete es requerido.' });
-    const pkg = { ...pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']), fincaId: ID_FINCA_ACTUAL };
+    const pkg = { ...pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']), fincaId: req.fincaId };
     const docRef = await db.collection('packages').add(pkg);
     res.status(201).json({ id: docRef.id, ...pkg });
   } catch (error) {
@@ -412,10 +536,10 @@ app.post('/api/packages', async (req, res) => {
   }
 });
 
-app.put('/api/packages/:id', async (req, res) => {
+app.put('/api/packages/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('packages', id);
+    const ownership = await verifyOwnership('packages', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const pkgData = pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']);
     await db.collection('packages').doc(id).update(pkgData);
@@ -425,10 +549,10 @@ app.put('/api/packages/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/packages/:id', async (req, res) => {
+app.delete('/api/packages/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('packages', id);
+    const ownership = await verifyOwnership('packages', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('packages').doc(id).delete();
     res.status(200).json({ message: 'Paquete eliminado correctamente.' });
@@ -438,9 +562,9 @@ app.delete('/api/packages/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: LOTES ---
-app.get('/api/lotes', async (req, res) => {
+app.get('/api/lotes', authenticate, async (req, res) => {
   try {
-    const snapshot = await db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snapshot = await db.collection('lotes').where('fincaId', '==', req.fincaId).get();
     const lotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(lotes);
   } catch (error) {
@@ -487,7 +611,7 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
 };
 
 
-app.post('/api/lotes', async (req, res) => {
+app.post('/api/lotes', authenticate, async (req, res) => {
     const { nombreLote, codigoLote, fechaCreacion, paqueteId, hectareas } = req.body;
     if (!codigoLote || !fechaCreacion) {
         return res.status(400).json({ message: 'Faltan datos para crear el lote.' });
@@ -501,7 +625,7 @@ app.post('/api/lotes', async (req, res) => {
                 ...(nombreLote ? { nombreLote } : {}),
                 fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
                 hectareas: parseFloat(hectareas) || 0,
-                fincaId: ID_FINCA_ACTUAL,
+                fincaId: req.fincaId,
             });
             return res.status(201).json({ id: loteRef.id, message: 'Lote creado sin paquete técnico.' });
         } catch (error) {
@@ -511,7 +635,7 @@ app.post('/api/lotes', async (req, res) => {
     }
 
     try {
-        const loteRef = await db.collection('lotes').add({ codigoLote, ...(nombreLote ? { nombreLote } : {}), fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, hectareas: parseFloat(hectareas) || 1, fincaId: ID_FINCA_ACTUAL });
+        const loteRef = await db.collection('lotes').add({ codigoLote, ...(nombreLote ? { nombreLote } : {}), fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, hectareas: parseFloat(hectareas) || 1, fincaId: req.fincaId });
         const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
         if (!paqueteDoc.exists) throw new Error('Paquete no encontrado');
         const paqueteData = paqueteDoc.data();
@@ -529,10 +653,10 @@ app.post('/api/lotes', async (req, res) => {
             reminderDate.setDate(reminderDate.getDate() - 3);
 
             const reminderTaskRef = db.collection('scheduled_tasks').doc();
-            tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: loteRef.id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+            tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: loteRef.id, activity, status: 'pending', fincaId: req.fincaId });
 
             const dueTaskRef = db.collection('scheduled_tasks').doc();
-            const dueTaskData = { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: loteRef.id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL };
+            const dueTaskData = { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: loteRef.id, activity, status: 'pending', fincaId: req.fincaId };
             tasksBatch.set(dueTaskRef, dueTaskData);
 
             if (activityDay >= 0 && activityDay <= 3) {
@@ -554,10 +678,10 @@ app.post('/api/lotes', async (req, res) => {
     }
 });
 
-app.put('/api/lotes/:id', async (req, res) => {
+app.put('/api/lotes/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const ownership = await verifyOwnership('lotes', id);
+        const ownership = await verifyOwnership('lotes', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const loteData = pick(req.body, ['codigoLote', 'nombreLote', 'fechaCreacion', 'paqueteId', 'hectareas']);
         const originalDoc = ownership.doc;
@@ -593,10 +717,10 @@ app.put('/api/lotes/:id', async (req, res) => {
                     reminderDate.setDate(reminderDate.getDate() - 3);
                     
                     const reminderTaskRef = db.collection('scheduled_tasks').doc();
-                    tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
-                    
+                    tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: id, activity, status: 'pending', fincaId: req.fincaId });
+
                     const dueTaskRef = db.collection('scheduled_tasks').doc();
-                    tasksBatch.set(dueTaskRef, { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+                    tasksBatch.set(dueTaskRef, { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: id, activity, status: 'pending', fincaId: req.fincaId });
                 }
                 await tasksBatch.commit();
             }
@@ -609,7 +733,7 @@ app.put('/api/lotes/:id', async (req, res) => {
     }
 });
 
-app.get('/api/lotes/:id/task-count', async (req, res) => {
+app.get('/api/lotes/:id/task-count', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const snapshot = await db.collection('scheduled_tasks')
@@ -622,10 +746,10 @@ app.get('/api/lotes/:id/task-count', async (req, res) => {
     }
 });
 
-app.delete('/api/lotes/:id', async (req, res) => {
+app.delete('/api/lotes/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const ownership = await verifyOwnership('lotes', id);
+        const ownership = await verifyOwnership('lotes', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const tasksQuery = db.collection('scheduled_tasks').where('loteId', '==', id);
         const tasksSnapshot = await tasksQuery.get();
@@ -642,9 +766,9 @@ app.delete('/api/lotes/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: GRUPOS ---
-app.get('/api/grupos', async (req, res) => {
+app.get('/api/grupos', authenticate, async (req, res) => {
     try {
-        const snapshot = await db.collection('grupos').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+        const snapshot = await db.collection('grupos').where('fincaId', '==', req.fincaId).get();
         const grupos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.status(200).json(grupos);
     } catch (error) {
@@ -652,7 +776,7 @@ app.get('/api/grupos', async (req, res) => {
     }
 });
 
-app.post('/api/grupos', async (req, res) => {
+app.post('/api/grupos', authenticate, async (req, res) => {
     try {
         const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId } = req.body;
         if (!nombreGrupo || !fechaCreacion) {
@@ -666,7 +790,7 @@ app.post('/api/grupos', async (req, res) => {
             fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
             bloques: Array.isArray(bloques) ? bloques : [],
             paqueteId: paqueteId || '',
-            fincaId: ID_FINCA_ACTUAL,
+            fincaId: req.fincaId,
         });
 
         // Si hay paquete asociado, crear tareas igual que en lotes
@@ -693,7 +817,7 @@ app.post('/api/grupos', async (req, res) => {
                         grupoId: grupoRef.id,
                         activity,
                         status: 'pending',
-                        fincaId: ID_FINCA_ACTUAL,
+                        fincaId: req.fincaId,
                     });
 
                     const dueTaskRef = db.collection('scheduled_tasks').doc();
@@ -703,7 +827,7 @@ app.post('/api/grupos', async (req, res) => {
                         grupoId: grupoRef.id,
                         activity,
                         status: 'pending',
-                        fincaId: ID_FINCA_ACTUAL,
+                        fincaId: req.fincaId,
                     };
                     tasksBatch.set(dueTaskRef, dueTaskData);
 
@@ -729,7 +853,7 @@ app.post('/api/grupos', async (req, res) => {
     }
 });
 
-app.put('/api/grupos/:id', async (req, res) => {
+app.put('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const grupoData = { ...req.body };
@@ -769,10 +893,10 @@ app.put('/api/grupos/:id', async (req, res) => {
                         reminderDate.setDate(reminderDate.getDate() - 3);
 
                         const reminderRef = db.collection('scheduled_tasks').doc();
-                        tasksBatch.set(reminderRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), grupoId: id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+                        tasksBatch.set(reminderRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), grupoId: id, activity, status: 'pending', fincaId: req.fincaId });
 
                         const dueRef = db.collection('scheduled_tasks').doc();
-                        tasksBatch.set(dueRef, { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), grupoId: id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+                        tasksBatch.set(dueRef, { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), grupoId: id, activity, status: 'pending', fincaId: req.fincaId });
                     }
                     await tasksBatch.commit();
                 }
@@ -786,7 +910,7 @@ app.put('/api/grupos/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/grupos/:id', async (req, res) => {
+app.delete('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
@@ -807,7 +931,7 @@ app.post('/api/tasks/:id/reschedule', async (req, res) => {
         const { id } = req.params;
         const { newDate } = req.body;
         if (!newDate) return res.status(400).json({ message: 'Falta la nueva fecha.' });
-        const ownership = await verifyOwnership('scheduled_tasks', id);
+        const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const newTimestamp = Timestamp.fromDate(new Date(newDate));
         await db.collection('scheduled_tasks').doc(id).update({ executeAt: newTimestamp });
@@ -825,7 +949,7 @@ app.post('/api/tasks/:id/reassign', async (req, res) => {
         if (!newUserId) return res.status(400).json({ message: 'Falta el nuevo responsable.' });
 
         const taskRef = db.collection('scheduled_tasks').doc(id);
-        const ownership = await verifyOwnership('scheduled_tasks', id);
+        const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const taskDoc = ownership.doc;
 
@@ -847,10 +971,10 @@ app.post('/api/tasks/:id/reassign', async (req, res) => {
 
 // --- API ENDPOINTS: COMPRAS (ESCANEO DE FACTURAS) ---
 
-app.get('/api/compras', async (req, res) => {
+app.get('/api/compras', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('compras')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc')
       .limit(50)
       .get();
@@ -867,7 +991,7 @@ app.get('/api/compras', async (req, res) => {
   }
 });
 
-app.post('/api/compras/escanear', async (req, res) => {
+app.post('/api/compras/escanear', authenticate, async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
@@ -880,7 +1004,7 @@ app.post('/api/compras/escanear', async (req, res) => {
 
     // Obtener catálogo de productos actual para que Claude pueda hacer el match
     const productosSnap = await db.collection('productos')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .get();
     const catalogo = productosSnap.docs.map(doc => ({
       id: doc.id,
@@ -960,7 +1084,7 @@ Reglas importantes:
   }
 });
 
-app.post('/api/compras/confirmar', async (req, res) => {
+app.post('/api/compras/confirmar', authenticate, async (req, res) => {
   try {
     const { imageBase64, mediaType, proveedor, fecha, lineas } = req.body;
 
@@ -993,7 +1117,7 @@ app.post('/api/compras/confirmar', async (req, res) => {
           fecha: Timestamp.now(),
           motivo: motivoCompra,
           compraId: compraRef.id,
-          fincaId: ID_FINCA_ACTUAL,
+          fincaId: req.fincaId,
         });
         stockActualizados++;
       } else if (linea.ingredienteActivo) {
@@ -1014,7 +1138,7 @@ app.post('/api/compras/confirmar', async (req, res) => {
           tipoCambio: parseFloat(linea.tipoCambio) || 1,
           precioUnitario: parseFloat(linea.precioUnitario) || 0,
           proveedor: proveedor || '',
-          fincaId: ID_FINCA_ACTUAL,
+          fincaId: req.fincaId,
         });
         batch.set(db.collection('movimientos').doc(), {
           tipo: 'ingreso',
@@ -1025,7 +1149,7 @@ app.post('/api/compras/confirmar', async (req, res) => {
           fecha: Timestamp.now(),
           motivo: motivoCompra,
           compraId: compraRef.id,
-          fincaId: ID_FINCA_ACTUAL,
+          fincaId: req.fincaId,
         });
         productosCreados++;
       }
@@ -1034,7 +1158,7 @@ app.post('/api/compras/confirmar', async (req, res) => {
 
     // Guardar registro de compra (ref pre-generada arriba)
     batch.set(compraRef, {
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       proveedor: proveedor || '',
       fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
       lineas: lineas.map(l => ({
@@ -1062,10 +1186,10 @@ app.post('/api/compras/confirmar', async (req, res) => {
 });
 
 // --- API ENDPOINTS: SOLICITUDES DE COMPRA ---
-app.get('/api/solicitudes-compra', async (req, res) => {
+app.get('/api/solicitudes-compra', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('solicitudes_compra')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('fechaCreacion', 'desc')
       .limit(50)
       .get();
@@ -1081,7 +1205,7 @@ app.get('/api/solicitudes-compra', async (req, res) => {
   }
 });
 
-app.post('/api/solicitudes-compra', async (req, res) => {
+app.post('/api/solicitudes-compra', authenticate, async (req, res) => {
   try {
     const { responsableId, responsableNombre, notas, items } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
@@ -1105,7 +1229,7 @@ app.post('/api/solicitudes-compra', async (req, res) => {
     // Crear la solicitud de compra
     const solicitudRef = db.collection('solicitudes_compra').doc();
     batch.set(solicitudRef, {
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       fechaCreacion: Timestamp.now(),
       estado: 'pendiente',
       responsableId: resolvedResponsableId,
@@ -1124,7 +1248,7 @@ app.post('/api/solicitudes-compra', async (req, res) => {
       executeAt: Timestamp.now(),
       status: 'pending',
       loteId: null,
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       solicitudId: solicitudRef.id,
       activity: {
         name: `Solicitud de compra: ${mappedItems.length} producto(s)`,
@@ -1152,10 +1276,10 @@ app.post('/api/solicitudes-compra', async (req, res) => {
   }
 });
 
-app.put('/api/solicitudes-compra/:id', async (req, res) => {
+app.put('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const ownership = await verifyOwnership('solicitudes_compra', id);
+    const ownership = await verifyOwnership('solicitudes_compra', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const { estado, items, responsableId, responsableNombre, notas } = req.body;
     const ESTADOS_VALIDOS = ['pendiente', 'aprobada', 'rechazada', 'completada'];
@@ -1174,9 +1298,9 @@ app.put('/api/solicitudes-compra/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/solicitudes-compra/:id', async (req, res) => {
+app.delete('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
   try {
-    const ownership = await verifyOwnership('solicitudes_compra', req.params.id);
+    const ownership = await verifyOwnership('solicitudes_compra', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('solicitudes_compra').doc(req.params.id).delete();
     res.status(200).json({ message: 'Solicitud eliminada.' });
@@ -1187,16 +1311,16 @@ app.delete('/api/solicitudes-compra/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: MOVIMIENTOS ---
-app.get('/api/movimientos', async (req, res) => {
+app.get('/api/movimientos', authenticate, async (req, res) => {
   try {
     const { productoId } = req.query;
     let query = db.collection('movimientos')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('fecha', 'desc')
       .limit(100);
     if (productoId) {
       query = db.collection('movimientos')
-        .where('fincaId', '==', ID_FINCA_ACTUAL)
+        .where('fincaId', '==', req.fincaId)
         .where('productoId', '==', productoId)
         .orderBy('fecha', 'desc')
         .limit(100);
@@ -1215,10 +1339,10 @@ app.get('/api/movimientos', async (req, res) => {
 });
 
 // --- API ENDPOINTS: ÓRDENES DE COMPRA ---
-app.get('/api/ordenes-compra', async (req, res) => {
+app.get('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('ordenes_compra')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc')
       .limit(100)
       .get();
@@ -1238,13 +1362,13 @@ app.get('/api/ordenes-compra', async (req, res) => {
   }
 });
 
-app.post('/api/ordenes-compra', async (req, res) => {
+app.post('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
     const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un producto.' });
     }
-    const counterRef = db.collection('counters').doc(`oc_${ID_FINCA_ACTUAL}`);
+    const counterRef = db.collection('counters').doc(`oc_${req.fincaId}`);
     let seq;
     await db.runTransaction(async (t) => {
       const counterDoc = await t.get(counterRef);
@@ -1253,7 +1377,7 @@ app.post('/api/ordenes-compra', async (req, res) => {
     });
     const poNumber = `OC-${String(seq).padStart(6, '0')}`;
     const docRef = await db.collection('ordenes_compra').add({
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       poNumber,
       fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
       fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega)) : null,
@@ -1290,10 +1414,10 @@ app.post('/api/ordenes-compra', async (req, res) => {
 });
 
 // --- API ENDPOINTS: RECEPCIONES DE PRODUCTOS ---
-app.get('/api/recepciones', async (req, res) => {
+app.get('/api/recepciones', authenticate, async (req, res) => {
   try {
     const { ordenCompraId } = req.query;
-    let query = db.collection('recepciones').where('fincaId', '==', ID_FINCA_ACTUAL);
+    let query = db.collection('recepciones').where('fincaId', '==', req.fincaId);
     if (ordenCompraId) {
       query = query.where('ordenCompraId', '==', ordenCompraId).limit(5);
     } else {
@@ -1318,7 +1442,7 @@ app.get('/api/recepciones', async (req, res) => {
   }
 });
 
-app.post('/api/recepciones', async (req, res) => {
+app.post('/api/recepciones', authenticate, async (req, res) => {
   try {
     const { ordenCompraId, poNumber, proveedor, items, notas, imageBase64, mediaType } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
@@ -1373,13 +1497,13 @@ app.post('/api/recepciones', async (req, res) => {
           fecha: Timestamp.now(),
           motivo,
           recepcionId: recepcionRef.id,
-          fincaId: ID_FINCA_ACTUAL,
+          fincaId: req.fincaId,
         });
       }
     }
 
     batch.set(recepcionRef, {
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       ordenCompraId: ordenCompraId || null,
       poNumber: poNumber || '',
       proveedor: proveedor || '',
@@ -1418,7 +1542,7 @@ app.post('/api/recepciones', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Fichas del Trabajador ────────────────────────────────────────────────────
-app.get('/api/hr/fichas/:userId', async (req, res) => {
+app.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('hr_fichas').doc(req.params.userId).get();
     res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
@@ -1427,10 +1551,10 @@ app.get('/api/hr/fichas/:userId', async (req, res) => {
   }
 });
 
-app.put('/api/hr/fichas/:userId', async (req, res) => {
+app.put('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
     await db.collection('hr_fichas').doc(req.params.userId).set(
-      { ...req.body, fincaId: ID_FINCA_ACTUAL, updatedAt: Timestamp.now() },
+      { ...req.body, fincaId: req.fincaId, updatedAt: Timestamp.now() },
       { merge: true }
     );
     res.status(200).json({ message: 'Ficha actualizada.' });
@@ -1440,10 +1564,10 @@ app.put('/api/hr/fichas/:userId', async (req, res) => {
 });
 
 // ── Asistencia ───────────────────────────────────────────────────────────────
-app.get('/api/hr/asistencia', async (req, res) => {
+app.get('/api/hr/asistencia', authenticate, async (req, res) => {
   try {
     const { mes, anio } = req.query;
-    let query = db.collection('hr_asistencia').where('fincaId', '==', ID_FINCA_ACTUAL);
+    let query = db.collection('hr_asistencia').where('fincaId', '==', req.fincaId);
     if (mes && anio) {
       const start = Timestamp.fromDate(new Date(Number(anio), Number(mes) - 1, 1));
       const end   = Timestamp.fromDate(new Date(Number(anio), Number(mes), 1));
@@ -1457,7 +1581,7 @@ app.get('/api/hr/asistencia', async (req, res) => {
   }
 });
 
-app.post('/api/hr/asistencia', async (req, res) => {
+app.post('/api/hr/asistencia', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, fecha, estado, horasExtra, notas } = req.body;
     if (!trabajadorId || !fecha || !estado) return res.status(400).json({ message: 'Faltan campos requeridos.' });
@@ -1465,7 +1589,7 @@ app.post('/api/hr/asistencia', async (req, res) => {
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       fecha: Timestamp.fromDate(new Date(fecha)),
       estado, horasExtra: Number(horasExtra) || 0, notas: notas || '',
-      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1473,7 +1597,7 @@ app.post('/api/hr/asistencia', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/asistencia/:id', async (req, res) => {
+app.delete('/api/hr/asistencia/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_asistencia').doc(req.params.id).delete();
     res.status(200).json({ message: 'Registro eliminado.' });
@@ -1483,10 +1607,10 @@ app.delete('/api/hr/asistencia/:id', async (req, res) => {
 });
 
 // ── Horas Extra ──────────────────────────────────────────────────────────────
-app.get('/api/hr/horas-extra', async (req, res) => {
+app.get('/api/hr/horas-extra', authenticate, async (req, res) => {
   try {
     const { mes, anio } = req.query;
-    let query = db.collection('hr_horas_extra').where('fincaId', '==', ID_FINCA_ACTUAL);
+    let query = db.collection('hr_horas_extra').where('fincaId', '==', req.fincaId);
     if (mes && anio) {
       const start = Timestamp.fromDate(new Date(Number(anio), Number(mes) - 1, 1));
       const end   = Timestamp.fromDate(new Date(Number(anio), Number(mes), 1));
@@ -1500,7 +1624,7 @@ app.get('/api/hr/horas-extra', async (req, res) => {
   }
 });
 
-app.post('/api/hr/horas-extra', async (req, res) => {
+app.post('/api/hr/horas-extra', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, fecha, horas, motivo } = req.body;
     if (!trabajadorId || !fecha || !horas) return res.status(400).json({ message: 'Faltan campos requeridos.' });
@@ -1508,7 +1632,7 @@ app.post('/api/hr/horas-extra', async (req, res) => {
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       fecha: Timestamp.fromDate(new Date(fecha)),
       horas: Number(horas), motivo: motivo || '',
-      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1516,7 +1640,7 @@ app.post('/api/hr/horas-extra', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/horas-extra/:id', async (req, res) => {
+app.delete('/api/hr/horas-extra/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_horas_extra').doc(req.params.id).delete();
     res.status(200).json({ message: 'Registro eliminado.' });
@@ -1526,10 +1650,10 @@ app.delete('/api/hr/horas-extra/:id', async (req, res) => {
 });
 
 // ── Permisos y Vacaciones ────────────────────────────────────────────────────
-app.get('/api/hr/permisos', async (req, res) => {
+app.get('/api/hr/permisos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_permisos')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('fechaInicio', 'desc').get();
     const data = snap.docs.map(d => ({
       id: d.id, ...d.data(),
@@ -1543,7 +1667,7 @@ app.get('/api/hr/permisos', async (req, res) => {
   }
 });
 
-app.post('/api/hr/permisos', async (req, res) => {
+app.post('/api/hr/permisos', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo } = req.body;
     if (!trabajadorId || !tipo || !fechaInicio || !fechaFin) return res.status(400).json({ message: 'Faltan campos requeridos.' });
@@ -1552,7 +1676,7 @@ app.post('/api/hr/permisos', async (req, res) => {
       fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
       fechaFin: Timestamp.fromDate(new Date(fechaFin)),
       dias: Number(dias) || 1, motivo: motivo || '',
-      estado: 'pendiente', fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      estado: 'pendiente', fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1560,7 +1684,7 @@ app.post('/api/hr/permisos', async (req, res) => {
   }
 });
 
-app.put('/api/hr/permisos/:id', async (req, res) => {
+app.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_permisos').doc(req.params.id).update(req.body);
     res.status(200).json({ message: 'Permiso actualizado.' });
@@ -1569,7 +1693,7 @@ app.put('/api/hr/permisos/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/permisos/:id', async (req, res) => {
+app.delete('/api/hr/permisos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_permisos').doc(req.params.id).delete();
     res.status(200).json({ message: 'Permiso eliminado.' });
@@ -1579,10 +1703,10 @@ app.delete('/api/hr/permisos/:id', async (req, res) => {
 });
 
 // ── Planilla ─────────────────────────────────────────────────────────────────
-app.get('/api/hr/planilla', async (req, res) => {
+app.get('/api/hr/planilla', authenticate, async (req, res) => {
   try {
     const { mes, anio } = req.query;
-    let query = db.collection('hr_planilla').where('fincaId', '==', ID_FINCA_ACTUAL);
+    let query = db.collection('hr_planilla').where('fincaId', '==', req.fincaId);
     if (mes) query = query.where('mes', '==', Number(mes));
     if (anio) query = query.where('anio', '==', Number(anio));
     const snap = await query.orderBy('createdAt', 'desc').get();
@@ -1593,7 +1717,7 @@ app.get('/api/hr/planilla', async (req, res) => {
   }
 });
 
-app.post('/api/hr/planilla', async (req, res) => {
+app.post('/api/hr/planilla', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, mes, anio, diasTrabajados, horasExtra, salarioBase, deducciones, total } = req.body;
     if (!trabajadorId || !mes || !anio) return res.status(400).json({ message: 'Faltan campos requeridos.' });
@@ -1605,7 +1729,7 @@ app.post('/api/hr/planilla', async (req, res) => {
       salarioBase: Number(salarioBase) || 0,
       deducciones: Number(deducciones) || 0,
       total: Number(total) || 0,
-      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1613,7 +1737,7 @@ app.post('/api/hr/planilla', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/planilla/:id', async (req, res) => {
+app.delete('/api/hr/planilla/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_planilla').doc(req.params.id).delete();
     res.status(200).json({ message: 'Registro eliminado.' });
@@ -1623,10 +1747,10 @@ app.delete('/api/hr/planilla/:id', async (req, res) => {
 });
 
 // ── Memorándums ───────────────────────────────────────────────────────────────
-app.get('/api/hr/memorandums', async (req, res) => {
+app.get('/api/hr/memorandums', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_memorandums')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('fecha', 'desc').get();
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
     res.status(200).json(data);
@@ -1635,7 +1759,7 @@ app.get('/api/hr/memorandums', async (req, res) => {
   }
 });
 
-app.post('/api/hr/memorandums', async (req, res) => {
+app.post('/api/hr/memorandums', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, tipo, motivo, descripcion, fecha } = req.body;
     if (!trabajadorId || !tipo || !motivo) return res.status(400).json({ message: 'Faltan campos requeridos.' });
@@ -1643,7 +1767,7 @@ app.post('/api/hr/memorandums', async (req, res) => {
       trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
       motivo, descripcion: descripcion || '',
       fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
-      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1651,7 +1775,7 @@ app.post('/api/hr/memorandums', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/memorandums/:id', async (req, res) => {
+app.delete('/api/hr/memorandums/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_memorandums').doc(req.params.id).delete();
     res.status(200).json({ message: 'Memorándum eliminado.' });
@@ -1661,10 +1785,10 @@ app.delete('/api/hr/memorandums/:id', async (req, res) => {
 });
 
 // ── Documentos Adjuntos ───────────────────────────────────────────────────────
-app.get('/api/hr/documentos', async (req, res) => {
+app.get('/api/hr/documentos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_documentos')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('fecha', 'desc').get();
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
     res.status(200).json(data);
@@ -1673,7 +1797,7 @@ app.get('/api/hr/documentos', async (req, res) => {
   }
 });
 
-app.post('/api/hr/documentos', async (req, res) => {
+app.post('/api/hr/documentos', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, nombre, tipo, descripcion, fecha } = req.body;
     if (!trabajadorId || !nombre || !tipo) return res.status(400).json({ message: 'Faltan campos requeridos.' });
@@ -1681,7 +1805,7 @@ app.post('/api/hr/documentos', async (req, res) => {
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       nombre, tipo, descripcion: descripcion || '',
       fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
-      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1689,7 +1813,7 @@ app.post('/api/hr/documentos', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/documentos/:id', async (req, res) => {
+app.delete('/api/hr/documentos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_documentos').doc(req.params.id).delete();
     res.status(200).json({ message: 'Documento eliminado.' });
@@ -1699,10 +1823,10 @@ app.delete('/api/hr/documentos/:id', async (req, res) => {
 });
 
 // ── Solicitudes de Empleo ─────────────────────────────────────────────────────
-app.get('/api/hr/solicitudes-empleo', async (req, res) => {
+app.get('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_solicitudes_empleo')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('fechaSolicitud', 'desc').get();
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fechaSolicitud: d.data().fechaSolicitud.toDate().toISOString() }));
     res.status(200).json(data);
@@ -1711,14 +1835,14 @@ app.get('/api/hr/solicitudes-empleo', async (req, res) => {
   }
 });
 
-app.post('/api/hr/solicitudes-empleo', async (req, res) => {
+app.post('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
   try {
     const { nombre, email, telefono, puesto, notas } = req.body;
     if (!nombre || !puesto) return res.status(400).json({ message: 'Nombre y puesto son obligatorios.' });
     const ref = await db.collection('hr_solicitudes_empleo').add({
       nombre, email: email || '', telefono: telefono || '',
       puesto, notas: notas || '', estado: 'pendiente',
-      fechaSolicitud: Timestamp.now(), fincaId: ID_FINCA_ACTUAL,
+      fechaSolicitud: Timestamp.now(), fincaId: req.fincaId,
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1726,7 +1850,7 @@ app.post('/api/hr/solicitudes-empleo', async (req, res) => {
   }
 });
 
-app.put('/api/hr/solicitudes-empleo/:id', async (req, res) => {
+app.put('/api/hr/solicitudes-empleo/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_solicitudes_empleo').doc(req.params.id).update(req.body);
     res.status(200).json({ message: 'Solicitud actualizada.' });
@@ -1735,7 +1859,7 @@ app.put('/api/hr/solicitudes-empleo/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/hr/solicitudes-empleo/:id', async (req, res) => {
+app.delete('/api/hr/solicitudes-empleo/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_solicitudes_empleo').doc(req.params.id).delete();
     res.status(200).json({ message: 'Solicitud eliminada.' });
@@ -1748,23 +1872,23 @@ app.delete('/api/hr/solicitudes-empleo/:id', async (req, res) => {
 // API ENDPOINTS: CONFIGURACIÓN DE CUENTA
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/config', async (req, res) => {
+app.get('/api/config', authenticate, async (req, res) => {
   try {
-    const doc = await db.collection('config').doc(ID_FINCA_ACTUAL).get();
+    const doc = await db.collection('config').doc(req.fincaId).get();
     res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener configuración.' });
   }
 });
 
-app.put('/api/config', async (req, res) => {
+app.put('/api/config', authenticate, async (req, res) => {
   try {
     const { nombreEmpresa, identificacion, direccion, whatsapp, correo, logoBase64, mediaType,
             diasIDesarrollo, diasIIDesarrollo, diasPostForza,
             diasSiembraICosecha, diasForzaICosecha, diasChapeaIICosecha, diasForzaIICosecha,
             plantasPorHa, kgPorPlanta, kgPorHa, rechazoICosecha, rechazoIICosecha } = req.body;
 
-    const data = { fincaId: ID_FINCA_ACTUAL, updatedAt: Timestamp.now() };
+    const data = { fincaId: req.fincaId, updatedAt: Timestamp.now() };
     if (nombreEmpresa    !== undefined) data.nombreEmpresa    = nombreEmpresa;
     if (identificacion   !== undefined) data.identificacion   = identificacion;
     if (direccion        !== undefined) data.direccion        = direccion;
@@ -1788,7 +1912,7 @@ app.put('/api/config', async (req, res) => {
         const { randomUUID } = require('crypto');
         const bucket = admin.storage().bucket();
         const ext = (mediaType || '').includes('png') ? 'png' : 'jpg';
-        const fileName = `config/${ID_FINCA_ACTUAL}/logo.${ext}`;
+        const fileName = `config/${req.fincaId}/logo.${ext}`;
         const file = bucket.file(fileName);
         const token = randomUUID();
         await file.save(Buffer.from(logoBase64, 'base64'), {
@@ -1805,8 +1929,8 @@ app.put('/api/config', async (req, res) => {
       }
     }
 
-    await db.collection('config').doc(ID_FINCA_ACTUAL).set(data, { merge: true });
-    const updated = await db.collection('config').doc(ID_FINCA_ACTUAL).get();
+    await db.collection('config').doc(req.fincaId).set(data, { merge: true });
+    const updated = await db.collection('config').doc(req.fincaId).get();
     res.status(200).json({ id: updated.id, ...updated.data() });
   } catch (error) {
     res.status(500).json({ message: 'Error al guardar configuración.' });
@@ -1887,9 +2011,9 @@ const TIPOS_MONITOREO_DEFAULT = [
 ];
 
 // ── Tipos de Monitoreo ────────────────────────────────────────────────────────
-app.get('/api/monitoreo/tipos', async (req, res) => {
+app.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
-    const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
     if (!snap.empty) {
       return res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }
@@ -1897,23 +2021,23 @@ app.get('/api/monitoreo/tipos', async (req, res) => {
     const batch = db.batch();
     TIPOS_MONITOREO_DEFAULT.forEach(tipo => {
       const ref = db.collection('tipos_monitoreo').doc();
-      batch.set(ref, { ...tipo, fincaId: ID_FINCA_ACTUAL });
+      batch.set(ref, { ...tipo, fincaId: req.fincaId });
     });
     await batch.commit();
-    const snap2 = await db.collection('tipos_monitoreo').where('fincaId', '==', ID_FINCA_ACTUAL).get();
+    const snap2 = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
     res.status(200).json(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener tipos de monitoreo.' });
   }
 });
 
-app.post('/api/monitoreo/tipos', async (req, res) => {
+app.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
     const { nombre, campos } = req.body;
     if (!nombre || !Array.isArray(campos) || campos.length === 0)
       return res.status(400).json({ message: 'Nombre y al menos un campo son obligatorios.' });
     const ref = await db.collection('tipos_monitoreo').add({
-      nombre, campos, activo: true, fincaId: ID_FINCA_ACTUAL,
+      nombre, campos, activo: true, fincaId: req.fincaId,
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -1921,7 +2045,7 @@ app.post('/api/monitoreo/tipos', async (req, res) => {
   }
 });
 
-app.put('/api/monitoreo/tipos/:id', async (req, res) => {
+app.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('tipos_monitoreo').doc(req.params.id).update(req.body);
     res.status(200).json({ message: 'Tipo actualizado.' });
@@ -1930,7 +2054,7 @@ app.put('/api/monitoreo/tipos/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/monitoreo/tipos/:id', async (req, res) => {
+app.delete('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('tipos_monitoreo').doc(req.params.id).delete();
     res.status(200).json({ message: 'Tipo eliminado.' });
@@ -1940,10 +2064,10 @@ app.delete('/api/monitoreo/tipos/:id', async (req, res) => {
 });
 
 // ── Registros de Monitoreo ────────────────────────────────────────────────────
-app.get('/api/monitoreo', async (req, res) => {
+app.get('/api/monitoreo', authenticate, async (req, res) => {
   try {
     const { loteId, tipoId, desde, hasta } = req.query;
-    let query = db.collection('monitoreos').where('fincaId', '==', ID_FINCA_ACTUAL);
+    let query = db.collection('monitoreos').where('fincaId', '==', req.fincaId);
     if (loteId) query = query.where('loteId', '==', loteId);
     if (tipoId) query = query.where('tipoId', '==', tipoId);
     if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
@@ -1956,13 +2080,13 @@ app.get('/api/monitoreo', async (req, res) => {
   }
 });
 
-app.post('/api/monitoreo', async (req, res) => {
+app.post('/api/monitoreo', authenticate, async (req, res) => {
   try {
     const { loteId, loteNombre, tipoId, tipoNombre, bloque, fecha, responsableId, responsableNombre, datos, observaciones } = req.body;
     if (!loteId || !tipoId || !fecha)
       return res.status(400).json({ message: 'Lote, tipo y fecha son obligatorios.' });
     const ref = await db.collection('monitoreos').add({
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       loteId, loteNombre: loteNombre || '',
       tipoId, tipoNombre: tipoNombre || '',
       bloque: bloque || '',
@@ -1979,7 +2103,7 @@ app.post('/api/monitoreo', async (req, res) => {
   }
 });
 
-app.get('/api/monitoreo/:id', async (req, res) => {
+app.get('/api/monitoreo/:id', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('monitoreos').doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ message: 'No encontrado.' });
@@ -1989,7 +2113,7 @@ app.get('/api/monitoreo/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/monitoreo/:id', async (req, res) => {
+app.delete('/api/monitoreo/:id', authenticate, async (req, res) => {
   try {
     await db.collection('monitoreos').doc(req.params.id).delete();
     res.status(200).json({ message: 'Monitoreo eliminado.' });
@@ -2003,22 +2127,22 @@ app.delete('/api/monitoreo/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Materiales de siembra ────────────────────────────────────────────────────
-app.get('/api/materiales-siembra', async (req, res) => {
+app.get('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
-    const snap = await db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).orderBy('nombre').get();
+    const snap = await db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).orderBy('nombre').get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener materiales.' });
   }
 });
 
-app.post('/api/materiales-siembra', async (req, res) => {
+app.post('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
     if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio.' });
     const ref = await db.collection('materiales_siembra').add({
       nombre, rangoPesos: rangoPesos || '', variedad: variedad || '',
-      fincaId: ID_FINCA_ACTUAL, createdAt: Timestamp.now(),
+      fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -2026,7 +2150,7 @@ app.post('/api/materiales-siembra', async (req, res) => {
   }
 });
 
-app.put('/api/materiales-siembra/:id', async (req, res) => {
+app.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
     await db.collection('materiales_siembra').doc(req.params.id).update({ nombre, rangoPesos, variedad });
@@ -2036,7 +2160,7 @@ app.put('/api/materiales-siembra/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/materiales-siembra/:id', async (req, res) => {
+app.delete('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
     await db.collection('materiales_siembra').doc(req.params.id).delete();
     res.status(200).json({ message: 'Material eliminado.' });
@@ -2046,7 +2170,7 @@ app.delete('/api/materiales-siembra/:id', async (req, res) => {
 });
 
 // ── Escanear formulario de siembra con IA ────────────────────────────────────
-app.post('/api/siembras/escanear', async (req, res) => {
+app.post('/api/siembras/escanear', authenticate, async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
@@ -2054,8 +2178,8 @@ app.post('/api/siembras/escanear', async (req, res) => {
     }
 
     const [lotesSnap, matsSnap] = await Promise.all([
-      db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
-      db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+      db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
+      db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).get(),
     ]);
 
     const lotes = lotesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombreLote }));
@@ -2138,10 +2262,10 @@ Reglas:
 });
 
 // ── Registros de siembra ─────────────────────────────────────────────────────
-app.get('/api/siembras', async (req, res) => {
+app.get('/api/siembras', authenticate, async (req, res) => {
   try {
     const { loteId, desde, hasta } = req.query;
-    let query = db.collection('siembras').where('fincaId', '==', ID_FINCA_ACTUAL);
+    let query = db.collection('siembras').where('fincaId', '==', req.fincaId);
     if (loteId) query = query.where('loteId', '==', loteId);
     if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
     if (hasta)  query = query.where('fecha', '<=', Timestamp.fromDate(new Date(hasta)));
@@ -2153,7 +2277,7 @@ app.get('/api/siembras', async (req, res) => {
   }
 });
 
-app.post('/api/siembras', async (req, res) => {
+app.post('/api/siembras', authenticate, async (req, res) => {
   try {
     const { loteId, loteNombre, bloque, plantas, densidad, materialId, materialNombre, rangoPesos, variedad, cerrado, fecha, responsableId, responsableNombre } = req.body;
     if (!loteId || !fecha) return res.status(400).json({ message: 'Lote y fecha son obligatorios.' });
@@ -2163,7 +2287,7 @@ app.post('/api/siembras', async (req, res) => {
     const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
 
     const ref = await db.collection('siembras').add({
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       loteId, loteNombre: loteNombre || '',
       bloque: bloque || '',
       plantas: plantas_, densidad: densidad_,
@@ -2184,7 +2308,7 @@ app.post('/api/siembras', async (req, res) => {
   }
 });
 
-app.put('/api/siembras/:id', async (req, res) => {
+app.put('/api/siembras/:id', authenticate, async (req, res) => {
   try {
     const updates = { ...req.body };
     if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
@@ -2202,7 +2326,7 @@ app.put('/api/siembras/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/siembras/:id', async (req, res) => {
+app.delete('/api/siembras/:id', authenticate, async (req, res) => {
   try {
     await db.collection('siembras').doc(req.params.id).delete();
     res.status(200).json({ message: 'Registro eliminado.' });
@@ -2212,10 +2336,10 @@ app.delete('/api/siembras/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: PROVEEDORES ---
-app.get('/api/proveedores', async (req, res) => {
+app.get('/api/proveedores', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('proveedores')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('nombre', 'asc')
       .get();
     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2225,7 +2349,7 @@ app.get('/api/proveedores', async (req, res) => {
   }
 });
 
-app.post('/api/proveedores', async (req, res) => {
+app.post('/api/proveedores', authenticate, async (req, res) => {
   try {
     const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas } = req.body;
     if (!nombre || !nombre.trim()) {
@@ -2240,7 +2364,7 @@ app.post('/api/proveedores', async (req, res) => {
       tipoPago: tipoPago || 'contado',
       diasCredito: tipoPago === 'credito' ? (parseInt(diasCredito) || 30) : null,
       notas: notas?.trim() || '',
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       creadoEn: FieldValue.serverTimestamp(),
     });
     res.status(201).json({ id: doc.id });
@@ -2249,7 +2373,7 @@ app.post('/api/proveedores', async (req, res) => {
   }
 });
 
-app.put('/api/proveedores/:id', async (req, res) => {
+app.put('/api/proveedores/:id', authenticate, async (req, res) => {
   try {
     const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas } = req.body;
     if (!nombre || !nombre.trim()) {
@@ -2271,7 +2395,7 @@ app.put('/api/proveedores/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/proveedores/:id', async (req, res) => {
+app.delete('/api/proveedores/:id', authenticate, async (req, res) => {
   try {
     await db.collection('proveedores').doc(req.params.id).delete();
     res.json({ message: 'Proveedor eliminado.' });
@@ -2281,10 +2405,10 @@ app.delete('/api/proveedores/:id', async (req, res) => {
 });
 
 // --- API ENDPOINTS: MAQUINARIA ---
-app.get('/api/maquinaria', async (req, res) => {
+app.get('/api/maquinaria', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('maquinaria')
-      .where('fincaId', '==', ID_FINCA_ACTUAL)
+      .where('fincaId', '==', req.fincaId)
       .orderBy('descripcion', 'asc')
       .get();
     res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -2293,7 +2417,7 @@ app.get('/api/maquinaria', async (req, res) => {
   }
 });
 
-app.post('/api/maquinaria', async (req, res) => {
+app.post('/api/maquinaria', authenticate, async (req, res) => {
   try {
     const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion, capacidad } = req.body;
     if (!descripcion || !descripcion.trim()) {
@@ -2306,7 +2430,7 @@ app.post('/api/maquinaria', async (req, res) => {
       tipo: tipo?.trim() || '',
       ubicacion: ubicacion?.trim() || '',
       observacion: observacion?.trim() || '',
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId: req.fincaId,
       creadoEn: Timestamp.now(),
     };
     if (capacidad !== undefined && capacidad !== '') data.capacidad = Number(capacidad);
@@ -2317,7 +2441,7 @@ app.post('/api/maquinaria', async (req, res) => {
   }
 });
 
-app.put('/api/maquinaria/:id', async (req, res) => {
+app.put('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
     const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion, capacidad } = req.body;
     if (!descripcion || !descripcion.trim()) {
@@ -2339,7 +2463,7 @@ app.put('/api/maquinaria/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/maquinaria/:id', async (req, res) => {
+app.delete('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
     await db.collection('maquinaria').doc(req.params.id).delete();
     res.json({ message: 'Eliminado.' });
@@ -2351,10 +2475,10 @@ app.delete('/api/maquinaria/:id', async (req, res) => {
 // ── Aurora AI Chat ────────────────────────────────────────────────────────────
 
 // Tool: escanea imagen de siembra y extrae filas estructuradas
-async function chatToolEscanarSiembra(imageBase64, mediaType) {
+async function chatToolEscanarSiembra(imageBase64, mediaType, fincaId) {
   const [lotesSnap, matsSnap] = await Promise.all([
-    db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
-    db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+    db.collection('lotes').where('fincaId', '==', fincaId).get(),
+    db.collection('materiales_siembra').where('fincaId', '==', fincaId).get(),
   ]);
   const lotes = lotesSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombreLote }));
   const materiales = matsSnap.docs.map(d => ({
@@ -2420,7 +2544,7 @@ Reglas:
 }
 
 // Tool: registra filas de siembra en Firestore
-async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, responsableNombre) {
+async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, responsableNombre, fincaId) {
   const today = new Date().toISOString().slice(0, 10);
   const fechaFinal = fecha || today;
   const results = [];
@@ -2436,7 +2560,7 @@ async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, respon
     const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
 
     const ref = await db.collection('siembras').add({
-      fincaId: ID_FINCA_ACTUAL,
+      fincaId,
       loteId: fila.loteId,
       loteNombre: fila.loteNombre || '',
       bloque: fila.bloque || '',
@@ -2460,13 +2584,13 @@ async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, respon
 }
 
 // Tool: consulta genérica de Firestore para reportes y análisis
-async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }) {
+async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }, fincaId) {
   const coleccionesPermitidas = ['lotes', 'siembras', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
   if (!coleccionesPermitidas.includes(coleccion)) {
     return { error: `Colección no permitida. Usa una de: ${coleccionesPermitidas.join(', ')}` };
   }
 
-  let query = db.collection(coleccion).where('fincaId', '==', ID_FINCA_ACTUAL);
+  let query = db.collection(coleccion).where('fincaId', '==', fincaId);
 
   for (const f of filtros) {
     query = query.where(f.campo, f.operador, f.valor);
@@ -2509,13 +2633,13 @@ async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, lim
 }
 
 // Tool: crea un nuevo lote con sus tareas programadas
-async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas }) {
+async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas }, fincaId) {
   const loteData = {
     codigoLote,
     ...(nombreLote ? { nombreLote } : {}),
     fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
     hectareas: parseFloat(hectareas) || 0,
-    fincaId: ID_FINCA_ACTUAL,
+    fincaId,
   };
   if (paqueteId) loteData.paqueteId = paqueteId;
 
@@ -2542,10 +2666,10 @@ async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paquet
     reminderDate.setDate(reminderDate.getDate() - 3);
 
     const reminderTaskRef = db.collection('scheduled_tasks').doc();
-    tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: loteRef.id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL });
+    tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: loteRef.id, activity, status: 'pending', fincaId });
 
     const dueTaskRef = db.collection('scheduled_tasks').doc();
-    const dueTaskData = { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: loteRef.id, activity, status: 'pending', fincaId: ID_FINCA_ACTUAL };
+    const dueTaskData = { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: loteRef.id, activity, status: 'pending', fincaId };
     tasksBatch.set(dueTaskRef, dueTaskData);
 
     if (activityDay >= 0 && activityDay <= 3) {
@@ -2569,9 +2693,9 @@ async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paquet
 }
 
 // Tool: consulta registros de siembra existentes
-async function chatToolConsultarSiembras({ loteId, limite = 10 }) {
+async function chatToolConsultarSiembras({ loteId, limite = 10 }, fincaId) {
   let query = db.collection('siembras')
-    .where('fincaId', '==', ID_FINCA_ACTUAL)
+    .where('fincaId', '==', fincaId)
     .orderBy('fecha', 'desc')
     .limit(Math.min(limite, 50));
   if (loteId) query = query.where('loteId', '==', loteId);
@@ -2585,7 +2709,7 @@ async function chatToolConsultarSiembras({ loteId, limite = 10 }) {
   return { siembras, total: siembras.length };
 }
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', authenticate, async (req, res) => {
   try {
     const { message, imageBase64, mediaType, userId, userName } = req.body;
 
@@ -2595,9 +2719,9 @@ app.post('/api/chat', async (req, res) => {
 
     // Cargar catálogos para que Claude pueda resolver nombres a IDs
     const [lotesSnap, matsSnap, paquetesSnap] = await Promise.all([
-      db.collection('lotes').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
-      db.collection('materiales_siembra').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
-      db.collection('packages').where('fincaId', '==', ID_FINCA_ACTUAL).get(),
+      db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
+      db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).get(),
+      db.collection('packages').where('fincaId', '==', req.fincaId).get(),
     ]);
     const catalogoLotes = lotesSnap.docs.map(d => ({
       id: d.id,
@@ -2841,19 +2965,19 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         let result;
         try {
           if (block.name === 'consultar_datos') {
-            result = await chatToolConsultarDatos(block.input);
+            result = await chatToolConsultarDatos(block.input, req.fincaId);
           } else if (block.name === 'crear_lote') {
-            result = await chatToolCrearLote(block.input);
+            result = await chatToolCrearLote(block.input, req.fincaId);
             } else if (block.name === 'escanear_formulario_siembra') {
             if (!imageBase64 || !mediaType) {
               result = { error: 'No se adjuntó ninguna imagen. Por favor adjunta una foto del formulario.' };
             } else {
-              result = await chatToolEscanarSiembra(imageBase64, mediaType);
+              result = await chatToolEscanarSiembra(imageBase64, mediaType, req.fincaId);
             }
           } else if (block.name === 'registrar_siembras') {
-            result = await chatToolRegistrarSiembras(block.input, userId, userName);
+            result = await chatToolRegistrarSiembras(block.input, userId, userName, req.fincaId);
           } else if (block.name === 'consultar_siembras') {
-            result = await chatToolConsultarSiembras(block.input);
+            result = await chatToolConsultarSiembras(block.input, req.fincaId);
           } else {
             result = { error: `Herramienta desconocida: ${block.name}` };
           }

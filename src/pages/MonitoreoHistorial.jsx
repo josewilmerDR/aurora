@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { FiTrash2, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Monitoreo.css';
 
 function MonitoreoHistorial() {
+  const apiFetch = useApiFetch();
   const [registros, setRegistros] = useState([]);
   const [lotes, setLotes]         = useState([]);
   const [tipos, setTipos]         = useState([]);
@@ -14,8 +16,8 @@ function MonitoreoHistorial() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
-    fetch('/api/monitoreo/tipos').then(r => r.json()).then(setTipos).catch(console.error);
+    apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
+    apiFetch('/api/monitoreo/tipos').then(r => r.json()).then(setTipos).catch(console.error);
     cargar({});
   }, []);
 
@@ -27,7 +29,7 @@ function MonitoreoHistorial() {
       if (f.tipoId) params.set('tipoId', f.tipoId);
       if (f.desde)  params.set('desde',  f.desde);
       if (f.hasta)  params.set('hasta',  f.hasta);
-      const data = await fetch(`/api/monitoreo?${params}`).then(r => r.json());
+      const data = await apiFetch(`/api/monitoreo?${params}`).then(r => r.json());
       setRegistros(Array.isArray(data) ? data : []);
     } catch {
       showToast('Error al cargar registros.', 'error');
@@ -49,7 +51,7 @@ function MonitoreoHistorial() {
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este registro de monitoreo?')) return;
     try {
-      await fetch(`/api/monitoreo/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/monitoreo/${id}`, { method: 'DELETE' });
       setRegistros(prev => prev.filter(r => r.id !== id));
       showToast('Registro eliminado.');
     } catch {

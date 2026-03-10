@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
 import Toast from '../components/Toast';
 import './Monitoreo.css';
 
 function MonitoreoRegistro() {
+  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [lotes, setLotes]       = useState([]);
   const [tipos, setTipos]       = useState([]);
@@ -18,8 +20,8 @@ function MonitoreoRegistro() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
-    fetch('/api/monitoreo/tipos').then(r => r.json())
+    apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
+    apiFetch('/api/monitoreo/tipos').then(r => r.json())
       .then(data => setTipos(data.filter(t => t.activo !== false)))
       .catch(console.error);
   }, []);
@@ -44,7 +46,7 @@ function MonitoreoRegistro() {
     try {
       const lote = lotes.find(l => l.id === form.loteId);
       const tipo = tipos.find(t => t.id === form.tipoId);
-      const res = await fetch('/api/monitoreo', {
+      const res = await apiFetch('/api/monitoreo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

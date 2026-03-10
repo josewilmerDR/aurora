@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import './ProductManagement.css';
 import { FiPlus, FiUpload, FiDownload, FiCheck } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 const EXCEL_HEADERS = [
   'ID Producto', 'Nombre Comercial', 'Unidad', 'Cantidad', 'Total', 'IVA (%)',
@@ -135,6 +136,7 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
 
 // ── Componente principal ───────────────────────────────────────────────────
 function ProductIngreso() {
+  const apiFetch = useApiFetch();
   const location = useLocation();
   const [filas, setFilas] = useState([newRow()]);
   const [proveedor, setProveedor] = useState('');
@@ -163,7 +165,7 @@ function ProductIngreso() {
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   const fetchMovimientos = () => {
-    fetch('/api/movimientos').then(r => r.json()).then(setMovimientos).catch(console.error);
+    apiFetch('/api/movimientos').then(r => r.json()).then(setMovimientos).catch(console.error);
   };
 
   const handleAutocompleteSelect = (rowKey, producto) => {
@@ -177,7 +179,7 @@ function ProductIngreso() {
   };
 
   useEffect(() => {
-    fetch('/api/productos').then(r => r.json()).then(setCatalogo).catch(console.error);
+    apiFetch('/api/productos').then(r => r.json()).then(setCatalogo).catch(console.error);
     fetchMovimientos();
     if (location.state?.editProducto) {
       const p = location.state.editProducto;
@@ -233,7 +235,7 @@ function ProductIngreso() {
         periodoACosecha:  0,
       };
       try {
-        const res = await fetch('/api/productos', {
+        const res = await apiFetch('/api/productos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),

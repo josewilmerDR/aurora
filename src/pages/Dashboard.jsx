@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Dashboard.css'; // Importamos los nuevos estilos del Dashboard
 
 function Dashboard() {
+  const apiFetch = useApiFetch();
   const [stats, setStats] = useState({ overdue: 0, pending: 0, completed: 0 });
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [lotes, setLotes] = useState([]);
@@ -24,9 +26,9 @@ function Dashboard() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetch('/api/tasks').then(res => res.json()),
-      fetch('/api/lotes').then(res => res.json()),
-      fetch('/api/productos').then(res => res.json()),
+      apiFetch('/api/tasks').then(res => res.json()),
+      apiFetch('/api/lotes').then(res => res.json()),
+      apiFetch('/api/productos').then(res => res.json()),
     ]).then(([tasksData, lotesData, productosData]) => {
       const taskStats = { overdue: 0, pending: 0, completed: 0 };
       const pendingTasks = [];

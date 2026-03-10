@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useUser } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './OrdenesList.css';
 import './PurchaseOrder.css';
 import './OrdenesHistorial.css';
@@ -76,6 +77,7 @@ function applyFilters(data, f) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 function OrdenesHistorial() {
+  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const elaboradoPor = currentUser?.nombre || '';
 
@@ -108,8 +110,8 @@ function OrdenesHistorial() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/ordenes-compra').then(r => r.json()),
-      fetch('/api/config').then(r => r.json()),
+      apiFetch('/api/ordenes-compra').then(r => r.json()),
+      apiFetch('/api/config').then(r => r.json()),
     ])
       .then(([ocs, cfg]) => {
         setOrdenes(Array.isArray(ocs) ? ocs : []);

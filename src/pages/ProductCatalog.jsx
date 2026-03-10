@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiEdit, FiTrash2, FiArrowLeft } from 'react-icons/fi';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './ProductManagement.css';
 import Toast from '../components/Toast';
 
@@ -12,6 +13,7 @@ function formatCurrency(value, moneda) {
 
 function ProductCatalog() {
   const navigate = useNavigate();
+  const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
@@ -20,7 +22,7 @@ function ProductCatalog() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchProductos = () => {
-    fetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
+    apiFetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
   };
 
   useEffect(() => { fetchProductos(); }, []);
@@ -32,7 +34,7 @@ function ProductCatalog() {
   const handleDelete = async (id) => {
     if (window.confirm('¿Seguro que quieres eliminar este producto?')) {
       try {
-        const res = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/productos/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error();
         fetchProductos();
         showToast('Producto eliminado correctamente');

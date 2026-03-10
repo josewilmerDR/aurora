@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './MaquinariaList.css';
 
 const TIPOS = [
@@ -29,6 +30,7 @@ const EMPTY_FORM = {
 };
 
 function MaquinariaList() {
+  const apiFetch = useApiFetch();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -41,7 +43,7 @@ function MaquinariaList() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchItems = () =>
-    fetch('/api/maquinaria')
+    apiFetch('/api/maquinaria')
       .then(r => r.json())
       .then(setItems)
       .catch(() => showToast('Error al cargar la lista de maquinaria.', 'error'))
@@ -81,7 +83,7 @@ function MaquinariaList() {
   const handleDelete = async (id, descripcion) => {
     if (!window.confirm(`¿Eliminar "${descripcion}"?`)) return;
     try {
-      const res = await fetch(`/api/maquinaria/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/maquinaria/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       showToast('Activo eliminado.');
       fetchItems();
@@ -100,7 +102,7 @@ function MaquinariaList() {
     try {
       const url = isEditing ? `/api/maquinaria/${form.id}` : '/api/maquinaria';
       const method = isEditing ? 'PUT' : 'POST';
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

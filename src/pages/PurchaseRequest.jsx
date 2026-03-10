@@ -3,11 +3,13 @@ import {
   FiSearch, FiPlus, FiTrash2, FiEye, FiX, FiCheck,
   FiAlertTriangle, FiShoppingCart, FiUser
 } from 'react-icons/fi';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './PurchaseRequest.css';
 
 const DEPT_PROVEEDURIA = 'proveeduria';
 
 const PurchaseRequest = () => {
+  const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,8 +27,8 @@ const PurchaseRequest = () => {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/productos').then(r => r.json()),
-      fetch('/api/users').then(r => r.json()),
+      apiFetch('/api/productos').then(r => r.json()),
+      apiFetch('/api/users').then(r => r.json()),
     ])
       .then(([prods, users]) => {
         setProductos(prods);
@@ -96,7 +98,7 @@ const PurchaseRequest = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const res = await fetch('/api/solicitudes-compra', {
+      const res = await apiFetch('/api/solicitudes-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

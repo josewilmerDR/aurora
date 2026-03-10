@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import './HR.css';
 import { FiTrash2, FiPlus } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 const now = new Date();
 const ESTADOS = ['presente', 'ausente', 'tardanza', 'permiso'];
 
 function HrAsistencia() {
+  const apiFetch = useApiFetch();
   const [records, setRecords] = useState([]);
   const [users, setUsers] = useState([]);
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, '0'));
@@ -19,12 +21,12 @@ function HrAsistencia() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchRecords = () => {
-    fetch(`/api/hr/asistencia?mes=${mes}&anio=${anio}`)
+    apiFetch(`/api/hr/asistencia?mes=${mes}&anio=${anio}`)
       .then(r => r.json()).then(setRecords).catch(console.error);
   };
 
   useEffect(() => {
-    fetch('/api/users').then(r => r.json()).then(setUsers).catch(console.error);
+    apiFetch('/api/users').then(r => r.json()).then(setUsers).catch(console.error);
   }, []);
 
   useEffect(() => { fetchRecords(); }, [mes, anio]);
@@ -38,7 +40,7 @@ function HrAsistencia() {
     e.preventDefault();
     const worker = users.find(u => u.id === formData.trabajadorId);
     try {
-      const res = await fetch('/api/hr/asistencia', {
+      const res = await apiFetch('/api/hr/asistencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, trabajadorNombre: worker?.nombre || '' }),
@@ -54,7 +56,7 @@ function HrAsistencia() {
 
   const handleDelete = async (id) => {
     try {
-      await fetch(`/api/hr/asistencia/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/hr/asistencia/${id}`, { method: 'DELETE' });
       fetchRecords();
       showToast('Registro eliminado.');
     } catch {

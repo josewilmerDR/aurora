@@ -3,8 +3,10 @@ import './LoteManagement.css';
 import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 function LoteManagement() {
+  const apiFetch = useApiFetch();
   const [lotes, setLotes] = useState([]);
   const [packages, setPackages] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -23,10 +25,10 @@ function LoteManagement() {
 
   // --- LÓGICA DE DATOS (sin cambios) ---
   const fetchLotes = () => {
-    fetch('/api/lotes').then(res => res.json()).then(setLotes).catch(console.error);
+    apiFetch('/api/lotes').then(res => res.json()).then(setLotes).catch(console.error);
   };
   const fetchPackages = () => {
-    fetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
+    apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
   };
   useEffect(() => {
     fetchLotes();
@@ -64,7 +66,7 @@ function LoteManagement() {
 
   const handleDeleteClick = async (lote) => {
     try {
-      const res = await fetch(`/api/lotes/${lote.id}/task-count`);
+      const res = await apiFetch(`/api/lotes/${lote.id}/task-count`);
       const { count } = await res.json();
       setConfirmModal({ loteId: lote.id, loteName: lote.nombreLote, taskCount: count });
     } catch {
@@ -75,7 +77,7 @@ function LoteManagement() {
   const handleDeleteConfirm = async () => {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/lotes/${confirmModal.loteId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/lotes/${confirmModal.loteId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al eliminar');
       setConfirmModal(null);
       fetchLotes();
@@ -92,8 +94,8 @@ function LoteManagement() {
     const url = isEditing ? `/api/lotes/${formData.id}` : '/api/lotes';
     const method = isEditing ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, { 
-        method, 
+      const res = await apiFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });

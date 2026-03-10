@@ -6,6 +6,7 @@ import {
   FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
 import Toast from '../components/Toast';
 import './Siembra.css';
 import './SiembraHistorial.css';
@@ -74,6 +75,7 @@ const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
 
 function SiembraHistorial() {
+  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [registros, setRegistros] = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -97,7 +99,7 @@ function SiembraHistorial() {
   [filters]);
 
   useEffect(() => {
-    fetch('/api/siembras')
+    apiFetch('/api/siembras')
       .then(r => r.json())
       .then(data => setRegistros(Array.isArray(data) ? data : []))
       .catch(() => showToast('Error al cargar registros.', 'error'))
@@ -129,7 +131,7 @@ function SiembraHistorial() {
       : `¿Marcar el bloque "${reg.bloque || '(sin bloque)'}" del lote "${reg.loteNombre}" como cerrado?\n\nSolo un supervisor puede revertir esta acción.`;
     if (!window.confirm(msg)) return;
     try {
-      await fetch(`/api/siembras/${reg.id}`, {
+      await apiFetch(`/api/siembras/${reg.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cerrado: !reg.cerrado }),
@@ -143,7 +145,7 @@ function SiembraHistorial() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')) return;
     try {
-      await fetch(`/api/siembras/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
       setRegistros(prev => prev.filter(r => r.id !== id));
       showToast('Registro eliminado.');
     } catch {

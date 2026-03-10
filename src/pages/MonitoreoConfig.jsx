@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Monitoreo.css';
 
 const FIELD_TYPES = [
@@ -14,6 +15,7 @@ const FIELD_TYPES = [
 const EMPTY_CAMPO = { key: '', label: '', type: 'number', opciones: '' };
 
 function MonitoreoConfig() {
+  const apiFetch = useApiFetch();
   const [tipos, setTipos]         = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData]   = useState(null);
@@ -23,13 +25,13 @@ function MonitoreoConfig() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/monitoreo/tipos').then(r => r.json()).then(setTipos).catch(console.error);
+    apiFetch('/api/monitoreo/tipos').then(r => r.json()).then(setTipos).catch(console.error);
   }, []);
 
   // ── Toggle activo ──────────────────────────────────────────────────────────
   const toggleActivo = async (tipo) => {
     try {
-      await fetch(`/api/monitoreo/tipos/${tipo.id}`, {
+      await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activo: !tipo.activo }),
@@ -56,7 +58,7 @@ function MonitoreoConfig() {
         key: c.key || c.label.toLowerCase().replace(/\s+/g, '_'),
         opciones: c.type === 'select' ? c.opciones.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       }));
-      await fetch(`/api/monitoreo/tipos/${editingId}`, {
+      await apiFetch(`/api/monitoreo/tipos/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: editData.nombre, campos }),
@@ -78,7 +80,7 @@ function MonitoreoConfig() {
         key: c.key || c.label.toLowerCase().replace(/\s+/g, '_'),
         opciones: c.type === 'select' ? c.opciones.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       }));
-      const res = await fetch('/api/monitoreo/tipos', {
+      const res = await apiFetch('/api/monitoreo/tipos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: newTipo.nombre, campos }),
@@ -96,7 +98,7 @@ function MonitoreoConfig() {
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este tipo de monitoreo?')) return;
     try {
-      await fetch(`/api/monitoreo/tipos/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/monitoreo/tipos/${id}`, { method: 'DELETE' });
       setTipos(prev => prev.filter(t => t.id !== id));
       showToast('Tipo eliminado.');
     } catch {

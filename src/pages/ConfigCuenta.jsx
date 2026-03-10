@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { FiUpload, FiSave, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './ConfigCuenta.css';
 
 function ConfigCuenta() {
+  const apiFetch = useApiFetch();
   const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 });
   const [logoUrl, setLogoUrl] = useState('');
   const [preview, setPreview] = useState('');
@@ -14,7 +16,7 @@ function ConfigCuenta() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/config')
+    apiFetch('/api/config')
       .then(r => r.json())
       .then(data => {
         setForm({
@@ -69,7 +71,7 @@ function ConfigCuenta() {
         body.mediaType  = logoFile.type;
       }
 
-      const res = await fetch('/api/config', {
+      const res = await apiFetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

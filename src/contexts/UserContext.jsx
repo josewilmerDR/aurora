@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+} from 'firebase/auth';
+import { auth, googleProvider } from '../firebase';
+import { apiFetch } from '../lib/apiFetch';
 import { clearAllDrafts } from '../hooks/useDraft';
 
 export const ROLE_LEVELS = {
@@ -21,39 +29,100 @@ export function hasMinRole(userRole, minRole) {
 
 const UserContext = createContext(null);
 
-const STORAGE_KEY = 'aurora_current_user';
+const ACTIVE_FINCA_KEY = 'aurora_active_finca';
 
 export function UserProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
+  // firebaseUser: usuario de Firebase Auth (o null)
+  const [firebaseUser, setFirebaseUser] = useState(undefined); // undefined = cargando
+  // memberships: lista de fincas a las que pertenece el usuario
+  const [memberships, setMemberships] = useState([]);
+  // activeFincaId: finca seleccionada actualmente
+  const [activeFincaId, setActiveFincaId] = useState(() => localStorage.getItem(ACTIVE_FINCA_KEY));
+  // currentUser: perfil del usuario en la finca activa { nombre, rol, telefono, ... }
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Escucha cambios de sesión de Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setFirebaseUser(fbUser);
+      if (!fbUser) {
+        setMemberships([]);
+        setCurrentUser(null);
+        setActiveFincaId(null);
+        localStorage.removeItem(ACTIVE_FINCA_KEY);
+        return;
+      }
+      // Cargar membresías del usuario
+      try {
+        const res = await apiFetch('/api/auth/memberships');
+        if (res.ok) {
+          const data = await res.json();
+          setMemberships(data.memberships || []);
+          // Si solo tiene una finca, activarla automáticamente
+          if ((data.memberships || []).length === 1) {
+            const fincaId = data.memberships[0].fincaId;
+            setActiveFincaId(fincaId);
+            localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
+          }
+        }
+      } catch {
+        // Si falla, dejar sin membresías (el usuario verá la pantalla de setup)
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Cuando cambia la finca activa, cargar el perfil del usuario en esa finca
+  useEffect(() => {
+    if (!firebaseUser || !activeFincaId) {
+      setCurrentUser(null);
+      return;
     }
-  });
+    apiFetch('/api/auth/me', {}, activeFincaId)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setCurrentUser(data))
+      .catch(() => setCurrentUser(null));
+  }, [firebaseUser, activeFincaId]);
 
-  const login = useCallback(async (userId) => {
-    const res = await fetch('/api/users');
-    const users = await res.json();
-    const user = users.find((u) => u.id === userId);
-    if (!user) throw new Error('Usuario no encontrado');
-    const userData = { ...user, rol: user.rol || 'trabajador' };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-    setCurrentUser(userData);
-    return userData;
+  const login = useCallback(async (email, password) => {
+    await signInWithEmailAndPassword(auth, email, password);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+  const loginWithGoogle = useCallback(async () => {
+    await signInWithPopup(auth, googleProvider);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await signOut(auth);
     clearAllDrafts();
-    setCurrentUser(null);
+    localStorage.removeItem(ACTIVE_FINCA_KEY);
   }, []);
 
-  const isLoggedIn = currentUser !== null;
+  const selectFinca = useCallback((fincaId) => {
+    setActiveFincaId(fincaId);
+    localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
+  }, []);
+
+  const isLoading = firebaseUser === undefined;
+  const isLoggedIn = !!firebaseUser && !!currentUser;
+  const needsFincaSelection = !!firebaseUser && memberships.length > 1 && !activeFincaId;
+  const needsSetup = !!firebaseUser && memberships.length === 0 && !isLoading;
 
   return (
-    <UserContext.Provider value={{ currentUser, login, logout, isLoggedIn }}>
+    <UserContext.Provider value={{
+      currentUser,
+      firebaseUser,
+      memberships,
+      activeFincaId,
+      login,
+      loginWithGoogle,
+      logout,
+      selectFinca,
+      isLoggedIn,
+      isLoading,
+      needsFincaSelection,
+      needsSetup,
+    }}>
       {children}
     </UserContext.Provider>
   );

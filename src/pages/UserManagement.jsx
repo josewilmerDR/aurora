@@ -3,8 +3,10 @@ import './UserManagement.css';
 import { FiEdit, FiTrash2, FiUserPlus } from 'react-icons/fi';
 import { ROLE_LABELS } from '../contexts/UserContext';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 function UserManagement() {
+  const apiFetch = useApiFetch();
   const [users, setUsers] = useState([]);
   const [formData, setFormData] = useState({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador' });
   const [isEditing, setIsEditing] = useState(false);
@@ -13,7 +15,7 @@ function UserManagement() {
 
   // --- LÓGICA DE DATOS (sin cambios) ---
   const fetchUsers = () => {
-    fetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
+    apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
   };
 
   useEffect(() => {
@@ -39,7 +41,7 @@ function UserManagement() {
   const handleDelete = async (userId) => {
     if (window.confirm('¿Seguro que quieres eliminar a este usuario?')) {
       try {
-        const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Error al eliminar');
         fetchUsers();
         showToast('Usuario eliminado correctamente');
@@ -54,7 +56,7 @@ function UserManagement() {
     const url = isEditing ? `/api/users/${formData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

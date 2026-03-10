@@ -4,6 +4,7 @@ import {
   FiX, FiImage, FiAlertTriangle, FiCheck
 } from 'react-icons/fi';
 import './GoodsReceipt.css';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 const STATUS = {
   activa:           { label: 'Activa',            cls: 'gr-s-activa' },
@@ -37,6 +38,7 @@ const compressImage = (file) => new Promise((resolve, reject) => {
 });
 
 const GoodsReceipt = () => {
+  const apiFetch = useApiFetch();
   const imageInputRef = useRef(null);
 
   // List state
@@ -60,7 +62,7 @@ const GoodsReceipt = () => {
   const [lightboxUrl, setLightboxUrl] = useState(null);
 
   useEffect(() => {
-    fetch('/api/ordenes-compra')
+    apiFetch('/api/ordenes-compra')
       .then(r => r.json())
       .then(data => setOrdenes(Array.isArray(data) ? data : []))
       .catch(() => {})
@@ -111,7 +113,7 @@ const GoodsReceipt = () => {
   const handleViewDetail = async (orden) => {
     setDetailModal({ open: true, orden, recepcion: null, loading: true });
     try {
-      const res = await fetch(`/api/recepciones?ordenCompraId=${orden.id}`);
+      const res = await apiFetch(`/api/recepciones?ordenCompraId=${orden.id}`);
       const data = await res.json();
       setDetailModal(prev => ({ ...prev, recepcion: Array.isArray(data) ? data[0] || null : null, loading: false }));
     } catch {
@@ -126,7 +128,7 @@ const GoodsReceipt = () => {
   const handleConfirm = async () => {
     setSubmitting(true);
     try {
-      const res = await fetch('/api/recepciones', {
+      const res = await apiFetch('/api/recepciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

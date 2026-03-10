@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './HR.css';
 import { FiSave } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import { useApiFetch } from '../hooks/useApiFetch';
 
 const EMPTY_FICHA = {
   puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'permanente',
@@ -10,6 +11,7 @@ const EMPTY_FICHA = {
 };
 
 function HrFicha() {
+  const apiFetch = useApiFetch();
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState('');
   const [ficha, setFicha] = useState(EMPTY_FICHA);
@@ -18,12 +20,12 @@ function HrFicha() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    fetch('/api/users').then(r => r.json()).then(setUsers).catch(console.error);
+    apiFetch('/api/users').then(r => r.json()).then(setUsers).catch(console.error);
   }, []);
 
   useEffect(() => {
     if (!selectedUser) { setFicha(EMPTY_FICHA); return; }
-    fetch(`/api/hr/fichas/${selectedUser}`)
+    apiFetch(`/api/hr/fichas/${selectedUser}`)
       .then(r => r.json())
       .then(data => setFicha({ ...EMPTY_FICHA, ...data }))
       .catch(console.error);
@@ -39,7 +41,7 @@ function HrFicha() {
     if (!selectedUser) { showToast('Selecciona un trabajador primero.', 'error'); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/hr/fichas/${selectedUser}`, {
+      const res = await apiFetch(`/api/hr/fichas/${selectedUser}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ficha),

@@ -9,6 +9,7 @@ import {
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
 import './Sidebar.css';
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ export const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${u
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const Sidebar = () => {
+  const apiFetch = useApiFetch();
   const { currentUser, logout } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
@@ -154,11 +156,11 @@ const Sidebar = () => {
 
   // Badge counts
   useEffect(() => {
-    fetch('/api/productos')
+    apiFetch('/api/productos')
       .then((r) => r.json())
       .then((data) => setStockBajoCount(data.filter((p) => p.stockActual <= p.stockMinimo).length))
       .catch(() => { });
-    fetch('/api/tasks/overdue-count')
+    apiFetch('/api/tasks/overdue-count')
       .then((r) => r.json())
       .then((data) => setTareasVencidasCount(data.count || 0))
       .catch(() => { });
