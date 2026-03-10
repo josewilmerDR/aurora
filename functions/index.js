@@ -32,6 +32,21 @@ const APP_URL = 'https://aurora-7dc9b.web.app';
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '15mb' }));
 
+// --- HELPERS DE SEGURIDAD ---
+// Extrae solo los campos permitidos de un objeto (evita mass assignment)
+const pick = (obj, fields) => fields.reduce((acc, f) => {
+  if (obj[f] !== undefined) acc[f] = obj[f];
+  return acc;
+}, {});
+
+// Verifica que un documento exista y pertenezca a la finca actual
+const verifyOwnership = async (collection, docId) => {
+  const doc = await db.collection(collection).doc(docId).get();
+  if (!doc.exists) return { ok: false, status: 404, message: 'Documento no encontrado.' };
+  if (doc.data().fincaId !== ID_FINCA_ACTUAL) return { ok: false, status: 403, message: 'Acceso no autorizado.' };
+  return { ok: true, doc };
+};
+
 // --- MIDDLEWARE DE LOGGING ---
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
@@ -161,13 +176,16 @@ app.get('/api/tasks/:id', async (req, res) => {
 app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
-    delete updateData.id;
-    delete updateData.loteId;
-    delete updateData.fincaId;
+    const STATUSES_VALIDOS = ['pending', 'completed_by_user', 'skipped', 'notified'];
+    const updateData = pick(req.body, ['status', 'notas']);
+    if (updateData.status && !STATUSES_VALIDOS.includes(updateData.status)) {
+      return res.status(400).json({ message: 'Estado de tarea inválido.' });
+    }
+    const ownership = await verifyOwnership('scheduled_tasks', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
     if (updateData.status === 'completed_by_user') {
-      const taskDoc = await db.collection('scheduled_tasks').doc(id).get();
+      const taskDoc = ownership.doc;
       if (taskDoc.exists) {
         const taskData = taskDoc.data();
         const productos = taskData.activity?.productos;
@@ -264,8 +282,11 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const user = { ...req.body, fincaId: ID_FINCA_ACTUAL };
-    delete user.id;
+    const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'administrador'];
+    const { nombre, email, telefono, rol } = req.body;
+    if (!nombre || !email) return res.status(400).json({ message: 'nombre y email son requeridos.' });
+    if (rol && !ROLES_VALIDOS.includes(rol)) return res.status(400).json({ message: 'Rol inválido.' });
+    const user = { nombre, email, telefono: telefono || '', rol: rol || 'trabajador', fincaId: ID_FINCA_ACTUAL };
     const docRef = await db.collection('users').add(user);
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
@@ -276,8 +297,11 @@ app.post('/api/users', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const userData = { ...req.body };
-    delete userData.id;
+    const ownership = await verifyOwnership('users', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'administrador'];
+    const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol']);
+    if (userData.rol && !ROLES_VALIDOS.includes(userData.rol)) return res.status(400).json({ message: 'Rol inválido.' });
     await db.collection('users').doc(id).update(userData);
     res.status(200).json({ id, ...userData });
   } catch (error) {
@@ -288,6 +312,8 @@ app.put('/api/users/:id', async (req, res) => {
 app.delete('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const ownership = await verifyOwnership('users', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('users').doc(id).delete();
     res.status(200).json({ message: 'Usuario eliminado correctamente.' });
   } catch (error) {
@@ -306,10 +332,13 @@ app.get('/api/productos', async (req, res) => {
   }
 });
 
+const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo',
+  'plagaQueControla', 'periodoReingreso', 'periodoACosecha', 'cantidadPorHa',
+  'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario', 'proveedor'];
+
 app.post('/api/productos', async (req, res) => {
   try {
-    const producto = { ...req.body, fincaId: ID_FINCA_ACTUAL };
-    delete producto.id;
+    const producto = { ...pick(req.body, CAMPOS_PRODUCTO), fincaId: ID_FINCA_ACTUAL };
 
     // Verificar si ya existe un producto con el mismo idProducto
     if (producto.idProducto) {
@@ -338,8 +367,9 @@ app.post('/api/productos', async (req, res) => {
 app.put('/api/productos/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const productoData = { ...req.body };
-    delete productoData.id;
+    const ownership = await verifyOwnership('productos', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const productoData = pick(req.body, CAMPOS_PRODUCTO);
     await db.collection('productos').doc(id).update(productoData);
     res.status(200).json({ id, ...productoData });
   } catch (error) {
@@ -350,6 +380,8 @@ app.put('/api/productos/:id', async (req, res) => {
 app.delete('/api/productos/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const ownership = await verifyOwnership('productos', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('productos').doc(id).delete();
     res.status(200).json({ message: 'Producto eliminado correctamente.' });
   } catch (error) {
@@ -370,8 +402,9 @@ app.get('/api/packages', async (req, res) => {
 
 app.post('/api/packages', async (req, res) => {
   try {
-    const pkg = { ...req.body, fincaId: ID_FINCA_ACTUAL };
-    delete pkg.id;
+    const { nombrePaquete } = req.body;
+    if (!nombrePaquete) return res.status(400).json({ message: 'nombrePaquete es requerido.' });
+    const pkg = { ...pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']), fincaId: ID_FINCA_ACTUAL };
     const docRef = await db.collection('packages').add(pkg);
     res.status(201).json({ id: docRef.id, ...pkg });
   } catch (error) {
@@ -382,8 +415,9 @@ app.post('/api/packages', async (req, res) => {
 app.put('/api/packages/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const pkgData = { ...req.body };
-    delete pkgData.id;
+    const ownership = await verifyOwnership('packages', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const pkgData = pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']);
     await db.collection('packages').doc(id).update(pkgData);
     res.status(200).json({ id, ...pkgData });
   } catch (error) {
@@ -394,6 +428,8 @@ app.put('/api/packages/:id', async (req, res) => {
 app.delete('/api/packages/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const ownership = await verifyOwnership('packages', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('packages').doc(id).delete();
     res.status(200).json({ message: 'Paquete eliminado correctamente.' });
   } catch (error) {
@@ -521,8 +557,10 @@ app.post('/api/lotes', async (req, res) => {
 app.put('/api/lotes/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const loteData = { ...req.body };
-        const originalDoc = await db.collection('lotes').doc(id).get();
+        const ownership = await verifyOwnership('lotes', id);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        const loteData = pick(req.body, ['codigoLote', 'nombreLote', 'fechaCreacion', 'paqueteId', 'hectareas']);
+        const originalDoc = ownership.doc;
         const originalData = originalDoc.data();
 
         if (loteData.fechaCreacion && typeof loteData.fechaCreacion === 'string') {
@@ -587,6 +625,8 @@ app.get('/api/lotes/:id/task-count', async (req, res) => {
 app.delete('/api/lotes/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const ownership = await verifyOwnership('lotes', id);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const tasksQuery = db.collection('scheduled_tasks').where('loteId', '==', id);
         const tasksSnapshot = await tasksQuery.get();
         const batch = db.batch();
@@ -767,6 +807,8 @@ app.post('/api/tasks/:id/reschedule', async (req, res) => {
         const { id } = req.params;
         const { newDate } = req.body;
         if (!newDate) return res.status(400).json({ message: 'Falta la nueva fecha.' });
+        const ownership = await verifyOwnership('scheduled_tasks', id);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const newTimestamp = Timestamp.fromDate(new Date(newDate));
         await db.collection('scheduled_tasks').doc(id).update({ executeAt: newTimestamp });
         res.status(200).json({ message: 'Tarea reprogramada correctamente.' });
@@ -783,8 +825,9 @@ app.post('/api/tasks/:id/reassign', async (req, res) => {
         if (!newUserId) return res.status(400).json({ message: 'Falta el nuevo responsable.' });
 
         const taskRef = db.collection('scheduled_tasks').doc(id);
-        const taskDoc = await taskRef.get();
-        if (!taskDoc.exists) return res.status(404).json({ message: 'Tarea no encontrada.' });
+        const ownership = await verifyOwnership('scheduled_tasks', id);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        const taskDoc = ownership.doc;
 
         const taskData = taskDoc.data();
         const updatedActivity = { ...taskData.activity, responsableId: newUserId };
@@ -829,6 +872,10 @@ app.post('/api/compras/escanear', async (req, res) => {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
       return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+    }
+    const MEDIA_TYPES_VALIDOS = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!MEDIA_TYPES_VALIDOS.includes(mediaType)) {
+      return res.status(400).json({ message: 'Tipo de imagen no soportado. Use jpeg, png, gif o webp.' });
     }
 
     // Obtener catálogo de productos actual para que Claude pueda hacer el match
@@ -1108,7 +1155,11 @@ app.post('/api/solicitudes-compra', async (req, res) => {
 app.put('/api/solicitudes-compra/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const ownership = await verifyOwnership('solicitudes_compra', id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const { estado, items, responsableId, responsableNombre, notas } = req.body;
+    const ESTADOS_VALIDOS = ['pendiente', 'aprobada', 'rechazada', 'completada'];
+    if (estado && !ESTADOS_VALIDOS.includes(estado)) return res.status(400).json({ message: 'Estado inválido.' });
     const update = {};
     if (estado) update.estado = estado;
     if (items) update.items = items;
@@ -1125,6 +1176,8 @@ app.put('/api/solicitudes-compra/:id', async (req, res) => {
 
 app.delete('/api/solicitudes-compra/:id', async (req, res) => {
   try {
+    const ownership = await verifyOwnership('solicitudes_compra', req.params.id);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('solicitudes_compra').doc(req.params.id).delete();
     res.status(200).json({ message: 'Solicitud eliminada.' });
   } catch (error) {
