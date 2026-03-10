@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import './Login.css';
 
 export default function Login() {
-  const { login, loginWithGoogle } = useUser();
+  const { login, loginWithGoogle, isLoggedIn, needsSetup } = useUser();
   const navigate = useNavigate();
+
+  // Navegar cuando el estado de auth esté completamente cargado
+  useEffect(() => {
+    if (isLoggedIn) navigate('/', { replace: true });
+    else if (needsSetup) navigate('/register', { replace: true });
+  }, [isLoggedIn, needsSetup, navigate]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,7 +25,7 @@ export default function Login() {
     setError('');
     try {
       await login(email, password);
-      navigate('/', { replace: true });
+      // La navegación la maneja el useEffect que observa isLoggedIn/needsSetup
     } catch (err) {
       const code = err.code;
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
@@ -39,7 +45,7 @@ export default function Login() {
     setError('');
     try {
       await loginWithGoogle();
-      navigate('/', { replace: true });
+      // La navegación la maneja el useEffect que observa isLoggedIn/needsSetup
     } catch (err) {
       if (err.code !== 'auth/popup-closed-by-user') {
         setError('No se pudo iniciar sesión con Google.');

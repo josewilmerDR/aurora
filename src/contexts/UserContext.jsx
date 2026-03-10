@@ -44,15 +44,16 @@ export function UserProvider({ children }) {
   // Escucha cambios de sesión de Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
       if (!fbUser) {
+        setFirebaseUser(null);
         setMemberships([]);
         setCurrentUser(null);
         setActiveFincaId(null);
         localStorage.removeItem(ACTIVE_FINCA_KEY);
         return;
       }
-      // Cargar membresías del usuario
+      // Cargar membresías ANTES de setear firebaseUser para evitar un render
+      // intermedio donde memberships=[] y needsSetup=true causa redirect a /register
       try {
         const res = await apiFetch('/api/auth/memberships');
         if (res.ok) {
@@ -68,6 +69,9 @@ export function UserProvider({ children }) {
       } catch {
         // Si falla, dejar sin membresías (el usuario verá la pantalla de setup)
       }
+      // Setear firebaseUser al final: isLoading queda true hasta aquí,
+      // evitando que ProtectedRoute tome decisiones con estado incompleto
+      setFirebaseUser(fbUser);
     });
     return unsubscribe;
   }, []);
@@ -103,6 +107,23 @@ export function UserProvider({ children }) {
     localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
   }, []);
 
+  // Recarga las membresías desde la API (útil después de crear una nueva finca)
+  const refreshMemberships = useCallback(async () => {
+    if (!auth.currentUser) return;
+    try {
+      const res = await apiFetch('/api/auth/memberships');
+      if (res.ok) {
+        const data = await res.json();
+        setMemberships(data.memberships || []);
+        if ((data.memberships || []).length === 1) {
+          const fincaId = data.memberships[0].fincaId;
+          setActiveFincaId(fincaId);
+          localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
+        }
+      }
+    } catch { /* silently fail */ }
+  }, []);
+
   const isLoading = firebaseUser === undefined;
   const isLoggedIn = !!firebaseUser && !!currentUser;
   const needsFincaSelection = !!firebaseUser && memberships.length > 1 && !activeFincaId;
@@ -118,6 +139,7 @@ export function UserProvider({ children }) {
       loginWithGoogle,
       logout,
       selectFinca,
+      refreshMemberships,
       isLoggedIn,
       isLoading,
       needsFincaSelection,

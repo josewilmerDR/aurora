@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { apiFetch } from '../lib/apiFetch';
+import { useUser } from '../contexts/UserContext';
 import './Login.css';
 
 export default function Register() {
   const navigate = useNavigate();
+  const { refreshMemberships, isLoggedIn } = useUser();
+
+  // Navegar al dashboard en cuanto el login esté completo (currentUser cargado)
+  useEffect(() => {
+    if (isLoggedIn) navigate('/', { replace: true });
+  }, [isLoggedIn, navigate]);
 
   const [step, setStep] = useState(1); // 1: cuenta, 2: datos de la finca
   const [email, setEmail] = useState('');
@@ -38,25 +45,31 @@ export default function Register() {
     setSubmitting(true);
     setError('');
     try {
-      // Crear cuenta Firebase Auth
-      await createUserWithEmailAndPassword(auth, email, password);
+      // Solo crear cuenta email/password si el usuario NO está ya autenticado (ej. con Google)
+      if (!auth.currentUser) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
       // Crear finca en el backend (el middleware usa el token recién creado)
       const res = await apiFetch('/api/auth/register-finca', {
         method: 'POST',
         body: JSON.stringify({ fincaNombre, nombreAdmin }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Error al crear la finca.');
+        let msg = 'Error al crear la finca. Intenta de nuevo.';
+        try { msg = (await res.json()).message || msg; } catch { /* respuesta no es JSON (emulador en cold start) */ }
+        throw new Error(msg);
       }
-      navigate('/', { replace: true });
+      // Recargar membresías para que UserContext sepa que ya hay finca → isLoggedIn = true
+      // La navegación la maneja el useEffect que observa isLoggedIn
+      await refreshMemberships();
     } catch (err) {
       const code = err.code;
+      console.error('[Register] error code:', code, 'message:', err.message);
       if (code === 'auth/email-already-in-use') {
         setError('Este correo ya está registrado.');
         setStep(1);
       } else {
-        setError(err.message || 'Error al crear la cuenta.');
+        setError(err.message || 'Error al crear la cuenta. Intenta de nuevo.');
       }
     } finally {
       setSubmitting(false);
