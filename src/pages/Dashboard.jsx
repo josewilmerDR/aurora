@@ -11,7 +11,6 @@ function Dashboard() {
   const [stockBajoCount, setStockBajoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   // La lógica para obtener el estado de la tarea se mantiene igual
   const getTaskStatus = (task) => {
     if (task.status === 'completed_by_user') return 'completed';
@@ -70,9 +69,6 @@ function Dashboard() {
 
   return (
     <div>
-      <div className="dashboard-header">
-        <h1>Panel de Control</h1>
-      </div>
       
       {/* Tarjetas de Estadísticas */}
       <div className="dashboard-grid">

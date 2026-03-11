@@ -1,4 +1,6 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { FiMenu } from 'react-icons/fi';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import UserManagement from './pages/UserManagement';
 import PackageManagement from './pages/PackageManagement';
 import LoteManagement from './pages/LoteManagement';
@@ -42,7 +44,8 @@ import SiembraHistorial from './pages/SiembraHistorial';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
-import { UserProvider, useUser } from './contexts/UserContext';
+import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
+import { MODULES } from './components/Sidebar';
 
 import './index.css';
 import './App.css';
@@ -107,19 +110,121 @@ const LogoutRoute = () => {
 
 const MainLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { currentUser } = useUser();
   const title = routeTitles[location.pathname] || 'Aurora';
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const wrapperRef = useRef(null);
+  const userRole = currentUser?.rol || 'trabajador';
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try { return localStorage.getItem('aurora_sidebar_collapsed') === 'true'; }
+    catch { return false; }
+  });
+  const toggleCollapse = () => setIsCollapsed(prev => {
+    const next = !prev;
+    localStorage.setItem('aurora_sidebar_collapsed', String(next));
+    return next;
+  });
+
+  // Filter nav items by query and role
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const q = searchQuery.toLowerCase();
+    const results = [];
+    MODULES.forEach(mod => {
+      mod.items.forEach(item => {
+        if (item.children) {
+          item.children.forEach(child => {
+            if (hasMinRole(userRole, child.minRole) && child.label.toLowerCase().includes(q)) {
+              results.push({ label: child.label, to: child.to, tag: `${mod.nombre} > ${item.label}`.toLowerCase() });
+            }
+          });
+        } else {
+          if (hasMinRole(userRole, item.minRole) && item.label.toLowerCase().includes(q)) {
+            results.push({ label: item.label, to: item.to, tag: mod.nombre.toLowerCase() });
+          }
+        }
+      });
+    });
+    setSearchResults(results.slice(0, 8));
+  }, [searchQuery, userRole]);
+
+  // Close dropdown on outside click — only active when dropdown is visible
+  useEffect(() => {
+    if (searchResults.length === 0) return;
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setSearchResults([]);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [searchResults.length]);
+
+  const handleSelect = (to) => {
+    navigate(to);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') { setSearchQuery(''); setSearchResults([]); }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (searchResults.length > 0) {
+      handleSelect(searchResults[0].to);
+    } else if (searchQuery.trim()) {
+      window.dispatchEvent(new CustomEvent('aurora:open', { detail: { query: searchQuery } }));
+      setSearchQuery('');
+      setSearchResults([]);
+    }
+  };
 
   return (
-    <div className="app-layout">
-      <Sidebar />
-      <main className="content-area">
-        <header className="main-header">
-          <h1>{title}</h1>
-        </header>
-        <div className="page-content">
-          <Outlet />
+    <div className="app-wrapper">
+
+      {/* ── Top header ── */}
+      <header className="app-header">
+        <button className="app-header-menu-btn" onClick={toggleCollapse} title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}>
+          <FiMenu size={20} />
+        </button>
+        <div className="app-header-brand">
+          <img src="/aurora-logo.png" alt="Aurora" className="app-header-logo" />
+          <span className="app-header-name">Aurora</span>
         </div>
-      </main>
+        <div className="app-header-search" ref={wrapperRef}>
+          <form className="main-search-bar" onSubmit={handleSubmit}>
+            <span className="main-search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Buscar funciones o preguntar a Aurora..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </form>
+          {searchResults.length > 0 && (
+            <div className="search-dropdown">
+              {searchResults.map(item => (
+                <button key={item.to} className="search-result-item" onMouseDown={() => handleSelect(item.to)}>
+                  <span className="search-result-label">{item.label}</span>
+                  {item.tag && <span className="search-result-tag">{item.tag}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ── Body ── */}
+      <div className="app-layout">
+        <Sidebar isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
+        <main className="content-area">
+          <Outlet />
+        </main>
+      </div>
+
       <MobileNav />
       <AuroraChat />
     </div>

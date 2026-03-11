@@ -297,7 +297,7 @@ app.get('/api/tasks/:id', async (req, res) => {
   }
 });
 
-app.put('/api/tasks/:id', async (req, res) => {
+app.put('/api/tasks/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const STATUSES_VALIDOS = ['pending', 'completed_by_user', 'skipped', 'notified'];
@@ -856,11 +856,11 @@ app.post('/api/grupos', authenticate, async (req, res) => {
 app.put('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const grupoData = { ...req.body };
-        delete grupoData.id;
+        const ownership = await verifyOwnership('grupos', id, req.fincaId);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
-        const originalDoc = await db.collection('grupos').doc(id).get();
-        const originalData = originalDoc.data();
+        const grupoData = pick(req.body, ['nombreGrupo', 'cosecha', 'etapa', 'fechaCreacion', 'bloques', 'paqueteId']);
+        const originalData = ownership.doc.data();
 
         if (grupoData.fechaCreacion && typeof grupoData.fechaCreacion === 'string') {
             grupoData.fechaCreacion = Timestamp.fromDate(new Date(grupoData.fechaCreacion));
@@ -913,6 +913,8 @@ app.put('/api/grupos/:id', authenticate, async (req, res) => {
 app.delete('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
+        const ownership = await verifyOwnership('grupos', id, req.fincaId);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
         const batch = db.batch();
         tasksSnapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -926,7 +928,7 @@ app.delete('/api/grupos/:id', authenticate, async (req, res) => {
 
 // --- API ENDPOINTS: TASK ACTIONS ---
 
-app.post('/api/tasks/:id/reschedule', async (req, res) => {
+app.post('/api/tasks/:id/reschedule', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { newDate } = req.body;
@@ -942,7 +944,7 @@ app.post('/api/tasks/:id/reschedule', async (req, res) => {
     }
 });
 
-app.post('/api/tasks/:id/reassign', async (req, res) => {
+app.post('/api/tasks/:id/reassign', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { newUserId } = req.body;

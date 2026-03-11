@@ -1,9 +1,38 @@
 
-.dashboard-header h1 {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--aurora-light);
+.dashboard-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 12px 16px;
   margin-bottom: 20px;
+  transition: border-color 0.2s;
+}
+
+.dashboard-search-bar:focus-within {
+  border-color: var(--aurora-green);
+}
+
+.dashboard-search-icon {
+  font-size: 1.1rem;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.dashboard-search-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 1rem;
+  color: var(--aurora-light);
+}
+
+.dashboard-search-bar input::placeholder {
+  color: var(--aurora-light);
+  opacity: 0.45;
 }
 
 .dashboard-grid {

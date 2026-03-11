@@ -110,7 +110,7 @@ export const savePinned  = (uid, arr) => localStorage.setItem(`aurora_pinned_${u
 export const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${uid}`, JSON.stringify(arr));
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-const Sidebar = () => {
+const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const apiFetch = useApiFetch();
   const { currentUser, logout } = useUser();
   const location = useLocation();
@@ -126,7 +126,6 @@ const Sidebar = () => {
   const [recentRoutes, setRecentRoutes] = useState(() => getRecents(uid));
   const [stockBajoCount, setStockBajoCount] = useState(0);
   const [tareasVencidasCount, setTareasVencidasCount] = useState(0);
-
   const readActiveDrafts = () => {
     try {
       return new Set(
@@ -341,41 +340,93 @@ const Sidebar = () => {
     </div>
   );
 
+  // ── Collapsed icon-only nav ──────────────────────────────────────────────
+  const CollapsedNav = () => {
+    const visibleModules = MODULES.filter(mod => mod.items.some(canAccess));
+    const dashBadge = badgeFor('/');
+
+    const handleModuleClick = (modId) => {
+      toggleCollapse();
+      setActiveTab('todas');
+      setExpandedMods(new Set([modId]));
+    };
+
+    return (
+      <div className="collapsed-nav">
+        {/* Dashboard */}
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `collapsed-link${isActive ? ' active' : ''}`}
+          title={DASHBOARD_ITEM.label}
+        >
+          <span className="icon-wrap">
+            <FiGrid size={20} />
+            {dashBadge !== null && <span className="collapsed-badge">{dashBadge}</span>}
+          </span>
+        </NavLink>
+
+        {/* One icon per module */}
+        {visibleModules.map(mod => {
+          const ModIcon = mod.icon;
+          return (
+            <button
+              key={mod.id}
+              className="collapsed-link"
+              onClick={() => handleModuleClick(mod.id)}
+              title={mod.nombre}
+            >
+              <ModIcon size={20} />
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   // ── Main render ──────────────────────────────────────────────────────────
   return (
-    <nav className="sidebar">
-      <div className="sidebar-header">
-        <span className="sidebar-logo-text">AU</span>
-      </div>
+    <nav className={`sidebar${isCollapsed ? ' collapsed' : ''}`}>
 
-      <div className="sidebar-tabs">
-        <button
-          className={`sidebar-tab${activeTab === 'favoritos' ? ' active' : ''}`}
-          onClick={() => setActiveTab('favoritos')}
-        >
-          Favoritos
-        </button>
-        <button
-          className={`sidebar-tab${activeTab === 'todas' ? ' active' : ''}`}
-          onClick={() => setActiveTab('todas')}
-        >
-          Todas las funciones
-        </button>
-      </div>
-
-      <div className="sidebar-links">
-        {activeTab === 'favoritos' ? <FavoritosTab /> : <TodasTab />}
-      </div>
-
-      <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="sidebar-user-info">
-            <span className="sidebar-user-name link-text">{currentUser?.nombre || 'Usuario'}</span>
-            <span className="sidebar-user-role link-text">
-              {ROLE_LABELS[currentUser?.rol] || 'Sin rol'}
-            </span>
+      {/* ── Nav content ── */}
+      {isCollapsed ? (
+        <div className="sidebar-links">
+          <CollapsedNav />
+        </div>
+      ) : (
+        <>
+          <div className="sidebar-tabs">
+            <button
+              className={`sidebar-tab${activeTab === 'favoritos' ? ' active' : ''}`}
+              onClick={() => setActiveTab('favoritos')}
+            >
+              Favoritos
+            </button>
+            <button
+              className={`sidebar-tab${activeTab === 'todas' ? ' active' : ''}`}
+              onClick={() => setActiveTab('todas')}
+            >
+              Todas las funciones
+            </button>
           </div>
-          {hasMinRole(userRole, 'administrador') && (
+          <div className="sidebar-links">
+            {activeTab === 'favoritos' ? <FavoritosTab /> : <TodasTab />}
+          </div>
+        </>
+      )}
+
+      {/* ── Footer ── */}
+      <div className="sidebar-footer">
+        <div className={`sidebar-user${isCollapsed ? ' sidebar-user--collapsed' : ''}`}>
+          {!isCollapsed && (
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name link-text">{currentUser?.nombre || 'Usuario'}</span>
+              <span className="sidebar-user-role link-text">
+                {ROLE_LABELS[currentUser?.rol] || 'Sin rol'}
+              </span>
+            </div>
+          )}
+          {!isCollapsed && hasMinRole(userRole, 'administrador') && (
             <button
               className="sidebar-logout-btn"
               onClick={() => navigate('/config/cuenta')}
@@ -393,6 +444,7 @@ const Sidebar = () => {
           </button>
         </div>
       </div>
+
     </nav>
   );
 };

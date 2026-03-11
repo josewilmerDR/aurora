@@ -66,6 +66,19 @@ export default function AuroraChat() {
     return () => recognitionRef.current?.abort();
   }, []);
 
+  // Listen for external open requests (e.g. from dashboard search bar)
+  useEffect(() => {
+    const handler = (e) => {
+      setOpen(true);
+      if (e.detail?.query) {
+        setInput(e.detail.query);
+        setTimeout(() => textareaRef.current?.focus(), 100);
+      }
+    };
+    window.addEventListener('aurora:open', handler);
+    return () => window.removeEventListener('aurora:open', handler);
+  }, []);
+
   const handleImageFile = async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
