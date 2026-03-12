@@ -406,11 +406,11 @@ app.get('/api/users', authenticate, async (req, res) => {
 
 app.post('/api/users', authenticate, async (req, res) => {
   try {
-    const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'administrador'];
-    const { nombre, email, telefono, rol } = req.body;
+    const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'administrador'];
+    const { nombre, email, telefono, rol, empleadoPlanilla } = req.body;
     if (!nombre || !email) return res.status(400).json({ message: 'nombre y email son requeridos.' });
     if (rol && !ROLES_VALIDOS.includes(rol)) return res.status(400).json({ message: 'Rol inválido.' });
-    const user = { nombre, email, telefono: telefono || '', rol: rol || 'trabajador', fincaId: req.fincaId };
+    const user = { nombre, email, telefono: telefono || '', rol: rol || 'trabajador', empleadoPlanilla: empleadoPlanilla === true, fincaId: req.fincaId };
     const docRef = await db.collection('users').add(user);
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
@@ -423,8 +423,8 @@ app.put('/api/users/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'administrador'];
-    const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol']);
+    const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'administrador'];
+    const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol', 'empleadoPlanilla']);
     if (userData.rol && !ROLES_VALIDOS.includes(userData.rol)) return res.status(400).json({ message: 'Rol inválido.' });
     await db.collection('users').doc(id).update(userData);
     res.status(200).json({ id, ...userData });

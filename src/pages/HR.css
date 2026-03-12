@@ -342,6 +342,240 @@
   color: var(--aurora-green);
 }
 
+/* ── Planilla page layout ────────────────────────────────────────────────── */
+.planilla-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1100px;
+}
+
+.planilla-config-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.planilla-config-bar .form-control { flex: 1; min-width: 160px; }
+
+.planilla-config-btn { white-space: nowrap; }
+
+.planilla-sum-section-divider {
+  border: none;
+  border-top: 1px solid var(--aurora-border);
+  margin: 20px 0 16px;
+}
+
+/* ── Planilla summary grid ───────────────────────────────────────────────── */
+.planilla-sum-wrap {
+  overflow-x: auto;
+  margin-bottom: 4px;
+}
+
+.planilla-sum-header,
+.planilla-sum-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 72px;
+  align-items: center;
+  min-width: 680px;
+}
+
+.planilla-sum-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-green);
+  opacity: 0.7;
+  padding: 6px 12px 10px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.planilla-sum-header > div,
+.planilla-sum-row > div {
+  padding: 0 10px;
+  text-align: right;
+}
+
+.planilla-sum-header > div:first-child,
+.planilla-sum-row > div:first-child { text-align: left; }
+
+.planilla-sum-row {
+  font-size: 0.87rem;
+  color: var(--aurora-light);
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--aurora-border);
+  transition: background 0.12s;
+}
+
+.planilla-sum-row:last-child  { border-bottom: none; }
+.planilla-sum-row:hover       { background: rgba(51,255,153,0.03); }
+
+.planilla-sum-nombre  { font-weight: 600; }
+.planilla-sum-ded     { color: #ff8080; }
+.planilla-sum-neto    { color: var(--aurora-green); font-weight: 700; }
+.planilla-sum-dash    { color: var(--aurora-light); opacity: 0.22; }
+
+.planilla-sum-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* ── Planilla detail view ────────────────────────────────────────────────── */
+.planilla-detalle-back {
+  margin-bottom: 20px;
+}
+
+.planilla-det-emp-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--aurora-border);
+  margin-bottom: 20px;
+}
+
+.planilla-det-emp-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(51,255,153,0.12);
+  border: 2px solid rgba(51,255,153,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  flex-shrink: 0;
+}
+
+.planilla-det-emp-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.planilla-det-emp-sub {
+  display: flex;
+  gap: 14px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  margin-top: 3px;
+}
+
+.planilla-det-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.planilla-det-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.planilla-det-table th {
+  background: rgba(51,255,153,0.07);
+  color: var(--aurora-green);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 16px;
+  text-align: right;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.planilla-det-table td {
+  padding: 7px 16px;
+  border-bottom: 1px solid rgba(42,74,106,0.5);
+  color: var(--aurora-light);
+  text-align: right;
+}
+
+.planilla-det-table tbody tr:last-child td { border-bottom: none; }
+
+.planilla-det-table td:first-child {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.planilla-det-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--aurora-border);
+  border-bottom: none;
+  padding-top: 10px;
+}
+
+.planilla-det-row--ausente td { background: rgba(255,80,80,0.04); }
+.planilla-det-row--ausente td:first-child { opacity: 1; }
+
+.planilla-det-ausente {
+  font-style: italic;
+  font-size: 0.8rem;
+  color: #ff8080;
+}
+
+.planilla-det-extra-input {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  text-align: right;
+  width: 130px;
+}
+
+.planilla-det-extra-input::placeholder { color: var(--aurora-light); opacity: 0.25; }
+
+/* ── Planilla detail summary box ─────────────────────────────────────────── */
+.planilla-det-summary {
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 500px;
+  margin-left: auto;
+}
+
+.planilla-det-sum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--aurora-border);
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  gap: 12px;
+}
+
+.planilla-det-sum-row:last-child { border-bottom: none; }
+
+.planilla-det-sum-row--ded { color: #ff8080; }
+
+.planilla-det-sum-row--editable {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planilla-det-sum-row--add {
+  justify-content: flex-start;
+  padding: 8px 14px;
+}
+
+.planilla-det-sum-row--neto {
+  background: rgba(51,255,153,0.07);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--aurora-green);
+}
+
 /* ── Worker selector highlight ───────────────────────────────────────────── */
 .worker-select-hint {
   font-size: 0.78rem;
@@ -386,4 +620,126 @@
   color: var(--aurora-green);
   opacity: 0.8;
   margin-top: 2px;
+}
+
+/* ── Ficha page two-column layout ────────────────────────────────────────── */
+.ficha-page-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .ficha-page-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Action bar (top of form) ────────────────────────────────────────────── */
+.ficha-action-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Right panel: employee list ──────────────────────────────────────────── */
+.empleados-panel {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+}
+
+.empleados-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.empleados-panel-count {
+  background: rgba(51, 255, 153, 0.15);
+  color: var(--aurora-green);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  opacity: 1;
+}
+
+.empleados-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.empleados-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--aurora-border);
+  transition: background 0.15s;
+}
+
+.empleados-list-item:last-child { border-bottom: none; }
+
+.empleados-list-item:hover {
+  background: rgba(51, 255, 153, 0.05);
+}
+
+.empleados-list-item--active {
+  background: rgba(51, 255, 153, 0.1);
+  border-left: 3px solid var(--aurora-green);
+}
+
+.empleados-list-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(51, 255, 153, 0.12);
+  border: 1px solid rgba(51, 255, 153, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  flex-shrink: 0;
+}
+
+.empleados-list-info {
+  overflow: hidden;
+}
+
+.empleados-list-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empleados-list-sub {
+  font-size: 0.74rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

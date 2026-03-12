@@ -19,7 +19,67 @@
   flex-shrink: 0;
 }
 
+.role-badge--ninguno     { background: rgba(230,242,255,0.06); color: var(--aurora-light); opacity: 0.45; }
 .role-badge--trabajador  { background: rgba(230,242,255,0.12); color: var(--aurora-light); }
 .role-badge--encargado   { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
 .role-badge--supervisor  { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
 .role-badge--administrador { background: rgba(51,153,255,0.2); color: #5599ff; }
+
+/* ── Planilla badge ───────────────────────────────────────────────────────── */
+.planilla-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  background: rgba(51, 255, 153, 0.15);
+  color: var(--aurora-green);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+}
+
+/* ── Empleado en planilla checkbox ───────────────────────────────────────── */
+.planilla-check-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  user-select: none;
+}
+
+.planilla-check-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+}
+
+/* ── Textarea in ficha section ────────────────────────────────────────────── */
+.form-control textarea {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  padding: 12px;
+  border-radius: 5px;
+  font-size: 1rem;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+/* ── Section title (reused from HR.css) ──────────────────────────────────── */
+.form-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--aurora-green);
+  opacity: 0.75;
+  margin: 20px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--aurora-border);
+}

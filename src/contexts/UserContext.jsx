@@ -17,6 +17,7 @@ export const ROLE_LEVELS = {
 };
 
 export const ROLE_LABELS = {
+  ninguno: 'Sin acceso',
   trabajador: 'Trabajador',
   encargado: 'Encargado',
   supervisor: 'Supervisor',
