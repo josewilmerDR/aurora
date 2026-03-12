@@ -25,6 +25,8 @@ import HrAsistencia from './pages/HrAsistencia';
 import HrHorasExtra from './pages/HrHorasExtra';
 import HrPermisos from './pages/HrPermisos';
 import HrPlanilla from './pages/HrPlanilla';
+import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
+import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
 import HrHistorialPagos from './pages/HrHistorialPagos';
 import HrHistorial from './pages/HrHistorial';
 import HrDocumentos from './pages/HrDocumentos';
@@ -71,6 +73,8 @@ const routeTitles = {
   '/hr/horas-extra': 'Horas Extra',
   '/hr/permisos': 'Permisos y Vacaciones',
   '/hr/planilla': 'Cálculo de Planilla',
+  '/hr/planilla/fijo': 'Planilla — Salario Fijo',
+  '/hr/planilla/horas': 'Planilla — Por Hora / Unidad',
   '/hr/historial-pagos': 'Historial de Pagos',
   '/hr/historial': 'Historial del Empleado',
   '/hr/documentos': 'Documentos Adjuntos',
@@ -282,6 +286,8 @@ function App() {
             <Route path="/hr/horas-extra" element={<HrHorasExtra />} />
             <Route path="/hr/permisos" element={<HrPermisos />} />
             <Route path="/hr/planilla" element={<HrPlanilla />} />
+            <Route path="/hr/planilla/fijo" element={<HrPlanillaSalarioFijo />} />
+            <Route path="/hr/planilla/horas" element={<HrPlanillaPorHora />} />
             <Route path="/hr/historial-pagos" element={<HrHistorialPagos />} />
             <Route path="/hr/historial" element={<HrHistorial />} />
             <Route path="/hr/documentos" element={<HrDocumentos />} />

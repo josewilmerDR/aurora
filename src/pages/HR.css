@@ -116,6 +116,232 @@
 }
 .btn-reject:hover { background-color: rgba(255, 80, 80, 0.22); }
 
+/* ── Permiso preview (días + goce badge) ─────────────────────────────────── */
+.hr-permiso-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+}
+
+/* ── Período preview en planilla ─────────────────────────────────────────── */
+.hr-periodo-preview {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+/* ── Planilla hub cards ───────────────────────────────────────────────────── */
+.planilla-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.planilla-hub-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  color: var(--aurora-light);
+  text-align: center;
+}
+
+.planilla-hub-card:hover {
+  border-color: rgba(51,255,153,0.4);
+  background: rgba(51,255,153,0.05);
+  color: var(--aurora-green);
+}
+
+.planilla-hub-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.planilla-hub-desc {
+  font-size: 0.78rem;
+  opacity: 0.6;
+  line-height: 1.5;
+}
+
+/* ── Planilla tabla (salario fijo) ───────────────────────────────────────── */
+.planilla-tabla {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.planilla-row {
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--aurora-background);
+  transition: opacity 0.2s;
+}
+
+.planilla-row--excluido { opacity: 0.38; }
+
+.planilla-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.planilla-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.planilla-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+}
+
+.planilla-nombre {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--aurora-light);
+}
+
+.planilla-montos {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.planilla-concepto-tag {
+  font-size: 0.7rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.planilla-monto {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  min-width: 110px;
+  text-align: right;
+}
+
+.planilla-deductions {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--aurora-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.planilla-ded-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+}
+
+.planilla-ded-auto {
+  justify-content: space-between;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.planilla-monto-neg {
+  color: #ff5050;
+  font-weight: 600;
+  text-align: right;
+}
+
+.planilla-ded-concepto {
+  flex: 1;
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.planilla-ded-monto {
+  width: 110px;
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.planilla-add-ded {
+  background: none;
+  border: 1px dashed var(--aurora-border);
+  color: var(--aurora-light);
+  opacity: 0.5;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: opacity 0.2s;
+  align-self: flex-start;
+}
+
+.planilla-add-ded:hover { opacity: 0.85; }
+
+.planilla-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--aurora-border);
+  font-weight: 700;
+}
+
+.planilla-total-monto {
+  color: var(--aurora-green);
+  font-size: 1.05rem;
+}
+
+.planilla-total--negativo { color: #ff5050; }
+
+.planilla-grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: rgba(51,255,153,0.07);
+  border: 1px solid rgba(51,255,153,0.22);
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+}
+
 /* ── Worker selector highlight ───────────────────────────────────────────── */
 .worker-select-hint {
   font-size: 0.78rem;

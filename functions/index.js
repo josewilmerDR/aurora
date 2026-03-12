@@ -1544,6 +1544,17 @@ app.post('/api/recepciones', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Fichas del Trabajador ────────────────────────────────────────────────────
+app.get('/api/hr/fichas', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('hr_fichas')
+      .where('fincaId', '==', req.fincaId).get();
+    const data = snap.docs.map(d => ({ userId: d.id, ...d.data() }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener fichas.' });
+  }
+});
+
 app.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('hr_fichas').doc(req.params.userId).get();
@@ -1671,13 +1682,14 @@ app.get('/api/hr/permisos', authenticate, async (req, res) => {
 
 app.post('/api/hr/permisos', authenticate, async (req, res) => {
   try {
-    const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo } = req.body;
+    const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo, conGoce } = req.body;
     if (!trabajadorId || !tipo || !fechaInicio || !fechaFin) return res.status(400).json({ message: 'Faltan campos requeridos.' });
     const ref = await db.collection('hr_permisos').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
       fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
       fechaFin: Timestamp.fromDate(new Date(fechaFin)),
       dias: Number(dias) || 1, motivo: motivo || '',
+      conGoce: conGoce !== false,
       estado: 'pendiente', fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -1745,6 +1757,55 @@ app.delete('/api/hr/planilla/:id', authenticate, async (req, res) => {
     res.status(200).json({ message: 'Registro eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
+// ── Planilla Salario Fijo ─────────────────────────────────────────────────────
+app.get('/api/hr/planilla-fijo', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('hr_planilla_fijo')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('createdAt', 'desc').get();
+    const data = snap.docs.map(d => ({
+      id: d.id, ...d.data(),
+      periodoInicio: d.data().periodoInicio?.toDate().toISOString(),
+      periodoFin: d.data().periodoFin?.toDate().toISOString(),
+      createdAt: d.data().createdAt?.toDate().toISOString(),
+    }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener planillas.' });
+  }
+});
+
+app.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
+  try {
+    const { frecuencia, periodoInicio, periodoFin, periodoLabel, filas, totalGeneral } = req.body;
+    if (!frecuencia || !periodoInicio || !periodoFin || !filas)
+      return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const ref = await db.collection('hr_planilla_fijo').add({
+      frecuencia,
+      periodoInicio: Timestamp.fromDate(new Date(periodoInicio)),
+      periodoFin: Timestamp.fromDate(new Date(periodoFin)),
+      periodoLabel: periodoLabel || '',
+      filas,
+      totalGeneral: Number(totalGeneral) || 0,
+      estado: 'generada',
+      fincaId: req.fincaId,
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al guardar planilla.' });
+  }
+});
+
+app.delete('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
+  try {
+    await db.collection('hr_planilla_fijo').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Planilla eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar planilla.' });
   }
 });
 
