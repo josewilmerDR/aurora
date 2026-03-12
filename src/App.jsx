@@ -26,6 +26,7 @@ import HrHorasExtra from './pages/HrHorasExtra';
 import HrPermisos from './pages/HrPermisos';
 import HrPlanilla from './pages/HrPlanilla';
 import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
+import HrPlanillaReporte from './pages/HrPlanillaReporte';
 import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
 import HrHistorialPagos from './pages/HrHistorialPagos';
 import HrHistorial from './pages/HrHistorial';
@@ -257,6 +258,7 @@ function App() {
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<PurchaseOrder />} />
+            <Route path="/hr/planilla/fijo/reporte" element={<HrPlanillaReporte />} />
           </Route>
 
           {/* Protected routes with sidebar */}

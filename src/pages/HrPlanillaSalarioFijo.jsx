@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './HR.css';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
@@ -53,6 +54,7 @@ function recalcFila(fila) {
 
 function HrPlanillaSalarioFijo() {
   const apiFetch = useApiFetch();
+  const navigate = useNavigate();
   const [users, setUsers]           = useState([]);
   const [allPermisos, setAllPermisos] = useState([]);
   const [toast, setToast]           = useState(null);
@@ -174,6 +176,18 @@ function HrPlanillaSalarioFijo() {
     }
   };
 
+  const handleGenerarReporte = () => {
+    const data = {
+      periodoInicio: periodoInicio.toISOString(),
+      periodoFin:    periodoFin.toISOString(),
+      periodoLabel,
+      totalGeneral,
+      filas: filas.map(({ dias, ...rest }) => rest),
+    };
+    sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+    navigate('/hr/planilla/fijo/reporte');
+  };
+
   const filaDetalle = filas.find(f => f.trabajadorId === detalleId);
 
   return (
@@ -212,9 +226,14 @@ function HrPlanillaSalarioFijo() {
             <div className="planilla-sum-section-divider" />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <span className="form-section-title" style={{ margin: 0 }}>Planilla — {periodoLabel}</span>
-              <button className="btn btn-primary" onClick={handleGuardar} disabled={saving}>
-                <FiSave /> {saving ? 'Guardando...' : 'Guardar planilla'}
-              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-secondary" onClick={handleGenerarReporte}>
+                  <FiFileText /> Generar Reporte
+                </button>
+                <button className="btn btn-primary" onClick={handleGuardar} disabled={saving}>
+                  <FiSave /> {saving ? 'Guardando...' : 'Guardar planilla'}
+                </button>
+              </div>
             </div>
 
             {filas.length === 0 ? (

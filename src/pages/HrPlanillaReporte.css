@@ -1,0 +1,475 @@
+/* ═══════════════════════════════════════════
+   PLANILLA REPORTE — Screen styles
+   ═══════════════════════════════════════════ */
+
+.pr-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  font-family: inherit;
+}
+
+/* ── Top bar ── */
+.pr-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background-color: var(--aurora-background);
+  border-bottom: 1px solid var(--aurora-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.pr-topbar-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.pr-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  padding: 8px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: border-color 0.15s;
+}
+
+.pr-btn-back:hover {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.pr-btn-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  border: none;
+  padding: 9px 18px;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.pr-btn-print:hover { opacity: 0.88; }
+
+/* ── Two-column layout ── */
+.pr-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Editor panel ── */
+.pr-editor {
+  background-color: var(--aurora-background);
+  border-right: 1px solid var(--aurora-border);
+  padding: 20px;
+  overflow-y: auto;
+  height: calc(100vh - 53px);
+  position: sticky;
+  top: 53px;
+}
+
+.pr-editor-section {
+  margin-bottom: 24px;
+}
+
+.pr-editor-section h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aurora-green);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.pr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.pr-field label {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.pr-field input,
+.pr-editor-section textarea {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pr-field input:focus,
+.pr-editor-section textarea:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.pr-editor-section textarea { resize: vertical; }
+
+/* ── Document wrap ── */
+.pr-doc-wrap {
+  background-color: #c8d8e8;
+  padding: 32px;
+  overflow-y: auto;
+}
+
+/* ════════════════════════════════════════════
+   THE DOCUMENT — white paper look
+   ════════════════════════════════════════════ */
+.pr-document {
+  background: #ffffff;
+  color: #1a1a1a;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 48px;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.35);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 12.5px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+/* ── Doc header ── */
+.pr-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 3px solid #0d1a26;
+}
+
+.pr-doc-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.pr-doc-logo {
+  width: 52px;
+  height: 52px;
+  background-color: #0d1a26;
+  color: #33ff99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.pr-doc-brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pr-doc-brand-name {
+  font-family: sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #0d1a26;
+}
+
+.pr-doc-brand-sub {
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.pr-doc-title-block { text-align: right; }
+
+.pr-doc-title {
+  font-family: sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #0d1a26;
+  margin-bottom: 8px;
+}
+
+.pr-doc-meta-table {
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  border-collapse: collapse;
+  margin-left: auto;
+}
+
+.pr-doc-meta-table td { padding: 2px 6px 2px 0; color: #333; }
+.pr-doc-meta-table td:first-child { color: #666; text-align: right; }
+
+/* ── Período info block ── */
+.pr-doc-periodo {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+.pr-doc-periodo-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 16px;
+  border-right: 1px solid #ddd;
+  background-color: #f5f8fb;
+}
+
+.pr-doc-periodo-item:last-child { border-right: none; }
+
+.pr-doc-periodo-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #777;
+  font-weight: 600;
+}
+
+.pr-doc-periodo-val {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0d1a26;
+}
+
+/* ── Employees table ── */
+.pr-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
+  font-family: sans-serif;
+  font-size: 11.5px;
+}
+
+.pr-doc-table th {
+  background-color: #0d1a26;
+  color: #ffffff;
+  padding: 7px 9px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pr-doc-table th.pr-col-num,
+.pr-doc-table th.pr-col-nombre,
+.pr-doc-table th.pr-col-cedula,
+.pr-doc-table th.pr-col-puesto {
+  text-align: left;
+}
+
+.pr-doc-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid #e8e8e8;
+  color: #1a1a1a;
+  vertical-align: middle;
+  text-align: right;
+}
+
+.pr-doc-table td.pr-col-num,
+.pr-doc-table td.pr-col-nombre,
+.pr-doc-table td.pr-col-cedula,
+.pr-doc-table td.pr-col-puesto {
+  text-align: left;
+}
+
+.pr-doc-table tbody tr:nth-child(even) td { background-color: #f9f9f9; }
+
+.pr-doc-table tfoot td {
+  border-top: 2px solid #0d1a26;
+  border-bottom: none;
+  padding-top: 9px;
+  font-family: sans-serif;
+  font-weight: 700;
+  text-align: right;
+}
+
+.pr-tfoot-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-align: left !important;
+  color: #333;
+}
+
+.pr-tfoot-neto {
+  font-size: 1rem;
+  color: #0d1a26;
+}
+
+.pr-col-num    { width: 28px; }
+.pr-col-nombre { min-width: 130px; }
+.pr-col-cedula { width: 90px; font-size: 11px; }
+.pr-col-puesto { width: 90px; font-size: 11px; }
+.pr-col-money  { width: 90px; font-variant-numeric: tabular-nums; }
+.pr-col-neto   { background-color: #f0faf4 !important; font-weight: 700; }
+.pr-ded        { color: #c0392b; }
+
+/* ── Deduction note ── */
+.pr-doc-ded-note {
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  color: #666;
+  border-left: 3px solid #0d1a26;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background-color: #f9f9f9;
+  border-radius: 0 3px 3px 0;
+}
+
+/* ── Notes ── */
+.pr-doc-notes {
+  font-family: sans-serif;
+  font-size: 0.82rem;
+  color: #333;
+  border: 1px solid #ccc;
+  border-left: 4px solid #0d1a26;
+  padding: 10px 14px;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 28px;
+  background-color: #fafafa;
+}
+
+/* ── Signatures ── */
+.pr-doc-signatures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  margin-top: 44px;
+  padding-top: 16px;
+  border-top: 1px solid #ccc;
+}
+
+.pr-sig {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.pr-sig-line {
+  width: 100%;
+  border-bottom: 1px solid #555;
+  margin-bottom: 4px;
+  height: 36px;
+}
+
+.pr-sig-role {
+  font-family: sans-serif;
+  font-size: 0.73rem;
+  color: #666;
+  text-align: center;
+}
+
+.pr-sig-name {
+  font-family: sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  text-align: center;
+}
+
+/* ── Footer ── */
+.pr-doc-footer {
+  margin-top: 28px;
+  padding-top: 10px;
+  border-top: 1px solid #e0e0e0;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  color: #aaa;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════
+   PRINT STYLES
+   ═══════════════════════════════════════════ */
+@media print {
+  .no-print { display: none !important; }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+
+  .pr-page { background: white; min-height: auto; }
+  .pr-layout { display: block; }
+
+  .pr-doc-wrap {
+    background: white;
+    padding: 0;
+  }
+
+  .pr-document {
+    box-shadow: none;
+    max-width: none;
+    width: 100%;
+    padding: 12mm 18mm;
+    margin: 0;
+    font-size: 10.5pt;
+  }
+
+  .pr-doc-table th {
+    background-color: #0d1a26 !important;
+    color: #fff !important;
+  }
+
+  .pr-doc-logo {
+    background-color: #0d1a26 !important;
+    color: #33ff99 !important;
+  }
+
+  .pr-col-neto {
+    background-color: #f0faf4 !important;
+  }
+
+  .pr-doc-table tr { page-break-inside: avoid; }
+  .pr-doc-signatures { page-break-inside: avoid; }
+}
+
+/* ── Responsive (screen) ── */
+@media (max-width: 960px) {
+  .pr-layout { grid-template-columns: 1fr; }
+  .pr-editor { position: static; height: auto; }
+  .pr-doc-wrap { padding: 16px; }
+}
