@@ -8,12 +8,7 @@ import './Login.css';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { refreshMemberships, isLoggedIn } = useUser();
-
-  // Navegar al dashboard en cuanto el login esté completo (currentUser cargado)
-  useEffect(() => {
-    if (isLoggedIn) navigate('/', { replace: true });
-  }, [isLoggedIn, navigate]);
+  const { refreshMemberships, isLoggedIn, needsSetup } = useUser();
 
   const [step, setStep] = useState(1); // 1: cuenta, 2: datos de la finca
   const [email, setEmail] = useState('');
@@ -23,6 +18,14 @@ export default function Register() {
   const [nombreAdmin, setNombreAdmin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Navegar al dashboard en cuanto el login esté completo (currentUser cargado),
+  // o ir a step 2 si el usuario ya se autenticó pero aún no tiene finca
+  // (cubre el caso de redirect de Google que recarga la página)
+  useEffect(() => {
+    if (isLoggedIn) navigate('/', { replace: true });
+    else if (needsSetup && step === 1) setStep(2);
+  }, [isLoggedIn, needsSetup, step, navigate]);
 
   // Paso 1: crear cuenta con email/password
   const handleAccountStep = (e) => {
