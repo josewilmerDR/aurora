@@ -13,6 +13,11 @@ const fmtDateLong = (iso) => {
   return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
 };
 
+const fmtDateShort = (iso) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
 export default function HrPlanillaReporte() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
@@ -29,10 +34,14 @@ export default function HrPlanillaReporte() {
   // Company config from /api/config
   const [config, setConfig] = useState({ nombreEmpresa: 'Finca Aurora', identificacion: '', direccion: '', whatsapp: '', logoUrl: '' });
 
+  const [backRoute, setBackRoute] = useState('/hr/planilla/fijo');
+
   useEffect(() => {
+    const origin = sessionStorage.getItem('aurora_planilla_reporte_origin') || '/hr/planilla/fijo';
+    setBackRoute(origin);
     try {
       const raw = sessionStorage.getItem('aurora_planilla_reporte');
-      if (!raw) { navigate('/hr/planilla/fijo'); return; }
+      if (!raw) { navigate(origin); return; }
       const data = JSON.parse(raw);
       setFilas(data.filas || []);
       setPeriodoLabel(data.periodoLabel || '');
@@ -41,7 +50,7 @@ export default function HrPlanillaReporte() {
       setTotalGeneral(data.totalGeneral || 0);
       if (data.numeroConsecutivo) setReportNumber(data.numeroConsecutivo);
     } catch {
-      navigate('/hr/planilla/fijo');
+      navigate(origin);
     }
   }, [navigate]);
 
@@ -71,20 +80,28 @@ export default function HrPlanillaReporte() {
     }
   };
 
-  const totalEmpleados = filas.length;
-  const totalOrdinario = filas.reduce((s, f) => s + (f.salarioOrdinario || 0), 0);
+  const totalEmpleados     = filas.length;
+  const totalOrdinario     = filas.reduce((s, f) => s + (f.salarioOrdinario || 0), 0);
   const totalExtraordinario = filas.reduce((s, f) => s + (f.salarioExtraordinario || 0), 0);
-  const totalDeducciones = filas.reduce((s, f) => s + (f.totalDeducciones || 0), 0);
+  const totalDeducciones   = filas.reduce((s, f) => s + (f.totalDeducciones || 0), 0);
+
+  // Comprobante mode: single employee with daily data available
+  const isComprobante = filas.length === 1 && (filas[0]?.dias?.length > 0);
+  const empleado = isComprobante ? filas[0] : null;
 
   return (
     <div className="pr-page">
 
       {/* ── Top bar (hidden on print) ── */}
       <div className="pr-topbar no-print">
-        <button className="pr-btn-back" onClick={() => navigate('/hr/planilla/fijo')}>
+        <button className="pr-btn-back" onClick={() => navigate(backRoute)}>
           <FiArrowLeft size={16} /> Volver
         </button>
-        <span className="pr-topbar-title">Previsualización de Planilla — {periodoLabel}</span>
+        <span className="pr-topbar-title">
+          {isComprobante
+            ? `Comprobante de Pago — ${empleado.trabajadorNombre}`
+            : `Previsualización de Planilla — ${periodoLabel}`}
+        </span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="pr-btn-share" onClick={handleShare}>
             <FiShare2 size={16} /> Compartir PDF
@@ -121,7 +138,9 @@ export default function HrPlanillaReporte() {
               </div>
             </div>
             <div className="pr-doc-title-block">
-              <div className="pr-doc-title">PLANILLA DE SALARIOS</div>
+              <div className="pr-doc-title">
+                {isComprobante ? 'COMPROBANTE DE PAGO' : 'PLANILLA DE SALARIOS'}
+              </div>
               <table className="pr-doc-meta-table">
                 <tbody>
                   <tr><td>N°:</td><td><strong>{reportNumber}</strong></td></tr>
@@ -132,7 +151,7 @@ export default function HrPlanillaReporte() {
             </div>
           </div>
 
-          {/* ── Bloque de período ── */}
+          {/* ── Bloque de período / empleado ── */}
           <div className="pr-doc-periodo">
             <div className="pr-doc-periodo-item">
               <span className="pr-doc-periodo-label">Fecha inicio</span>
@@ -142,54 +161,167 @@ export default function HrPlanillaReporte() {
               <span className="pr-doc-periodo-label">Fecha fin</span>
               <span className="pr-doc-periodo-val">{fmtDateLong(periodoFin)}</span>
             </div>
-            <div className="pr-doc-periodo-item">
-              <span className="pr-doc-periodo-label">Total empleados</span>
-              <span className="pr-doc-periodo-val">{totalEmpleados}</span>
-            </div>
+            {isComprobante ? (
+              <>
+                <div className="pr-doc-periodo-item">
+                  <span className="pr-doc-periodo-label">Empleado</span>
+                  <span className="pr-doc-periodo-val">{empleado.trabajadorNombre}</span>
+                </div>
+                <div className="pr-doc-periodo-item">
+                  <span className="pr-doc-periodo-label">Cédula</span>
+                  <span className="pr-doc-periodo-val">{empleado.cedula || '—'}</span>
+                </div>
+              </>
+            ) : (
+              <div className="pr-doc-periodo-item">
+                <span className="pr-doc-periodo-label">Total empleados</span>
+                <span className="pr-doc-periodo-val">{totalEmpleados}</span>
+              </div>
+            )}
           </div>
 
-          {/* ── Tabla de empleados ── */}
-          <table className="pr-doc-table">
-            <thead>
-              <tr>
-                <th className="pr-col-num">#</th>
-                <th className="pr-col-nombre">Nombre</th>
-                <th className="pr-col-cedula">Cédula</th>
-                <th className="pr-col-puesto">Puesto</th>
-                <th className="pr-col-money">Ordinario</th>
-                <th className="pr-col-money">Extraordinario</th>
-                <th className="pr-col-money">Deducciones</th>
-                <th className="pr-col-money pr-col-neto">Total Neto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((f, idx) => (
-                <tr key={f.trabajadorId}>
-                  <td className="pr-col-num">{idx + 1}</td>
-                  <td className="pr-col-nombre">{f.trabajadorNombre}</td>
-                  <td className="pr-col-cedula">{f.cedula || '—'}</td>
-                  <td className="pr-col-puesto">{f.puesto || '—'}</td>
-                  <td className="pr-col-money">{fmt(f.salarioOrdinario)}</td>
-                  <td className="pr-col-money">
-                    {f.salarioExtraordinario > 0 ? fmt(f.salarioExtraordinario) : '—'}
-                  </td>
-                  <td className="pr-col-money pr-ded">({fmt(f.totalDeducciones)})</td>
-                  <td className="pr-col-money pr-col-neto">{fmt(f.totalNeto)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={4} className="pr-tfoot-label">TOTALES</td>
-                <td className="pr-col-money">{fmt(totalOrdinario)}</td>
-                <td className="pr-col-money">{totalExtraordinario > 0 ? fmt(totalExtraordinario) : '—'}</td>
-                <td className="pr-col-money pr-ded">({fmt(totalDeducciones)})</td>
-                <td className="pr-col-money pr-col-neto pr-tfoot-neto">{fmt(totalGeneral)}</td>
-              </tr>
-            </tfoot>
-          </table>
+          {/* ══ MODO COMPROBANTE: desglose diario + deducciones ══ */}
+          {isComprobante && (
+            <>
+              {/* ── Info del empleado ── */}
+              <div className="pr-comp-emp-row">
+                {empleado.puesto && (
+                  <div className="pr-comp-emp-field">
+                    <span className="pr-comp-emp-label">Puesto</span>
+                    <span className="pr-comp-emp-val">{empleado.puesto}</span>
+                  </div>
+                )}
+                <div className="pr-comp-emp-field">
+                  <span className="pr-comp-emp-label">Salario mensual</span>
+                  <span className="pr-comp-emp-val">{fmt(empleado.salarioMensual)}</span>
+                </div>
+                <div className="pr-comp-emp-field">
+                  <span className="pr-comp-emp-label">Salario diario</span>
+                  <span className="pr-comp-emp-val">{fmt(empleado.salarioDiario ?? (empleado.salarioMensual / 30))}</span>
+                </div>
+              </div>
 
-          {/* ── Resumen de deducciones ── */}
+              {/* ── Desglose diario ── */}
+              <div className="pr-comp-section-title">Desglose por día</div>
+              <table className="pr-doc-table pr-comp-dias-table">
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', width: 100 }}>Fecha</th>
+                    <th>Salario Ordinario</th>
+                    <th>Salario Extraordinario</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empleado.dias.map((d, idx) => {
+                    const diario = empleado.salarioDiario ?? (empleado.salarioMensual / 30);
+                    return (
+                      <tr key={idx} className={d.ausente ? 'pr-comp-row-ausente' : ''}>
+                        <td style={{ textAlign: 'left' }}>{fmtDateShort(d.fecha)}</td>
+                        <td>
+                          {d.ausente
+                            ? <span style={{ fontStyle: 'italic', color: '#c0392b', fontSize: '0.9em' }}>Ausente con permiso</span>
+                            : fmt(diario)}
+                        </td>
+                        <td>
+                          {(d.salarioExtra > 0) ? fmt(d.salarioExtra) : <span style={{ color: '#aaa' }}>—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td style={{ textAlign: 'left' }}>Totales</td>
+                    <td>{fmt(empleado.salarioOrdinario)}</td>
+                    <td>{empleado.salarioExtraordinario > 0 ? fmt(empleado.salarioExtraordinario) : '—'}</td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              {/* ── Resumen de deducciones y neto ── */}
+              <div className="pr-comp-section-title">Resumen de pago</div>
+              <table className="pr-comp-resumen-table">
+                <tbody>
+                  <tr>
+                    <td>Salario ordinario</td>
+                    <td>{fmt(empleado.salarioOrdinario)}</td>
+                  </tr>
+                  {empleado.salarioExtraordinario > 0 && (
+                    <tr>
+                      <td>Salario extraordinario</td>
+                      <td>{fmt(empleado.salarioExtraordinario)}</td>
+                    </tr>
+                  )}
+                  <tr className="pr-comp-resumen-bruto">
+                    <td>Salario bruto</td>
+                    <td>{fmt(empleado.salarioBruto)}</td>
+                  </tr>
+                  <tr className="pr-comp-resumen-ded">
+                    <td>Seguro Social CCSS ({(CCSS_RATE * 100).toFixed(2)}%)</td>
+                    <td>({fmt(empleado.deduccionCCSS)})</td>
+                  </tr>
+                  {(empleado.deduccionesExtra || []).map((d, idx) => (
+                    <tr key={idx} className="pr-comp-resumen-ded">
+                      <td>{d.concepto || 'Deducción adicional'}</td>
+                      <td>({fmt(d.monto)})</td>
+                    </tr>
+                  ))}
+                  <tr className="pr-comp-resumen-neto">
+                    <td>TOTAL SALARIO NETO</td>
+                    <td>{fmt(empleado.totalNeto)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/* ══ MODO PLANILLA COMPLETA ══ */}
+          {!isComprobante && (
+            <>
+              {/* ── Tabla de empleados ── */}
+              <table className="pr-doc-table">
+                <thead>
+                  <tr>
+                    <th className="pr-col-num">#</th>
+                    <th className="pr-col-nombre">Nombre</th>
+                    <th className="pr-col-cedula">Cédula</th>
+                    <th className="pr-col-puesto">Puesto</th>
+                    <th className="pr-col-money">Ordinario</th>
+                    <th className="pr-col-money">Extraordinario</th>
+                    <th className="pr-col-money">Deducciones</th>
+                    <th className="pr-col-money pr-col-neto">Total Neto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map((f, idx) => (
+                    <tr key={f.trabajadorId}>
+                      <td className="pr-col-num">{idx + 1}</td>
+                      <td className="pr-col-nombre">{f.trabajadorNombre}</td>
+                      <td className="pr-col-cedula">{f.cedula || '—'}</td>
+                      <td className="pr-col-puesto">{f.puesto || '—'}</td>
+                      <td className="pr-col-money">{fmt(f.salarioOrdinario)}</td>
+                      <td className="pr-col-money">
+                        {f.salarioExtraordinario > 0 ? fmt(f.salarioExtraordinario) : '—'}
+                      </td>
+                      <td className="pr-col-money pr-ded">({fmt(f.totalDeducciones)})</td>
+                      <td className="pr-col-money pr-col-neto">{fmt(f.totalNeto)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4} className="pr-tfoot-label">TOTALES</td>
+                    <td className="pr-col-money">{fmt(totalOrdinario)}</td>
+                    <td className="pr-col-money">{totalExtraordinario > 0 ? fmt(totalExtraordinario) : '—'}</td>
+                    <td className="pr-col-money pr-ded">({fmt(totalDeducciones)})</td>
+                    <td className="pr-col-money pr-col-neto pr-tfoot-neto">{fmt(totalGeneral)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </>
+          )}
+
+          {/* ── Nota de deducciones ── */}
           <div className="pr-doc-ded-note">
             <strong>Nota:</strong> Las deducciones incluyen Seguro Social (CCSS) del empleado al {(CCSS_RATE * 100).toFixed(2)}% sobre el salario bruto, más cualquier deducción adicional configurada por empleado.
           </div>
@@ -202,7 +334,7 @@ export default function HrPlanillaReporte() {
             </div>
             <div className="pr-sig">
               <div className="pr-sig-line" />
-              <div className="pr-sig-role">Revisado por</div>
+              <div className="pr-sig-role">{isComprobante ? 'Recibido conforme' : 'Revisado por'}</div>
             </div>
             <div className="pr-sig">
               <div className="pr-sig-line" />

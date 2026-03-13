@@ -250,7 +250,10 @@ function HrPlanillaSalarioFijo() {
     if (!filas.length) { showToast('No hay empleados en la planilla.', 'error'); return; }
     setSaving(true);
     try {
-      const filasPayload = filas.map(({ dias, ...rest }) => rest);
+      const filasPayload = filas.map(({ dias, ...rest }) => ({
+        ...rest,
+        dias: (dias || []).map(d => ({ ...d, fecha: d.fecha instanceof Date ? d.fecha.toISOString() : d.fecha })),
+      }));
       if (editingId) {
         // Update existing pendiente_pago planilla
         const res = await apiFetch(`/api/hr/planilla-fijo/${editingId}`, {
@@ -359,6 +362,7 @@ function HrPlanillaSalarioFijo() {
       numeroConsecutivo: p.numeroConsecutivo || null,
     };
     sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+    sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
     sessionStorage.removeItem('aurora_planilla_fijo_state'); // Don't restore draft on return
     navigate('/hr/planilla/fijo/reporte');
   };
@@ -369,10 +373,14 @@ function HrPlanillaSalarioFijo() {
       periodoFin:        periodoFin.toISOString(),
       periodoLabel,
       totalGeneral,
-      filas:             filas.map(({ dias, ...rest }) => rest),
+      filas:             filas.map(({ dias, ...rest }) => ({
+        ...rest,
+        dias: (dias || []).map(d => ({ ...d, fecha: d.fecha instanceof Date ? d.fecha.toISOString() : d.fecha })),
+      })),
       numeroConsecutivo: null, // Not yet saved — shown as BORRADOR in report
     };
     sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+    sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
     sessionStorage.setItem('aurora_planilla_fijo_state', JSON.stringify({ fechaInicio, fechaFin, filas }));
     navigate('/hr/planilla/fijo/reporte');
   };
