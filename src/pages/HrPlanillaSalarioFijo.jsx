@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './HR.css';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiMail } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
@@ -77,6 +77,8 @@ function HrPlanillaSalarioFijo() {
   const [confirmModal, setConfirmModal]             = useState(false);
   const [saveConfirmModal, setSaveConfirmModal]     = useState(false);
   const [deleteConfirmId, setDeleteConfirmId]       = useState(null);
+  const [pagarConfirmId, setPagarConfirmId]         = useState(null);
+  const [noEnviarComprobante, setNoEnviarComprobante] = useState(false);
 
   const fetchPlanillas = () =>
     apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(setPlanillas).catch(console.error);
@@ -308,13 +310,16 @@ function HrPlanillaSalarioFijo() {
     }
   };
 
-  const handleMarcarPagado = async (id) => {
+  const handleMarcarPagado = async () => {
+    const id = pagarConfirmId;
+    setPagarConfirmId(null);
     try {
       const res = await apiFetch(`/api/hr/planilla-fijo/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ estado: 'pagado' }),
       });
       if (!res.ok) throw new Error();
+      // TODO: if (!noEnviarComprobante) → send payment receipts via email to each employee
       showToast('Planilla marcada como pagada.');
       fetchPlanillas();
     } catch {
@@ -354,6 +359,7 @@ function HrPlanillaSalarioFijo() {
       numeroConsecutivo: p.numeroConsecutivo || null,
     };
     sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+    sessionStorage.removeItem('aurora_planilla_fijo_state'); // Don't restore draft on return
     navigate('/hr/planilla/fijo/reporte');
   };
 
@@ -410,6 +416,12 @@ function HrPlanillaSalarioFijo() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <span className="form-section-title" style={{ margin: 0 }}>Planilla — {periodoLabel}</span>
               <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-secondary" title="Descartar y cerrar" onClick={() => {
+                  setLoaded(false); setFilas([]); setDetalleId(null); setEditingId(null);
+                  sessionStorage.removeItem('aurora_planilla_fijo_state');
+                }}>
+                  <FiXCircle size={15} /> Cancelar
+                </button>
                 <button className="btn btn-secondary" onClick={handleGenerarReporte}>
                   <FiFileText /> Previsualizar Planilla
                 </button>
@@ -632,6 +644,41 @@ function HrPlanillaSalarioFijo() {
         </div>
       )}
 
+      {/* ── Pagar confirmation modal ── */}
+      {pagarConfirmId && (() => {
+        const planilla = planillas.find(p => p.id === pagarConfirmId);
+        const numEmpleados = planilla?.filas?.length || 0;
+        return (
+          <div className="planilla-modal-overlay" onClick={() => setPagarConfirmId(null)}>
+            <div className="planilla-modal" onClick={e => e.stopPropagation()}>
+              <div className="planilla-modal-icon" style={{ color: 'var(--aurora-green)' }}><FiCheckCircle size={36} /></div>
+              <h3>Confirmar pago de planilla</h3>
+              <p>
+                Al confirmar, esta planilla pasará a estado <strong>Pagado</strong>.
+              </p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--aurora-light)', opacity: 0.85 }}>
+                <FiMail size={15} />
+                Se enviará un comprobante de pago por correo electrónico a los <strong>&nbsp;{numEmpleados} empleado{numEmpleados !== 1 ? 's' : ''}</strong>&nbsp;incluidos en esta planilla.
+              </p>
+              <label className="planilla-modal-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={noEnviarComprobante}
+                  onChange={e => setNoEnviarComprobante(e.target.checked)}
+                />
+                No enviar comprobante de pago
+              </label>
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button className="btn btn-secondary" onClick={() => setPagarConfirmId(null)}>Cancelar</button>
+                <button className="btn btn-primary" onClick={handleMarcarPagado}>
+                  <FiCheckCircle size={14} /> Confirmar pago
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Save confirmation modal ── */}
       {saveConfirmModal && (
         <div className="planilla-modal-overlay" onClick={() => setSaveConfirmModal(false)}>
@@ -705,9 +752,9 @@ function HrPlanillaSalarioFijo() {
                         <button className="icon-btn" title="Editar planilla" onClick={() => handleEditarPlanilla(p)}>
                           <FiEdit2 size={16} />
                         </button>
-                        <button className="icon-btn planilla-hist-pay-btn" title="Marcar como pagado"
-                          onClick={() => handleMarcarPagado(p.id)}>
-                          <FiCheckCircle size={16} />
+                        <button className="planilla-hist-pay-btn" title="Marcar como pagado"
+                          onClick={() => { setNoEnviarComprobante(false); setPagarConfirmId(p.id); }}>
+                          <FiCheckCircle size={14} /> Pagar
                         </button>
                         <button className="icon-btn delete" title="Eliminar planilla"
                           onClick={() => setDeleteConfirmId(p.id)}>
