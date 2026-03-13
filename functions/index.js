@@ -2589,11 +2589,24 @@ app.post('/api/maquinaria', authenticate, async (req, res) => {
       ubicacion: ubicacion?.trim() || '',
       observacion: observacion?.trim() || '',
       fincaId: req.fincaId,
-      creadoEn: Timestamp.now(),
     };
     if (capacidad !== undefined && capacidad !== '') data.capacidad = Number(capacidad);
+    // Upsert: if idMaquina is provided and already exists for this finca, update it
+    if (data.idMaquina) {
+      const existing = await db.collection('maquinaria')
+        .where('fincaId', '==', req.fincaId)
+        .where('idMaquina', '==', data.idMaquina)
+        .limit(1).get();
+      if (!existing.empty) {
+        const doc = existing.docs[0];
+        const { fincaId, ...updateData } = data;
+        await doc.ref.update({ ...updateData, actualizadoEn: Timestamp.now() });
+        return res.status(200).json({ id: doc.id, merged: true });
+      }
+    }
+    data.creadoEn = Timestamp.now();
     const doc = await db.collection('maquinaria').add(data);
-    res.status(201).json({ id: doc.id });
+    res.status(201).json({ id: doc.id, merged: false });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear maquinaria.' });
   }
@@ -3158,6 +3171,149 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
   } catch (error) {
     console.error('Error en /api/chat:', error);
     res.status(500).json({ reply: 'Error interno del servidor.' });
+  }
+});
+
+// --- API ENDPOINTS: HORÍMETRO ---
+app.get('/api/horimetro', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('horimetro')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('fecha', 'desc')
+      .get();
+    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(records);
+  } catch (error) {
+    console.error('Error al obtener horímetro:', error);
+    res.status(500).json({ message: 'Error al obtener los registros.' });
+  }
+});
+
+app.post('/api/horimetro', authenticate, async (req, res) => {
+  try {
+    const allowed = [
+      'fecha', 'tractorId', 'tractorNombre', 'implemento',
+      'horimetroInicial', 'horimetroFinal',
+      'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
+      'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+    ];
+    const data = pick(req.body, allowed);
+    if (!data.fecha || !data.tractorId) {
+      return res.status(400).json({ message: 'Fecha y tractor son obligatorios.' });
+    }
+    const ref = await db.collection('horimetro').add({
+      ...data,
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id, ...data });
+  } catch (error) {
+    console.error('Error al crear horímetro:', error);
+    res.status(500).json({ message: 'Error al guardar el registro.' });
+  }
+});
+
+app.put('/api/horimetro/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('horimetro', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const allowed = [
+      'fecha', 'tractorId', 'tractorNombre', 'implemento',
+      'horimetroInicial', 'horimetroFinal',
+      'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
+      'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+    ];
+    const data = pick(req.body, allowed);
+    await db.collection('horimetro').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
+    res.status(200).json({ id, ...data });
+  } catch (error) {
+    console.error('Error al actualizar horímetro:', error);
+    res.status(500).json({ message: 'Error al actualizar el registro.' });
+  }
+});
+
+app.delete('/api/horimetro/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('horimetro', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('horimetro').doc(id).delete();
+    res.status(200).json({ message: 'Registro eliminado.' });
+  } catch (error) {
+    console.error('Error al eliminar horímetro:', error);
+    res.status(500).json({ message: 'Error al eliminar el registro.' });
+  }
+});
+
+// ── Labores ────────────────────────────────────────────────────────────────
+app.get('/api/labores', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('labores')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('descripcion')
+      .get();
+    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    console.error('Error al obtener labores:', error);
+    res.status(500).json({ message: 'Error al obtener labores.' });
+  }
+});
+
+app.post('/api/labores', authenticate, async (req, res) => {
+  try {
+    const allowed = ['codigo', 'descripcion', 'observacion'];
+    const data = Object.fromEntries(
+      Object.entries(req.body).filter(([k]) => allowed.includes(k))
+    );
+    data.fincaId = req.fincaId;
+    // Upsert by código if provided
+    if (data.codigo) {
+      const existing = await db.collection('labores')
+        .where('fincaId', '==', req.fincaId)
+        .where('codigo', '==', data.codigo)
+        .limit(1).get();
+      if (!existing.empty) {
+        const doc = existing.docs[0];
+        const { fincaId, ...updateData } = data;
+        await doc.ref.update({ ...updateData, actualizadoEn: Timestamp.now() });
+        return res.status(200).json({ id: doc.id, merged: true });
+      }
+    }
+    data.creadoEn = Timestamp.now();
+    const doc = await db.collection('labores').add(data);
+    res.status(201).json({ id: doc.id, merged: false });
+  } catch (error) {
+    console.error('Error al crear labor:', error);
+    res.status(500).json({ message: 'Error al crear labor.' });
+  }
+});
+
+app.put('/api/labores/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const allowed = ['codigo', 'descripcion', 'observacion'];
+    const data = Object.fromEntries(
+      Object.entries(req.body).filter(([k]) => allowed.includes(k))
+    );
+    await db.collection('labores').doc(req.params.id).update({ ...data, actualizadoEn: Timestamp.now() });
+    res.json({ message: 'Labor actualizada.' });
+  } catch (error) {
+    console.error('Error al actualizar labor:', error);
+    res.status(500).json({ message: 'Error al actualizar labor.' });
+  }
+});
+
+app.delete('/api/labores/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('labores').doc(req.params.id).delete();
+    res.json({ message: 'Labor eliminada.' });
+  } catch (error) {
+    console.error('Error al eliminar labor:', error);
+    res.status(500).json({ message: 'Error al eliminar labor.' });
   }
 });
 

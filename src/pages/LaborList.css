@@ -1,20 +1,20 @@
 @import './LoteManagement.css';
 
 /* ── Layout ── */
-.maq-wrap {
+.lab-wrap {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
-.maq-toolbar {
+.lab-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
   justify-content: flex-end;
 }
 
-.maq-search {
+.lab-search {
   flex: 1;
   max-width: 320px;
   background: var(--aurora-dark-blue);
@@ -27,18 +27,18 @@
   font-family: inherit;
   transition: border-color 0.15s;
 }
-.maq-search:focus { border-color: var(--aurora-green); }
-.maq-search::placeholder { color: rgba(230, 242, 255, 0.3); }
+.lab-search:focus { border-color: var(--aurora-green); }
+.lab-search::placeholder { color: rgba(230, 242, 255, 0.3); }
 
 /* ── Form card ── */
-.maq-form-card {
+.lab-form-card {
   background: var(--aurora-background);
   border: 1px solid var(--aurora-border);
   border-radius: 10px;
   overflow: hidden;
 }
 
-.maq-form-header {
+.lab-form-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -49,7 +49,7 @@
   color: var(--aurora-light);
 }
 
-.maq-close-btn {
+.lab-close-btn {
   background: none;
   border: none;
   color: rgba(230, 242, 255, 0.4);
@@ -60,25 +60,25 @@
   align-items: center;
   transition: color 0.15s;
 }
-.maq-close-btn:hover { color: var(--aurora-light); }
+.lab-close-btn:hover { color: var(--aurora-light); }
 
-.maq-form { padding: 18px; }
+.lab-form { padding: 18px; }
 
-.maq-form-grid {
+.lab-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
 
-.maq-field {
+.lab-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-.maq-field--full { grid-column: 1 / -1; }
+.lab-field--full { grid-column: 1 / -1; }
 
-.maq-field label {
+.lab-field label {
   font-size: 0.75rem;
   font-weight: 600;
   color: rgba(230, 242, 255, 0.55);
@@ -86,14 +86,13 @@
   letter-spacing: 0.05em;
 }
 
-.maq-required {
+.lab-required {
   color: var(--aurora-magenta);
   margin-left: 2px;
 }
 
-.maq-field input,
-.maq-field select,
-.maq-field textarea {
+.lab-field input,
+.lab-field textarea {
   background: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-border);
   border-radius: 6px;
@@ -106,13 +105,12 @@
   resize: vertical;
 }
 
-.maq-field input:focus,
-.maq-field select:focus,
-.maq-field textarea:focus { border-color: var(--aurora-green); }
+.lab-field input:focus,
+.lab-field textarea:focus { border-color: var(--aurora-green); }
 
-.maq-field textarea { min-height: 60px; }
+.lab-field textarea { min-height: 60px; }
 
-.maq-form-actions {
+.lab-form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -121,14 +119,34 @@
   border-top: 1px solid var(--aurora-border);
 }
 
+/* ── Import section ── */
+.lab-import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lab-import-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lab-import-result {
+  font-size: 0.78rem;
+  margin: 0;
+}
+.lab-import-ok    { color: var(--aurora-green); }
+.lab-import-error { color: var(--aurora-magenta); }
+
 /* ── Section header ── */
-.maq-section {
+.lab-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.maq-section-header {
+.lab-section-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -139,7 +157,7 @@
   color: rgba(230, 242, 255, 0.45);
 }
 
-.maq-count {
+.lab-count {
   background: rgba(51, 255, 153, 0.12);
   color: var(--aurora-green);
   padding: 1px 8px;
@@ -150,7 +168,7 @@
   letter-spacing: 0;
 }
 
-.maq-add-inline {
+.lab-add-inline {
   margin-left: auto;
   background: none;
   border: 1px solid var(--aurora-border);
@@ -162,18 +180,18 @@
   align-items: center;
   transition: color 0.15s, border-color 0.15s;
 }
-.maq-add-inline:hover {
+.lab-add-inline:hover {
   color: var(--aurora-green);
   border-color: var(--aurora-green);
 }
 
 /* ── Empty state ── */
-.maq-empty {
+.lab-empty {
   color: rgba(230, 242, 255, 0.4);
   font-size: 0.88rem;
 }
 
-.maq-empty-state {
+.lab-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -182,31 +200,31 @@
   color: rgba(230, 242, 255, 0.3);
   text-align: center;
 }
-.maq-empty-state p {
+.lab-empty-state p {
   font-size: 0.9rem;
   color: rgba(230, 242, 255, 0.4);
   margin: 0;
 }
 
 /* ── Table ── */
-.maq-table-wrap {
+.lab-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--aurora-border);
   border-radius: 10px;
 }
 
-.maq-table {
+.lab-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
 
-.maq-table thead tr {
+.lab-table thead tr {
   background: var(--aurora-background);
   border-bottom: 1px solid var(--aurora-border);
 }
 
-.maq-table th {
+.lab-table th {
   padding: 10px 14px;
   text-align: left;
   font-size: 0.72rem;
@@ -217,71 +235,42 @@
   white-space: nowrap;
 }
 
-.maq-table tbody tr {
+.lab-table tbody tr {
   border-bottom: 1px solid var(--aurora-border);
   transition: background 0.12s;
 }
-.maq-table tbody tr:last-child { border-bottom: none; }
-.maq-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+.lab-table tbody tr:last-child { border-bottom: none; }
+.lab-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
 
-.maq-table td {
+.lab-table td {
   padding: 10px 14px;
   color: var(--aurora-light);
   vertical-align: middle;
 }
 
-.maq-td-code {
+.lab-td-code {
   font-family: monospace;
   font-size: 0.8rem;
   color: rgba(230, 242, 255, 0.7);
   white-space: nowrap;
 }
 
-.maq-td-desc {
-  font-weight: 500;
-}
+.lab-td-desc { font-weight: 500; }
 
-.maq-td-obs {
+.lab-td-obs {
   font-size: 0.8rem;
   color: rgba(230, 242, 255, 0.55);
-  max-width: 220px;
+  max-width: 300px;
 }
 
-.maq-td-empty {
-  color: rgba(230, 242, 255, 0.25);
-}
+.lab-td-empty { color: rgba(230, 242, 255, 0.25); }
 
-.maq-td-actions {
+.lab-td-actions {
   white-space: nowrap;
   text-align: right;
 }
 
-.maq-tipo-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.maq-tipo-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: rgba(51, 255, 153, 0.08);
-  color: rgba(230, 242, 255, 0.65);
-  white-space: nowrap;
-}
-
-.maq-capacidad-note {
-  font-size: 0.72rem;
-  color: var(--aurora-green);
-  opacity: 0.75;
-  padding-left: 8px;
-}
-
-.maq-btn-icon {
+.lab-btn-icon {
   background: none;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -292,31 +281,11 @@
   align-items: center;
   transition: color 0.15s, border-color 0.15s;
 }
-.maq-btn-icon:hover {
+.lab-btn-icon:hover {
   color: var(--aurora-green);
   border-color: var(--aurora-border);
 }
-.maq-btn-danger:hover {
+.lab-btn-danger:hover {
   color: #ff5555;
   border-color: var(--aurora-border);
 }
-
-/* ── Import section ── */
-.maq-import-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.maq-import-buttons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.maq-import-result {
-  font-size: 0.78rem;
-  margin: 0;
-}
-.maq-import-ok    { color: var(--aurora-green); }
-.maq-import-error { color: var(--aurora-magenta); }

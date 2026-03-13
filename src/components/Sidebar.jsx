@@ -34,6 +34,11 @@ export const MODULES = [
           { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
         ]
       },
+      {
+        label: 'Maquinaria', icon: FiTool, minRole: 'trabajador', children: [
+          { label: 'Horímetro', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador' },
+        ]
+      },
       { label: 'Gestión de Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
       { label: 'Grupos', to: '/grupos', icon: FiLayers, minRole: 'encargado' },
     ],
@@ -92,7 +97,8 @@ export const MODULES = [
     icon: FiSettings,
     items: [
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador' },
-      { label: 'Lista de Maquinaria', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
+      { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
+      { label: 'Lista de Labores', to: '/admin/labores', icon: FiList, minRole: 'supervisor' },
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
     ],
   },

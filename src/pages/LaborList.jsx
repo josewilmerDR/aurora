@@ -1,39 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiDownload, FiUpload } from 'react-icons/fi';
+import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiDownload, FiUpload } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './MaquinariaList.css';
+import './LaborList.css';
 
-const EXCEL_HEADERS = ['ID Activo', 'Código (CC)', 'Descripción', 'Tipo', 'Ubicación', 'Capacidad (litros)', 'Observación'];
-
-const TIPOS = [
-  'CARRETA DE SEMILLA',
-  'CARRETA DE COSECHA',
-  'IMPLEMENTO',
-  'MAQUINARIA DE APLICACIONES',
-  'MAQUINARIA DE PREPARACIÓN DE TERRENO',
-  'MONTACARGA',
-  'MOTOCICLETA',
-  'TRACTOR DE LLANTAS',
-  'VEHÍCULO CARGA LIVIANA',
-  'OTRO MAQUINARIA DE CAMPO',
-];
-
-const TIPO_APLICACIONES = 'MAQUINARIA DE APLICACIONES';
+const EXCEL_HEADERS = ['Código', 'Descripción', 'Observación'];
 
 const EMPTY_FORM = {
   id: null,
-  idMaquina: '',
   codigo: '',
   descripcion: '',
-  tipo: '',
-  ubicacion: '',
   observacion: '',
-  capacidad: '',
 };
 
-function MaquinariaList() {
+function LaborList() {
   const apiFetch = useApiFetch();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,22 +31,17 @@ function MaquinariaList() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchItems = () =>
-    apiFetch('/api/maquinaria')
+    apiFetch('/api/labores')
       .then(r => r.json())
       .then(setItems)
-      .catch(() => showToast('Error al cargar la lista de maquinaria.', 'error'))
+      .catch(() => showToast('Error al cargar la lista de labores.', 'error'))
       .finally(() => setLoading(false));
 
   useEffect(() => { fetchItems(); }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({
-      ...prev,
-      [name]: value,
-      // limpiar capacidad si se cambia a un tipo que no es de aplicaciones
-      ...(name === 'tipo' && value !== TIPO_APLICACIONES ? { capacidad: '' } : {}),
-    }));
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const resetForm = () => {
@@ -90,9 +66,9 @@ function MaquinariaList() {
   const handleDelete = async (id, descripcion) => {
     if (!window.confirm(`¿Eliminar "${descripcion}"?`)) return;
     try {
-      const res = await apiFetch(`/api/maquinaria/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/labores/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
-      showToast('Activo eliminado.');
+      showToast('Labor eliminada.');
       fetchItems();
     } catch {
       showToast('Error al eliminar.', 'error');
@@ -107,7 +83,7 @@ function MaquinariaList() {
     }
     setSaving(true);
     try {
-      const url = isEditing ? `/api/maquinaria/${form.id}` : '/api/maquinaria';
+      const url = isEditing ? `/api/labores/${form.id}` : '/api/labores';
       const method = isEditing ? 'PUT' : 'POST';
       const res = await apiFetch(url, {
         method,
@@ -115,7 +91,7 @@ function MaquinariaList() {
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error();
-      showToast(isEditing ? 'Activo actualizado.' : 'Activo registrado.');
+      showToast(isEditing ? 'Labor actualizada.' : 'Labor registrada.');
       resetForm();
       fetchItems();
     } catch {
@@ -126,12 +102,12 @@ function MaquinariaList() {
   };
 
   const handleDownloadTemplate = () => {
-    const sample = ['0403-0020', '3-20', 'TRACTOR JOHN DEERE 5075E', 'TRACTOR DE LLANTAS', 'Finca Aurora', '', ''];
+    const sample = ['CHAP-01', 'Chapea manual', ''];
     const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, sample]);
-    ws['!cols'] = EXCEL_HEADERS.map(() => ({ wch: 22 }));
+    ws['!cols'] = EXCEL_HEADERS.map(() => ({ wch: 28 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Maquinaria');
-    XLSX.writeFile(wb, 'plantilla_maquinaria.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, 'Labores');
+    XLSX.writeFile(wb, 'plantilla_labores.xlsx');
   };
 
   const handleExcelImport = async (e) => {
@@ -144,13 +120,9 @@ function MaquinariaList() {
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
       const validas = rows
         .map(row => ({
-          idMaquina:   String(row['ID Activo']         || '').trim(),
-          codigo:      String(row['Código (CC)']       || '').trim(),
-          descripcion: String(row['Descripción']       || '').trim(),
-          tipo:        String(row['Tipo']              || '').trim(),
-          ubicacion:   String(row['Ubicación']         || '').trim(),
-          capacidad:   row['Capacidad (litros)']       || '',
-          observacion: String(row['Observación']       || '').trim(),
+          codigo:      String(row['Código']      || '').trim(),
+          descripcion: String(row['Descripción'] || '').trim(),
+          observacion: String(row['Observación'] || '').trim(),
         }))
         .filter(r => r.descripcion);
       if (!validas.length) {
@@ -160,7 +132,7 @@ function MaquinariaList() {
       let creados = 0, actualizados = 0, errores = 0;
       for (const item of validas) {
         try {
-          const res = await apiFetch('/api/maquinaria', {
+          const res = await apiFetch('/api/labores', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(item),
@@ -171,9 +143,9 @@ function MaquinariaList() {
         } catch { errores++; }
       }
       const parts = [
-        creados     > 0 && `${creados} creado(s)`,
+        creados      > 0 && `${creados} creado(s)`,
         actualizados > 0 && `${actualizados} actualizado(s)`,
-        errores     > 0 && `${errores} error(es)`,
+        errores      > 0 && `${errores} error(es)`,
       ].filter(Boolean).join(' · ');
       setImportResult({ ok: true, msg: parts });
       fetchItems();
@@ -189,26 +161,23 @@ function MaquinariaList() {
   const filtered = items.filter(item =>
     !q ||
     item.descripcion?.toLowerCase().includes(q) ||
-    item.tipo?.toLowerCase().includes(q) ||
-    item.idMaquina?.toLowerCase().includes(q) ||
     item.codigo?.toLowerCase().includes(q)
   );
 
   return (
-    <div className="maq-wrap">
+    <div className="lab-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Formulario ── */}
       {!showForm ? (
-        <div className="maq-toolbar">
+        <div className="lab-toolbar">
           <input
-            className="maq-search"
-            placeholder="Buscar por descripción, tipo o ID…"
+            className="lab-search"
+            placeholder="Buscar por descripción o código…"
             value={filter}
             onChange={e => setFilter(e.target.value)}
           />
-          <div className="maq-import-section">
-            <div className="maq-import-buttons">
+          <div className="lab-import-section">
+            <div className="lab-import-buttons">
               <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate} title="Descargar plantilla Excel">
                 <FiDownload size={14} /> Plantilla
               </button>
@@ -218,7 +187,7 @@ function MaquinariaList() {
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleExcelImport} />
             </div>
             {importResult && (
-              <p className={`maq-import-result ${importResult.error ? 'maq-import-error' : 'maq-import-ok'}`}>
+              <p className={`lab-import-result ${importResult.error ? 'lab-import-error' : 'lab-import-ok'}`}>
                 {importResult.error
                   ? '⚠ No se pudo leer el archivo. Usa la plantilla.'
                   : `✓ ${importResult.msg}`}
@@ -226,97 +195,54 @@ function MaquinariaList() {
             )}
           </div>
           <button className="btn btn-primary" onClick={handleNew}>
-            <FiPlus size={15} /> Nuevo Activo
+            <FiPlus size={15} /> Nueva Labor
           </button>
         </div>
       ) : (
-        <div className="maq-form-card">
-          <div className="maq-form-header">
-            <span>{isEditing ? 'Editar Activo' : 'Nuevo Activo'}</span>
-            <button className="maq-close-btn" onClick={resetForm} title="Cancelar">
+        <div className="lab-form-card">
+          <div className="lab-form-header">
+            <span>{isEditing ? 'Editar Labor' : 'Nueva Labor'}</span>
+            <button className="lab-close-btn" onClick={resetForm} title="Cancelar">
               <FiX size={16} />
             </button>
           </div>
 
-          <form className="maq-form" onSubmit={handleSubmit}>
-            <div className="maq-form-grid">
-              <div className="maq-field">
-                <label>ID Activo</label>
-                <input
-                  name="idMaquina"
-                  value={form.idMaquina}
-                  onChange={handleChange}
-                  placeholder="Ej. 0403-0020"
-                />
-              </div>
-
-              <div className="maq-field">
-                <label>Código (CC)</label>
+          <form className="lab-form" onSubmit={handleSubmit}>
+            <div className="lab-form-grid">
+              <div className="lab-field">
+                <label>Código</label>
                 <input
                   name="codigo"
                   value={form.codigo}
                   onChange={handleChange}
-                  placeholder="Ej. 3-20"
+                  placeholder="Ej. CHAP-01"
                 />
               </div>
 
-              <div className="maq-field maq-field--full">
-                <label>Descripción <span className="maq-required">*</span></label>
+              <div className="lab-field">
+                <label>Descripción <span className="lab-required">*</span></label>
                 <input
                   name="descripcion"
                   value={form.descripcion}
                   onChange={handleChange}
-                  placeholder="Nombre o descripción del activo"
+                  placeholder="Nombre de la labor"
                   required
                 />
               </div>
 
-              <div className="maq-field">
-                <label>Tipo</label>
-                <select name="tipo" value={form.tipo} onChange={handleChange}>
-                  <option value="">— Seleccionar —</option>
-                  {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-
-              <div className="maq-field">
-                <label>Ubicación</label>
-                <input
-                  name="ubicacion"
-                  value={form.ubicacion}
-                  onChange={handleChange}
-                  placeholder="Ej. Finca Aurora"
-                />
-              </div>
-
-              {form.tipo === TIPO_APLICACIONES && (
-                <div className="maq-field">
-                  <label>Capacidad (litros)</label>
-                  <input
-                    name="capacidad"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.capacidad}
-                    onChange={handleChange}
-                    placeholder="Ej. 500"
-                  />
-                </div>
-              )}
-
-              <div className="maq-field maq-field--full">
+              <div className="lab-field lab-field--full">
                 <label>Observación</label>
                 <textarea
                   name="observacion"
                   value={form.observacion}
                   onChange={handleChange}
-                  placeholder="Estado, notas de mantenimiento, etc."
+                  placeholder="Notas adicionales sobre esta labor…"
                   rows={2}
                 />
               </div>
             </div>
 
-            <div className="maq-form-actions">
+            <div className="lab-form-actions">
               <button type="button" className="btn btn-secondary" onClick={resetForm}>
                 Cancelar
               </button>
@@ -328,41 +254,37 @@ function MaquinariaList() {
         </div>
       )}
 
-      {/* ── Tabla ── */}
-      <section className="maq-section">
-        <div className="maq-section-header">
-          <FiTool size={14} />
-          <span>Activos registrados</span>
-          {items.length > 0 && <span className="maq-count">{items.length}</span>}
+      <section className="lab-section">
+        <div className="lab-section-header">
+          <FiList size={14} />
+          <span>Labores registradas</span>
+          {items.length > 0 && <span className="lab-count">{items.length}</span>}
           {showForm && (
-            <button className="maq-add-inline" onClick={handleNew} title="Nuevo activo">
+            <button className="lab-add-inline" onClick={handleNew} title="Nueva labor">
               <FiPlus size={13} />
             </button>
           )}
         </div>
 
         {loading ? (
-          <p className="maq-empty">Cargando…</p>
+          <p className="lab-empty">Cargando…</p>
         ) : filtered.length === 0 ? (
-          <div className="maq-empty-state">
-            <FiTool size={32} />
-            <p>{items.length === 0 ? 'No hay activos registrados.' : 'Sin resultados para la búsqueda.'}</p>
+          <div className="lab-empty-state">
+            <FiList size={32} />
+            <p>{items.length === 0 ? 'No hay labores registradas.' : 'Sin resultados para la búsqueda.'}</p>
             {items.length === 0 && (
               <button className="btn btn-primary" onClick={handleNew}>
-                <FiPlus size={14} /> Agregar el primero
+                <FiPlus size={14} /> Agregar la primera
               </button>
             )}
           </div>
         ) : (
-          <div className="maq-table-wrap">
-            <table className="maq-table">
+          <div className="lab-table-wrap">
+            <table className="lab-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>CC</th>
+                  <th>Código</th>
                   <th>Descripción</th>
-                  <th>Tipo</th>
-                  <th>Ubicación</th>
                   <th>Observación</th>
                   <th></th>
                 </tr>
@@ -370,24 +292,14 @@ function MaquinariaList() {
               <tbody>
                 {filtered.map(item => (
                   <tr key={item.id}>
-                    <td className="maq-td-code">{item.idMaquina || '—'}</td>
-                    <td className="maq-td-code">{item.codigo || '—'}</td>
-                    <td className="maq-td-desc">{item.descripcion}</td>
-                    <td>
-                      {item.tipo
-                        ? <div className="maq-tipo-cell">
-                            <span className="maq-tipo-badge">{item.tipo}</span>
-                            {item.capacidad ? <span className="maq-capacidad-note">{item.capacidad} L</span> : null}
-                          </div>
-                        : <span className="maq-td-empty">—</span>}
-                    </td>
-                    <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-obs">{item.observacion || <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-actions">
-                      <button className="maq-btn-icon" onClick={() => handleEdit(item)} title="Editar">
+                    <td className="lab-td-code">{item.codigo || <span className="lab-td-empty">—</span>}</td>
+                    <td className="lab-td-desc">{item.descripcion}</td>
+                    <td className="lab-td-obs">{item.observacion || <span className="lab-td-empty">—</span>}</td>
+                    <td className="lab-td-actions">
+                      <button className="lab-btn-icon" onClick={() => handleEdit(item)} title="Editar">
                         <FiEdit size={13} />
                       </button>
-                      <button className="maq-btn-icon maq-btn-danger" onClick={() => handleDelete(item.id, item.descripcion)} title="Eliminar">
+                      <button className="lab-btn-icon lab-btn-danger" onClick={() => handleDelete(item.id, item.descripcion)} title="Eliminar">
                         <FiTrash2 size={13} />
                       </button>
                     </td>
@@ -402,4 +314,4 @@ function MaquinariaList() {
   );
 }
 
-export default MaquinariaList;
+export default LaborList;

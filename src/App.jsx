@@ -39,6 +39,8 @@ import MonitoreoConfig from './pages/MonitoreoConfig';
 import ConfigCuenta from './pages/ConfigCuenta';
 import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
+import LaborList from './pages/LaborList';
+import Horimetro from './pages/Horimetro';
 import GrupoManagement from './pages/GrupoManagement';
 import CedulasAplicacion from './pages/CedulasAplicacion';
 import Siembra from './pages/Siembra';
@@ -86,12 +88,14 @@ const routeTitles = {
   '/monitoreo/config': 'Tipos de Monitoreo',
   '/config/cuenta': 'Configuración de Cuenta',
   '/admin/parametros': 'Parámetros y KPI',
-  '/admin/maquinaria': 'Lista de Maquinaria',
+  '/admin/maquinaria': 'Lista de Activos',
+  '/admin/labores': 'Lista de Labores',
   '/grupos': 'Grupos',
   '/aplicaciones/cedulas': 'Cédulas de Aplicación',
   '/siembra': 'Registro de Siembra',
   '/siembra/materiales': 'Materiales de Siembra',
   '/siembra/historial': 'Historial de Siembra',
+  '/operaciones/horimetro': 'Horímetro',
 };
 
 // --- Route guard ---
@@ -301,11 +305,13 @@ function App() {
             <Route path="/config/cuenta" element={<ConfigCuenta />} />
             <Route path="/admin/parametros" element={<Parametros />} />
             <Route path="/admin/maquinaria" element={<MaquinariaList />} />
+            <Route path="/admin/labores" element={<LaborList />} />
             <Route path="/grupos" element={<GrupoManagement />} />
             <Route path="/aplicaciones/cedulas" element={<CedulasAplicacion />} />
             <Route path="/siembra" element={<Siembra />} />
             <Route path="/siembra/materiales" element={<SiembraMateriales />} />
             <Route path="/siembra/historial" element={<SiembraHistorial />} />
+            <Route path="/operaciones/horimetro" element={<Horimetro />} />
           </Route>
         </Routes>
       </UserProvider>
