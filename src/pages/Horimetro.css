@@ -412,3 +412,174 @@
   margin: 0;
   padding: 6px 0;
 }
+
+/* ── Scan / Escaneo ── */
+.hor-scan-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.hor-scan-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hor-drop-zone {
+  border: 2px dashed var(--aurora-border);
+  border-radius: 8px;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.hor-drop-zone:not(.has-image):hover { border-color: var(--aurora-green); }
+.hor-drop-zone.has-image { cursor: default; border-style: solid; }
+
+.hor-drop-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: rgba(230, 242, 255, 0.35);
+  text-align: center;
+  padding: 24px;
+}
+.hor-drop-hint p { font-size: 0.88rem; margin: 0; color: rgba(230, 242, 255, 0.5); }
+.hor-drop-hint strong { color: var(--aurora-green); }
+.hor-drop-hint span { font-size: 0.75rem; }
+
+.hor-scan-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  width: 100%;
+}
+.hor-scan-preview {
+  max-height: 220px;
+  max-width: 100%;
+  border-radius: 6px;
+  object-fit: contain;
+}
+.hor-scan-clear {
+  background: none;
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  color: rgba(230, 242, 255, 0.45);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.hor-scan-clear:hover { color: #ff5555; border-color: #ff5555; }
+
+.hor-scan-error {
+  font-size: 0.82rem;
+  color: var(--aurora-magenta);
+  margin: 0;
+}
+.hor-scan-hint {
+  font-size: 0.78rem;
+  color: rgba(230, 242, 255, 0.35);
+  margin: 0;
+}
+
+.hor-scan-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+/* ── Batch review table ── */
+.hor-batch-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.hor-batch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  min-width: 1100px;
+}
+
+.hor-batch-table thead tr {
+  background: var(--aurora-background);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.hor-batch-table th {
+  padding: 7px 8px;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(230, 242, 255, 0.45);
+  white-space: nowrap;
+}
+
+.hor-batch-table tbody tr {
+  border-bottom: 1px solid var(--aurora-border);
+}
+.hor-batch-table tbody tr:last-child { border-bottom: none; }
+.hor-batch-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+.hor-batch-row-warn { background: rgba(255, 200, 0, 0.05) !important; }
+.hor-batch-row-warn:hover { background: rgba(255, 200, 0, 0.08) !important; }
+
+.hor-batch-table td { padding: 5px 6px; vertical-align: middle; }
+
+.hor-batch-num {
+  color: rgba(230, 242, 255, 0.35);
+  font-size: 0.75rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hor-batch-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  color: var(--aurora-light);
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  min-width: 90px;
+  transition: border-color 0.15s;
+}
+.hor-batch-input:focus { border-color: var(--aurora-green); }
+.hor-batch-num-input { min-width: 64px; text-align: right; }
+
+.hor-batch-select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  color: var(--aurora-light);
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  min-width: 110px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.hor-batch-select:focus { border-color: var(--aurora-green); }
+.hor-batch-select-wide { min-width: 160px; }

@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FiClock, FiPlus, FiX, FiCheck, FiEdit, FiTrash2, FiFilter, FiChevronDown,
+  FiCamera, FiUpload, FiZap,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -68,9 +69,45 @@ function horasUsadas(rec) {
   return null;
 }
 
+const MAX_IMAGE_PX = 1600;
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_IMAGE_PX || height > MAX_IMAGE_PX) {
+          const ratio = Math.min(MAX_IMAGE_PX / width, MAX_IMAGE_PX / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function Horimetro() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
+
+  // Scan state
+  const scanFileRef = useRef(null);
+  const [scanStep, setScanStep] = useState(null); // null | 'upload' | 'review'
+  const [scanImage, setScanImage] = useState(null);
+  const [scanRows, setScanRows] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
+  const [savingBatch, setSavingBatch] = useState(false);
 
   // Catalog data
   const [tractores, setTractores] = useState([]);
@@ -297,6 +334,94 @@ function Horimetro() {
     setFilterLote('');       setFilterLabor('');
   };
 
+  // ── Scan handlers ──────────────────────────────────────────────────────────
+  const handleScanFile = async (e) => {
+    const file = e.target.files?.[0] || e.dataTransfer?.files?.[0];
+    if (!file) return;
+    setScanError(null);
+    try { setScanImage(await compressImage(file)); }
+    catch { setScanError('No se pudo procesar la imagen. Intenta con otro archivo.'); }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleScanDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file?.type.startsWith('image/')) handleScanFile({ dataTransfer: e.dataTransfer });
+  };
+
+  const handleScan = async () => {
+    if (!scanImage) return;
+    setScanning(true); setScanError(null);
+    try {
+      const res = await apiFetch('/api/horimetro/escanear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: scanImage.base64, mediaType: scanImage.mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error del servidor');
+      setScanRows(data.filas || []);
+      setScanStep('review');
+    } catch (err) {
+      setScanError(err.message || 'Error al escanear el formulario.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const updateScanRow = (idx, field, value) => {
+    setScanRows(prev => {
+      const next = [...prev];
+      const row = { ...next[idx], [field]: value };
+      if (field === 'tractorId') {
+        const t = tractoresLista.find(x => x.id === value);
+        row.tractorNombre = t ? t.descripcion : '';
+      }
+      if (field === 'loteId') {
+        const l = lotes.find(x => x.id === value);
+        row.loteNombre = l ? l.nombreLote : '';
+        row.grupo = '';
+        row.bloques = [];
+      }
+      if (field === 'operarioId') {
+        const u = usuarios.find(x => x.id === value);
+        row.operarioNombre = u ? u.nombre : '';
+      }
+      next[idx] = row;
+      return next;
+    });
+  };
+
+  const removeScanRow = (idx) => setScanRows(prev => prev.filter((_, i) => i !== idx));
+
+  const handleBatchSave = async () => {
+    const validas = scanRows.filter(r => r.fecha && r.tractorId);
+    if (!validas.length) { showToast('Ninguna fila tiene fecha y tractor.', 'error'); return; }
+    setSavingBatch(true);
+    let ok = 0, fail = 0;
+    for (const row of validas) {
+      try {
+        const res = await apiFetch('/api/horimetro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(row),
+        });
+        if (res.ok) ok++; else fail++;
+      } catch { fail++; }
+    }
+    setSavingBatch(false);
+    showToast(`${ok} registro(s) guardado(s)${fail ? ` · ${fail} error(es)` : ''}.`, fail ? 'error' : 'success');
+    if (ok) { setScanStep(null); setScanImage(null); setScanRows([]); fetchRecords(); }
+  };
+
+  // Grupos filtrados por lote para una fila del batch
+  const gruposParaFila = (loteId) => {
+    if (!loteId) return grupos;
+    const ids = new Set(siembras.filter(s => s.loteId === loteId).map(s => s.id));
+    return grupos.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="hor-wrap">
@@ -443,8 +568,150 @@ function Horimetro() {
             </div>
           </form>
         </div>
+      ) : scanStep === 'upload' ? (
+        <div className="hor-scan-card">
+          <div className="hor-form-header">
+            <span><FiCamera size={14} style={{ marginRight: 6 }} />Escanear Formulario de Horímetro</span>
+            <button className="hor-close-btn" onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); }}><FiX size={16} /></button>
+          </div>
+          <div className="hor-scan-body">
+            <div
+              className={`hor-drop-zone${scanImage ? ' has-image' : ''}`}
+              onDrop={handleScanDrop}
+              onDragOver={e => e.preventDefault()}
+              onClick={() => !scanImage && scanFileRef.current?.click()}
+            >
+              {scanImage ? (
+                <div className="hor-scan-preview-wrap">
+                  <img src={scanImage.previewUrl} alt="Formulario" className="hor-scan-preview" />
+                  <button className="hor-scan-clear" onClick={e => { e.stopPropagation(); setScanImage(null); }}>
+                    <FiX size={14} /> Cambiar imagen
+                  </button>
+                </div>
+              ) : (
+                <div className="hor-drop-hint">
+                  <FiUpload size={28} />
+                  <p>Arrastra la foto del formulario aquí o <strong>haz clic para seleccionar</strong></p>
+                  <span>JPG, PNG, WEBP</span>
+                </div>
+              )}
+            </div>
+            <input ref={scanFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleScanFile} />
+            {scanError && <p className="hor-scan-error">{scanError}</p>}
+            <div className="hor-scan-actions">
+              <button className="btn btn-secondary" onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); }}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleScan} disabled={!scanImage || scanning}>
+                <FiZap size={14} /> {scanning ? 'Escaneando…' : 'Escanear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : scanStep === 'review' ? (
+        <div className="hor-scan-card">
+          <div className="hor-form-header">
+            <span>Revisar registros extraídos ({scanRows.length})</span>
+            <button className="hor-close-btn" onClick={() => setScanStep('upload')}><FiX size={16} /></button>
+          </div>
+          <div className="hor-scan-body">
+            <div className="hor-batch-wrap">
+              <table className="hor-batch-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Fecha</th>
+                    <th>Tractor</th>
+                    <th>Implemento</th>
+                    <th>Hor.Ini</th>
+                    <th>Hor.Fin</th>
+                    <th>Lote</th>
+                    <th>Grupo</th>
+                    <th>Labor</th>
+                    <th>H.Inicio</th>
+                    <th>H.Final</th>
+                    <th>Operario</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scanRows.map((row, idx) => (
+                    <tr key={idx} className={!row.tractorId ? 'hor-batch-row-warn' : ''}>
+                      <td className="hor-batch-num">{idx + 1}</td>
+                      <td>
+                        <input type="date" className="hor-batch-input" value={row.fecha || ''} onChange={e => updateScanRow(idx, 'fecha', e.target.value)} />
+                      </td>
+                      <td>
+                        <select className="hor-batch-select" value={row.tractorId || ''} onChange={e => updateScanRow(idx, 'tractorId', e.target.value)}>
+                          <option value="">—</option>
+                          {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.descripcion}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select className="hor-batch-select" value={row.implemento || ''} onChange={e => updateScanRow(idx, 'implemento', e.target.value)}>
+                          <option value="">—</option>
+                          {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.descripcion}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <input type="number" className="hor-batch-input hor-batch-num-input" value={row.horimetroInicial ?? ''} onChange={e => updateScanRow(idx, 'horimetroInicial', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
+                      </td>
+                      <td>
+                        <input type="number" className="hor-batch-input hor-batch-num-input" value={row.horimetroFinal ?? ''} onChange={e => updateScanRow(idx, 'horimetroFinal', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
+                      </td>
+                      <td>
+                        <select className="hor-batch-select" value={row.loteId || ''} onChange={e => updateScanRow(idx, 'loteId', e.target.value)}>
+                          <option value="">—</option>
+                          {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select className="hor-batch-select" value={row.grupo || ''} onChange={e => updateScanRow(idx, 'grupo', e.target.value)}>
+                          <option value="">—</option>
+                          {gruposParaFila(row.loteId).map(g => <option key={g.id} value={g.nombreGrupo}>{g.nombreGrupo}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select className="hor-batch-select hor-batch-select-wide" value={row.labor || ''} onChange={e => updateScanRow(idx, 'labor', e.target.value)}>
+                          <option value="">—</option>
+                          {labores.map(l => <option key={l.id} value={l.descripcion}>{l.codigo ? `${l.codigo} — ${l.descripcion}` : l.descripcion}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <input type="time" className="hor-batch-input" value={row.horaInicio || ''} onChange={e => updateScanRow(idx, 'horaInicio', e.target.value)} />
+                      </td>
+                      <td>
+                        <input type="time" className="hor-batch-input" value={row.horaFinal || ''} onChange={e => updateScanRow(idx, 'horaFinal', e.target.value)} />
+                      </td>
+                      <td>
+                        <select className="hor-batch-select" value={row.operarioId || ''} onChange={e => updateScanRow(idx, 'operarioId', e.target.value)}>
+                          <option value="">—</option>
+                          {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <button className="hor-btn-icon hor-btn-danger" onClick={() => removeScanRow(idx)} title="Eliminar fila">
+                          <FiTrash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {scanError && <p className="hor-scan-error">{scanError}</p>}
+            <p className="hor-scan-hint">Las filas en amarillo requieren seleccionar un tractor para guardarse.</p>
+            <div className="hor-scan-actions">
+              <button className="btn btn-secondary" onClick={() => setScanStep('upload')}>← Volver</button>
+              <button className="btn btn-primary" onClick={handleBatchSave} disabled={savingBatch || scanRows.length === 0}>
+                <FiCheck size={14} /> {savingBatch ? 'Guardando…' : `Registrar ${scanRows.filter(r => r.tractorId).length} registro(s)`}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="hor-toolbar">
+          <button className="btn btn-secondary" onClick={() => { setScanStep('upload'); setScanImage(null); setScanError(null); }}>
+            <FiCamera size={14} /> Escanear Formulario
+          </button>
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus size={15} /> Nuevo
           </button>

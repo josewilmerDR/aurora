@@ -2756,7 +2756,7 @@ async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, respon
 
 // Tool: consulta genérica de Firestore para reportes y análisis
 async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }, fincaId) {
-  const coleccionesPermitidas = ['lotes', 'siembras', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
+  const coleccionesPermitidas = ['lotes', 'siembras', 'grupos', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
   if (!coleccionesPermitidas.includes(coleccion)) {
     return { error: `Colección no permitida. Usa una de: ${coleccionesPermitidas.join(', ')}` };
   }
@@ -2880,6 +2880,29 @@ async function chatToolConsultarSiembras({ loteId, limite = 10 }, fincaId) {
   return { siembras, total: siembras.length };
 }
 
+// Tool: registrar registro de horímetro
+async function chatToolRegistrarHorimetro(input, fincaId) {
+  const allowed = [
+    'fecha', 'tractorId', 'tractorNombre', 'implemento',
+    'horimetroInicial', 'horimetroFinal',
+    'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
+    'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+  ];
+  const data = Object.fromEntries(Object.entries(input).filter(([k]) => allowed.includes(k)));
+  if (!data.fecha || !data.tractorId) {
+    return { error: 'Fecha y tractorId son obligatorios.' };
+  }
+  const ref = await db.collection('horimetro').add({
+    ...data,
+    fincaId,
+    creadoEn: Timestamp.now(),
+  });
+  const horas = (data.horimetroInicial != null && data.horimetroFinal != null)
+    ? (parseFloat(data.horimetroFinal) - parseFloat(data.horimetroInicial)).toFixed(1)
+    : null;
+  return { id: ref.id, registrado: true, horas };
+}
+
 app.post('/api/chat', authenticate, async (req, res) => {
   try {
     const { message, imageBase64, mediaType, userId, userName } = req.body;
@@ -2889,10 +2912,15 @@ app.post('/api/chat', authenticate, async (req, res) => {
     }
 
     // Cargar catálogos para que Claude pueda resolver nombres a IDs
-    const [lotesSnap, matsSnap, paquetesSnap] = await Promise.all([
+    const [lotesSnap, matsSnap, paquetesSnap, gruposSnap, siembrasSnap, maquinariaSnap, usersSnap, laboresSnap] = await Promise.all([
       db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
       db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).get(),
       db.collection('packages').where('fincaId', '==', req.fincaId).get(),
+      db.collection('grupos').where('fincaId', '==', req.fincaId).get(),
+      db.collection('siembras').where('fincaId', '==', req.fincaId).get(),
+      db.collection('maquinaria').where('fincaId', '==', req.fincaId).get(),
+      db.collection('users').where('fincaId', '==', req.fincaId).get(),
+      db.collection('labores').where('fincaId', '==', req.fincaId).get(),
     ]);
     const catalogoLotes = lotesSnap.docs.map(d => ({
       id: d.id,
@@ -2923,10 +2951,74 @@ app.post('/api/chat', authenticate, async (req, res) => {
       ? catalogoPaquetes.map(p => `  - ID: "${p.id}" | Nombre: "${p.nombre}"${p.tipo ? ` | Tipo: "${p.tipo}"` : ''}${p.etapa ? ` | Etapa: "${p.etapa}"` : ''}`).join('\n')
       : '  (sin paquetes registrados)';
 
+    // Construir mapa siembraId -> {loteNombre, bloque} para enriquecer grupos
+    const siembraMap = {};
+    siembrasSnap.docs.forEach(d => {
+      siembraMap[d.id] = { loteNombre: d.data().loteNombre || '', bloque: d.data().bloque || '' };
+    });
+    const catalogoGrupos = gruposSnap.docs.map(d => {
+      const g = d.data();
+      const bloques = Array.isArray(g.bloques) ? g.bloques : [];
+      // Resolver lotes únicos que conforman este grupo
+      const lotesEnGrupo = [...new Set(bloques.map(sid => siembraMap[sid]?.loteNombre).filter(Boolean))];
+      const bloquesDetalle = bloques.map(sid => {
+        const s = siembraMap[sid];
+        return s ? `${s.loteNombre} bloque ${s.bloque}` : sid;
+      });
+      return {
+        id: d.id,
+        nombre: g.nombreGrupo || '',
+        cosecha: g.cosecha || '',
+        etapa: g.etapa || '',
+        lotes: lotesEnGrupo,
+        bloques: bloquesDetalle,
+        totalBloques: bloques.length,
+      };
+    });
+    const gruposTexto = catalogoGrupos.length
+      ? catalogoGrupos.map(g =>
+          `  - Grupo: "${g.nombre}" | ID: "${g.id}"` +
+          (g.cosecha ? ` | Cosecha: ${g.cosecha}` : '') +
+          (g.etapa ? ` | Etapa: ${g.etapa}` : '') +
+          ` | Lotes que agrupa: [${g.lotes.join(', ') || 'sin lotes resueltos'}]` +
+          ` | Bloques: [${g.bloques.join('; ')}]`
+        ).join('\n')
+      : '  (sin grupos registrados)';
+
+    // Catálogos de maquinaria, usuarios y labores para horímetro
+    const catalogoMaquinaria = maquinariaSnap.docs.map(d => ({
+      id: d.id, idMaquina: d.data().idMaquina || '', codigo: d.data().codigo || '',
+      descripcion: d.data().descripcion || '', tipo: d.data().tipo || '',
+    }));
+    const tractoresTexto = (() => {
+      const t = catalogoMaquinaria.filter(m => /tractor|otra maquinaria/i.test(m.tipo));
+      return t.length
+        ? t.map(m => `  - ID: "${m.id}" | ID Activo: "${m.idMaquina}" | Código: "${m.codigo}" | Nombre: "${m.descripcion}"`).join('\n')
+        : '  (sin tractores registrados)';
+    })();
+    const implementosTexto = (() => {
+      const t = catalogoMaquinaria.filter(m => /implemento/i.test(m.tipo));
+      return t.length
+        ? t.map(m => `  - ID: "${m.id}" | ID Activo: "${m.idMaquina}" | Código: "${m.codigo}" | Nombre: "${m.descripcion}"`).join('\n')
+        : '  (sin implementos registrados)';
+    })();
+    const catalogoUsers = usersSnap.docs.map(d => ({
+      id: d.id, nombre: d.data().nombre || '', rol: d.data().rol || '',
+    }));
+    const operariosTexto = catalogoUsers.length
+      ? catalogoUsers.map(u => `  - ID: "${u.id}" | Nombre: "${u.nombre}" | Rol: ${u.rol}`).join('\n')
+      : '  (sin usuarios registrados)';
+    const catalogoLabores = laboresSnap.docs.map(d => ({
+      id: d.id, codigo: d.data().codigo || '', descripcion: d.data().descripcion || '',
+    }));
+    const laboresTexto = catalogoLabores.length
+      ? catalogoLabores.map(l => `  - ID: "${l.id}"${l.codigo ? ` | Código: "${l.codigo}"` : ''} | Descripción: "${l.descripcion}"`).join('\n')
+      : '  (sin labores registradas)';
+
     const today = new Date().toISOString().slice(0, 10);
 
     const systemPrompt = `Eres Aurora, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
-Ayudas a los trabajadores a registrar siembras y consultar datos agrícolas.
+Ayudas a los trabajadores a registrar siembras, horímetros y consultar datos agrícolas.
 Hoy es ${today}. El usuario es ${userName || 'un trabajador de la finca'}.
 
 ## Catálogo actual del sistema
@@ -2939,6 +3031,21 @@ ${matsTexto}
 
 Paquetes de tareas disponibles:
 ${paquetesTexto}
+
+Grupos registrados (agrupaciones de bloques de distintos lotes para homogeneizar labores y aplicaciones):
+${gruposTexto}
+
+Tractores y Maquinaria de campo registrada:
+${tractoresTexto}
+
+Implementos registrados:
+${implementosTexto}
+
+Labores registradas:
+${laboresTexto}
+
+Operarios / Usuarios registrados:
+${operariosTexto}
 
 ## Instrucciones
 
@@ -2964,6 +3071,22 @@ Cuando el usuario pida registrar una siembra con imagen adjunta:
 1. Llama a "escanear_formulario_siembra" para extraer los datos de la imagen.
 2. Muestra un resumen de lo encontrado y llama a "registrar_siembras".
 
+Cuando el usuario pida registrar un horímetro (ej: "agrega el siguiente horímetro: tractor 4-1, implemento 5-13, horímetro inicial 10.4, horímetro final 15.3, lote 6A, labor 189, hora inicial 5am hora final 2pm"):
+1. Extrae todos los datos del texto usando los catálogos precargados arriba:
+   - **Tractor**: busca por Código (ej: "4-1"), ID Activo o nombre aproximado → obtén ID interno y nombre
+   - **Implemento**: igual que tractor → guarda solo el nombre (descripcion), no el ID
+   - **Labor**: busca por Código o Descripción aproximada → guarda solo la descripción de la labor
+   - **Lote**: busca por nombre o código → guarda loteId y loteNombre
+   - **Grupo**: busca por nombre entre los grupos del lote → guarda el nombre del grupo (nombreGrupo)
+   - **Operario**: busca por nombre aproximado → guarda operarioId y operarioNombre
+   - **Horas**: convierte a formato 24h HH:MM — "5am" → "05:00", "2pm" → "14:00", "14:30" → "14:30"
+   - **Fecha**: si no se menciona, usa ${today}
+2. Si el tractor no pudo resolverse, pregunta antes de continuar. Es el único campo verdaderamente obligatorio.
+3. Si el usuario mencionó un lote pero NO mencionó el grupo, muéstrale la lista de grupos disponibles para ese lote (del catálogo de grupos, campo "Lotes que agrupa") y pregúntale cuál es. Recuerda todos los demás datos ya extraídos — no vuelvas a preguntar por ellos.
+4. Cuando el usuario responda el grupo (aunque sea con nombre aproximado o parcial), resuélvelo al nombreGrupo correcto y llama de inmediato a "registrar_horimetro" con todos los datos acumulados.
+5. Los bloques son opcionales — si el usuario los menciona, inclúyelos; si no, déjalos vacíos.
+6. Una vez registrado, confirma con un resumen breve: tractor, lote, grupo, labor y horas trabajadas.
+
 Cuando el usuario pida un reporte, análisis, proyección o cualquier consulta de datos (ej: "¿cuántas plantas se sembraron este mes?", "¿qué tareas están pendientes?", "¿qué productos están bajo stock?"):
 1. Usa "consultar_datos" con los filtros apropiados para obtener los datos relevantes.
 2. Puedes hacer múltiples llamadas encadenadas para cruzar información entre colecciones (ej: primero lotes, luego siembras de esos lotes).
@@ -2974,11 +3097,22 @@ Cuando el usuario pida un reporte, análisis, proyección o cualquier consulta d
 
 - **lotes**: codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas
 - **siembras**: loteId, loteNombre, bloque, plantas, densidad, areaCalculada, materialId, materialNombre, variedad, rangoPesos, fecha, responsableNombre, cerrado
-- **scheduled_tasks**: type (REMINDER_3_DAY|REMINDER_DUE_DAY), status (pending|completed_by_user|skipped|notified), executeAt, loteId, activity{name,day,type,responsableId,productos[]}
+- **grupos**: nombreGrupo, cosecha, etapa, fechaCreacion, bloques[] (array de IDs de siembras), paqueteId — Un grupo NO guarda el nombre del lote directamente; agrupa bloques concretos (siembras) de uno o varios lotes.
+- **horimetro**: fecha, tractorId, tractorNombre, implemento, horimetroInicial, horimetroFinal, loteId, loteNombre, grupo, bloques[], labor, horaInicio, horaFinal, operarioId, operarioNombre
+- **maquinaria**: idMaquina, codigo, descripcion, tipo (TRACTOR DE LLANTAS | IMPLEMENTO | etc.), ubicacion
+- **labores**: codigo, descripcion, observacion
+- **scheduled_tasks**: type (REMINDER_3_DAY|REMINDER_DUE_DAY), status (pending|completed_by_user|skipped|notified), executeAt, loteId, grupoId, activity{name,day,type,responsableId,productos[]}
 - **productos**: idProducto, nombreComercial, ingredienteActivo, tipo, stockActual, stockMinimo, cantidadPorHa, unidad
 - **users**: nombre, email, telefono, rol (trabajador|encargado|supervisor|administrador)
 - **materiales_siembra**: nombre, variedad, rangoPesos
 - **packages**: nombrePaquete, tipoCosecha, etapaCultivo, activities[]
+
+## Cómo relacionar grupos con lotes
+
+Un grupo se forma seleccionando bloques específicos de siembra (identificados por su ID en Firestore). Cada bloque pertenece a un lote. Por eso:
+- Cuando el usuario pregunte "¿qué grupos tiene el lote X?", usa el catálogo de grupos precargado arriba (campo "Lotes que agrupa") para responder directamente sin llamar herramientas.
+- Cuando necesites más detalle (hectáreas, plantas, estado), usa consultar_datos sobre "grupos" y filtra por ID del grupo de interés.
+- Puedes explicar al usuario que un grupo es una agrupación de bloques de distintos lotes, creada para aplicarles las mismas labores o agroquímicos de forma uniforme.
 
 Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
@@ -2991,7 +3125,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           properties: {
             coleccion: {
               type: 'string',
-              enum: ['lotes', 'siembras', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'],
+              enum: ['lotes', 'siembras', 'grupos', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'],
               description: 'Colección a consultar',
             },
             filtros: {
@@ -3087,6 +3221,31 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           },
         },
       },
+      {
+        name: 'registrar_horimetro',
+        description: 'Registra un nuevo registro de horímetro (uso de maquinaria). Úsala cuando el usuario proporcione los datos de un registro de horímetro por texto o voz. Requiere al menos fecha y tractorId.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            fecha:             { type: 'string', description: 'Fecha del registro en formato YYYY-MM-DD. Default: hoy.' },
+            tractorId:         { type: 'string', description: 'ID interno del tractor (del catálogo de maquinaria).' },
+            tractorNombre:     { type: 'string', description: 'Nombre/descripción del tractor.' },
+            implemento:        { type: 'string', description: 'Nombre del implemento (descripcion del activo), opcional.' },
+            horimetroInicial:  { type: 'number', description: 'Lectura inicial del horímetro, opcional.' },
+            horimetroFinal:    { type: 'number', description: 'Lectura final del horímetro, opcional.' },
+            loteId:            { type: 'string', description: 'ID interno del lote, opcional.' },
+            loteNombre:        { type: 'string', description: 'Nombre del lote, opcional.' },
+            grupo:             { type: 'string', description: 'Nombre del grupo (nombreGrupo), requerido si se proporciona lote.' },
+            bloques:           { type: 'array', items: { type: 'string' }, description: 'Lista de bloques trabajados, opcional.' },
+            labor:             { type: 'string', description: 'Descripción de la labor realizada (no el código, sino la descripción del catálogo).' },
+            horaInicio:        { type: 'string', description: 'Hora de inicio en formato HH:MM (24h).' },
+            horaFinal:         { type: 'string', description: 'Hora final en formato HH:MM (24h).' },
+            operarioId:        { type: 'string', description: 'ID del operario, opcional.' },
+            operarioNombre:    { type: 'string', description: 'Nombre del operario, opcional.' },
+          },
+          required: ['fecha', 'tractorId', 'tractorNombre'],
+        },
+      },
     ];
 
     // Construir mensaje inicial del usuario
@@ -3149,6 +3308,8 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             result = await chatToolRegistrarSiembras(block.input, userId, userName, req.fincaId);
           } else if (block.name === 'consultar_siembras') {
             result = await chatToolConsultarSiembras(block.input, req.fincaId);
+          } else if (block.name === 'registrar_horimetro') {
+            result = await chatToolRegistrarHorimetro(block.input, req.fincaId);
           } else {
             result = { error: `Herramienta desconocida: ${block.name}` };
           }
@@ -3243,6 +3404,104 @@ app.delete('/api/horimetro/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar horímetro:', error);
     res.status(500).json({ message: 'Error al eliminar el registro.' });
+  }
+});
+
+app.post('/api/horimetro/escanear', authenticate, async (req, res) => {
+  try {
+    const { imageBase64, mediaType } = req.body;
+    if (!imageBase64 || !mediaType) return res.status(400).json({ message: 'Imagen requerida.' });
+
+    if (!anthropicClient) anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+
+    const [maqSnap, lotesSnap, gruposSnap, siembrasSnap, laboresSnap, usersSnap] = await Promise.all([
+      db.collection('maquinaria').where('fincaId', '==', req.fincaId).get(),
+      db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
+      db.collection('grupos').where('fincaId', '==', req.fincaId).get(),
+      db.collection('siembras').where('fincaId', '==', req.fincaId).get(),
+      db.collection('labores').where('fincaId', '==', req.fincaId).get(),
+      db.collection('users').where('fincaId', '==', req.fincaId).get(),
+    ]);
+
+    const maq = maqSnap.docs.map(d => ({ id: d.id, ...pick(d.data(), ['idMaquina', 'codigo', 'descripcion', 'tipo']) }));
+    const tractores  = maq.filter(m => /tractor|otra maquinaria/i.test(m.tipo));
+    const implementos = maq.filter(m => /implemento/i.test(m.tipo));
+    const lotes = lotesSnap.docs.map(d => ({ id: d.id, nombreLote: d.data().nombreLote || '', codigoLote: d.data().codigoLote || '' }));
+    const siembraMap = {};
+    siembrasSnap.docs.forEach(d => { siembraMap[d.id] = { loteNombre: d.data().loteNombre || '' }; });
+    const grupos = gruposSnap.docs.map(d => {
+      const g = d.data();
+      const lotesGrupo = [...new Set((g.bloques || []).map(bid => siembraMap[bid]?.loteNombre).filter(Boolean))];
+      return { id: d.id, nombreGrupo: g.nombreGrupo || '', lotes: lotesGrupo };
+    });
+    const labores   = laboresSnap.docs.map(d => ({ id: d.id, codigo: d.data().codigo || '', descripcion: d.data().descripcion || '' }));
+    const operarios = usersSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombre || '' }));
+    const today = new Date().toISOString().slice(0, 10);
+
+    const prompt = `Eres un asistente agrícola. Analiza este formulario físico de registro de horímetro de maquinaria.
+
+TRACTORES:
+${tractores.map(t => `ID:"${t.id}"|Código:"${t.codigo}"|IDActivo:"${t.idMaquina}"|Nombre:"${t.descripcion}"`).join('\n') || '(ninguno)'}
+
+IMPLEMENTOS:
+${implementos.map(t => `ID:"${t.id}"|Código:"${t.codigo}"|IDActivo:"${t.idMaquina}"|Nombre:"${t.descripcion}"`).join('\n') || '(ninguno)'}
+
+LOTES:
+${lotes.map(l => `ID:"${l.id}"|Código:"${l.codigoLote}"|Nombre:"${l.nombreLote}"`).join('\n') || '(ninguno)'}
+
+GRUPOS:
+${grupos.map(g => `ID:"${g.id}"|Nombre:"${g.nombreGrupo}"|Lotes:[${g.lotes.join(',')}]`).join('\n') || '(ninguno)'}
+
+LABORES:
+${labores.map(l => `ID:"${l.id}"|Código:"${l.codigo}"|Desc:"${l.descripcion}"`).join('\n') || '(ninguno)'}
+
+OPERARIOS:
+${operarios.map(u => `ID:"${u.id}"|Nombre:"${u.nombre}"`).join('\n') || '(ninguno)'}
+
+Extrae cada fila del formulario y devuelve un arreglo JSON con este formato exacto:
+[
+  {
+    "fecha": "YYYY-MM-DD (busca la fecha en el encabezado; si no aparece usa ${today})",
+    "tractorId": "ID del tractor del catálogo o null",
+    "tractorNombre": "nombre del tractor tal como aparece o del catálogo si coincide",
+    "implemento": "nombre del implemento del catálogo si coincide, o texto del formulario, o cadena vacía",
+    "horimetroInicial": número o null,
+    "horimetroFinal": número o null,
+    "loteId": "ID del lote si coincide, o null",
+    "loteNombre": "nombre del lote tal como aparece",
+    "grupo": "nombreGrupo del catálogo si coincide, o texto del formulario, o cadena vacía",
+    "bloques": [],
+    "labor": "descripción de la labor del catálogo si coincide, o texto del formulario, o cadena vacía",
+    "horaInicio": "HH:MM en 24h, o cadena vacía",
+    "horaFinal": "HH:MM en 24h, o cadena vacía",
+    "operarioId": "ID del operario si coincide, o null",
+    "operarioNombre": "nombre del operario tal como aparece"
+  }
+]
+Reglas:
+1. Cada fila del formulario es un objeto separado en el arreglo.
+2. horimetroInicial y horimetroFinal deben ser números (float), no cadenas. Usa null si no aparece.
+3. Horas en formato 24h: "5am"→"05:00", "2pm"→"14:00".
+4. Si hay una fecha común en el encabezado, aplícala a todas las filas.
+5. Resuelve tractor, lote, grupo, labor y operario usando coincidencia aproximada con los catálogos.
+6. Devuelve SOLO el arreglo JSON, sin texto adicional ni bloques de código.`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+        { type: 'text', text: prompt },
+      ] }],
+    });
+
+    const rawText = response.content[0].text.trim();
+    const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    const filas = JSON.parse(jsonText);
+    res.json({ filas });
+  } catch (error) {
+    console.error('Error escaneando horímetro:', error);
+    res.status(500).json({ message: 'Error al procesar la imagen.' });
   }
 });
 
