@@ -23,6 +23,12 @@
   color: var(--aurora-magenta);
 }
 
+.toast-warning {
+  background-color: rgba(255, 193, 7, 0.12);
+  border: 1px solid #ffc107;
+  color: #ffc107;
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }

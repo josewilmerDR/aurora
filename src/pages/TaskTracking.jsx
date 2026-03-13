@@ -201,7 +201,7 @@ function TaskTracking() {
     <div
       key={task.id}
       className={`task-card ${task.displayStatus.className}`}
-      onClick={() => navigate(`/task/${task.id}`)}
+      onClick={() => task.type === 'PLANILLA_PAGO' ? navigate('/hr/planilla/fijo') : navigate(`/task/${task.id}`)}
       style={{ cursor: 'pointer' }}
     >
       <div className="task-card-header">
@@ -212,9 +212,14 @@ function TaskTracking() {
         {task.type === 'SOLICITUD_COMPRA' && (
           <span className="task-aplicacion-tag" style={{ background: 'var(--aurora-magenta)', color: '#fff' }}>🛒 Compra</span>
         )}
+        {task.type === 'PLANILLA_PAGO' && (
+          <span className="task-aplicacion-tag" style={{ background: 'rgba(51,255,153,0.15)', color: 'var(--aurora-green)', border: '1px solid var(--aurora-green)' }}>💰 Planilla</span>
+        )}
       </div>
       <div className="task-card-body">
-        <span className="task-detail"><strong>Lote:</strong> {task.loteName}</span>
+        {task.type !== 'PLANILLA_PAGO' && (
+          <span className="task-detail"><strong>Lote:</strong> {task.loteName}</span>
+        )}
         <span className="task-detail"><strong>Responsable:</strong> {task.activity?.responsableId ? task.responsableName : <em style={{ color: 'var(--aurora-magenta)', fontStyle: 'normal' }}>Sin asignar</em>}</span>
       </div>
       <div className="task-card-footer">

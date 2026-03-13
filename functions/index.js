@@ -1780,29 +1780,124 @@ app.get('/api/hr/planilla-fijo', authenticate, async (req, res) => {
 
 app.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
   try {
-    const { frecuencia, periodoInicio, periodoFin, periodoLabel, filas, totalGeneral } = req.body;
-    if (!frecuencia || !periodoInicio || !periodoFin || !filas)
+    const { periodoInicio, periodoFin, periodoLabel, filas, totalGeneral } = req.body;
+    if (!periodoInicio || !periodoFin || !filas)
       return res.status(400).json({ message: 'Faltan campos requeridos.' });
+
+    // Generate atomic consecutive number PL-00001, PL-00002, ...
+    const counterRef = db.collection('counters').doc(`planilla_fijo_${req.fincaId}`);
+    const nextNum = await db.runTransaction(async (t) => {
+      const counterDoc = await t.get(counterRef);
+      const next = (counterDoc.exists ? (counterDoc.data().last || 0) : 0) + 1;
+      t.set(counterRef, { last: next }, { merge: true });
+      return next;
+    });
+    const numeroConsecutivo = `PL-${String(nextNum).padStart(5, '0')}`;
+
     const ref = await db.collection('hr_planilla_fijo').add({
-      frecuencia,
       periodoInicio: Timestamp.fromDate(new Date(periodoInicio)),
       periodoFin: Timestamp.fromDate(new Date(periodoFin)),
       periodoLabel: periodoLabel || '',
       filas,
       totalGeneral: Number(totalGeneral) || 0,
-      estado: 'generada',
+      estado: 'pendiente_pago',
+      numeroConsecutivo,
       fincaId: req.fincaId,
       createdAt: Timestamp.now(),
     });
-    res.status(201).json({ id: ref.id });
+
+    // Notify supervisors/admins via WhatsApp
+    try {
+      if (!twilioClient) {
+        twilioClient = twilio(twilioAccountSid.value(), twilioAuthToken.value());
+      }
+      const usersSnap = await db.collection('users')
+        .where('fincaId', '==', req.fincaId)
+        .where('rol', 'in', ['supervisor', 'administrador'])
+        .get();
+      const total = Number(totalGeneral).toLocaleString('es-CR');
+      const body = `📋 *Planilla Pendiente de Pago*\nPeríodo: ${periodoLabel}\nTotal a pagar: ₡${total}\nRevise y apruebe el pago en el sistema Aurora.`;
+      const from = `whatsapp:${twilioWhatsappFrom.value()}`;
+      const notifPromises = [];
+      usersSnap.forEach(doc => {
+        const u = doc.data();
+        if (u.telefono) {
+          const to = `whatsapp:${u.telefono.replace(/\s+/g, '')}`;
+          notifPromises.push(
+            twilioClient.messages.create({ body, from, to })
+              .catch(e => console.warn('Notif planilla fallida para', u.nombre, e.message))
+          );
+        }
+      });
+      await Promise.all(notifPromises);
+    } catch (notifErr) {
+      console.warn('Error al enviar notificaciones de planilla:', notifErr.message);
+    }
+
+    // Create an unassigned dashboard task for payroll approval
+    await db.collection('scheduled_tasks').add({
+      type: 'PLANILLA_PAGO',
+      status: 'pending',
+      executeAt: Timestamp.now(),
+      fincaId: req.fincaId,
+      planillaId: ref.id,
+      activity: {
+        name: `Aprobar pago de planilla: ${periodoLabel || ''}`,
+        responsableId: null,
+        responsableNombre: 'Sin asignar',
+      },
+    });
+
+    res.status(201).json({ id: ref.id, numeroConsecutivo });
   } catch (error) {
     res.status(500).json({ message: 'Error al guardar planilla.' });
+  }
+});
+
+app.put('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
+  try {
+    const { estado, filas, totalGeneral, periodoInicio, periodoFin, periodoLabel } = req.body;
+    const update = { updatedAt: Timestamp.now() };
+    if (estado) update.estado = estado;
+    if (filas) {
+      update.filas = filas;
+      update.totalGeneral = Number(totalGeneral) || 0;
+    }
+    if (periodoInicio) update.periodoInicio = Timestamp.fromDate(new Date(periodoInicio));
+    if (periodoFin)    update.periodoFin    = Timestamp.fromDate(new Date(periodoFin));
+    if (periodoLabel)  update.periodoLabel  = periodoLabel;
+    await db.collection('hr_planilla_fijo').doc(req.params.id).update(update);
+
+    // If marking as pagado, complete the associated dashboard task
+    if (estado === 'pagado') {
+      const taskSnap = await db.collection('scheduled_tasks')
+        .where('fincaId', '==', req.fincaId)
+        .where('planillaId', '==', req.params.id)
+        .where('type', '==', 'PLANILLA_PAGO')
+        .limit(1).get();
+      if (!taskSnap.empty) {
+        await taskSnap.docs[0].ref.update({ status: 'completed_by_user' });
+      }
+    }
+
+    res.status(200).json({ id: req.params.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar planilla.' });
   }
 });
 
 app.delete('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_planilla_fijo').doc(req.params.id).delete();
+    // Also delete the associated dashboard task
+    const taskSnap = await db.collection('scheduled_tasks')
+      .where('fincaId', '==', req.fincaId)
+      .where('planillaId', '==', req.params.id)
+      .where('type', '==', 'PLANILLA_PAGO')
+      .limit(1).get();
+    if (!taskSnap.empty) {
+      await taskSnap.docs[0].ref.delete();
+    }
     res.status(200).json({ message: 'Planilla eliminada.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar planilla.' });

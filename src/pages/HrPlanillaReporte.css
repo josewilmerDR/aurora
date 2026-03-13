@@ -66,72 +66,34 @@
 
 .pr-btn-print:hover { opacity: 0.88; }
 
-/* ── Two-column layout ── */
-.pr-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  flex: 1;
-  min-height: 0;
-}
-
-/* ── Editor panel ── */
-.pr-editor {
-  background-color: var(--aurora-background);
-  border-right: 1px solid var(--aurora-border);
-  padding: 20px;
-  overflow-y: auto;
-  height: calc(100vh - 53px);
-  position: sticky;
-  top: 53px;
-}
-
-.pr-editor-section {
-  margin-bottom: 24px;
-}
-
-.pr-editor-section h3 {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.pr-btn-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 1px solid var(--aurora-green);
   color: var(--aurora-green);
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.pr-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 12px;
-}
-
-.pr-field label {
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-
-.pr-field input,
-.pr-editor-section textarea {
-  background-color: var(--aurora-dark-blue);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
+  padding: 9px 18px;
   border-radius: 5px;
-  padding: 8px 10px;
+  font-weight: 600;
   font-size: 0.9rem;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
+  cursor: pointer;
+  transition: background-color 0.15s;
 }
 
-.pr-field input:focus,
-.pr-editor-section textarea:focus {
-  outline: none;
-  border-color: var(--aurora-green);
+.pr-btn-share:hover {
+  background-color: rgba(51, 255, 153, 0.1);
 }
 
-.pr-editor-section textarea { resize: vertical; }
+/* ── Alert banner ── */
+.pr-alert-banner {
+  background-color: #2a1f00;
+  border-bottom: 1px solid #7a5a00;
+  color: #ffd966;
+  padding: 10px 24px;
+  font-size: 0.85rem;
+  text-align: center;
+}
 
 /* ── Document wrap ── */
 .pr-doc-wrap {
@@ -187,6 +149,13 @@
   border-radius: 6px;
   letter-spacing: 1px;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.pr-doc-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .pr-doc-brand-info {
@@ -337,7 +306,8 @@
 .pr-col-cedula { width: 90px; font-size: 11px; }
 .pr-col-puesto { width: 90px; font-size: 11px; }
 .pr-col-money  { width: 90px; font-variant-numeric: tabular-nums; }
-.pr-col-neto   { background-color: #f0faf4 !important; font-weight: 700; }
+td.pr-col-neto { background-color: #f0faf4 !important; font-weight: 700; }
+th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important; }
 .pr-ded        { color: #c0392b; }
 
 /* ── Deduction note ── */
@@ -459,17 +429,15 @@
     color: #33ff99 !important;
   }
 
-  .pr-col-neto {
-    background-color: #f0faf4 !important;
-  }
+  td.pr-col-neto { background-color: #f0faf4 !important; }
+  th.pr-col-neto { background-color: #0d1a26 !important; color: #fff !important; }
 
   .pr-doc-table tr { page-break-inside: avoid; }
   .pr-doc-signatures { page-break-inside: avoid; }
 }
 
 /* ── Responsive (screen) ── */
-@media (max-width: 960px) {
-  .pr-layout { grid-template-columns: 1fr; }
-  .pr-editor { position: static; height: auto; }
-  .pr-doc-wrap { padding: 16px; }
+@media (max-width: 600px) {
+  .pr-doc-wrap { padding: 12px; }
+  .pr-document { padding: 24px 16px; }
 }
