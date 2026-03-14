@@ -33,7 +33,7 @@ function LaborList() {
   const fetchItems = () =>
     apiFetch('/api/labores')
       .then(r => r.json())
-      .then(setItems)
+      .then(data => setItems(Array.isArray(data) ? data : []))
       .catch(() => showToast('Error al cargar la lista de labores.', 'error'))
       .finally(() => setLoading(false));
 

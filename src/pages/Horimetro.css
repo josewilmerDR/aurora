@@ -413,6 +413,106 @@
   padding: 6px 0;
 }
 
+/* ── Labor combobox ── */
+.hor-labor-combo {
+  position: relative;
+}
+
+.hor-labor-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: rgba(230, 242, 255, 0.5);
+  cursor: text;
+  transition: border-color 0.15s;
+}
+
+.hor-labor-input-wrap:focus-within {
+  border-color: var(--aurora-green);
+  color: var(--aurora-light);
+}
+
+.hor-labor-input-wrap input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+}
+
+.hor-labor-input-wrap input.hor-labor-has-value::placeholder {
+  color: var(--aurora-light);
+  opacity: 1;
+}
+
+.hor-labor-input-wrap button {
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  cursor: pointer;
+  display: flex;
+  padding: 0;
+}
+
+.hor-labor-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-green);
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.hor-labor-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--aurora-border);
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.hor-labor-option:last-child { border-bottom: none; }
+
+.hor-labor-option:hover { background-color: var(--aurora-background); }
+
+.hor-labor-code {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  min-width: 36px;
+}
+
+.hor-labor-desc {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+
+.hor-labor-empty {
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.4;
+  text-align: center;
+  padding: 14px;
+  margin: 0;
+}
+
 /* ── Scan / Escaneo ── */
 .hor-scan-card {
   background: var(--aurora-background);

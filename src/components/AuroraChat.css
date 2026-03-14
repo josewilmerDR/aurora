@@ -318,3 +318,112 @@
     display: none;
   }
 }
+
+/* ── Tarjeta de previsualización de horímetro ────────────────────────────────── */
+.aurora-draft-card {
+  margin-top: 10px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.82rem;
+}
+
+.aurora-draft-title {
+  margin: 0;
+  padding: 8px 12px;
+  font-weight: 600;
+  color: var(--aurora-green);
+  border-bottom: 1px solid var(--aurora-border);
+  font-size: 0.83rem;
+}
+
+.aurora-draft-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.aurora-draft-table tr:not(:last-child) td {
+  border-bottom: 1px solid rgba(42, 74, 106, 0.5);
+}
+
+.aurora-draft-label {
+  padding: 5px 12px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  white-space: nowrap;
+  width: 1%;
+  font-size: 0.78rem;
+}
+
+.aurora-draft-value {
+  padding: 5px 12px 5px 4px;
+  color: var(--aurora-light);
+  font-size: 0.82rem;
+}
+
+.aurora-draft-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+.aurora-draft-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.15s;
+}
+
+.aurora-draft-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.aurora-draft-btn-primary {
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+}
+
+.aurora-draft-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+}
+
+.aurora-draft-btn-secondary:hover { border-color: var(--aurora-light); }
+
+.aurora-draft-saved {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--aurora-green);
+  font-size: 0.82rem;
+  border-top: 1px solid var(--aurora-border);
+}
+
+.aurora-draft-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #ff6b6b;
+  font-size: 0.82rem;
+  border-top: 1px solid var(--aurora-border);
+}
+
+.aurora-draft-fila {
+  border-top: 1px solid var(--aurora-border);
+}
+
+.aurora-draft-fila-num {
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--aurora-magenta);
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

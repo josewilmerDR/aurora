@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FiClock, FiPlus, FiX, FiCheck, FiEdit, FiTrash2, FiFilter, FiChevronDown,
-  FiCamera, FiUpload, FiZap,
+  FiCamera, FiUpload, FiZap, FiSearch,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -100,6 +100,11 @@ function Horimetro() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
 
+  // Labor combobox
+  const laborRef = useRef(null);
+  const [laborQuery, setLaborQuery] = useState('');
+  const [laborOpen, setLaborOpen] = useState(false);
+
   // Scan state
   const scanFileRef = useRef(null);
   const [scanStep, setScanStep] = useState(null); // null | 'upload' | 'review'
@@ -168,7 +173,38 @@ function Horimetro() {
       setLabores(Array.isArray(laboresData) ? laboresData : []);
     }).catch(() => { });
     fetchRecords();
+
+    // Pre-fill from Aurora chat draft (sessionStorage)
+    const raw = sessionStorage.getItem('horimetroDraft');
+    if (raw) {
+      sessionStorage.removeItem('horimetroDraft');
+      try {
+        const draft = JSON.parse(raw);
+        if (Array.isArray(draft) && draft.length > 1) {
+          // Multiple rows → open batch review table
+          setScanRows(draft);
+          setScanStep('review');
+        } else {
+          // Single row → pre-fill the form
+          const single = Array.isArray(draft) ? draft[0] : draft;
+          setForm(prev => ({ ...prev, ...single, id: null }));
+          setShowForm(true);
+        }
+      } catch { /* ignore malformed draft */ }
+    }
   }, []);
+
+  // Close labor combobox on outside click
+  useEffect(() => {
+    if (!laborOpen) return;
+    const handler = (e) => {
+      if (laborRef.current && !laborRef.current.contains(e.target)) {
+        setLaborOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [laborOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -422,6 +458,16 @@ function Horimetro() {
     return grupos.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
   };
 
+  const grupoLabel = (g) => {
+    const bloqueNums = (g.bloques || [])
+      .map(id => siembras.find(s => s.id === id)?.bloque)
+      .filter(Boolean)
+      .sort((a, b) => parseInt(a) - parseInt(b));
+    return bloqueNums.length
+      ? `${g.nombreGrupo} (${bloqueNums.join(', ')})`
+      : g.nombreGrupo;
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="hor-wrap">
@@ -450,7 +496,7 @@ function Horimetro() {
                 <label>Tractor <span className="hor-req">*</span></label>
                 <select name="tractorId" value={form.tractorId} onChange={handleChange} required>
                   <option value="">— Seleccionar —</option>
-                  {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.descripcion}</option>)}
+                  {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                 </select>
               </div>
 
@@ -458,7 +504,7 @@ function Horimetro() {
                 <label>Implemento</label>
                 <select name="implemento" value={form.implemento} onChange={handleChange}>
                   <option value="">— Sin implemento —</option>
-                  {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.descripcion}</option>)}
+                  {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                 </select>
               </div>
 
@@ -506,7 +552,7 @@ function Horimetro() {
                 <select name="grupo" value={form.grupo} onChange={handleChange}>
                   <option value="">— Sin grupo —</option>
                   {gruposDelLote.map(g => (
-                    <option key={g.id} value={g.nombreGrupo}>{g.nombreGrupo}</option>
+                    <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
                   ))}
                 </select>
               </div>
@@ -538,14 +584,55 @@ function Horimetro() {
 
               <div className="hor-field hor-field--full">
                 <label>Labor</label>
-                <select name="labor" value={form.labor} onChange={handleChange}>
-                  <option value="">— Seleccionar —</option>
-                  {labores.map(l => (
-                    <option key={l.id} value={l.descripcion}>
-                      {l.codigo ? `${l.codigo} — ${l.descripcion}` : l.descripcion}
-                    </option>
-                  ))}
-                </select>
+                <div className="hor-labor-combo" ref={laborRef}>
+                  <div className="hor-labor-input-wrap" onClick={() => setLaborOpen(true)}>
+                    <FiSearch size={13} />
+                    <input
+                      type="text"
+                      placeholder={form.labor || '— Buscar labor —'}
+                      value={laborOpen ? laborQuery : ''}
+                      onChange={e => { setLaborQuery(e.target.value); setLaborOpen(true); }}
+                      onFocus={() => setLaborOpen(true)}
+                      className={form.labor && !laborOpen ? 'hor-labor-has-value' : ''}
+                    />
+                    {form.labor && (
+                      <button type="button" onClick={e => { e.stopPropagation(); setForm(p => ({ ...p, labor: '' })); setLaborQuery(''); }}>
+                        <FiX size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {laborOpen && (
+                    <div className="hor-labor-dropdown">
+                      {labores
+                        .filter(l => {
+                          const q = laborQuery.toLowerCase();
+                          return !q || l.descripcion?.toLowerCase().includes(q) || l.codigo?.toLowerCase().includes(q);
+                        })
+                        .map(l => (
+                          <button
+                            type="button"
+                            key={l.id}
+                            className="hor-labor-option"
+                            onClick={() => {
+                              setForm(p => ({ ...p, labor: l.descripcion }));
+                              setLaborQuery('');
+                              setLaborOpen(false);
+                            }}
+                          >
+                            {l.codigo && <span className="hor-labor-code">{l.codigo}</span>}
+                            <span className="hor-labor-desc">{l.descripcion}</span>
+                          </button>
+                        ))
+                      }
+                      {labores.filter(l => {
+                        const q = laborQuery.toLowerCase();
+                        return !q || l.descripcion?.toLowerCase().includes(q) || l.codigo?.toLowerCase().includes(q);
+                      }).length === 0 && (
+                        <p className="hor-labor-empty">Sin resultados</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -642,13 +729,13 @@ function Horimetro() {
                       <td>
                         <select className="hor-batch-select" value={row.tractorId || ''} onChange={e => updateScanRow(idx, 'tractorId', e.target.value)}>
                           <option value="">—</option>
-                          {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.descripcion}</option>)}
+                          {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                         </select>
                       </td>
                       <td>
                         <select className="hor-batch-select" value={row.implemento || ''} onChange={e => updateScanRow(idx, 'implemento', e.target.value)}>
                           <option value="">—</option>
-                          {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.descripcion}</option>)}
+                          {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                         </select>
                       </td>
                       <td>
@@ -666,7 +753,7 @@ function Horimetro() {
                       <td>
                         <select className="hor-batch-select" value={row.grupo || ''} onChange={e => updateScanRow(idx, 'grupo', e.target.value)}>
                           <option value="">—</option>
-                          {gruposParaFila(row.loteId).map(g => <option key={g.id} value={g.nombreGrupo}>{g.nombreGrupo}</option>)}
+                          {gruposParaFila(row.loteId).map(g => <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>)}
                         </select>
                       </td>
                       <td>
@@ -780,7 +867,7 @@ function Horimetro() {
                 <label>Tractor / Máquina</label>
                 <select value={filterTractor} onChange={e => setFilterTractor(e.target.value)}>
                   <option value="">Todos</option>
-                  {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.descripcion}</option>)}
+                  {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                 </select>
               </div>
               <div className="hor-field">

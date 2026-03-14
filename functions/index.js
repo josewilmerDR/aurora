@@ -2567,9 +2567,11 @@ app.get('/api/maquinaria', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('maquinaria')
       .where('fincaId', '==', req.fincaId)
-      .orderBy('descripcion', 'asc')
       .get();
-    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    const items = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.descripcion || '').localeCompare(b.descripcion || ''));
+    res.json(items);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener maquinaria.' });
   }
@@ -3083,9 +3085,13 @@ Cuando el usuario pida registrar un horímetro (ej: "agrega el siguiente horíme
    - **Fecha**: si no se menciona, usa ${today}
 2. Si el tractor no pudo resolverse, pregunta antes de continuar. Es el único campo verdaderamente obligatorio.
 3. Si el usuario mencionó un lote pero NO mencionó el grupo, muéstrale la lista de grupos disponibles para ese lote (del catálogo de grupos, campo "Lotes que agrupa") y pregúntale cuál es. Recuerda todos los demás datos ya extraídos — no vuelvas a preguntar por ellos.
-4. Cuando el usuario responda el grupo (aunque sea con nombre aproximado o parcial), resuélvelo al nombreGrupo correcto y llama de inmediato a "registrar_horimetro" con todos los datos acumulados.
+4. Cuando el usuario responda el grupo (aunque sea con nombre aproximado o parcial), resuélvelo al nombreGrupo correcto y llama de inmediato a la herramienta que corresponda con todos los datos acumulados.
 5. Los bloques son opcionales — si el usuario los menciona, inclúyelos; si no, déjalos vacíos.
 6. Una vez registrado, confirma con un resumen breve: tractor, lote, grupo, labor y horas trabajadas.
+
+**Flujo según origen del registro:**
+- **Texto o voz**: usa directamente 'registrar_horimetro' cuando tengas fecha y tractorId.
+- **Imagen**: SIEMPRE usa 'previsualizar_horimetro' (nunca 'registrar_horimetro' con imagen). El sistema mostrará al usuario una tarjeta de confirmación con los datos para que los revise antes de guardar.
 
 Cuando el usuario pida un reporte, análisis, proyección o cualquier consulta de datos (ej: "¿cuántas plantas se sembraron este mes?", "¿qué tareas están pendientes?", "¿qué productos están bajo stock?"):
 1. Usa "consultar_datos" con los filtros apropiados para obtener los datos relevantes.
@@ -3246,6 +3252,41 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           required: ['fecha', 'tractorId', 'tractorNombre'],
         },
       },
+      {
+        name: 'previsualizar_horimetro',
+        description: 'Extrae TODAS las filas de un formulario de horímetro desde una imagen para que el usuario las revise antes de guardar. Úsala SIEMPRE cuando el usuario envíe una imagen. Puede haber una o varias filas. NO guarda nada en la base de datos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            filas: {
+              type: 'array',
+              description: 'Lista de registros extraídos del formulario. Cada fila es un registro independiente.',
+              items: {
+                type: 'object',
+                properties: {
+                  fecha:             { type: 'string', description: 'Fecha en formato YYYY-MM-DD.' },
+                  tractorId:         { type: 'string', description: 'ID interno del tractor.' },
+                  tractorNombre:     { type: 'string', description: 'Nombre/descripción del tractor.' },
+                  implemento:        { type: 'string', description: 'Nombre del implemento, opcional.' },
+                  horimetroInicial:  { type: 'number', description: 'Lectura inicial, opcional.' },
+                  horimetroFinal:    { type: 'number', description: 'Lectura final, opcional.' },
+                  loteId:            { type: 'string', description: 'ID del lote, opcional.' },
+                  loteNombre:        { type: 'string', description: 'Nombre del lote, opcional.' },
+                  grupo:             { type: 'string', description: 'Nombre del grupo, opcional.' },
+                  bloques:           { type: 'array', items: { type: 'string' }, description: 'Bloques, opcional.' },
+                  labor:             { type: 'string', description: 'Descripción de la labor, opcional.' },
+                  horaInicio:        { type: 'string', description: 'Hora inicio HH:MM (24h), opcional.' },
+                  horaFinal:         { type: 'string', description: 'Hora final HH:MM (24h), opcional.' },
+                  operarioId:        { type: 'string', description: 'ID del operario, opcional.' },
+                  operarioNombre:    { type: 'string', description: 'Nombre del operario, opcional.' },
+                },
+                required: ['fecha', 'tractorId', 'tractorNombre'],
+              },
+            },
+          },
+          required: ['filas'],
+        },
+      },
     ];
 
     // Construir mensaje inicial del usuario
@@ -3258,6 +3299,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
     const messages = [{ role: 'user', content: userContent }];
 
     // Loop agéntico: máximo 6 iteraciones para evitar loops infinitos
+    let horimetroDraft = null;
     let iterations = 0;
     while (iterations < 6) {
       iterations++;
@@ -3276,7 +3318,9 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           .filter(b => b.type === 'text')
           .map(b => b.text)
           .join('\n');
-        return res.json({ reply: text });
+        const responsePayload = { reply: text };
+        if (horimetroDraft) responsePayload.horimetroDraft = horimetroDraft;
+        return res.json(responsePayload);
       }
 
       // Si no hay tool_use, salir
@@ -3310,6 +3354,11 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             result = await chatToolConsultarSiembras(block.input, req.fincaId);
           } else if (block.name === 'registrar_horimetro') {
             result = await chatToolRegistrarHorimetro(block.input, req.fincaId);
+          } else if (block.name === 'previsualizar_horimetro') {
+            const allowed = ['fecha', 'tractorId', 'tractorNombre', 'implemento', 'horimetroInicial', 'horimetroFinal', 'loteId', 'loteNombre', 'grupo', 'bloques', 'labor', 'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre'];
+            const filas = Array.isArray(block.input.filas) ? block.input.filas : [block.input];
+            horimetroDraft = filas.map(row => Object.fromEntries(Object.entries(row).filter(([k]) => allowed.includes(k))));
+            result = { preview: true, filas: horimetroDraft.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
           } else {
             result = { error: `Herramienta desconocida: ${block.name}` };
           }
@@ -3340,9 +3389,10 @@ app.get('/api/horimetro', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('horimetro')
       .where('fincaId', '==', req.fincaId)
-      .orderBy('fecha', 'desc')
       .get();
-    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const records = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
     res.status(200).json(records);
   } catch (error) {
     console.error('Error al obtener horímetro:', error);
@@ -3510,9 +3560,11 @@ app.get('/api/labores', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('labores')
       .where('fincaId', '==', req.fincaId)
-      .orderBy('descripcion')
       .get();
-    res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    const items = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (parseInt(a.codigo) || 0) - (parseInt(b.codigo) || 0));
+    res.json(items);
   } catch (error) {
     console.error('Error al obtener labores:', error);
     res.status(500).json({ message: 'Error al obtener labores.' });

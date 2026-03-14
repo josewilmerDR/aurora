@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2 } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './AuroraChat.css';
@@ -38,6 +39,7 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 export default function AuroraChat() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '¡Hola! Soy Aurora.\nPuedo registrar siembras desde texto, foto o voz. ¿En qué te ayudo?' },
@@ -47,6 +49,8 @@ export default function AuroraChat() {
   const [thinking, setThinking] = useState(false);
   const [recording, setRecording] = useState(false);
   const [speechError, setSpeechError] = useState(null);
+  // Per-message draft state: { [msgIndex]: 'idle' | 'saving' | 'saved' | 'error' }
+  const [draftStates, setDraftStates] = useState({});
 
   const fileRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -121,7 +125,9 @@ export default function AuroraChat() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', text: data.reply || 'No pude procesar la solicitud.' }]);
+      const newMsg = { role: 'assistant', text: data.reply || 'No pude procesar la solicitud.' };
+      if (data.horimetroDraft) newMsg.horimetroDraft = data.horimetroDraft;
+      setMessages(prev => [...prev, newMsg]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', text: 'Error de conexión. Por favor intenta de nuevo.' }]);
     } finally {
@@ -200,6 +206,96 @@ export default function AuroraChat() {
     recognition.start();
   };
 
+  const handleDraftSave = async (filas, msgIndex) => {
+    setDraftStates(prev => ({ ...prev, [msgIndex]: 'saving' }));
+    try {
+      for (const fila of filas) {
+        const res = await apiFetch('/api/horimetro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fila),
+        });
+        if (!res.ok) throw new Error();
+      }
+      setDraftStates(prev => ({ ...prev, [msgIndex]: 'saved' }));
+    } catch {
+      setDraftStates(prev => ({ ...prev, [msgIndex]: 'error' }));
+    }
+  };
+
+  const handleDraftReview = (filas) => {
+    sessionStorage.setItem('horimetroDraft', JSON.stringify(filas));
+    setOpen(false);
+    navigate('/operaciones/horimetro');
+  };
+
+  const formatHours = (fila) => {
+    if (fila.horimetroInicial != null && fila.horimetroFinal != null) {
+      const h = (parseFloat(fila.horimetroFinal) - parseFloat(fila.horimetroInicial)).toFixed(1);
+      return `${fila.horimetroInicial} → ${fila.horimetroFinal} (${h} h)`;
+    }
+    return null;
+  };
+
+  const filaRows = (fila) => [
+    fila.fecha          && ['Fecha',      fila.fecha],
+    fila.tractorNombre  && ['Tractor',    fila.tractorNombre],
+    fila.implemento     && ['Implemento', fila.implemento],
+    formatHours(fila)   && ['Horímetro',  formatHours(fila)],
+    (fila.horaInicio || fila.horaFinal) && ['Horario', [fila.horaInicio, fila.horaFinal].filter(Boolean).join(' – ')],
+    fila.loteNombre     && ['Lote',       fila.loteNombre + (fila.grupo ? ` / ${fila.grupo}` : '')],
+    fila.labor          && ['Labor',      fila.labor],
+    fila.operarioNombre && ['Operario',   fila.operarioNombre],
+  ].filter(Boolean);
+
+  const renderDraftCard = (draft, msgIndex) => {
+    // draft is always an array of filas
+    const filas = Array.isArray(draft) ? draft : [draft];
+    const state = draftStates[msgIndex] || 'idle';
+
+    return (
+      <div className="aurora-draft-card">
+        <p className="aurora-draft-title">📋 {filas.length > 1 ? `${filas.length} registros extraídos del formulario` : 'Datos extraídos del formulario'}</p>
+        {filas.map((fila, idx) => (
+          <div key={idx} className={filas.length > 1 ? 'aurora-draft-fila' : ''}>
+            {filas.length > 1 && <p className="aurora-draft-fila-num">Fila {idx + 1}</p>}
+            <table className="aurora-draft-table">
+              <tbody>
+                {filaRows(fila).map(([label, value]) => (
+                  <tr key={label}>
+                    <td className="aurora-draft-label">{label}</td>
+                    <td className="aurora-draft-value">{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        {state === 'saved' ? (
+          <p className="aurora-draft-saved">✓ {filas.length > 1 ? `${filas.length} registros guardados` : 'Registro guardado correctamente'}</p>
+        ) : state === 'error' ? (
+          <p className="aurora-draft-error">Error al guardar. Intenta de nuevo o revisa el formulario.</p>
+        ) : (
+          <div className="aurora-draft-actions">
+            <button
+              className="aurora-draft-btn aurora-draft-btn-primary"
+              onClick={() => handleDraftSave(filas, msgIndex)}
+              disabled={state === 'saving'}
+            >
+              <FiCheck size={13} /> {state === 'saving' ? 'Guardando…' : filas.length > 1 ? `Guardar ${filas.length} registros` : 'Guardar'}
+            </button>
+            <button
+              className="aurora-draft-btn aurora-draft-btn-secondary"
+              onClick={() => handleDraftReview(filas)}
+            >
+              <FiEdit2 size={13} /> Revisar en formulario
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {open && (
@@ -218,6 +314,7 @@ export default function AuroraChat() {
                   <img src={msg.imagePreview} className="aurora-msg-image" alt="adjunto" />
                 )}
                 {msg.text}
+                {msg.horimetroDraft && renderDraftCard(msg.horimetroDraft, i)}
               </div>
             ))}
             {thinking && (
