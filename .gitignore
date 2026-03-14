@@ -39,6 +39,9 @@ build/
 Icon?
 Thumbs.db
 
+# Claude Code local settings
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
