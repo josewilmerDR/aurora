@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
-import { FiFileText, FiPrinter, FiShare2, FiX } from 'react-icons/fi';
+import { useLocation, Link } from 'react-router-dom';
+import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle } from 'react-icons/fi';
+import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../contexts/UserContext';
 import './CedulasAplicacion.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -34,21 +36,51 @@ const isOverdue = (task) => {
     < new Date(today.getFullYear(), today.getMonth(), today.getDate());
 };
 
+// Semana: domingo → sábado. offsetWeeks=0 → esta semana, 1 → próxima semana
+const getWeekBounds = (offsetWeeks = 0) => {
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay() + offsetWeeks * 7);
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+  return { start: startOfWeek, end: endOfWeek };
+};
+
+const CEDULA_STATUS_LABEL = {
+  pendiente:          'Pendiente',
+  en_transito:        'En Tránsito',
+  aplicada_en_campo:  'Aplicada',
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 function CedulasAplicacion() {
   const apiFetch = useApiFetch();
-  const [tasks,    setTasks]    = useState([]);
-  const [lotes,    setLotes]    = useState([]);
-  const [grupos,   setGrupos]   = useState([]);
-  const [siembras, setSiembras] = useState([]);
-  const [packages, setPackages] = useState([]);
+  const { currentUser } = useUser();
+  const [tasks,     setTasks]     = useState([]);
+  const [lotes,     setLotes]     = useState([]);
+  const [grupos,    setGrupos]    = useState([]);
+  const [siembras,  setSiembras]  = useState([]);
+  const [packages,  setPackages]  = useState([]);
   const [productos, setProductos] = useState([]);
-  const [config,   setConfig]   = useState({});
-  const [loading,  setLoading]  = useState(true);
+  const [cedulas,   setCedulas]   = useState([]);
+  const [config,    setConfig]    = useState({});
+  const [loading,   setLoading]   = useState(true);
   const [previewTask, setPreviewTask] = useState(null);
+  const [anchorWeek, setAnchorWeek] = useState(0);  // 0 = esta semana
+  const [weeksShown, setWeeksShown] = useState(2);  // cuántas semanas mostrar
+  const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
   const docRef = useRef(null);
 
   const location = useLocation();
+
+  const loadCedulas = useCallback(() =>
+    apiFetch('/api/cedulas').then(r => r.json()).then(d => {
+      setCedulas(Array.isArray(d) ? d : []);
+    }).catch(console.error),
+    [apiFetch]
+  );
 
   useEffect(() => {
     Promise.all([
@@ -58,15 +90,17 @@ function CedulasAplicacion() {
       apiFetch('/api/siembras').then(r => r.json()),
       apiFetch('/api/packages').then(r => r.json()),
       apiFetch('/api/productos').then(r => r.json()),
+      apiFetch('/api/cedulas').then(r => r.json()),
       apiFetch('/api/config').then(r => r.json()),
-    ]).then(([t, l, g, s, p, pr, c]) => {
+    ]).then(([t, l, g, s, p, pr, c, cfg]) => {
       setTasks(Array.isArray(t) ? t : []);
       setLotes(Array.isArray(l) ? l : []);
       setGrupos(Array.isArray(g) ? g : []);
       setSiembras(Array.isArray(s) ? s : []);
       setPackages(Array.isArray(p) ? p : []);
       setProductos(Array.isArray(pr) ? pr : []);
-      setConfig(c || {});
+      setCedulas(Array.isArray(c) ? c : []);
+      setConfig(cfg || {});
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -92,6 +126,33 @@ function CedulasAplicacion() {
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)),
     [tasks]
   );
+
+  const cedulasByTaskId = useMemo(() => {
+    const map = {};
+    for (const c of cedulas) map[c.taskId] = c;
+    return map;
+  }, [cedulas]);
+
+  const visibleTasks = useMemo(() => {
+    const start = getWeekBounds(anchorWeek).start;
+    const end   = getWeekBounds(anchorWeek + weeksShown - 1).end;
+    return aplicacionTasks.filter(t => {
+      const due = new Date(t.dueDate);
+      return due >= start && due <= end;
+    });
+  }, [aplicacionTasks, anchorWeek, weeksShown]);
+
+  const rangeLabel = useMemo(() => {
+    const from = getWeekBounds(anchorWeek);
+    const to   = getWeekBounds(anchorWeek + weeksShown - 1);
+    const fmt  = d => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+    return `${fmt(from.start)} – ${fmt(to.end)}`;
+  }, [anchorWeek, weeksShown]);
+
+  const hasMoreWeeks = useMemo(() => {
+    const currentEnd = getWeekBounds(anchorWeek + weeksShown - 1).end;
+    return aplicacionTasks.some(t => new Date(t.dueDate) > currentEnd);
+  }, [aplicacionTasks, anchorWeek, weeksShown]);
 
   const getSource = (task) => {
     if (task.loteId)  return lotes.find(l => l.id === task.loteId)   || null;
@@ -121,6 +182,64 @@ function CedulasAplicacion() {
   const pvTotalHa = previewBloques.reduce(
     (s, b) => s + (parseFloat(b.areaCalculada) || 0), 0
   );
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const handleGenerarCedula = async (taskId) => {
+    setActionLoading(`new-${taskId}`);
+    try {
+      const res = await apiFetch('/api/cedulas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Error al generar la cédula.');
+        return;
+      }
+      await loadCedulas();
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleMezclaLista = async (cedulaId) => {
+    if (!confirm('¿Confirmar que la mezcla está lista? Esto debitará el inventario.')) return;
+    setActionLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, { method: 'PUT' });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Error al actualizar la cédula.');
+        return;
+      }
+      await loadCedulas();
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAplicada = async (cedulaId) => {
+    if (!confirm('¿Confirmar que la aplicación fue realizada en campo?')) return;
+    setActionLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, { method: 'PUT' });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Error al registrar la aplicación.');
+        return;
+      }
+      // Refresh tasks too since the task status changes
+      const [newTasks, newCedulas] = await Promise.all([
+        apiFetch('/api/tasks').then(r => r.json()),
+        apiFetch('/api/cedulas').then(r => r.json()),
+      ]);
+      setTasks(Array.isArray(newTasks) ? newTasks : []);
+      setCedulas(Array.isArray(newCedulas) ? newCedulas : []);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   // ── PDF share ─────────────────────────────────────────────────────────────
   const handleShare = async () => {
@@ -163,34 +282,131 @@ function CedulasAplicacion() {
 
   return (
     <div>
-      {aplicacionTasks.length === 0 ? (
-        <div className="empty-state">No hay tareas de aplicación pendientes.</div>
+      {/* ── Barra de filtro ── */}
+      <div className="cedulas-filter-bar">
+        <div className="cedulas-period-nav">
+          <button
+            className="btn btn-secondary cedulas-nav-btn"
+            onClick={() => { setAnchorWeek(w => w - 1); setWeeksShown(2); }}
+            title="Semana anterior"
+          >‹</button>
+          <span className="cedulas-period-label">{rangeLabel}</span>
+          <button
+            className="btn btn-secondary cedulas-nav-btn"
+            onClick={() => { setAnchorWeek(w => w + 1); setWeeksShown(2); }}
+            title="Semana siguiente"
+          >›</button>
+          {anchorWeek !== 0 && (
+            <button
+              className="btn btn-secondary cedulas-nav-today"
+              onClick={() => { setAnchorWeek(0); setWeeksShown(2); }}
+              title="Volver a esta semana"
+            >Hoy</button>
+          )}
+        </div>
+        <span className="cedulas-filter-count">{visibleTasks.length} tarea(s)</span>
+        {hasMoreWeeks && (
+          <button
+            className="btn btn-secondary cedulas-filter-toggle"
+            onClick={() => setWeeksShown(n => n + 1)}
+          >
+            Ver más cédulas
+          </button>
+        )}
+        <Link to="/aplicaciones/historial" className="btn btn-secondary cedulas-historial-btn">
+          📋 Historial
+        </Link>
+      </div>
+
+      {visibleTasks.length === 0 ? (
+        <div className="empty-state">
+          {aplicacionTasks.length === 0
+            ? 'No hay tareas de aplicación pendientes.'
+            : 'No hay aplicaciones programadas para este período.'}
+        </div>
       ) : (
         <div className="cedulas-list">
-          {aplicacionTasks.map(task => (
-            <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}`}>
-              <div className="cedula-row-info">
-                <span className="cedula-row-name">{task.activityName}</span>
-                <span className="cedula-row-meta">
-                  {task.loteName}
-                  {task.responsableName ? ` · ${task.responsableName}` : ''}
-                </span>
+          {visibleTasks.map(task => {
+            const cedula = cedulasByTaskId[task.id];
+            const isLoading = actionLoading === (cedula ? cedula.id : `new-${task.id}`);
+            return (
+              <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}`}>
+                <div className="cedula-row-info">
+                  <span className="cedula-row-name">{task.activityName}</span>
+                  <span className="cedula-row-meta">
+                    {task.loteName}
+                    {task.responsableName ? ` · ${task.responsableName}` : ''}
+                  </span>
+                  {cedula && (
+                    <span className="cedula-consecutivo">{cedula.consecutivo}</span>
+                  )}
+                </div>
+                <div className="cedula-row-right">
+                  <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
+                    {isOverdue(task) ? 'Vencida' : 'Pendiente'}
+                  </span>
+                  <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
+
+                  {/* ── Estado de la cédula y acciones ── */}
+                  {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
+                    <button
+                      className="btn btn-secondary cedula-btn-action"
+                      onClick={() => handleGenerarCedula(task.id)}
+                      disabled={isLoading}
+                      title="Generar Cédula de Aplicación"
+                    >
+                      <FiPlusCircle size={14} />
+                      {isLoading ? 'Generando…' : 'Generar Cédula'}
+                    </button>
+                  )}
+
+                  {cedula?.status === 'pendiente' && (
+                    <>
+                      <span className="cedula-flow-badge pendiente">Pendiente</span>
+                      {hasMinRole(currentUser?.rol, 'encargado') && (
+                        <button
+                          className="btn btn-secondary cedula-btn-action"
+                          onClick={() => handleMezclaLista(cedula.id)}
+                          disabled={isLoading}
+                          title="Confirmar que la mezcla está lista"
+                        >
+                          <FiCheckCircle size={14} />
+                          {isLoading ? 'Procesando…' : 'Mezcla Lista'}
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {cedula?.status === 'en_transito' && (
+                    <>
+                      <span className="cedula-flow-badge en-transito">En Tránsito</span>
+                      {hasMinRole(currentUser?.rol, 'trabajador') && (
+                        <button
+                          className="btn btn-primary cedula-btn-action"
+                          onClick={() => handleAplicada(cedula.id)}
+                          disabled={isLoading}
+                          title="Confirmar aplicación en campo"
+                        >
+                          <FaTractor size={14} />
+                          {isLoading ? 'Registrando…' : 'Aplicada en Campo'}
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {cedula && (
+                    <button
+                      className="btn btn-secondary cedula-btn-preview"
+                      onClick={() => setPreviewTask(task)}
+                      title="Ver Cédula de Aplicación"
+                    >
+                      <FiFileText size={15} /> Ver Cédula
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="cedula-row-right">
-                <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
-                  {isOverdue(task) ? 'Vencida' : 'Pendiente'}
-                </span>
-                <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
-                <button
-                  className="btn btn-secondary cedula-btn-preview"
-                  onClick={() => setPreviewTask(task)}
-                  title="Ver Cédula de Aplicación"
-                >
-                  <FiFileText size={15} /> Ver Cédula
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -203,8 +419,52 @@ function CedulasAplicacion() {
             <div className="ca-preview-toolbar">
               <span className="ca-preview-toolbar-title">
                 Cédula de Aplicación — {previewTask.activityName}
+                {cedulasByTaskId[previewTask.id] && (
+                  <span className="ca-toolbar-consecutivo">
+                    {cedulasByTaskId[previewTask.id].consecutivo}
+                  </span>
+                )}
               </span>
               <div className="ca-preview-toolbar-actions">
+                {/* ── Acciones de flujo inline ── */}
+                {(() => {
+                  const cedula = cedulasByTaskId[previewTask.id];
+                  const isLdg  = actionLoading === cedula?.id;
+                  if (!cedula) return null;
+                  if (cedula.status === 'aplicada_en_campo') {
+                    return (
+                      <span className="ca-toolbar-applied-badge">
+                        <FiCheckCircle size={14} /> Aplicada
+                      </span>
+                    );
+                  }
+                  if (cedula.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado')) {
+                    return (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => handleMezclaLista(cedula.id)}
+                        disabled={isLdg}
+                      >
+                        <FiCheckCircle size={14} />
+                        {isLdg ? 'Procesando…' : 'Mezcla Lista'}
+                      </button>
+                    );
+                  }
+                  if (cedula.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador')) {
+                    return (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleAplicada(cedula.id)}
+                        disabled={isLdg}
+                      >
+                        <FaTractor size={14} />
+                        {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <button className="btn btn-secondary" onClick={handleShare}>
                   <FiShare2 size={15} /> Compartir
                 </button>
@@ -239,6 +499,9 @@ function CedulasAplicacion() {
                   <div className="ca-doc-title-block">
                     <div className="ca-doc-title">CÉDULA DE APLICACIÓN DE AGROQUÍMICOS</div>
                     <div className="ca-doc-subtitle">Aplicación: {previewTask.activityName}</div>
+                    {cedulasByTaskId[previewTask.id] && (
+                      <div className="ca-doc-consecutivo">{cedulasByTaskId[previewTask.id].consecutivo}</div>
+                    )}
                   </div>
                 </div>
 
@@ -271,7 +534,7 @@ function CedulasAplicacion() {
                   )}
                   <div className="ca-dato">
                     <span className="ca-dato-label">Área Calculada (ha)</span>
-                    <span className="ca-dato-value">{previewTask.loteHectareas ?? '—'}</span>
+                    <span className="ca-dato-value">{pvTotalHa > 0 ? pvTotalHa.toFixed(4) : (previewTask.loteHectareas ?? '—')}</span>
                   </div>
                   <div className="ca-dato">
                     <span className="ca-dato-label">Responsable</span>
@@ -344,7 +607,7 @@ function CedulasAplicacion() {
                       {previewProductos.map((prod, i) => {
                         const info       = getProductoCatalog(prod.productoId);
                         const cantPorHa  = prod.cantidadPorHa ?? prod.cantidad;
-                        const hectareas  = parseFloat(previewTask.loteHectareas || 1);
+                        const hectareas  = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas || 1);
                         const total      = cantPorHa != null
                           ? (parseFloat(cantPorHa) * hectareas).toFixed(3)
                           : '—';

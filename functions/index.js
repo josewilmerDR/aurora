@@ -4,7 +4,7 @@ const { defineSecret } = require("firebase-functions/params");
 const express = require('express');
 const twilio = require('twilio');
 const admin = require('firebase-admin');
-const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, Timestamp, FieldValue, FieldPath } = require('firebase-admin/firestore');
 const Anthropic = require('@anthropic-ai/sdk');
 
 // --- DEFINICIÓN DE SECRETOS CON EL NUEVO SISTEMA "PARAMS" ---
@@ -128,13 +128,27 @@ const enrichTask = async (taskDoc) => {
   const source = sourceDoc ? sourceDoc.data() : null;
   const responsable = userDoc ? userDoc.data() : null;
 
+  // Para lotes: usar source.hectareas.
+  // Para grupos: sumar areaCalculada de las siembras vinculadas.
+  let loteHectareas = parseFloat(source?.hectareas) || 1;
+  if (task.grupoId && source && Array.isArray(source.bloques) && source.bloques.length > 0) {
+    const bloqueIds = source.bloques.slice(0, 10);
+    const siembrasSnap = await db.collection('siembras')
+      .where(FieldPath.documentId(), 'in', bloqueIds)
+      .get();
+    const totalArea = siembrasSnap.docs.reduce(
+      (s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0
+    );
+    if (totalArea > 0) loteHectareas = totalArea;
+  }
+
   return {
     id: taskDoc.id,
     activityName: task.activity?.name,
     loteName: source
       ? (source.nombreLote || source.nombreGrupo || '—')
       : (task.loteId || task.grupoId) ? 'No encontrado' : '—',
-    loteHectareas: source ? (source.hectareas || 1) : 1,
+    loteHectareas,
     responsableName: responsable
       ? responsable.nombre
       : (task.activity?.responsableNombre || 'Proveeduría'),
@@ -440,6 +454,195 @@ app.put('/api/tasks/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error(`Error updating task ${req.params.id}:`, error);
     res.status(500).json({ message: 'Error al actualizar la tarea.' });
+  }
+});
+
+// --- API ENDPOINTS: CÉDULAS DE APLICACIÓN ---
+
+async function nextCedulaConsecutivo(fincaId) {
+  const counterRef = db.collection('cedula_counters').doc(fincaId);
+  let consecutivo;
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(counterRef);
+    const current = doc.exists ? (doc.data().ultimo || 0) : 0;
+    const next = current + 1;
+    tx.set(counterRef, { ultimo: next }, { merge: true });
+    consecutivo = `#CA-${String(next).padStart(5, '0')}`;
+  });
+  return consecutivo;
+}
+
+const serializeCedula = (id, data) => ({
+  id,
+  ...data,
+  generadaAt:    data.generadaAt?.toDate?.()?.toISOString()    || null,
+  mezclaListaAt: data.mezclaListaAt?.toDate?.()?.toISOString() || null,
+  aplicadaAt:    data.aplicadaAt?.toDate?.()?.toISOString()    || null,
+});
+
+app.get('/api/cedulas', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('cedulas')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('generadaAt', 'desc')
+      .get();
+    res.json(snap.docs.map(d => serializeCedula(d.id, d.data())));
+  } catch (error) {
+    console.error('Error fetching cedulas:', error);
+    res.status(500).json({ message: 'Error al obtener cédulas.' });
+  }
+});
+
+app.post('/api/cedulas', authenticate, async (req, res) => {
+  try {
+    const { taskId } = req.body;
+    if (!taskId) return res.status(400).json({ message: 'taskId es requerido.' });
+
+    const ownership = await verifyOwnership('scheduled_tasks', taskId, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const existing = await db.collection('cedulas')
+      .where('taskId', '==', taskId)
+      .where('fincaId', '==', req.fincaId)
+      .limit(1).get();
+    if (!existing.empty) {
+      const ex = existing.docs[0];
+      return res.status(409).json({ message: 'Esta tarea ya tiene una cédula generada.', cedula: serializeCedula(ex.id, ex.data()) });
+    }
+
+    const consecutivo = await nextCedulaConsecutivo(req.fincaId);
+    const cedula = {
+      consecutivo,
+      taskId,
+      fincaId: req.fincaId,
+      status: 'pendiente',
+      generadaAt: Timestamp.now(),
+      generadaPor: req.uid,
+      mezclaListaAt: null,
+      mezclaListaPor: null,
+      aplicadaAt: null,
+      aplicadaPor: null,
+    };
+    const docRef = await db.collection('cedulas').add(cedula);
+    res.status(201).json(serializeCedula(docRef.id, cedula));
+  } catch (error) {
+    console.error('Error creating cedula:', error);
+    res.status(500).json({ message: 'Error al generar la cédula.' });
+  }
+});
+
+app.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const cedula = ownership.doc.data();
+    if (cedula.status !== 'pendiente') {
+      return res.status(409).json({ message: `La cédula no está en estado pendiente (estado actual: ${cedula.status}).` });
+    }
+
+    const taskDoc = await db.collection('scheduled_tasks').doc(cedula.taskId).get();
+    if (!taskDoc.exists) return res.status(404).json({ message: 'Tarea asociada no encontrada.' });
+    const taskData = taskDoc.data();
+    const productos = taskData.activity?.productos;
+
+    // Calcular hectáreas según origen (lote o grupo)
+    let hectareas = 1;
+    let sourceNombre = '';
+    if (taskData.loteId) {
+      const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
+      hectareas = loteDoc.exists ? (parseFloat(loteDoc.data().hectareas) || 1) : 1;
+      sourceNombre = loteDoc.exists ? (loteDoc.data().nombreLote || '') : '';
+    } else if (taskData.grupoId) {
+      const grupoDoc = await db.collection('grupos').doc(taskData.grupoId).get();
+      sourceNombre = grupoDoc.exists ? (grupoDoc.data().nombreGrupo || '') : '';
+      if (grupoDoc.exists && Array.isArray(grupoDoc.data().bloques) && grupoDoc.data().bloques.length > 0) {
+        const bloqueIds = grupoDoc.data().bloques.slice(0, 10);
+        const siembrasSnap = await db.collection('siembras')
+          .where(FieldPath.documentId(), 'in', bloqueIds)
+          .get();
+        hectareas = siembrasSnap.docs.reduce((s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0) || 1;
+      }
+    }
+
+    const batch = db.batch();
+    if (Array.isArray(productos) && productos.length > 0) {
+      // Aggregate deductions per unique productoId — Firestore batches
+      // reject multiple writes to the same document reference.
+      const deduccionPorProducto = {};
+      for (const prod of productos) {
+        if (!prod.productoId) continue;
+        const deduccion = prod.cantidad !== undefined
+          ? parseFloat(prod.cantidad)
+          : parseFloat(prod.cantidadPorHa || 0) * hectareas;
+        if (isNaN(deduccion) || deduccion <= 0) continue;
+        deduccionPorProducto[prod.productoId] =
+          (deduccionPorProducto[prod.productoId] || 0) + deduccion;
+        batch.set(db.collection('movimientos').doc(), {
+          tipo: 'egreso',
+          productoId: prod.productoId,
+          nombreComercial: prod.nombreComercial || '',
+          cantidad: deduccion,
+          unidad: prod.unidad || '',
+          fecha: Timestamp.now(),
+          motivo: taskData.activity.name,
+          tareaId: cedula.taskId,
+          cedulaId: req.params.id,
+          cedulaConsecutivo: cedula.consecutivo,
+          loteId: taskData.loteId || null,
+          grupoId: taskData.grupoId || null,
+          loteNombre: sourceNombre,
+          fincaId: req.fincaId,
+        });
+      }
+      // One batch.update per unique producto
+      for (const [productoId, totalDeduccion] of Object.entries(deduccionPorProducto)) {
+        batch.update(db.collection('productos').doc(productoId), {
+          stockActual: FieldValue.increment(-totalDeduccion),
+        });
+      }
+    }
+
+    batch.update(db.collection('cedulas').doc(req.params.id), {
+      status: 'en_transito',
+      mezclaListaAt: Timestamp.now(),
+      mezclaListaPor: req.uid,
+    });
+    await batch.commit();
+    res.json({ id: req.params.id, status: 'en_transito' });
+  } catch (error) {
+    console.error('Error in mezcla-lista:', error);
+    res.status(500).json({ message: 'Error al procesar la mezcla.' });
+  }
+});
+
+app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const cedula = ownership.doc.data();
+    if (cedula.status !== 'en_transito') {
+      return res.status(409).json({ message: `La cédula no está en tránsito (estado actual: ${cedula.status}).` });
+    }
+
+    const batch = db.batch();
+    batch.update(db.collection('cedulas').doc(req.params.id), {
+      status: 'aplicada_en_campo',
+      aplicadaAt: Timestamp.now(),
+      aplicadaPor: req.uid,
+    });
+    // Marcar tarea como completada — inventario ya fue debitado en mezcla-lista
+    batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
+      status: 'completed_by_user',
+      completedAt: Timestamp.now(),
+      cedulaId: req.params.id,
+    });
+    await batch.commit();
+    res.json({ id: req.params.id, status: 'aplicada_en_campo' });
+  } catch (error) {
+    console.error('Error in cedula aplicada:', error);
+    res.status(500).json({ message: 'Error al registrar la aplicación.' });
   }
 });
 

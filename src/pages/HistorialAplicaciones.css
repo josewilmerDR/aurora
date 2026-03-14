@@ -1,0 +1,209 @@
+@import './LoteManagement.css';
+
+/* ── Wrapper ──────────────────────────────────────────────────────────────── */
+.historial-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Panel de controles ───────────────────────────────────────────────────── */
+.historial-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+
+.historial-control-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.historial-control-block + .historial-control-block {
+  border-top: 1px solid var(--aurora-border);
+  padding-top: 12px;
+}
+
+.historial-control-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-green);
+  opacity: 0.8;
+}
+
+.historial-control-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.historial-ctrl-label {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.historial-select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.historial-select:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.historial-date-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
+.historial-date-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.historial-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+.historial-clear-btn {
+  font-size: 0.8rem;
+  padding: 5px 12px;
+}
+
+/* Ordenamiento */
+.historial-sort-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.historial-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.historial-sort-prefix {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  min-width: 80px;
+  text-align: right;
+}
+
+.historial-dir-select {
+  min-width: 130px;
+}
+
+/* ── Contador ─────────────────────────────────────────────────────────────── */
+.historial-count {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+}
+
+/* ── Tabla ────────────────────────────────────────────────────────────────── */
+.historial-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--aurora-border);
+}
+
+.historial-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 750px;
+}
+
+.historial-table thead th {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.historial-table tbody tr {
+  border-bottom: 1px solid var(--aurora-border);
+  transition: background 0.1s;
+}
+
+.historial-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.historial-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.historial-table tbody td {
+  padding: 10px 14px;
+  color: var(--aurora-light);
+}
+
+.historial-consecutivo {
+  font-weight: 700;
+  color: var(--aurora-magenta) !important;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ── Badges de estado ─────────────────────────────────────────────────────── */
+.historial-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.badge-yellow {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
+.badge-blue {
+  background: rgba(51, 153, 255, 0.15);
+  color: #3399ff;
+}
+
+.badge-green {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+/* ── Ver más ──────────────────────────────────────────────────────────────── */
+.historial-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
