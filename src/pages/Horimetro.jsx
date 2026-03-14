@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   FiClock, FiPlus, FiX, FiCheck, FiEdit, FiTrash2, FiFilter, FiChevronDown,
   FiCamera, FiUpload, FiZap, FiSearch,
@@ -99,6 +100,7 @@ function compressImage(file) {
 function Horimetro() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
+  const location = useLocation();
 
   // Labor combobox
   const laborRef = useRef(null);
@@ -173,26 +175,25 @@ function Horimetro() {
       setLabores(Array.isArray(laboresData) ? laboresData : []);
     }).catch(() => { });
     fetchRecords();
-
-    // Pre-fill from Aurora chat draft (sessionStorage)
-    const raw = sessionStorage.getItem('horimetroDraft');
-    if (raw) {
-      sessionStorage.removeItem('horimetroDraft');
-      try {
-        const draft = JSON.parse(raw);
-        if (Array.isArray(draft) && draft.length > 1) {
-          // Multiple rows → open batch review table
-          setScanRows(draft);
-          setScanStep('review');
-        } else {
-          // Single row → pre-fill the form
-          const single = Array.isArray(draft) ? draft[0] : draft;
-          setForm(prev => ({ ...prev, ...single, id: null }));
-          setShowForm(true);
-        }
-      } catch { /* ignore malformed draft */ }
-    }
   }, []);
+
+  // Pre-fill from Aurora chat "Revisar en formulario" (passed via router state)
+  useEffect(() => {
+    const draft = location.state?.horimetroDraft;
+    if (!draft) return;
+    // Clear the state so refreshing the page won't re-apply it
+    window.history.replaceState({}, '');
+    if (Array.isArray(draft) && draft.length > 1) {
+      setScanRows(draft);
+      setScanStep('review');
+      setShowForm(false);
+    } else {
+      const single = Array.isArray(draft) ? draft[0] : draft;
+      setForm(prev => ({ ...prev, ...single, id: null }));
+      setShowForm(true);
+      setScanStep(null);
+    }
+  }, [location.state]);
 
   // Close labor combobox on outside click
   useEffect(() => {

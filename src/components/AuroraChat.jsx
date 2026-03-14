@@ -224,9 +224,8 @@ export default function AuroraChat() {
   };
 
   const handleDraftReview = (filas) => {
-    sessionStorage.setItem('horimetroDraft', JSON.stringify(filas));
     setOpen(false);
-    navigate('/operaciones/horimetro');
+    navigate('/operaciones/horimetro', { state: { horimetroDraft: filas } });
   };
 
   const formatHours = (fila) => {
