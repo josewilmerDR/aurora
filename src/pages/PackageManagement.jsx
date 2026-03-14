@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './PackageManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
@@ -22,6 +22,34 @@ function PackageManagement() {
   const [focusedActivity, setFocusedActivity] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
+  const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
+  const [prodOpenIdx, setProdOpenIdx] = useState(null);
+  const [prodSearch, setProdSearch] = useState('');
+  const [prodDropdownPos, setProdDropdownPos] = useState({ top: 0, left: 0 });
+
+  const openProdCombo = (index, wrapEl) => {
+    const rect = wrapEl.getBoundingClientRect();
+    setProdDropdownPos({ top: rect.bottom + 4, left: rect.left });
+    setProdOpenIdx(index);
+  };
+
+  useEffect(() => {
+    if (prodOpenIdx === null) return;
+    const close = () => { setProdOpenIdx(null); setProdSearch(''); };
+    const handler = (e) => {
+      if (!e.target.closest('.pkg-prod-input-wrap') && !e.target.closest('.pkg-prod-dropdown')) close();
+    };
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [prodOpenIdx]);
 
   useEffect(() => {
     apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
@@ -52,8 +80,20 @@ function PackageManagement() {
     }));
   };
 
+  const duplicateActivity = (index) => {
+    const copy = JSON.parse(JSON.stringify(formData.activities[index]));
+    if (copy.name) copy.name = `Copia de ${copy.name}`;
+    const updatedActivities = [
+      ...formData.activities.slice(0, index + 1),
+      copy,
+      ...formData.activities.slice(index + 1),
+    ];
+    setFormData(prev => ({ ...prev, activities: updatedActivities }));
+  };
+
   const removeActivity = (index) => {
     setFormData(prev => ({ ...prev, activities: prev.activities.filter((_, i) => i !== index) }));
+    setPendingDeleteIdx(null);
     setExpandedActivities(prev => {
       const next = new Set();
       prev.forEach(i => { if (i < index) next.add(i); else if (i > index) next.add(i - 1); });
@@ -143,11 +183,9 @@ function PackageManagement() {
   };
 
   const handleEdit = (pkg) => {
-    const normalizedActivities = (pkg.activities || []).map(a => ({
-      type: 'notificacion',
-      productos: [],
-      ...a,
-    }));
+    const normalizedActivities = (pkg.activities || [])
+      .map(a => ({ type: 'notificacion', productos: [], ...a }))
+      .sort((a, b) => Number(a.day) - Number(b.day));
     setFormData({ ...pkg, activities: normalizedActivities });
     setIsEditing(true);
     setExpandedActivities(new Set());
@@ -164,9 +202,10 @@ function PackageManagement() {
     e.preventDefault();
     const url = isEditing ? `/api/packages/${formData.id}` : '/api/packages';
     const method = isEditing ? 'PUT' : 'POST';
+    const sortedActivities = [...formData.activities].sort((a, b) => Number(a.day) - Number(b.day));
     const body = {
       ...formData,
-      activities: formData.activities.map(a => ({
+      activities: sortedActivities.map(a => ({
         ...a,
         type: (a.productos && a.productos.length > 0) ? 'aplicacion' : 'notificacion',
       })),
@@ -187,16 +226,37 @@ function PackageManagement() {
     }
   };
 
+  const handleDuplicate = async (pkg) => {
+    const body = {
+      nombrePaquete: `Copia de ${pkg.nombrePaquete}`,
+      tipoCosecha: pkg.tipoCosecha,
+      etapaCultivo: pkg.etapaCultivo,
+      activities: pkg.activities || [],
+    };
+    try {
+      const response = await apiFetch('/api/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error();
+      const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
+      setPackages(updatedPackages);
+      showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
+    } catch {
+      showToast('Error al duplicar el paquete.', 'error');
+    }
+  };
+
   const handleDelete = async (id) => {
-    if (window.confirm('¿Estás seguro?')) {
-      try {
-        const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
-        if (!response.ok) throw new Error('Error al eliminar el paquete');
-        setPackages(packages.filter(p => p.id !== id));
-        showToast('Paquete eliminado correctamente');
-      } catch (error) {
-        showToast('Error al eliminar el paquete.', 'error');
-      }
+    try {
+      const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Error al eliminar el paquete');
+      setPackages(packages.filter(p => p.id !== id));
+      setPendingDeletePkgId(null);
+      showToast('Paquete eliminado correctamente');
+    } catch (error) {
+      showToast('Error al eliminar el paquete.', 'error');
     }
   };
 
@@ -291,17 +351,30 @@ function PackageManagement() {
                       </td>
                       <td>
                         <div className="activity-row-actions">
-                          <button type="button" onClick={() => removeActivity(index)} className="icon-btn pkg-action-btn" title="Eliminar Actividad">
-                            <FiX size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleActivityExpand(index)}
-                            className={`icon-btn pkg-action-btn${expandedActivities.has(index) ? ' expanded' : ''}`}
-                            title={expandedActivities.has(index) ? 'Ocultar productos' : 'Agregar productos'}
-                          >
-                            <FiEye size={16} />
-                          </button>
+                          {pendingDeleteIdx === index ? (
+                            <div className="activity-delete-confirm">
+                              <span>¿Eliminar?</span>
+                              <button type="button" className="btn-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
+                              <button type="button" className="btn-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
+                            </div>
+                          ) : (
+                            <>
+                              <button type="button" onClick={() => setPendingDeleteIdx(index)} className="icon-btn pkg-action-btn" title="Eliminar Actividad">
+                                <FiX size={16} />
+                              </button>
+                              <button type="button" onClick={() => duplicateActivity(index)} className="icon-btn pkg-action-btn" title="Duplicar Actividad">
+                                <FiCopy size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleActivityExpand(index)}
+                                className={`icon-btn pkg-action-btn${expandedActivities.has(index) ? ' expanded' : ''}`}
+                                title={expandedActivities.has(index) ? 'Ocultar productos' : 'Agregar productos'}
+                              >
+                                <FiEye size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -324,6 +397,7 @@ function PackageManagement() {
                                     onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
                                     className="product-tag-qty"
                                     title="Cantidad por Ha"
+                                    data-prod-qty={`${index}-${p.productoId}`}
                                   />
                                   <span className="product-tag-unit">{p.unidad}/Ha</span>
                                   <button
@@ -336,17 +410,54 @@ function PackageManagement() {
                                   </button>
                                 </span>
                               ))}
-                              <select
-                                className="add-product-select"
-                                onChange={(e) => { addProductToActivity(index, e.target.value); e.target.value = ''; }}
-                                defaultValue=""
-                              >
-                                <option value="" disabled>+ Agregar producto</option>
-                                {productos
-                                  .filter(p => !(activity.productos || []).find(ap => ap.productoId === p.id))
-                                  .map(p => <option key={p.id} value={p.id}>{p.nombreComercial}</option>)
-                                }
-                              </select>
+                              <div className="pkg-prod-combo">
+                                <div
+                                  className="pkg-prod-input-wrap"
+                                  onClick={(e) => openProdCombo(index, e.currentTarget)}
+                                >
+                                  <FiSearch size={13} />
+                                  <input
+                                    type="text"
+                                    placeholder="+ Agregar producto..."
+                                    value={prodOpenIdx === index ? prodSearch : ''}
+                                    onChange={e => { setProdSearch(e.target.value); openProdCombo(index, e.currentTarget.closest('.pkg-prod-input-wrap')); }}
+                                    onFocus={e => openProdCombo(index, e.currentTarget.closest('.pkg-prod-input-wrap'))}
+                                  />
+                                </div>
+                                {prodOpenIdx === index && (
+                                  <div className="pkg-prod-dropdown" style={{ top: prodDropdownPos.top, left: prodDropdownPos.left }}>
+                                    {productos
+                                      .filter(p => !(activity.productos || []).find(ap => ap.productoId === p.id))
+                                      .filter(p => !prodSearch || p.nombreComercial?.toLowerCase().includes(prodSearch.toLowerCase()) || p.ingredienteActivo?.toLowerCase().includes(prodSearch.toLowerCase()))
+                                      .map(p => (
+                                        <button
+                                          type="button"
+                                          key={p.id}
+                                          className="pkg-prod-option"
+                                          onClick={() => {
+                                            addProductToActivity(index, p.id);
+                                            setProdSearch('');
+                                            setProdOpenIdx(null);
+                                            setTimeout(() => {
+                                              const el = document.querySelector(`[data-prod-qty="${index}-${p.id}"]`);
+                                              if (el) { el.focus(); el.select(); }
+                                            }, 0);
+                                          }}
+                                        >
+                                          <span className="pkg-prod-name">{p.nombreComercial}</span>
+                                          {p.ingredienteActivo && <span className="pkg-prod-ing">{p.ingredienteActivo}</span>}
+                                        </button>
+                                      ))
+                                    }
+                                    {productos
+                                      .filter(p => !(activity.productos || []).find(ap => ap.productoId === p.id))
+                                      .filter(p => !prodSearch || p.nombreComercial?.toLowerCase().includes(prodSearch.toLowerCase()) || p.ingredienteActivo?.toLowerCase().includes(prodSearch.toLowerCase()))
+                                      .length === 0 && (
+                                      <p className="pkg-prod-empty">Sin resultados</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -383,12 +494,25 @@ function PackageManagement() {
                 </div>
               </div>
               <div className="lote-actions">
-                <button onClick={() => handleEdit(pkg)} className="icon-btn" title="Editar">
-                  <FiEdit size={18} />
-                </button>
-                <button onClick={() => handleDelete(pkg.id)} className="icon-btn delete" title="Eliminar">
-                  <FiTrash2 size={18} />
-                </button>
+                {pendingDeletePkgId === pkg.id ? (
+                  <div className="activity-delete-confirm">
+                    <span>¿Eliminar?</span>
+                    <button className="btn-confirm-yes" onClick={() => handleDelete(pkg.id)}>Sí</button>
+                    <button className="btn-confirm-no" onClick={() => setPendingDeletePkgId(null)}>No</button>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={() => handleEdit(pkg)} className="icon-btn" title="Editar">
+                      <FiEdit size={18} />
+                    </button>
+                    <button onClick={() => handleDuplicate(pkg)} className="icon-btn" title="Duplicar paquete">
+                      <FiCopy size={17} />
+                    </button>
+                    <button onClick={() => setPendingDeletePkgId(pkg.id)} className="icon-btn delete" title="Eliminar">
+                      <FiTrash2 size={18} />
+                    </button>
+                  </>
+                )}
               </div>
             </li>
           ))}

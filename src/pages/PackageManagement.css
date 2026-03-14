@@ -22,10 +22,10 @@
 }
 
 /* Ajustamos el ancho de las columnas */
-.activities-table .col-day { width: 70px; }
+.activities-table .col-day { width: 100px; }
 .activities-table .col-name { width: auto; }
 .activities-table .col-user { width: 140px; }
-.activities-table .col-action { width: 72px; text-align: right; }
+.activities-table .col-action { width: 1%; white-space: nowrap; text-align: right; }
 
 /* Celda de nombre de actividad — select de plantilla + input editable */
 .activity-name-cell {
@@ -145,15 +145,16 @@
 
 .products-tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 .product-tag {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   background-color: rgba(100, 181, 246, 0.1);
   border: 1px solid rgba(100, 181, 246, 0.4);
   border-radius: 6px;
@@ -230,6 +231,134 @@
   opacity: 1;
   background-color: rgba(51, 255, 153, 0.08);
 }
+
+/* Combobox de búsqueda de productos */
+.pkg-prod-combo {
+  display: inline-block;
+}
+
+.pkg-prod-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background-color: var(--aurora-dark-blue);
+  border: 1px dashed var(--aurora-border);
+  border-radius: 6px;
+  color: #64b5f6;
+  cursor: text;
+  min-width: 160px;
+  transition: border-color 0.2s;
+}
+
+.pkg-prod-input-wrap:focus-within {
+  border-style: solid;
+  border-color: var(--aurora-green);
+  color: var(--aurora-light);
+}
+
+.pkg-prod-input-wrap input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  min-width: 120px;
+}
+
+.pkg-prod-input-wrap input::placeholder {
+  color: #64b5f6;
+  opacity: 0.8;
+}
+
+.pkg-prod-dropdown {
+  position: fixed;
+  min-width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.pkg-prod-option {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--aurora-border);
+  cursor: pointer;
+  gap: 2px;
+}
+
+.pkg-prod-option:last-child { border-bottom: none; }
+
+.pkg-prod-option:hover { background-color: var(--aurora-background); }
+
+.pkg-prod-name {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+
+.pkg-prod-ing {
+  font-size: 0.78rem;
+  color: #64b5f6;
+  opacity: 0.8;
+}
+
+.pkg-prod-empty {
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+/* Confirmación inline de eliminación de actividad */
+.activity-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.activity-delete-confirm span {
+  font-size: 0.8rem;
+  color: var(--aurora-magenta);
+}
+
+.btn-confirm-yes,
+.btn-confirm-no {
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: opacity 0.15s;
+}
+
+.btn-confirm-yes {
+  background-color: rgba(204, 51, 255, 0.12);
+  border-color: var(--aurora-magenta);
+  color: var(--aurora-magenta);
+}
+
+.btn-confirm-yes:hover { opacity: 0.8; }
+
+.btn-confirm-no {
+  background-color: rgba(230, 242, 255, 0.06);
+  border-color: var(--aurora-border);
+  color: var(--aurora-light);
+}
+
+.btn-confirm-no:hover { opacity: 0.8; }
 
 /* Estilos para el listado de paquetes */
 .package-sub-info {
