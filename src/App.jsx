@@ -50,10 +50,23 @@ import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
-import { MODULES } from './components/Sidebar';
+import { MODULES, ALL_ITEMS } from './components/Sidebar';
 
 import './index.css';
 import './App.css';
+
+// Mapeo de rutas → minRole derivado de MODULES (para restricción de rutas)
+const ROUTE_MIN_ROLE = {
+  ...Object.fromEntries(
+    ALL_ITEMS.filter(item => item.to).map(item => [item.to, item.minRole || 'trabajador'])
+  ),
+  // Sub-rutas no listadas directamente en MODULES
+  '/productos/todos': 'encargado',
+  '/siembra/materiales': 'encargado',
+  '/ordenes-compra/historial': 'encargado',
+  '/hr/planilla/fijo': 'supervisor',
+  '/hr/planilla/horas': 'supervisor',
+};
 
 // Mapeo de rutas a títulos
 const routeTitles = {
@@ -98,13 +111,21 @@ const routeTitles = {
   '/operaciones/horimetro': 'Horímetro',
 };
 
-// --- Route guard ---
+// --- Route guards ---
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn, isLoading, needsFincaSelection, needsSetup } = useUser();
   if (isLoading) return <div className="app-loading">Cargando...</div>;
   if (!isLoggedIn && !needsFincaSelection && !needsSetup) return <Navigate to="/login" replace />;
   if (needsSetup) return <Navigate to="/register" replace />;
   if (needsFincaSelection) return <FincaSelector />;
+  return children;
+};
+
+const RoleRoute = ({ path, children }) => {
+  const { currentUser } = useUser();
+  const userRole = currentUser?.rol || 'trabajador';
+  const minRole = ROUTE_MIN_ROLE[path] || 'trabajador';
+  if (!hasMinRole(userRole, minRole)) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -274,44 +295,47 @@ function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
-            <Route path="/users" element={<UserManagement />} />
-            <Route path="/packages" element={<PackageManagement />} />
-            <Route path="/lotes" element={<LoteManagement />} />
             <Route path="/tasks" element={<TaskTracking />} />
-            <Route path="/productos" element={<ProductManagement />} />
-            <Route path="/productos/todos" element={<ProductCatalog />} />
-            <Route path="/ingreso-productos" element={<ProductIngreso />} />
-            <Route path="/compras" element={<InvoiceScan />} />
-            <Route path="/solicitudes" element={<PurchaseRequest />} />
-            <Route path="/recepcion" element={<GoodsReceipt />} />
-            <Route path="/ordenes-compra" element={<OrdenesList />} />
-            <Route path="/ordenes-compra/historial" element={<OrdenesHistorial />} />
-            <Route path="/proveedores" element={<ProveedoresList />} />
-            <Route path="/hr/ficha" element={<HrFicha />} />
-            <Route path="/hr/asistencia" element={<HrAsistencia />} />
-            <Route path="/hr/horas-extra" element={<HrHorasExtra />} />
-            <Route path="/hr/permisos" element={<HrPermisos />} />
-            <Route path="/hr/planilla" element={<HrPlanilla />} />
-            <Route path="/hr/planilla/fijo" element={<HrPlanillaSalarioFijo />} />
-            <Route path="/hr/planilla/horas" element={<HrPlanillaPorHora />} />
-            <Route path="/hr/historial-pagos" element={<HrHistorialPagos />} />
-            <Route path="/hr/historial" element={<HrHistorial />} />
-            <Route path="/hr/documentos" element={<HrDocumentos />} />
-            <Route path="/hr/memorandums" element={<HrMemorandums />} />
-            <Route path="/hr/solicitud-empleo" element={<HrSolicitudEmpleo />} />
             <Route path="/monitoreo" element={<MonitoreoRegistro />} />
-            <Route path="/monitoreo/historial" element={<MonitoreoHistorial />} />
-            <Route path="/monitoreo/config" element={<MonitoreoConfig />} />
-            <Route path="/config/cuenta" element={<ConfigCuenta />} />
-            <Route path="/admin/parametros" element={<Parametros />} />
-            <Route path="/admin/maquinaria" element={<MaquinariaList />} />
-            <Route path="/admin/labores" element={<LaborList />} />
-            <Route path="/grupos" element={<GrupoManagement />} />
-            <Route path="/aplicaciones/cedulas" element={<CedulasAplicacion />} />
-            <Route path="/siembra" element={<Siembra />} />
-            <Route path="/siembra/materiales" element={<SiembraMateriales />} />
-            <Route path="/siembra/historial" element={<SiembraHistorial />} />
             <Route path="/operaciones/horimetro" element={<Horimetro />} />
+            <Route path="/config/cuenta" element={<ConfigCuenta />} />
+            {/* encargado+ */}
+            <Route path="/users" element={<RoleRoute path="/users"><UserManagement /></RoleRoute>} />
+            <Route path="/lotes" element={<RoleRoute path="/lotes"><LoteManagement /></RoleRoute>} />
+            <Route path="/grupos" element={<RoleRoute path="/grupos"><GrupoManagement /></RoleRoute>} />
+            <Route path="/productos" element={<RoleRoute path="/productos"><ProductManagement /></RoleRoute>} />
+            <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductCatalog /></RoleRoute>} />
+            <Route path="/ingreso-productos" element={<RoleRoute path="/ingreso-productos"><ProductIngreso /></RoleRoute>} />
+            <Route path="/solicitudes" element={<RoleRoute path="/solicitudes"><PurchaseRequest /></RoleRoute>} />
+            <Route path="/recepcion" element={<RoleRoute path="/recepcion"><GoodsReceipt /></RoleRoute>} />
+            <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OrdenesList /></RoleRoute>} />
+            <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OrdenesHistorial /></RoleRoute>} />
+            <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
+            <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
+            <Route path="/hr/asistencia" element={<RoleRoute path="/hr/asistencia"><HrAsistencia /></RoleRoute>} />
+            <Route path="/hr/horas-extra" element={<RoleRoute path="/hr/horas-extra"><HrHorasExtra /></RoleRoute>} />
+            <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
+            <Route path="/hr/historial" element={<RoleRoute path="/hr/historial"><HrHistorial /></RoleRoute>} />
+            <Route path="/hr/documentos" element={<RoleRoute path="/hr/documentos"><HrDocumentos /></RoleRoute>} />
+            <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
+            <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
+            <Route path="/siembra" element={<RoleRoute path="/siembra"><Siembra /></RoleRoute>} />
+            <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
+            <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
+            {/* supervisor+ */}
+            <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
+            <Route path="/compras" element={<RoleRoute path="/compras"><InvoiceScan /></RoleRoute>} />
+            <Route path="/hr/planilla" element={<RoleRoute path="/hr/planilla"><HrPlanilla /></RoleRoute>} />
+            <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
+            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorHora /></RoleRoute>} />
+            <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPagos /></RoleRoute>} />
+            <Route path="/hr/memorandums" element={<RoleRoute path="/hr/memorandums"><HrMemorandums /></RoleRoute>} />
+            <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
+            <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
+            <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
+            {/* administrador */}
+            <Route path="/hr/solicitud-empleo" element={<RoleRoute path="/hr/solicitud-empleo"><HrSolicitudEmpleo /></RoleRoute>} />
+            <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parametros /></RoleRoute>} />
           </Route>
         </Routes>
       </UserProvider>

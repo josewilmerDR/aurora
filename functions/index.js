@@ -217,13 +217,86 @@ app.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
   }
 });
 
+// POST /api/auth/claim-invitations — vincula al usuario con las fincas donde fue agregado por email
+app.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) => {
+  try {
+    const { uid, userEmail } = req;
+    if (!userEmail) return res.status(400).json({ message: 'No se encontró email en el token.' });
+
+    // Buscar registros en 'users' que coincidan con este email
+    const usersSnap = await db.collection('users').where('email', '==', userEmail).get();
+    if (usersSnap.empty) return res.status(200).json({ memberships: [] });
+
+    const batch = db.batch();
+    const newMemberships = [];
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = userDoc.data();
+      const { fincaId, nombre, rol, telefono } = userData;
+      if (!fincaId) continue;
+
+      // Verificar si ya existe una membresía para este uid + finca
+      const existingSnap = await db.collection('memberships')
+        .where('uid', '==', uid)
+        .where('fincaId', '==', fincaId)
+        .limit(1)
+        .get();
+
+      if (!existingSnap.empty) {
+        newMemberships.push({ id: existingSnap.docs[0].id, ...existingSnap.docs[0].data() });
+        continue;
+      }
+
+      // Obtener el nombre de la finca
+      const fincaDoc = await db.collection('fincas').doc(fincaId).get();
+      const fincaNombre = fincaDoc.exists ? fincaDoc.data().nombre : fincaId;
+
+      // Crear la membresía
+      const membershipRef = db.collection('memberships').doc();
+      const membershipData = {
+        uid,
+        fincaId,
+        fincaNombre,
+        email: userEmail,
+        nombre: nombre || '',
+        telefono: telefono || '',
+        rol: rol || 'trabajador',
+        creadoEn: Timestamp.now(),
+      };
+      batch.set(membershipRef, membershipData);
+
+      // Actualizar el doc de usuario con el uid para futuras referencias
+      batch.update(userDoc.ref, { uid });
+
+      newMemberships.push({ id: membershipRef.id, ...membershipData });
+    }
+
+    if (newMemberships.length > 0) await batch.commit();
+    res.status(200).json({ memberships: newMemberships });
+  } catch (error) {
+    console.error('[AUTH] Error claiming invitations:', error);
+    res.status(500).json({ message: 'Error al reclamar invitaciones.' });
+  }
+});
+
 // --- API ENDPOINTS: TASKS ---
 app.get('/api/tasks', authenticate, async (req, res) => {
   try {
     const tasksSnapshot = await db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get();
-    const enrichedTasksPromises = tasksSnapshot.docs.map(enrichTask);
-    const enrichedTasks = await Promise.all(enrichedTasksPromises);
-    res.status(200).json(enrichedTasks.filter(t => t !== null));
+    let enrichedTasks = (await Promise.all(tasksSnapshot.docs.map(enrichTask))).filter(t => t !== null);
+
+    // Trabajadores solo ven las tareas asignadas a ellos
+    if (req.userRole === 'trabajador') {
+      const userSnap = await db.collection('users')
+        .where('uid', '==', req.uid)
+        .where('fincaId', '==', req.fincaId)
+        .limit(1)
+        .get();
+      const userId = userSnap.empty ? null : userSnap.docs[0].id;
+      enrichedTasks = enrichedTasks.filter(t => t.activity?.responsableId === userId);
+    }
+
+    res.status(200).json(enrichedTasks);
   } catch (error) {
     console.error("Error fetching tasks:", error);
     res.status(500).json({ message: 'Error al obtener las tareas.' });
@@ -231,6 +304,9 @@ app.get('/api/tasks', authenticate, async (req, res) => {
 });
 
 app.post('/api/tasks', authenticate, async (req, res) => {
+  if (req.userRole === 'trabajador') {
+    return res.status(403).json({ message: 'No tienes permisos para crear actividades.' });
+  }
   try {
     const { nombre, loteId, responsableId, fecha, productos } = req.body;
     if (!nombre || !loteId || !responsableId || !fecha) {
@@ -274,8 +350,21 @@ app.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
       .where('type', '==', 'REMINDER_DUE_DAY')
       .where('executeAt', '<', now)
       .get();
-    const count = snapshot.docs.filter(doc => doc.data().status !== 'completed_by_user').length;
-    res.status(200).json({ count });
+
+    let docs = snapshot.docs.filter(doc => doc.data().status !== 'completed_by_user');
+
+    // Trabajadores solo cuentan sus propias tareas vencidas
+    if (req.userRole === 'trabajador') {
+      const userSnap = await db.collection('users')
+        .where('uid', '==', req.uid)
+        .where('fincaId', '==', req.fincaId)
+        .limit(1)
+        .get();
+      const userId = userSnap.empty ? null : userSnap.docs[0].id;
+      docs = docs.filter(doc => doc.data().activity?.responsableId === userId);
+    }
+
+    res.status(200).json({ count: docs.length });
   } catch (error) {
     console.error('Error counting overdue tasks:', error);
     res.status(500).json({ message: 'Error al contar tareas vencidas.' });

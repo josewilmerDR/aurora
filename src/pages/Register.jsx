@@ -24,8 +24,22 @@ export default function Register() {
   // (cubre el caso de redirect de Google que recarga la página)
   useEffect(() => {
     if (isLoggedIn) navigate('/', { replace: true });
-    else if (needsSetup && step === 1) setStep(2);
-  }, [isLoggedIn, needsSetup, step, navigate]);
+    else if (needsSetup && step === 1) {
+      // Antes de mostrar el formulario de creación de organización,
+      // intentar reclamar membresías pendientes (usuario fue agregado por un admin previamente)
+      apiFetch('/api/auth/claim-invitations', { method: 'POST' })
+        .then(res => res.ok ? res.json() : { memberships: [] })
+        .then(async (data) => {
+          if (data.memberships?.length > 0) {
+            // Tiene invitaciones → recargar membresías, isLoggedIn se volverá true y navegará a /
+            await refreshMemberships();
+          } else {
+            setStep(2);
+          }
+        })
+        .catch(() => setStep(2));
+    }
+  }, [isLoggedIn, needsSetup, step, navigate, refreshMemberships]);
 
   // Paso 1: crear cuenta con email/password
   const handleAccountStep = (e) => {

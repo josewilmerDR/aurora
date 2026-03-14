@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { FiPlus, FiX, FiFileText } from 'react-icons/fi';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import './TaskTracking.css';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useUser } from '../contexts/UserContext';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -11,13 +14,14 @@ function useQuery() {
 
 function TaskTracking() {
   const apiFetch = useApiFetch();
+  const { activeFincaId } = useUser();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const query = useQuery();
-  const [filter, setFilter] = useState(query.get('filter') || 'all');
+  const urlQuery = useQuery();
+  const [filter, setFilter] = useState(urlQuery.get('filter') || 'all');
 
   // --- Estado del formulario de nueva tarea ---
   const [showNewTask, setShowNewTask] = useState(false);
@@ -36,7 +40,9 @@ function TaskTracking() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  useEffect(() => {
+  const debounceRef = useRef(null);
+
+  const fetchTasks = useCallback(() => {
     apiFetch('/api/tasks')
       .then(res => res.ok ? res.json() : Promise.reject('Error de red'))
       .then(data => {
@@ -45,7 +51,31 @@ function TaskTracking() {
       })
       .catch(err => setError(err.toString()))
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiFetch]);
+
+  // Carga inicial
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  // Listener en tiempo real: onSnapshot solo dispara cuando hay cambios reales en Firestore.
+  // Sin actividad (fines de semana, noches) el WebSocket está abierto pero no genera lecturas.
+  useEffect(() => {
+    if (!activeFincaId) return;
+    const isFirst = { current: true };
+    const q = query(
+      collection(db, 'scheduled_tasks'),
+      where('fincaId', '==', activeFincaId)
+    );
+    const unsubscribe = onSnapshot(q, () => {
+      // Ignorar el disparo inicial (ya lo carga fetchTasks arriba)
+      if (isFirst.current) { isFirst.current = false; return; }
+      // Debounce 400ms para agrupar escrituras en lote
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(fetchTasks, 400);
+    });
+    return () => { unsubscribe(); clearTimeout(debounceRef.current); };
+  }, [activeFincaId, fetchTasks]);
 
   // Cargar lotes, usuarios, productos y plantillas cuando se abre el formulario
   useEffect(() => {

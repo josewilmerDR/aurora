@@ -59,10 +59,24 @@ export function UserProvider({ children }) {
         const res = await apiFetch('/api/auth/memberships');
         if (res.ok) {
           const data = await res.json();
-          setMemberships(data.memberships || []);
+          let membershipsData = data.memberships || [];
+
+          // Si no tiene membresías, intentar reclamar invitaciones por email
+          // (caso: admin agregó al usuario en "Gestión de Usuarios" antes de que se registrara)
+          if (membershipsData.length === 0) {
+            try {
+              const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
+              if (claimRes.ok) {
+                const claimData = await claimRes.json();
+                membershipsData = claimData.memberships || [];
+              }
+            } catch { /* silently fail — el usuario verá la pantalla de creación de organización */ }
+          }
+
+          setMemberships(membershipsData);
           // Si solo tiene una finca, activarla automáticamente
-          if ((data.memberships || []).length === 1) {
-            const fincaId = data.memberships[0].fincaId;
+          if (membershipsData.length === 1) {
+            const fincaId = membershipsData[0].fincaId;
             setActiveFincaId(fincaId);
             localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
           }
