@@ -42,7 +42,7 @@ export default function AuroraChat() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: '¡Hola! Soy Aurora.\nPuedo registrar siembras desde texto, foto o voz. ¿En qué te ayudo?' },
+    { role: 'assistant', text: '¡Hola! Soy Aurora, tu asistente de sistema.\n¿En qué puedo ayudarte hoy?' },
   ]);
   const [input, setInput] = useState('');
   const [image, setImage] = useState(null);

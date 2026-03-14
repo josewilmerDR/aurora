@@ -155,6 +155,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     setRecentRoutes((prev) => {
       const next = [path, ...prev.filter((r) => r !== path)].slice(0, 5);
       saveRecents(uid, next);
+      // If already in list, save the new order to localStorage but keep
+      // the displayed order stable so items don't jump while navigating.
+      if (prev.includes(path)) return prev;
       return next;
     });
   }, [location.pathname, uid]);
