@@ -74,13 +74,132 @@
   text-align: right;
 }
 
-.cedula-btn-preview {
+.cedula-btn-preview,
+.cedula-btn-action {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 0.82rem;
   padding: 6px 14px;
   white-space: nowrap;
+}
+
+/* ── Barra de filtro ──────────────────────────────────────────────────────── */
+.cedulas-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.cedulas-period-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cedulas-nav-btn {
+  padding: 4px 10px;
+  font-size: 1rem;
+  line-height: 1;
+  min-width: 30px;
+}
+
+.cedulas-period-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  min-width: 150px;
+  text-align: center;
+}
+
+.cedulas-nav-today {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+}
+
+.cedulas-filter-count {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  flex: 1;
+  text-align: center;
+}
+
+.cedulas-filter-toggle {
+  font-size: 0.8rem;
+  padding: 5px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cedulas-historial-btn {
+  font-size: 0.8rem;
+  padding: 5px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+/* ── Consecutivo en la fila ───────────────────────────────────────────────── */
+.cedula-consecutivo {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--aurora-magenta);
+  letter-spacing: 0.04em;
+}
+
+/* ── Badges de estado de la cédula ───────────────────────────────────────── */
+.cedula-flow-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.cedula-flow-badge.pendiente {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
+.cedula-flow-badge.en-transito {
+  background: rgba(51, 153, 255, 0.15);
+  color: #3399ff;
+}
+
+/* ── Badge "Aplicada" en toolbar ─────────────────────────────────────────── */
+.ca-toolbar-applied-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.12);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  border-radius: 20px;
+  padding: 4px 12px;
+}
+
+/* ── Consecutivo en toolbar y documento ──────────────────────────────────── */
+.ca-toolbar-consecutivo {
+  display: inline-block;
+  margin-left: 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--aurora-magenta);
+  letter-spacing: 0.04em;
+}
+
+.ca-doc-consecutivo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #333;
+  margin-top: 4px;
+  letter-spacing: 0.05em;
 }
 
 /* ── Preview modal ────────────────────────────────────────────────────────── */

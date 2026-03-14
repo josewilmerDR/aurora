@@ -43,6 +43,7 @@ import LaborList from './pages/LaborList';
 import Horimetro from './pages/Horimetro';
 import GrupoManagement from './pages/GrupoManagement';
 import CedulasAplicacion from './pages/CedulasAplicacion';
+import HistorialAplicaciones from './pages/HistorialAplicaciones';
 import Siembra from './pages/Siembra';
 import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
@@ -105,6 +106,7 @@ const routeTitles = {
   '/admin/labores': 'Lista de Labores',
   '/grupos': 'Grupos',
   '/aplicaciones/cedulas': 'Cédulas de Aplicación',
+  '/aplicaciones/historial': 'Historial de Aplicaciones',
   '/siembra': 'Registro de Siembra',
   '/siembra/materiales': 'Materiales de Siembra',
   '/siembra/historial': 'Historial de Siembra',
@@ -319,6 +321,7 @@ function App() {
             <Route path="/hr/documentos" element={<RoleRoute path="/hr/documentos"><HrDocumentos /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
+            <Route path="/aplicaciones/historial" element={<RoleRoute path="/aplicaciones/historial"><HistorialAplicaciones /></RoleRoute>} />
             <Route path="/siembra" element={<RoleRoute path="/siembra"><Siembra /></RoleRoute>} />
             <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
