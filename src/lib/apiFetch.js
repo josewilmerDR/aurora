@@ -17,5 +17,5 @@ export async function apiFetch(url, options = {}, fincaId) {
     ...options.headers,
   };
 
-  return fetch(url, { ...options, headers });
+  return fetch(url, { cache: 'no-store', ...options, headers });
 }

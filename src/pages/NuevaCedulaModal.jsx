@@ -1,0 +1,532 @@
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { FiX, FiPlusCircle, FiTrash2, FiSearch } from 'react-icons/fi';
+
+function NuevaCedulaModal({ lotes, grupos, siembras, productos, apiFetch, onSuccess, onClose }) {
+  const [form, setForm] = useState({
+    activityName: '',
+    fecha: new Date().toISOString().split('T')[0],
+    loteId: '',
+    selectedBloques: [],
+    productos: [],
+  });
+  const [prodSearch, setProdSearch] = useState('');
+  const [prodOpen, setProdOpen] = useState(false);
+  const [prodDropdownPos, setProdDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const prodInputWrapRef = useRef(null);
+  const prodInputRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const cantidadRefs = useRef({});
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // ── Plantillas ────────────────────────────────────────────────────────────
+  const [plantillas, setPlantillas] = useState([]);
+  const [savingPlantilla, setSavingPlantilla] = useState(false);
+  const [plantillaSaved, setPlantillaSaved] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/api/cedula-templates').then(r => r.json()).then(setPlantillas).catch(() => {});
+  }, []);
+
+  const aplicarPlantilla = (p) => {
+    const validProds = p.productos
+      .map(tp => {
+        const cat = productos.find(pr => pr.id === tp.productoId);
+        if (!cat) return null;
+        return {
+          productoId: cat.id,
+          nombreComercial: cat.nombreComercial,
+          cantidadPorHa: tp.cantidadPorHa ?? '',
+          unidad: cat.unidad || tp.unidad || '',
+        };
+      })
+      .filter(Boolean);
+    setForm(prev => ({ ...prev, activityName: p.nombre, productos: validProds }));
+  };
+
+  const guardarComoPlantilla = async () => {
+    if (!form.activityName.trim()) return;
+    setSavingPlantilla(true);
+    try {
+      const res = await apiFetch('/api/cedula-templates', {
+        method: 'POST',
+        body: JSON.stringify({
+          nombre: form.activityName.trim(),
+          productos: form.productos.map(p => ({
+            productoId: p.productoId,
+            nombreComercial: p.nombreComercial,
+            cantidadPorHa: parseFloat(p.cantidadPorHa) || 0,
+            unidad: p.unidad,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const nueva = await res.json();
+      setPlantillas(prev => [...prev, nueva]);
+      setPlantillaSaved(true);
+      setTimeout(() => setPlantillaSaved(false), 2500);
+    } catch {
+      // silently ignore
+    } finally {
+      setSavingPlantilla(false);
+    }
+  };
+
+  const eliminarPlantilla = async (id) => {
+    try {
+      await apiFetch(`/api/cedula-templates/${id}`, { method: 'DELETE' });
+      setPlantillas(prev => prev.filter(p => p.id !== id));
+    } catch {
+      // silently ignore
+    }
+  };
+
+  // ── Bloques agrupados por grupo ───────────────────────────────────────────
+  const loteBloques = useMemo(() => {
+    if (!form.loteId) return [];
+    return siembras.filter(s => s.loteId === form.loteId);
+  }, [form.loteId, siembras]);
+
+  // Bloques del lote agrupados: [{id, nombre, bloques[]}]
+  // Bloques sin grupo van al final en un grupo especial
+  const bloquesByGrupo = useMemo(() => {
+    if (loteBloques.length === 0) return [];
+    const result = [];
+    const assigned = new Set();
+    for (const g of grupos) {
+      const bloquesDG = (g.bloques || [])
+        .map(id => loteBloques.find(b => b.id === id))
+        .filter(Boolean);
+      if (bloquesDG.length > 0) {
+        result.push({ id: g.id, nombre: g.nombreGrupo, bloques: bloquesDG });
+        bloquesDG.forEach(b => assigned.add(b.id));
+      }
+    }
+    const sinGrupo = loteBloques.filter(b => !assigned.has(b.id));
+    if (sinGrupo.length > 0) {
+      result.push({ id: '__sin_grupo__', nombre: 'Sin grupo', bloques: sinGrupo });
+    }
+    return result;
+  }, [loteBloques, grupos]);
+
+  const toggleBloque = (bloqueId) => {
+    setForm(prev => ({
+      ...prev,
+      selectedBloques: prev.selectedBloques.includes(bloqueId)
+        ? prev.selectedBloques.filter(id => id !== bloqueId)
+        : [...prev.selectedBloques, bloqueId],
+    }));
+  };
+
+  const toggleGrupo = (grupoId) => {
+    const grupo = bloquesByGrupo.find(g => g.id === grupoId);
+    if (!grupo) return;
+    const ids = grupo.bloques.map(b => b.id);
+    const allSelected = ids.every(id => form.selectedBloques.includes(id));
+    setForm(prev => ({
+      ...prev,
+      selectedBloques: allSelected
+        ? prev.selectedBloques.filter(id => !ids.includes(id))
+        : [...new Set([...prev.selectedBloques, ...ids])],
+    }));
+  };
+
+  // ── Producto combobox ─────────────────────────────────────────────────────
+  const openProdCombo = () => {
+    if (!prodInputWrapRef.current) return;
+    const rect = prodInputWrapRef.current.getBoundingClientRect();
+    setProdDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    setProdOpen(true);
+  };
+
+  useEffect(() => { setActiveIdx(-1); }, [prodSearch]);
+
+  useEffect(() => {
+    if (!prodOpen || activeIdx < 0 || !dropdownRef.current) return;
+    const items = dropdownRef.current.querySelectorAll('.nca-prod-option');
+    items[activeIdx]?.scrollIntoView({ block: 'nearest' });
+  }, [activeIdx, prodOpen]);
+
+  useEffect(() => {
+    if (!prodOpen) return;
+    const close = () => { setProdOpen(false); setActiveIdx(-1); };
+    const handler = (e) => {
+      if (!e.target.closest('.nca-prod-input-wrap') && !e.target.closest('.nca-prod-dropdown')) close();
+    };
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [prodOpen]);
+
+  const addProducto = (p) => {
+    if (!p) return;
+    if (form.productos.some(fp => fp.productoId === p.id)) return;
+    setForm(prev => ({
+      ...prev,
+      productos: [...prev.productos, {
+        productoId: p.id,
+        nombreComercial: p.nombreComercial,
+        cantidadPorHa: '',
+        unidad: p.unidad || '',
+      }],
+    }));
+    setProdSearch('');
+    setProdOpen(false);
+    setActiveIdx(-1);
+    setTimeout(() => cantidadRefs.current[p.id]?.focus(), 0);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!prodOpen) openProdCombo();
+      setActiveIdx(i => Math.min(i + 1, productosFiltrados.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx(i => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && productosFiltrados[activeIdx]) {
+        addProducto(productosFiltrados[activeIdx]);
+      }
+    } else if (e.key === 'Escape') {
+      setProdOpen(false);
+      setActiveIdx(-1);
+    }
+  };
+
+  const handleCantidadKeyDown = (e) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      prodInputRef.current?.focus();
+      setTimeout(() => openProdCombo(), 0);
+    }
+  };
+
+  const updateCantidad = (productoId, val) => {
+    setForm(prev => ({
+      ...prev,
+      productos: prev.productos.map(p =>
+        p.productoId === productoId ? { ...p, cantidadPorHa: val } : p
+      ),
+    }));
+  };
+
+  const removeProducto = (productoId) => {
+    delete cantidadRefs.current[productoId];
+    setForm(prev => ({ ...prev, productos: prev.productos.filter(p => p.productoId !== productoId) }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.activityName.trim()) { setError('El nombre de la aplicación es requerido.'); return; }
+    if (!form.fecha)               { setError('La fecha es requerida.'); return; }
+    if (!form.loteId)              { setError('Seleccione un lote.'); return; }
+    if (form.productos.length === 0) { setError('Agregue al menos un producto.'); return; }
+    const invalidProd = form.productos.find(p => !p.cantidadPorHa || parseFloat(p.cantidadPorHa) <= 0);
+    if (invalidProd) { setError(`Ingrese una dosis válida para "${invalidProd.nombreComercial}".`); return; }
+
+    setSubmitting(true);
+    try {
+      const body = {
+        activityName: form.activityName.trim(),
+        fecha: form.fecha,
+        loteId: form.loteId,
+        ...(form.selectedBloques.length > 0 ? { bloques: form.selectedBloques } : {}),
+        productos: form.productos.map(p => ({
+          productoId: p.productoId,
+          cantidadPorHa: parseFloat(p.cantidadPorHa),
+        })),
+      };
+      const res = await apiFetch('/api/cedulas/manual', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || 'Error al crear la cédula.'); return; }
+      onSuccess(data.cedula, data.task);
+    } catch {
+      setError('Error de conexión. Intente nuevamente.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const productosDisponibles = productos.filter(
+    p => !form.productos.some(fp => fp.productoId === p.id)
+  );
+
+  const productosFiltrados = productosDisponibles.filter(p =>
+    !prodSearch ||
+    p.nombreComercial?.toLowerCase().includes(prodSearch.toLowerCase()) ||
+    p.ingredienteActivo?.toLowerCase().includes(prodSearch.toLowerCase())
+  );
+
+  return createPortal(
+    <div className="ca-preview-backdrop" onClick={onClose}>
+      <div className="ca-preview-container nca-modal" onClick={e => e.stopPropagation()}>
+
+        {/* Toolbar */}
+        <div className="ca-preview-toolbar">
+          <span className="ca-preview-toolbar-title">Nueva Cédula de Aplicación</span>
+          <div className="ca-preview-toolbar-actions">
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+              <FiPlusCircle size={14} />
+              {submitting ? 'Generando…' : 'Generar Cédula'}
+            </button>
+            <button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
+              <FiX size={15} /> Cancelar
+            </button>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form className="nca-form" onSubmit={handleSubmit}>
+          {/* Plantillas */}
+          {plantillas.length > 0 && (
+            <div className="nca-plantillas-section">
+              <span className="nca-plantillas-label">Plantillas</span>
+              {plantillas.map(p => (
+                <div key={p.id} className="nca-plantilla-chip">
+                  <button
+                    type="button"
+                    className="nca-plantilla-apply"
+                    onClick={() => aplicarPlantilla(p)}
+                    title={`Aplicar plantilla: ${p.nombre}`}
+                  >
+                    ⚗ {p.nombre}
+                  </button>
+                  <button
+                    type="button"
+                    className="nca-plantilla-delete"
+                    onClick={() => eliminarPlantilla(p.id)}
+                    title="Eliminar plantilla"
+                  >
+                    <FiX size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <div className="nca-error">{error}</div>}
+
+          {/* Datos de la aplicación */}
+          <div className="nca-section">
+            <div className="ca-section-title">Datos de la Aplicación</div>
+            <div className="nca-fields-row">
+              <div className="nca-field nca-field-grow">
+                <label className="nca-label">Nombre / Tipo de aplicación</label>
+                <input
+                  className="nca-input"
+                  type="text"
+                  placeholder="Ej: Fungicida preventivo"
+                  value={form.activityName}
+                  onChange={e => setForm(prev => ({ ...prev, activityName: e.target.value }))}
+                />
+              </div>
+              <div className="nca-field">
+                <label className="nca-label">Fecha programada</label>
+                <input
+                  className="nca-input"
+                  type="date"
+                  value={form.fecha}
+                  onChange={e => setForm(prev => ({ ...prev, fecha: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Origen */}
+          <div className="nca-section">
+            <div className="ca-section-title">Origen</div>
+            <select
+              className="nca-select"
+              value={form.loteId}
+              onChange={e => setForm(prev => ({ ...prev, loteId: e.target.value, selectedBloques: [] }))}
+            >
+              <option value="">— Seleccione un lote —</option>
+              {lotes.map(l => (
+                <option key={l.id} value={l.id}>{l.nombreLote}</option>
+              ))}
+            </select>
+
+            {/* Bloques agrupados por grupo */}
+            {bloquesByGrupo.length > 0 && (
+              <div className="nca-bloques-grid">
+                <div className="nca-bloques-header">
+                  <span className="nca-label">Bloques (opcional)</span>
+                  <button
+                    type="button"
+                    className="nca-bloques-toggle-all"
+                    onClick={() => setForm(prev => ({
+                      ...prev,
+                      selectedBloques: prev.selectedBloques.length === loteBloques.length
+                        ? []
+                        : loteBloques.map(b => b.id),
+                    }))}
+                  >
+                    {form.selectedBloques.length === loteBloques.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                  </button>
+                </div>
+                {bloquesByGrupo.map(grupo => {
+                  const ids = grupo.bloques.map(b => b.id);
+                  const selCount = ids.filter(id => form.selectedBloques.includes(id)).length;
+                  const allSel = selCount === ids.length;
+                  const someSel = selCount > 0 && !allSel;
+                  return (
+                    <div key={grupo.id} className="nca-bloques-group">
+                      <button
+                        type="button"
+                        className="nca-bloques-group-header"
+                        onClick={() => toggleGrupo(grupo.id)}
+                        title={allSel ? 'Deseleccionar grupo' : 'Seleccionar grupo'}
+                      >
+                        <span className={`nca-grupo-check-icon${allSel ? ' all' : someSel ? ' some' : ''}`}>
+                          {allSel ? '▣' : someSel ? '▪' : '▢'}
+                        </span>
+                        <span className="nca-grupo-name">{grupo.nombre}</span>
+                        {selCount > 0 && (
+                          <span className="nca-grupo-count">{selCount}/{ids.length}</span>
+                        )}
+                      </button>
+                      <div className="nca-bloques-list">
+                        {grupo.bloques.map(b => (
+                          <label key={b.id} className="nca-bloque-check">
+                            <input
+                              type="checkbox"
+                              checked={form.selectedBloques.includes(b.id)}
+                              onChange={() => toggleBloque(b.id)}
+                            />
+                            <span className="nca-bloque-name">{b.bloque || b.id}</span>
+                            {b.areaCalculada != null && (
+                              <span className="nca-bloque-ha">{b.areaCalculada} ha</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Productos */}
+          <div className="nca-section">
+            <div className="ca-section-title">Productos</div>
+
+            {form.productos.length > 0 && (
+              <table className="nca-productos-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th className="ca-col-num">Dosis / Ha</th>
+                    <th>Unidad</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.productos.map(p => (
+                    <tr key={p.productoId}>
+                      <td>{p.nombreComercial}</td>
+                      <td className="ca-col-num">
+                        <input
+                          ref={el => { if (el) cantidadRefs.current[p.productoId] = el; else delete cantidadRefs.current[p.productoId]; }}
+                          className="nca-input nca-input-num"
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={p.cantidadPorHa}
+                          onChange={e => updateCantidad(p.productoId, e.target.value)}
+                          onKeyDown={handleCantidadKeyDown}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td>{p.unidad}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-danger nca-remove-btn"
+                          onClick={() => removeProducto(p.productoId)}
+                          title="Quitar producto"
+                        >
+                          <FiTrash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* Combobox de búsqueda — siempre al final para flujo de teclado */}
+            <div
+              className="nca-prod-input-wrap"
+              ref={prodInputWrapRef}
+              onClick={() => { prodInputRef.current?.focus(); openProdCombo(); }}
+            >
+              <FiSearch size={13} />
+              <input
+                ref={prodInputRef}
+                type="text"
+                placeholder={form.productos.length === 0 ? 'Buscar y agregar producto…' : '+ Agregar otro producto…'}
+                value={prodSearch}
+                onChange={e => { setProdSearch(e.target.value); openProdCombo(); }}
+                onFocus={() => openProdCombo()}
+                onKeyDown={handleSearchKeyDown}
+              />
+            </div>
+
+            {prodOpen && createPortal(
+              <div
+                ref={dropdownRef}
+                className="nca-prod-dropdown"
+                style={{ top: prodDropdownPos.top, left: prodDropdownPos.left, minWidth: prodDropdownPos.width }}
+              >
+                {productosFiltrados.map((p, i) => (
+                  <button
+                    type="button"
+                    key={p.id}
+                    className={`nca-prod-option${i === activeIdx ? ' active' : ''}`}
+                    onMouseDown={e => { e.preventDefault(); addProducto(p); }}
+                    onMouseEnter={() => setActiveIdx(i)}
+                  >
+                    <span className="nca-prod-name">{p.nombreComercial}</span>
+                    {p.ingredienteActivo && <span className="nca-prod-ing">{p.ingredienteActivo}</span>}
+                  </button>
+                ))}
+                {productosFiltrados.length === 0 && (
+                  <p className="nca-prod-empty">Sin resultados</p>
+                )}
+              </div>,
+              document.body
+            )}
+          </div>
+
+          {/* Guardar como plantilla */}
+          <button
+            type="button"
+            className={`nca-guardar-plantilla${plantillaSaved ? ' saved' : ''}`}
+            onClick={guardarComoPlantilla}
+            disabled={savingPlantilla || !form.activityName.trim()}
+            title="Guardar nombre y productos como plantilla reutilizable"
+          >
+            {plantillaSaved ? '✓ Plantilla guardada' : savingPlantilla ? 'Guardando…' : '📋 Guardar como plantilla'}
+          </button>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+export default NuevaCedulaModal;

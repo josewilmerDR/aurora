@@ -5,6 +5,7 @@ import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle } fro
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
+import NuevaCedulaModal from './NuevaCedulaModal';
 import './CedulasAplicacion.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ function CedulasAplicacion() {
   const [anchorWeek, setAnchorWeek] = useState(0);  // 0 = esta semana
   const [weeksShown, setWeeksShown] = useState(2);  // cuántas semanas mostrar
   const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
+  const [showNuevaModal, setShowNuevaModal] = useState(false);
   const docRef = useRef(null);
 
   const location = useLocation();
@@ -121,6 +123,7 @@ function CedulasAplicacion() {
       .filter(t =>
         (t.activity?.type === 'aplicacion' || (t.activity?.productos?.length > 0 && t.type !== 'SOLICITUD_COMPRA')) &&
         t.status !== 'completed_by_user' &&
+        t.status !== 'skipped' &&
         t.type !== 'REMINDER_3_DAY'
       )
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)),
@@ -154,6 +157,13 @@ function CedulasAplicacion() {
     return aplicacionTasks.some(t => new Date(t.dueDate) > currentEnd);
   }, [aplicacionTasks, anchorWeek, weeksShown]);
 
+  const overdueItems = useMemo(() =>
+    aplicacionTasks.filter(isOverdue),
+    [aplicacionTasks]
+  );
+
+  const [showOverdue, setShowOverdue] = useState(false);
+
   const getSource = (task) => {
     if (task.loteId)  return lotes.find(l => l.id === task.loteId)   || null;
     if (task.grupoId) return grupos.find(g => g.id === task.grupoId) || null;
@@ -173,8 +183,10 @@ function CedulasAplicacion() {
   const previewProductos = previewTask?.activity?.productos || [];
 
   const previewBloques = useMemo(() => {
-    if (!previewSource?.bloques) return [];
-    return previewSource.bloques
+    // For manual cedulas, use task-level bloques (subset); otherwise use source bloques
+    const bloqueIds = previewTask?.bloques || previewSource?.bloques;
+    if (!bloqueIds) return [];
+    return bloqueIds
       .map(id => siembras.find(s => s.id === id))
       .filter(Boolean);
   }, [previewSource, siembras]);
@@ -192,12 +204,20 @@ function CedulasAplicacion() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const err = await res.json();
-        alert(err.message || 'Error al generar la cédula.');
+        if (res.status === 409 && data.cedula) {
+          // Cedula already exists in DB but wasn't in local state (stale cache) — recover silently
+          setCedulas(prev =>
+            prev.some(c => c.taskId === data.cedula.taskId) ? prev : [...prev, data.cedula]
+          );
+        } else {
+          alert(data.message || 'Error al generar la cédula.');
+        }
         return;
       }
-      await loadCedulas();
+      // Use the returned cedula directly to avoid stale-cache issues on GET
+      setCedulas(prev => [...prev, data]);
     } finally {
       setActionLoading(null);
     }
@@ -213,7 +233,10 @@ function CedulasAplicacion() {
         alert(err.message || 'Error al actualizar la cédula.');
         return;
       }
-      await loadCedulas();
+      // Update local state directly — avoids stale GET cache on Firebase Hosting
+      setCedulas(prev => prev.map(c =>
+        c.id === cedulaId ? { ...c, status: 'en_transito', mezclaListaAt: new Date().toISOString() } : c
+      ));
     } finally {
       setActionLoading(null);
     }
@@ -229,16 +252,74 @@ function CedulasAplicacion() {
         alert(err.message || 'Error al registrar la aplicación.');
         return;
       }
-      // Refresh tasks too since the task status changes
-      const [newTasks, newCedulas] = await Promise.all([
-        apiFetch('/api/tasks').then(r => r.json()),
-        apiFetch('/api/cedulas').then(r => r.json()),
-      ]);
-      setTasks(Array.isArray(newTasks) ? newTasks : []);
-      setCedulas(Array.isArray(newCedulas) ? newCedulas : []);
+      // Update local state directly — avoids stale GET cache on Firebase Hosting
+      const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
+      setCedulas(prev => prev.map(c =>
+        c.id === cedulaId ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString() } : c
+      ));
+      if (taskId) {
+        setTasks(prev => prev.map(t =>
+          t.id === taskId ? { ...t, status: 'completed_by_user' } : t
+        ));
+      }
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleAnular = async (cedulaId) => {
+    const cedula = cedulas.find(c => c.id === cedulaId);
+    const msg = cedula?.status === 'en_transito'
+      ? '¿Anular esta cédula? La mezcla ya fue preparada — el inventario será restaurado automáticamente.'
+      : '¿Anular esta cédula? La tarea asociada quedará como omitida.';
+    if (!confirm(msg)) return;
+    setActionLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Error al anular la cédula.');
+        return;
+      }
+      const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
+      setCedulas(prev => prev.filter(c => c.id !== cedulaId));
+      if (taskId) {
+        setTasks(prev => prev.map(t =>
+          t.id === taskId ? { ...t, status: 'skipped' } : t
+        ));
+      }
+      window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleOmitirTarea = async (taskId) => {
+    if (!confirm('¿Omitir esta tarea vencida? No se generará cédula de aplicación.')) return;
+    setActionLoading(`skip-${taskId}`);
+    try {
+      const res = await apiFetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'skipped' }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Error al omitir la tarea.');
+        return;
+      }
+      setTasks(prev => prev.map(t =>
+        t.id === taskId ? { ...t, status: 'skipped' } : t
+      ));
+      window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleNuevaCedulaSuccess = (cedula, task) => {
+    setCedulas(prev => [...prev, cedula]);
+    setTasks(prev => [...prev, task]);
+    setShowNuevaModal(false);
   };
 
   // ── PDF share ─────────────────────────────────────────────────────────────
@@ -277,11 +358,139 @@ function CedulasAplicacion() {
     }
   };
 
+  // ── Row renderer (shared between overdue panel and main list) ────────────
+  const renderCedulaRow = (task, { allowSkipTask = false } = {}) => {
+    const cedula   = cedulasByTaskId[task.id];
+    const isLdg    = actionLoading === (cedula ? cedula.id : `new-${task.id}`)
+                  || actionLoading === `skip-${task.id}`;
+    return (
+      <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}`}>
+        <div className="cedula-row-info">
+          <span className="cedula-row-name">{task.activityName}</span>
+          <span className="cedula-row-meta">
+            {task.loteName}
+            {task.responsableName ? ` · ${task.responsableName}` : ''}
+          </span>
+          {cedula && (
+            <span className="cedula-consecutivo">{cedula.consecutivo}</span>
+          )}
+        </div>
+        <div className="cedula-row-right">
+          <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
+            {isOverdue(task) ? 'Vencida' : 'Pendiente'}
+          </span>
+          <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
+
+          {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
+            <button
+              className="btn btn-secondary cedula-btn-action"
+              onClick={() => handleGenerarCedula(task.id)}
+              disabled={isLdg}
+              title="Generar Cédula de Aplicación"
+            >
+              <FiPlusCircle size={14} />
+              {isLdg ? 'Generando…' : 'Generar Cédula'}
+            </button>
+          )}
+
+          {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
+            <button
+              className="btn btn-danger cedula-btn-action cedula-btn-anular"
+              onClick={() => handleOmitirTarea(task.id)}
+              disabled={isLdg}
+              title="Omitir esta tarea sin generar cédula"
+            >
+              <FiX size={14} />
+              {isLdg ? 'Omitiendo…' : 'Omitir Tarea'}
+            </button>
+          )}
+
+          {cedula?.status === 'pendiente' && (
+            <>
+              <span className="cedula-flow-badge pendiente">Pendiente</span>
+              {hasMinRole(currentUser?.rol, 'encargado') && (
+                <button
+                  className="btn btn-secondary cedula-btn-action"
+                  onClick={() => handleMezclaLista(cedula.id)}
+                  disabled={isLdg}
+                  title="Confirmar que la mezcla está lista"
+                >
+                  <FiCheckCircle size={14} />
+                  {isLdg ? 'Procesando…' : 'Mezcla Lista'}
+                </button>
+              )}
+            </>
+          )}
+
+          {cedula?.status === 'en_transito' && (
+            <>
+              <span className="cedula-flow-badge en-transito">En Tránsito</span>
+              {hasMinRole(currentUser?.rol, 'trabajador') && (
+                <button
+                  className="btn btn-primary cedula-btn-action"
+                  onClick={() => handleAplicada(cedula.id)}
+                  disabled={isLdg}
+                  title="Confirmar aplicación en campo"
+                >
+                  <FaTractor size={14} />
+                  {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
+                </button>
+              )}
+            </>
+          )}
+
+          {cedula && cedula.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado') && (
+            <button
+              className="btn btn-danger cedula-btn-action cedula-btn-anular"
+              onClick={() => handleAnular(cedula.id)}
+              disabled={isLdg}
+              title="Anular cédula"
+            >
+              <FiX size={14} />
+              {isLdg ? 'Anulando…' : 'Anular'}
+            </button>
+          )}
+
+          {cedula && (
+            <button
+              className="btn btn-secondary cedula-btn-preview"
+              onClick={() => setPreviewTask(task)}
+              title="Ver Cédula de Aplicación"
+            >
+              <FiFileText size={15} /> Ver Cédula
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   if (loading) return <div className="empty-state">Cargando cédulas...</div>;
 
   return (
     <div>
+      {/* ── Panel de Vencidas ── */}
+      {overdueItems.length > 0 && (
+        <div className="cedulas-overdue-panel">
+          <button
+            className="cedulas-overdue-header"
+            onClick={() => setShowOverdue(v => !v)}
+          >
+            <span className="cedulas-overdue-title">
+              ⚠ Cédulas Vencidas
+              <span className="cedulas-overdue-badge">{overdueItems.length}</span>
+            </span>
+            <span className="cedulas-overdue-chevron">{showOverdue ? '▲' : '▼'}</span>
+          </button>
+          {showOverdue && (
+            <div className="cedulas-overdue-list">
+              {overdueItems.map(task => renderCedulaRow(task, { allowSkipTask: true }))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Barra de filtro ── */}
       <div className="cedulas-filter-bar">
         <div className="cedulas-period-nav">
@@ -313,6 +522,14 @@ function CedulasAplicacion() {
             Ver más cédulas
           </button>
         )}
+        {hasMinRole(currentUser?.rol, 'encargado') && (
+          <button
+            className="btn btn-primary cedulas-nueva-btn"
+            onClick={() => setShowNuevaModal(true)}
+          >
+            <FiPlusCircle size={14} /> Nueva Cédula
+          </button>
+        )}
         <Link to="/aplicaciones/historial" className="btn btn-secondary cedulas-historial-btn">
           📋 Historial
         </Link>
@@ -326,87 +543,7 @@ function CedulasAplicacion() {
         </div>
       ) : (
         <div className="cedulas-list">
-          {visibleTasks.map(task => {
-            const cedula = cedulasByTaskId[task.id];
-            const isLoading = actionLoading === (cedula ? cedula.id : `new-${task.id}`);
-            return (
-              <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}`}>
-                <div className="cedula-row-info">
-                  <span className="cedula-row-name">{task.activityName}</span>
-                  <span className="cedula-row-meta">
-                    {task.loteName}
-                    {task.responsableName ? ` · ${task.responsableName}` : ''}
-                  </span>
-                  {cedula && (
-                    <span className="cedula-consecutivo">{cedula.consecutivo}</span>
-                  )}
-                </div>
-                <div className="cedula-row-right">
-                  <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
-                    {isOverdue(task) ? 'Vencida' : 'Pendiente'}
-                  </span>
-                  <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
-
-                  {/* ── Estado de la cédula y acciones ── */}
-                  {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
-                    <button
-                      className="btn btn-secondary cedula-btn-action"
-                      onClick={() => handleGenerarCedula(task.id)}
-                      disabled={isLoading}
-                      title="Generar Cédula de Aplicación"
-                    >
-                      <FiPlusCircle size={14} />
-                      {isLoading ? 'Generando…' : 'Generar Cédula'}
-                    </button>
-                  )}
-
-                  {cedula?.status === 'pendiente' && (
-                    <>
-                      <span className="cedula-flow-badge pendiente">Pendiente</span>
-                      {hasMinRole(currentUser?.rol, 'encargado') && (
-                        <button
-                          className="btn btn-secondary cedula-btn-action"
-                          onClick={() => handleMezclaLista(cedula.id)}
-                          disabled={isLoading}
-                          title="Confirmar que la mezcla está lista"
-                        >
-                          <FiCheckCircle size={14} />
-                          {isLoading ? 'Procesando…' : 'Mezcla Lista'}
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  {cedula?.status === 'en_transito' && (
-                    <>
-                      <span className="cedula-flow-badge en-transito">En Tránsito</span>
-                      {hasMinRole(currentUser?.rol, 'trabajador') && (
-                        <button
-                          className="btn btn-primary cedula-btn-action"
-                          onClick={() => handleAplicada(cedula.id)}
-                          disabled={isLoading}
-                          title="Confirmar aplicación en campo"
-                        >
-                          <FaTractor size={14} />
-                          {isLoading ? 'Registrando…' : 'Aplicada en Campo'}
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  {cedula && (
-                    <button
-                      className="btn btn-secondary cedula-btn-preview"
-                      onClick={() => setPreviewTask(task)}
-                      title="Ver Cédula de Aplicación"
-                    >
-                      <FiFileText size={15} /> Ver Cédula
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {visibleTasks.map(task => renderCedulaRow(task))}
         </div>
       )}
 
@@ -677,6 +814,19 @@ function CedulasAplicacion() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ── Nueva Cédula Modal ── */}
+      {showNuevaModal && (
+        <NuevaCedulaModal
+          lotes={lotes}
+          grupos={grupos}
+          siembras={siembras}
+          productos={productos}
+          apiFetch={apiFetch}
+          onSuccess={handleNuevaCedulaSuccess}
+          onClose={() => setShowNuevaModal(false)}
+        />
       )}
     </div>
   );

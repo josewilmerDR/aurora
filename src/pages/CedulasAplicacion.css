@@ -494,6 +494,578 @@
   border-top: 1px solid #eee;
 }
 
+/* ── Botón "Nueva Cédula" ────────────────────────────────────────────────── */
+.cedulas-nueva-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  padding: 5px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Modal Nueva Cédula ──────────────────────────────────────────────────── */
+.nca-modal {
+  max-width: 700px;
+}
+
+.nca-form {
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  max-height: calc(90vh - 56px);
+}
+
+.nca-section {
+  margin-bottom: 20px;
+}
+
+.nca-error {
+  background: rgba(255, 77, 77, 0.12);
+  border: 1px solid rgba(255, 77, 77, 0.4);
+  color: #ff6b6b;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  margin-bottom: 16px;
+}
+
+.nca-fields-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.nca-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nca-field-grow {
+  flex: 1;
+  min-width: 180px;
+}
+
+.nca-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.nca-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.nca-input:focus {
+  border-color: var(--aurora-green);
+}
+
+.nca-input-num {
+  width: 80px;
+  text-align: right;
+}
+
+.nca-select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  font-size: 0.88rem;
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px;
+  transition: border-color 0.15s;
+}
+
+.nca-select:focus {
+  border-color: var(--aurora-green);
+}
+
+.nca-select-grow {
+  flex: 1;
+}
+
+.nca-toggle-row {
+  display: flex;
+  gap: 0;
+  margin-top: 10px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.nca-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  padding: 6px 20px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.nca-toggle-btn:first-child {
+  border-right: 1px solid var(--aurora-border);
+}
+
+.nca-toggle-btn.active {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  opacity: 1;
+}
+
+.nca-bloques-grid {
+  margin-top: 10px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.nca-bloques-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.nca-bloques-toggle-all {
+  background: none;
+  border: none;
+  color: var(--aurora-green);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.nca-bloques-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0;
+  padding: 4px 0;
+}
+
+.nca-bloque-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  transition: background 0.12s;
+}
+
+.nca-bloque-check:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nca-bloque-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nca-bloque-ha {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+/* ── Combobox de búsqueda de productos ───────────────────────────────────── */
+.nca-prod-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  margin-top: 10px;
+  background: var(--aurora-dark-blue);
+  border: 1px dashed var(--aurora-border);
+  border-radius: 6px;
+  color: #64b5f6;
+  cursor: text;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.nca-prod-input-wrap:focus-within {
+  border-style: solid;
+  border-color: var(--aurora-green);
+  color: var(--aurora-light);
+}
+
+.nca-prod-input-wrap input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--aurora-light);
+  font-size: 0.88rem;
+}
+
+.nca-prod-input-wrap input::placeholder {
+  color: #64b5f6;
+  opacity: 0.8;
+}
+
+.nca-prod-dropdown {
+  position: fixed;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.nca-prod-option {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--aurora-border);
+  cursor: pointer;
+  gap: 2px;
+}
+
+.nca-prod-option:last-child { border-bottom: none; }
+.nca-prod-option:hover,
+.nca-prod-option.active { background: var(--aurora-background); }
+.nca-prod-option.active { outline: 1px solid var(--aurora-border); }
+
+.nca-prod-name {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+
+.nca-prod-ing {
+  font-size: 0.78rem;
+  color: #64b5f6;
+  opacity: 0.8;
+}
+
+.nca-prod-empty {
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+.nca-productos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin-top: 12px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.nca-productos-table th {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 0.73rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.nca-productos-table td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+}
+
+.nca-remove-btn {
+  padding: 4px 7px;
+  font-size: 0.75rem;
+}
+
+/* ── Botón peligroso (anular) ────────────────────────────────────────────── */
+.btn.btn-danger {
+  background: transparent;
+  border: 1px solid rgba(255, 77, 77, 0.45);
+  color: #ff6b6b;
+}
+
+.btn.btn-danger:hover:not(:disabled) {
+  background: rgba(255, 77, 77, 0.12);
+  border-color: #ff4d4d;
+  color: #ff4d4d;
+}
+
+.cedula-btn-anular {
+  font-size: 0.8rem;
+  padding: 5px 10px;
+}
+
+/* ── Panel de cédulas vencidas ───────────────────────────────────────────── */
+.cedulas-overdue-panel {
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 77, 77, 0.4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cedulas-overdue-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(255, 77, 77, 0.1);
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-light);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.cedulas-overdue-header:hover {
+  background: rgba(255, 77, 77, 0.18);
+}
+
+.cedulas-overdue-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ff4d4d;
+}
+
+.cedulas-overdue-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #ff4d4d;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cedulas-overdue-chevron {
+  font-size: 0.75rem;
+  color: rgba(255, 77, 77, 0.7);
+}
+
+.cedulas-overdue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 8px;
+  background: rgba(255, 77, 77, 0.04);
+}
+
+.cedulas-overdue-list .cedula-row {
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.cedulas-overdue-list .cedula-row:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Plantillas de cédula ────────────────────────────────────────────────── */
+.nca-plantillas-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--aurora-border);
+  margin-bottom: 4px;
+}
+
+.nca-plantillas-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.4;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+.nca-plantilla-chip {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--aurora-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.nca-plantilla-apply {
+  background: transparent;
+  border: none;
+  padding: 4px 12px;
+  color: var(--aurora-light);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nca-plantilla-apply:hover {
+  background: rgba(51, 255, 153, 0.08);
+  color: var(--aurora-green);
+}
+
+.nca-plantilla-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  opacity: 0.4;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s, opacity 0.15s;
+}
+
+.nca-plantilla-delete:hover {
+  color: var(--aurora-magenta);
+  opacity: 1;
+}
+
+.nca-guardar-plantilla {
+  background: transparent;
+  border: 1.5px dashed rgba(230, 242, 255, 0.25);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  margin-top: 8px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, opacity 0.15s;
+}
+
+.nca-guardar-plantilla:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+  opacity: 1;
+}
+
+.nca-guardar-plantilla:disabled {
+  cursor: default;
+  opacity: 0.2;
+}
+
+.nca-guardar-plantilla.saved {
+  border-style: solid;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+  opacity: 1;
+}
+
+/* ── Grupos de bloques ───────────────────────────────────────────────────── */
+.nca-bloques-group {
+  border-top: 1px solid var(--aurora-border);
+}
+
+.nca-bloques-group:first-child {
+  border-top: none;
+}
+
+.nca-bloques-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.nca-bloques-group-header:hover {
+  background: rgba(51, 255, 153, 0.05);
+}
+
+.nca-grupo-check-icon {
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.35;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.nca-grupo-check-icon.some {
+  color: var(--aurora-green);
+  opacity: 0.6;
+}
+
+.nca-grupo-check-icon.all {
+  color: var(--aurora-green);
+  opacity: 1;
+}
+
+.nca-grupo-name {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.75;
+}
+
+.nca-bloques-group-header:hover .nca-grupo-name {
+  opacity: 1;
+}
+
+.nca-grupo-count {
+  font-size: 0.72rem;
+  color: var(--aurora-green);
+  opacity: 0.8;
+  font-weight: 600;
+}
+
 /* ── Print ────────────────────────────────────────────────────────────────── */
 @media print {
   .ca-preview-backdrop {

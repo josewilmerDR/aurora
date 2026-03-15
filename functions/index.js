@@ -131,15 +131,19 @@ const enrichTask = async (taskDoc) => {
   // Para lotes: usar source.hectareas.
   // Para grupos: sumar areaCalculada de las siembras vinculadas.
   let loteHectareas = parseFloat(source?.hectareas) || 1;
-  if (task.grupoId && source && Array.isArray(source.bloques) && source.bloques.length > 0) {
-    const bloqueIds = source.bloques.slice(0, 10);
-    const siembrasSnap = await db.collection('siembras')
-      .where(FieldPath.documentId(), 'in', bloqueIds)
-      .get();
-    const totalArea = siembrasSnap.docs.reduce(
-      (s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0
-    );
-    if (totalArea > 0) loteHectareas = totalArea;
+  if (task.grupoId && source) {
+    const bloqueIds = (Array.isArray(task.bloques) && task.bloques.length > 0)
+      ? task.bloques.slice(0, 10)
+      : (Array.isArray(source.bloques) ? source.bloques.slice(0, 10) : []);
+    if (bloqueIds.length > 0) {
+      const siembrasSnap = await db.collection('siembras')
+        .where(FieldPath.documentId(), 'in', bloqueIds)
+        .get();
+      const totalArea = siembrasSnap.docs.reduce(
+        (s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0
+      );
+      if (totalArea > 0) loteHectareas = totalArea;
+    }
   }
 
   return {
@@ -365,7 +369,7 @@ app.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
       .where('executeAt', '<', now)
       .get();
 
-    let docs = snapshot.docs.filter(doc => doc.data().status !== 'completed_by_user');
+    let docs = snapshot.docs.filter(doc => !['completed_by_user', 'skipped'].includes(doc.data().status));
 
     // Trabajadores solo cuentan sus propias tareas vencidas
     if (req.userRole === 'trabajador') {
@@ -482,6 +486,7 @@ const serializeCedula = (id, data) => ({
 
 app.get('/api/cedulas', authenticate, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const snap = await db.collection('cedulas')
       .where('fincaId', '==', req.fincaId)
       .orderBy('generadaAt', 'desc')
@@ -556,8 +561,10 @@ app.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     } else if (taskData.grupoId) {
       const grupoDoc = await db.collection('grupos').doc(taskData.grupoId).get();
       sourceNombre = grupoDoc.exists ? (grupoDoc.data().nombreGrupo || '') : '';
-      if (grupoDoc.exists && Array.isArray(grupoDoc.data().bloques) && grupoDoc.data().bloques.length > 0) {
-        const bloqueIds = grupoDoc.data().bloques.slice(0, 10);
+      const bloqueIds = (Array.isArray(taskData.bloques) && taskData.bloques.length > 0)
+        ? taskData.bloques.slice(0, 10)
+        : (grupoDoc.exists && Array.isArray(grupoDoc.data().bloques) ? grupoDoc.data().bloques.slice(0, 10) : []);
+      if (bloqueIds.length > 0) {
         const siembrasSnap = await db.collection('siembras')
           .where(FieldPath.documentId(), 'in', bloqueIds)
           .get();
@@ -646,6 +653,149 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
   }
 });
 
+app.post('/api/cedulas/manual', authenticate, async (req, res) => {
+  try {
+    const { fecha, activityName, loteId, grupoId, bloques, productos } = req.body;
+
+    if (!fecha) return res.status(400).json({ message: 'La fecha es requerida.' });
+    if (!activityName?.trim()) return res.status(400).json({ message: 'El nombre de la aplicación es requerido.' });
+    if (!loteId && !grupoId) return res.status(400).json({ message: 'Debe indicar un lote o grupo.' });
+    if (!Array.isArray(productos) || productos.length === 0) return res.status(400).json({ message: 'Debe agregar al menos un producto.' });
+
+    if (loteId) {
+      const o = await verifyOwnership('lotes', loteId, req.fincaId);
+      if (!o.ok) return res.status(o.status).json({ message: o.message });
+    } else {
+      const o = await verifyOwnership('grupos', grupoId, req.fincaId);
+      if (!o.ok) return res.status(o.status).json({ message: o.message });
+    }
+
+    // Enrich product data from catalog
+    const enrichedProductos = await Promise.all(
+      productos.map(async (p) => {
+        const doc = await db.collection('productos').doc(p.productoId).get();
+        const info = doc.exists ? doc.data() : {};
+        return {
+          productoId: p.productoId,
+          nombreComercial: info.nombreComercial || '',
+          cantidadPorHa: parseFloat(p.cantidadPorHa) || 0,
+          unidad: info.unidad || '',
+          periodoReingreso: info.periodoReingreso ?? null,
+          periodoACosecha: info.periodoACosecha ?? null,
+        };
+      })
+    );
+
+    const executeAt = Timestamp.fromDate(new Date(fecha));
+    const taskData = {
+      type: 'MANUAL',
+      status: 'pending',
+      fincaId: req.fincaId,
+      ...(loteId ? { loteId } : { grupoId }),
+      ...(Array.isArray(bloques) && bloques.length > 0 ? { bloques } : {}),
+      activity: { name: activityName.trim(), type: 'aplicacion', productos: enrichedProductos },
+      executeAt,
+      createdAt: Timestamp.now(),
+    };
+    const taskRef = await db.collection('scheduled_tasks').add(taskData);
+
+    const consecutivo = await nextCedulaConsecutivo(req.fincaId);
+    const cedulaData = {
+      consecutivo,
+      taskId: taskRef.id,
+      fincaId: req.fincaId,
+      status: 'pendiente',
+      generadaAt: Timestamp.now(),
+      generadaPor: req.uid,
+      mezclaListaAt: null,
+      mezclaListaPor: null,
+      aplicadaAt: null,
+      aplicadaPor: null,
+    };
+    const cedulaRef = await db.collection('cedulas').add(cedulaData);
+
+    const enrichedTask = await enrichTask(await taskRef.get());
+    res.status(201).json({ cedula: serializeCedula(cedulaRef.id, cedulaData), task: enrichedTask });
+  } catch (error) {
+    console.error('Error creating manual cedula:', error);
+    res.status(500).json({ message: 'Error al crear la cédula.' });
+  }
+});
+
+app.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const cedula = ownership.doc.data();
+    if (cedula.status === 'aplicada_en_campo') {
+      return res.status(409).json({ message: 'No se puede anular una cédula ya aplicada en campo.' });
+    }
+    if (cedula.status === 'anulada') {
+      return res.status(409).json({ message: 'La cédula ya está anulada.' });
+    }
+
+    const batch = db.batch();
+
+    // If en_transito the stock was already deducted — reverse it via existing movimientos
+    if (cedula.status === 'en_transito') {
+      const movSnap = await db.collection('movimientos')
+        .where('cedulaId', '==', req.params.id)
+        .where('fincaId', '==', req.fincaId)
+        .get();
+
+      const reversalPorProducto = {};
+      for (const mov of movSnap.docs) {
+        const d = mov.data();
+        if (d.tipo === 'egreso' && d.productoId) {
+          reversalPorProducto[d.productoId] = (reversalPorProducto[d.productoId] || 0) + d.cantidad;
+        }
+      }
+      for (const [productoId, total] of Object.entries(reversalPorProducto)) {
+        batch.update(db.collection('productos').doc(productoId), {
+          stockActual: FieldValue.increment(total),
+        });
+      }
+      // Compensating ingreso movimientos so the ledger stays coherent
+      for (const mov of movSnap.docs) {
+        const d = mov.data();
+        if (d.tipo === 'egreso') {
+          batch.set(db.collection('movimientos').doc(), {
+            tipo: 'ingreso',
+            productoId: d.productoId,
+            nombreComercial: d.nombreComercial,
+            cantidad: d.cantidad,
+            unidad: d.unidad,
+            fecha: Timestamp.now(),
+            motivo: `Anulación cédula ${cedula.consecutivo}`,
+            tareaId: cedula.taskId,
+            cedulaId: req.params.id,
+            cedulaConsecutivo: cedula.consecutivo,
+            loteId: d.loteId || null,
+            grupoId: d.grupoId || null,
+            loteNombre: d.loteNombre || '',
+            fincaId: req.fincaId,
+          });
+        }
+      }
+    }
+
+    batch.update(db.collection('cedulas').doc(req.params.id), {
+      status: 'anulada',
+      anuladaAt: Timestamp.now(),
+      anuladaPor: req.uid,
+    });
+    batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
+      status: 'skipped',
+    });
+    await batch.commit();
+    res.json({ id: req.params.id, status: 'anulada' });
+  } catch (error) {
+    console.error('Error anulando cedula:', error);
+    res.status(500).json({ message: 'Error al anular la cédula.' });
+  }
+});
+
 // --- API ENDPOINTS: TASK TEMPLATES ---
 app.get('/api/task-templates', authenticate, async (req, res) => {
   try {
@@ -679,6 +829,43 @@ app.post('/api/task-templates', authenticate, async (req, res) => {
 app.delete('/api/task-templates/:id', authenticate, async (req, res) => {
   try {
     await db.collection('task_templates').doc(req.params.id).delete();
+    res.json({ message: 'Plantilla eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar plantilla.' });
+  }
+});
+
+// --- API ENDPOINTS: CEDULA TEMPLATES ---
+app.get('/api/cedula-templates', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('cedula_templates')
+      .where('fincaId', '==', req.fincaId).get();
+    res.json(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener plantillas.' });
+  }
+});
+
+app.post('/api/cedula-templates', authenticate, async (req, res) => {
+  try {
+    const { nombre, productos } = req.body;
+    if (!nombre) return res.status(400).json({ message: 'El nombre es requerido.' });
+    const template = {
+      nombre,
+      productos: productos || [],
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    };
+    const docRef = await db.collection('cedula_templates').add(template);
+    res.status(201).json({ id: docRef.id, ...template });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear plantilla.' });
+  }
+});
+
+app.delete('/api/cedula-templates/:id', authenticate, async (req, res) => {
+  try {
+    await db.collection('cedula_templates').doc(req.params.id).delete();
     res.json({ message: 'Plantilla eliminada.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar plantilla.' });

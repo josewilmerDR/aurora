@@ -24,7 +24,9 @@
     { "collectionGroup": "siembras",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
     { "collectionGroup": "siembras",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "loteId",         "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
     { "collectionGroup": "proveedores",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "nombre",         "order": "ASCENDING"  }] },
-    { "collectionGroup": "maquinaria",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "descripcion",    "order": "ASCENDING"  }] }
+    { "collectionGroup": "maquinaria",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "descripcion",    "order": "ASCENDING"  }] },
+    { "collectionGroup": "cedulas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "generadaAt",     "order": "DESCENDING" }] },
+    { "collectionGroup": "cedulas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "taskId",         "order": "ASCENDING"  }] }
   ],
   "fieldOverrides": []
 }

@@ -33,7 +33,7 @@ function Dashboard() {
       const pendingTasks = [];
 
       tasksData
-        .filter(task => task.type !== 'REMINDER_3_DAY')
+        .filter(task => task.type !== 'REMINDER_3_DAY' && task.status !== 'skipped')
         .forEach(task => {
             const status = getTaskStatus(task);
             if (status === 'completed') taskStats.completed++;

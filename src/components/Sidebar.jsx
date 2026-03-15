@@ -164,16 +164,25 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   }, [location.pathname, uid]);
 
   // Badge counts
+  const refreshOverdueCount = useCallback(() => {
+    apiFetch('/api/tasks/overdue-count')
+      .then((r) => r.json())
+      .then((data) => setTareasVencidasCount(data.count || 0))
+      .catch(() => { });
+  }, [apiFetch]);
+
   useEffect(() => {
     apiFetch('/api/productos')
       .then((r) => r.json())
       .then((data) => setStockBajoCount(data.filter((p) => p.stockActual <= p.stockMinimo).length))
       .catch(() => { });
-    apiFetch('/api/tasks/overdue-count')
-      .then((r) => r.json())
-      .then((data) => setTareasVencidasCount(data.count || 0))
-      .catch(() => { });
+    refreshOverdueCount();
   }, []);
+
+  useEffect(() => {
+    window.addEventListener('aurora-tasks-changed', refreshOverdueCount);
+    return () => window.removeEventListener('aurora-tasks-changed', refreshOverdueCount);
+  }, [refreshOverdueCount]);
 
   const canAccess = useCallback((item) => hasMinRole(userRole, item.minRole), [userRole]);
   const itemFor = (path) => ALL_ITEMS.find((i) => i.to === path);
