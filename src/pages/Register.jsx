@@ -165,7 +165,7 @@ export default function Register() {
               </div>
               <div className="login-field">
                 <label htmlFor="password">Contraseña</label>
-                <div className="login-input-wrapper">
+                <div className="login-input-wrapper login-input-wrapper--eye">
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
@@ -191,7 +191,7 @@ export default function Register() {
               </div>
               <div className="login-field">
                 <label htmlFor="confirm">Confirmar contraseña</label>
-                <div className="login-input-wrapper">
+                <div className="login-input-wrapper login-input-wrapper--eye">
                   <input
                     id="confirm"
                     type={showConfirm ? 'text' : 'password'}

@@ -61,7 +61,7 @@ export default function LoginPassword() {
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">
             <label htmlFor="password">Contraseña</label>
-            <div className="login-input-wrapper">
+            <div className="login-input-wrapper login-input-wrapper--eye">
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
