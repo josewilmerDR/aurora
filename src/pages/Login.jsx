@@ -4,14 +4,15 @@ import { useUser } from '../contexts/UserContext';
 import './Login.css';
 
 export default function Login() {
-  const { login, loginWithGoogle, isLoggedIn, needsSetup } = useUser();
+  const { login, loginWithGoogle, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
   const navigate = useNavigate();
 
   // Navegar cuando el estado de auth esté completamente cargado
   useEffect(() => {
     if (isLoggedIn) navigate('/', { replace: true });
+    else if (needsOrgSelection) navigate('/', { replace: true });
     else if (needsSetup) navigate('/register', { replace: true });
-  }, [isLoggedIn, needsSetup, navigate]);
+  }, [isLoggedIn, needsOrgSelection, needsSetup, navigate]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,7 +46,7 @@ export default function Login() {
     setError('');
     try {
       await loginWithGoogle();
-      // La navegación la maneja el useEffect que observa isLoggedIn/needsSetup
+      // La navegación la maneja el useEffect que observa isLoggedIn/needsOrgSelection
     } catch (err) {
       if (err.code !== 'auth/popup-closed-by-user') {
         setError('No se pudo iniciar sesión con Google.');

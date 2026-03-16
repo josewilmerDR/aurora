@@ -259,3 +259,77 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* OrgSelector */
+
+.org-selector-card {
+  max-width: 420px;
+}
+
+.org-empty-message {
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  text-align: center;
+  line-height: 1.6;
+  margin: 8px 0 16px 0;
+}
+
+.org-selector-cta {
+  width: 100%;
+}
+
+.org-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.org-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.finca-item-own {
+  border-color: var(--aurora-green);
+  background-color: rgba(51, 255, 153, 0.04);
+}
+
+.finca-item-own:hover {
+  background-color: rgba(51, 255, 153, 0.1);
+}
+
+.finca-item-owner-badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--aurora-dark-blue);
+  background-color: var(--aurora-green);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-register-link-btn {
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-top: 4px;
+  transition: opacity 0.2s;
+}
+
+.login-register-link-btn:hover {
+  opacity: 0.75;
+}

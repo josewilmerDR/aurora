@@ -173,6 +173,16 @@ app.get('/api/auth/memberships', authenticateOnly, async (req, res) => {
       .where('uid', '==', req.uid)
       .get();
     const memberships = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    if (memberships.length > 0) {
+      const fincaIds = [...new Set(memberships.map(m => m.fincaId))];
+      const fincaDocs = await Promise.all(fincaIds.map(id => db.collection('fincas').doc(id).get()));
+      const ownerMap = {};
+      fincaDocs.forEach(doc => { if (doc.exists) ownerMap[doc.id] = doc.data().adminUid; });
+      const enriched = memberships.map(m => ({ ...m, isOwner: ownerMap[m.fincaId] === req.uid }));
+      return res.status(200).json({ memberships: enriched });
+    }
+
     res.status(200).json({ memberships });
   } catch (error) {
     console.error('[AUTH] Error fetching memberships:', error);

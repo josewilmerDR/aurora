@@ -74,12 +74,6 @@ export function UserProvider({ children }) {
           }
 
           setMemberships(membershipsData);
-          // Si solo tiene una finca, activarla automáticamente
-          if (membershipsData.length === 1) {
-            const fincaId = membershipsData[0].fincaId;
-            setActiveFincaId(fincaId);
-            localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
-          }
         }
       } catch {
         // Si falla, dejar sin membresías (el usuario verá la pantalla de setup)
@@ -141,8 +135,10 @@ export function UserProvider({ children }) {
 
   const isLoading = firebaseUser === undefined;
   const isLoggedIn = !!firebaseUser && !!currentUser;
-  const needsFincaSelection = !!firebaseUser && memberships.length > 1 && !activeFincaId;
+  const needsOrgSelection = !!firebaseUser && !activeFincaId && !isLoading;
   const needsSetup = !!firebaseUser && memberships.length === 0 && !isLoading;
+  // kept for Register.jsx compatibility
+  const needsFincaSelection = !!firebaseUser && memberships.length > 1 && !activeFincaId;
 
   return (
     <UserContext.Provider value={{
@@ -157,6 +153,7 @@ export function UserProvider({ children }) {
       refreshMemberships,
       isLoggedIn,
       isLoading,
+      needsOrgSelection,
       needsFincaSelection,
       needsSetup,
     }}>
