@@ -26,7 +26,9 @@
     { "collectionGroup": "proveedores",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "nombre",         "order": "ASCENDING"  }] },
     { "collectionGroup": "maquinaria",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "descripcion",    "order": "ASCENDING"  }] },
     { "collectionGroup": "cedulas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "generadaAt",     "order": "DESCENDING" }] },
-    { "collectionGroup": "cedulas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "taskId",         "order": "ASCENDING"  }] }
+    { "collectionGroup": "cedulas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "taskId",         "order": "ASCENDING"  }] },
+    { "collectionGroup": "scheduled_tasks",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "type",           "order": "ASCENDING"  }, { "fieldPath": "executeAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "hr_planilla_fijo",     "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }
