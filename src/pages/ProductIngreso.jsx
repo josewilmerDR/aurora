@@ -489,15 +489,17 @@ function ProductIngreso() {
                 <span className="mov-fecha">
                   {new Date(m.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
-                <span className={`mov-tipo-badge ${m.tipo === 'ingreso' ? 'mov-ingreso' : 'mov-egreso'}`}>
+                <span className={`mov-tipo-badge ${m.tipo === 'ingreso' ? 'mov-ingreso' : m.tipo === 'ajuste' ? 'mov-ajuste' : 'mov-egreso'}`}>
                   {m.tipo}
                 </span>
                 <div className="mov-info">
                   <span className="mov-nombre">{m.nombreComercial}</span>
-                  <span className="mov-motivo">{m.motivo}{m.loteNombre ? ` · ${m.loteNombre}` : ''}</span>
+                  <span className="mov-motivo">
+                    {m.tipo === 'ajuste' ? m.nota : `${m.motivo || ''}${m.loteNombre ? ` · ${m.loteNombre}` : ''}`}
+                  </span>
                 </div>
-                <span className={`mov-cantidad ${m.tipo === 'egreso' ? 'mov-neg' : 'mov-pos'}`}>
-                  {m.tipo === 'egreso' ? '-' : '+'}{m.cantidad} {m.unidad}
+                <span className={`mov-cantidad ${m.tipo === 'egreso' || (m.tipo === 'ajuste' && m.cantidad < 0) ? 'mov-neg' : 'mov-pos'}`}>
+                  {m.cantidad > 0 ? '+' : ''}{m.cantidad} {m.unidad}
                 </span>
               </li>
             ))}

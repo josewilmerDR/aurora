@@ -49,7 +49,7 @@ function Dashboard() {
       setStats(taskStats);
       setUpcomingTasks(pendingTasks.slice(0, 5));
       setLotes(lotesData);
-      setStockBajoCount(productosData.filter(p => p.stockActual <= p.stockMinimo).length);
+      setStockBajoCount(productosData.filter(p => p.activo !== false && p.stockActual <= p.stockMinimo).length);
       setLoading(false);
 
     }).catch(err => {

@@ -49,7 +49,7 @@ export const MODULES = [
     nombre: 'Bodega',
     icon: FiBox,
     items: [
-      { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado' },
+      { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado', draftKey: 'inv-productos' },
       { label: 'Ingreso de Productos', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
       { label: 'Solicitar Compra', to: '/solicitudes', icon: FiShoppingCart, minRole: 'encargado' },
       { label: 'Registrar Compra', to: '/compras', icon: FiFileText, minRole: 'supervisor' },
