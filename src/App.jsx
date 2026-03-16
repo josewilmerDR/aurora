@@ -20,6 +20,8 @@ import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import FincaSelector from './pages/FincaSelector';
+import OrgSelector from './pages/OrgSelector';
+import NuevaOrganizacion from './pages/NuevaOrganizacion';
 import HrFicha from './pages/HrFicha';
 import HrAsistencia from './pages/HrAsistencia';
 import HrHorasExtra from './pages/HrHorasExtra';
@@ -115,11 +117,10 @@ const routeTitles = {
 
 // --- Route guards ---
 const ProtectedRoute = ({ children }) => {
-  const { isLoggedIn, isLoading, needsFincaSelection, needsSetup } = useUser();
+  const { isLoggedIn, isLoading, needsOrgSelection } = useUser();
   if (isLoading) return <div className="app-loading">Cargando...</div>;
-  if (!isLoggedIn && !needsFincaSelection && !needsSetup) return <Navigate to="/login" replace />;
-  if (needsSetup) return <Navigate to="/register" replace />;
-  if (needsFincaSelection) return <FincaSelector />;
+  if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" replace />;
+  if (needsOrgSelection) return <OrgSelector />;
   return children;
 };
 
@@ -282,6 +283,7 @@ function App() {
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/nueva-organizacion" element={<NuevaOrganizacion />} />
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<PurchaseOrder />} />
