@@ -18,6 +18,7 @@ import OrdenesHistorial from './pages/OrdenesHistorial';
 import ProveedoresList from './pages/ProveedoresList';
 import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
+import LoginPassword from './pages/LoginPassword';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import MiPerfil from './pages/MiPerfil';
@@ -284,6 +285,7 @@ function App() {
           {/* Public routes */}
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />
+            <Route path="/login/contrasena" element={<LoginPassword />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/nueva-organizacion" element={<NuevaOrganizacion />} />

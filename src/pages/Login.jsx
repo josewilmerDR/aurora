@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiArrowRight } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import './Login.css';
 
 export default function Login() {
-  const { login, loginWithGoogle, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
+  const { loginWithGoogle, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
   const navigate = useNavigate();
 
-  // Navegar cuando el estado de auth esté completamente cargado
   useEffect(() => {
     if (isLoggedIn) navigate('/', { replace: true });
     else if (needsOrgSelection) navigate('/', { replace: true });
@@ -16,31 +15,13 @@ export default function Login() {
   }, [isLoggedIn, needsOrgSelection, needsSetup, navigate]);
 
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleEmailSubmit = (e) => {
     e.preventDefault();
-    if (!email || !password) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      await login(email, password);
-      // La navegación la maneja el useEffect que observa isLoggedIn/needsSetup
-    } catch (err) {
-      const code = err.code;
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setError('Email o contraseña incorrectos.');
-      } else if (code === 'auth/too-many-requests') {
-        setError('Demasiados intentos. Intenta más tarde.');
-      } else {
-        setError('No se pudo iniciar sesión. Intenta de nuevo.');
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    if (!email) return;
+    navigate('/login/contrasena', { state: { email } });
   };
 
   const handleGoogle = async () => {
@@ -48,7 +29,6 @@ export default function Login() {
     setError('');
     try {
       await loginWithGoogle();
-      // La navegación la maneja el useEffect que observa isLoggedIn/needsOrgSelection
     } catch (err) {
       if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
         setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
@@ -83,46 +63,32 @@ export default function Login() {
 
         <div className="login-divider"><span>o</span></div>
 
-        <form onSubmit={handleSubmit} className="login-form">
+        <form onSubmit={handleEmailSubmit} className="login-form">
           <div className="login-field">
             <label htmlFor="email">Correo electrónico</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-              disabled={submitting}
-              autoComplete="email"
-              required
-            />
-          </div>
-
-          <div className="login-field">
-            <label htmlFor="password">Contraseña</label>
             <div className="login-input-wrapper">
               <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@correo.com"
                 disabled={submitting}
-                autoComplete="current-password"
+                autoComplete="email"
                 required
               />
-              <button type="button" className="login-eye-btn" onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
-                {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+              <button
+                type="submit"
+                className="login-arrow-btn"
+                disabled={!email || submitting}
+                tabIndex={-1}
+                aria-label="Continuar"
+              >
+                <FiArrowRight size={17} />
               </button>
             </div>
-            <Link to="/forgot-password" className="login-forgot-link">¿Olvidaste tu contraseña?</Link>
           </div>
-
           {error && <p className="login-error">{error}</p>}
-
-          <button type="submit" className="login-btn" disabled={submitting || !email || !password}>
-            {submitting ? 'Entrando...' : 'Entrar'}
-          </button>
         </form>
 
         <p className="login-register-link">
