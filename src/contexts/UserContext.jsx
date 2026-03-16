@@ -61,17 +61,19 @@ export function UserProvider({ children }) {
           const data = await res.json();
           let membershipsData = data.memberships || [];
 
-          // Si no tiene membresías, intentar reclamar invitaciones por email
-          // (caso: admin agregó al usuario en "Gestión de Usuarios" antes de que se registrara)
-          if (membershipsData.length === 0) {
-            try {
-              const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
-              if (claimRes.ok) {
-                const claimData = await claimRes.json();
-                membershipsData = claimData.memberships || [];
-              }
-            } catch { /* silently fail — el usuario verá la pantalla de creación de organización */ }
-          }
+          // Intentar reclamar invitaciones por email siempre:
+          // cubre tanto el caso de primer login sin membresías como el caso de un usuario
+          // que ya tiene su propia organización pero fue agregado a otra por un admin.
+          try {
+            const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
+            if (claimRes.ok) {
+              const claimData = await claimRes.json();
+              const claimed = claimData.memberships || [];
+              // Agregar solo las membresías que aún no están en la lista (evitar duplicados)
+              const newOnes = claimed.filter(cm => !membershipsData.some(m => m.fincaId === cm.fincaId));
+              if (newOnes.length > 0) membershipsData = [...membershipsData, ...newOnes];
+            }
+          } catch { /* silently fail — el usuario verá la pantalla de creación de organización */ }
 
           setMemberships(membershipsData);
         }
