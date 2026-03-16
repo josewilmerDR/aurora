@@ -32,8 +32,7 @@ export default function ForgotPassword() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <span className="login-logo-text">AU</span>
-          <span className="login-logo-label">Aurora</span>
+          <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
         </div>
 
         <h2 className="login-title">Recuperar contraseña</h2>
