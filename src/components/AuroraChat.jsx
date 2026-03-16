@@ -109,8 +109,15 @@ export default function AuroraChat() {
     setThinking(true);
 
     try {
+      // Enviar los últimos 20 mensajes como historial (excluye el saludo inicial)
+      const history = messages
+        .slice(1)
+        .slice(-20)
+        .map(m => ({ role: m.role, text: m.text }));
+
       const body = {
         message: text || 'Por favor procesa esta imagen.',
+        history,
         userId: currentUser?.id || '',
         userName: currentUser?.nombre || '',
       };
@@ -133,7 +140,7 @@ export default function AuroraChat() {
     } finally {
       setThinking(false);
     }
-  }, [input, image, thinking, currentUser, apiFetch]);
+  }, [input, image, thinking, messages, currentUser, apiFetch]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

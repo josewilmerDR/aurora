@@ -937,7 +937,7 @@ app.get('/api/productos', authenticate, async (req, res) => {
 
 const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo',
   'plagaQueControla', 'periodoReingreso', 'periodoACosecha', 'cantidadPorHa',
-  'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario', 'proveedor'];
+  'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario', 'proveedor', 'activo'];
 
 app.post('/api/productos', authenticate, async (req, res) => {
   try {
@@ -985,10 +985,168 @@ app.delete('/api/productos/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const stock = ownership.doc.data().stockActual ?? 0;
+    if (stock > 0) {
+      return res.status(409).json({ message: 'Esta acción solo es permitida para productos con existencias nulas.' });
+    }
     await db.collection('productos').doc(id).delete();
     res.status(200).json({ message: 'Producto eliminado correctamente.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar producto.' });
+  }
+});
+
+app.put('/api/productos/:id/inactivar', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const stock = ownership.doc.data().stockActual ?? 0;
+    if (stock > 0) {
+      return res.status(409).json({ message: 'Esta acción solo es permitida para productos con existencias nulas.' });
+    }
+    await db.collection('productos').doc(req.params.id).update({ activo: false });
+    res.status(200).json({ message: 'Producto inactivado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al inactivar producto.' });
+  }
+});
+
+app.put('/api/productos/:id/activar', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('productos').doc(req.params.id).update({ activo: true });
+    res.status(200).json({ message: 'Producto activado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al activar producto.' });
+  }
+});
+
+// ── Chat IA para editar productos ────────────────────────────────────────────
+app.post('/api/productos/ai-editar', authenticate, async (req, res) => {
+  try {
+    const { mensaje } = req.body;
+    if (!mensaje?.trim()) return res.status(400).json({ message: 'Mensaje requerido.' });
+
+    const snap = await db.collection('productos').where('fincaId', '==', req.fincaId).get();
+    const productos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (!anthropicClient) anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+
+    const productosTexto = productos.map(p =>
+      `ID: ${p.id} | Código: ${p.idProducto || ''} | Nombre: ${p.nombreComercial || ''} | IngredienteActivo: ${p.ingredienteActivo || ''} | Tipo: ${p.tipo || ''} | Plaga: ${p.plagaQueControla || ''} | Dosis/Ha: ${p.cantidadPorHa ?? ''} | Unidad: ${p.unidad || ''} | Reingreso(h): ${p.periodoReingreso ?? ''} | Cosecha(días): ${p.periodoACosecha ?? ''} | Stock: ${p.stockActual ?? 0} | StockMin: ${p.stockMinimo ?? 0} | Precio: ${p.precioUnitario ?? ''} ${p.moneda || ''} | TipoCambio: ${p.tipoCambio ?? ''} | Proveedor: ${p.proveedor || ''}`
+    ).join('\n');
+
+    const systemPrompt = `Eres el asistente de inventario Aurora. Interpretas solicitudes en español para modificar productos agroquímicos.
+
+CAMPOS DISPONIBLES (nombre técnico exacto):
+- idProducto: Código del producto
+- nombreComercial: Nombre comercial
+- ingredienteActivo: Ingrediente activo
+- tipo: Tipo — solo estos valores: "Herbicida", "Fungicida", "Insecticida", "Fertilizante", "Regulador de crecimiento", "Otro"
+- plagaQueControla: Plaga o enfermedad que controla
+- cantidadPorHa: Dosis por hectárea (número)
+- unidad: Unidad de medida (L, kg, cc, g, mL, etc.)
+- periodoReingreso: Período de reingreso en horas (número entero)
+- periodoACosecha: Período a cosecha en días (número entero)
+- stockMinimo: Stock mínimo (número)
+- precioUnitario: Precio unitario (número)
+- moneda: Moneda — solo: "USD", "CRC", "EUR"
+- tipoCambio: Tipo de cambio (número)
+- proveedor: Nombre del proveedor
+
+CAMPO ESPECIAL (ajuste de inventario con nota obligatoria):
+- stockActual: Stock actual (número) — devuélvelo en "stockAdjustments", NUNCA en "changes"
+
+REGLAS:
+1. Identifica el/los productos por nombre aproximado, código o ingrediente activo.
+2. Solo incluye los cambios explícitamente solicitados.
+3. Si un producto no se encuentra, explícalo en "error".
+4. Si la solicitud es ambigua (varios productos podrían coincidir), pide aclaración en "error".
+5. Normaliza el campo "tipo" al valor válido más cercano.
+
+Responde SOLO con JSON válido, sin texto adicional ni bloques de código:
+{
+  "mensaje": "texto breve describiendo los cambios o el error",
+  "changes": [
+    { "productoId": "id_firestore", "nombreProducto": "nombre", "field": "campoTecnico", "oldValue": "valor_actual", "newValue": "nuevo_valor" }
+  ],
+  "stockAdjustments": [
+    { "productoId": "id_firestore", "nombreProducto": "nombre", "stockActual": 0, "newStock": 0 }
+  ],
+  "error": null
+}`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: `Inventario actual:\n${productosTexto}\n\nSolicitud: ${mensaje}` }],
+    });
+
+    const text = response.content[0].text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Respuesta de IA inválida.');
+    const parsed = JSON.parse(jsonMatch[0]);
+    res.json(parsed);
+  } catch (err) {
+    console.error('Error en ai-editar productos:', err);
+    res.status(500).json({ message: err.message || 'Error al procesar la solicitud.' });
+  }
+});
+
+// --- API ENDPOINTS: AJUSTE DE INVENTARIO (TOMA FÍSICA) ---
+app.post('/api/inventario/ajuste', authenticate, async (req, res) => {
+  try {
+    const { nota, ajustes } = req.body;
+    if (!nota || !nota.trim()) {
+      return res.status(400).json({ message: 'La nota explicativa es obligatoria.' });
+    }
+    if (!Array.isArray(ajustes) || ajustes.length === 0) {
+      return res.status(400).json({ message: 'Se requiere al menos un ajuste.' });
+    }
+
+    const fincaId = req.fincaId;
+    const batch = db.batch();
+    const fechaAjuste = new Date();
+    const movimientosCreados = [];
+
+    for (const ajuste of ajustes) {
+      const { productoId, stockAnterior, stockNuevo } = ajuste;
+      if (productoId === undefined || stockNuevo === undefined) continue;
+      const stockNuevoNum = parseFloat(stockNuevo);
+      const stockAnteriorNum = parseFloat(stockAnterior);
+      if (isNaN(stockNuevoNum) || stockNuevoNum < 0) continue;
+      if (Math.abs(stockNuevoNum - stockAnteriorNum) < 0.0001) continue; // sin cambio
+
+      const prodRef = db.collection('productos').doc(productoId);
+      batch.update(prodRef, { stockActual: stockNuevoNum });
+
+      const diferencia = stockNuevoNum - stockAnteriorNum;
+      const movRef = db.collection('movimientos').doc();
+      const movData = {
+        fincaId,
+        productoId,
+        tipo: 'ajuste',
+        cantidad: diferencia,
+        stockAnterior: stockAnteriorNum,
+        stockNuevo: stockNuevoNum,
+        nota: nota.trim(),
+        fecha: fechaAjuste,
+      };
+      batch.set(movRef, movData);
+      movimientosCreados.push({ id: movRef.id, ...movData });
+    }
+
+    if (movimientosCreados.length === 0) {
+      return res.status(400).json({ message: 'No hay diferencias que ajustar.' });
+    }
+
+    await batch.commit();
+    res.status(200).json({ ajustados: movimientosCreados.length, movimientos: movimientosCreados });
+  } catch (error) {
+    console.error('Error en ajuste de inventario:', error);
+    res.status(500).json({ message: 'Error al procesar el ajuste de inventario.' });
   }
 });
 
@@ -3386,14 +3544,14 @@ async function chatToolRegistrarHorimetro(input, fincaId) {
 
 app.post('/api/chat', authenticate, async (req, res) => {
   try {
-    const { message, imageBase64, mediaType, userId, userName } = req.body;
+    const { message, imageBase64, mediaType, userId, userName, history } = req.body;
 
     if (!anthropicClient) {
       anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
     }
 
     // Cargar catálogos para que Claude pueda resolver nombres a IDs
-    const [lotesSnap, matsSnap, paquetesSnap, gruposSnap, siembrasSnap, maquinariaSnap, usersSnap, laboresSnap] = await Promise.all([
+    const [lotesSnap, matsSnap, paquetesSnap, gruposSnap, siembrasSnap, maquinariaSnap, usersSnap, laboresSnap, productosSnap] = await Promise.all([
       db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
       db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).get(),
       db.collection('packages').where('fincaId', '==', req.fincaId).get(),
@@ -3402,6 +3560,7 @@ app.post('/api/chat', authenticate, async (req, res) => {
       db.collection('maquinaria').where('fincaId', '==', req.fincaId).get(),
       db.collection('users').where('fincaId', '==', req.fincaId).get(),
       db.collection('labores').where('fincaId', '==', req.fincaId).get(),
+      db.collection('productos').where('fincaId', '==', req.fincaId).get(),
     ]);
     const catalogoLotes = lotesSnap.docs.map(d => ({
       id: d.id,
@@ -3496,6 +3655,13 @@ app.post('/api/chat', authenticate, async (req, res) => {
       ? catalogoLabores.map(l => `  - ID: "${l.id}"${l.codigo ? ` | Código: "${l.codigo}"` : ''} | Descripción: "${l.descripcion}"`).join('\n')
       : '  (sin labores registradas)';
 
+    const catalogoProductos = productosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const productosTexto = catalogoProductos.length
+      ? catalogoProductos.map(p =>
+          `  - ID: "${p.id}" | Código: "${p.idProducto || ''}" | Nombre: "${p.nombreComercial || ''}" | IngredienteActivo: "${p.ingredienteActivo || ''}" | Tipo: ${p.tipo || ''} | Plaga: "${p.plagaQueControla || ''}" | Dosis/Ha: ${p.cantidadPorHa ?? ''} | Unidad: ${p.unidad || ''} | Stock: ${p.stockActual ?? 0} | StockMin: ${p.stockMinimo ?? 0} | Precio: ${p.precioUnitario ?? ''} ${p.moneda || ''} | Proveedor: "${p.proveedor || ''}"`
+        ).join('\n')
+      : '  (sin productos registrados)';
+
     const today = new Date().toISOString().slice(0, 10);
 
     const systemPrompt = `Eres Aurora, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
@@ -3527,6 +3693,9 @@ ${laboresTexto}
 
 Operarios / Usuarios registrados:
 ${operariosTexto}
+
+Inventario de productos agroquímicos (bodega):
+${productosTexto}
 
 ## Instrucciones
 
@@ -3571,6 +3740,16 @@ Cuando el usuario pida registrar un horímetro (ej: "agrega el siguiente horíme
 **Flujo según origen del registro:**
 - **Texto o voz**: usa directamente 'registrar_horimetro' cuando tengas fecha y tractorId.
 - **Imagen**: SIEMPRE usa 'previsualizar_horimetro' (nunca 'registrar_horimetro' con imagen). El sistema mostrará al usuario una tarjeta de confirmación con los datos para que los revise antes de guardar.
+
+Cuando el usuario pida modificar un campo de un producto del inventario (ej: "cambia el ingrediente activo del Cloruro de Potasio a Potasio", "el proveedor del Roundup es AgroVal"):
+1. Busca el producto en el catálogo de productos agroquímicos usando coincidencia aproximada del nombre, código o ingrediente activo.
+2. Usa "editar_producto" con el ID Firestore correcto, el nombre técnico del campo y el nuevo valor.
+3. Los campos editables son: idProducto, nombreComercial, ingredienteActivo, tipo, plagaQueControla, cantidadPorHa, unidad, periodoReingreso, periodoACosecha, stockMinimo, precioUnitario, moneda, tipoCambio, proveedor. El campo "tipo" solo acepta: "Herbicida", "Fungicida", "Insecticida", "Fertilizante", "Regulador de crecimiento", "Otro".
+
+Cuando el usuario pida cambiar el stock actual de un producto (ej: "actualiza el stock del Mancozeb a 15 kg", "hay 20 litros de Roundup"):
+1. Los ajustes de stock generan un movimiento de inventario y requieren una nota explicativa.
+2. Si el usuario ya dio una nota o razón, usa "ajustar_stock" directamente.
+3. Si no, pide la nota antes de ejecutar. Ejemplo: "¿Cuál es la razón del ajuste? (ej: conteo físico, pérdida por derrame…)"
 
 Cuando el usuario pida un reporte, análisis, proyección o cualquier consulta de datos (ej: "¿cuántas plantas se sembraron este mes?", "¿qué tareas están pendientes?", "¿qué productos están bajo stock?"):
 1. Usa "consultar_datos" con los filtros apropiados para obtener los datos relevantes.
@@ -3732,6 +3911,32 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         },
       },
       {
+        name: 'editar_producto',
+        description: 'Edita un campo de un producto del inventario de bodega (excepto el stock actual). Úsala cuando el usuario pida cambiar el nombre, ingrediente activo, proveedor, tipo, dosis por hectárea, precio, etc.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            productoId: { type: 'string', description: 'ID Firestore del producto.' },
+            campo: { type: 'string', description: 'Campo técnico a editar: idProducto, nombreComercial, ingredienteActivo, tipo, plagaQueControla, cantidadPorHa, unidad, periodoReingreso, periodoACosecha, stockMinimo, precioUnitario, moneda, tipoCambio, proveedor.' },
+            nuevoValor: { description: 'Nuevo valor para el campo.' },
+          },
+          required: ['productoId', 'campo', 'nuevoValor'],
+        },
+      },
+      {
+        name: 'ajustar_stock',
+        description: 'Ajusta el stock actual de un producto del inventario. Genera un movimiento de inventario. Requiere una nota explicativa obligatoria.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            productoId: { type: 'string', description: 'ID Firestore del producto.' },
+            stockNuevo: { type: 'number', description: 'Nuevo valor del stock.' },
+            nota: { type: 'string', description: 'Nota explicativa del ajuste (obligatoria, ej: conteo físico, pérdida, corrección).' },
+          },
+          required: ['productoId', 'stockNuevo', 'nota'],
+        },
+      },
+      {
         name: 'previsualizar_horimetro',
         description: 'Extrae TODAS las filas de un formulario de horímetro desde una imagen para que el usuario las revise antes de guardar. Úsala SIEMPRE cuando el usuario envíe una imagen. Puede haber una o varias filas. NO guarda nada en la base de datos.',
         input_schema: {
@@ -3768,14 +3973,30 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
       },
     ];
 
-    // Construir mensaje inicial del usuario
+    // Construir historial de conversación
+    const messages = [];
+    if (Array.isArray(history) && history.length > 0) {
+      for (const h of history) {
+        if (h.role !== 'user' && h.role !== 'assistant') continue;
+        if (!h.text) continue;
+        // Asegurar alternancia: si el último rol es igual al entrante, fusionar
+        const last = messages[messages.length - 1];
+        if (last && last.role === h.role) continue;
+        messages.push({ role: h.role, content: [{ type: 'text', text: h.text }] });
+      }
+    }
+
+    // Construir mensaje actual del usuario
     const userContent = [];
     if (imageBase64 && mediaType) {
       userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } });
     }
     userContent.push({ type: 'text', text: message || 'Ayúdame con esta información.' });
 
-    const messages = [{ role: 'user', content: userContent }];
+    // Anthropic exige que el primer mensaje sea de rol 'user'
+    if (messages.length > 0 && messages[0].role !== 'user') messages.shift();
+
+    messages.push({ role: 'user', content: userContent });
 
     // Loop agéntico: máximo 6 iteraciones para evitar loops infinitos
     let horimetroDraft = null;
@@ -3833,6 +4054,52 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             result = await chatToolConsultarSiembras(block.input, req.fincaId);
           } else if (block.name === 'registrar_horimetro') {
             result = await chatToolRegistrarHorimetro(block.input, req.fincaId);
+          } else if (block.name === 'editar_producto') {
+            const { productoId, campo, nuevoValor } = block.input;
+            const CAMPOS_EDITABLES = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo', 'plagaQueControla', 'cantidadPorHa', 'unidad', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'moneda', 'tipoCambio', 'proveedor'];
+            if (!CAMPOS_EDITABLES.includes(campo)) {
+              result = { error: `Campo "${campo}" no permitido. Para ajustar el stock usa ajustar_stock.` };
+            } else {
+              const ownership = await verifyOwnership('productos', productoId, req.fincaId);
+              if (!ownership.ok) {
+                result = { error: ownership.message };
+              } else {
+                const oldValue = ownership.doc.data()[campo];
+                await db.collection('productos').doc(productoId).update({ [campo]: nuevoValor });
+                result = { ok: true, productoNombre: ownership.doc.data().nombreComercial, campo, oldValue: oldValue ?? null, newValue: nuevoValor };
+              }
+            }
+          } else if (block.name === 'ajustar_stock') {
+            const { productoId, stockNuevo, nota } = block.input;
+            if (!nota?.trim()) {
+              result = { error: 'La nota explicativa es obligatoria para ajustar el stock.' };
+            } else {
+              const ownership = await verifyOwnership('productos', productoId, req.fincaId);
+              if (!ownership.ok) {
+                result = { error: ownership.message };
+              } else {
+                const stockAnterior = ownership.doc.data().stockActual ?? 0;
+                const stockNuevoNum = parseFloat(stockNuevo);
+                if (isNaN(stockNuevoNum) || stockNuevoNum < 0) {
+                  result = { error: 'El stock debe ser un número mayor o igual a 0.' };
+                } else if (Math.abs(stockNuevoNum - stockAnterior) < 0.001) {
+                  result = { ok: true, mensaje: 'El stock ya tiene ese valor, no se realizó ningún cambio.' };
+                } else {
+                  const batch = db.batch();
+                  batch.update(db.collection('productos').doc(productoId), { stockActual: stockNuevoNum });
+                  batch.set(db.collection('movimientos').doc(), {
+                    fincaId: req.fincaId, productoId,
+                    tipo: 'ajuste',
+                    cantidad: stockNuevoNum - stockAnterior,
+                    stockAnterior, stockNuevo: stockNuevoNum,
+                    nota: nota.trim(),
+                    fecha: new Date(),
+                  });
+                  await batch.commit();
+                  result = { ok: true, productoNombre: ownership.doc.data().nombreComercial, stockAnterior, stockNuevo: stockNuevoNum, diferencia: stockNuevoNum - stockAnterior };
+                }
+              }
+            }
           } else if (block.name === 'previsualizar_horimetro') {
             const allowed = ['fecha', 'tractorId', 'tractorNombre', 'implemento', 'horimetroInicial', 'horimetroFinal', 'loteId', 'loteNombre', 'grupo', 'bloques', 'labor', 'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre'];
             const filas = Array.isArray(block.input.filas) ? block.input.filas : [block.input];
