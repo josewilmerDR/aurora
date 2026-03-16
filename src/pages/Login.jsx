@@ -48,7 +48,9 @@ export default function Login() {
       await loginWithGoogle();
       // La navegación la maneja el useEffect que observa isLoggedIn/needsOrgSelection
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
+        setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
+      } else if (err.code !== 'auth/popup-closed-by-user') {
         setError('No se pudo iniciar sesión con Google.');
       }
     } finally {
@@ -60,7 +62,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <span className="login-logo-text">AU</span>
+          <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
           <span className="login-logo-label">Aurora</span>
         </div>
 
