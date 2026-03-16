@@ -116,6 +116,7 @@ export default function Register() {
       <div className="login-card">
         <div className="login-logo">
           <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
+          <span className="login-logo-label">Aurora</span>
         </div>
 
         <h2 className="login-title">Crear cuenta</h2>
