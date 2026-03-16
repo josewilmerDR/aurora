@@ -20,6 +20,7 @@ import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import MiPerfil from './pages/MiPerfil';
 import FincaSelector from './pages/FincaSelector';
 import OrgSelector from './pages/OrgSelector';
 import NuevaOrganizacion from './pages/NuevaOrganizacion';
@@ -305,6 +306,7 @@ function App() {
             <Route path="/monitoreo" element={<MonitoreoRegistro />} />
             <Route path="/operaciones/horimetro" element={<Horimetro />} />
             <Route path="/config/cuenta" element={<ConfigCuenta />} />
+            <Route path="/mi-perfil" element={<MiPerfil />} />
             {/* encargado+ */}
             <Route path="/users" element={<RoleRoute path="/users"><UserManagement /></RoleRoute>} />
             <Route path="/lotes" element={<RoleRoute path="/lotes"><LoteManagement /></RoleRoute>} />

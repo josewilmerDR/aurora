@@ -1,0 +1,70 @@
+@import './LoteManagement.css';
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.form-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  margin: 0 0 0.75rem 0;
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.provider-icon {
+  display: flex;
+  align-items: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.provider-name {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  font-weight: 500;
+}
+
+.provider-badge {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.04em;
+}
+
+.provider-badge.active {
+  background-color: rgba(51, 255, 153, 0.15);
+  color: var(--aurora-green);
+}
+
+.provider-badge.inactive {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--aurora-light);
+  opacity: 0.5;
+}

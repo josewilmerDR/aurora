@@ -101,7 +101,9 @@ export default function Register() {
       await signInWithPopup(auth, googleProvider);
       setStep(2);
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
+        setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
+      } else if (err.code !== 'auth/popup-closed-by-user') {
         setError('No se pudo continuar con Google.');
       }
     } finally {
