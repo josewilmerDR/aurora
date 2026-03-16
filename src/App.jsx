@@ -19,6 +19,7 @@ import ProveedoresList from './pages/ProveedoresList';
 import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import FincaSelector from './pages/FincaSelector';
 import OrgSelector from './pages/OrgSelector';
 import NuevaOrganizacion from './pages/NuevaOrganizacion';
@@ -283,6 +284,7 @@ function App() {
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/nueva-organizacion" element={<NuevaOrganizacion />} />
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />

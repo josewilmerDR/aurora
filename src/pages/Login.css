@@ -333,3 +333,18 @@
 .login-register-link-btn:hover {
   opacity: 0.75;
 }
+
+.login-forgot-link {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  text-decoration: none;
+  text-align: right;
+  transition: opacity 0.2s;
+}
+
+.login-forgot-link:hover {
+  opacity: 0.85;
+}

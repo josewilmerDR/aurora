@@ -106,6 +106,7 @@ export default function Login() {
               autoComplete="current-password"
               required
             />
+            <Link to="/forgot-password" className="login-forgot-link">¿Olvidaste tu contraseña?</Link>
           </div>
 
           {error && <p className="login-error">{error}</p>}
