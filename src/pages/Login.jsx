@@ -84,7 +84,7 @@ export default function Login() {
                 tabIndex={-1}
                 aria-label="Continuar"
               >
-                <FiArrowRight size={20} strokeWidth={2.5} />
+                <FiArrowRight size={18} strokeWidth={2.5} />
               </button>
             </div>
           </div>
