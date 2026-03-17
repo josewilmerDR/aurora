@@ -8,7 +8,7 @@ import { useApiFetch } from '../hooks/useApiFetch';
 const EMPTY_FICHA = {
   puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'permanente',
   salarioBase: '', cedula: '', direccion: '', contactoEmergencia: '', telefonoEmergencia: '',
-  notas: '',
+  notas: '', encargadoId: '',
 };
 
 function UserManagement() {
@@ -17,6 +17,7 @@ function UserManagement() {
   const [formData, setFormData] = useState({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', empleadoPlanilla: false });
   const [fichaForm, setFichaForm] = useState(EMPTY_FICHA);
   const [isEditing, setIsEditing] = useState(false);
+  const [encargados, setEncargados] = useState([]);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -26,6 +27,9 @@ function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
+    apiFetch('/api/users').then(r => r.json()).then(data => {
+      setEncargados(data.filter(u => ['encargado', 'supervisor', 'administrador'].includes(u.rol)));
+    }).catch(console.error);
   }, []);
 
   // Load ficha when editing a planilla employee
@@ -196,6 +200,19 @@ function UserManagement() {
                 <div className="form-control">
                   <label>Teléfono Emergencia</label>
                   <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} placeholder="8888-8888" />
+                </div>
+              </div>
+
+              <p className="form-section-title">Supervisión</p>
+              <div className="form-grid">
+                <div className="form-control">
+                  <label>Encargado / Supervisor directo</label>
+                  <select name="encargadoId" value={fichaForm.encargadoId} onChange={handleFichaChange}>
+                    <option value="">— Sin asignar —</option>
+                    {encargados.map(e => (
+                      <option key={e.id} value={e.id}>{e.nombre} ({ROLE_LABELS[e.rol] || e.rol})</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

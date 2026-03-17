@@ -71,7 +71,7 @@ const ROUTE_MIN_ROLE = {
   '/siembra/materiales': 'encargado',
   '/ordenes-compra/historial': 'encargado',
   '/hr/planilla/fijo': 'supervisor',
-  '/hr/planilla/horas': 'supervisor',
+  '/hr/planilla/horas': 'encargado',
 };
 
 // Mapeo de rutas a títulos

@@ -74,6 +74,7 @@ const authenticate = async (req, res, next) => {
     }
 
     req.uid = uid;
+    req.userEmail = decoded.email || '';
     req.fincaId = fincaId;
     req.userRole = membershipSnap.docs[0].data().rol;
     next();
@@ -201,8 +202,21 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
     if (snap.empty) return res.status(404).json({ message: 'Perfil no encontrado.' });
     const membership = snap.docs[0].data();
     const fincaDoc = await db.collection('fincas').doc(req.fincaId).get();
+
+    // Buscar el doc ID del usuario en la colección users (por email)
+    let userId = null;
+    if (req.userEmail) {
+      const userSnap = await db.collection('users')
+        .where('fincaId', '==', req.fincaId)
+        .where('email', '==', req.userEmail)
+        .limit(1)
+        .get();
+      if (!userSnap.empty) userId = userSnap.docs[0].id;
+    }
+
     res.status(200).json({
       uid: req.uid,
+      userId,
       ...membership,
       fincaNombre: fincaDoc.exists ? fincaDoc.data().nombre : '',
     });
@@ -2630,6 +2644,107 @@ app.delete('/api/hr/documentos/:id', authenticate, async (req, res) => {
     res.status(200).json({ message: 'Documento eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar.' });
+  }
+});
+
+// ── Subordinados (trabajadores asignados a un encargado) ──────────────────────
+app.get('/api/hr/subordinados', authenticate, async (req, res) => {
+  try {
+    const { encargadoId } = req.query;
+    if (!encargadoId) return res.status(400).json({ message: 'encargadoId es requerido.' });
+    const fichasSnap = await db.collection('hr_fichas')
+      .where('fincaId', '==', req.fincaId)
+      .where('encargadoId', '==', encargadoId)
+      .get();
+    const trabajadorIds = fichasSnap.docs.map(d => d.id);
+    if (trabajadorIds.length === 0) return res.status(200).json([]);
+    const usersSnap = await db.collection('users').where('fincaId', '==', req.fincaId).get();
+    const subordinados = usersSnap.docs
+      .filter(d => trabajadorIds.includes(d.id))
+      .map(d => ({ id: d.id, ...d.data() }));
+    res.status(200).json(subordinados);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener subordinados.' });
+  }
+});
+
+// ── Planilla por Unidad / Hora ────────────────────────────────────────────────
+app.get('/api/hr/planilla-unidad', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('hr_planilla_unidad')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('createdAt', 'desc').get();
+    const data = snap.docs.map(d => ({
+      id: d.id, ...d.data(),
+      fecha: d.data().fecha ? d.data().fecha.toDate().toISOString() : null,
+      createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null,
+    }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener planillas.' });
+  }
+});
+
+app.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
+  try {
+    const { fecha, encargadoId, encargadoNombre, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
+    if (!fecha || !encargadoId) return res.status(400).json({ message: 'Fecha y encargado son requeridos.' });
+
+    // Generar consecutivo PU-XXXXX
+    const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
+    let consecutivo = 'PU-00001';
+    await db.runTransaction(async (t) => {
+      const counterDoc = await t.get(counterRef);
+      const next = counterDoc.exists ? (counterDoc.data().value || 0) + 1 : 1;
+      t.set(counterRef, { value: next });
+      consecutivo = `PU-${String(next).padStart(5, '0')}`;
+    });
+
+    const ref = await db.collection('hr_planilla_unidad').add({
+      fincaId: req.fincaId,
+      consecutivo,
+      fecha: Timestamp.fromDate(new Date(fecha)),
+      encargadoId, encargadoNombre: encargadoNombre || '',
+      segmentos: segmentos || [],
+      trabajadores: trabajadores || [],
+      totalGeneral: Number(totalGeneral) || 0,
+      estado: estado || 'borrador',
+      observaciones: observaciones || '',
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id, consecutivo });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear planilla.' });
+  }
+});
+
+app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const { fecha, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
+    const update = { updatedAt: Timestamp.now() };
+    if (fecha !== undefined) update.fecha = Timestamp.fromDate(new Date(fecha));
+    if (segmentos !== undefined) update.segmentos = segmentos;
+    if (trabajadores !== undefined) update.trabajadores = trabajadores;
+    if (totalGeneral !== undefined) update.totalGeneral = Number(totalGeneral);
+    if (estado !== undefined) update.estado = estado;
+    if (observaciones !== undefined) update.observaciones = observaciones;
+    await db.collection('hr_planilla_unidad').doc(req.params.id).update(update);
+    res.status(200).json({ message: 'Planilla actualizada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar planilla.' });
+  }
+});
+
+app.delete('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('hr_planilla_unidad').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Planilla eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar planilla.' });
   }
 });
 
