@@ -31,6 +31,7 @@
     { "collectionGroup": "hr_planilla_fijo",     "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
     { "collectionGroup": "recepciones",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fechaRecepcion", "order": "DESCENDING" }] },
     { "collectionGroup": "scheduled_tasks",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "planillaId",     "order": "ASCENDING"  }, { "fieldPath": "type", "order": "ASCENDING" }] },
+    { "collectionGroup": "reminders",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }, { "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "remindAt", "order": "ASCENDING" }] },
     { "collectionGroup": "users",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "rol",            "order": "ASCENDING"  }] },
     { "collectionGroup": "movimientos",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "cedulaId",       "order": "ASCENDING"  }] },
     { "collectionGroup": "productos",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "idProducto",     "order": "ASCENDING"  }] },

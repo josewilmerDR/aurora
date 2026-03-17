@@ -3657,7 +3657,7 @@ async function chatToolRegistrarPermiso(input, fincaId) {
 
 app.post('/api/chat', authenticate, async (req, res) => {
   try {
-    const { message, imageBase64, mediaType, userId, userName, history, clientTime, clientTzName } = req.body;
+    const { message, imageBase64, mediaType, userId, userName, history, clientTime, clientTzName, clientTzOffset } = req.body;
 
     if (!anthropicClient) {
       anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
@@ -4313,7 +4313,11 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             if (!rMsg?.trim() || !rAt) {
               result = { error: 'Se requieren message y remindAt.' };
             } else {
-              const remindDate = new Date(rAt);
+              // Si Claude devuelve hora local sin offset (ej: "2026-03-17T08:40:00"),
+              // el servidor UTC lo interpretaría como UTC. Corregimos usando el offset del cliente.
+              const remindDate = /Z$|[+-]\d{2}:\d{2}$/.test(rAt)
+                ? new Date(rAt)
+                : new Date(new Date(rAt + 'Z').getTime() + (Number(clientTzOffset) || 0) * 60 * 1000);
               if (isNaN(remindDate.getTime())) {
                 result = { error: 'Fecha inválida.' };
               } else {
@@ -4377,16 +4381,20 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
 // GET /api/reminders/due — recordatorios vencidos (remindAt <= ahora), los marca como entregados
 app.get('/api/reminders/due', authenticate, async (req, res) => {
   try {
-    const now = Timestamp.now();
+    const now = new Date();
+    // Sin filtro de rango en Firestore (requeriría índice compuesto); se filtra en JS
     const snap = await db.collection('reminders')
       .where('uid', '==', req.uid)
       .where('fincaId', '==', req.fincaId)
       .where('status', '==', 'pending')
-      .where('remindAt', '<=', now)
       .get();
-    if (snap.empty) return res.json([]);
+    const dueDocs = snap.docs.filter(d => {
+      const remindAt = d.data().remindAt?.toDate?.();
+      return remindAt && remindAt <= now;
+    });
+    if (!dueDocs.length) return res.json([]);
     const batch = db.batch();
-    const reminders = snap.docs.map(d => {
+    const reminders = dueDocs.map(d => {
       batch.update(d.ref, { status: 'delivered' });
       return { id: d.id, message: d.data().message, remindAt: d.data().remindAt?.toDate?.()?.toISOString() };
     });

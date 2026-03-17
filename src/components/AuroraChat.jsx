@@ -38,7 +38,7 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 
 export default function AuroraChat() {
   const apiFetch = useApiFetch();
-  const { currentUser } = useUser();
+  const { currentUser, activeFincaId } = useUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -57,8 +57,13 @@ export default function AuroraChat() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
+  const pendingRemindersRef = useRef([]);
+  const openRef = useRef(open);
 
   const speechSupported = !!SpeechRecognition;
+
+  // Mantener openRef sincronizado para accederlo dentro de efectos asíncronos
+  useEffect(() => { openRef.current = open; }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -71,22 +76,33 @@ export default function AuroraChat() {
     return () => recognitionRef.current?.abort();
   }, []);
 
-  // Verificar recordatorios vencidos al montar (para el badge)
+  // Verificar recordatorios vencidos cuando el usuario Y la finca están disponibles
   useEffect(() => {
+    if (!currentUser?.uid || !activeFincaId) return;
     let cancelled = false;
-    apiFetch('/api/reminders/due').then(async res => {
-      if (cancelled || !res.ok) return;
-      const due = await res.json();
-      if (!due.length) return;
-      if (!cancelled) setReminderBadge(due.length);
-      // Guardar los recordatorios para inyectarlos cuando el chat se abra
-      pendingRemindersRef.current = due;
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  const pendingRemindersRef = useRef([]);
+    const checkDue = () => {
+      apiFetch('/api/reminders/due').then(async res => {
+        if (cancelled || !res.ok) return;
+        const due = await res.json();
+        if (!due.length) return;
+        if (cancelled) return;
+        if (openRef.current) {
+          // El chat ya está abierto: inyectar directo
+          setMessages(prev => [...prev, ...due.map(r => ({ role: 'reminder', text: r.message, remindAt: r.remindAt }))]);
+        } else {
+          // El chat está cerrado: mostrar badge y guardar para inyectar al abrir
+          setReminderBadge(prev => prev + due.length);
+          pendingRemindersRef.current = [...pendingRemindersRef.current, ...due];
+        }
+      }).catch(() => {});
+    };
+
+    checkDue(); // verificar al montar
+    const interval = setInterval(checkDue, 60_000); // verificar cada minuto
+    return () => { cancelled = true; clearInterval(interval); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid, activeFincaId]);
 
   // Inyectar recordatorios vencidos como mensajes especiales al abrir el chat
   useEffect(() => {
@@ -154,10 +170,11 @@ export default function AuroraChat() {
       const body = {
         message: text || 'Por favor procesa esta imagen.',
         history,
-        userId: currentUser?.id || '',
+        userId: currentUser?.uid || '',
         userName: currentUser?.nombre || '',
-        clientTime: now.toLocaleString('sv').replace(' ', 'T'), // "2026-03-16T09:23:45" hora local
+        clientTime: now.toISOString(),
         clientTzName: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        clientTzOffset: now.getTimezoneOffset(), // minutos: positivo = atrás de UTC (ej: UTC-6 → 360)
       };
       if (sentImage) {
         body.imageBase64 = sentImage.base64;
