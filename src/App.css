@@ -68,6 +68,75 @@
   margin-left: 48px;
 }
 
+/* ── Header search toggle & back (mobile only) ───────────────────────────── */
+.app-header-search-toggle {
+  display: none; /* hidden on desktop */
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.app-header-search-toggle:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.app-header-search-back {
+  display: none; /* shown only in mobile-search-open */
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.75;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: opacity 0.2s;
+}
+
+.app-header-search-back:hover { opacity: 1; }
+
+/* ── Header profile button ───────────────────────────────────────────────── */
+.app-header-profile-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--aurora-border);
+  border-radius: 20px;
+  color: var(--aurora-light);
+  padding: 5px 12px 5px 9px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.app-header-profile-btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(230, 242, 255, 0.3);
+}
+
+.app-header-profile-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Body layout ─────────────────────────────────────────────────────────── */
 .app-layout {
   display: flex;
@@ -199,20 +268,50 @@
 
 /* En mobile la sidebar desaparece y se usa MobileNav (barra inferior) */
 @media (max-width: 768px) {
+  /* Ocultar hamburguesa y texto "Aurora" */
+  .app-header-menu-btn { display: none; }
+  .app-header-name     { display: none; }
+
+  /* Ocultar buscador normal; mostrar lupa empujada a la derecha */
+  .app-header-search        { display: none; }
+  .app-header-search-toggle { display: flex; margin-left: auto; }
+
+  /* Ocultar texto del nombre en el perfil, hacerlo circular */
+  .app-header-profile-name { display: none; }
+  .app-header-profile-btn {
+    padding: 6px 8px;
+    border-radius: 50%;
+  }
+
+  /* ── Búsqueda móvil abierta ── */
+  .mobile-search-open .app-header-brand         { display: none; }
+  .mobile-search-open .app-header-search-toggle { display: none; }
+  .mobile-search-open .app-header-profile-btn   { display: none; }
+
+  .mobile-search-open .app-header-search {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    margin-left: 0;
+    animation: mobileSearchIn 0.2s ease-out;
+  }
+
+  .mobile-search-open .app-header-search-back { display: flex; }
+
+  .mobile-search-open .main-search-bar { flex: 1; }
+
   .content-area {
     margin-left: 0;
-    padding: 15px 15px calc(62px + 15px); /* espacio para la barra inferior */
+    padding: 15px 15px calc(62px + 15px);
   }
 
-  .main-header {
-    flex-wrap: wrap;
-  }
+  .main-header { flex-wrap: wrap; }
+  .main-header h1 { font-size: 1.5rem; }
+  .main-search-bar { flex-basis: 100%; }
+}
 
-  .main-header h1 {
-    font-size: 1.5rem;
-  }
-
-  .main-search-bar {
-    flex-basis: 100%;
-  }
+@keyframes mobileSearchIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
 }

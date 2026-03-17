@@ -1,19 +1,54 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { linkWithPopup, unlink, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { useUser } from '../contexts/UserContext';
+import { useApiFetch } from '../hooks/useApiFetch';
+import { FiBell, FiTrash2 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import './MiPerfil.css';
 
 const GOOGLE_PROVIDER_ID = 'google.com';
 const PASSWORD_PROVIDER_ID = 'password';
 
+function formatReminderDate(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  return d.toLocaleString('es-CR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 export default function MiPerfil() {
   const { firebaseUser, currentUser } = useUser();
+  const apiFetch = useApiFetch();
   const [loading, setLoading] = useState(null); // 'link' | 'unlink' | 'reset'
   const [toast, setToast] = useState(null);
+  const [reminders, setReminders] = useState([]);
+  const [remindersLoading, setRemindersLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  const loadReminders = useCallback(async () => {
+    setRemindersLoading(true);
+    try {
+      const res = await apiFetch('/api/reminders');
+      if (res.ok) setReminders(await res.json());
+    } catch { /* ignore */ } finally {
+      setRemindersLoading(false);
+    }
+  }, [apiFetch]);
+
+  useEffect(() => { loadReminders(); }, [loadReminders]);
+
+  const handleDeleteReminder = async (id) => {
+    setDeletingId(id);
+    try {
+      const res = await apiFetch(`/api/reminders/${id}`, { method: 'DELETE' });
+      if (res.ok) setReminders(prev => prev.filter(r => r.id !== id));
+      else showToast('No se pudo eliminar el recordatorio.', 'error');
+    } catch { showToast('Error de conexión.', 'error'); } finally {
+      setDeletingId(null);
+    }
+  };
 
   const providers = firebaseUser?.providerData.map(p => p.providerId) ?? [];
   const hasGoogle = providers.includes(GOOGLE_PROVIDER_ID);
@@ -151,6 +186,43 @@ export default function MiPerfil() {
           <p style={{ fontSize: '0.78rem', color: 'var(--aurora-light)', opacity: 0.5, lineHeight: 1.5 }}>
             Vincula tu cuenta de Google para poder iniciar sesión con ambos métodos sin necesidad de recordar tu contraseña.
           </p>
+        )}
+      </div>
+
+      {/* Mis Recordatorios */}
+      <div className="form-card" style={{ maxWidth: 520, marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <FiBell size={16} style={{ color: '#f59e0b' }} />
+          <h2 style={{ margin: 0 }}>Mis recordatorios</h2>
+        </div>
+
+        {remindersLoading ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', opacity: 0.5 }}>Cargando…</p>
+        ) : reminders.length === 0 ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', opacity: 0.5 }}>
+            No tienes recordatorios activos. Puedes crear uno hablándole a Aurora en el chat.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {reminders.map(r => (
+              <div key={r.id} className="provider-row" style={{ alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <span style={{ fontSize: '0.88rem', color: 'var(--aurora-light)', fontWeight: 500 }}>{r.message}</span>
+                  <span style={{ fontSize: '0.76rem', color: '#f59e0b', opacity: 0.85 }}>{formatReminderDate(r.remindAt)}</span>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleDeleteReminder(r.id)}
+                  disabled={deletingId === r.id}
+                  title="Eliminar recordatorio"
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}
+                >
+                  <FiTrash2 size={13} />
+                  {deletingId === r.id ? 'Eliminando…' : 'Eliminar'}
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

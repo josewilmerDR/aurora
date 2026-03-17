@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FiMenu } from 'react-icons/fi';
+import { FiMenu, FiUser, FiSearch, FiArrowLeft } from 'react-icons/fi';
 import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import UserManagement from './pages/UserManagement';
 import PackageManagement from './pages/PackageManagement';
@@ -151,6 +151,8 @@ const MainLayout = () => {
   const title = routeTitles[location.pathname] || 'Aurora';
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchInputRef = useRef(null);
   const wrapperRef = useRef(null);
   const userRole = currentUser?.rol || 'trabajador';
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -202,8 +204,23 @@ const MainLayout = () => {
     setSearchResults([]);
   };
 
+  const closeMobileSearch = () => {
+    setMobileSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const openMobileSearch = () => {
+    setMobileSearchOpen(true);
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  };
+
   const handleKeyDown = (e) => {
-    if (e.key === 'Escape') { setSearchQuery(''); setSearchResults([]); }
+    if (e.key === 'Escape') {
+      setSearchQuery('');
+      setSearchResults([]);
+      setMobileSearchOpen(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -221,7 +238,7 @@ const MainLayout = () => {
     <div className="app-wrapper">
 
       {/* ── Top header ── */}
-      <header className="app-header">
+      <header className={`app-header${mobileSearchOpen ? ' mobile-search-open' : ''}`}>
         <button className="app-header-menu-btn" onClick={toggleCollapse} title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}>
           <FiMenu size={20} />
         </button>
@@ -229,10 +246,16 @@ const MainLayout = () => {
           <img src="/aurora-logo.png" alt="Aurora" className="app-header-logo" />
           <span className="app-header-name">Aurora</span>
         </div>
+
+        {/* Buscador desktop + móvil expandido */}
         <div className="app-header-search" ref={wrapperRef}>
+          <button className="app-header-search-back" onClick={closeMobileSearch} title="Cerrar búsqueda">
+            <FiArrowLeft size={18} />
+          </button>
           <form className="main-search-bar" onSubmit={handleSubmit}>
             <span className="main-search-icon">🔍</span>
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Buscar funciones o preguntar a Aurora..."
               value={searchQuery}
@@ -251,6 +274,20 @@ const MainLayout = () => {
             </div>
           )}
         </div>
+
+        {/* Lupa móvil (solo visible en mobile con búsqueda cerrada) */}
+        <button className="app-header-search-toggle" onClick={openMobileSearch} title="Buscar">
+          <FiSearch size={19} />
+        </button>
+
+        <button
+          className="app-header-profile-btn"
+          onClick={() => navigate('/mi-perfil')}
+          title="Mi perfil"
+        >
+          <FiUser size={17} />
+          <span className="app-header-profile-name">{currentUser?.nombre?.split(' ')[0] || 'Perfil'}</span>
+        </button>
       </header>
 
       {/* ── Body ── */}
