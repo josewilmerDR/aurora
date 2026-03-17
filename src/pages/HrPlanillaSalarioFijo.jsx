@@ -6,6 +6,19 @@ import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
 const CCSS_RATE = 0.1083;
+// Horas semanales por defecto si la ficha no tiene horario configurado
+const JORNADA_HORAS_DEFAULT = 48;
+
+const DIAS_HORARIO = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+function calcHorasSemanales(horario = {}) {
+  return DIAS_HORARIO.reduce((sum, key) => {
+    const dia = horario[key];
+    if (!dia?.activo || !dia.inicio || !dia.fin) return sum;
+    const [h1, m1] = dia.inicio.split(':').map(Number);
+    const [h2, m2] = dia.fin.split(':').map(Number);
+    return sum + Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60);
+  }, 0);
+}
 
 const fmt      = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
 const fmtDate  = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -13,6 +26,7 @@ const fmtShort = (d) => d.toLocaleDateString('es-ES', { day: '2-digit', month: '
 const dateStr  = (s) => s.substring(0, 10); // normalize to YYYY-MM-DD
 
 // Build per-day array for the period, marking absent days (approved sin-goce leave).
+// Partial permisos (esParcial) accumulate horasParciales per day instead of marking ausente.
 // efectivoDesde: the actual first day to include (max of period start and fechaIngreso).
 function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesde) {
   const dias  = [];
@@ -20,23 +34,45 @@ function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesd
   const desde = new Date((efectivoDesde || fechaInicio) + 'T12:00:00');
   const cur   = new Date(desde);
   while (cur <= fin) {
+    const curStr = cur.toISOString().substring(0, 10);
+
+    // Full-day sin-goce: mark the entire day as ausente
     const ausente = permisos.some(p => {
       if (p.trabajadorId !== trabajadorId) return false;
       if (p.estado !== 'aprobado') return false;
       if (p.conGoce !== false) return false;
-      const pI = new Date(dateStr(p.fechaInicio) + 'T12:00:00');
-      const pF = new Date(dateStr(p.fechaFin)    + 'T12:00:00');
-      return cur >= pI && cur <= pF;
+      if (p.esParcial) return false;
+      const pI = dateStr(p.fechaInicio);
+      const pF = dateStr(p.fechaFin);
+      return curStr >= pI && curStr <= pF;
     });
-    dias.push({ fecha: new Date(cur), ausente, salarioExtra: 0 });
+
+    // Partial sin-goce: accumulate hours absent on this specific day
+    const horasParciales = ausente ? 0 : permisos.reduce((sum, p) => {
+      if (p.trabajadorId !== trabajadorId) return sum;
+      if (p.estado !== 'aprobado') return sum;
+      if (p.conGoce !== false) return sum;
+      if (!p.esParcial) return sum;
+      if (dateStr(p.fechaInicio) !== curStr) return sum;
+      return sum + (Number(p.horas) || 0);
+    }, 0);
+
+    dias.push({ fecha: new Date(cur), ausente, horasParciales, salarioExtra: 0 });
     cur.setDate(cur.getDate() + 1);
   }
   return dias;
 }
 
 function recalcFila(fila) {
-  const diario              = fila.salarioDiario ?? (fila.salarioMensual / 30);
-  const salarioOrdinario    = fila.dias.reduce((s, d) => s + (d.ausente ? 0 : diario), 0);
+  const diario = fila.salarioDiario ?? (fila.salarioMensual / 30);
+  // Valor-hora = salario mensual × 12 meses / 52 semanas / horas semanales
+  const horasSemanales = Number(fila.horasSemanales) || JORNADA_HORAS_DEFAULT;
+  const valorHora = (fila.salarioMensual * 12) / 52 / horasSemanales;
+  const salarioOrdinario = fila.dias.reduce((s, d) => {
+    if (d.ausente) return s;
+    const deduccionParcial = (d.horasParciales || 0) * valorHora;
+    return s + diario - deduccionParcial;
+  }, 0);
   const salarioExtraordinario = fila.dias.reduce((s, d) => s + (Number(d.salarioExtra) || 0), 0);
   const salarioBruto        = salarioOrdinario + salarioExtraordinario;
   const deduccionCCSS       = salarioBruto * CCSS_RATE;
@@ -162,6 +198,7 @@ function HrPlanillaSalarioFijo() {
           // If fechaIngreso falls inside the period, only count from that day
           const efectivoDesde  = fi && fi > fechaInicio ? fi : fechaInicio;
           const parcial        = efectivoDesde > fechaInicio;
+          const horasSemanales = calcHorasSemanales(ficha.horarioSemanal);
           return recalcFila({
             trabajadorId:      u.id,
             trabajadorNombre:  u.nombre,
@@ -169,6 +206,7 @@ function HrPlanillaSalarioFijo() {
             puesto:            ficha.puesto  || '',
             salarioMensual:    Number(ficha.salarioBase) || 0,
             salarioDiario:     Number(ficha.salarioBase) / 30 || 0,
+            horasSemanales:    horasSemanales || JORNADA_HORAS_DEFAULT,
             fechaIngreso:      fi,
             periodoParcial:    parcial,
             efectivoDesde:     efectivoDesde,
@@ -339,6 +377,7 @@ function HrPlanillaSalarioFijo() {
       const efectivoDesde = f.fechaIngreso && f.fechaIngreso > inicio ? f.fechaIngreso : inicio;
       return recalcFila({
         ...f,
+        horasSemanales: f.horasSemanales || JORNADA_HORAS_DEFAULT,
         deduccionesExtra: f.deduccionesExtra || [],
         dias: generarDias(inicio, fin, allPermisos, f.trabajadorId, efectivoDesde),
       });
@@ -527,6 +566,9 @@ function HrPlanillaSalarioFijo() {
             />
             <span className="planilla-det-diario-hint">
               Base mensual: {fmt(filaDetalle.salarioMensual)} ÷ 30 = {fmt(filaDetalle.salarioMensual / 30)}
+              {filaDetalle.horasSemanales
+                ? ` · Valor/hora: ${fmt((filaDetalle.salarioMensual * 12) / 52 / filaDetalle.horasSemanales)} (${filaDetalle.horasSemanales}h/sem)`
+                : ` · Valor/hora calculado con ${JORNADA_HORAS_DEFAULT}h/sem (horario no configurado)`}
             </span>
           </div>
 
@@ -541,26 +583,42 @@ function HrPlanillaSalarioFijo() {
                 </tr>
               </thead>
               <tbody>
-                {filaDetalle.dias.map((d, idx) => (
-                  <tr key={idx} className={d.ausente ? 'planilla-det-row--ausente' : ''}>
-                    <td style={{ textAlign: 'left' }}>{fmtShort(d.fecha)}</td>
-                    <td>
-                      {d.ausente
-                        ? <span className="planilla-det-ausente">Ausente con permiso</span>
-                        : fmt(filaDetalle.salarioDiario ?? (filaDetalle.salarioMensual / 30))
-                      }
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0"
-                        value={d.salarioExtra || ''}
-                        placeholder="—"
-                        className="planilla-det-extra-input"
-                        onChange={e => handleExtraChange(detalleId, idx, e.target.value)}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {filaDetalle.dias.map((d, idx) => {
+                  const diario = filaDetalle.salarioDiario ?? (filaDetalle.salarioMensual / 30);
+                  const horasSemanales = Number(filaDetalle.horasSemanales) || JORNADA_HORAS_DEFAULT;
+                  const valorHora = (filaDetalle.salarioMensual * 12) / 52 / horasSemanales;
+                  const deduccionParcial = d.horasParciales > 0
+                    ? d.horasParciales * valorHora
+                    : 0;
+                  return (
+                    <tr key={idx} className={d.ausente ? 'planilla-det-row--ausente' : d.horasParciales > 0 ? 'planilla-det-row--parcial' : ''}>
+                      <td style={{ textAlign: 'left' }}>{fmtShort(d.fecha)}</td>
+                      <td>
+                        {d.ausente ? (
+                          <span className="planilla-det-ausente">Ausente (sin goce)</span>
+                        ) : d.horasParciales > 0 ? (
+                          <span className="planilla-det-parcial-cell">
+                            {fmt(diario - deduccionParcial)}
+                            <span className="planilla-det-parcial-tag">
+                              −{d.horasParciales}h sin goce ({fmt(deduccionParcial)})
+                            </span>
+                          </span>
+                        ) : (
+                          fmt(diario)
+                        )}
+                      </td>
+                      <td>
+                        <input
+                          type="number" min="0"
+                          value={d.salarioExtra || ''}
+                          placeholder="—"
+                          className="planilla-det-extra-input"
+                          onChange={e => handleExtraChange(detalleId, idx, e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import './HR.css';
-import { FiPlus, FiTrash2, FiCheck, FiX } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiCheck, FiX, FiClock } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -21,6 +21,14 @@ function calcDias(inicio, fin) {
   return Math.max(1, d);
 }
 
+function calcHoras(horaInicio, horaFin) {
+  if (!horaInicio || !horaFin) return 0;
+  const [h1, m1] = horaInicio.split(':').map(Number);
+  const [h2, m2] = horaFin.split(':').map(Number);
+  const mins = (h2 * 60 + m2) - (h1 * 60 + m1);
+  return Math.max(0, Math.round(mins / 60 * 10) / 10);
+}
+
 function HrPermisos() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -36,11 +44,14 @@ function HrPermisos() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
+  const [esParcial, setEsParcial] = useState(false);
   const [form, setForm] = useState({
     trabajadorId: '',
-    tipo: 'vacaciones',
+    tipo: 'permiso_con_goce',
     fechaInicio: now.toISOString().split('T')[0],
     fechaFin:    now.toISOString().split('T')[0],
+    horaInicio:  '08:00',
+    horaFin:     '12:00',
     motivo: '',
   });
 
@@ -55,7 +66,8 @@ function HrPermisos() {
   }, []);
 
   const tipoInfo = TIPOS.find(t => t.value === form.tipo);
-  const dias = calcDias(form.fechaInicio, form.fechaFin);
+  const dias  = calcDias(form.fechaInicio, form.fechaFin);
+  const horas = calcHoras(form.horaInicio, form.horaFin);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -64,18 +76,26 @@ function HrPermisos() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (esParcial && horas <= 0) {
+      showToast('La hora de fin debe ser posterior a la hora de inicio.', 'error');
+      return;
+    }
     const worker = users.find(u => u.id === form.trabajadorId);
     const conGoce = TIPOS.find(t => t.value === form.tipo)?.conGoce ?? true;
+    const payload = {
+      ...form,
+      conGoce,
+      trabajadorNombre: worker?.nombre || '',
+      esParcial,
+      ...(esParcial
+        ? { dias: 0, horas, fechaFin: form.fechaInicio }
+        : { dias, horas: 0, horaInicio: null, horaFin: null }),
+    };
     try {
       const res = await apiFetch('/api/hr/permisos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          dias,
-          conGoce,
-          trabajadorNombre: worker?.nombre || '',
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
       fetchPermisos();
@@ -136,6 +156,25 @@ function HrPermisos() {
       <div className="form-card">
         <h2>Registrar Permiso o Ausencia</h2>
         <form onSubmit={handleSubmit} className="lote-form">
+
+          {/* Toggle permiso parcial */}
+          <div className="hr-parcial-toggle">
+            <label className="hr-toggle-label">
+              <div
+                className={`hr-toggle-switch ${esParcial ? 'hr-toggle-switch--on' : ''}`}
+                onClick={() => setEsParcial(v => !v)}
+                role="switch"
+                aria-checked={esParcial}
+                tabIndex={0}
+                onKeyDown={e => e.key === ' ' && setEsParcial(v => !v)}
+              >
+                <span className="hr-toggle-knob" />
+              </div>
+              <FiClock size={14} />
+              Permiso por horas (parcial)
+            </label>
+          </div>
+
           <div className="form-grid">
             <div className="form-control">
               <label>Trabajador</label>
@@ -151,13 +190,28 @@ function HrPermisos() {
               </select>
             </div>
             <div className="form-control">
-              <label>Fecha inicio</label>
+              <label>{esParcial ? 'Fecha' : 'Fecha inicio'}</label>
               <input type="date" name="fechaInicio" value={form.fechaInicio} onChange={handleChange} required />
             </div>
-            <div className="form-control">
-              <label>Fecha fin</label>
-              <input type="date" name="fechaFin" value={form.fechaFin} onChange={handleChange} required />
-            </div>
+
+            {esParcial ? (
+              <>
+                <div className="form-control">
+                  <label>Hora inicio</label>
+                  <input type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange} required />
+                </div>
+                <div className="form-control">
+                  <label>Hora fin</label>
+                  <input type="time" name="horaFin" value={form.horaFin} onChange={handleChange} required />
+                </div>
+              </>
+            ) : (
+              <div className="form-control">
+                <label>Fecha fin</label>
+                <input type="date" name="fechaFin" value={form.fechaFin} onChange={handleChange} required />
+              </div>
+            )}
+
             <div className="form-control">
               <label>Motivo (opcional)</label>
               <input
@@ -168,7 +222,14 @@ function HrPermisos() {
           </div>
 
           <div className="hr-permiso-preview">
-            <span><strong>{dias}</strong> {dias === 1 ? 'día' : 'días'}</span>
+            {esParcial ? (
+              <span>
+                <FiClock size={13} style={{ marginRight: 4 }} />
+                <strong>{horas}</strong> {horas === 1 ? 'hora' : 'horas'}
+              </span>
+            ) : (
+              <span><strong>{dias}</strong> {dias === 1 ? 'día' : 'días'}</span>
+            )}
             <span className={`status-badge status-badge--${tipoInfo?.conGoce ? 'aprobado' : 'rechazado'}`}>
               {tipoInfo?.conGoce ? 'Con goce de salario' : 'Sin goce de salario'}
             </span>
@@ -226,20 +287,31 @@ function HrPermisos() {
           {visibles.map(p => {
             const tipoLabel = TIPOS.find(t => t.value === p.tipo)?.label || p.tipo;
             const conGoce   = p.conGoce !== false;
-            const inicio = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-            const fin    = new Date(p.fechaFin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+            const fecha = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+            const duracion = p.esParcial
+              ? `${p.horaInicio} – ${p.horaFin} (${p.horas} ${p.horas === 1 ? 'hora' : 'horas'})`
+              : (() => {
+                  const inicio = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                  const fin    = new Date(p.fechaFin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+                  return `${inicio} → ${fin} (${p.dias} ${p.dias === 1 ? 'día' : 'días'})`;
+                })();
             return (
               <li key={p.id}>
                 <div>
                   <div className="item-main-text">
                     {p.trabajadorNombre}
+                    {p.esParcial && (
+                      <span className="status-badge hr-badge-parcial">
+                        <FiClock size={10} style={{ marginRight: 3 }} />parcial
+                      </span>
+                    )}
                     <span className={`status-badge status-badge--${p.estado}`}>{p.estado}</span>
                     <span className={`status-badge status-badge--${conGoce ? 'aprobado' : 'rechazado'}`}>
                       {conGoce ? 'con goce' : 'sin goce'}
                     </span>
                   </div>
                   <div className="item-sub-text">
-                    {tipoLabel} · {inicio} → {fin} ({p.dias} {p.dias === 1 ? 'día' : 'días'})
+                    {tipoLabel} · {p.esParcial ? fecha + ' · ' : ''}{duracion}
                     {p.motivo && ` · ${p.motivo}`}
                   </div>
                 </div>
