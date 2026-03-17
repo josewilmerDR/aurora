@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import './ProductManagement.css';
-import { FiTrash2, FiClipboard, FiColumns, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiColumns, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
@@ -55,6 +55,7 @@ function ProductManagement() {
   const [saving, setSaving] = useState(false);
   const [visibleCols, setVisibleCols] = useState(loadVisibleCols);
   const [colPicker, setColPicker] = useState(null); // { x, y } | null
+  const [showInactivos, setShowInactivos] = useState(false);
   const colPickerRef = useRef(null);
   const colBtnRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -222,18 +223,23 @@ function ProductManagement() {
     );
   };
 
-  const filteredProductos = useMemo(() => {
-    return productos.filter(p => {
-      const q = searchQuery.toLowerCase();
-      const matchSearch = !q ||
-        p.nombreComercial?.toLowerCase().includes(q) ||
-        p.idProducto?.toLowerCase().includes(q) ||
-        p.ingredienteActivo?.toLowerCase().includes(q) ||
-        p.proveedor?.toLowerCase().includes(q);
-      const matchTipo = !filterTipo || p.tipo === filterTipo;
-      return matchSearch && matchTipo;
-    });
+  const { filteredActivos, filteredInactivos } = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    const matchSearch = (p) => !q ||
+      p.nombreComercial?.toLowerCase().includes(q) ||
+      p.idProducto?.toLowerCase().includes(q) ||
+      p.ingredienteActivo?.toLowerCase().includes(q) ||
+      p.proveedor?.toLowerCase().includes(q);
+    const matchTipo = (p) => !filterTipo || p.tipo === filterTipo;
+    const activos = productos.filter(p => p.activo !== false && matchSearch(p) && matchTipo(p));
+    const inactivos = productos.filter(p => p.activo === false && matchSearch(p) && matchTipo(p));
+    return { filteredActivos: activos, filteredInactivos: inactivos };
   }, [productos, searchQuery, filterTipo]);
+
+  // Auto-expandir inactivos cuando la búsqueda tiene coincidencias ahí
+  useEffect(() => {
+    if (filteredInactivos.length > 0 && searchQuery) setShowInactivos(true);
+  }, [filteredInactivos.length, searchQuery]);
 
   const isDirtyRow = (p) => !!edits[p.id] && Object.entries(edits[p.id]).some(
     ([field, val]) => String(val) !== String(p[field] ?? '')
@@ -361,31 +367,18 @@ function ProductManagement() {
               </tr>
             </thead>
             <tbody>
-              {filteredProductos.map(p => (
-                <tr key={p.id} className={[
-                  isDirtyRow(p) ? 'pg-row-dirty' : '',
-                  p.activo === false ? 'pg-row-inactive' : '',
-                ].filter(Boolean).join(' ')}>
+              {filteredActivos.map(p => (
+                <tr key={p.id} className={isDirtyRow(p) ? 'pg-row-dirty' : ''}>
                   {visibleColumns.map(col => renderCell(p, col.key))}
                   <td className="pg-del-cell">
                     <div className="pg-row-actions">
-                      {p.activo !== false ? (
-                        <button
-                          className={`ingreso-row-del pg-inactivar-btn${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                          onClick={() => handleInactivar(p)}
-                          title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Inactivar producto'}
-                        >
-                          <FiToggleLeft size={15} />
-                        </button>
-                      ) : (
-                        <button
-                          className="ingreso-row-del pg-activar-btn"
-                          onClick={() => handleActivar(p)}
-                          title="Reactivar producto"
-                        >
-                          <FiToggleRight size={15} />
-                        </button>
-                      )}
+                      <button
+                        className={`ingreso-row-del pg-inactivar-btn${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
+                        onClick={() => handleInactivar(p)}
+                        title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Inactivar producto'}
+                      >
+                        <FiToggleLeft size={15} />
+                      </button>
                       <button
                         className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
                         onClick={() => handleDelete(p)}
@@ -399,12 +392,73 @@ function ProductManagement() {
               ))}
             </tbody>
           </table>
-          {filteredProductos.length === 0 && (
+          {filteredActivos.length === 0 && (
             <p className="empty-state" style={{ padding: '20px' }}>
-              {productos.length === 0 ? 'No hay productos registrados.' : 'Sin resultados para la búsqueda actual.'}
+              {productos.filter(p => p.activo !== false).length === 0
+                ? 'No hay productos activos registrados.'
+                : 'Sin resultados para la búsqueda actual.'}
             </p>
           )}
         </div>
+
+        {/* Sección colapsable de productos inactivos */}
+        {(filteredInactivos.length > 0 || productos.some(p => p.activo === false)) && (
+          <div className="pg-inactivos-section">
+            <button
+              className="pg-inactivos-toggle"
+              onClick={() => setShowInactivos(v => !v)}
+            >
+              <span className="pg-inactivos-toggle-label">
+                Productos inactivos
+                <span className="pg-inactivos-count">{filteredInactivos.length}</span>
+              </span>
+              {showInactivos ? <FiChevronUp size={15} /> : <FiChevronDown size={15} />}
+            </button>
+
+            {showInactivos && (
+              <div className="product-grid-wrap">
+                <table className="product-grid-table">
+                  <thead>
+                    <tr>
+                      {visibleColumns.map(col => (
+                        <th key={col.key} className={col.thClass}>{col.label}</th>
+                      ))}
+                      <th className="pg-col-del"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredInactivos.map(p => (
+                      <tr key={p.id} className={['pg-row-inactive', isDirtyRow(p) ? 'pg-row-dirty' : ''].filter(Boolean).join(' ')}>
+                        {visibleColumns.map(col => renderCell(p, col.key))}
+                        <td className="pg-del-cell">
+                          <div className="pg-row-actions">
+                            <button
+                              className="ingreso-row-del pg-activar-btn"
+                              onClick={() => handleActivar(p)}
+                              title="Reactivar producto"
+                            >
+                              <FiToggleRight size={15} />
+                            </button>
+                            <button
+                              className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
+                              onClick={() => handleDelete(p)}
+                              title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {filteredInactivos.length === 0 && (
+                  <p className="empty-state" style={{ padding: '20px' }}>Sin resultados para la búsqueda actual.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Selector de columnas */}

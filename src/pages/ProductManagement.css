@@ -808,6 +808,13 @@
 
 .pg-input-num {
   text-align: right;
+  -moz-appearance: textfield;
+}
+
+.pg-input-num::-webkit-inner-spin-button,
+.pg-input-num::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 select.pg-input {
@@ -1475,6 +1482,13 @@ select.pg-input option {
   font-family: inherit;
   text-align: center;
   transition: border-color 0.15s, background-color 0.15s;
+  -moz-appearance: textfield;
+}
+
+.toma-stock-input::-webkit-inner-spin-button,
+.toma-stock-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .toma-stock-input:focus {
@@ -1851,4 +1865,46 @@ select.pg-input option {
   color: var(--aurora-light);
   opacity: 0.4;
   margin: 0;
+}
+
+/* Sección colapsable de productos inactivos */
+.pg-inactivos-section {
+  margin-top: 24px;
+  border-top: 1px solid var(--aurora-border);
+  padding-top: 4px;
+}
+
+.pg-inactivos-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 4px;
+  cursor: pointer;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: opacity 0.2s;
+}
+
+.pg-inactivos-toggle:hover {
+  opacity: 0.85;
+}
+
+.pg-inactivos-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pg-inactivos-count {
+  background-color: rgba(230, 242, 255, 0.1);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
 }
