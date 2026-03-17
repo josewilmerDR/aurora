@@ -135,6 +135,60 @@
   opacity: 0.7;
 }
 
+/* ── Toggle permiso parcial ─────────────────────────────────────────────── */
+.hr-parcial-toggle {
+  margin-bottom: 12px;
+}
+
+.hr-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+  user-select: none;
+}
+
+.hr-toggle-switch {
+  width: 36px;
+  height: 20px;
+  background: var(--aurora-border);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.hr-toggle-switch--on {
+  background: var(--aurora-green);
+}
+
+.hr-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left 0.2s;
+}
+
+.hr-toggle-switch--on .hr-toggle-knob {
+  left: 19px;
+}
+
+/* Badge "parcial" en la lista */
+.hr-badge-parcial {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ── Planilla hub cards ───────────────────────────────────────────────────── */
 .planilla-hub-grid {
   display: grid;
@@ -568,10 +622,25 @@
 .planilla-det-row--ausente td { background: rgba(255,80,80,0.04); }
 .planilla-det-row--ausente td:first-child { opacity: 1; }
 
+.planilla-det-row--parcial td { background: rgba(255,193,7,0.04); }
+
 .planilla-det-ausente {
   font-style: italic;
   font-size: 0.8rem;
   color: #ff8080;
+}
+
+.planilla-det-parcial-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.planilla-det-parcial-tag {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: #ffc107;
+  opacity: 0.85;
 }
 
 .planilla-det-extra-input {
@@ -693,6 +762,143 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* ── Horario semanal ─────────────────────────────────────────────────────── */
+.horario-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.horario-grid-header {
+  display: grid;
+  grid-template-columns: 110px 60px 1fr 1fr 60px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.04);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}
+
+.horario-row {
+  display: grid;
+  grid-template-columns: 110px 60px 1fr 1fr 60px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  border-top: 1px solid var(--aurora-border);
+  transition: background 0.15s;
+}
+
+.horario-row--inactivo {
+  opacity: 0.4;
+}
+
+.horario-dia-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--aurora-light);
+}
+
+/* Toggle switch reutilizado del toggle de parcial */
+.horario-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.horario-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.horario-toggle-track {
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  background: var(--aurora-border);
+  border-radius: 9px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.horario-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left 0.2s;
+}
+
+.horario-toggle input:checked + .horario-toggle-track {
+  background: var(--aurora-green);
+}
+
+.horario-toggle input:checked + .horario-toggle-track::after {
+  left: 17px;
+}
+
+.horario-time-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 5px 8px;
+  font-size: 0.83rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.horario-time-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.horario-time-input:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.horario-horas-dia {
+  font-size: 0.82rem;
+  color: var(--aurora-green);
+  text-align: center;
+  font-weight: 500;
+}
+
+.horario-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid var(--aurora-border);
+  background: rgba(51, 255, 153, 0.04);
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+}
+
+.horario-total-row strong {
+  color: var(--aurora-green);
+  font-size: 0.9rem;
 }
 
 /* ── Right panel: employee list ──────────────────────────────────────────── */

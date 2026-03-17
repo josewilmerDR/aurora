@@ -4,11 +4,37 @@ import { FiSave, FiUserPlus, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
+const DIAS_SEMANA = [
+  { key: 'lunes',     label: 'Lunes'      },
+  { key: 'martes',    label: 'Martes'     },
+  { key: 'miercoles', label: 'Miércoles'  },
+  { key: 'jueves',    label: 'Jueves'     },
+  { key: 'viernes',   label: 'Viernes'    },
+  { key: 'sabado',    label: 'Sábado'     },
+  { key: 'domingo',   label: 'Domingo'    },
+];
+
+const EMPTY_HORARIO = Object.fromEntries(
+  DIAS_SEMANA.map(d => [d.key, { activo: false, inicio: '', fin: '' }])
+);
+
 const EMPTY_FICHA = {
   puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'permanente',
   salarioBase: '', cedula: '', direccion: '', contactoEmergencia: '', telefonoEmergencia: '',
   notas: '',
+  horarioSemanal: EMPTY_HORARIO,
 };
+
+function calcHorasSemanales(horario = {}) {
+  return DIAS_SEMANA.reduce((sum, { key }) => {
+    const dia = horario[key];
+    if (!dia?.activo || !dia.inicio || !dia.fin) return sum;
+    const [h1, m1] = dia.inicio.split(':').map(Number);
+    const [h2, m2] = dia.fin.split(':').map(Number);
+    const mins = (h2 * 60 + m2) - (h1 * 60 + m1);
+    return sum + Math.max(0, mins / 60);
+  }, 0);
+}
 
 const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'trabajador' };
 
@@ -44,7 +70,11 @@ function HrFicha() {
     setMode('edit');
     try {
       const data = await apiFetch(`/api/hr/fichas/${user.id}`).then(r => r.json());
-      setFichaForm({ ...EMPTY_FICHA, ...data });
+      setFichaForm({
+        ...EMPTY_FICHA,
+        ...data,
+        horarioSemanal: { ...EMPTY_HORARIO, ...(data.horarioSemanal || {}) },
+      });
     } catch { /* sin ficha aún */ }
   };
 
@@ -70,6 +100,16 @@ function HrFicha() {
   const handleFichaChange = (e) => {
     const { name, value } = e.target;
     setFichaForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleHorarioChange = (diaKey, field, value) => {
+    setFichaForm(prev => ({
+      ...prev,
+      horarioSemanal: {
+        ...prev.horarioSemanal,
+        [diaKey]: { ...prev.horarioSemanal[diaKey], [field]: value },
+      },
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -207,6 +247,64 @@ function HrFicha() {
               <div className="form-control">
                 <label>Cédula / Identificación</label>
                 <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
+              </div>
+            </div>
+
+            <p className="form-section-title">Horario Semanal</p>
+            <div className="horario-grid">
+              <div className="horario-grid-header">
+                <span>Día</span>
+                <span>Labora</span>
+                <span>Entrada</span>
+                <span>Salida</span>
+                <span>Horas</span>
+              </div>
+              {DIAS_SEMANA.map(({ key, label }) => {
+                const dia = fichaForm.horarioSemanal?.[key] || { activo: false, inicio: '', fin: '' };
+                const [h1, m1] = (dia.inicio || '').split(':').map(Number);
+                const [h2, m2] = (dia.fin    || '').split(':').map(Number);
+                const horasDia = dia.activo && dia.inicio && dia.fin
+                  ? Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60)
+                  : 0;
+                return (
+                  <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}`}>
+                    <span className="horario-dia-label">{label}</span>
+                    <label className="horario-toggle">
+                      <input
+                        type="checkbox"
+                        checked={dia.activo}
+                        onChange={e => handleHorarioChange(key, 'activo', e.target.checked)}
+                      />
+                      <span className="horario-toggle-track" />
+                    </label>
+                    <input
+                      type="time"
+                      value={dia.inicio}
+                      disabled={!dia.activo}
+                      onChange={e => handleHorarioChange(key, 'inicio', e.target.value)}
+                      className="horario-time-input"
+                    />
+                    <input
+                      type="time"
+                      value={dia.fin}
+                      disabled={!dia.activo}
+                      onChange={e => handleHorarioChange(key, 'fin', e.target.value)}
+                      className="horario-time-input"
+                    />
+                    <span className="horario-horas-dia">
+                      {dia.activo && horasDia > 0 ? `${horasDia % 1 === 0 ? horasDia : horasDia.toFixed(1)}h` : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="horario-total-row">
+                <span>Total semanal</span>
+                <strong>
+                  {(() => {
+                    const t = calcHorasSemanales(fichaForm.horarioSemanal);
+                    return t > 0 ? `${t % 1 === 0 ? t : t.toFixed(1)} horas/semana` : '—';
+                  })()}
+                </strong>
               </div>
             </div>
 

@@ -2329,13 +2329,19 @@ app.get('/api/hr/permisos', authenticate, async (req, res) => {
 
 app.post('/api/hr/permisos', authenticate, async (req, res) => {
   try {
-    const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo, conGoce } = req.body;
-    if (!trabajadorId || !tipo || !fechaInicio || !fechaFin) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo, conGoce,
+            esParcial, horaInicio, horaFin, horas } = req.body;
+    if (!trabajadorId || !tipo || !fechaInicio) return res.status(400).json({ message: 'Faltan campos requeridos.' });
     const ref = await db.collection('hr_permisos').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
       fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
-      fechaFin: Timestamp.fromDate(new Date(fechaFin)),
-      dias: Number(dias) || 1, motivo: motivo || '',
+      fechaFin: Timestamp.fromDate(new Date(fechaFin || fechaInicio)),
+      dias: Number(dias) || 0,
+      esParcial: esParcial === true,
+      horaInicio: esParcial ? (horaInicio || null) : null,
+      horaFin:    esParcial ? (horaFin    || null) : null,
+      horas:      esParcial ? (Number(horas) || 0)  : 0,
+      motivo: motivo || '',
       conGoce: conGoce !== false,
       estado: 'pendiente', fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
@@ -3552,6 +3558,103 @@ async function chatToolRegistrarHorimetro(input, fincaId) {
   return { id: ref.id, registrado: true, horas };
 }
 
+// Tool: registrar permiso o ausencia de RR.HH.
+async function chatToolRegistrarPermiso(input, fincaId) {
+  const { trabajadorId, trabajadorNombre, tipo, conGoce, fechaInicio, esParcial,
+          horaInicio, horaFin: horaFinInput, fechaFin, motivo } = input;
+
+  if (!trabajadorId || !tipo || !fechaInicio) {
+    return { error: 'trabajadorId, tipo y fechaInicio son obligatorios.' };
+  }
+
+  const TIPOS_VALIDOS = ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'];
+  if (!TIPOS_VALIDOS.includes(tipo)) {
+    return { error: `Tipo "${tipo}" no válido. Usa: ${TIPOS_VALIDOS.join(', ')}` };
+  }
+
+  // Verify trabajador belongs to finca
+  const userDoc = await db.collection('users').doc(trabajadorId).get();
+  if (!userDoc.exists || userDoc.data().fincaId !== fincaId) {
+    return { error: 'Trabajador no encontrado en esta finca.' };
+  }
+
+  let horaFin = horaFinInput || null;
+  let horas = 0;
+
+  if (esParcial) {
+    if (!horaInicio) return { error: 'horaInicio es obligatoria para permisos parciales.' };
+
+    // Si no se proporcionó horaFin, buscar en el horario semanal del trabajador
+    if (!horaFin) {
+      try {
+        const fichaDoc = await db.collection('hr_fichas').doc(trabajadorId).get();
+        if (fichaDoc.exists) {
+          const horario = fichaDoc.data().horarioSemanal || {};
+          const JS_DAY_TO_KEY = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+          const dayKey = JS_DAY_TO_KEY[new Date(fechaInicio + 'T12:00:00').getDay()];
+          const diaHorario = horario[dayKey];
+          if (diaHorario?.activo && diaHorario.fin) {
+            horaFin = diaHorario.fin;
+          }
+        }
+      } catch { /* ignorar */ }
+    }
+
+    if (horaInicio && horaFin) {
+      const [h1, m1] = horaInicio.split(':').map(Number);
+      const [h2, m2] = horaFin.split(':').map(Number);
+      const mins = (h2 * 60 + m2) - (h1 * 60 + m1);
+      horas = Math.max(0, Math.round(mins / 60 * 10) / 10);
+    }
+  }
+
+  const fechaFinReal = esParcial ? fechaInicio : (fechaFin || fechaInicio);
+  let dias = 0;
+  if (!esParcial) {
+    const d = Math.round((new Date(fechaFinReal) - new Date(fechaInicio)) / 86400000) + 1;
+    dias = Math.max(1, d);
+  }
+
+  const ref = await db.collection('hr_permisos').add({
+    trabajadorId,
+    trabajadorNombre: trabajadorNombre || userDoc.data().nombre || '',
+    tipo,
+    fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
+    fechaFin: Timestamp.fromDate(new Date(fechaFinReal)),
+    dias,
+    esParcial: esParcial === true,
+    horaInicio: esParcial ? (horaInicio || null) : null,
+    horaFin:    esParcial ? (horaFin    || null) : null,
+    horas:      esParcial ? horas : 0,
+    motivo: motivo || '',
+    conGoce: conGoce !== false,
+    estado: 'pendiente',
+    fincaId,
+    createdAt: Timestamp.now(),
+  });
+
+  const tipoLabels = {
+    vacaciones: 'Vacaciones', enfermedad: 'Enfermedad',
+    permiso_con_goce: 'Permiso con goce', permiso_sin_goce: 'Permiso sin goce', licencia: 'Licencia',
+  };
+  return {
+    id: ref.id,
+    registrado: true,
+    resumen: {
+      trabajador: trabajadorNombre || userDoc.data().nombre,
+      tipo: tipoLabels[tipo] || tipo,
+      conGoce: conGoce !== false,
+      fecha: fechaInicio,
+      esParcial: esParcial === true,
+      horaInicio: esParcial ? horaInicio : null,
+      horaFin:    esParcial ? horaFin : null,
+      horas:      esParcial ? horas : null,
+      dias:       !esParcial ? dias : null,
+      fechaFin:   (!esParcial && fechaFinReal !== fechaInicio) ? fechaFinReal : null,
+    },
+  };
+}
+
 app.post('/api/chat', authenticate, async (req, res) => {
   try {
     const { message, imageBase64, mediaType, userId, userName, history } = req.body;
@@ -3788,6 +3891,19 @@ Un grupo se forma seleccionando bloques específicos de siembra (identificados p
 - Cuando necesites más detalle (hectáreas, plantas, estado), usa consultar_datos sobre "grupos" y filtra por ID del grupo de interés.
 - Puedes explicar al usuario que un grupo es una agrupación de bloques de distintos lotes, creada para aplicarles las mismas labores o agroquímicos de forma uniforme.
 
+Cuando el usuario pida registrar un permiso, ausencia o vacaciones (ej: "registra un permiso para Juan hoy a partir de las 12 medio día", "vacaciones para Ana del 10 al 15 de abril", "Olger tiene permiso mañana por el día completo"):
+1. Identifica al trabajador en el catálogo de operarios/usuarios (coincidencia aproximada). Resuelve al trabajadorId correcto.
+2. Determina el tipo: vacaciones, enfermedad, permiso_con_goce, permiso_sin_goce, licencia. Si no está claro, usa "permiso_con_goce" como tipo neutro pero menciona cuál escogiste.
+3. Determina si es parcial (por horas) o días completos:
+   - Parcial: si se menciona una hora de inicio y/o fin (ej: "a partir de las 12", "de 8am a 12pm", "desde las 2 de la tarde").
+   - Días completos: si se mencionan días sin horas específicas.
+4. Convierte fechas: "hoy" → ${today}. Para fechas relativas (mañana, el viernes, etc.) calcula la fecha YYYY-MM-DD correcta.
+5. Convierte horas a formato 24h HH:MM: "12 medio día" → "12:00", "5pm" → "17:00", "8am" → "08:00", "2 de la tarde" → "14:00".
+6. Para permisos parciales: incluye horaInicio. Si el usuario solo dio la hora de inicio sin indicar la de fin, NO incluyas horaFin — el sistema la resolverá automáticamente del horario registrado del trabajador para ese día.
+7. Para días completos: incluye fechaFin si hay un rango; si es un solo día, solo fechaInicio.
+8. Si el usuario NO especificó si es con goce o sin goce de salario, DEBES preguntar antes de registrar. No asumas.
+9. Llama a "registrar_permiso" con todos los datos confirmados.
+
 Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
     const tools = [
@@ -3981,6 +4097,30 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           required: ['filas'],
         },
       },
+      {
+      name: 'registrar_permiso',
+      description: 'Registra un permiso, ausencia o vacaciones para un trabajador. Puede ser parcial (por horas) o de días completos. Si no se especifica horaFin para un permiso parcial, el sistema la tomará automáticamente del horario semanal del trabajador.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          trabajadorId:     { type: 'string', description: 'ID Firestore del trabajador.' },
+          trabajadorNombre: { type: 'string', description: 'Nombre completo del trabajador.' },
+          tipo: {
+            type: 'string',
+            enum: ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'],
+            description: 'Tipo de permiso.',
+          },
+          conGoce:    { type: 'boolean', description: 'true = con goce de salario, false = sin goce de salario.' },
+          fechaInicio: { type: 'string', description: 'Fecha del permiso en formato YYYY-MM-DD.' },
+          esParcial:  { type: 'boolean', description: 'true si el permiso es por horas (parcial), false si es de día(s) completo(s).' },
+          horaInicio: { type: 'string', description: 'Hora de inicio HH:MM (24h). Solo para permisos parciales.' },
+          horaFin:    { type: 'string', description: 'Hora de fin HH:MM (24h). Solo para permisos parciales. Si se omite, se tomará del horario del trabajador.' },
+          fechaFin:   { type: 'string', description: 'Fecha de fin YYYY-MM-DD. Solo para permisos de días completos con rango. Si se omite, se usa fechaInicio.' },
+          motivo:     { type: 'string', description: 'Motivo o descripción breve del permiso (opcional).' },
+        },
+        required: ['trabajadorId', 'trabajadorNombre', 'tipo', 'conGoce', 'fechaInicio', 'esParcial'],
+      },
+    },
     ];
 
     // Construir historial de conversación
@@ -4115,6 +4255,8 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             const filas = Array.isArray(block.input.filas) ? block.input.filas : [block.input];
             horimetroDraft = filas.map(row => Object.fromEntries(Object.entries(row).filter(([k]) => allowed.includes(k))));
             result = { preview: true, filas: horimetroDraft.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
+          } else if (block.name === 'registrar_permiso') {
+            result = await chatToolRegistrarPermiso(block.input, req.fincaId);
           } else {
             result = { error: `Herramienta desconocida: ${block.name}` };
           }
