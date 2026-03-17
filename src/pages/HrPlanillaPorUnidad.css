@@ -1,0 +1,479 @@
+/* ── Layout de página (formulario 3/4 + historial 1/4) ──────────────────────── */
+.pu-page-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pu-main-col {
+  flex: 3;
+  min-width: 0;
+}
+
+.pu-history-col {
+  flex: 1;
+  min-width: 220px;
+  max-width: 280px;
+  position: sticky;
+  top: 16px;
+}
+
+/* ── Panel de historial ──────────────────────────────────────────────────────── */
+.pu-history-card {
+  padding: 14px !important;
+}
+
+.pu-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pu-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pu-history-item {
+  border: 1px solid var(--aurora-border);
+  border-radius: 7px;
+  padding: 9px 11px;
+  background: var(--aurora-dark-blue);
+  cursor: default;
+}
+
+.pu-history-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.pu-history-consec {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+}
+
+.pu-history-encargado {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pu-history-meta {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  margin-top: 3px;
+}
+
+.pu-history-total {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  margin-top: 4px;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .pu-page-layout {
+    flex-direction: column;
+  }
+  .pu-history-col {
+    max-width: 100%;
+    width: 100%;
+    position: static;
+  }
+}
+
+/* ── Toolbar sobre la tabla ─────────────────────────────────────────────────── */
+.pu-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  gap: 5px;
+}
+
+/* ── Aviso ───────────────────────────────────────────────────────────────────── */
+.pu-warning {
+  background: rgba(255, 180, 0, 0.1);
+  border: 1px solid rgba(255, 180, 0, 0.35);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  color: #ffcc44;
+  margin-bottom: 12px;
+}
+
+/* ── Tabla ───────────────────────────────────────────────────────────────────── */
+.unidad-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--aurora-border);
+}
+
+.unidad-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.83rem;
+  color: var(--aurora-light);
+}
+
+.unidad-table td {
+  border: 1px solid var(--aurora-border);
+  padding: 0;
+  vertical-align: middle;
+}
+
+/* ── Columna de etiquetas (izquierda, sticky) ─────────────────────────────── */
+.ut-label-cell {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(230, 242, 255, 0.55);
+  text-align: right;
+  padding: 7px 12px;
+  white-space: nowrap;
+  background: #0d1a26;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+/* ── Filas de encabezado global (Fecha, Encargado) ───────────────────────── */
+.ut-row-header-field td {
+  background: #0d1a26 !important;
+}
+
+.ut-row-header-field--last td {
+  border-bottom: 2px solid var(--aurora-border);
+}
+
+.ut-ctrl--date {
+  max-width: 180px;
+}
+
+/* ── Encabezados de segmento (#1, #2 …) ──────────────────────────────────── */
+.ut-row-seg-title td {
+  background: #0d1a26;
+}
+
+.ut-seg-title-cell {
+  text-align: center !important;
+  padding: 6px 10px !important;
+}
+
+.ut-seg-title-cell > .ut-seg-num {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.12);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-right: 6px;
+}
+
+.ut-del-btn {
+  vertical-align: middle;
+}
+
+.ut-col-total-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-green);
+  text-align: center !important;
+  padding: 6px 10px !important;
+  background: #0d1a26;
+  white-space: nowrap;
+  position: sticky;
+  right: 0;
+  z-index: 2;
+}
+
+/* ── Filas de configuración de segmento ──────────────────────────────────── */
+.ut-row-config td {
+  background: #1a2a3a;
+}
+
+.ut-row-config--last td {
+  border-bottom: 2px solid var(--aurora-border);
+}
+
+.ut-config-cell {
+  padding: 5px 8px !important;
+}
+
+.ut-filler-cell {
+  background: #1a2a3a !important;
+  border-color: transparent !important;
+  padding: 0 !important;
+  width: 0;
+}
+
+/* Inputs y selects dentro de las filas de config */
+.ut-ctrl {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 0.82rem;
+  box-sizing: border-box;
+}
+
+.ut-ctrl:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+select.ut-ctrl {
+  cursor: pointer;
+}
+
+/* ── Encabezado de sección trabajadores ──────────────────────────────────── */
+.ut-row-workers-header td {
+  background: #0d1a26;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(230, 242, 255, 0.7);
+  padding: 7px 10px !important;
+  border-top: 2px solid var(--aurora-border);
+}
+
+.ut-workers-col-header {
+  text-align: center !important;
+}
+
+.ut-total-col-header {
+  text-align: center !important;
+  color: var(--aurora-green) !important;
+  opacity: 1 !important;
+  background: #0d1a26 !important;
+  position: sticky;
+  right: 0;
+  z-index: 2;
+}
+
+/* ── Filas de trabajadores ───────────────────────────────────────────────── */
+.ut-row-worker td {
+  background: #1a2a3a;
+}
+
+.ut-row-worker:hover td {
+  background: #1e3040;
+}
+
+.ut-worker-name {
+  padding: 6px 12px !important;
+  text-align: right !important;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #0d1a26 !important;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.ut-cant-cell {
+  text-align: center !important;
+  padding: 5px 8px !important;
+}
+
+.ut-cant-input {
+  width: 90px;
+  text-align: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--aurora-light);
+  padding: 4px 6px;
+  font-size: 0.83rem;
+  transition: border-color 0.15s;
+}
+
+.ut-cant-input:hover {
+  border-color: var(--aurora-border);
+}
+
+.ut-cant-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+  background: var(--aurora-dark-blue);
+}
+
+.ut-worker-total {
+  text-align: right !important;
+  padding: 6px 12px !important;
+  font-weight: 700;
+  color: var(--aurora-green);
+  white-space: nowrap;
+  background: #102a1a !important;
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+/* ── Fila de totales ─────────────────────────────────────────────────────── */
+.ut-row-totals td {
+  background: #0d1a26 !important;
+  border-top: 2px solid var(--aurora-border);
+  font-weight: 700;
+}
+
+.ut-total-cant {
+  text-align: center !important;
+  padding: 7px 10px !important;
+  font-size: 0.82rem;
+}
+
+.ut-grand-total {
+  font-size: 0.9rem !important;
+}
+
+/* ── Fila vacía ──────────────────────────────────────────────────────────── */
+.ut-empty-row {
+  text-align: center !important;
+  padding: 20px !important;
+  opacity: 0.55;
+  font-size: 0.85rem;
+}
+
+/* ── Utilidades ──────────────────────────────────────────────────────────── */
+.input-readonly {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Fill-all: aplicar cantidad a todos los trabajadores ─────────────────── */
+.ut-col-header-label {
+  margin-bottom: 5px;
+}
+
+.ut-fill-all {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+
+.ut-fill-input {
+  width: 72px;
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.78rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.ut-fill-input::placeholder {
+  color: rgba(230, 242, 255, 0.3);
+  font-size: 0.72rem;
+}
+
+.ut-fill-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.ut-fill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(51, 255, 153, 0.12);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  border-radius: 4px;
+  color: var(--aurora-green);
+  cursor: pointer;
+  padding: 4px 5px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.ut-fill-btn:hover {
+  background: rgba(51, 255, 153, 0.25);
+}
+
+/* ── Ocultar spinners en inputs numéricos de la tabla ────────────────────── */
+.unidad-table input[type=number]::-webkit-inner-spin-button,
+.unidad-table input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.unidad-table input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* ── Combobox de labores ─────────────────────────────────────────────────── */
+.labor-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #0d1a26;
+  border: 1px solid var(--aurora-green);
+  border-radius: 6px;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  z-index: 100;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.labor-dropdown-item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  white-space: nowrap;
+}
+
+.labor-dropdown-item:hover,
+.labor-dropdown-item--active {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+.labor-dropdown-code {
+  font-weight: 700;
+  color: var(--aurora-green);
+  flex-shrink: 0;
+}
+
+.labor-dropdown-item--active .labor-dropdown-code {
+  color: var(--aurora-green);
+}
