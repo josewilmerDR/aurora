@@ -445,15 +445,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
               </span>
             </div>
           )}
-          {!isCollapsed && (
-            <button
-              className="sidebar-logout-btn"
-              onClick={() => navigate('/mi-perfil')}
-              title="Mi perfil"
-            >
-              <FiUser size={16} />
-            </button>
-          )}
           {!isCollapsed && hasMinRole(userRole, 'administrador') && (
             <button
               className="sidebar-logout-btn"

@@ -3657,7 +3657,7 @@ async function chatToolRegistrarPermiso(input, fincaId) {
 
 app.post('/api/chat', authenticate, async (req, res) => {
   try {
-    const { message, imageBase64, mediaType, userId, userName, history } = req.body;
+    const { message, imageBase64, mediaType, userId, userName, history, clientTime, clientTzName } = req.body;
 
     if (!anthropicClient) {
       anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
@@ -3775,11 +3775,19 @@ app.post('/api/chat', authenticate, async (req, res) => {
         ).join('\n')
       : '  (sin productos registrados)';
 
-    const today = new Date().toISOString().slice(0, 10);
+    // Fecha y hora del cliente (con zona horaria local del usuario)
+    const userNow = clientTime ? new Date(clientTime) : new Date();
+    const tz = clientTzName || 'America/Costa_Rica';
+    const userDateTimeStr = userNow.toLocaleString('es-CR', {
+      timeZone: tz,
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const today = userNow.toLocaleDateString('sv', { timeZone: tz }); // "YYYY-MM-DD" en zona del usuario
 
     const systemPrompt = `Eres Aurora, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
 Ayudas a los trabajadores a registrar siembras, horímetros y consultar datos agrícolas.
-Hoy es ${today}. El usuario es ${userName || 'un trabajador de la finca'}.
+Fecha y hora actual del usuario: ${userDateTimeStr} (${tz}). El usuario es ${userName || 'un trabajador de la finca'}.
 
 ## Catálogo actual del sistema
 
@@ -3903,6 +3911,21 @@ Cuando el usuario pida registrar un permiso, ausencia o vacaciones (ej: "registr
 7. Para días completos: incluye fechaFin si hay un rango; si es un solo día, solo fechaInicio.
 8. Si el usuario NO especificó si es con goce o sin goce de salario, DEBES preguntar antes de registrar. No asumas.
 9. Llama a "registrar_permiso" con todos los datos confirmados.
+
+Cuando el usuario pida crear un recordatorio personal (ej: "recuérdame en dos semanas que debo revisar la fruta del lote 7", "avísame el viernes que llame al proveedor", "recuérdame mañana a las 3pm que..."):
+1. Extrae el mensaje del recordatorio (qué debe hacer el usuario).
+2. Calcula la fecha y hora exacta usando la fecha y hora actual del usuario indicada arriba (${userDateTimeStr}): "en 2 semanas" → suma 14 días desde hoy (${today}), "mañana" → ${today} + 1 día, "el viernes" → próximo viernes, "a las 3pm" → T15:00:00, "a las 3" → interpreta como 15:00 si es por la tarde según contexto. Si el usuario no especifica hora, usa las 07:00.
+3. Llama a "crear_recordatorio" con message (redactado claramente) y remindAt en formato ISO 8601 (YYYY-MM-DDTHH:MM:00).
+4. Confirma al usuario con la fecha y hora en formato legible: "Listo, te recuerdo el [día, DD de mes] a las [HH:MM]."
+
+Cuando el usuario pregunte por sus recordatorios (ej: "¿qué recordatorios tengo?", "muéstrame mis recordatorios", "¿tengo algo pendiente?"):
+1. Llama a "listar_recordatorios" y presenta la lista ordenada por fecha con el mensaje y la fecha/hora de cada uno.
+2. Si no hay recordatorios activos, indícalo amigablemente.
+
+Cuando el usuario quiera cancelar un recordatorio (ej: "cancela el recordatorio de la fruta", "borra mi recordatorio del viernes"):
+1. Llama primero a "listar_recordatorios" para ver los activos.
+2. Identifica cuál coincide con la descripción del usuario (coincidencia aproximada por mensaje o fecha).
+3. Llama a "eliminar_recordatorio" con el ID correcto y confirma la cancelación.
 
 Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
@@ -4121,6 +4144,34 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         required: ['trabajadorId', 'trabajadorNombre', 'tipo', 'conGoce', 'fechaInicio', 'esParcial'],
       },
     },
+      {
+        name: 'crear_recordatorio',
+        description: 'Crea un recordatorio personal y privado para el usuario actual. Solo él podrá verlo. Úsala cuando el usuario pida que se le recuerde algo en una fecha/hora futura.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            message: { type: 'string', description: 'Qué debe recordarle al usuario. Redáctalo como una nota clara, ej: "Revisar la fruta del lote 7".' },
+            remindAt: { type: 'string', description: 'Fecha y hora del recordatorio en formato ISO 8601 (YYYY-MM-DDTHH:MM:00). Si el usuario no especifica hora, usa T07:00:00.' },
+          },
+          required: ['message', 'remindAt'],
+        },
+      },
+      {
+        name: 'listar_recordatorios',
+        description: 'Lista todos los recordatorios pendientes del usuario actual. Úsala cuando el usuario pregunte por sus recordatorios.',
+        input_schema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'eliminar_recordatorio',
+        description: 'Elimina un recordatorio del usuario. Úsala cuando el usuario pida cancelar o borrar un recordatorio específico.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            reminderId: { type: 'string', description: 'ID del recordatorio a eliminar.' },
+          },
+          required: ['reminderId'],
+        },
+      },
     ];
 
     // Construir historial de conversación
@@ -4257,6 +4308,45 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             result = { preview: true, filas: horimetroDraft.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
           } else if (block.name === 'registrar_permiso') {
             result = await chatToolRegistrarPermiso(block.input, req.fincaId);
+          } else if (block.name === 'crear_recordatorio') {
+            const { message: rMsg, remindAt: rAt } = block.input;
+            if (!rMsg?.trim() || !rAt) {
+              result = { error: 'Se requieren message y remindAt.' };
+            } else {
+              const remindDate = new Date(rAt);
+              if (isNaN(remindDate.getTime())) {
+                result = { error: 'Fecha inválida.' };
+              } else {
+                const docRef = await db.collection('reminders').add({
+                  uid: req.uid,
+                  fincaId: req.fincaId,
+                  message: rMsg.trim(),
+                  remindAt: Timestamp.fromDate(remindDate),
+                  status: 'pending',
+                  createdAt: Timestamp.now(),
+                });
+                result = { ok: true, id: docRef.id, message: rMsg.trim(), remindAt: remindDate.toISOString() };
+              }
+            }
+          } else if (block.name === 'listar_recordatorios') {
+            const rSnap = await db.collection('reminders')
+              .where('uid', '==', req.uid)
+              .where('fincaId', '==', req.fincaId)
+              .where('status', '==', 'pending')
+              .get();
+            const rList = rSnap.docs
+              .map(d => ({ id: d.id, message: d.data().message, remindAt: d.data().remindAt?.toDate?.()?.toISOString() }))
+              .sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt));
+            result = { total: rList.length, recordatorios: rList };
+          } else if (block.name === 'eliminar_recordatorio') {
+            const { reminderId } = block.input;
+            const rDoc = await db.collection('reminders').doc(reminderId).get();
+            if (!rDoc.exists || rDoc.data().uid !== req.uid) {
+              result = { error: 'Recordatorio no encontrado o sin permiso.' };
+            } else {
+              await db.collection('reminders').doc(reminderId).delete();
+              result = { ok: true };
+            }
           } else {
             result = { error: `Herramienta desconocida: ${block.name}` };
           }
@@ -4279,6 +4369,87 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
   } catch (error) {
     console.error('Error en /api/chat:', error);
     res.status(500).json({ reply: 'Error interno del servidor.' });
+  }
+});
+
+// --- API ENDPOINTS: RECORDATORIOS PERSONALES ---
+
+// GET /api/reminders/due — recordatorios vencidos (remindAt <= ahora), los marca como entregados
+app.get('/api/reminders/due', authenticate, async (req, res) => {
+  try {
+    const now = Timestamp.now();
+    const snap = await db.collection('reminders')
+      .where('uid', '==', req.uid)
+      .where('fincaId', '==', req.fincaId)
+      .where('status', '==', 'pending')
+      .where('remindAt', '<=', now)
+      .get();
+    if (snap.empty) return res.json([]);
+    const batch = db.batch();
+    const reminders = snap.docs.map(d => {
+      batch.update(d.ref, { status: 'delivered' });
+      return { id: d.id, message: d.data().message, remindAt: d.data().remindAt?.toDate?.()?.toISOString() };
+    });
+    await batch.commit();
+    res.json(reminders);
+  } catch (err) {
+    console.error('Error al obtener recordatorios vencidos:', err);
+    res.status(500).json({ message: 'Error al obtener recordatorios.' });
+  }
+});
+
+// GET /api/reminders — lista todos los recordatorios pendientes del usuario
+app.get('/api/reminders', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('reminders')
+      .where('uid', '==', req.uid)
+      .where('fincaId', '==', req.fincaId)
+      .where('status', '==', 'pending')
+      .get();
+    const reminders = snap.docs
+      .map(d => ({ id: d.id, message: d.data().message, remindAt: d.data().remindAt?.toDate?.()?.toISOString() }))
+      .sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt));
+    res.json(reminders);
+  } catch (err) {
+    console.error('Error al obtener recordatorios:', err);
+    res.status(500).json({ message: 'Error al obtener recordatorios.' });
+  }
+});
+
+// POST /api/reminders — crea un recordatorio personal
+app.post('/api/reminders', authenticate, async (req, res) => {
+  try {
+    const { message, remindAt } = req.body;
+    if (!message?.trim()) return res.status(400).json({ message: 'El mensaje es requerido.' });
+    if (!remindAt) return res.status(400).json({ message: 'La fecha del recordatorio es requerida.' });
+    const remindDate = new Date(remindAt);
+    if (isNaN(remindDate.getTime())) return res.status(400).json({ message: 'Fecha inválida.' });
+    const docRef = await db.collection('reminders').add({
+      uid: req.uid,
+      fincaId: req.fincaId,
+      message: message.trim(),
+      remindAt: Timestamp.fromDate(remindDate),
+      status: 'pending',
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: docRef.id, message: message.trim(), remindAt: remindDate.toISOString() });
+  } catch (err) {
+    console.error('Error al crear recordatorio:', err);
+    res.status(500).json({ message: 'Error al crear el recordatorio.' });
+  }
+});
+
+// DELETE /api/reminders/:id — elimina un recordatorio
+app.delete('/api/reminders/:id', authenticate, async (req, res) => {
+  try {
+    const doc = await db.collection('reminders').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Recordatorio no encontrado.' });
+    if (doc.data().uid !== req.uid) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    await db.collection('reminders').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error al eliminar recordatorio:', err);
+    res.status(500).json({ message: 'Error al eliminar el recordatorio.' });
   }
 });
 

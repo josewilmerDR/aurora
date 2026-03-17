@@ -18,6 +18,27 @@
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
+/* ── Badge de recordatorios en el FAB ───────────────────────────────────────── */
+.aurora-chat-fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #f59e0b;
+  color: #0d1a26;
+  font-size: 0.68rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+  border: 2px solid var(--aurora-dark-blue);
+  pointer-events: none;
+}
+
 .aurora-chat-fab:hover {
   transform: scale(1.08);
   box-shadow: 0 6px 24px rgba(51, 255, 153, 0.5);
@@ -426,4 +447,55 @@
   opacity: 0.8;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* ── Tarjeta de recordatorio entregado ──────────────────────────────────────── */
+.aurora-reminder-card {
+  align-self: flex-start;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  padding: 10px 13px;
+  max-width: 88%;
+  animation: reminderPop 0.3s ease-out;
+}
+
+@keyframes reminderPop {
+  from { opacity: 0; transform: scale(0.95) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.aurora-reminder-icon {
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.aurora-reminder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aurora-reminder-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #f59e0b;
+  opacity: 0.85;
+}
+
+.aurora-reminder-text {
+  margin: 0;
+  font-size: 0.855rem;
+  color: var(--aurora-light);
+  line-height: 1.45;
 }

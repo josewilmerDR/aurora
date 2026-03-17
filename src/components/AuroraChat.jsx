@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2 } from 'react-icons/fi';
+import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2, FiBell } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './AuroraChat.css';
@@ -51,6 +51,7 @@ export default function AuroraChat() {
   const [speechError, setSpeechError] = useState(null);
   // Per-message draft state: { [msgIndex]: 'idle' | 'saving' | 'saved' | 'error' }
   const [draftStates, setDraftStates] = useState({});
+  const [reminderBadge, setReminderBadge] = useState(0);
 
   const fileRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -69,6 +70,40 @@ export default function AuroraChat() {
   useEffect(() => {
     return () => recognitionRef.current?.abort();
   }, []);
+
+  // Verificar recordatorios vencidos al montar (para el badge)
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch('/api/reminders/due').then(async res => {
+      if (cancelled || !res.ok) return;
+      const due = await res.json();
+      if (!due.length) return;
+      if (!cancelled) setReminderBadge(due.length);
+      // Guardar los recordatorios para inyectarlos cuando el chat se abra
+      pendingRemindersRef.current = due;
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pendingRemindersRef = useRef([]);
+
+  // Inyectar recordatorios vencidos como mensajes especiales al abrir el chat
+  useEffect(() => {
+    if (!open) return;
+    const due = pendingRemindersRef.current;
+    if (!due.length) return;
+    pendingRemindersRef.current = [];
+    setReminderBadge(0);
+    setMessages(prev => [
+      ...prev,
+      ...due.map(r => ({
+        role: 'reminder',
+        text: r.message,
+        remindAt: r.remindAt,
+      })),
+    ]);
+  }, [open]);
 
   // Listen for external open requests (e.g. from dashboard search bar)
   useEffect(() => {
@@ -115,11 +150,14 @@ export default function AuroraChat() {
         .slice(-20)
         .map(m => ({ role: m.role, text: m.text }));
 
+      const now = new Date();
       const body = {
         message: text || 'Por favor procesa esta imagen.',
         history,
         userId: currentUser?.id || '',
         userName: currentUser?.nombre || '',
+        clientTime: now.toLocaleString('sv').replace(' ', 'T'), // "2026-03-16T09:23:45" hora local
+        clientTzName: Intl.DateTimeFormat().resolvedOptions().timeZone,
       };
       if (sentImage) {
         body.imageBase64 = sentImage.base64;
@@ -315,13 +353,23 @@ export default function AuroraChat() {
 
           <div className="aurora-chat-messages">
             {messages.map((msg, i) => (
-              <div key={i} className={`aurora-msg aurora-msg-${msg.role}`}>
-                {msg.imagePreview && (
-                  <img src={msg.imagePreview} className="aurora-msg-image" alt="adjunto" />
-                )}
-                {msg.text}
-                {msg.horimetroDraft && renderDraftCard(msg.horimetroDraft, i)}
-              </div>
+              msg.role === 'reminder' ? (
+                <div key={i} className="aurora-reminder-card">
+                  <span className="aurora-reminder-icon"><FiBell size={14} /></span>
+                  <div className="aurora-reminder-body">
+                    <p className="aurora-reminder-label">Recordatorio</p>
+                    <p className="aurora-reminder-text">{msg.text}</p>
+                  </div>
+                </div>
+              ) : (
+                <div key={i} className={`aurora-msg aurora-msg-${msg.role}`}>
+                  {msg.imagePreview && (
+                    <img src={msg.imagePreview} className="aurora-msg-image" alt="adjunto" />
+                  )}
+                  {msg.text}
+                  {msg.horimetroDraft && renderDraftCard(msg.horimetroDraft, i)}
+                </div>
+              )
             ))}
             {thinking && (
               <div className="aurora-chat-thinking">
@@ -406,6 +454,9 @@ export default function AuroraChat() {
         title="Aurora AI"
       >
         {open ? <FiX size={22} /> : <FiMessageSquare size={22} />}
+        {!open && reminderBadge > 0 && (
+          <span className="aurora-chat-fab-badge">{reminderBadge}</span>
+        )}
       </button>
     </>
   );
