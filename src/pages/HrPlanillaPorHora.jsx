@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHand
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import Toast from '../components/Toast';
 import './HR.css';
 import './HrPlanillaPorUnidad.css';
 
 const UNIDADES = ['Ha', 'Jornal', 'Caja', 'Kg', 'Racimo', 'Bolsa', 'Unidad', 'Hora', 'Metro'];
+const DRAFT_FORM_KEY = 'hr-planilla-unidad';
 
 function todayStr() {
   return new Date().toISOString().split('T')[0];
@@ -116,11 +118,11 @@ function HrPlanillaPorHora() {
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const [fecha, setFecha] = useState(todayStr());
-  const [observaciones, setObservaciones] = useState('');
-  const [segmentos, setSegmentos] = useState([newSegmento()]);
+  const [fecha, setFecha, clearFechaDraft] = useDraft('hr-planilla-fecha', todayStr);
+  const [observaciones, setObservaciones, clearObsDraft] = useDraft('hr-planilla-observaciones', '');
+  const [segmentos, setSegmentos, clearSegsDraft] = useDraft('hr-planilla-segmentos', () => [newSegmento()]);
   const [trabajadores, setTrabajadores] = useState([]);
-  const [cantidades, setCantidades] = useState({});
+  const [cantidades, setCantidades, clearCantsDraft] = useDraft('hr-planilla-cantidades', {});
   const [fillAll, setFillAll] = useState({});
   const [lotes, setLotes] = useState([]);
   const [gruposCat, setGruposCat] = useState([]);
@@ -138,6 +140,16 @@ function HrPlanillaPorHora() {
   const [planillaId, setPlanillaId] = useState(null);
   const [consecutivo, setConsecutivo] = useState(null);
   const [historial, setHistorial] = useState([]);
+
+  // Mark / clear the draft badge whenever form content changes
+  useEffect(() => {
+    const hasContent =
+      observaciones.trim() !== '' ||
+      segmentos.some(s => s.loteId || s.labor || s.grupo || s.avanceHa !== '' || s.costoUnitario !== '') ||
+      Object.values(cantidades).some(segMap => Object.values(segMap || {}).some(v => v !== ''));
+    if (hasContent) markDraftActive(DRAFT_FORM_KEY);
+    else clearDraftActive(DRAFT_FORM_KEY);
+  }, [observaciones, segmentos, cantidades]);
 
   const fetchHistorial = useCallback(() => {
     apiFetch('/api/hr/planilla-unidad')
@@ -271,6 +283,7 @@ function HrPlanillaPorHora() {
         }
       }
       if (!res.ok) throw new Error();
+      clearDraftActive(DRAFT_FORM_KEY);
       showToast(estado === 'borrador' ? 'Borrador guardado.' : 'Planilla guardada correctamente.');
       fetchHistorial();
     } catch {
@@ -598,12 +611,14 @@ function HrPlanillaPorHora() {
           <button
             className="btn btn-secondary"
             onClick={() => {
-              setSegmentos([newSegmento()]);
-              setCantidades({});
-              setFecha(todayStr());
-              setObservaciones('');
+              clearSegsDraft();
+              clearCantsDraft();
+              clearFechaDraft();
+              clearObsDraft();
+              clearDraftActive(DRAFT_FORM_KEY);
               setPlanillaId(null);
               setConsecutivo(null);
+              setFillAll({});
             }}
             disabled={guardando}
           >

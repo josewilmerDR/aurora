@@ -65,7 +65,7 @@ export const MODULES = [
       { label: 'Registro de Asistencia', to: '/hr/asistencia', icon: FiCalendar, minRole: 'encargado' },
       { label: 'Horas Extra', to: '/hr/horas-extra', icon: FiClock, minRole: 'encargado' },
       { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },
-      { label: 'Cálculo de Planilla', to: '/hr/planilla', icon: FiDollarSign, minRole: 'encargado' },
+      { label: 'Cálculo de Planilla', to: '/hr/planilla', icon: FiDollarSign, minRole: 'encargado', draftKey: 'hr-planilla-unidad' },
       { label: 'Historial de Pagos', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
       { label: 'Historial del Empleado', to: '/hr/historial', icon: FiBook, minRole: 'encargado' },
       { label: 'Documentos Adjuntos', to: '/hr/documentos', icon: FiPaperclip, minRole: 'encargado' },
