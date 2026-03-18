@@ -79,13 +79,7 @@
   margin-top: 3px;
 }
 
-.pu-history-total {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--aurora-light);
-  margin-top: 4px;
-  text-align: right;
-}
+/* removed — now inside .pu-history-bottom */
 
 @media (max-width: 900px) {
   .pu-page-layout {
@@ -280,6 +274,71 @@ select.ut-ctrl {
   z-index: 2;
 }
 
+/* ── Botón quitar trabajador ─────────────────────────────────────────────── */
+.ut-worker-name-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ut-remove-worker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: rgba(230, 242, 255, 0.3);
+  cursor: pointer;
+  padding: 2px 3px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.ut-row-worker:hover .ut-remove-worker-btn {
+  color: rgba(230, 242, 255, 0.55);
+  border-color: var(--aurora-border);
+}
+
+.ut-remove-worker-btn:hover {
+  color: #ff5555 !important;
+  border-color: rgba(255, 85, 85, 0.5) !important;
+  background: rgba(255, 85, 85, 0.08) !important;
+}
+
+/* ── Barra de trabajadores ocultos ───────────────────────────────────────── */
+.ut-hidden-workers-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 7px 12px;
+  background: rgba(255, 200, 0, 0.07);
+  border: 1px solid rgba(255, 200, 0, 0.2);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #ffcc44;
+}
+
+.ut-restore-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 200, 0, 0.4);
+  border-radius: 4px;
+  color: #ffcc44;
+  font-size: 0.75rem;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.ut-restore-btn:hover {
+  background: rgba(255, 200, 0, 0.12);
+}
+
 /* ── Filas de trabajadores ───────────────────────────────────────────────── */
 .ut-row-worker td {
   background: #1a2a3a;
@@ -421,6 +480,318 @@ select.ut-ctrl {
 .ut-fill-btn:hover {
   background: rgba(51, 255, 153, 0.25);
 }
+
+/* ── Historial: fila inferior (total + botón ver) ────────────────────────── */
+.pu-history-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  gap: 6px;
+}
+
+.pu-history-total {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+}
+
+.pu-history-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  color: var(--aurora-light);
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.pu-history-preview-btn:hover {
+  opacity: 1;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+/* ── Modal de vista previa ───────────────────────────────────────────────── */
+.pu-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 16px;
+  overflow-y: auto;
+}
+
+.pu-preview-modal {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  width: 100%;
+  max-width: 940px;
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+}
+
+.pu-preview-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--aurora-border);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pu-preview-modal-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pu-preview-consec {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.1);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.pu-preview-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pu-preview-scroll {
+  padding: 20px;
+  overflow-x: auto;
+}
+
+/* ── Documento blanco (se captura como PDF) ──────────────────────────────── */
+.pu-preview-document {
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  padding: 24px 28px;
+  border-radius: 4px;
+  min-width: 640px;
+}
+
+.pu-pdoc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #1a1a1a;
+  padding-bottom: 12px;
+}
+
+.pu-pdoc-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pu-pdoc-logo {
+  width: 44px;
+  height: 44px;
+  background: #0d1a26;
+  color: #33ff99;
+  font-size: 1rem;
+  font-weight: 900;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pu-pdoc-brand-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.pu-pdoc-title-block {
+  text-align: right;
+}
+
+.pu-pdoc-title {
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.pu-pdoc-meta-table {
+  font-size: 11px;
+  color: #333;
+  border-collapse: collapse;
+}
+
+.pu-pdoc-meta-table td:first-child {
+  text-align: right;
+  padding-right: 6px;
+  color: #666;
+}
+
+.pu-pdoc-info {
+  font-size: 11px;
+  color: #333;
+  margin-bottom: 14px;
+  display: flex;
+  gap: 24px;
+}
+
+/* ── Tabla unificada (misma disposición que el formulario) ───────────────── */
+.pu-pdoc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.pu-pdoc-table td {
+  padding: 5px 9px;
+  border: 1px solid #ddd;
+  color: #333;
+}
+
+.pu-pdoc-col-label { width: 130px; }
+.pu-pdoc-col-total { width: 110px; }
+
+/* Primera columna: etiquetas */
+.pu-pdoc-label-cell {
+  background: #e8e8e8 !important;
+  color: #444 !important;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+/* Fila de números de segmento (#1, #2…) */
+.pu-pdoc-row-seg-nums td {
+  background: #ddd !important;
+}
+
+.pu-pdoc-seg-num-cell {
+  text-align: center !important;
+  font-size: 9px;
+  font-weight: 900;
+  color: #1a6e40 !important;
+  letter-spacing: 0.5px;
+}
+
+/* Filas de configuración — fondo blanco */
+.pu-pdoc-unified tbody tr:not(.pu-pdoc-row-seg-nums):not(.pu-pdoc-row-config-last):not(.pu-pdoc-row-workers-hdr):not(.pu-pdoc-row-worker):not(.pu-pdoc-row-totals) td:not(.pu-pdoc-label-cell) {
+  background: #fff;
+}
+
+/* Separador entre sección de config y sección de trabajadores */
+.pu-pdoc-row-config-last td {
+  border-bottom: 2px solid #ccc !important;
+}
+
+.pu-pdoc-row-config-last td:not(.pu-pdoc-label-cell) {
+  background: #fff;
+}
+
+/* Encabezado de sección trabajadores */
+.pu-pdoc-row-workers-hdr td {
+  background: #d8d8d8 !important;
+  color: #333 !important;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-top: 2px solid #ccc;
+}
+
+.pu-pdoc-workers-label    { text-align: right !important; }
+.pu-pdoc-workers-qty-hdr  { text-align: center !important; }
+.pu-pdoc-workers-total-hdr { text-align: right !important; color: #1a6e40 !important; }
+
+/* Filas de trabajadores */
+.pu-pdoc-row-worker td:not(.pu-pdoc-worker-name) {
+  background: #fff;
+}
+
+.pu-pdoc-row-worker:nth-child(even) td:not(.pu-pdoc-worker-name) {
+  background: #f5f5f5;
+}
+
+.pu-pdoc-worker-name {
+  background: #e8e8e8 !important;
+  color: #333 !important;
+  text-align: right !important;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* Fila de totales */
+.pu-pdoc-row-totals td {
+  background: #ddd !important;
+  color: #222 !important;
+  font-weight: 700;
+  border-top: 2px solid #ccc;
+}
+
+.pu-pdoc-grand-total-cell {
+  color: #1a6e40 !important;
+  font-size: 11px;
+}
+
+.pu-pdoc-td-center { text-align: center !important; }
+.pu-pdoc-td-right  { text-align: right !important; }
+.pu-pdoc-td-bold   { font-weight: 700; }
+
+/* ── Observaciones ───────────────────────────────────────────────────────── */
+.pu-pdoc-obs-text {
+  font-size: 10px;
+  color: #555;
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.pu-pdoc-footer {
+  margin-top: 20px;
+  padding-top: 8px;
+  border-top: 1px solid #ddd;
+  font-size: 9px;
+  color: #999;
+  text-align: center;
+}
+
+.pu-pdoc-estado {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.pu-pdoc-estado--borrador        { background: #e9e9e9; color: #555; }
+.pu-pdoc-estado--pendiente_pago  { background: #fff3cd; color: #856404; }
+.pu-pdoc-estado--pagado          { background: #d4edda; color: #155724; }
 
 /* ── Ocultar spinners en inputs numéricos de la tabla ────────────────────── */
 .unidad-table input[type=number]::-webkit-inner-spin-button,
