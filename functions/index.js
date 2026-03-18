@@ -710,7 +710,7 @@ app.post('/api/cedulas/manual', authenticate, async (req, res) => {
       })
     );
 
-    const executeAt = Timestamp.fromDate(new Date(fecha));
+    const executeAt = Timestamp.fromDate(new Date(fecha + 'T12:00:00'));
     const taskData = {
       type: 'MANUAL',
       status: 'pending',
@@ -1823,7 +1823,7 @@ app.post('/api/compras/confirmar', authenticate, async (req, res) => {
     batch.set(compraRef, {
       fincaId: req.fincaId,
       proveedor: proveedor || '',
-      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha + 'T12:00:00')) : Timestamp.now(),
       lineas: lineas.map(l => ({
         productoId: l.productoId || null,
         nombreFactura: l.nombreFactura || '',
@@ -2042,8 +2042,8 @@ app.post('/api/ordenes-compra', authenticate, async (req, res) => {
     const docRef = await db.collection('ordenes_compra').add({
       fincaId: req.fincaId,
       poNumber,
-      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
-      fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega)) : null,
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha + 'T12:00:00')) : Timestamp.now(),
+      fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega + 'T12:00:00')) : null,
       proveedor: proveedor || '',
       direccionProveedor: direccionProveedor || '',
       elaboradoPor: elaboradoPor || '',
@@ -2261,7 +2261,7 @@ app.post('/api/hr/asistencia', authenticate, async (req, res) => {
     if (!trabajadorId || !fecha || !estado) return res.status(400).json({ message: 'Faltan campos requeridos.' });
     const ref = await db.collection('hr_asistencia').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
-      fecha: Timestamp.fromDate(new Date(fecha)),
+      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       estado, horasExtra: Number(horasExtra) || 0, notas: notas || '',
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
@@ -2304,7 +2304,7 @@ app.post('/api/hr/horas-extra', authenticate, async (req, res) => {
     if (!trabajadorId || !fecha || !horas) return res.status(400).json({ message: 'Faltan campos requeridos.' });
     const ref = await db.collection('hr_horas_extra').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
-      fecha: Timestamp.fromDate(new Date(fecha)),
+      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       horas: Number(horas), motivo: motivo || '',
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
@@ -2348,8 +2348,8 @@ app.post('/api/hr/permisos', authenticate, async (req, res) => {
     if (!trabajadorId || !tipo || !fechaInicio) return res.status(400).json({ message: 'Faltan campos requeridos.' });
     const ref = await db.collection('hr_permisos').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
-      fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
-      fechaFin: Timestamp.fromDate(new Date(fechaFin || fechaInicio)),
+      fechaInicio: Timestamp.fromDate(new Date(fechaInicio + 'T12:00:00')),
+      fechaFin: Timestamp.fromDate(new Date((fechaFin || fechaInicio) + 'T12:00:00')),
       dias: Number(dias) || 0,
       esParcial: esParcial === true,
       horaInicio: esParcial ? (horaInicio || null) : null,
@@ -2591,7 +2591,7 @@ app.post('/api/hr/memorandums', authenticate, async (req, res) => {
     const ref = await db.collection('hr_memorandums').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
       motivo, descripcion: descripcion || '',
-      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha + 'T12:00:00')) : Timestamp.now(),
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -2629,7 +2629,7 @@ app.post('/api/hr/documentos', authenticate, async (req, res) => {
     const ref = await db.collection('hr_documentos').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       nombre, tipo, descripcion: descripcion || '',
-      fecha: fecha ? Timestamp.fromDate(new Date(fecha)) : Timestamp.now(),
+      fecha: fecha ? Timestamp.fromDate(new Date(fecha + 'T12:00:00')) : Timestamp.now(),
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -2703,7 +2703,7 @@ app.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
     const ref = await db.collection('hr_planilla_unidad').add({
       fincaId: req.fincaId,
       consecutivo,
-      fecha: Timestamp.fromDate(new Date(fecha)),
+      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       encargadoId, encargadoNombre: encargadoNombre || '',
       segmentos: segmentos || [],
       trabajadores: trabajadores || [],
@@ -2724,7 +2724,7 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const { fecha, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
     const update = { updatedAt: Timestamp.now() };
-    if (fecha !== undefined) update.fecha = Timestamp.fromDate(new Date(fecha));
+    if (fecha !== undefined) update.fecha = Timestamp.fromDate(new Date(fecha + 'T12:00:00'));
     if (segmentos !== undefined) update.segmentos = segmentos;
     if (trabajadores !== undefined) update.trabajadores = trabajadores;
     if (totalGeneral !== undefined) update.totalGeneral = Number(totalGeneral);
@@ -3062,7 +3062,7 @@ app.post('/api/monitoreo', authenticate, async (req, res) => {
       loteId, loteNombre: loteNombre || '',
       tipoId, tipoNombre: tipoNombre || '',
       bloque: bloque || '',
-      fecha: Timestamp.fromDate(new Date(fecha)),
+      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       responsableId: responsableId || '',
       responsableNombre: responsableNombre || '',
       datos: datos || {},
@@ -3269,7 +3269,7 @@ app.post('/api/siembras', authenticate, async (req, res) => {
       rangoPesos: rangoPesos || '',
       variedad: variedad || '',
       cerrado: cerrado === true || cerrado === 'true',
-      fecha: Timestamp.fromDate(new Date(fecha)),
+      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       responsableId: responsableId || '',
       responsableNombre: responsableNombre || '',
       createdAt: Timestamp.now(),
@@ -3780,8 +3780,8 @@ async function chatToolRegistrarPermiso(input, fincaId) {
     trabajadorId,
     trabajadorNombre: trabajadorNombre || userDoc.data().nombre || '',
     tipo,
-    fechaInicio: Timestamp.fromDate(new Date(fechaInicio)),
-    fechaFin: Timestamp.fromDate(new Date(fechaFinReal)),
+    fechaInicio: Timestamp.fromDate(new Date(fechaInicio + 'T12:00:00')),
+    fechaFin: Timestamp.fromDate(new Date(fechaFinReal + 'T12:00:00')),
     dias,
     esParcial: esParcial === true,
     horaInicio: esParcial ? (horaInicio || null) : null,
