@@ -4088,6 +4088,16 @@ Cuando el usuario quiera cancelar un recordatorio (ej: "cancela el recordatorio 
 2. Identifica cuál coincide con la descripción del usuario (coincidencia aproximada por mensaje o fecha).
 3. Llama a "eliminar_recordatorio" con el ID correcto y confirma la cancelación.
 
+Cuando el usuario adjunte una imagen de un formulario físico de planilla de trabajadores (planilla por hora o por unidad):
+1. Examina la imagen con atención. Extrae: fecha, nombre del encargado, y para cada columna de trabajo (segmento): lote, labor, grupo, avance y unidad, costo unitario.
+2. Para cada fila de trabajador: nombre y las cantidades por columna.
+3. Usa el catálogo de usuarios para resolver el encargadoId y los trabajadorId por coincidencia aproximada de nombre.
+4. Usa el catálogo de lotes para resolver loteId y loteNombre de cada segmento.
+5. Usa el catálogo de labores para construir el campo labor en formato "codigo - descripción".
+6. Asigna IDs temporales a cada segmento ("seg1", "seg2", etc.).
+7. Llama a "previsualizar_planilla" con todos los datos extraídos. El sistema mostrará una tarjeta al usuario para que revise y confirme antes de guardar.
+8. Informa al usuario que puede revisar los datos en la tarjeta que aparecerá debajo.
+
 Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
     const tools = [
@@ -4333,6 +4343,54 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           required: ['reminderId'],
         },
       },
+      {
+        name: 'previsualizar_planilla',
+        description: 'Extrae los datos de una planilla de trabajadores (por hora o por unidad) desde una imagen para que el usuario revise y confirme antes de guardar. Úsala SIEMPRE cuando el usuario adjunte una imagen de un formulario físico de planilla. NO guarda nada en la base de datos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            fecha:           { type: 'string', description: 'Fecha de la planilla en formato YYYY-MM-DD.' },
+            encargadoId:     { type: 'string', description: 'ID del encargado en el sistema (resuelto por nombre aproximado del catálogo de usuarios).' },
+            encargadoNombre: { type: 'string', description: 'Nombre del encargado tal como aparece en el formulario.' },
+            segmentos: {
+              type: 'array',
+              description: 'Columnas/segmentos de trabajo de la planilla.',
+              items: {
+                type: 'object',
+                properties: {
+                  id:            { type: 'string', description: 'ID temporal del segmento, ej: "seg1", "seg2".' },
+                  loteId:        { type: 'string', description: 'ID del lote en el sistema.' },
+                  loteNombre:    { type: 'string', description: 'Nombre del lote.' },
+                  labor:         { type: 'string', description: 'Labor en formato "codigo - descripción".' },
+                  grupo:         { type: 'string', description: 'Nombre del grupo, opcional.' },
+                  avanceHa:      { type: 'string', description: 'Avance (número como string), opcional.' },
+                  unidad:        { type: 'string', description: 'Unidad de medida, opcional.' },
+                  costoUnitario: { type: 'string', description: 'Costo unitario (número como string), opcional.' },
+                },
+                required: ['id'],
+              },
+            },
+            trabajadores: {
+              type: 'array',
+              description: 'Lista de trabajadores con sus cantidades por segmento.',
+              items: {
+                type: 'object',
+                properties: {
+                  trabajadorId:     { type: 'string', description: 'ID del trabajador en el sistema.' },
+                  trabajadorNombre: { type: 'string', description: 'Nombre del trabajador.' },
+                  cantidades: {
+                    type: 'object',
+                    description: 'Mapa de id de segmento → cantidad trabajada. Ej: {"seg1": "8", "seg2": "4"}.',
+                  },
+                },
+                required: ['trabajadorNombre'],
+              },
+            },
+            observaciones: { type: 'string', description: 'Observaciones o notas del formulario, opcional.' },
+          },
+          required: ['fecha'],
+        },
+      },
     ];
 
     // Construir historial de conversación
@@ -4362,6 +4420,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
 
     // Loop agéntico: máximo 6 iteraciones para evitar loops infinitos
     let horimetroDraft = null;
+    let planillaDraft = null;
     let iterations = 0;
     while (iterations < 6) {
       iterations++;
@@ -4382,6 +4441,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           .join('\n');
         const responsePayload = { reply: text };
         if (horimetroDraft) responsePayload.horimetroDraft = horimetroDraft;
+        if (planillaDraft) responsePayload.planillaDraft = planillaDraft;
         return res.json(responsePayload);
       }
 
@@ -4467,6 +4527,16 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             const filas = Array.isArray(block.input.filas) ? block.input.filas : [block.input];
             horimetroDraft = filas.map(row => Object.fromEntries(Object.entries(row).filter(([k]) => allowed.includes(k))));
             result = { preview: true, filas: horimetroDraft.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
+          } else if (block.name === 'previsualizar_planilla') {
+            planillaDraft = {
+              fecha:           block.input.fecha || '',
+              encargadoId:     block.input.encargadoId || '',
+              encargadoNombre: block.input.encargadoNombre || '',
+              segmentos:       Array.isArray(block.input.segmentos) ? block.input.segmentos : [],
+              trabajadores:    Array.isArray(block.input.trabajadores) ? block.input.trabajadores : [],
+              observaciones:   block.input.observaciones || '',
+            };
+            result = { preview: true, segmentos: planillaDraft.segmentos.length, trabajadores: planillaDraft.trabajadores.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
           } else if (block.name === 'registrar_permiso') {
             result = await chatToolRegistrarPermiso(block.input, req.fincaId);
           } else if (block.name === 'crear_recordatorio') {

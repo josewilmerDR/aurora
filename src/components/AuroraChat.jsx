@@ -51,6 +51,7 @@ export default function AuroraChat() {
   const [speechError, setSpeechError] = useState(null);
   // Per-message draft state: { [msgIndex]: 'idle' | 'saving' | 'saved' | 'error' }
   const [draftStates, setDraftStates] = useState({});
+  const [planillaDraftStates, setPlanillaDraftStates] = useState({});
   const [reminderBadge, setReminderBadge] = useState(0);
 
   const fileRef = useRef(null);
@@ -189,6 +190,7 @@ export default function AuroraChat() {
       const data = await res.json();
       const newMsg = { role: 'assistant', text: data.reply || 'No pude procesar la solicitud.' };
       if (data.horimetroDraft) newMsg.horimetroDraft = data.horimetroDraft;
+      if (data.planillaDraft) newMsg.planillaDraft = data.planillaDraft;
       setMessages(prev => [...prev, newMsg]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', text: 'Error de conexión. Por favor intenta de nuevo.' }]);
@@ -290,6 +292,89 @@ export default function AuroraChat() {
     navigate('/operaciones/horimetro', { state: { horimetroDraft: filas } });
   };
 
+  const handlePlanillaSave = async (draft, msgIndex) => {
+    setPlanillaDraftStates(prev => ({ ...prev, [msgIndex]: 'saving' }));
+    try {
+      // Compute totals
+      const trabajadores = (draft.trabajadores || []).map(t => {
+        const cantidades = t.cantidades || {};
+        let total = 0;
+        (draft.segmentos || []).forEach(seg => {
+          const cant = parseFloat(cantidades[seg.id]) || 0;
+          const costo = parseFloat(seg.costoUnitario) || 0;
+          total += cant * costo;
+        });
+        return { ...t, total };
+      });
+      const totalGeneral = trabajadores.reduce((s, t) => s + (t.total || 0), 0);
+      const body = {
+        fecha: draft.fecha,
+        encargadoId: draft.encargadoId || '',
+        encargadoNombre: draft.encargadoNombre || '',
+        segmentos: draft.segmentos || [],
+        trabajadores,
+        totalGeneral,
+        estado: 'borrador',
+        observaciones: draft.observaciones || '',
+      };
+      const res = await apiFetch('/api/hr/planilla-unidad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error();
+      setPlanillaDraftStates(prev => ({ ...prev, [msgIndex]: 'saved' }));
+    } catch {
+      setPlanillaDraftStates(prev => ({ ...prev, [msgIndex]: 'error' }));
+    }
+  };
+
+  const handlePlanillaReview = (draft) => {
+    setOpen(false);
+    navigate('/hr/planilla/horas', { state: { planillaDraft: draft } });
+  };
+
+  const renderPlanillaDraftCard = (draft, msgIndex) => {
+    const state = planillaDraftStates[msgIndex] || 'idle';
+    const nSegs = (draft.segmentos || []).length;
+    const nTrab = (draft.trabajadores || []).length;
+    return (
+      <div className="aurora-draft-card">
+        <p className="aurora-draft-title">📋 Planilla extraída del formulario</p>
+        <table className="aurora-draft-table">
+          <tbody>
+            {draft.fecha && <tr><td className="aurora-draft-label">Fecha</td><td className="aurora-draft-value">{draft.fecha}</td></tr>}
+            {draft.encargadoNombre && <tr><td className="aurora-draft-label">Encargado</td><td className="aurora-draft-value">{draft.encargadoNombre}</td></tr>}
+            <tr><td className="aurora-draft-label">Segmentos</td><td className="aurora-draft-value">{nSegs} columna{nSegs !== 1 ? 's' : ''} de trabajo</td></tr>
+            <tr><td className="aurora-draft-label">Trabajadores</td><td className="aurora-draft-value">{nTrab} trabajador{nTrab !== 1 ? 'es' : ''}</td></tr>
+            {draft.observaciones && <tr><td className="aurora-draft-label">Obs.</td><td className="aurora-draft-value">{draft.observaciones}</td></tr>}
+          </tbody>
+        </table>
+        {state === 'saved' ? (
+          <p className="aurora-draft-saved">✓ Planilla guardada como borrador</p>
+        ) : state === 'error' ? (
+          <p className="aurora-draft-error">Error al guardar. Intenta de nuevo o revisa el formulario.</p>
+        ) : (
+          <div className="aurora-draft-actions">
+            <button
+              className="aurora-draft-btn aurora-draft-btn-primary"
+              onClick={() => handlePlanillaSave(draft, msgIndex)}
+              disabled={state === 'saving'}
+            >
+              <FiCheck size={13} /> {state === 'saving' ? 'Guardando…' : 'Guardar borrador'}
+            </button>
+            <button
+              className="aurora-draft-btn aurora-draft-btn-secondary"
+              onClick={() => handlePlanillaReview(draft)}
+            >
+              <FiEdit2 size={13} /> Abrir en formulario
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const formatHours = (fila) => {
     if (fila.horimetroInicial != null && fila.horimetroFinal != null) {
       const h = (parseFloat(fila.horimetroFinal) - parseFloat(fila.horimetroInicial)).toFixed(1);
@@ -385,6 +470,7 @@ export default function AuroraChat() {
                   )}
                   {msg.text}
                   {msg.horimetroDraft && renderDraftCard(msg.horimetroDraft, i)}
+                  {msg.planillaDraft && renderPlanillaDraftCard(msg.planillaDraft, i)}
                 </div>
               )
             ))}

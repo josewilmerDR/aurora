@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useLocation } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye, FiEdit2 } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -26,7 +27,7 @@ function newSegmento() {
   return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '' };
 }
 
-const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect }, ref) {
+const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect, onTabDown }, ref) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const containerRef = useRef(null);
@@ -48,9 +49,11 @@ const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labor
 
   const handleKeyDown = (e) => {
     if (!open) {
-      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); }
+      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); return; }
+      if (e.key === 'Tab' && onTabDown) { onTabDown(e); return; }
       return;
     }
+    if (e.key === 'Tab') { setOpen(false); if (onTabDown) onTabDown(e); return; }
     if (e.key === 'ArrowDown') {
       setHighlighted(h => {
         const next = Math.min(h + 1, filtered.length - 1);
@@ -114,6 +117,7 @@ const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labor
 function HrPlanillaPorHora() {
   const { currentUser } = useUser();
   const apiFetch = useApiFetch();
+  const location = useLocation();
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
@@ -185,6 +189,32 @@ function HrPlanillaPorHora() {
 
   useEffect(() => { fetchPlantillas(); }, [fetchPlantillas]);
 
+  // Load planilla draft from Aurora chat navigation state
+  useEffect(() => {
+    const draft = location.state?.planillaDraft;
+    if (!draft) return;
+    setSegmentos(draft.segmentos?.length ? draft.segmentos : [newSegmento()]);
+    setFecha(draft.fecha || todayStr());
+    setObservaciones(draft.observaciones || '');
+    setPlanillaId(null);
+    setConsecutivo(null);
+    setFillAll({});
+    setRemovedWorkerIds([]);
+    // Rebuild cantidades from draft data keyed by trabajadorId
+    setCantidades(prev => {
+      const next = { ...prev };
+      (draft.trabajadores || []).forEach(t => {
+        if (t.trabajadorId) next[t.trabajadorId] = t.cantidades || {};
+      });
+      return next;
+    });
+    markDraftActive(DRAFT_FORM_KEY);
+    showToast('Planilla cargada desde Aurora. Revisa y guarda cuando esté lista.');
+    // Clear state so reload doesn't re-apply
+    window.history.replaceState({}, '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!currentUser?.userId) return;
     apiFetch(`/api/hr/subordinados?encargadoId=${currentUser.userId}`)
@@ -199,6 +229,14 @@ function HrPlanillaPorHora() {
       })
       .catch(console.error);
   }, [currentUser?.userId]);
+
+  // Returns a keydown handler that moves focus to the same field in the next/prev segment on TAB/Shift+TAB
+  const makeTabHandler = (segId, refsObj) => (e) => {
+    if (e.key !== 'Tab') return;
+    const idx = segmentos.findIndex(s => s.id === segId);
+    const next = segmentos[e.shiftKey ? idx - 1 : idx + 1];
+    if (next) { e.preventDefault(); refsObj.current[next.id]?.focus(); }
+  };
 
   const addSegmento = (focusNew = false) => {
     const seg = newSegmento();
@@ -798,10 +836,12 @@ function HrPlanillaPorHora() {
                   <td key={seg.id} className="ut-config-cell">
                     <select
                       ref={el => { loteRefs.current[seg.id] = el; }}
-                      className="ut-ctrl" value={seg.loteId} onChange={e => {
-                      updSeg(seg.id, 'loteId', e.target.value);
-                      grupoRefs.current[seg.id]?.focus();
-                    }}>
+                      className="ut-ctrl" value={seg.loteId}
+                      onKeyDown={makeTabHandler(seg.id, loteRefs)}
+                      onChange={e => {
+                        updSeg(seg.id, 'loteId', e.target.value);
+                        grupoRefs.current[seg.id]?.focus();
+                      }}>
                       <option value="">— Seleccionar —</option>
                       {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                     </select>
@@ -824,6 +864,7 @@ function HrPlanillaPorHora() {
                         ref={el => { grupoRefs.current[seg.id] = el; }}
                         className="ut-ctrl"
                         value={seg.grupo}
+                        onKeyDown={makeTabHandler(seg.id, grupoRefs)}
                         onChange={e => {
                           updSeg(seg.id, 'grupo', e.target.value);
                           laborRefs.current[seg.id]?.focus();
@@ -851,6 +892,7 @@ function HrPlanillaPorHora() {
                       labores={laboresCat}
                       onChange={v => updSeg(seg.id, 'labor', v)}
                       onAfterSelect={() => avanceRefs.current[seg.id]?.focus()}
+                      onTabDown={makeTabHandler(seg.id, laborRefs)}
                     />
                   </td>
                 ))}
@@ -867,7 +909,10 @@ function HrPlanillaPorHora() {
                       className="ut-ctrl" type="number" min="0" step="0.01"
                       value={seg.avanceHa} onChange={e => updSeg(seg.id, 'avanceHa', e.target.value)}
                       placeholder="0.00"
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); unidadRefs.current[seg.id]?.focus(); } }}
+                      onKeyDown={e => {
+                        if (e.key === 'Tab') { makeTabHandler(seg.id, avanceRefs)(e); return; }
+                        if (e.key === 'Enter') { e.preventDefault(); unidadRefs.current[seg.id]?.focus(); }
+                      }}
                     />
                   </td>
                 ))}
@@ -882,6 +927,7 @@ function HrPlanillaPorHora() {
                     <select
                       ref={el => { unidadRefs.current[seg.id] = el; }}
                       className="ut-ctrl" value={seg.unidad}
+                      onKeyDown={makeTabHandler(seg.id, unidadRefs)}
                       onChange={e => { updSeg(seg.id, 'unidad', e.target.value); costoRefs.current[seg.id]?.focus(); }}
                     >
                       <option value="-">-</option>
@@ -903,6 +949,7 @@ function HrPlanillaPorHora() {
                       value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
                       placeholder="0"
                       onKeyDown={e => {
+                        if (e.key === 'Tab') { makeTabHandler(seg.id, costoRefs)(e); return; }
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           const firstT = visibleWorkers[0];
