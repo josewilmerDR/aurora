@@ -220,7 +220,7 @@ function HrPlanillaPorHora() {
     apiFetch(`/api/hr/subordinados?encargadoId=${currentUser.userId}`)
       .then(r => r.json())
       .then(data => {
-        setTrabajadores(data);
+        setTrabajadores([...data].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
         setCantidades(prev => {
           const next = { ...prev };
           data.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
