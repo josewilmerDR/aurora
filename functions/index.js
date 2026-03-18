@@ -4089,14 +4089,14 @@ Cuando el usuario quiera cancelar un recordatorio (ej: "cancela el recordatorio 
 3. Llama a "eliminar_recordatorio" con el ID correcto y confirma la cancelación.
 
 Cuando el usuario adjunte una imagen de un formulario físico de planilla de trabajadores (planilla por hora o por unidad):
-1. Examina la imagen con atención. Extrae: fecha, nombre del encargado, y para cada columna de trabajo (segmento): lote, labor, grupo, avance y unidad, costo unitario.
-2. Para cada fila de trabajador: nombre y las cantidades por columna.
-3. Usa el catálogo de usuarios para resolver el encargadoId y los trabajadorId por coincidencia aproximada de nombre.
-4. Usa el catálogo de lotes para resolver loteId y loteNombre de cada segmento.
-5. Usa el catálogo de labores para construir el campo labor en formato "codigo - descripción".
-6. Asigna IDs temporales a cada segmento ("seg1", "seg2", etc.).
-7. Llama a "previsualizar_planilla" con todos los datos extraídos. El sistema mostrará una tarjeta al usuario para que revise y confirme antes de guardar.
-8. Informa al usuario que puede revisar los datos en la tarjeta que aparecerá debajo.
+1. Identifica las columnas de trabajo de izquierda a derecha (campo LOTE, LABOR, UNIDAD, COSTO por columna). Numera mentalmente cada columna empezando en 0.
+2. Extrae la fecha y el nombre del encargado.
+3. Para cada columna construye un objeto segmento (en orden 0, 1, 2…): lote, labor, grupo, avance, unidad, costo.
+4. Para cada fila de trabajador: lee su nombre y luego recorre las columnas de izquierda a derecha. Construye un array de cantidades donde cantidades[0] = valor de la columna 0, cantidades[1] = valor de la columna 1, etc. Si una celda está vacía usa "".
+5. CRÍTICO: el array cantidades de cada trabajador debe tener exactamente tantos elementos como segmentos haya, en el mismo orden de columna. No uses mapas ni IDs — usa solo el índice de posición.
+6. Usa el catálogo de usuarios para resolver encargadoId y trabajadorId por coincidencia aproximada de nombre.
+7. Usa el catálogo de lotes para resolver loteId/loteNombre, y el catálogo de labores para el campo labor en formato "codigo - descripción".
+8. Llama a "previsualizar_planilla". El sistema mostrará una tarjeta de confirmación al usuario.
 
 Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
@@ -4354,11 +4354,10 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             encargadoNombre: { type: 'string', description: 'Nombre del encargado tal como aparece en el formulario.' },
             segmentos: {
               type: 'array',
-              description: 'Columnas/segmentos de trabajo de la planilla.',
+              description: 'Columnas de trabajo de la planilla, de izquierda a derecha. El índice de cada segmento en este array (0, 1, 2…) es su posición de columna.',
               items: {
                 type: 'object',
                 properties: {
-                  id:            { type: 'string', description: 'ID temporal del segmento, ej: "seg1", "seg2".' },
                   loteId:        { type: 'string', description: 'ID del lote en el sistema.' },
                   loteNombre:    { type: 'string', description: 'Nombre del lote.' },
                   labor:         { type: 'string', description: 'Labor en formato "codigo - descripción".' },
@@ -4367,23 +4366,23 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
                   unidad:        { type: 'string', description: 'Unidad de medida, opcional.' },
                   costoUnitario: { type: 'string', description: 'Costo unitario (número como string), opcional.' },
                 },
-                required: ['id'],
               },
             },
             trabajadores: {
               type: 'array',
-              description: 'Lista de trabajadores con sus cantidades por segmento.',
+              description: 'Lista de trabajadores. Las cantidades son un array posicional: cantidades[0] es la cantidad del segmento 0 (primera columna), cantidades[1] del segmento 1, etc. Usa "" si el trabajador no trabajó esa columna.',
               items: {
                 type: 'object',
                 properties: {
                   trabajadorId:     { type: 'string', description: 'ID del trabajador en el sistema.' },
                   trabajadorNombre: { type: 'string', description: 'Nombre del trabajador.' },
                   cantidades: {
-                    type: 'object',
-                    description: 'Mapa de id de segmento → cantidad trabajada. Ej: {"seg1": "8", "seg2": "4"}.',
+                    type: 'array',
+                    description: 'Array posicional de cantidades, una por columna en el mismo orden que segmentos. Ej: si hay 4 columnas y el trabajador trabajó 8 horas en la columna 2: ["", "", "8", ""].',
+                    items: { type: 'string' },
                   },
                 },
-                required: ['trabajadorNombre'],
+                required: ['trabajadorNombre', 'cantidades'],
               },
             },
             observaciones: { type: 'string', description: 'Observaciones o notas del formulario, opcional.' },
@@ -4528,15 +4527,29 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             horimetroDraft = filas.map(row => Object.fromEntries(Object.entries(row).filter(([k]) => allowed.includes(k))));
             result = { preview: true, filas: horimetroDraft.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
           } else if (block.name === 'previsualizar_planilla') {
+            // Assign real segment IDs and map positional cantidades array → { segId: value }
+            const rawSegs = Array.isArray(block.input.segmentos) ? block.input.segmentos : [];
+            const segmentos = rawSegs.map(s => ({
+              id: `s${Date.now()}${Math.random().toString(36).slice(2, 5)}`,
+              loteId: s.loteId || '', loteNombre: s.loteNombre || '',
+              labor: s.labor || '', grupo: s.grupo || '',
+              avanceHa: s.avanceHa || '', unidad: s.unidad || '',
+              costoUnitario: s.costoUnitario || '',
+            }));
+            const trabajadores = (Array.isArray(block.input.trabajadores) ? block.input.trabajadores : []).map(t => {
+              const arr = Array.isArray(t.cantidades) ? t.cantidades : [];
+              const cantidades = {};
+              segmentos.forEach((seg, idx) => { cantidades[seg.id] = String(arr[idx] ?? ''); });
+              return { trabajadorId: t.trabajadorId || '', trabajadorNombre: t.trabajadorNombre || '', cantidades };
+            });
             planillaDraft = {
               fecha:           block.input.fecha || '',
               encargadoId:     block.input.encargadoId || '',
               encargadoNombre: block.input.encargadoNombre || '',
-              segmentos:       Array.isArray(block.input.segmentos) ? block.input.segmentos : [],
-              trabajadores:    Array.isArray(block.input.trabajadores) ? block.input.trabajadores : [],
+              segmentos, trabajadores,
               observaciones:   block.input.observaciones || '',
             };
-            result = { preview: true, segmentos: planillaDraft.segmentos.length, trabajadores: planillaDraft.trabajadores.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
+            result = { preview: true, segmentos: segmentos.length, trabajadores: trabajadores.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
           } else if (block.name === 'registrar_permiso') {
             result = await chatToolRegistrarPermiso(block.input, req.fincaId);
           } else if (block.name === 'crear_recordatorio') {
