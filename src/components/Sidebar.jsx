@@ -100,6 +100,7 @@ export const MODULES = [
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador' },
       { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
       { label: 'Lista de Labores', to: '/admin/labores', icon: FiList, minRole: 'supervisor' },
+      { label: 'Unidades de Medida', to: '/admin/unidades-medida', icon: FiPackage, minRole: 'supervisor' },
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
     ],
   },

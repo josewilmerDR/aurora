@@ -41,12 +41,160 @@
   gap: 8px;
 }
 
+/* ── Tabs del panel lateral ──────────────────────────────────────────────── */
+.pu-panel-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--aurora-border);
+  margin-bottom: 12px;
+}
+
+.pu-panel-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--aurora-light);
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  cursor: pointer;
+  opacity: 0.55;
+  margin-bottom: -1px;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.pu-panel-tab:hover { opacity: 1; }
+
+.pu-panel-tab--active {
+  opacity: 1;
+  border-bottom-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+/* ── Tab Plantillas ─────────────────────────────────────────────────────── */
+.pu-plantillas-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pu-save-plantilla-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.78rem;
+  padding: 8px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.pu-save-plantilla-btn:hover {
+  opacity: 1;
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.pu-plantilla-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--aurora-background);
+  border-radius: 6px;
+  border: 1px solid var(--aurora-border);
+}
+
+.pu-plantilla-name-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  color: var(--aurora-light);
+  font-size: 0.82rem;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pu-plantilla-name-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.pu-plantilla-name-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pu-plantilla-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pu-plantilla-item {
+  border: 1px solid var(--aurora-border);
+  border-radius: 7px;
+  padding: 9px 11px;
+  background: var(--aurora-dark-blue);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pu-plantilla-nombre {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.pu-plantilla-meta {
+  font-size: 0.75rem;
+  color: #7a9ab5;
+}
+
+.pu-plantilla-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
 .pu-history-item {
   border: 1px solid var(--aurora-border);
   border-radius: 7px;
   padding: 9px 11px;
   background: var(--aurora-dark-blue);
   cursor: default;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pu-history-item--editable {
+  cursor: pointer;
+}
+
+.pu-history-item--editable:hover {
+  border-color: var(--aurora-green);
+  background: #142010;
+}
+
+.pu-history-item--active {
+  border-color: var(--aurora-green);
+  box-shadow: 0 0 0 2px rgba(51, 255, 153, 0.2);
+}
+
+.pu-history-edit-icon {
+  color: var(--aurora-green);
+  opacity: 0.6;
+  flex-shrink: 0;
 }
 
 .pu-history-top {
@@ -496,6 +644,31 @@ select.ut-ctrl {
   color: var(--aurora-light);
 }
 
+.pu-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pu-history-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--aurora-light);
+  padding: 3px 6px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.pu-history-delete-btn:hover {
+  opacity: 1;
+  border-color: #ff4d4d;
+  color: #ff4d4d;
+}
+
 .pu-history-preview-btn {
   display: inline-flex;
   align-items: center;
@@ -590,6 +763,7 @@ select.ut-ctrl {
   padding: 24px 28px;
   border-radius: 4px;
   min-width: 640px;
+  width: fit-content;
 }
 
 .pu-pdoc-header {
@@ -668,7 +842,7 @@ select.ut-ctrl {
 }
 
 .pu-pdoc-table td {
-  padding: 5px 9px;
+  padding: 3px 7px;
   border: 1px solid #ddd;
   color: #333;
 }
@@ -765,6 +939,21 @@ select.ut-ctrl {
 .pu-pdoc-td-bold   { font-weight: 700; }
 
 /* ── Observaciones ───────────────────────────────────────────────────────── */
+/* ── Labor legend (shown when > 4 segments) ─────────────────────────────── */
+.pu-pdoc-labor-legend {
+  margin-top: 8px;
+  font-size: 9px;
+  color: #555;
+  line-height: 1.6;
+}
+.pu-pdoc-labor-legend-title {
+  font-weight: 700;
+  color: #333;
+}
+.pu-pdoc-labor-legend-item {
+  white-space: nowrap;
+}
+
 .pu-pdoc-obs-text {
   font-size: 10px;
   color: #555;

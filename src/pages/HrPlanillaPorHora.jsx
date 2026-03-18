@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye, FiEdit2 } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
@@ -7,7 +7,6 @@ import Toast from '../components/Toast';
 import './HR.css';
 import './HrPlanillaPorUnidad.css';
 
-const UNIDADES = ['Ha', 'Jornal', 'Caja', 'Kg', 'Racimo', 'Bolsa', 'Unidad', 'Hora', 'Metro'];
 const DRAFT_FORM_KEY = 'hr-planilla-unidad';
 
 function todayStr() {
@@ -24,7 +23,7 @@ function newSegId() {
 }
 
 function newSegmento() {
-  return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: 'Ha', costoUnitario: '' };
+  return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '' };
 }
 
 const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect }, ref) {
@@ -127,6 +126,7 @@ function HrPlanillaPorHora() {
   const [lotes, setLotes] = useState([]);
   const [gruposCat, setGruposCat] = useState([]);
   const [laboresCat, setLaboresCat] = useState([]);
+  const [unidadesCat, setUnidadesCat] = useState([]);
   const loteRefs = useRef({});
   const grupoRefs = useRef({});
   const laborRefs = useRef({});
@@ -144,6 +144,11 @@ function HrPlanillaPorHora() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const previewRef = useRef(null);
   const [removedWorkerIds, setRemovedWorkerIds] = useState([]);
+  const [historialTab, setHistorialTab] = useState('historial');
+  const [plantillas, setPlantillas] = useState([]);
+  const [showSavePlantilla, setShowSavePlantilla] = useState(false);
+  const [nombrePlantilla, setNombrePlantilla] = useState('');
+  const [savingPlantilla, setSavingPlantilla] = useState(false);
 
   // Mark / clear the draft badge whenever form content changes
   useEffect(() => {
@@ -162,12 +167,23 @@ function HrPlanillaPorHora() {
       .catch(console.error);
   }, []);
 
+  const fetchPlantillas = useCallback(() => {
+    if (!currentUser?.userId) return;
+    apiFetch(`/api/hr/plantillas-planilla?encargadoId=${currentUser.userId}`)
+      .then(r => r.json())
+      .then(setPlantillas)
+      .catch(console.error);
+  }, [currentUser?.userId]);
+
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
+    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data.map(u => u.nombre) : [])).catch(console.error);
     fetchHistorial();
   }, []);
+
+  useEffect(() => { fetchPlantillas(); }, [fetchPlantillas]);
 
   useEffect(() => {
     if (!currentUser?.userId) return;
@@ -315,17 +331,48 @@ function HrPlanillaPorHora() {
         import('html2canvas'),
         import('jspdf'),
       ]);
-      const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const docEl = previewRef.current;
+      const headerEl = docEl.querySelector('.pu-pdoc-header');
+      const [canvas, headerCanvas] = await Promise.all([
+        html2canvas(docEl, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff',
+          width: docEl.scrollWidth, height: docEl.scrollHeight,
+          windowWidth: docEl.scrollWidth, windowHeight: docEl.scrollHeight,
+        }),
+        headerEl ? html2canvas(headerEl, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff',
+          width: headerEl.scrollWidth, height: headerEl.scrollHeight,
+        }) : Promise.resolve(null),
+      ]);
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const imgH = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
+      const headerH = headerCanvas ? (headerCanvas.height * pageW) / headerCanvas.width : 0;
+      const headerImgData = headerCanvas ? headerCanvas.toDataURL('image/png') : null;
+
+      // Page 1 fits pageH of content; subsequent pages fit (pageH - headerH) each
+      const totalPages = imgH <= pageH ? 1 : 1 + Math.ceil((imgH - pageH) / (pageH - headerH));
+
+      // Page 1 — full width, content from top
+      pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
+      pdf.setFontSize(8); pdf.setTextColor(150);
+      pdf.text(`1 / ${totalPages} páginas`, pageW - 4, pageH - 3, { align: 'right' });
+
+      // Pages 2+
+      let contentY = pageH;
+      let pageNum = 2;
+      while (contentY < imgH) {
+        pdf.addPage();
+        // Content first (shifted so contentY appears just below the header)
+        pdf.addImage(imgData, 'PNG', 0, headerH - contentY, pageW, imgH);
+        // Header drawn on top to cover any overlap
+        if (headerImgData) pdf.addImage(headerImgData, 'PNG', 0, 0, pageW, headerH);
+        pdf.setFontSize(8); pdf.setTextColor(150);
+        pdf.text(`${pageNum} / ${totalPages} páginas`, pageW - 4, pageH - 3, { align: 'right' });
+        contentY += pageH - headerH;
+        pageNum++;
       }
       const filename = `Planilla-${previewPlanilla.consecutivo || 'sin-numero'}.pdf`;
       if (action === 'save') {
@@ -348,6 +395,113 @@ function HrPlanillaPorHora() {
     } finally {
       setPdfLoading(false);
     }
+  };
+
+  const EDITABLE_STATES = ['borrador', 'pendiente_pago'];
+
+  const handleEliminar = async (p, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Eliminar la planilla ${p.consecutivo || ''}? Esta acción no se puede deshacer.`)) return;
+    try {
+      const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      // Si la planilla eliminada estaba cargada en el formulario, limpiar
+      if (planillaId === p.id) {
+        clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
+        clearDraftActive(DRAFT_FORM_KEY);
+        setPlanillaId(null); setConsecutivo(null); setFillAll({}); setRemovedWorkerIds([]);
+      }
+      showToast('Planilla eliminada.');
+      fetchHistorial();
+    } catch {
+      showToast('Error al eliminar la planilla.', 'error');
+    }
+  };
+
+  const handleGuardarPlantilla = async () => {
+    const nombre = nombrePlantilla.trim();
+    if (!nombre || !currentUser?.userId) return;
+    setSavingPlantilla(true);
+    try {
+      const res = await apiFetch('/api/hr/plantillas-planilla', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+        nombre,
+        segmentos,
+        trabajadores: visibleWorkers.map(t => ({ trabajadorId: t.id, cantidades: cantidades[t.id] || {} })),
+        encargadoId: currentUser.userId,
+      }),
+      });
+      if (!res.ok) throw new Error();
+      setNombrePlantilla('');
+      setShowSavePlantilla(false);
+      showToast('Plantilla guardada.');
+      fetchPlantillas();
+    } catch {
+      showToast('Error al guardar plantilla.', 'error');
+    } finally {
+      setSavingPlantilla(false);
+    }
+  };
+
+  const handleEliminarPlantilla = async (p) => {
+    if (!window.confirm(`¿Eliminar la plantilla "${p.nombre}"?`)) return;
+    try {
+      const res = await apiFetch(`/api/hr/plantillas-planilla/${p.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      showToast('Plantilla eliminada.');
+      fetchPlantillas();
+    } catch {
+      showToast('Error al eliminar plantilla.', 'error');
+    }
+  };
+
+  const applyPlantilla = (p) => {
+    // Reassign new IDs and build a map old→new for remapping cantidades
+    const idMap = {};
+    const newSegs = (p.segmentos || []).map(s => {
+      const newId = newSegId();
+      idMap[s.id] = newId;
+      return { ...s, id: newId };
+    });
+    setSegmentos(newSegs);
+    const newCantidades = {};
+    trabajadores.forEach(t => {
+      const saved = (p.trabajadores || []).find(pt => pt.trabajadorId === t.id);
+      newCantidades[t.id] = {};
+      newSegs.forEach(s => {
+        // Find which old segment ID maps to this new one
+        const oldId = Object.keys(idMap).find(k => idMap[k] === s.id);
+        newCantidades[t.id][s.id] = saved?.cantidades?.[oldId] ?? '';
+      });
+    });
+    setCantidades(newCantidades);
+    setFillAll({});
+    setRemovedWorkerIds([]);
+    markDraftActive(DRAFT_FORM_KEY);
+    document.querySelector('.pu-main-col')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast(`Plantilla "${p.nombre}" cargada.`);
+  };
+
+  const loadPlanilla = (p) => {
+    setSegmentos(p.segmentos || [newSegmento()]);
+    // Rebuild cantidades keyed by current worker ids; fall back to saved data
+    const newCantidades = {};
+    trabajadores.forEach(t => {
+      const saved = (p.trabajadores || []).find(pt => pt.trabajadorId === t.id);
+      newCantidades[t.id] = saved?.cantidades || {};
+    });
+    setCantidades(newCantidades);
+    setFecha(p.fecha || todayStr());
+    setObservaciones(p.observaciones || '');
+    setPlanillaId(p.id);
+    setConsecutivo(p.consecutivo);
+    setFillAll({});
+    setRemovedWorkerIds([]);
+    markDraftActive(DRAFT_FORM_KEY);
+    // Scroll form into view
+    document.querySelector('.pu-main-col')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const CONFIG_ROWS = 6; // lote, labor, grupo, avance, unidad, costo
@@ -401,6 +555,10 @@ function HrPlanillaPorHora() {
                           <td><strong>{previewPlanilla.fecha ? new Date(previewPlanilla.fecha).toLocaleDateString('es-CR') : '—'}</strong></td>
                         </tr>
                         <tr>
+                          <td>Encargado:</td>
+                          <td><strong>{previewPlanilla.encargadoNombre || '—'}</strong></td>
+                        </tr>
+                        <tr>
                           <td>Estado:</td>
                           <td>
                             <span className={`pu-pdoc-estado pu-pdoc-estado--${previewPlanilla.estado}`}>
@@ -413,17 +571,26 @@ function HrPlanillaPorHora() {
                   </div>
                 </div>
 
-                {/* Info */}
-                <div className="pu-pdoc-info">
-                  <span>Encargado: <strong>{previewPlanilla.encargadoNombre || '—'}</strong></span>
-                </div>
-
                 {/* Tabla unificada — misma disposición que el formulario */}
                 {(() => {
                   const segs = previewPlanilla.segmentos || [];
                   const workers = (previewPlanilla.trabajadores || [])
                     .filter(t => Object.values(t.cantidades || {}).some(v => v && Number(v) !== 0));
+                  const compactLabor = segs.length > 4;
+                  // Parse "220 - GUARDA DE SEGURIDAD" → { codigo: '220', descripcion: 'GUARDA DE SEGURIDAD' }
+                  const parsedLabores = segs.map(seg => {
+                    const raw = seg.labor || '';
+                    const dash = raw.indexOf(' - ');
+                    return dash !== -1
+                      ? { codigo: raw.slice(0, dash).trim(), descripcion: raw.slice(dash + 3).trim() }
+                      : { codigo: raw, descripcion: '' };
+                  });
+                  // Unique labores for the legend (deduplicated by codigo)
+                  const laborLegend = compactLabor
+                    ? [...new Map(parsedLabores.filter(l => l.codigo).map(l => [l.codigo, l])).values()]
+                    : [];
                   return (
+                    <>
                     <table className="pu-pdoc-table pu-pdoc-unified">
                       <colgroup>
                         <col className="pu-pdoc-col-label" />
@@ -431,15 +598,6 @@ function HrPlanillaPorHora() {
                         <col className="pu-pdoc-col-total" />
                       </colgroup>
                       <tbody>
-                        {/* Encabezados de segmento */}
-                        <tr className="pu-pdoc-row-seg-nums">
-                          <td className="pu-pdoc-label-cell" />
-                          {segs.map((seg, i) => (
-                            <td key={seg.id || i} className="pu-pdoc-seg-num-cell">#{i + 1}</td>
-                          ))}
-                          <td className="pu-pdoc-label-cell" />
-                        </tr>
-
                         {/* LOTE */}
                         <tr>
                           <td className="pu-pdoc-label-cell">LOTE</td>
@@ -457,7 +615,13 @@ function HrPlanillaPorHora() {
                         {/* LABOR */}
                         <tr>
                           <td className="pu-pdoc-label-cell">LABOR</td>
-                          {segs.map((seg, i) => <td key={i}>{seg.labor || '—'}</td>)}
+                          {parsedLabores.map((l, i) => (
+                            <td key={i}>
+                              {l.codigo
+                                ? compactLabor ? l.codigo : `${l.codigo} - ${l.descripcion}`
+                                : '—'}
+                            </td>
+                          ))}
                           <td className="pu-pdoc-label-cell" />
                         </tr>
 
@@ -528,6 +692,18 @@ function HrPlanillaPorHora() {
                         </tr>
                       </tbody>
                     </table>
+                    {compactLabor && laborLegend.length > 0 && (
+                      <div className="pu-pdoc-labor-legend">
+                        <span className="pu-pdoc-labor-legend-title">Labores: </span>
+                        {laborLegend.map((l, i) => (
+                          <span key={l.codigo} className="pu-pdoc-labor-legend-item">
+                            <strong>{l.codigo}</strong>{l.descripcion ? `: ${l.descripcion}` : ''}
+                            {i < laborLegend.length - 1 ? ' · ' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    </>
                   );
                 })()}
 
@@ -708,7 +884,8 @@ function HrPlanillaPorHora() {
                       className="ut-ctrl" value={seg.unidad}
                       onChange={e => { updSeg(seg.id, 'unidad', e.target.value); costoRefs.current[seg.id]?.focus(); }}
                     >
-                      {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                      <option value="-">-</option>
+                      {unidadesCat.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </td>
                 ))}
@@ -813,9 +990,20 @@ function HrPlanillaPorHora() {
                           value={cantidades[t.id]?.[seg.id] ?? ''}
                           onChange={e => setCantidad(t.id, seg.id, e.target.value)}
                           onKeyDown={e => {
-                            if (e.key === 'Enter') {
+                            const idx = visibleWorkers.findIndex(w => w.id === t.id);
+                            if (e.key === 'Tab') {
                               e.preventDefault();
-                              const idx = visibleWorkers.findIndex(w => w.id === t.id);
+                              if (!e.shiftKey) {
+                                // TAB → siguiente trabajador (misma columna)
+                                const next = visibleWorkers[idx + 1];
+                                if (next) cantidadRefs.current[seg.id]?.[next.id]?.focus();
+                              } else {
+                                // Shift+TAB → trabajador anterior (misma columna)
+                                const prev = visibleWorkers[idx - 1];
+                                if (prev) cantidadRefs.current[seg.id]?.[prev.id]?.focus();
+                              }
+                            } else if (e.key === 'Enter') {
+                              e.preventDefault();
                               const nextWorker = visibleWorkers[idx + 1];
                               if (nextWorker) {
                                 cantidadRefs.current[seg.id]?.[nextWorker.id]?.focus();
@@ -897,60 +1085,174 @@ function HrPlanillaPorHora() {
             }}
             disabled={guardando}
           >
-            Limpiar
+            Cancelar
           </button>
         </div>
       </div>
       </div>{/* /pu-main-col */}
 
-      {/* ── Historial (1/4) ── */}
+      {/* ── Panel lateral: Historial / Plantillas ── */}
       <div className="pu-history-col">
         <div className="form-card pu-history-card">
-          <div className="pu-history-header">
-            <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Últimas planillas</h3>
-            <button className="icon-btn" onClick={fetchHistorial} title="Actualizar">
-              <FiRefreshCw size={14} />
+
+          {/* Tabs */}
+          <div className="pu-panel-tabs">
+            <button
+              className={`pu-panel-tab${historialTab === 'historial' ? ' pu-panel-tab--active' : ''}`}
+              onClick={() => setHistorialTab('historial')}
+            >
+              Historial
             </button>
+            <button
+              className={`pu-panel-tab${historialTab === 'plantillas' ? ' pu-panel-tab--active' : ''}`}
+              onClick={() => setHistorialTab('plantillas')}
+            >
+              Plantillas
+            </button>
+            {historialTab === 'historial' && (
+              <button className="icon-btn" onClick={fetchHistorial} title="Actualizar" style={{ marginLeft: 'auto' }}>
+                <FiRefreshCw size={14} />
+              </button>
+            )}
           </div>
 
-          {historial.length === 0 ? (
-            <p className="empty-state" style={{ margin: '12px 0 0', fontSize: '0.82rem' }}>
-              No hay planillas guardadas.
-            </p>
-          ) : (
-            <ul className="pu-history-list">
-              {historial.map(p => (
-                <li key={p.id} className="pu-history-item">
-                  <div className="pu-history-top">
-                    <span className="pu-history-consec">{p.consecutivo || '—'}</span>
-                    <span className={`status-badge status-badge--${ESTADO_CLASS[p.estado] || 'pendiente'}`}>
-                      {ESTADO_LABEL[p.estado] || p.estado}
-                    </span>
-                  </div>
-                  <div className="pu-history-encargado">{p.encargadoNombre || '—'}</div>
-                  <div className="pu-history-meta">
-                    {p.fecha ? new Date(p.fecha).toLocaleDateString('es-CR') : '—'}
-                    {' · '}
-                    {p.segmentos?.length || 0} segmento{p.segmentos?.length !== 1 ? 's' : ''}
-                    {' · '}
-                    {p.trabajadores?.length || 0} trab.
-                  </div>
-                  <div className="pu-history-bottom">
-                    <span className="pu-history-total">
-                      ₡{Number(p.totalGeneral || 0).toLocaleString('es-CR')}
-                    </span>
+          {/* ── Tab Historial ── */}
+          {historialTab === 'historial' && (
+            historial.length === 0 ? (
+              <p className="empty-state" style={{ margin: '4px 0 0', fontSize: '0.82rem' }}>
+                No hay planillas guardadas.
+              </p>
+            ) : (
+              <ul className="pu-history-list">
+                {historial.map(p => {
+                  const editable = EDITABLE_STATES.includes(p.estado);
+                  return (
+                  <li
+                    key={p.id}
+                    className={`pu-history-item${editable ? ' pu-history-item--editable' : ''}${planillaId === p.id ? ' pu-history-item--active' : ''}`}
+                    onClick={editable ? () => loadPlanilla(p) : undefined}
+                    title={editable ? 'Clic para cargar y editar' : undefined}
+                  >
+                    <div className="pu-history-top">
+                      <span className="pu-history-consec">{p.consecutivo || '—'}</span>
+                      <span className={`status-badge status-badge--${ESTADO_CLASS[p.estado] || 'pendiente'}`}>
+                        {ESTADO_LABEL[p.estado] || p.estado}
+                      </span>
+                      {editable && <FiEdit2 size={11} className="pu-history-edit-icon" />}
+                    </div>
+                    <div className="pu-history-encargado">{p.encargadoNombre || '—'}</div>
+                    <div className="pu-history-meta">
+                      {p.fecha ? new Date(p.fecha).toLocaleDateString('es-CR') : '—'}
+                      {' · '}
+                      {p.segmentos?.length || 0} segmento{p.segmentos?.length !== 1 ? 's' : ''}
+                      {' · '}
+                      {p.trabajadores?.length || 0} trab.
+                    </div>
+                    <div className="pu-history-bottom">
+                      <span className="pu-history-total">
+                        ₡{Number(p.totalGeneral || 0).toLocaleString('es-CR')}
+                      </span>
+                      <div className="pu-history-actions">
+                        {editable && (
+                          <button
+                            className="pu-history-delete-btn"
+                            onClick={e => handleEliminar(p, e)}
+                            title="Eliminar planilla"
+                          >
+                            <FiTrash2 size={13} />
+                          </button>
+                        )}
+                        <button
+                          className="pu-history-preview-btn"
+                          onClick={e => { e.stopPropagation(); setPreviewPlanilla(p); }}
+                          title="Ver vista previa"
+                        >
+                          <FiEye size={13} /> Ver
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                  );
+                })}
+              </ul>
+            )
+          )}
+
+          {/* ── Tab Plantillas ── */}
+          {historialTab === 'plantillas' && (
+            <div className="pu-plantillas-tab">
+              {!showSavePlantilla ? (
+                <button
+                  className="pu-save-plantilla-btn"
+                  onClick={() => setShowSavePlantilla(true)}
+                >
+                  <FiPlus size={13} /> Guardar segmentos actuales como plantilla
+                </button>
+              ) : (
+                <div className="pu-plantilla-name-form">
+                  <input
+                    className="pu-plantilla-name-input"
+                    placeholder="Nombre de la plantilla…"
+                    value={nombrePlantilla}
+                    onChange={e => setNombrePlantilla(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleGuardarPlantilla();
+                      if (e.key === 'Escape') { setShowSavePlantilla(false); setNombrePlantilla(''); }
+                    }}
+                    autoFocus
+                  />
+                  <div className="pu-plantilla-name-actions">
                     <button
-                      className="pu-history-preview-btn"
-                      onClick={() => setPreviewPlanilla(p)}
-                      title="Ver vista previa"
+                      className="btn btn-primary btn-sm"
+                      onClick={handleGuardarPlantilla}
+                      disabled={!nombrePlantilla.trim() || savingPlantilla}
                     >
-                      <FiEye size={13} /> Ver
+                      {savingPlantilla ? 'Guardando…' : 'Guardar'}
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => { setShowSavePlantilla(false); setNombrePlantilla(''); }}
+                    >
+                      Cancelar
                     </button>
                   </div>
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+
+              {plantillas.length === 0 ? (
+                <p className="empty-state" style={{ fontSize: '0.82rem' }}>
+                  No hay plantillas guardadas.
+                </p>
+              ) : (
+                <ul className="pu-plantilla-list">
+                  {plantillas.map(p => (
+                    <li key={p.id} className="pu-plantilla-item">
+                      <div className="pu-plantilla-nombre">{p.nombre}</div>
+                      <div className="pu-plantilla-meta">
+                        {p.segmentos?.length || 0} segmento{p.segmentos?.length !== 1 ? 's' : ''}
+                      </div>
+                      <div className="pu-plantilla-actions">
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => applyPlantilla(p)}
+                        >
+                          Usar plantilla
+                        </button>
+                        <button
+                          className="pu-history-delete-btn"
+                          onClick={() => handleEliminarPlantilla(p)}
+                          title="Eliminar plantilla"
+                        >
+                          <FiTrash2 size={13} />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
+
         </div>
       </div>
 

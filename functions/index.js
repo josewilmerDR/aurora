@@ -2748,6 +2748,52 @@ app.delete('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
   }
 });
 
+// ── Plantillas de Planilla por Unidad / Hora ──────────────────────────────────
+app.get('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('hr_plantillas_planilla')
+      .where('fincaId', '==', req.fincaId)
+      .where('encargadoId', '==', req.query.encargadoId || '')
+      .orderBy('createdAt', 'desc').get();
+    const data = snap.docs.map(d => ({
+      id: d.id, ...d.data(),
+      createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null,
+    }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener plantillas.' });
+  }
+});
+
+app.post('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
+  try {
+    const { nombre, segmentos, trabajadores, encargadoId } = req.body;
+    if (!nombre || !encargadoId) return res.status(400).json({ message: 'Nombre y encargado son requeridos.' });
+    const ref = await db.collection('hr_plantillas_planilla').add({
+      fincaId: req.fincaId,
+      nombre: nombre.trim(),
+      segmentos: segmentos || [],
+      trabajadores: trabajadores || [],
+      encargadoId,
+      createdAt: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al guardar plantilla.' });
+  }
+});
+
+app.delete('/api/hr/plantillas-planilla/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('hr_plantillas_planilla', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('hr_plantillas_planilla').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Plantilla eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar plantilla.' });
+  }
+});
+
 // ── Solicitudes de Empleo ─────────────────────────────────────────────────────
 app.get('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
   try {
@@ -4744,6 +4790,60 @@ Reglas:
   } catch (error) {
     console.error('Error escaneando horímetro:', error);
     res.status(500).json({ message: 'Error al procesar la imagen.' });
+  }
+});
+
+// ── Unidades de Medida ─────────────────────────────────────────────────────
+app.get('/api/unidades-medida', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('unidades_medida')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('nombre', 'asc').get();
+    res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener unidades de medida.' });
+  }
+});
+
+app.post('/api/unidades-medida', authenticate, async (req, res) => {
+  try {
+    const { nombre } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
+    const ref = await db.collection('unidades_medida').add({
+      nombre: nombre.trim(),
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear unidad de medida.' });
+  }
+});
+
+app.put('/api/unidades-medida/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('unidades_medida', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const { nombre } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
+    await db.collection('unidades_medida').doc(req.params.id).update({
+      nombre: nombre.trim(),
+      actualizadoEn: Timestamp.now(),
+    });
+    res.status(200).json({ message: 'Unidad actualizada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar unidad de medida.' });
+  }
+});
+
+app.delete('/api/unidades-medida/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('unidades_medida', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('unidades_medida').doc(req.params.id).delete();
+    res.status(200).json({ message: 'Unidad eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar unidad de medida.' });
   }
 });
 
