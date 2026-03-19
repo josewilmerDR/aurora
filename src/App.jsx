@@ -153,6 +153,7 @@ const MainLayout = () => {
   const title = routeTitles[location.pathname] || 'Aurora';
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searchActiveIdx, setSearchActiveIdx] = useState(-1);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
   const wrapperRef = useRef(null);
@@ -188,6 +189,7 @@ const MainLayout = () => {
       });
     });
     setSearchResults(results.slice(0, 8));
+    setSearchActiveIdx(-1);
   }, [searchQuery, userRole]);
 
   // Close dropdown on outside click — only active when dropdown is visible
@@ -204,6 +206,7 @@ const MainLayout = () => {
     navigate(to);
     setSearchQuery('');
     setSearchResults([]);
+    setSearchActiveIdx(-1);
   };
 
   const closeMobileSearch = () => {
@@ -221,13 +224,22 @@ const MainLayout = () => {
     if (e.key === 'Escape') {
       setSearchQuery('');
       setSearchResults([]);
+      setSearchActiveIdx(-1);
       setMobileSearchOpen(false);
+    } else if (e.key === 'ArrowDown' && searchResults.length > 0) {
+      e.preventDefault();
+      setSearchActiveIdx(i => Math.min(i + 1, searchResults.length - 1));
+    } else if (e.key === 'ArrowUp' && searchResults.length > 0) {
+      e.preventDefault();
+      setSearchActiveIdx(i => Math.max(i - 1, -1));
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (searchResults.length > 0) {
+    if (searchActiveIdx >= 0 && searchResults[searchActiveIdx]) {
+      handleSelect(searchResults[searchActiveIdx].to);
+    } else if (searchResults.length > 0) {
       handleSelect(searchResults[0].to);
     } else if (searchQuery.trim()) {
       window.dispatchEvent(new CustomEvent('aurora:open', { detail: { query: searchQuery } }));
@@ -267,8 +279,13 @@ const MainLayout = () => {
           </form>
           {searchResults.length > 0 && (
             <div className="search-dropdown">
-              {searchResults.map(item => (
-                <button key={item.to} className="search-result-item" onMouseDown={() => handleSelect(item.to)}>
+              {searchResults.map((item, idx) => (
+                <button
+                  key={item.to}
+                  className={`search-result-item${idx === searchActiveIdx ? ' search-result-item--active' : ''}`}
+                  onMouseDown={() => handleSelect(item.to)}
+                  onMouseEnter={() => setSearchActiveIdx(idx)}
+                >
                   <span className="search-result-label">{item.label}</span>
                   {item.tag && <span className="search-result-tag">{item.tag}</span>}
                 </button>
