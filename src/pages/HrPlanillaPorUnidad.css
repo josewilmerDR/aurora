@@ -10,6 +10,12 @@
 .pu-main-col {
   flex: 3;
   min-width: 0;
+  /* Grid ensures child cards get explicit widths, so overflow-x:auto on the
+     table-wrap can actually trigger instead of growing with the table */
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-content: start;
 }
 
 .pu-history-col {
@@ -232,6 +238,12 @@
 @media (max-width: 900px) {
   .pu-page-layout {
     flex-direction: column;
+    width: 100%;
+  }
+  .pu-main-col {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
   .pu-history-col {
     max-width: 100%;
@@ -240,11 +252,154 @@
   }
 }
 
+
+@media (max-width: 640px) {
+  /* Scroll táctil suave en iOS y forzar desbordamiento horizontal */
+  .unidad-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+  }
+
+  /* La tabla no se comprime: su ancho mínimo fuerza el desbordamiento */
+  .unidad-table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* Columna de etiquetas: ancho fijo y sticky (ya existe en base, reforzar en móvil) */
+  .ut-label-cell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 90px;
+    max-width: 110px;
+  }
+
+  .ut-worker-name {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 90px;
+    max-width: 110px;
+  }
+
+  /* Columnas de segmento: ancho mínimo para que el desbordamiento sea evidente */
+  .ut-config-cell,
+  .ut-cant-cell,
+  .ut-seg-title-cell {
+    min-width: 130px;
+  }
+
+  /* Menos padding en la tarjeta del formulario */
+  .pu-table-card.form-card {
+    padding: 12px !important;
+  }
+
+  /* Toolbar: solo botón alineado a la derecha */
+  .pu-table-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  /* Header fields en mobile: etiqueta encima del input */
+  .pu-hf-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .pu-hf-label {
+    width: auto;
+    text-align: left;
+  }
+
+  .pu-hf-row .ut-ctrl {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Columna de etiquetas más compacta */
+  .ut-label-cell {
+    padding: 6px 8px;
+    font-size: 0.65rem;
+    min-width: 80px;
+  }
+
+  /* Inputs más altos para touch */
+  .ut-ctrl {
+    padding: 8px 8px;
+    font-size: 0.85rem;
+    min-height: 36px;
+  }
+
+  /* Inputs de cantidad */
+  .ut-cant-input {
+    width: 64px;
+    padding: 6px 4px;
+    font-size: 0.85rem;
+    min-height: 34px;
+  }
+
+  /* Botones de acción del formulario: apilar en móvil */
+  .form-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Modal de vista previa: pantalla casi completa */
+  .pu-preview-overlay {
+    padding: 8px 6px;
+    align-items: flex-start;
+  }
+
+  .pu-preview-modal {
+    border-radius: 8px;
+    max-width: 100%;
+  }
+
+  .pu-preview-modal-header {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+
+  .pu-preview-modal-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pu-preview-modal-actions .btn {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+  }
+
+  .pu-preview-scroll {
+    padding: 12px 8px;
+  }
+
+  /* Historial: cards más compactas */
+  .pu-history-card {
+    padding: 12px !important;
+  }
+}
+
+/* Sobrescribir overflow:hidden del form-card genérico para que position:sticky
+   funcione en las celdas de etiqueta. El .unidad-table-wrap tiene su propio
+   border-radius y border, así que no se pierde ningún estilo visual. */
+.pu-table-card.form-card {
+  overflow: visible;
+}
+
 /* ── Toolbar sobre la tabla ─────────────────────────────────────────────────── */
 .pu-table-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 12px;
@@ -265,6 +420,59 @@
   font-size: 0.84rem;
   color: #ffcc44;
   margin-bottom: 12px;
+}
+
+/* ── Secciones del formulario ────────────────────────────────────────────────── */
+.pu-section-card {
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.pu-section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+/* Campos FECHA / ENCARGADO fuera de la tabla */
+.pu-header-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pu-hf-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pu-hf-label {
+  flex-shrink: 0;
+  width: 110px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(230, 242, 255, 0.55);
+  text-align: right;
+}
+
+.pu-hf-row .ut-ctrl {
+  flex: 1;
+  max-width: 280px;
+}
+
+/* Body card: remove bottom padding so table bleeds to edge */
+.pu-section-body-card {
+  padding-bottom: 0 !important;
+}
+
+/* Footer card toolbar alignment */
+.pu-section-footer-card .form-actions {
+  flex-wrap: wrap;
 }
 
 /* ── Tabla ───────────────────────────────────────────────────────────────────── */

@@ -771,25 +771,45 @@ function HrPlanillaPorHora() {
       )}
 
       {/* ── Columna principal (3/4) ── */}
-      <div className="pu-main-col lote-management-layout">
+      <div className="pu-main-col">
 
-      {/* ── Tabla unificada ── */}
-      <div className="form-card pu-table-card">
-        <div className="pu-table-toolbar">
+      {/* ── Sección 1: Encabezado (Fecha + Encargado) ── */}
+      <div className="form-card pu-section-card pu-section-header-card">
+        <div className="pu-section-title-row">
           <h2 style={{ margin: 0, fontSize: '1.1rem' }}>
             Planilla por Unidad / Hora
             {consecutivo && <span className="status-badge status-badge--pendiente" style={{ marginLeft: 10 }}>{consecutivo}</span>}
           </h2>
-          <button ref={nuevoSegmentoRef} className="btn btn-secondary btn-sm" onClick={() => addSegmento(true)}>
-            <FiPlus size={14} /> Agregar segmento
-          </button>
         </div>
-
         {currentUser && !currentUser.userId && (
           <div className="pu-warning">
             Tu cuenta no está vinculada a un perfil de empleado. Pide a un administrador que registre tu usuario con el mismo correo.
           </div>
         )}
+        <div className="pu-header-fields">
+          <div className="pu-hf-row">
+            <span className="pu-hf-label">FECHA</span>
+            <input
+              className="ut-ctrl ut-ctrl--date"
+              type="date"
+              value={fecha}
+              onChange={e => setFecha(e.target.value)}
+            />
+          </div>
+          <div className="pu-hf-row">
+            <span className="pu-hf-label">ENCARGADO</span>
+            <input className="ut-ctrl input-readonly" value={currentUser?.nombre || '—'} readOnly />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Sección 2: Cuerpo de segmentos ── */}
+      <div className="form-card pu-table-card pu-section-card pu-section-body-card">
+        <div className="pu-table-toolbar">
+          <button ref={nuevoSegmentoRef} className="btn btn-secondary btn-sm" onClick={() => addSegmento(true)}>
+            <FiPlus size={14} /> Agregar segmento
+          </button>
+        </div>
 
         <div className="unidad-table-wrap">
           <table className="unidad-table">
@@ -800,28 +820,7 @@ function HrPlanillaPorHora() {
             </colgroup>
             <tbody>
 
-              {/* ── FECHA ── */}
-              <tr className="ut-row-config ut-row-header-field">
-                <td className="ut-label-cell">FECHA</td>
-                <td className="ut-config-cell" colSpan={segmentos.length + 1}>
-                  <input
-                    className="ut-ctrl ut-ctrl--date"
-                    type="date"
-                    value={fecha}
-                    onChange={e => setFecha(e.target.value)}
-                  />
-                </td>
-              </tr>
-
-              {/* ── ENCARGADO ── */}
-              <tr className="ut-row-config ut-row-header-field ut-row-header-field--last">
-                <td className="ut-label-cell">ENCARGADO</td>
-                <td className="ut-config-cell" colSpan={segmentos.length + 1}>
-                  <input className="ut-ctrl input-readonly" value={currentUser?.nombre || '—'} readOnly />
-                </td>
-              </tr>
-
-              {/* ── Fila de encabezados de segmento ── */}
+              {/* ── Encabezados de segmentos ── */}
               <tr className="ut-row-seg-title">
                 <td className="ut-label-cell" />
                 {segmentos.map((seg, idx) => (
@@ -840,8 +839,8 @@ function HrPlanillaPorHora() {
               {/* ── LOTE ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">LOTE</td>
-                {segmentos.map(seg => (
-                  <td key={seg.id} className="ut-config-cell">
+                {segmentos.map((seg, idx) => (
+                  <td key={seg.id} className={"ut-config-cell"}>
                     <select
                       ref={el => { loteRefs.current[seg.id] = el; }}
                       className="ut-ctrl" value={seg.loteId}
@@ -861,13 +860,13 @@ function HrPlanillaPorHora() {
               {/* ── GRUPO ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">GRUPO</td>
-                {segmentos.map(seg => {
+                {segmentos.map((seg, idx) => {
                   const paqueteId = lotes.find(l => l.id === seg.loteId)?.paqueteId;
                   const gruposFiltrados = paqueteId
                     ? gruposCat.filter(g => g.paqueteId === paqueteId)
                     : gruposCat;
                   return (
-                    <td key={seg.id} className="ut-config-cell">
+                    <td key={seg.id} className={"ut-config-cell"}>
                       <select
                         ref={el => { grupoRefs.current[seg.id] = el; }}
                         className="ut-ctrl"
@@ -892,8 +891,8 @@ function HrPlanillaPorHora() {
               {/* ── LABOR ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">LABOR</td>
-                {segmentos.map(seg => (
-                  <td key={seg.id} className="ut-config-cell">
+                {segmentos.map((seg, idx) => (
+                  <td key={seg.id} className={"ut-config-cell"}>
                     <LaborCombobox
                       ref={el => { laborRefs.current[seg.id] = el; }}
                       value={seg.labor}
@@ -910,8 +909,8 @@ function HrPlanillaPorHora() {
               {/* ── AVANCE ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">AVANCE (Ha)</td>
-                {segmentos.map(seg => (
-                  <td key={seg.id} className="ut-config-cell">
+                {segmentos.map((seg, idx) => (
+                  <td key={seg.id} className={"ut-config-cell"}>
                     <input
                       ref={el => { avanceRefs.current[seg.id] = el; }}
                       className="ut-ctrl" type="number" min="0" step="0.01"
@@ -930,8 +929,8 @@ function HrPlanillaPorHora() {
               {/* ── UNIDAD ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">UNIDAD</td>
-                {segmentos.map(seg => (
-                  <td key={seg.id} className="ut-config-cell">
+                {segmentos.map((seg, idx) => (
+                  <td key={seg.id} className={"ut-config-cell"}>
                     <select
                       ref={el => { unidadRefs.current[seg.id] = el; }}
                       className="ut-ctrl" value={seg.unidad}
@@ -949,8 +948,8 @@ function HrPlanillaPorHora() {
               {/* ── COSTO UNITARIO ── */}
               <tr className="ut-row-config ut-row-config--last">
                 <td className="ut-label-cell">COSTO UNITARIO</td>
-                {segmentos.map(seg => (
-                  <td key={seg.id} className="ut-config-cell">
+                {segmentos.map((seg, idx) => (
+                  <td key={seg.id} className={"ut-config-cell"}>
                     <input
                       ref={el => { costoRefs.current[seg.id] = el; }}
                       className="ut-ctrl" type="number" min="0" step="any"
@@ -973,8 +972,8 @@ function HrPlanillaPorHora() {
               {/* ── Encabezado de sección trabajadores ── */}
               <tr className="ut-row-workers-header">
                 <td className="ut-label-cell">NOMBRE</td>
-                {segmentos.map(seg => (
-                  <td key={seg.id} className="ut-workers-col-header">
+                {segmentos.map((seg, idx) => (
+                  <td key={seg.id} className={"ut-workers-col-header"}>
                     <div className="ut-col-header-label">Cantidad</div>
                     <div className="ut-fill-all">
                       <input
@@ -1034,8 +1033,8 @@ function HrPlanillaPorHora() {
                         {t.nombre}
                       </div>
                     </td>
-                    {segmentos.map(seg => (
-                      <td key={seg.id} className="ut-cant-cell">
+                    {segmentos.map((seg, idx) => (
+                      <td key={seg.id} className={"ut-cant-cell"}>
                         <input
                           ref={el => {
                             if (!cantidadRefs.current[seg.id]) cantidadRefs.current[seg.id] = {};
@@ -1087,8 +1086,8 @@ function HrPlanillaPorHora() {
               {visibleWorkers.length > 0 && (
                 <tr className="ut-row-totals">
                   <td className="ut-label-cell">TOTALES</td>
-                  {segmentos.map(seg => (
-                    <td key={seg.id} className="ut-cant-cell ut-total-cant">
+                  {segmentos.map((seg, idx) => (
+                    <td key={seg.id} className={"ut-cant-cell ut-total-cant"}>
                       {segCantTotal(seg.id) > 0
                         ? segCantTotal(seg.id).toLocaleString('es-CR', { maximumFractionDigits: 2 })
                         : '—'}
@@ -1113,7 +1112,11 @@ function HrPlanillaPorHora() {
           </div>
         )}
 
-        <div className="form-control" style={{ marginTop: 16 }}>
+      </div>{/* /pu-section-body-card */}
+
+      {/* ── Sección 3: Observaciones + acciones ── */}
+      <div className="form-card pu-section-card pu-section-footer-card">
+        <div className="form-control">
           <label>Observaciones</label>
           <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Notas adicionales..." rows={3} />
         </div>
