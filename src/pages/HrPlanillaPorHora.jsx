@@ -114,6 +114,92 @@ const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labor
   );
 });
 
+const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupos, onAfterSelect, onTabDown }, ref) {
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const containerRef = useRef(null);
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
+  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
+
+  const filtered = grupos.filter(g => {
+    const q = (value || '').toLowerCase();
+    return !q || (g.nombreGrupo || '').toLowerCase().includes(q);
+  });
+
+  const selectOption = (grupo) => {
+    onChange(grupo.nombreGrupo);
+    setOpen(false);
+    setHighlighted(0);
+    onAfterSelect?.();
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); return; }
+      if (e.key === 'Tab' && onTabDown) { onTabDown(e); return; }
+      return;
+    }
+    if (e.key === 'Tab') { setOpen(false); if (onTabDown) onTabDown(e); return; }
+    if (e.key === 'ArrowDown') {
+      setHighlighted(h => {
+        const next = Math.min(h + 1, filtered.length - 1);
+        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+        return next;
+      });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHighlighted(h => {
+        const next = Math.max(h - 1, 0);
+        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+        return next;
+      });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[highlighted]) { selectOption(filtered[highlighted]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        className="ut-ctrl"
+        value={value}
+        autoComplete="off"
+        placeholder="Buscar grupo…"
+        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+      />
+      {open && filtered.length > 0 && (
+        <ul ref={listRef} className="labor-dropdown">
+          {filtered.map((g, i) => (
+            <li
+              key={g.id}
+              className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(g)}
+              onMouseEnter={() => setHighlighted(i)}
+            >
+              <span className="labor-dropdown-desc">{g.nombreGrupo}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+});
+
 function HrPlanillaPorHora() {
   const { currentUser } = useUser();
   const apiFetch = useApiFetch();
@@ -238,6 +324,14 @@ function HrPlanillaPorHora() {
     const idx = segmentos.findIndex(s => s.id === segId);
     const next = segmentos[e.shiftKey ? idx - 1 : idx + 1];
     if (next) { e.preventDefault(); refsObj.current[next.id]?.focus(); }
+  };
+
+  // Moves focus vertically within the same segment column (Tab = down, Shift+Tab = up)
+  const makeColTabHandler = (segId, prevRefsObj, nextRefsObj) => (e) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    if (e.shiftKey) prevRefsObj?.current[segId]?.focus();
+    else nextRefsObj?.current[segId]?.focus();
   };
 
   const addSegmento = (focusNew = false) => {
@@ -866,22 +960,15 @@ function HrPlanillaPorHora() {
                     ? gruposCat.filter(g => g.paqueteId === paqueteId)
                     : gruposCat;
                   return (
-                    <td key={seg.id} className={"ut-config-cell"}>
-                      <select
+                    <td key={seg.id} className="ut-config-cell">
+                      <GrupoCombobox
                         ref={el => { grupoRefs.current[seg.id] = el; }}
-                        className="ut-ctrl"
                         value={seg.grupo}
-                        onKeyDown={makeTabHandler(seg.id, grupoRefs)}
-                        onChange={e => {
-                          updSeg(seg.id, 'grupo', e.target.value);
-                          laborRefs.current[seg.id]?.focus();
-                        }}
-                      >
-                        <option value="">— Seleccionar —</option>
-                        {gruposFiltrados.map(g => (
-                          <option key={g.id} value={g.nombreGrupo}>{g.nombreGrupo}</option>
-                        ))}
-                      </select>
+                        grupos={gruposFiltrados}
+                        onChange={v => updSeg(seg.id, 'grupo', v)}
+                        onAfterSelect={() => laborRefs.current[seg.id]?.focus()}
+                        onTabDown={makeColTabHandler(seg.id, loteRefs, laborRefs)}
+                      />
                     </td>
                   );
                 })}
