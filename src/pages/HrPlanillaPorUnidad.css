@@ -8,7 +8,7 @@
 }
 
 .pu-main-col {
-  flex: 3;
+  flex: 4;
   min-width: 0;
 }
 
@@ -799,6 +799,11 @@ select.ut-ctrl {
   font-size: 1rem;
   font-weight: 700;
   color: #1a1a1a;
+}
+
+.pu-pdoc-brand-info {
+  display: flex;
+  flex-direction: column;
 }
 
 .pu-pdoc-brand-detail {
