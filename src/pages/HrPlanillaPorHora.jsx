@@ -140,7 +140,7 @@ function HrPlanillaPorHora() {
   const cantidadRefs = useRef({});
   const nuevoSegmentoRef = useRef(null);
   const pendingFocusSegId = useRef(null);
-  const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '' });
+  const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
   const [guardando, setGuardando] = useState(false);
   const [planillaId, setPlanillaId] = useState(null);
   const [consecutivo, setConsecutivo] = useState(null);
@@ -185,7 +185,7 @@ function HrPlanillaPorHora() {
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
     apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data.map(u => u.nombre) : [])).catch(console.error);
-    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '' })).catch(console.error);
+    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
     fetchHistorial();
   }, []);
 
@@ -590,6 +590,9 @@ function HrPlanillaPorHora() {
                             : 'AU')}
                     </div>
                     <div className="pu-pdoc-brand-name">{companyConfig.nombreEmpresa || 'Finca Aurora'}</div>
+                    {companyConfig.identificacion && <div className="pu-pdoc-brand-detail">Identificación: {companyConfig.identificacion}</div>}
+                    {companyConfig.whatsapp && <div className="pu-pdoc-brand-detail">Teléfono: {companyConfig.whatsapp}</div>}
+                    {companyConfig.direccion && <div className="pu-pdoc-brand-detail">Dirección: {companyConfig.direccion}</div>}
                   </div>
                   <div className="pu-pdoc-title-block">
                     <div className="pu-pdoc-title">Planilla por Unidad / Hora</div>

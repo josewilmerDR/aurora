@@ -801,6 +801,12 @@ select.ut-ctrl {
   color: #1a1a1a;
 }
 
+.pu-pdoc-brand-detail {
+  font-size: 0.72rem;
+  color: #555;
+  margin-top: 1px;
+}
+
 .pu-pdoc-title-block {
   text-align: right;
 }
