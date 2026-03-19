@@ -8,7 +8,7 @@
 }
 
 .pu-main-col {
-  flex: 3;
+  flex: 4;
   min-width: 0;
   /* Grid ensures child cards get explicit widths, so overflow-x:auto on the
      table-wrap can actually trigger instead of growing with the table */
@@ -1007,6 +1007,17 @@ select.ut-ctrl {
   font-size: 1rem;
   font-weight: 700;
   color: #1a1a1a;
+}
+
+.pu-pdoc-brand-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pu-pdoc-brand-detail {
+  font-size: 0.72rem;
+  color: #555;
+  margin-top: 1px;
 }
 
 .pu-pdoc-title-block {

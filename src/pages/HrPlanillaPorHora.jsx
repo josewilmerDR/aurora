@@ -200,6 +200,92 @@ const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupo
   );
 });
 
+const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, unidades, onAfterSelect, onTabDown }, ref) {
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const containerRef = useRef(null);
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
+  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
+
+  const filtered = unidades.filter(u => {
+    const q = (value || '').toLowerCase();
+    return !q || u.toLowerCase().includes(q);
+  });
+
+  const selectOption = (u) => {
+    onChange(u);
+    setOpen(false);
+    setHighlighted(0);
+    onAfterSelect?.();
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); return; }
+      if (e.key === 'Tab' && onTabDown) { onTabDown(e); return; }
+      return;
+    }
+    if (e.key === 'Tab') { setOpen(false); if (onTabDown) onTabDown(e); return; }
+    if (e.key === 'ArrowDown') {
+      setHighlighted(h => {
+        const next = Math.min(h + 1, filtered.length - 1);
+        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+        return next;
+      });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHighlighted(h => {
+        const next = Math.max(h - 1, 0);
+        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+        return next;
+      });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[highlighted] !== undefined) { selectOption(filtered[highlighted]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        className="ut-ctrl"
+        value={value === '-' ? '' : value}
+        autoComplete="off"
+        placeholder="Buscar unidad…"
+        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+      />
+      {open && filtered.length > 0 && (
+        <ul ref={listRef} className="labor-dropdown">
+          {filtered.map((u, i) => (
+            <li
+              key={u}
+              className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(u)}
+              onMouseEnter={() => setHighlighted(i)}
+            >
+              <span className="labor-dropdown-desc">{u}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+});
+
 function HrPlanillaPorHora() {
   const { currentUser } = useUser();
   const apiFetch = useApiFetch();
@@ -226,7 +312,7 @@ function HrPlanillaPorHora() {
   const cantidadRefs = useRef({});
   const nuevoSegmentoRef = useRef(null);
   const pendingFocusSegId = useRef(null);
-  const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '' });
+  const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
   const [guardando, setGuardando] = useState(false);
   const [planillaId, setPlanillaId] = useState(null);
   const [consecutivo, setConsecutivo] = useState(null);
@@ -271,7 +357,7 @@ function HrPlanillaPorHora() {
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
     apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data.map(u => u.nombre) : [])).catch(console.error);
-    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '' })).catch(console.error);
+    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
     fetchHistorial();
   }, []);
 
@@ -318,7 +404,7 @@ function HrPlanillaPorHora() {
       .catch(console.error);
   }, [currentUser?.userId]);
 
-  // Returns a keydown handler that moves focus to the same field in the next/prev segment on TAB/Shift+TAB
+  // Moves focus to the same field in the next/prev segment (horizontal — kept for worker rows)
   const makeTabHandler = (segId, refsObj) => (e) => {
     if (e.key !== 'Tab') return;
     const idx = segmentos.findIndex(s => s.id === segId);
@@ -683,7 +769,12 @@ function HrPlanillaPorHora() {
                             ? companyConfig.nombreEmpresa.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
                             : 'AU')}
                     </div>
-                    <div className="pu-pdoc-brand-name">{companyConfig.nombreEmpresa || 'Finca Aurora'}</div>
+                    <div className="pu-pdoc-brand-info">
+                      <div className="pu-pdoc-brand-name">{companyConfig.nombreEmpresa || 'Finca Aurora'}</div>
+                      {companyConfig.identificacion && <div className="pu-pdoc-brand-detail">Identificación: {companyConfig.identificacion}</div>}
+                      {companyConfig.whatsapp && <div className="pu-pdoc-brand-detail">Teléfono: {companyConfig.whatsapp}</div>}
+                      {companyConfig.direccion && <div className="pu-pdoc-brand-detail">Dirección: {companyConfig.direccion}</div>}
+                    </div>
                   </div>
                   <div className="pu-pdoc-title-block">
                     <div className="pu-pdoc-title">Planilla por Unidad / Hora</div>
@@ -938,7 +1029,7 @@ function HrPlanillaPorHora() {
                     <select
                       ref={el => { loteRefs.current[seg.id] = el; }}
                       className="ut-ctrl" value={seg.loteId}
-                      onKeyDown={makeTabHandler(seg.id, loteRefs)}
+                      onKeyDown={makeColTabHandler(seg.id, null, grupoRefs)}
                       onChange={e => {
                         updSeg(seg.id, 'loteId', e.target.value);
                         grupoRefs.current[seg.id]?.focus();
@@ -986,7 +1077,7 @@ function HrPlanillaPorHora() {
                       labores={laboresCat}
                       onChange={v => updSeg(seg.id, 'labor', v)}
                       onAfterSelect={() => avanceRefs.current[seg.id]?.focus()}
-                      onTabDown={makeTabHandler(seg.id, laborRefs)}
+                      onTabDown={makeColTabHandler(seg.id, grupoRefs, avanceRefs)}
                     />
                   </td>
                 ))}
@@ -1004,7 +1095,7 @@ function HrPlanillaPorHora() {
                       value={seg.avanceHa} onChange={e => updSeg(seg.id, 'avanceHa', e.target.value)}
                       placeholder="0.00"
                       onKeyDown={e => {
-                        if (e.key === 'Tab') { makeTabHandler(seg.id, avanceRefs)(e); return; }
+                        if (e.key === 'Tab') { makeColTabHandler(seg.id, laborRefs, unidadRefs)(e); return; }
                         if (e.key === 'Enter') { e.preventDefault(); unidadRefs.current[seg.id]?.focus(); }
                       }}
                     />
@@ -1016,17 +1107,16 @@ function HrPlanillaPorHora() {
               {/* ── UNIDAD ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">UNIDAD</td>
-                {segmentos.map((seg, idx) => (
-                  <td key={seg.id} className={"ut-config-cell"}>
-                    <select
+                {segmentos.map(seg => (
+                  <td key={seg.id} className="ut-config-cell">
+                    <UnidadCombobox
                       ref={el => { unidadRefs.current[seg.id] = el; }}
-                      className="ut-ctrl" value={seg.unidad}
-                      onKeyDown={makeTabHandler(seg.id, unidadRefs)}
-                      onChange={e => { updSeg(seg.id, 'unidad', e.target.value); costoRefs.current[seg.id]?.focus(); }}
-                    >
-                      <option value="-">-</option>
-                      {unidadesCat.map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
+                      value={seg.unidad}
+                      unidades={unidadesCat}
+                      onChange={v => updSeg(seg.id, 'unidad', v)}
+                      onAfterSelect={() => costoRefs.current[seg.id]?.focus()}
+                      onTabDown={makeColTabHandler(seg.id, avanceRefs, costoRefs)}
+                    />
                   </td>
                 ))}
                 <td className="ut-filler-cell" />
@@ -1043,7 +1133,13 @@ function HrPlanillaPorHora() {
                       value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
                       placeholder="0"
                       onKeyDown={e => {
-                        if (e.key === 'Tab') { makeTabHandler(seg.id, costoRefs)(e); return; }
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          if (e.shiftKey) { unidadRefs.current[seg.id]?.focus(); return; }
+                          const firstT = visibleWorkers[0];
+                          if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
+                          return;
+                        }
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           const firstT = visibleWorkers[0];
