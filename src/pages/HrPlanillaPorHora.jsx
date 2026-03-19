@@ -140,6 +140,7 @@ function HrPlanillaPorHora() {
   const cantidadRefs = useRef({});
   const nuevoSegmentoRef = useRef(null);
   const pendingFocusSegId = useRef(null);
+  const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '' });
   const [guardando, setGuardando] = useState(false);
   const [planillaId, setPlanillaId] = useState(null);
   const [consecutivo, setConsecutivo] = useState(null);
@@ -184,6 +185,7 @@ function HrPlanillaPorHora() {
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
     apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data.map(u => u.nombre) : [])).catch(console.error);
+    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '' })).catch(console.error);
     fetchHistorial();
   }, []);
 
@@ -580,8 +582,14 @@ function HrPlanillaPorHora() {
                 {/* Encabezado */}
                 <div className="pu-pdoc-header">
                   <div className="pu-pdoc-brand">
-                    <div className="pu-pdoc-logo">AU</div>
-                    <div className="pu-pdoc-brand-name">Finca Aurora</div>
+                    <div className="pu-pdoc-logo">
+                      {companyConfig.logoUrl
+                        ? <img src={companyConfig.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />
+                        : (companyConfig.nombreEmpresa
+                            ? companyConfig.nombreEmpresa.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                            : 'AU')}
+                    </div>
+                    <div className="pu-pdoc-brand-name">{companyConfig.nombreEmpresa || 'Finca Aurora'}</div>
                   </div>
                   <div className="pu-pdoc-title-block">
                     <div className="pu-pdoc-title">Planilla por Unidad / Hora</div>
