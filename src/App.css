@@ -269,15 +269,47 @@
 
 /* En mobile la sidebar desaparece y se usa MobileNav (barra inferior) */
 @media (max-width: 768px) {
-  /* Ocultar hamburguesa y texto "Aurora" */
+  /* ── Layout de pantalla completa: el scroll ocurre dentro del content-area,
+        no a nivel de documento. Header y barra inferior son independientes. ── */
+  .app-wrapper {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header deja de ser fixed: es un flex-item estático */
+  .app-header {
+    position: static;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  /* El layout interior ocupa el espacio restante y no hace scroll */
+  .app-layout {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    margin-top: 0;
+  }
+
+  /* El área de contenido scrollea verticalmente de forma independiente */
+  .content-area {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: clip;
+    -webkit-overflow-scrolling: touch;
+    margin-left: 0;
+    padding: 15px 15px calc(62px + 15px);
+  }
+
+  /* ── Elementos del header ── */
   .app-header-menu-btn { display: none; }
   .app-header-name     { display: none; }
 
-  /* Ocultar buscador normal; mostrar lupa empujada a la derecha */
   .app-header-search        { display: none; }
   .app-header-search-toggle { display: flex; margin-left: auto; }
 
-  /* Ocultar texto del nombre en el perfil, hacerlo circular */
   .app-header-profile-name { display: none; }
   .app-header-profile-btn {
     padding: 6px 8px;
@@ -299,13 +331,7 @@
   }
 
   .mobile-search-open .app-header-search-back { display: flex; }
-
   .mobile-search-open .main-search-bar { flex: 1; }
-
-  .content-area {
-    margin-left: 0;
-    padding: 15px 15px calc(62px + 15px);
-  }
 
   .main-header { flex-wrap: wrap; }
   .main-header h1 { font-size: 1.5rem; }
