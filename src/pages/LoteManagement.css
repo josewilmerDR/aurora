@@ -1,20 +1,119 @@
-/* Contenedor principal para alinear el formulario y la lista */
+/* ── Layout ──────────────────────────────────────────────────────────────── */
 .lote-management-layout {
   display: grid;
-  grid-template-columns: 1fr; /* Una columna por defecto */
-  gap: 30px;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: start;
 }
 
-/* Estilos para el formulario y la lista, reutilizando la clase info-card */
-.form-card,
-.list-card {
+@media (max-width: 768px) {
+  .lote-management-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Left panel: lote list ───────────────────────────────────────────────── */
+.lote-list-panel {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-full {
+  width: 100%;
+  justify-content: center;
+}
+
+.lote-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lote-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.lote-list-item:hover {
+  background-color: rgba(230, 242, 255, 0.05);
+  border-color: var(--aurora-border);
+}
+
+.lote-list-item.active {
+  background-color: rgba(51, 255, 153, 0.08);
+  border-color: rgba(51, 255, 153, 0.25);
+}
+
+.lote-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lote-list-code {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--aurora-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lote-list-item.active .lote-list-code {
+  color: var(--aurora-green);
+}
+
+.lote-list-name {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lote-list-date {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.4;
+}
+
+.lote-list-arrow {
+  flex-shrink: 0;
+  color: var(--aurora-light);
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+
+.lote-list-item:hover .lote-list-arrow,
+.lote-list-item.active .lote-list-arrow {
+  opacity: 0.7;
+}
+
+/* ── Right panel: form card ──────────────────────────────────────────────── */
+.form-card {
   background-color: var(--aurora-background);
   padding: 25px;
   border-radius: 8px;
   border: 1px solid var(--aurora-border);
 }
 
-.form-card h2, .list-card h2 {
+.form-card h2 {
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 20px;
@@ -22,7 +121,6 @@
   padding-bottom: 10px;
 }
 
-/* Estilos para el formulario */
 .lote-form .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -55,9 +153,254 @@
   margin-top: 20px;
   display: flex;
   gap: 15px;
+  flex-wrap: wrap;
 }
 
-/* Estilos para los botones */
+/* ── Right panel: hub ────────────────────────────────────────────────────── */
+.lote-hub {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 24px;
+  min-height: 400px;
+}
+
+.lote-hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--aurora-light);
+  opacity: 0.4;
+  font-size: 0.9rem;
+  min-height: 300px;
+}
+
+.hub-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.hub-title-block {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hub-lote-code {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  margin: 0;
+}
+
+.hub-lote-name {
+  font-size: 1rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+}
+
+.hub-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hub-info-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.hub-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  background-color: rgba(230, 242, 255, 0.06);
+  border: 1px solid var(--aurora-border);
+  border-radius: 20px;
+  padding: 4px 12px;
+}
+
+.hub-pill-muted {
+  opacity: 0.45;
+}
+
+.hub-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--aurora-border);
+  margin-bottom: 20px;
+}
+
+.hub-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  margin-bottom: -1px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.hub-tab:hover {
+  opacity: 0.85;
+}
+
+.hub-tab.active {
+  opacity: 1;
+  color: var(--aurora-green);
+  border-bottom-color: var(--aurora-green);
+}
+
+.hub-loading {
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+/* ── Siembras tab ────────────────────────────────────────────────────────── */
+.hub-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.siembra-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.siembra-stat {
+  background-color: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.siembra-records {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.siembra-record {
+  background-color: rgba(230, 242, 255, 0.03);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.siembra-record.cerrado {
+  opacity: 0.65;
+}
+
+.siembra-record-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.siembra-record-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.siembra-bloque {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--aurora-light);
+}
+
+.siembra-badge-cerrado {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background-color: rgba(204, 51, 255, 0.1);
+  border: 1px solid rgba(204, 51, 255, 0.25);
+  color: var(--aurora-magenta);
+}
+
+.siembra-record-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+.siembra-record-data {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.siembra-data-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.siembra-data-material {
+  flex: 1;
+  min-width: 160px;
+}
+
+.data-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aurora-light);
+  opacity: 0.4;
+}
+
+.data-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--aurora-light);
+}
+
+/* ── Shared buttons ──────────────────────────────────────────────────────── */
 .btn {
   padding: 10px 20px;
   border: none;
@@ -89,12 +432,6 @@
   color: var(--aurora-light);
 }
 
-/* Estilos para la lista de lotes */
-.lote-actions {
-  display: flex;
-  gap: 10px;
-}
-
 .icon-btn {
   background: none;
   border: none;
@@ -102,6 +439,8 @@
   color: var(--aurora-light);
   opacity: 0.7;
   transition: color 0.2s, opacity 0.2s;
+  padding: 4px;
+  border-radius: 4px;
 }
 
 .icon-btn:hover {
@@ -113,7 +452,7 @@
   color: var(--aurora-magenta);
 }
 
-/* Vista previa del paquete seleccionado */
+/* ── Package preview (in form) ───────────────────────────────────────────── */
 .package-preview {
   margin-top: 20px;
   border: 1px solid var(--aurora-border);
@@ -205,11 +544,25 @@
   opacity: 0.8;
 }
 
-/* En pantallas más grandes, colocar formulario y lista lado a lado */
-@media (min-width: 1200px) {
-  .lote-management-layout {
-    grid-template-columns: 800px 1fr; /* Formulario a la izquierda, lista a la derecha */
-  }
+/* ── Legacy classes used by other pages via @import ──────────────────────── */
+.list-card {
+  background-color: var(--aurora-background);
+  padding: 25px;
+  border-radius: 8px;
+  border: 1px solid var(--aurora-border);
+}
+
+.list-card h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--aurora-border);
+  padding-bottom: 10px;
+}
+
+.lote-actions {
+  display: flex;
+  gap: 10px;
 }
 
 @media (max-width: 768px) {
@@ -228,7 +581,6 @@
     justify-content: center;
   }
 
-  /* Product list items: stack info above actions on narrow screens */
   .info-list li {
     align-items: flex-start;
     flex-wrap: wrap;
