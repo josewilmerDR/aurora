@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FiArrowRight } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import './Login.css';
@@ -7,12 +7,14 @@ import './Login.css';
 export default function Login() {
   const { loginWithGoogle, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/';
 
   useEffect(() => {
-    if (isLoggedIn) navigate('/', { replace: true });
-    else if (needsOrgSelection) navigate('/', { replace: true });
+    if (isLoggedIn) navigate(from, { replace: true });
+    else if (needsOrgSelection) navigate(from, { replace: true });
     else if (needsSetup) navigate('/register', { replace: true });
-  }, [isLoggedIn, needsOrgSelection, needsSetup, navigate]);
+  }, [isLoggedIn, needsOrgSelection, needsSetup, navigate, from]);
 
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -21,7 +23,7 @@ export default function Login() {
   const handleEmailSubmit = (e) => {
     e.preventDefault();
     if (!email) return;
-    navigate('/login/contrasena', { state: { email } });
+    navigate('/login/contrasena', { state: { email, from } });
   };
 
   const handleGoogle = async () => {
