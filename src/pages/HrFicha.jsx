@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
+import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import './HR.css';
 import { FiSave, FiUserPlus, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
 const DIAS_SEMANA = [
-  { key: 'lunes',     label: 'Lunes'      },
-  { key: 'martes',    label: 'Martes'     },
-  { key: 'miercoles', label: 'Miércoles'  },
-  { key: 'jueves',    label: 'Jueves'     },
-  { key: 'viernes',   label: 'Viernes'    },
-  { key: 'sabado',    label: 'Sábado'     },
-  { key: 'domingo',   label: 'Domingo'    },
+  { key: 'lunes',     label: 'Lunes',      letra: 'L' },
+  { key: 'martes',    label: 'Martes',     letra: 'M' },
+  { key: 'miercoles', label: 'Miércoles',  letra: 'M' },
+  { key: 'jueves',    label: 'Jueves',     letra: 'J' },
+  { key: 'viernes',   label: 'Viernes',    letra: 'V' },
+  { key: 'sabado',    label: 'Sábado',     letra: 'S' },
+  { key: 'domingo',   label: 'Domingo',    letra: 'D' },
 ];
 
 const EMPTY_HORARIO = Object.fromEntries(
@@ -38,6 +39,8 @@ function calcHorasSemanales(horario = {}) {
 
 const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'trabajador' };
 
+const DRAFT_KEY = 'aurora_hr_ficha_draft';
+
 // mode: 'idle' | 'new' | 'edit'
 function HrFicha() {
   const apiFetch = useApiFetch();
@@ -49,6 +52,12 @@ function HrFicha() {
   const [fichaForm, setFichaForm] = useState(EMPTY_FICHA);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [laboralCollapsed, setLaboralCollapsed] = useState(true);
+  const [contactoCollapsed, setContactoCollapsed] = useState(true);
+  const [notasCollapsed, setNotasCollapsed] = useState(true);
+  const [horarioCollapsed, setHorarioCollapsed] = useState(true);
+  const [horarioDefault, setHorarioDefault] = useState({ inicio: '06:00', fin: '14:00' });
+  const [busquedaEmpleado, setBusquedaEmpleado] = useState('');
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchUsers = () => {
@@ -61,7 +70,35 @@ function HrFicha() {
       .catch(console.error);
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    clearDraftActive('hr-ficha');
+  };
+
+  // Restaurar borrador al montar
+  useEffect(() => {
+    fetchUsers();
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    try {
+      const draft = JSON.parse(raw);
+      setMode(draft.mode);
+      setSelectedId(draft.selectedId);
+      setUserForm(draft.userForm);
+      setFichaForm({
+        ...EMPTY_FICHA,
+        ...draft.fichaForm,
+        horarioSemanal: { ...EMPTY_HORARIO, ...(draft.fichaForm?.horarioSemanal || {}) },
+      });
+    } catch { clearDraft(); }
+  }, []);
+
+  // Guardar borrador mientras hay cambios sin guardar
+  useEffect(() => {
+    if (mode === 'idle') return;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, selectedId, userForm, fichaForm }));
+    markDraftActive('hr-ficha');
+  }, [fichaForm, userForm, mode, selectedId]);
 
   const handleSelectEmployee = async (user) => {
     setSelectedId(user.id);
@@ -83,9 +120,11 @@ function HrFicha() {
     setUserForm(EMPTY_USER);
     setFichaForm(EMPTY_FICHA);
     setMode('new');
+    document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancel = () => {
+    clearDraft();
     setMode('idle');
     setSelectedId(null);
     setUserForm(EMPTY_USER);
@@ -103,13 +142,27 @@ function HrFicha() {
   };
 
   const handleHorarioChange = (diaKey, field, value) => {
-    setFichaForm(prev => ({
-      ...prev,
-      horarioSemanal: {
-        ...prev.horarioSemanal,
-        [diaKey]: { ...prev.horarioSemanal[diaKey], [field]: value },
-      },
-    }));
+    setFichaForm(prev => {
+      const diaActual = prev.horarioSemanal[diaKey];
+      const updates = field === 'activo' && value === true
+        ? { activo: true, inicio: diaActual.inicio || horarioDefault.inicio, fin: diaActual.fin || horarioDefault.fin }
+        : { [field]: value };
+      return {
+        ...prev,
+        horarioSemanal: { ...prev.horarioSemanal, [diaKey]: { ...diaActual, ...updates } },
+      };
+    });
+  };
+
+  const DIAS_LABORALES = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const aplicarHorarioLV = () => {
+    setFichaForm(prev => {
+      const nuevoDias = { ...prev.horarioSemanal };
+      DIAS_LABORALES.forEach(key => {
+        nuevoDias[key] = { activo: true, inicio: horarioDefault.inicio, fin: horarioDefault.fin };
+      });
+      return { ...prev, horarioSemanal: nuevoDias };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -127,6 +180,7 @@ function HrFicha() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(fichaForm),
         });
+        clearDraft();
         showToast('Ficha actualizada correctamente.');
         fetchUsers();
       } else {
@@ -159,7 +213,63 @@ function HrFicha() {
     <div className="ficha-page-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Formulario (izquierda) ── */}
+      {/* ── Panel de empleados — primero en DOM para que en móvil aparezca arriba sin trucos CSS ── */}
+      <div className="empleados-panel">
+        <div className="empleados-panel-header">
+          <span>Empleados en Planilla</span>
+          <div className="empleados-panel-header-right">
+            <span className="empleados-panel-count">{planillaUsers.length}</span>
+            <button className="empleados-panel-new-btn" onClick={handleNew} title="Crear nuevo empleado">
+              <FiUserPlus size={14} />
+            </button>
+          </div>
+        </div>
+
+        <div className="empleados-search-wrap">
+          <input
+            className="empleados-search"
+            type="text"
+            placeholder="Buscar empleado..."
+            value={busquedaEmpleado}
+            onChange={e => setBusquedaEmpleado(e.target.value)}
+          />
+          {busquedaEmpleado && (
+            <button className="empleados-search-clear" onClick={() => setBusquedaEmpleado('')}>✕</button>
+          )}
+        </div>
+
+        {planillaUsers.length === 0 ? (
+          <p style={{ padding: '20px 16px', fontSize: '0.83rem', color: 'var(--aurora-light)', opacity: 0.45, textAlign: 'center' }}>
+            Sin empleados registrados.
+          </p>
+        ) : (
+          <ul className="empleados-list">
+            {planillaUsers
+              .filter(u => u.nombre.toLowerCase().includes(busquedaEmpleado.toLowerCase()))
+              .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+              .map(u => (
+                <li
+                  key={u.id}
+                  className={`empleados-list-item${selectedId === u.id ? ' empleados-list-item--active' : ''}`}
+                  onClick={() => handleSelectEmployee(u)}
+                >
+                  <div className="empleados-list-avatar">{u.nombre.charAt(0).toUpperCase()}</div>
+                  <div className="empleados-list-info">
+                    <div className="empleados-list-name">{u.nombre}</div>
+                    <div className="empleados-list-sub">{u.email}</div>
+                  </div>
+                </li>
+              ))}
+            {planillaUsers.filter(u => u.nombre.toLowerCase().includes(busquedaEmpleado.toLowerCase())).length === 0 && (
+              <p style={{ padding: '16px', fontSize: '0.83rem', color: 'var(--aurora-light)', opacity: 0.45, textAlign: 'center' }}>
+                Sin resultados.
+              </p>
+            )}
+          </ul>
+        )}
+      </div>
+
+      {/* ── Formulario — segundo en DOM, aparece a la izquierda en escritorio vía CSS grid ── */}
       <div className="form-card">
         <div className="ficha-action-bar">
           <button
@@ -171,9 +281,14 @@ function HrFicha() {
         </div>
 
         {mode === 'idle' && (
-          <p className="empty-state" style={{ marginTop: 28 }}>
-            Selecciona un empleado de la lista o crea uno nuevo.
-          </p>
+          <div className="ficha-idle-state">
+            <p className="empty-state">
+              Selecciona un empleado de la lista o crea uno nuevo.
+            </p>
+            <button className="btn btn-primary ficha-idle-new-btn" onClick={handleNew}>
+              <FiUserPlus /> Crear Nuevo Empleado
+            </button>
+          </div>
         )}
 
         {mode !== 'idle' && (
@@ -190,7 +305,7 @@ function HrFicha() {
             )}
 
             <p className="form-section-title">
-              {mode === 'edit' ? 'Editar Empleado' : 'Nuevo Empleado en Planilla'}
+              {mode === 'edit' ? 'Información Personal' : 'Nuevo Empleado en Planilla'}
             </p>
 
             <div className="form-grid">
@@ -218,7 +333,15 @@ function HrFicha() {
               </div>
             </div>
 
-            <p className="form-section-title">Información Laboral</p>
+            <button
+              type="button"
+              className="form-section-title collapsible-section-header"
+              onClick={() => setLaboralCollapsed(v => !v)}
+            >
+              <span>Información Laboral</span>
+              <span className={`collapsible-chevron${laboralCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+            </button>
+            <div className={laboralCollapsed ? 'collapsible-content--hidden' : ''}>
             <div className="form-grid">
               <div className="form-control">
                 <label>Puesto</label>
@@ -249,17 +372,44 @@ function HrFicha() {
                 <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
               </div>
             </div>
+            </div>
 
-            <p className="form-section-title">Horario Semanal</p>
-            <div className="horario-grid">
+            <button
+              type="button"
+              className="form-section-title collapsible-section-header"
+              onClick={() => setHorarioCollapsed(v => !v)}
+            >
+              <span>Horario Semanal</span>
+              <span className={`collapsible-chevron${horarioCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+            </button>
+            <div className={`horario-grid${horarioCollapsed ? ' horario-grid--hidden' : ''}`}>
+              <div className="horario-quickfill">
+                <div className="horario-quickfill-inputs">
+                  <label>Entrada</label>
+                  <input
+                    type="time"
+                    value={horarioDefault.inicio}
+                    onChange={e => setHorarioDefault(p => ({ ...p, inicio: e.target.value }))}
+                    className="horario-time-input"
+                  />
+                  <label>Salida</label>
+                  <input
+                    type="time"
+                    value={horarioDefault.fin}
+                    onChange={e => setHorarioDefault(p => ({ ...p, fin: e.target.value }))}
+                    className="horario-time-input"
+                  />
+                </div>
+                <button type="button" className="btn-aplicar-lv" onClick={aplicarHorarioLV}>
+                  Aplicar L–S
+                </button>
+              </div>
               <div className="horario-grid-header">
-                <span>Día</span>
                 <span>Labora</span>
                 <span>Entrada</span>
                 <span>Salida</span>
-                <span>Horas</span>
               </div>
-              {DIAS_SEMANA.map(({ key, label }) => {
+              {DIAS_SEMANA.map(({ key, label, letra }) => {
                 const dia = fichaForm.horarioSemanal?.[key] || { activo: false, inicio: '', fin: '' };
                 const [h1, m1] = (dia.inicio || '').split(':').map(Number);
                 const [h2, m2] = (dia.fin    || '').split(':').map(Number);
@@ -268,32 +418,32 @@ function HrFicha() {
                   : 0;
                 return (
                   <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}`}>
-                    <span className="horario-dia-label">{label}</span>
                     <label className="horario-toggle">
                       <input
                         type="checkbox"
                         checked={dia.activo}
                         onChange={e => handleHorarioChange(key, 'activo', e.target.checked)}
                       />
-                      <span className="horario-toggle-track" />
+                      <span className="horario-toggle-track">
+                        <span className="horario-dia-letra">{letra}</span>
+                      </span>
                     </label>
-                    <input
-                      type="time"
-                      value={dia.inicio}
-                      disabled={!dia.activo}
-                      onChange={e => handleHorarioChange(key, 'inicio', e.target.value)}
-                      className="horario-time-input"
-                    />
-                    <input
-                      type="time"
-                      value={dia.fin}
-                      disabled={!dia.activo}
-                      onChange={e => handleHorarioChange(key, 'fin', e.target.value)}
-                      className="horario-time-input"
-                    />
-                    <span className="horario-horas-dia">
-                      {dia.activo && horasDia > 0 ? `${horasDia % 1 === 0 ? horasDia : horasDia.toFixed(1)}h` : '—'}
-                    </span>
+                    <div className="horario-times">
+                      <input
+                        type="time"
+                        value={dia.inicio}
+                        disabled={!dia.activo}
+                        onChange={e => handleHorarioChange(key, 'inicio', e.target.value)}
+                        className="horario-time-input"
+                      />
+                      <input
+                        type="time"
+                        value={dia.fin}
+                        disabled={!dia.activo}
+                        onChange={e => handleHorarioChange(key, 'fin', e.target.value)}
+                        className="horario-time-input"
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -308,25 +458,43 @@ function HrFicha() {
               </div>
             </div>
 
-            <p className="form-section-title">Información de Contacto</p>
-            <div className="form-grid">
-              <div className="form-control">
-                <label>Dirección</label>
-                <input name="direccion" value={fichaForm.direccion} onChange={handleFichaChange} placeholder="Dirección de residencia" />
-              </div>
-              <div className="form-control">
-                <label>Contacto de Emergencia</label>
-                <input name="contactoEmergencia" value={fichaForm.contactoEmergencia} onChange={handleFichaChange} placeholder="Nombre" />
-              </div>
-              <div className="form-control">
-                <label>Teléfono Emergencia</label>
-                <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} placeholder="8888-8888" />
+            <button
+              type="button"
+              className="form-section-title collapsible-section-header"
+              onClick={() => setContactoCollapsed(v => !v)}
+            >
+              <span>Información de Contacto</span>
+              <span className={`collapsible-chevron${contactoCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+            </button>
+            <div className={contactoCollapsed ? 'collapsible-content--hidden' : ''}>
+              <div className="form-grid">
+                <div className="form-control">
+                  <label>Dirección</label>
+                  <input name="direccion" value={fichaForm.direccion} onChange={handleFichaChange} placeholder="Dirección de residencia" />
+                </div>
+                <div className="form-control">
+                  <label>Contacto de Emergencia</label>
+                  <input name="contactoEmergencia" value={fichaForm.contactoEmergencia} onChange={handleFichaChange} placeholder="Nombre" />
+                </div>
+                <div className="form-control">
+                  <label>Teléfono Emergencia</label>
+                  <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} placeholder="8888-8888" />
+                </div>
               </div>
             </div>
 
-            <p className="form-section-title">Notas</p>
-            <div className="form-control">
-              <textarea name="notas" value={fichaForm.notas} onChange={handleFichaChange} placeholder="Observaciones generales del trabajador..." />
+            <button
+              type="button"
+              className="form-section-title collapsible-section-header"
+              onClick={() => setNotasCollapsed(v => !v)}
+            >
+              <span>Notas</span>
+              <span className={`collapsible-chevron${notasCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+            </button>
+            <div className={notasCollapsed ? 'collapsible-content--hidden' : ''}>
+              <div className="form-control">
+                <textarea name="notas" value={fichaForm.notas} onChange={handleFichaChange} placeholder="Observaciones generales del trabajador..." />
+              </div>
             </div>
 
             <div className="form-actions">
@@ -342,35 +510,6 @@ function HrFicha() {
         )}
       </div>
 
-      {/* ── Panel de empleados (derecha) ── */}
-      <div className="empleados-panel">
-        <div className="empleados-panel-header">
-          <span>Empleados en Planilla</span>
-          <span className="empleados-panel-count">{planillaUsers.length}</span>
-        </div>
-
-        {planillaUsers.length === 0 ? (
-          <p style={{ padding: '20px 16px', fontSize: '0.83rem', color: 'var(--aurora-light)', opacity: 0.45, textAlign: 'center' }}>
-            Sin empleados registrados.
-          </p>
-        ) : (
-          <ul className="empleados-list">
-            {planillaUsers.map(u => (
-              <li
-                key={u.id}
-                className={`empleados-list-item${selectedId === u.id ? ' empleados-list-item--active' : ''}`}
-                onClick={() => handleSelectEmployee(u)}
-              >
-                <div className="empleados-list-avatar">{u.nombre.charAt(0).toUpperCase()}</div>
-                <div className="empleados-list-info">
-                  <div className="empleados-list-name">{u.nombre}</div>
-                  <div className="empleados-list-sub">{u.email}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }
