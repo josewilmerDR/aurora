@@ -3817,8 +3817,8 @@ async function chatToolRegistrarPermiso(input, fincaId) {
 }
 
 async function chatToolCrearEmpleado({ nombre, email, telefono, rol, empleadoPlanilla }, fincaId) {
-  if (!nombre?.trim() || !email?.trim()) {
-    return { error: 'Nombre y email son obligatorios.' };
+  if (!nombre?.trim() || !email?.trim() || !rol) {
+    return { error: 'Nombre, email y rol son obligatorios.' };
   }
   const emailNorm = email.trim().toLowerCase();
   const existing = await db.collection('users')
@@ -4150,8 +4150,8 @@ Cuando el usuario adjunte una imagen de un formulario físico de planilla de tra
 8. Llama a "previsualizar_planilla". El sistema mostrará una tarjeta de confirmación al usuario.
 
 Cuando el usuario pida crear o agregar un nuevo empleado (ej: "agrega a Juan Pérez como trabajador", "crea un usuario para María con correo maria@gmail.com", "registra a Pedro Solís"):
-1. Los datos OBLIGATORIOS son nombre completo y correo electrónico. Si el usuario no los ha dado todos, pídelos.
-2. Sugiere también agregar: número de teléfono, rol en el sistema (trabajador/encargado/supervisor/administrador) y si debe recibir pago de planilla (empleadoPlanilla: true/false). Hazlo de forma amigable, dejando claro que son opcionales.
+1. Los datos OBLIGATORIOS son nombre completo, correo electrónico y rol (trabajador/encargado/supervisor/administrador). Si el usuario no los ha dado todos, pídelos.
+2. Sugiere también agregar: número de teléfono y si debe recibir pago de planilla (empleadoPlanilla: true/false). Hazlo de forma amigable, dejando claro que son opcionales.
 3. Una vez tengas nombre y email, resume todos los datos que vas a registrar y pide confirmación explícita antes de crear.
 4. Solo llama a "crear_empleado" tras recibir confirmación del usuario.
 
@@ -4462,10 +4462,10 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             nombre:           { type: 'string', description: 'Nombre completo del empleado.' },
             email:            { type: 'string', description: 'Correo electrónico del empleado.' },
             telefono:         { type: 'string', description: 'Número de teléfono (opcional).' },
-            rol:              { type: 'string', enum: ['trabajador', 'encargado', 'supervisor', 'administrador'], description: 'Rol en el sistema. Por defecto: trabajador.' },
+            rol:              { type: 'string', enum: ['trabajador', 'encargado', 'supervisor', 'administrador'], description: 'Rol del usuario en el sistema. OBLIGATORIO.' },
             empleadoPlanilla: { type: 'boolean', description: 'true si el empleado debe recibir pago de planilla.' },
           },
-          required: ['nombre', 'email'],
+          required: ['nombre', 'email', 'rol'],
         },
       },
       {
