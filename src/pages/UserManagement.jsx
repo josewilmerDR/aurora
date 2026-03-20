@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './UserManagement.css';
 import { FiEdit, FiTrash2, FiUserPlus } from 'react-icons/fi';
 import { ROLE_LABELS } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
+
+const DRAFT_KEY = 'aurora_user_mgmt_draft';
 
 const EMPTY_FICHA = {
   puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'permanente',
@@ -16,25 +19,47 @@ function UserManagement() {
   const [users, setUsers] = useState([]);
   const [formData, setFormData] = useState({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', empleadoPlanilla: false });
   const [fichaForm, setFichaForm] = useState(EMPTY_FICHA);
-  const [isEditing, setIsEditing] = useState(false);
-  const [encargados, setEncargados] = useState([]);
+  const [mode, setMode] = useState('idle'); // 'idle' | 'new' | 'edit'
   const [toast, setToast] = useState(null);
+  const skipFichaLoadRef = useRef(false);
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  const encargados = users.filter(u => ['encargado', 'supervisor', 'administrador'].includes(u.rol));
 
   const fetchUsers = () => {
     apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
   };
 
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    clearDraftActive('user-mgmt');
+  };
+
+  // Restaurar borrador al montar
   useEffect(() => {
     fetchUsers();
-    apiFetch('/api/users').then(r => r.json()).then(data => {
-      setEncargados(data.filter(u => ['encargado', 'supervisor', 'administrador'].includes(u.rol)));
-    }).catch(console.error);
-  }, []);
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    try {
+      const draft = JSON.parse(raw);
+      skipFichaLoadRef.current = true;
+      setMode(draft.mode);
+      setFormData(draft.formData);
+      setFichaForm({ ...EMPTY_FICHA, ...draft.fichaForm });
+    } catch { clearDraft(); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load ficha when editing a planilla employee
+  // Guardar borrador mientras hay cambios sin guardar
   useEffect(() => {
-    if (isEditing && formData.empleadoPlanilla && formData.id) {
+    if (mode === 'idle') return;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, formData, fichaForm }));
+    markDraftActive('user-mgmt');
+  }, [mode, formData, fichaForm]);
+
+  // Cargar ficha al editar un empleado en planilla (saltado si viene de borrador)
+  useEffect(() => {
+    if (skipFichaLoadRef.current) { skipFichaLoadRef.current = false; return; }
+    if (mode === 'edit' && formData.empleadoPlanilla && formData.id) {
       apiFetch(`/api/hr/fichas/${formData.id}`)
         .then(r => r.json())
         .then(data => setFichaForm({ ...EMPTY_FICHA, ...data }))
@@ -42,7 +67,7 @@ function UserManagement() {
     } else if (!formData.empleadoPlanilla) {
       setFichaForm(EMPTY_FICHA);
     }
-  }, [isEditing, formData.id, formData.empleadoPlanilla]);
+  }, [mode, formData.id, formData.empleadoPlanilla]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -55,14 +80,22 @@ function UserManagement() {
   };
 
   const resetForm = () => {
+    clearDraft();
     setFormData({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', empleadoPlanilla: false });
     setFichaForm(EMPTY_FICHA);
-    setIsEditing(false);
+    setMode('idle');
+  };
+
+  const handleNew = () => {
+    setFormData({ id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', empleadoPlanilla: false });
+    setFichaForm(EMPTY_FICHA);
+    setMode('new');
+    window.scrollTo(0, 0);
   };
 
   const handleEdit = (user) => {
     setFormData({ ...user, empleadoPlanilla: user.empleadoPlanilla === true });
-    setIsEditing(true);
+    setMode('edit');
     window.scrollTo(0, 0);
   };
 
@@ -81,8 +114,8 @@ function UserManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const url = isEditing ? `/api/users/${formData.id}` : '/api/users';
-    const method = isEditing ? 'PUT' : 'POST';
+    const url = mode === 'edit' ? `/api/users/${formData.id}` : '/api/users';
+    const method = mode === 'edit' ? 'PUT' : 'POST';
     try {
       const res = await apiFetch(url, {
         method,
@@ -103,7 +136,7 @@ function UserManagement() {
 
       fetchUsers();
       resetForm();
-      showToast(isEditing ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente');
+      showToast(mode === 'edit' ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente');
     } catch {
       showToast('Ocurrió un error al guardar.', 'error');
     }
@@ -115,8 +148,16 @@ function UserManagement() {
 
       {/* --- TARJETA DEL FORMULARIO --- */}
       <div className="form-card">
-        <h2>{isEditing ? 'Editando Usuario' : 'Añadir Nuevo Usuario'}</h2>
-        <form onSubmit={handleSubmit} className="lote-form">
+        {mode === 'idle' && (
+          <div className="ficha-idle-state">
+            <p className="empty-state">Selecciona un usuario de la lista o crea uno nuevo.</p>
+            <button className="btn btn-primary ficha-idle-new-btn" onClick={handleNew}>
+              <FiUserPlus /> Crear Nuevo Usuario
+            </button>
+          </div>
+        )}
+        {mode !== 'idle' && <h2>{mode === 'edit' ? 'Editando Usuario' : 'Nuevo Usuario'}</h2>}
+        {mode !== 'idle' && <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
             <div className="form-control">
               <label htmlFor="nombre">Nombre Completo</label>
@@ -226,11 +267,12 @@ function UserManagement() {
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
               <FiUserPlus />
-              {isEditing ? 'Actualizar Usuario' : 'Guardar Usuario'}
+              {mode === 'edit' ? 'Actualizar Usuario' : 'Guardar Usuario'}
             </button>
-            {isEditing && <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>}
+            {mode === 'edit' && <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>}
+            {mode === 'new' && <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>}
           </div>
-        </form>
+        </form>}
       </div>
 
       {/* --- TARJETA DE LA LISTA DE USUARIOS --- */}

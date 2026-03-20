@@ -118,6 +118,15 @@ export function UserProvider({ children }) {
     localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
   }, []);
 
+  // Recarga el perfil del usuario en la finca activa (útil tras editar el propio usuario)
+  const refreshCurrentUser = useCallback(async () => {
+    if (!firebaseUser || !activeFincaId) return;
+    try {
+      const res = await apiFetch('/api/auth/me', {}, activeFincaId);
+      if (res.ok) setCurrentUser(await res.json());
+    } catch { /* silently fail */ }
+  }, [firebaseUser, activeFincaId]);
+
   // Recarga las membresías desde la API (útil después de crear una nueva finca)
   const refreshMemberships = useCallback(async () => {
     if (!auth.currentUser) return;
@@ -153,6 +162,7 @@ export function UserProvider({ children }) {
       logout,
       selectFinca,
       refreshMemberships,
+      refreshCurrentUser,
       isLoggedIn,
       isLoading,
       needsOrgSelection,
