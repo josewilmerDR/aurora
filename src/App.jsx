@@ -123,8 +123,9 @@ const routeTitles = {
 // --- Route guards ---
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn, isLoading, needsOrgSelection } = useUser();
+  const location = useLocation();
   if (isLoading) return <div className="app-loading">Cargando...</div>;
-  if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" replace />;
+  if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   if (needsOrgSelection) return <OrgSelector />;
   return children;
 };

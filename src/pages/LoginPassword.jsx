@@ -15,11 +15,13 @@ export default function LoginPassword() {
     if (!emailFromState) navigate('/login', { replace: true });
   }, [emailFromState, navigate]);
 
+  const from = location.state?.from || '/';
+
   useEffect(() => {
-    if (isLoggedIn) navigate('/', { replace: true });
-    else if (needsOrgSelection) navigate('/', { replace: true });
+    if (isLoggedIn) navigate(from, { replace: true });
+    else if (needsOrgSelection) navigate(from, { replace: true });
     else if (needsSetup) navigate('/register', { replace: true });
-  }, [isLoggedIn, needsOrgSelection, needsSetup, navigate]);
+  }, [isLoggedIn, needsOrgSelection, needsSetup, navigate, from]);
 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

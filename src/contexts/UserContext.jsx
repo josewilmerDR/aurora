@@ -80,6 +80,20 @@ export function UserProvider({ children }) {
       } catch {
         // Si falla, dejar sin membresías (el usuario verá la pantalla de setup)
       }
+
+      // Si hay una finca activa guardada, cargar el perfil ANTES de revelar el usuario
+      // autenticado. Así cuando isLoading pase a false, currentUser ya está listo
+      // y ProtectedRoute nunca redirige a /login innecesariamente.
+      const storedFincaId = localStorage.getItem(ACTIVE_FINCA_KEY);
+      if (storedFincaId) {
+        try {
+          const profileRes = await apiFetch('/api/auth/me', {}, storedFincaId);
+          setCurrentUser(profileRes.ok ? await profileRes.json() : null);
+        } catch {
+          setCurrentUser(null);
+        }
+      }
+
       // Setear firebaseUser al final: isLoading queda true hasta aquí,
       // evitando que ProtectedRoute tome decisiones con estado incompleto
       setFirebaseUser(fbUser);
@@ -87,7 +101,7 @@ export function UserProvider({ children }) {
     return unsubscribe;
   }, []);
 
-  // Cuando cambia la finca activa, cargar el perfil del usuario en esa finca
+  // Cuando el usuario cambia de finca manualmente, recargar su perfil
   useEffect(() => {
     if (!firebaseUser || !activeFincaId) {
       setCurrentUser(null);
