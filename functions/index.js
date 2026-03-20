@@ -3816,6 +3816,55 @@ async function chatToolRegistrarPermiso(input, fincaId) {
   };
 }
 
+async function chatToolCrearEmpleado({ nombre, email, telefono, rol, empleadoPlanilla }, fincaId) {
+  if (!nombre?.trim() || !email?.trim()) {
+    return { error: 'Nombre y email son obligatorios.' };
+  }
+  const emailNorm = email.trim().toLowerCase();
+  const existing = await db.collection('users')
+    .where('fincaId', '==', fincaId)
+    .where('email', '==', emailNorm)
+    .get();
+  if (!existing.empty) {
+    return { error: `Ya existe un usuario con el correo "${emailNorm}" en esta finca.` };
+  }
+  const docRef = await db.collection('users').add({
+    nombre: nombre.trim(),
+    email: emailNorm,
+    telefono: telefono?.trim() || '',
+    rol: rol || 'trabajador',
+    empleadoPlanilla: empleadoPlanilla === true,
+    fincaId,
+    createdAt: Timestamp.now(),
+  });
+  return {
+    ok: true,
+    id: docRef.id,
+    nombre: nombre.trim(),
+    email: emailNorm,
+    rol: rol || 'trabajador',
+    empleadoPlanilla: empleadoPlanilla === true,
+  };
+}
+
+async function chatToolEditarEmpleado({ empleadoId, nombre, email, telefono, rol, empleadoPlanilla }, fincaId) {
+  const updates = {};
+  if (nombre !== undefined)          updates.nombre          = nombre.trim();
+  if (email !== undefined)           updates.email           = email.trim().toLowerCase();
+  if (telefono !== undefined)        updates.telefono        = telefono.trim();
+  if (rol !== undefined)             updates.rol             = rol;
+  if (empleadoPlanilla !== undefined) updates.empleadoPlanilla = empleadoPlanilla;
+  if (Object.keys(updates).length === 0) {
+    return { error: 'Debes especificar al menos un campo a modificar.' };
+  }
+  const doc = await db.collection('users').doc(empleadoId).get();
+  if (!doc.exists || doc.data().fincaId !== fincaId) {
+    return { error: 'Empleado no encontrado en esta finca.' };
+  }
+  await db.collection('users').doc(empleadoId).update(updates);
+  return { ok: true, empleadoId, nombreActual: doc.data().nombre, cambios: updates };
+}
+
 app.post('/api/chat', authenticate, async (req, res) => {
   try {
     const { message, imageBase64, mediaType, userId, userName, history, clientTime, clientTzName, clientTzOffset } = req.body;
@@ -3918,9 +3967,11 @@ app.post('/api/chat', authenticate, async (req, res) => {
     })();
     const catalogoUsers = usersSnap.docs.map(d => ({
       id: d.id, nombre: d.data().nombre || '', rol: d.data().rol || '',
+      email: d.data().email || '', telefono: d.data().telefono || '',
+      empleadoPlanilla: d.data().empleadoPlanilla === true,
     }));
     const operariosTexto = catalogoUsers.length
-      ? catalogoUsers.map(u => `  - ID: "${u.id}" | Nombre: "${u.nombre}" | Rol: ${u.rol}`).join('\n')
+      ? catalogoUsers.map(u => `  - ID: "${u.id}" | Nombre: "${u.nombre}" | Rol: ${u.rol} | Email: ${u.email} | Teléfono: ${u.telefono || '—'} | Planilla: ${u.empleadoPlanilla ? 'sí' : 'no'}`).join('\n')
       : '  (sin usuarios registrados)';
     const catalogoLabores = laboresSnap.docs.map(d => ({
       id: d.id, codigo: d.data().codigo || '', descripcion: d.data().descripcion || '',
@@ -4097,6 +4148,18 @@ Cuando el usuario adjunte una imagen de un formulario físico de planilla de tra
 6. Usa el catálogo de usuarios para resolver encargadoId y trabajadorId por coincidencia aproximada de nombre.
 7. Usa el catálogo de lotes para resolver loteId/loteNombre, y el catálogo de labores para el campo labor en formato "codigo - descripción".
 8. Llama a "previsualizar_planilla". El sistema mostrará una tarjeta de confirmación al usuario.
+
+Cuando el usuario pida crear o agregar un nuevo empleado (ej: "agrega a Juan Pérez como trabajador", "crea un usuario para María con correo maria@gmail.com", "registra a Pedro Solís"):
+1. Los datos OBLIGATORIOS son nombre completo y correo electrónico. Si el usuario no los ha dado todos, pídelos.
+2. Sugiere también agregar: número de teléfono, rol en el sistema (trabajador/encargado/supervisor/administrador) y si debe recibir pago de planilla (empleadoPlanilla: true/false). Hazlo de forma amigable, dejando claro que son opcionales.
+3. Una vez tengas nombre y email, resume todos los datos que vas a registrar y pide confirmación explícita antes de crear.
+4. Solo llama a "crear_empleado" tras recibir confirmación del usuario.
+
+Cuando el usuario pida modificar datos de un empleado existente (ej: "cambia el teléfono de Juan a 8888-1234", "actualiza el correo de Ana García", "asigna a Pedro como encargado", "agrega a María a la planilla"):
+1. Identifica al empleado en el catálogo de usuarios por nombre (coincidencia aproximada).
+2. Identifica qué campo(s) cambiar: nombre, email, telefono, rol o empleadoPlanilla.
+3. Antes de aplicar, confirma: "¿Confirmas cambiar el [campo] de [nombre] a [nuevo valor]?"
+4. Solo llama a "editar_empleado" tras recibir confirmación del usuario.
 
 Responde siempre en español, de forma concisa y amigable. Usa formato de lista o tabla cuando sea útil.`;
 
@@ -4390,6 +4453,37 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
           required: ['fecha'],
         },
       },
+      {
+        name: 'crear_empleado',
+        description: 'Crea un nuevo empleado/usuario en el sistema. Úsala cuando el usuario pida agregar o registrar un nuevo trabajador. SIEMPRE pide confirmación antes de llamar esta herramienta.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            nombre:           { type: 'string', description: 'Nombre completo del empleado.' },
+            email:            { type: 'string', description: 'Correo electrónico del empleado.' },
+            telefono:         { type: 'string', description: 'Número de teléfono (opcional).' },
+            rol:              { type: 'string', enum: ['trabajador', 'encargado', 'supervisor', 'administrador'], description: 'Rol en el sistema. Por defecto: trabajador.' },
+            empleadoPlanilla: { type: 'boolean', description: 'true si el empleado debe recibir pago de planilla.' },
+          },
+          required: ['nombre', 'email'],
+        },
+      },
+      {
+        name: 'editar_empleado',
+        description: 'Modifica los datos de un empleado existente (nombre, email, teléfono, rol o estado de planilla). SIEMPRE pide confirmación antes de llamar esta herramienta.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            empleadoId:       { type: 'string', description: 'ID Firestore del empleado a modificar.' },
+            nombre:           { type: 'string', description: 'Nuevo nombre completo (opcional).' },
+            email:            { type: 'string', description: 'Nuevo correo electrónico (opcional).' },
+            telefono:         { type: 'string', description: 'Nuevo número de teléfono (opcional).' },
+            rol:              { type: 'string', enum: ['trabajador', 'encargado', 'supervisor', 'administrador'], description: 'Nuevo rol en el sistema (opcional).' },
+            empleadoPlanilla: { type: 'boolean', description: 'Nuevo estado de planilla: true = asignado, false = no asignado (opcional).' },
+          },
+          required: ['empleadoId'],
+        },
+      },
     ];
 
     // Construir historial de conversación
@@ -4550,6 +4644,10 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
               observaciones:   block.input.observaciones || '',
             };
             result = { preview: true, segmentos: segmentos.length, trabajadores: trabajadores.length, mensaje: 'Datos extraídos. El sistema mostrará una tarjeta al usuario para confirmar o editar antes de guardar.' };
+          } else if (block.name === 'crear_empleado') {
+            result = await chatToolCrearEmpleado(block.input, req.fincaId);
+          } else if (block.name === 'editar_empleado') {
+            result = await chatToolEditarEmpleado(block.input, req.fincaId);
           } else if (block.name === 'registrar_permiso') {
             result = await chatToolRegistrarPermiso(block.input, req.fincaId);
           } else if (block.name === 'crear_recordatorio') {

@@ -61,7 +61,7 @@ export const MODULES = [
     nombre: 'Recursos Humanos',
     icon: FiBriefcase,
     items: [
-      { label: 'Ficha del Trabajador', to: '/hr/ficha', icon: FiUser, minRole: 'encargado' },
+      { label: 'Ficha del Trabajador', to: '/hr/ficha', icon: FiUser, minRole: 'encargado', draftKey: 'hr-ficha' },
       { label: 'Registro de Asistencia', to: '/hr/asistencia', icon: FiCalendar, minRole: 'encargado' },
       { label: 'Horas Extra', to: '/hr/horas-extra', icon: FiClock, minRole: 'encargado' },
       { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },

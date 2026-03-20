@@ -101,6 +101,34 @@
   border-bottom: 1px solid var(--aurora-border);
 }
 
+/* ── Collapsible section header ──────────────────────────────────────────── */
+button.collapsible-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--aurora-border);
+  cursor: pointer;
+  padding-bottom: 6px;
+}
+button.collapsible-section-header:hover { opacity: 1; }
+
+.collapsible-chevron {
+  font-size: 1rem;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+.collapsible-chevron--open {
+  transform: rotate(180deg);
+}
+
+.horario-grid.horario-grid--hidden,
+.collapsible-content--hidden {
+  display: none;
+}
+
 /* ── Approve / Reject action buttons ─────────────────────────────────────── */
 .btn-approve {
   background-color: rgba(51, 255, 153, 0.15);
@@ -744,6 +772,9 @@
 }
 
 /* ── Ficha page two-column layout ────────────────────────────────────────── */
+/* DOM order: empleados-panel primero, form-card segundo.
+   En escritorio se invierten visualmente con order para mantener
+   el formulario a la izquierda y el panel a la derecha. */
 .ficha-page-layout {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -751,9 +782,117 @@
   align-items: start;
 }
 
+.ficha-page-layout .empleados-panel { order: 2; }
+.ficha-page-layout .form-card       { order: 1; }
+
 @media (max-width: 960px) {
   .ficha-page-layout {
     grid-template-columns: 1fr;
+  }
+
+  /* Panel de empleados: anula el order de escritorio y quita el sticky */
+  .empleados-panel {
+    order: unset;
+    position: static;
+  }
+
+  .ficha-page-layout .form-card {
+    order: unset;
+  }
+
+  .horario-grid-header {
+    display: none;
+  }
+
+  .empleados-list-sub {
+    display: none;
+  }
+
+  .empleados-list-name {
+    font-size: 0.78rem;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+/* ── Mobile: ≤600px ────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  /* Evita el grid blowout: el hijo del grid puede encogerse libremente */
+  .ficha-page-layout > .form-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Formulario: menos padding */
+  .form-card {
+    padding: 16px;
+  }
+
+  /* Quick-fill: apila verticalmente y no desborda */
+  .horario-quickfill {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .horario-quickfill-inputs {
+    justify-content: space-between;
+  }
+
+  .btn-aplicar-lv {
+    width: 100%;
+    text-align: center;
+    padding: 9px 0;
+  }
+
+  /* Tabla de horario: ocultar header de columnas */
+  .horario-grid-header {
+    display: none;
+  }
+
+  /* Cada fila: flex horizontal, toggle | día | inputs apilados */
+  .horario-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .horario-row > .horario-toggle {
+    order: -1;
+    flex-shrink: 0;
+  }
+
+  /* El wrapper se convierte en columna con los dos inputs apilados */
+  .horario-times {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+    width: 108px;
+  }
+
+  .horario-times .horario-time-input {
+    width: 100%;
+    min-width: 0;
+    font-size: 0.78rem;
+    padding: 5px 4px;
+  }
+
+  .horario-total-row {
+    padding: 10px 12px;
+  }
+
+  /* Botones de acciones: full width */
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -763,6 +902,71 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* ── Idle state (no employee selected) ────────────────────────────────────── */
+.ficha-idle-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0 4px;
+}
+
+.ficha-idle-new-btn {
+  display: none; /* visible solo en móvil */
+}
+
+@media (max-width: 768px) {
+  .ficha-action-bar {
+    display: none;
+  }
+
+  .ficha-idle-new-btn {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Horario quick-fill ──────────────────────────────────────────────────── */
+.horario-quickfill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.horario-quickfill-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horario-quickfill-inputs label {
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.btn-aplicar-lv {
+  background: var(--aurora-green);
+  color: #0d1a26;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.btn-aplicar-lv:hover { opacity: 0.85; }
 
 /* ── Horario semanal ─────────────────────────────────────────────────────── */
 .horario-grid {
@@ -777,7 +981,7 @@
 
 .horario-grid-header {
   display: grid;
-  grid-template-columns: 110px 60px 1fr 1fr 60px;
+  grid-template-columns: 60px 1fr 1fr;
   gap: 8px;
   align-items: center;
   padding: 8px 14px;
@@ -792,7 +996,7 @@
 
 .horario-row {
   display: grid;
-  grid-template-columns: 110px 60px 1fr 1fr 60px;
+  grid-template-columns: 60px 1fr 1fr;
   gap: 8px;
   align-items: center;
   padding: 8px 14px;
@@ -804,10 +1008,25 @@
   opacity: 0.4;
 }
 
-.horario-dia-label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--aurora-light);
+/* Letra del día dentro del track — se posiciona en el lado libre del knob */
+.horario-dia-letra {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #000;
+  pointer-events: none;
+  line-height: 1;
+  letter-spacing: 0;
+  transition: left 0.2s, right 0.2s;
+}
+
+/* Encendido: knob a la derecha → letra a la izquierda */
+.horario-toggle input:checked + .horario-toggle-track .horario-dia-letra {
+  left: 4px;
+  right: auto;
 }
 
 /* Toggle switch reutilizado del toggle de parcial */
@@ -855,6 +1074,11 @@
   left: 17px;
 }
 
+/* En escritorio el wrapper se "disuelve" y los inputs siguen siendo items del grid */
+.horario-times {
+  display: contents;
+}
+
 .horario-time-input {
   background: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-border);
@@ -864,6 +1088,7 @@
   font-size: 0.83rem;
   font-family: inherit;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
@@ -876,13 +1101,6 @@
 .horario-time-input:disabled {
   opacity: 0.25;
   cursor: not-allowed;
-}
-
-.horario-horas-dia {
-  font-size: 0.82rem;
-  color: var(--aurora-green);
-  text-align: center;
-  font-weight: 500;
 }
 
 .horario-total-row {
@@ -920,9 +1138,75 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: var(--aurora-light);
-  opacity: 0.6;
+  color: rgba(230, 242, 255, 0.6);
   border-bottom: 1px solid var(--aurora-border);
+}
+
+.empleados-search-wrap {
+  position: relative;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.empleados-search {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.83rem;
+  padding: 7px 30px 7px 10px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.empleados-search:focus {
+  border-color: var(--aurora-green);
+}
+
+.empleados-search::placeholder {
+  opacity: 0.4;
+}
+
+.empleados-search-clear {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.empleados-search-clear:hover { opacity: 0.9; }
+
+.empleados-panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.empleados-panel-new-btn {
+  background: var(--aurora-green);
+  border: none;
+  border-radius: 6px;
+  color: #0d1a26;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+.empleados-panel-new-btn:hover {
+  opacity: 0.85;
 }
 
 .empleados-panel-count {
