@@ -4,6 +4,7 @@ import './HR.css';
 import { FiSave, FiUserPlus, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useUser } from '../contexts/UserContext';
 
 const DIAS_SEMANA = [
   { key: 'lunes',     label: 'Lunes',      letra: 'L' },
@@ -44,6 +45,7 @@ const DRAFT_KEY = 'aurora_hr_ficha_draft';
 // mode: 'idle' | 'new' | 'edit'
 function HrFicha() {
   const apiFetch = useApiFetch();
+  const { currentUser, refreshCurrentUser } = useUser();
   const [allUsers, setAllUsers] = useState([]);
   const [planillaUsers, setPlanillaUsers] = useState([]);
   const [mode, setMode] = useState('idle');
@@ -182,6 +184,7 @@ function HrFicha() {
         });
         clearDraft();
         showToast('Ficha actualizada correctamente.');
+        if (currentUser?.userId === selectedId) refreshCurrentUser();
         fetchUsers();
       } else {
         const res = await apiFetch('/api/users', {

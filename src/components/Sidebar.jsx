@@ -97,7 +97,7 @@ export const MODULES = [
     nombre: 'Administración',
     icon: FiSettings,
     items: [
-      { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador' },
+      { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador', draftKey: 'user-mgmt' },
       { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
       { label: 'Lista de Labores', to: '/admin/labores', icon: FiList, minRole: 'supervisor' },
       { label: 'Unidades de Medida', to: '/admin/unidades-medida', icon: FiPackage, minRole: 'supervisor' },
