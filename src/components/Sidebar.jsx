@@ -24,7 +24,7 @@ export const MODULES = [
 
       {
         label: 'Siembra', icon: FiSunrise, minRole: 'encargado', children: [
-          { label: 'Registro de Siembra', to: '/siembra', icon: FiSunrise, minRole: 'encargado' },
+          { label: 'Registro de Siembra', to: '/siembra', icon: FiSunrise, minRole: 'encargado', draftKey: 'siembra-registro' },
           { label: 'Historial de Siembra', to: '/siembra/historial', icon: FiBarChart2, minRole: 'encargado' },
         ]
       },
@@ -221,6 +221,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     const expanded = expandedGroups.has(item.label);
     const isChildActive = visibleChildren.some(c => location.pathname === c.to);
     const GroupIcon = item.icon;
+    const groupHasDraft = visibleChildren.some(c => c.draftKey && activeDrafts.has(c.draftKey));
 
     return (
       <div className="sidebar-subgroup">
@@ -228,7 +229,10 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
           className={`sidebar-subgroup-header${isChildActive ? ' subgroup-child-active' : ''}`}
           onClick={() => toggleGroup(item.label)}
         >
-          <GroupIcon size={18} />
+          <span className="icon-wrap">
+            <GroupIcon size={18} />
+            {groupHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
+          </span>
           <span className="link-text">{item.label}</span>
           {expanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
         </button>
@@ -389,6 +393,10 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         {/* One icon per module */}
         {visibleModules.map(mod => {
           const ModIcon = mod.icon;
+          const modHasDraft = mod.items.some(item =>
+            item.draftKey ? activeDrafts.has(item.draftKey)
+            : item.children?.some(c => c.draftKey && activeDrafts.has(c.draftKey))
+          );
           return (
             <button
               key={mod.id}
@@ -396,7 +404,10 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
               onClick={() => handleModuleClick(mod.id)}
               title={mod.nombre}
             >
-              <ModIcon size={20} />
+              <span className="icon-wrap">
+                <ModIcon size={20} />
+                {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
+              </span>
             </button>
           );
         })}
