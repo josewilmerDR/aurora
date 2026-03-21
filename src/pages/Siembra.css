@@ -220,7 +220,7 @@
 
 
 
-/* ── Historial: expanded detail row (mobile only — hidden on desktop) ── */
+/* ── Historial: expanded detail row (solo móvil, oculto en desktop) ── */
 .hist-expanded-row {
   display: none;
 }
@@ -776,11 +776,12 @@
   }
 
   /* ── Historial: expanded detail row ── */
-  .hist-expanded-row {
-    display: table-row;
+  .siembra-table-historial tbody .hist-expanded-row {
+    display: block;
   }
 
-  .hist-expanded-cell {
+  .siembra-table-historial tbody .hist-expanded-row .hist-expanded-cell {
+    display: block;
     padding: 0 0 10px 0 !important;
     border: none !important;
   }
