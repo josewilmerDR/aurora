@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['aurora-logo.png'],
+      includeAssets: ['aurora-logo.png', 'icon-512-maskable.png'],
 
       // ── Web App Manifest ──────────────────────────────────────────────────
       manifest: {
@@ -23,14 +23,15 @@ export default defineConfig({
         icons: [
           {
             src: 'aurora-logo.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'aurora-logo.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: 'icon-512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
