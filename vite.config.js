@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       includeAssets: ['aurora-logo.png', 'icon-512-maskable.png'],
 
@@ -36,29 +39,9 @@ export default defineConfig({
         ],
       },
 
-      // ── Workbox (service worker) ──────────────────────────────────────────
-      workbox: {
-        // Pre-cachear todos los assets del build
+      // Con injectManifest, la lógica de Workbox va en src/sw.js
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-
-        runtimeCaching: [
-          {
-            // API calls: NetworkFirst → intenta red, si falla usa caché
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'aurora-api-cache',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 2, // 2 horas
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
       },
     }),
   ],

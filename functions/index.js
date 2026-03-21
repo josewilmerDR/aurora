@@ -6,12 +6,15 @@ const twilio = require('twilio');
 const admin = require('firebase-admin');
 const { getFirestore, Timestamp, FieldValue, FieldPath } = require('firebase-admin/firestore');
 const Anthropic = require('@anthropic-ai/sdk');
+const webpush = require('web-push');
 
 // --- DEFINICIÓN DE SECRETOS CON EL NUEVO SISTEMA "PARAMS" ---
 const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
 const twilioAuthToken = defineSecret("TWILIO_AUTH_TOKEN");
 const twilioWhatsappFrom = defineSecret("TWILIO_WHATSAPP_FROM");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
+const vapidPublicKey = defineSecret("VAPID_PUBLIC_KEY");
+const vapidPrivateKey = defineSecret("VAPID_PRIVATE_KEY");
 
 // --- INICIALIZACIÓN UNIVERSAL DE CLIENTES ---
 // Se inicializa sin parámetros para que funcione tanto en el emulador como en producción.
@@ -5101,7 +5104,104 @@ app.delete('/api/labores/:id', authenticate, async (req, res) => {
   }
 });
 
+// --- API ENDPOINTS: WEB PUSH ---
+
+// GET /api/push/vapid-public-key — devuelve la clave pública VAPID al cliente
+app.get('/api/push/vapid-public-key', authenticate, (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// POST /api/push/subscribe — guarda la suscripción push del usuario
+app.post('/api/push/subscribe', authenticate, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription?.endpoint) return res.status(400).json({ message: 'Suscripción inválida.' });
+    // Upsert: usamos el endpoint como ID del doc (en base64 para evitar chars inválidos)
+    const docId = Buffer.from(subscription.endpoint).toString('base64').slice(0, 500);
+    await db.collection('push_subscriptions').doc(docId).set({
+      uid: req.uid,
+      fincaId: req.fincaId,
+      subscription,
+      updatedAt: Timestamp.now(),
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error guardando suscripción push:', err);
+    res.status(500).json({ message: 'Error al guardar la suscripción.' });
+  }
+});
+
+// DELETE /api/push/subscribe — elimina la suscripción push del usuario
+app.delete('/api/push/subscribe', authenticate, async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) return res.status(400).json({ message: 'endpoint requerido.' });
+    const docId = Buffer.from(endpoint).toString('base64').slice(0, 500);
+    await db.collection('push_subscriptions').doc(docId).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error eliminando suscripción push:', err);
+    res.status(500).json({ message: 'Error al eliminar la suscripción.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.runWith({
-  secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey]
+  secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey, vapidPublicKey, vapidPrivateKey]
 }).https.onRequest(app);
+
+// --- FUNCIÓN PROGRAMADA: ENVIAR PUSH DE RECORDATORIOS VENCIDOS ---
+// Se ejecuta cada 5 minutos y envía notificaciones push a usuarios con recordatorios vencidos.
+exports.sendDuePushReminders = functions.runWith({
+  secrets: [vapidPublicKey, vapidPrivateKey]
+}).pubsub.schedule('every 5 minutes').onRun(async () => {
+  const VAPID_SUBJECT = 'mailto:aurora@finca.com';
+  webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+
+  const now = new Date();
+  // Buscar recordatorios pendientes cuyo remindAt ya pasó
+  const snap = await db.collection('reminders')
+    .where('status', '==', 'pending')
+    .get();
+
+  const due = snap.docs.filter(d => {
+    const remindAt = d.data().remindAt?.toDate?.();
+    return remindAt && remindAt <= now;
+  });
+
+  if (!due.length) return null;
+
+  for (const doc of due) {
+    const { uid, fincaId, message } = doc.data();
+    // Marcar como entregado
+    await doc.ref.update({ status: 'delivered' });
+
+    // Buscar suscripciones push del usuario
+    const subSnap = await db.collection('push_subscriptions')
+      .where('uid', '==', uid)
+      .where('fincaId', '==', fincaId)
+      .get();
+
+    const payload = JSON.stringify({
+      title: 'Recordatorio — Aurora',
+      body: message,
+      icon: '/aurora-logo.png',
+      badge: '/aurora-logo.png',
+      data: { url: '/' },
+    });
+
+    for (const subDoc of subSnap.docs) {
+      try {
+        await webpush.sendNotification(subDoc.data().subscription, payload);
+      } catch (err) {
+        // Suscripción expirada o inválida — limpiar
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await subDoc.ref.delete();
+        } else {
+          console.error('Error enviando push:', err.message);
+        }
+      }
+    }
+  }
+  return null;
+});

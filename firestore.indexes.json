@@ -41,7 +41,8 @@
     { "collectionGroup": "hr_plantillas_planilla","queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "encargadoId",    "order": "ASCENDING"  }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
     { "collectionGroup": "unidades_medida",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "nombre",         "order": "ASCENDING"  }] },
     { "collectionGroup": "hr_fichas",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "encargadoId",    "order": "ASCENDING"  }] },
-    { "collectionGroup": "users",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "email",          "order": "ASCENDING"  }] }
+    { "collectionGroup": "users",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "email",          "order": "ASCENDING"  }] },
+    { "collectionGroup": "push_subscriptions",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }, { "fieldPath": "fincaId", "order": "ASCENDING" }] }
   ],
   "fieldOverrides": []
 }
