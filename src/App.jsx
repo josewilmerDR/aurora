@@ -56,6 +56,9 @@ import SiembraHistorial from './pages/SiembraHistorial';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
+import ReminderNotification from './components/ReminderNotification';
+import { useReminderPoller } from './hooks/useReminderPoller';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { MODULES, ALL_ITEMS } from './components/Sidebar';
 
@@ -151,6 +154,16 @@ const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useUser();
+  const { pendingReminders, dismissReminder } = useReminderPoller();
+  const { permission, isSubscribed, subscribe } = usePushNotifications();
+  const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
+    localStorage.getItem('aurora_push_prompt_dismissed') === 'true'
+  );
+  const showPushPrompt = permission === 'default' && !isSubscribed && !pushPromptDismissed && 'PushManager' in window;
+  const dismissPushPrompt = () => {
+    localStorage.setItem('aurora_push_prompt_dismissed', 'true');
+    setPushPromptDismissed(true);
+  };
   const title = routeTitles[location.pathname] || 'Aurora';
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -320,6 +333,14 @@ const MainLayout = () => {
 
       <MobileNav />
       <AuroraChat />
+      <ReminderNotification reminders={pendingReminders} onDismiss={dismissReminder} />
+      {showPushPrompt && (
+        <div className="push-prompt">
+          <span className="push-prompt-text">¿Activar notificaciones para recordatorios?</span>
+          <button className="push-prompt-btn" onClick={subscribe}>Activar</button>
+          <button className="push-prompt-dismiss" onClick={dismissPushPrompt}>Ahora no</button>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,8 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
-      includeAssets: ['aurora-logo.png'],
+      includeAssets: ['aurora-logo.png', 'icon-512-maskable.png'],
 
       // ── Web App Manifest ──────────────────────────────────────────────────
       manifest: {
@@ -23,41 +26,22 @@ export default defineConfig({
         icons: [
           {
             src: 'aurora-logo.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'aurora-logo.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: 'icon-512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
 
-      // ── Workbox (service worker) ──────────────────────────────────────────
-      workbox: {
-        // Pre-cachear todos los assets del build
+      // Con injectManifest, la lógica de Workbox va en src/sw.js
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-
-        runtimeCaching: [
-          {
-            // API calls: NetworkFirst → intenta red, si falla usa caché
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'aurora-api-cache',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 2, // 2 horas
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
       },
     }),
   ],
