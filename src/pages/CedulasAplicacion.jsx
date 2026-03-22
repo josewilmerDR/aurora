@@ -375,92 +375,90 @@ function CedulasAplicacion() {
             <span className="cedula-consecutivo">{cedula.consecutivo}</span>
           )}
         </div>
-        <div className="cedula-row-right">
+        <div className="cedula-row-badges">
           <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
             {isOverdue(task) ? 'Vencida' : 'Pendiente'}
           </span>
           <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
-
-          {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              className="btn btn-secondary cedula-btn-action"
-              onClick={() => handleGenerarCedula(task.id)}
-              disabled={isLdg}
-              title="Generar Cédula de Aplicación"
-            >
-              <FiPlusCircle size={14} />
-              {isLdg ? 'Generando…' : 'Generar Cédula'}
-            </button>
-          )}
-
-          {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              className="btn btn-danger cedula-btn-action cedula-btn-anular"
-              onClick={() => handleOmitirTarea(task.id)}
-              disabled={isLdg}
-              title="Omitir esta tarea sin generar cédula"
-            >
-              <FiX size={14} />
-              {isLdg ? 'Omitiendo…' : 'Omitir Tarea'}
-            </button>
-          )}
-
           {cedula?.status === 'pendiente' && (
-            <>
-              <span className="cedula-flow-badge pendiente">Pendiente</span>
-              {hasMinRole(currentUser?.rol, 'encargado') && (
-                <button
-                  className="btn btn-secondary cedula-btn-action"
-                  onClick={() => handleMezclaLista(cedula.id)}
-                  disabled={isLdg}
-                  title="Confirmar que la mezcla está lista"
-                >
-                  <FiCheckCircle size={14} />
-                  {isLdg ? 'Procesando…' : 'Mezcla Lista'}
-                </button>
-              )}
-            </>
+            <span className="cedula-flow-badge pendiente">Pendiente</span>
           )}
-
           {cedula?.status === 'en_transito' && (
-            <>
-              <span className="cedula-flow-badge en-transito">En Tránsito</span>
-              {hasMinRole(currentUser?.rol, 'trabajador') && (
-                <button
-                  className="btn btn-primary cedula-btn-action"
-                  onClick={() => handleAplicada(cedula.id)}
-                  disabled={isLdg}
-                  title="Confirmar aplicación en campo"
-                >
-                  <FaTractor size={14} />
-                  {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
-                </button>
-              )}
-            </>
-          )}
-
-          {cedula && cedula.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              className="btn btn-danger cedula-btn-action cedula-btn-anular"
-              onClick={() => handleAnular(cedula.id)}
-              disabled={isLdg}
-              title="Anular cédula"
-            >
-              <FiX size={14} />
-              {isLdg ? 'Anulando…' : 'Anular'}
-            </button>
-          )}
-
-          {cedula && (
-            <button
-              className="btn btn-secondary cedula-btn-preview"
-              onClick={() => setPreviewTask(task)}
-              title="Ver Cédula de Aplicación"
-            >
-              <FiFileText size={15} /> Ver Cédula
-            </button>
+            <span className="cedula-flow-badge en-transito">En Tránsito</span>
           )}
         </div>
+
+        <div className="cedula-row-actions">
+            {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
+              <button
+                className="btn btn-secondary cedula-btn-action"
+                onClick={() => handleGenerarCedula(task.id)}
+                disabled={isLdg}
+                title="Generar Cédula de Aplicación"
+              >
+                <FiPlusCircle size={14} />
+                {isLdg ? 'Generando…' : 'Generar Cédula'}
+              </button>
+            )}
+
+            {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
+              <button
+                className="btn btn-danger cedula-btn-action cedula-btn-anular"
+                onClick={() => handleOmitirTarea(task.id)}
+                disabled={isLdg}
+                title="Omitir esta tarea sin generar cédula"
+              >
+                <FiX size={14} />
+                {isLdg ? 'Omitiendo…' : 'Omitir Tarea'}
+              </button>
+            )}
+
+            {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
+              <button
+                className="btn btn-secondary cedula-btn-action"
+                onClick={() => handleMezclaLista(cedula.id)}
+                disabled={isLdg}
+                title="Confirmar que la mezcla está lista"
+              >
+                <FiCheckCircle size={14} />
+                {isLdg ? 'Procesando…' : 'Mezcla Lista'}
+              </button>
+            )}
+
+            {cedula?.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
+              <button
+                className="btn btn-primary cedula-btn-action"
+                onClick={() => handleAplicada(cedula.id)}
+                disabled={isLdg}
+                title="Confirmar aplicación en campo"
+              >
+                <FaTractor size={14} />
+                {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
+              </button>
+            )}
+
+            {cedula && cedula.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado') && (
+              <button
+                className="btn btn-danger cedula-btn-action cedula-btn-anular"
+                onClick={() => handleAnular(cedula.id)}
+                disabled={isLdg}
+                title="Anular cédula"
+              >
+                <FiX size={14} />
+                {isLdg ? 'Anulando…' : 'Anular'}
+              </button>
+            )}
+
+            {cedula && (
+              <button
+                className="btn btn-secondary cedula-btn-preview"
+                onClick={() => setPreviewTask(task)}
+                title="Ver Cédula de Aplicación"
+              >
+                <FiFileText size={15} /> Ver Cédula
+              </button>
+            )}
+          </div>
       </div>
     );
   };

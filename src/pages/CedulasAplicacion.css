@@ -45,7 +45,7 @@
   opacity: 0.6;
 }
 
-.cedula-row-right {
+.cedula-row-badges {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -492,6 +492,11 @@
   margin-top: 24px;
   padding-top: 10px;
   border-top: 1px solid #eee;
+}
+
+/* ── Wrapper de botones (transparente en desktop, flex en móvil overdue) ── */
+.cedula-row-actions {
+  display: contents;
 }
 
 /* ── Botón "Nueva Cédula" ────────────────────────────────────────────────── */
@@ -1064,6 +1069,187 @@
   color: var(--aurora-green);
   opacity: 0.8;
   font-weight: 600;
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  /* Barra de filtro: apila en dos filas */
+  .cedulas-filter-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cedulas-period-nav {
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+  .cedulas-filter-count {
+    flex: 1 0 100%;
+    text-align: center;
+    margin: 0;
+  }
+  .cedulas-filter-toggle,
+  .cedulas-nueva-btn,
+  .cedulas-historial-btn {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* Fila de cédula: apila info, badges y acciones */
+  .cedula-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .cedula-row-name {
+    white-space: normal;
+  }
+  .cedula-row-badges {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  .cedula-due-date {
+    min-width: 0;
+    text-align: left;
+  }
+  .cedula-btn-action,
+  .cedula-btn-preview {
+    flex: 1;
+    justify-content: center;
+    min-width: 120px;
+  }
+
+  /* Panel de vencidas: nombre+badges en fila, botones debajo 50/50 */
+  .cedulas-overdue-header {
+    padding: 10px 12px;
+  }
+  .cedulas-overdue-list .cedula-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .cedulas-overdue-list .cedula-row-info {
+    flex: 7;
+    min-width: 0;
+  }
+  .cedulas-overdue-list .cedula-row-info .cedula-row-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cedulas-overdue-list .cedula-row-badges {
+    flex: 3;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    overflow: hidden;
+  }
+  .cedulas-overdue-list .cedula-row-badges .cedula-status-badge {
+    font-size: 0.68rem;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
+  .cedulas-overdue-list .cedula-row-badges .cedula-due-date {
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+  .cedulas-overdue-list .cedula-row-actions {
+    display: flex;
+    flex: 0 0 100%;
+    gap: 8px;
+  }
+  .cedulas-overdue-list .cedula-row-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Preview modal: pantalla completa */
+  .ca-preview-backdrop {
+    padding: 0;
+    align-items: flex-start;
+  }
+  .ca-preview-container {
+    border-radius: 0;
+    min-height: 100svh;
+  }
+  .ca-preview-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .ca-preview-toolbar-title {
+    flex: 1 0 100%;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .ca-preview-toolbar-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  .ca-preview-toolbar-actions .btn {
+    flex: 1;
+    justify-content: center;
+    min-width: 80px;
+    font-size: 0.78rem;
+    padding: 6px 10px;
+  }
+  .ca-doc-wrap {
+    padding: 8px;
+  }
+  .ca-document {
+    padding: 16px 14px;
+  }
+  .ca-doc-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ca-doc-title-block {
+    text-align: left;
+    max-width: 100%;
+  }
+  .ca-datos-grid {
+    grid-template-columns: 1fr;
+  }
+  .ca-doc-sig-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .ca-doc-table {
+    font-size: 0.73rem;
+  }
+  .ca-doc-table th,
+  .ca-doc-table td {
+    padding: 5px 7px;
+  }
+
+  /* Modal Nueva Cédula */
+  .nca-modal {
+    margin: 0;
+    border-radius: 0;
+    max-height: 100svh;
+  }
+  .nca-form {
+    padding: 14px 14px 20px;
+  }
+  .nca-fields-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .nca-field-grow {
+    min-width: 0;
+  }
+  .nca-bloques-list {
+    grid-template-columns: 1fr;
+  }
+  .nca-productos-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ── Print ────────────────────────────────────────────────────────────────── */
