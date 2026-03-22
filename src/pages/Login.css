@@ -31,6 +31,7 @@
   width: 72px;
   height: 72px;
   object-fit: contain;
+  border-radius: 50%;
 }
 
 .login-logo-text {
