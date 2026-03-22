@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FiArrowLeft } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './HistorialAplicaciones.css';
 
@@ -44,6 +46,7 @@ const fmt = (iso) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 function HistorialAplicaciones() {
+  const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [cedulas,  setCedulas]  = useState([]);
   const [tasks,    setTasks]    = useState([]);
@@ -143,6 +146,10 @@ function HistorialAplicaciones() {
 
   return (
     <div className="historial-wrap">
+
+      <button className="historial-back-btn" onClick={() => navigate(-1)}>
+        <FiArrowLeft size={15} /> Volver
+      </button>
 
       {/* ── Panel de controles ── */}
       <div className="historial-controls">
