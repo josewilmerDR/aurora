@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle,
-  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX,
+  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -72,7 +73,176 @@ function applyFilters(data, f) {
 }
 
 const formatFecha = (iso) =>
-  new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
+  new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
+
+function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
+  const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const docRef = useRef(null);
+  const [sharing, setSharing] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('sh-preview-open');
+    return () => document.body.classList.remove('sh-preview-open');
+  }, []);
+
+  const handlePrint = () => window.print();
+
+  const handleShare = async () => {
+    if (!docRef.current || sharing) return;
+    setSharing(true);
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas  = await html2canvas(docRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const pageW   = pdf.internal.pageSize.getWidth();
+      const pageH   = pdf.internal.pageSize.getHeight();
+      const imgH    = (canvas.height * pageW) / canvas.width;
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+        y += pageH;
+      }
+      const filename = `historial-siembra-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const blob = pdf.output('blob');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: filename }); } catch {}
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch { /* silencioso */ }
+    finally { setSharing(false); }
+  };
+
+  return createPortal(
+    <div className="sh-preview-backdrop">
+      {/* ── Topbar ── */}
+      <div className="sh-preview-topbar no-print">
+        <span className="sh-preview-title">Vista previa — Historial de Siembra</span>
+        <div className="sh-preview-topbar-actions">
+          <button className="sh-preview-btn-close" onClick={onClose}><FiX size={15} /> Cerrar</button>
+          <button className="sh-preview-btn-share" onClick={handleShare} disabled={sharing}>
+            <FiShare2 size={15} /> {sharing ? 'Generando…' : 'Compartir PDF'}
+          </button>
+          <button className="sh-preview-btn-print" onClick={handlePrint}><FiPrinter size={15} /> Imprimir / PDF</button>
+        </div>
+      </div>
+
+      {/* ── Documento ── */}
+      <div className="sh-preview-doc-wrap">
+        <div className="sh-preview-doc" ref={docRef}>
+
+          {/* Encabezado */}
+          <div className="pr-doc-header">
+            <div className="pr-doc-brand">
+              <div className="pr-doc-logo">
+                {fincaConfig.logoUrl
+                  ? <img src={fincaConfig.logoUrl} alt="Logo" className="pr-doc-logo-img" />
+                  : 'AU'}
+              </div>
+              <div className="pr-doc-brand-info">
+                <div className="pr-doc-brand-name">{fincaConfig.nombreEmpresa.toUpperCase()}</div>
+                {fincaConfig.identificacion && <div className="pr-doc-brand-sub">Céd. {fincaConfig.identificacion}</div>}
+                {fincaConfig.direccion && (
+                  <div className="pr-doc-brand-sub">
+                    {fincaConfig.direccion}{fincaConfig.whatsapp ? ` · Tel: ${fincaConfig.whatsapp}` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="pr-doc-title-block">
+              <div className="pr-doc-title">HISTORIAL DE SIEMBRA</div>
+              <table className="pr-doc-meta-table">
+                <tbody>
+                  <tr><td>Emisión:</td><td>{fechaEmision}</td></tr>
+                  {displayData.find(r => r.variedad) && (
+                    <tr><td>Variedad:</td><td>{displayData.find(r => r.variedad)?.variedad}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Resumen */}
+          <div className="sh-preview-stats">
+            <div className="sh-preview-stat-item">
+              <span className="sh-preview-stat-label">Total plantas</span>
+              <span className="sh-preview-stat-val">{stats.totalPlantas.toLocaleString()}</span>
+            </div>
+            <div className="sh-preview-stat-item">
+              <span className="sh-preview-stat-label">Área calculada</span>
+              <span className="sh-preview-stat-val">{stats.totalArea} ha</span>
+            </div>
+          </div>
+
+          {/* Tabla */}
+          <table className="sh-preview-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Lote</th>
+                <th>Bloque</th>
+                <th>Plantas</th>
+                <th>Densidad</th>
+                <th>Área (ha)</th>
+                <th>Material</th>
+                <th>Responsable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayData.map(r => (
+                <tr key={r.id} className={r.cerrado ? 'sh-preview-row-cerrado' : ''}>
+                  <td>{formatFecha(r.fecha)}</td>
+                  <td>{r.loteNombre}</td>
+                  <td>{r.bloque || '—'}</td>
+                  <td className="sh-preview-td-num">{r.plantas?.toLocaleString()}</td>
+                  <td className="sh-preview-td-num">{r.densidad?.toLocaleString()}</td>
+                  <td className="sh-preview-td-num sh-preview-td-green">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>
+                  <td>{r.materialNombre || '—'}</td>
+                  <td>{r.responsableNombre || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="sh-preview-footer">
+            Generado por Aurora · {fechaEmision}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ConfirmModal({ config, onCancel }) {
+  return createPortal(
+    <div className="param-modal-backdrop">
+      <div className="param-modal">
+        <div className="param-modal-header">
+          <FiAlertTriangle size={18} className="param-modal-icon-warn" />
+          <span>{config.title}</span>
+        </div>
+        <p className="param-modal-body">{config.body}</p>
+        <div className="param-modal-actions">
+          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
+          <button className="btn btn-primary" onClick={config.onConfirm}>
+            {config.confirmLabel || 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 function SiembraHistorial() {
   const apiFetch = useApiFetch();
@@ -82,10 +252,75 @@ function SiembraHistorial() {
   const [toast,     setToast]     = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters,   setFilters]   = useState(EMPTY_FILTERS);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [fincaConfig, setFincaConfig] = useState({ nombreEmpresa: 'Finca Aurora', identificacion: '', direccion: '', whatsapp: '', logoUrl: '' });
   const [sortConfig, setSortConfig] = useState([
     { field: 'fecha', dir: 'desc' },
     { field: '',      dir: 'asc'  },
   ]);
+
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const toggleExpanded = (id) => setExpandedRows(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const swipeState = useRef({});
+  const SWIPE_THRESHOLD = 80;
+  const getHistSwipeHandlers = (r) => ({
+    onPointerDown(e) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.target.closest('button')) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      swipeState.current['h-' + r.id] = {
+        startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,
+        hintLeft:  e.currentTarget.querySelector('.swipe-hint-left'),
+        hintRight: null,
+      };
+    },
+    onPointerMove(e) {
+      const s = swipeState.current['h-' + r.id];
+      if (!s || s.cancelled) return;
+      const dx = e.clientX - s.startX;
+      const dy = e.clientY - s.startY;
+      if (!s.locked && Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 8) { s.cancelled = true; return; }
+      if (!s.locked && Math.abs(dx) > 8) s.locked = true;
+      if (!s.locked) return;
+      s.dx = dx;
+      s.el.style.transform = `translateX(${dx}px)`;
+      s.el.style.transition = 'none';
+      s.el.style.userSelect = 'none';
+      const ratio = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1);
+      if (dx < 0) {
+        s.el.style.background = `rgba(220, 60, 60, ${ratio * 0.3})`;
+      } else {
+        s.el.style.background = `rgba(51, 255, 153, ${ratio * 0.18})`;
+      }
+    },
+    onPointerUp(e) {
+      const s = swipeState.current['h-' + r.id];
+      if (!s) return;
+      delete swipeState.current['h-' + r.id];
+      s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
+      s.el.style.transform = 'translateX(0)';
+      s.el.style.background = '';
+      s.el.style.userSelect = '';
+      if (s.cancelled || !s.locked) return;
+      if (s.dx < -SWIPE_THRESHOLD) handleDelete(r.id);
+      else if (s.dx > SWIPE_THRESHOLD) toggleExpanded(r.id);
+    },
+    onPointerCancel(e) {
+      const s = swipeState.current['h-' + r.id];
+      if (!s) return;
+      delete swipeState.current['h-' + r.id];
+      s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
+      s.el.style.transform = 'translateX(0)';
+      s.el.style.background = '';
+      s.el.style.userSelect = '';
+    },
+  });
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
@@ -97,6 +332,20 @@ function SiembraHistorial() {
   const activeFilterCount = useMemo(() =>
     Object.entries(filters).filter(([k, v]) => k === 'cerrado' ? v !== 'todos' : v !== '').length,
   [filters]);
+
+  useEffect(() => {
+    if (!showPreview) return;
+    apiFetch('/api/config')
+      .then(r => r.json())
+      .then(data => setFincaConfig({
+        nombreEmpresa:  data.nombreEmpresa  || 'Finca Aurora',
+        identificacion: data.identificacion || '',
+        direccion:      data.direccion      || '',
+        whatsapp:       data.whatsapp       || '',
+        logoUrl:        data.logoUrl        || '',
+      }))
+      .catch(() => {});
+  }, [showPreview]);
 
   useEffect(() => {
     apiFetch('/api/siembras')
@@ -120,37 +369,58 @@ function SiembraHistorial() {
   }, [displayData]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
-  const toggleCerrado = async (reg) => {
+  const toggleCerrado = (reg) => {
     const esSupervisor = hasMinRole(currentUser?.rol, 'supervisor');
     if (reg.cerrado && !esSupervisor) {
       showToast('Solo un supervisor puede reabrir un bloque cerrado.', 'error');
       return;
     }
-    const msg = reg.cerrado
-      ? `¿Reabrir el bloque "${reg.bloque || '(sin bloque)'}" del lote "${reg.loteNombre}"?`
-      : `¿Marcar el bloque "${reg.bloque || '(sin bloque)'}" del lote "${reg.loteNombre}" como cerrado?\n\nSolo un supervisor puede revertir esta acción.`;
-    if (!window.confirm(msg)) return;
-    try {
-      await apiFetch(`/api/siembras/${reg.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cerrado: !reg.cerrado }),
+    const doToggle = async (nuevoCerrado) => {
+      setConfirmModal(null);
+      try {
+        await apiFetch(`/api/siembras/${reg.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cerrado: nuevoCerrado }),
+        });
+        setRegistros(prev => prev.map(r => r.id === reg.id ? { ...r, cerrado: nuevoCerrado } : r));
+      } catch {
+        showToast('Error al actualizar.', 'error');
+      }
+    };
+    if (reg.cerrado) {
+      setConfirmModal({
+        title: `¿Reabrir el bloque "${reg.bloque || '(sin bloque)'}"?`,
+        body: `Lote: "${reg.loteNombre}". Se podrán volver a agregar registros de siembra en este bloque.`,
+        confirmLabel: 'Reabrir bloque',
+        onConfirm: () => doToggle(false),
       });
-      setRegistros(prev => prev.map(r => r.id === reg.id ? { ...r, cerrado: !r.cerrado } : r));
-    } catch {
-      showToast('Error al actualizar.', 'error');
+    } else {
+      setConfirmModal({
+        title: `¿Cerrar el bloque "${reg.bloque || '(sin bloque)'}"?`,
+        body: `Lote: "${reg.loteNombre}". Esto indica que la siembra del bloque está completa. Solo un supervisor puede revertir esta acción.`,
+        confirmLabel: 'Cerrar bloque',
+        onConfirm: () => doToggle(true),
+      });
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')) return;
-    try {
-      await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
-      setRegistros(prev => prev.filter(r => r.id !== id));
-      showToast('Registro eliminado.');
-    } catch {
-      showToast('Error al eliminar.', 'error');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      title: '¿Eliminar este registro?',
+      body: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
+          setRegistros(prev => prev.filter(r => r.id !== id));
+          showToast('Registro eliminado.');
+        } catch {
+          showToast('Error al eliminar.', 'error');
+        }
+      },
+    });
   };
 
   // ── Export CSV ───────────────────────────────────────────────────────────
@@ -196,11 +466,18 @@ function SiembraHistorial() {
     URL.revokeObjectURL(url);
   };
 
-  const handlePrint = () => window.print();
-
   return (
     <div className="sh-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {confirmModal && <ConfirmModal config={confirmModal} onCancel={() => setConfirmModal(null)} />}
+      {showPreview && (
+        <SiembraHistorialPreview
+          fincaConfig={fincaConfig}
+          displayData={displayData}
+          stats={stats}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
 
       {/* ── Toolbar ────────────────────────────────────────────────────────── */}
       <div className="sh-toolbar">
@@ -217,14 +494,14 @@ function SiembraHistorial() {
             Filtros
             {activeFilterCount > 0 && <span className="sh-filter-badge">{activeFilterCount}</span>}
           </button>
-          <button className="btn btn-secondary" onClick={exportXLSX} title="Exportar a Excel">
+          <button className="btn btn-secondary sh-export-btn" onClick={exportXLSX} title="Exportar a Excel">
             <FiDownload size={14} /> Exportar Excel
           </button>
-          <button className="btn btn-secondary" onClick={exportCSV} title="Exportar a CSV">
+          <button className="btn btn-secondary sh-export-btn" onClick={exportCSV} title="Exportar a CSV">
             <FiDownload size={14} /> Exportar CSV
           </button>
-          <button className="btn btn-secondary print-hide" onClick={handlePrint} title="Imprimir">
-            <FiPrinter size={14} /> Imprimir
+          <button className="btn btn-secondary print-hide" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
+            <FiShare2 size={14} /> Compartir
           </button>
         </div>
       </div>
@@ -276,11 +553,11 @@ function SiembraHistorial() {
 
       {/* ── Stats bar ──────────────────────────────────────────────────────── */}
       <div className="sh-stats-bar">
-        <div className="sh-stat">
+        <div className="sh-stat sh-stat-hide-mobile">
           <span className="sh-stat-value">{displayData.length}</span>
           <span className="sh-stat-label">Registros</span>
         </div>
-        <div className="sh-stat-divider" />
+        <div className="sh-stat-divider sh-stat-hide-mobile" />
         <div className="sh-stat">
           <span className="sh-stat-value">{stats.totalPlantas.toLocaleString()}</span>
           <span className="sh-stat-label">Plantas totales</span>
@@ -290,8 +567,8 @@ function SiembraHistorial() {
           <span className="sh-stat-value">{stats.totalArea} ha</span>
           <span className="sh-stat-label">Área calculada</span>
         </div>
-        <div className="sh-stat-divider" />
-        <div className="sh-stat">
+        <div className="sh-stat-divider sh-stat-hide-mobile" />
+        <div className="sh-stat sh-stat-hide-mobile">
           <span className="sh-stat-value sh-stat-green">{stats.cerrados}</span>
           <span className="sh-stat-label">Bloques cerrados</span>
         </div>
@@ -355,33 +632,83 @@ function SiembraHistorial() {
                 </tr>
               </thead>
               <tbody>
-                {displayData.map(r => (
-                  <tr key={r.id} className={r.cerrado ? 'row-cerrado' : ''}>
-                    <td className="td-readonly">{formatFecha(r.fecha)}</td>
-                    <td>{r.loteNombre}</td>
-                    <td>{r.bloque || '—'}</td>
-                    <td className="td-num">{r.plantas?.toLocaleString()}</td>
-                    <td className="td-num">{r.densidad?.toLocaleString()}</td>
-                    <td className="td-calc">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>
-                    <td>{r.materialNombre || '—'}</td>
-                    <td>{r.variedad || '—'}</td>
-                    <td className="td-readonly">{r.responsableNombre || '—'}</td>
-                    <td className="td-center">
-                      <button
-                        className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
-                        onClick={() => toggleCerrado(r)}
-                        title={r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
+                {displayData.map(r => {
+                  const isExpanded = expandedRows.has(r.id);
+                  return (
+                    <React.Fragment key={r.id}>
+                      <tr
+                        className={r.cerrado ? 'row-cerrado' : ''}
+                        {...getHistSwipeHandlers(r)}
                       >
-                        {r.cerrado ? <FiCheckCircle size={18} /> : <FiCircle size={18} />}
-                      </button>
-                    </td>
-                    <td className="print-hide">
-                      <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
-                        <FiTrash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <td className="swipe-hint swipe-hint-left" aria-hidden="true"><FiTrash2 size={18} /></td>
+                        <td className="td-readonly" data-col="fecha">{formatFecha(r.fecha)}</td>
+                        <td data-col="lote">{r.loteNombre}</td>
+                        <td data-col="bloque">{r.bloque || '—'}</td>
+                        <td className="td-num" data-col="plantas">{r.plantas?.toLocaleString()}</td>
+                        <td className="td-num" data-col="densidad">{r.densidad?.toLocaleString()}</td>
+                        <td className="td-calc" data-col="area">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>
+                        <td data-col="mat">{r.materialNombre || '—'}</td>
+                        <td data-col="variedad">{r.variedad || '—'}</td>
+                        <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>
+                        <td className="td-center" data-col="cerrado">
+                          <button
+                            className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
+                            onClick={() => toggleCerrado(r)}
+                            title={r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
+                          >
+                            {r.cerrado ? <FiCheckCircle size={18} /> : <FiCircle size={18} />}
+                          </button>
+                        </td>
+                        <td className="print-hide" data-col="del">
+                          <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
+                            <FiTrash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="hist-expanded-row">
+                          <td colSpan="11" className="hist-expanded-cell">
+                            <div className="hist-expanded-card">
+                              <div className="hist-expanded-header">
+                                <span className="hist-expand-lote">{r.loteNombre}</span>
+                                <button className="hist-expand-close" onClick={() => toggleExpanded(r.id)}>
+                                  <FiX size={15} />
+                                </button>
+                              </div>
+                              {[
+                                { label: 'Fecha',        value: formatFecha(r.fecha) },
+                                { label: 'Bloque',       value: r.bloque || '—' },
+                                { label: 'Plantas',      value: r.plantas?.toLocaleString() },
+                                { label: 'Densidad',     value: r.densidad?.toLocaleString() },
+                                { label: 'Área',         value: r.areaCalculada ? r.areaCalculada + ' ha' : '—' },
+                                { label: 'Material',     value: r.materialNombre || '—' },
+                                { label: 'Variedad',     value: r.variedad || '—' },
+                                { label: 'Responsable',  value: r.responsableNombre || '—' },
+                              ].map(({ label, value }) => (
+                                <div key={label} className="hist-expanded-field">
+                                  <span className="hist-expanded-label">{label}</span>
+                                  <span className="hist-expanded-value">{value}</span>
+                                </div>
+                              ))}
+                              <div className="hist-expanded-actions">
+                                <button
+                                  className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
+                                  onClick={() => toggleCerrado(r)}
+                                >
+                                  {r.cerrado ? <FiCheckCircle size={15} /> : <FiCircle size={15} />}
+                                  {r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
+                                </button>
+                                <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
+                                  <FiTrash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
