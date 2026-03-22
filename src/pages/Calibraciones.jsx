@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FiDroplet, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSliders } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './Calibraciones.css';
 
@@ -237,7 +238,9 @@ function Calibraciones() {
   const [isEditing, setIsEditing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving]     = useState(false);
+  const formRef = useRef(null);
   const [toast, setToast]       = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, nombre }
   const [visibleCols, setVisibleCols] = useState(ALL_VISIBLE);
   const [colMenu, setColMenu]   = useState(null); // { x, y }
 
@@ -286,18 +289,24 @@ function Calibraciones() {
     setForm({ ...EMPTY_FORM, ...item });
     setIsEditing(true);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
-  const handleDelete = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar la calibración "${nombre}"?`)) return;
+  const handleDelete = (id, nombre) => setConfirmDelete({ id, nombre });
+
+  const confirmDoDelete = async () => {
+    const { id } = confirmDelete;
+    setSaving(true);
     try {
       const res = await apiFetch(`/api/calibraciones/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
+      setConfirmDelete(null);
       showToast('Calibración eliminada.');
       fetchItems();
     } catch {
       showToast('Error al eliminar la calibración.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -383,6 +392,16 @@ function Calibraciones() {
     <div className="cal-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {confirmDelete && (
+        <ConfirmModal
+          title="Eliminar calibración"
+          message={`¿Eliminar la calibración "${confirmDelete.nombre}"? Esta acción no se puede deshacer.`}
+          onConfirm={confirmDoDelete}
+          onCancel={() => setConfirmDelete(null)}
+          loading={saving}
+        />
+      )}
+
       {colMenu && (
         <ColMenu
           x={colMenu.x}
@@ -395,7 +414,7 @@ function Calibraciones() {
 
       {/* ── Formulario ── */}
       {showForm && (
-        <div className="cal-form-card">
+        <div className="cal-form-card" ref={formRef}>
           <div className="cal-form-header">
             <span>{isEditing ? 'Editar Calibración' : 'Nueva Calibración'}</span>
             <button className="cal-close-btn" onClick={resetForm} title="Cancelar">
