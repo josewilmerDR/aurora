@@ -8,6 +8,16 @@ import './Calibraciones.css';
 
 const today = () => new Date().toISOString().split('T')[0];
 
+// ── Draft persistence ──────────────────────────────────────────────────────────
+const DRAFT_LS_KEY = 'aurora_draft_calibraciones';
+const DRAFT_SS_KEY = 'aurora_draftActive_calibraciones';
+
+const signalDraft = (active) => {
+  if (active) sessionStorage.setItem(DRAFT_SS_KEY, '1');
+  else sessionStorage.removeItem(DRAFT_SS_KEY);
+  window.dispatchEvent(new Event('aurora-draft-change'));
+};
+
 const EMPTY_FORM = {
   id: null,
   nombre: '',
@@ -243,8 +253,34 @@ function Calibraciones() {
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, nombre }
   const [visibleCols, setVisibleCols] = useState(ALL_VISIBLE);
   const [colMenu, setColMenu]   = useState(null); // { x, y }
+  const [draftSaved, setDraftSaved] = useState(false); // true while form is open and auto-saving
 
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_LS_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      setForm(draft);
+      setIsEditing(!!draft.id);
+      setShowForm(true);
+      setDraftSaved(true);
+      signalDraft(true);
+      showToast('Borrador restaurado.', 'info');
+    } catch {
+      localStorage.removeItem(DRAFT_LS_KEY);
+    }
+  }, []);
+
+  // Auto-save draft to localStorage while form is open
+  useEffect(() => {
+    if (!showForm) return;
+    localStorage.setItem(DRAFT_LS_KEY, JSON.stringify(form));
+    signalDraft(true);
+    setDraftSaved(true);
+  }, [form, showForm]);
 
   const fetchItems = () =>
     apiFetch('/api/calibraciones')
@@ -274,9 +310,12 @@ function Calibraciones() {
   };
 
   const resetForm = () => {
+    localStorage.removeItem(DRAFT_LS_KEY);
+    signalDraft(false);
     setForm(EMPTY_FORM);
     setIsEditing(false);
     setShowForm(false);
+    setDraftSaved(false);
   };
 
   const handleNew = () => {
@@ -416,7 +455,10 @@ function Calibraciones() {
       {showForm && (
         <div className="cal-form-card" ref={formRef}>
           <div className="cal-form-header">
-            <span>{isEditing ? 'Editar Calibración' : 'Nueva Calibración'}</span>
+            <span>
+              {isEditing ? 'Editar Calibración' : 'Nueva Calibración'}
+              {draftSaved && <span className="cal-draft-tag">borrador</span>}
+            </span>
             <button className="cal-close-btn" onClick={resetForm} title="Cancelar">
               <FiX size={16} />
             </button>

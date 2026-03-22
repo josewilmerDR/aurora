@@ -31,6 +31,19 @@
   color: var(--aurora-light);
 }
 
+.cal-draft-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.1);
+  border: 1px solid rgba(51, 255, 153, 0.25);
+  vertical-align: middle;
+  letter-spacing: 0.03em;
+}
+
 .cal-close-btn {
   background: none;
   border: none;
