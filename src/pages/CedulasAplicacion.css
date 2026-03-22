@@ -22,6 +22,82 @@
   border-left: 3px solid #ff4d4d;
 }
 
+.cedula-row--has-menu {
+  position: relative;
+}
+
+.cedula-row--has-menu .cedula-row-badges {
+  padding-right: 28px;
+}
+
+/* ── Kebab menu ───────────────────────────────────────────────────────────── */
+.cedula-kebab-wrap {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.cedula-kebab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.cedula-kebab-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cedula-kebab-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  min-width: 160px;
+  overflow: hidden;
+  z-index: 200;
+}
+
+.cedula-kebab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.cedula-kebab-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cedula-kebab-item--danger {
+  color: #ff6b6b;
+}
+
+.cedula-kebab-item--danger:hover {
+  background: rgba(255, 77, 77, 0.1);
+}
+
 .cedula-row-info {
   flex: 1;
   display: flex;
@@ -82,6 +158,14 @@
   font-size: 0.82rem;
   padding: 6px 14px;
   white-space: nowrap;
+}
+
+/* ── Acciones principales (top) ──────────────────────────────────────────── */
+.cedulas-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
 /* ── Barra de filtro ──────────────────────────────────────────────────────── */
@@ -494,9 +578,12 @@
   border-top: 1px solid #eee;
 }
 
-/* ── Wrapper de botones (transparente en desktop, flex en móvil overdue) ── */
+/* ── Wrapper de botones ──────────────────────────────────────────────────── */
 .cedula-row-actions {
-  display: contents;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 /* ── Botón "Nueva Cédula" ────────────────────────────────────────────────── */
@@ -1087,9 +1174,12 @@
     text-align: center;
     margin: 0;
   }
-  .cedulas-filter-toggle,
-  .cedulas-nueva-btn,
-  .cedulas-historial-btn {
+  .cedulas-filter-toggle {
+    flex: 1;
+    justify-content: center;
+  }
+  .cedulas-top-actions .cedulas-nueva-btn,
+  .cedulas-top-actions .cedulas-historial-btn {
     flex: 1;
     justify-content: center;
     text-align: center;
@@ -1113,11 +1203,19 @@
     min-width: 0;
     text-align: left;
   }
-  .cedula-btn-action,
-  .cedula-btn-preview {
+  .cedula-btn-preview-text {
+    display: none;
+  }
+
+  /* Botones de acción: ocupan todo el ancho del card */
+  .cedula-row-actions {
+    gap: 8px;
+    width: 100%;
+  }
+  .cedula-row-actions .btn {
     flex: 1;
     justify-content: center;
-    min-width: 120px;
+    min-width: 0;
   }
 
   /* Panel de vencidas: nombre+badges en fila, botones debajo 50/50 */
@@ -1135,9 +1233,9 @@
     min-width: 0;
   }
   .cedulas-overdue-list .cedula-row-info .cedula-row-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
   .cedulas-overdue-list .cedula-row-badges {
     flex: 3;
@@ -1157,13 +1255,7 @@
     white-space: nowrap;
   }
   .cedulas-overdue-list .cedula-row-actions {
-    display: flex;
-    flex: 0 0 100%;
-    gap: 8px;
-  }
-  .cedulas-overdue-list .cedula-row-actions .btn {
-    flex: 1;
-    justify-content: center;
+    flex: 1 1 100%;
   }
 
   /* Preview modal: pantalla completa */
@@ -1177,53 +1269,48 @@
   }
   .ca-preview-toolbar {
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 0;
     padding: 10px 12px;
   }
   .ca-preview-toolbar-title {
     flex: 1 0 100%;
     white-space: normal;
     word-break: break-word;
+    margin-bottom: 8px;
   }
   .ca-preview-toolbar-actions {
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-wrap: nowrap;
+    gap: 0;
     width: 100%;
+    border-top: 1px solid var(--aurora-border);
+    margin: 0 -12px;
+    width: calc(100% + 24px);
   }
   .ca-preview-toolbar-actions .btn {
     flex: 1;
     justify-content: center;
-    min-width: 80px;
+    min-width: 0;
     font-size: 0.78rem;
-    padding: 6px 10px;
+    padding: 10px 4px;
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid var(--aurora-border);
+    background: transparent;
   }
+  .ca-preview-toolbar-actions .btn:last-child {
+    border-right: none;
+  }
+  .ca-toolbar-btn-text {
+    display: none;
+  }
+  /* Documento: scroll horizontal a ancho carta */
   .ca-doc-wrap {
-    padding: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .ca-document {
-    padding: 16px 14px;
-  }
-  .ca-doc-header {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .ca-doc-title-block {
-    text-align: left;
-    max-width: 100%;
-  }
-  .ca-datos-grid {
-    grid-template-columns: 1fr;
-  }
-  .ca-doc-sig-row {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .ca-doc-table {
-    font-size: 0.73rem;
-  }
-  .ca-doc-table th,
-  .ca-doc-table td {
-    padding: 5px 7px;
+    min-width: 720px;
   }
 
   /* Modal Nueva Cédula */
@@ -1250,6 +1337,58 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* ── Modal de confirmación ────────────────────────────────────────────────── */
+.param-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.param-modal {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.param-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+}
+
+.param-modal-icon-warn {
+  color: #f5a623;
+  flex-shrink: 0;
+}
+
+.param-modal-body {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.param-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ── Print ────────────────────────────────────────────────────────────────── */

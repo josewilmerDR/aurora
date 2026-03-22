@@ -7,6 +7,26 @@
   gap: 16px;
 }
 
+/* ── Botón volver ─────────────────────────────────────────────────────────── */
+.historial-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s;
+  align-self: flex-start;
+}
+
+.historial-back-btn:hover {
+  opacity: 1;
+}
+
 /* ── Panel de controles ───────────────────────────────────────────────────── */
 .historial-controls {
   display: flex;
