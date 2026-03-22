@@ -146,6 +146,8 @@
 
 .content-area {
   flex-grow: 1;
+  min-width: 0;
+  overflow-x: hidden;
   padding: 30px;
   margin-left: 260px;
   transition: margin-left 0.3s ease;

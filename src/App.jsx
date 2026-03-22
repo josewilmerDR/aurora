@@ -44,6 +44,7 @@ import MonitoreoConfig from './pages/MonitoreoConfig';
 import ConfigCuenta from './pages/ConfigCuenta';
 import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
+import Calibraciones from './pages/Calibraciones';
 import LaborList from './pages/LaborList';
 import UnidadesMedida from './pages/UnidadesMedida';
 import Horimetro from './pages/Horimetro';
@@ -114,6 +115,7 @@ const routeTitles = {
   '/admin/maquinaria': 'Lista de Activos',
   '/admin/labores': 'Lista de Labores',
   '/admin/unidades-medida': 'Unidades de Medida',
+  '/admin/calibraciones': 'Calibraciones',
   '/grupos': 'Grupos',
   '/aplicaciones/cedulas': 'Cédulas de Aplicación',
   '/aplicaciones/historial': 'Historial de Aplicaciones',
@@ -423,6 +425,7 @@ function App() {
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
+            <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
             {/* administrador */}
             <Route path="/hr/solicitud-empleo" element={<RoleRoute path="/hr/solicitud-empleo"><HrSolicitudEmpleo /></RoleRoute>} />
             <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parametros /></RoleRoute>} />
