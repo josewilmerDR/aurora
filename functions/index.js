@@ -503,6 +503,22 @@ async function nextCedulaConsecutivo(fincaId) {
   return consecutivo;
 }
 
+// Allocate count consecutive numbers in a single transaction
+async function nextCedulasConsecutivos(fincaId, count) {
+  if (count <= 1) return [await nextCedulaConsecutivo(fincaId)];
+  const counterRef = db.collection('cedula_counters').doc(fincaId);
+  const consecutivos = [];
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(counterRef);
+    const current = doc.exists ? (doc.data().ultimo || 0) : 0;
+    tx.set(counterRef, { ultimo: current + count }, { merge: true });
+    for (let i = 0; i < count; i++) {
+      consecutivos.push(`#CA-${String(current + 1 + i).padStart(5, '0')}`);
+    }
+  });
+  return consecutivos;
+}
+
 const serializeCedula = (id, data) => ({
   id,
   ...data,
@@ -568,12 +584,69 @@ app.post('/api/cedulas', authenticate, async (req, res) => {
     const existing = await db.collection('cedulas')
       .where('taskId', '==', taskId)
       .where('fincaId', '==', req.fincaId)
-      .limit(1).get();
+      .get();
     if (!existing.empty) {
-      const ex = existing.docs[0];
-      return res.status(409).json({ message: 'Esta tarea ya tiene una cédula generada.', cedula: serializeCedula(ex.id, ex.data()) });
+      return res.status(409).json({
+        message: 'Esta tarea ya tiene cédulas generadas.',
+        cedulas: existing.docs.map(d => serializeCedula(d.id, d.data())),
+      });
     }
 
+    // Detect multi-lote grupo: create one cedula per lote
+    const taskData = ownership.doc.data();
+    if (taskData.grupoId && !taskData.loteId) {
+      const grupoDoc = await db.collection('grupos').doc(taskData.grupoId).get();
+      const grupoData = grupoDoc.exists ? grupoDoc.data() : {};
+      const allBloqueIds = (Array.isArray(taskData.bloques) && taskData.bloques.length > 0)
+        ? taskData.bloques
+        : (Array.isArray(grupoData.bloques) ? grupoData.bloques : []);
+      if (allBloqueIds.length > 0) {
+        const allBloques = [];
+        for (let i = 0; i < allBloqueIds.length; i += 10) {
+          const chunk = allBloqueIds.slice(i, i + 10);
+          const snap = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
+          snap.docs.forEach(d => allBloques.push({ id: d.id, ...d.data() }));
+        }
+        // Group block IDs by lote name
+        const loteMap = {};
+        for (const b of allBloques) {
+          const key = b.loteNombre || b.loteId || '_sin_lote';
+          if (!loteMap[key]) loteMap[key] = [];
+          loteMap[key].push(b.id);
+        }
+        const loteEntries = Object.entries(loteMap);
+        if (loteEntries.length > 1) {
+          // Multi-lote: one cedula per lote
+          const consecutivos = await nextCedulasConsecutivos(req.fincaId, loteEntries.length);
+          const batch = db.batch();
+          const now = Timestamp.now();
+          const cedulasCreated = [];
+          loteEntries.forEach(([loteNombre, bloqueIds], i) => {
+            const ref = db.collection('cedulas').doc();
+            const cedula = {
+              consecutivo: consecutivos[i],
+              taskId,
+              fincaId: req.fincaId,
+              status: 'pendiente',
+              generadaAt: now,
+              generadaPor: req.uid,
+              mezclaListaAt: null,
+              mezclaListaPor: null,
+              aplicadaAt: null,
+              aplicadaPor: null,
+              splitLoteNombre: loteNombre,
+              splitBloqueIds: bloqueIds,
+            };
+            batch.set(ref, cedula);
+            cedulasCreated.push(serializeCedula(ref.id, cedula));
+          });
+          await batch.commit();
+          return res.status(201).json(cedulasCreated);
+        }
+      }
+    }
+
+    // Single cedula (normal path)
     const consecutivo = await nextCedulaConsecutivo(req.fincaId);
     const cedula = {
       consecutivo,
@@ -613,7 +686,14 @@ app.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     // Calcular hectáreas según origen (lote o grupo)
     let hectareas = 1;
     let sourceNombre = '';
-    if (taskData.loteId) {
+    if (cedula.splitBloqueIds?.length > 0) {
+      // Split cedula: use only this lote's specific blocks
+      sourceNombre = cedula.splitLoteNombre || '';
+      const splitSnap = await db.collection('siembras')
+        .where(FieldPath.documentId(), 'in', cedula.splitBloqueIds.slice(0, 10))
+        .get();
+      hectareas = splitSnap.docs.reduce((s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0) || 1;
+    } else if (taskData.loteId) {
       const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
       hectareas = loteDoc.exists ? (parseFloat(loteDoc.data().hectareas) || 1) : 1;
       sourceNombre = loteDoc.exists ? (loteDoc.data().nombreLote || '') : '';
@@ -743,10 +823,11 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       if (d.exists) litrosAplicador = parseFloat(d.data().capacidad) || null;
     }
 
-    // Bloques / siembras
-    const bloqueIds = (Array.isArray(taskData.bloques) && taskData.bloques.length > 0)
+    // Bloques / siembras: for split cedulas use only this lote's blocks
+    const allBloqueIds = (Array.isArray(taskData.bloques) && taskData.bloques.length > 0)
       ? taskData.bloques
       : (Array.isArray(sourceData?.bloques) ? sourceData.bloques : []);
+    const bloqueIds = (cedula.splitBloqueIds?.length > 0) ? cedula.splitBloqueIds : allBloqueIds;
     let bloquesList = [];
     if (bloqueIds.length > 0) {
       for (let i = 0; i < bloqueIds.length; i += 10) {
@@ -865,7 +946,7 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       snap_fechaCosecha:         fechaCosecha,
       snap_fechaCreacionGrupo:   snapFechaCreacionGrupo,
       snap_sourceType:           sourceType,
-      snap_sourceName:           sourceData?.nombreGrupo || sourceData?.nombreLote || null,
+      snap_sourceName:           cedula.splitLoteNombre || sourceData?.nombreGrupo || sourceData?.nombreLote || null,
       snap_cosecha:              cosecha || null,
       snap_etapa:                etapa   || null,
       snap_paqueteTecnico:       pkgData?.nombrePaquete || null,
@@ -892,14 +973,27 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     if (horaFinal         != null) updateData.horaFinal         = horaFinal;
     if (operario          != null) updateData.operario          = operario;
 
+    // For split cedulas: only complete task when ALL sibling cedulas are applied/annulled
+    const siblingsSnap = await db.collection('cedulas')
+      .where('taskId', '==', cedula.taskId)
+      .where('fincaId', '==', req.fincaId)
+      .get();
+    const allSiblingsApplied = siblingsSnap.docs.every(d => {
+      if (d.id === req.params.id) return true; // being applied now
+      const s = d.data().status;
+      return s === 'aplicada_en_campo' || s === 'anulada';
+    });
+
     const batch = db.batch();
     batch.update(db.collection('cedulas').doc(req.params.id), updateData);
-    // Marcar tarea como completada — inventario ya fue debitado en mezcla-lista
-    batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
-      status: 'completed_by_user',
-      completedAt: Timestamp.now(),
-      cedulaId: req.params.id,
-    });
+    if (allSiblingsApplied) {
+      // Marcar tarea como completada — inventario ya fue debitado en mezcla-lista
+      batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
+        status: 'completed_by_user',
+        completedAt: Timestamp.now(),
+        cedulaId: req.params.id,
+      });
+    }
     await batch.commit();
     res.json({ id: req.params.id, status: 'aplicada_en_campo' });
   } catch (error) {
@@ -1040,9 +1134,24 @@ app.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
       anuladaAt: Timestamp.now(),
       anuladaPor: req.uid,
     });
-    batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
-      status: 'skipped',
+    // Only change task status if all sibling cedulas are now inactive
+    const siblingsSnap = await db.collection('cedulas')
+      .where('taskId', '==', cedula.taskId)
+      .where('fincaId', '==', req.fincaId)
+      .get();
+    const allInactive = siblingsSnap.docs.every(d => {
+      if (d.id === req.params.id) return true; // being annulled now
+      const s = d.data().status;
+      return s === 'anulada' || s === 'aplicada_en_campo';
     });
+    if (allInactive) {
+      const anyApplied = siblingsSnap.docs.some(d =>
+        d.id !== req.params.id && d.data().status === 'aplicada_en_campo'
+      );
+      batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
+        status: anyApplied ? 'completed_by_user' : 'skipped',
+      });
+    }
     await batch.commit();
     res.json({ id: req.params.id, status: 'anulada' });
   } catch (error) {

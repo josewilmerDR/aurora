@@ -254,6 +254,59 @@
   color: #3399ff;
 }
 
+.cedula-flow-badge.aplicada {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+/* ── Multi-lote split rows ───────────────────────────────────────────────── */
+.cedula-row--split {
+  flex-wrap: wrap;
+}
+
+.cedula-split-rows {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+.cedula-split-sub-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid var(--aurora-border);
+}
+
+.cedula-split-sub-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cedula-split-lote {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.9;
+}
+
+.cedula-split-sub-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 /* ── Badge "Aplicada" en toolbar ─────────────────────────────────────────── */
 .ca-toolbar-applied-badge {
   display: inline-flex;
