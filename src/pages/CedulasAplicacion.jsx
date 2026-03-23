@@ -292,6 +292,7 @@ function CedulasAplicacion() {
   const [openMenuId,    setOpenMenuId]    = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
+  const [previewCedula, setPreviewCedula] = useState(null); // cedula shown in preview modal
   const docRef = useRef(null);
 
   useEffect(() => {
@@ -360,9 +361,13 @@ function CedulasAplicacion() {
     [tasks]
   );
 
+  // taskId → cedula[] (array, since a task can have multiple split cedulas)
   const cedulasByTaskId = useMemo(() => {
     const map = {};
-    for (const c of cedulas) map[c.taskId] = c;
+    for (const c of cedulas) {
+      if (!map[c.taskId]) map[c.taskId] = [];
+      map[c.taskId].push(c);
+    }
     return map;
   }, [cedulas]);
 
@@ -407,6 +412,9 @@ function CedulasAplicacion() {
     productos.find(p => p.id === productoId) || null;
 
   // ── Computed preview data ─────────────────────────────────────────────────
+  // The specific cedula shown in the preview (set on "Ver Cédula" click)
+  const activeCedula = previewCedula || (previewTask ? (cedulasByTaskId[previewTask.id]?.[0] || null) : null);
+
   const previewSource = previewTask ? getSource(previewTask) : null;
   const previewPkg = previewSource?.paqueteId
     ? (packages.find(p => p.id === previewSource.paqueteId) || null)
@@ -416,13 +424,19 @@ function CedulasAplicacion() {
   const previewProductos = previewTask?.activity?.productos || [];
 
   const previewBloques = useMemo(() => {
+    // For split cedulas: use only this lote's blocks
+    if (previewCedula?.splitBloqueIds?.length > 0) {
+      return previewCedula.splitBloqueIds
+        .map(id => siembras.find(s => s.id === id))
+        .filter(Boolean);
+    }
     // For manual cedulas, use task-level bloques (subset); otherwise use source bloques
     const bloqueIds = previewTask?.bloques || previewSource?.bloques;
     if (!bloqueIds) return [];
     return bloqueIds
       .map(id => siembras.find(s => s.id === id))
       .filter(Boolean);
-  }, [previewSource, siembras]);
+  }, [previewSource, siembras, previewCedula, previewTask]);
 
   const pvTotalHa = previewBloques.reduce(
     (s, b) => s + (parseFloat(b.areaCalculada) || 0), 0
@@ -464,18 +478,21 @@ function CedulasAplicacion() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 409 && data.cedula) {
-          // Cedula already exists in DB but wasn't in local state (stale cache) — recover silently
-          setCedulas(prev =>
-            prev.some(c => c.taskId === data.cedula.taskId) ? prev : [...prev, data.cedula]
-          );
+        if (res.status === 409 && data.cedulas) {
+          // Cedulas already exist in DB but weren't in local state (stale cache) — recover silently
+          setCedulas(prev => {
+            const existingIds = new Set(prev.map(c => c.id));
+            const newOnes = data.cedulas.filter(c => !existingIds.has(c.id));
+            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          });
         } else {
           alert(data.message || 'Error al generar la cédula.');
         }
         return;
       }
-      // Use the returned cedula directly to avoid stale-cache issues on GET
-      setCedulas(prev => [...prev, data]);
+      // Response is either a single cedula object or an array (multi-lote split)
+      const newCedulas = Array.isArray(data) ? data : [data];
+      setCedulas(prev => [...prev, ...newCedulas]);
     } finally {
       setActionLoading(null);
     }
@@ -546,7 +563,12 @@ function CedulasAplicacion() {
       setCedulas(prev => prev.map(c =>
         c.id === cedulaId ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString(), ...data } : c
       ));
-      if (taskId) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed_by_user' } : t));
+      // Only mark task completed if all sibling cedulas are now applied/annulled
+      if (taskId) {
+        const siblings = cedulas.filter(c => c.taskId === taskId && c.id !== cedulaId);
+        const allDone = siblings.every(c => c.status === 'aplicada_en_campo' || c.status === 'anulada');
+        if (allDone) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed_by_user' } : t));
+      }
     } finally { setActionLoading(null); }
   };
 
@@ -567,7 +589,16 @@ function CedulasAplicacion() {
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al anular la cédula.'); return; }
           const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
           setCedulas(prev => prev.filter(c => c.id !== cedulaId));
-          if (taskId) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'skipped' } : t));
+          if (taskId) {
+            const remaining = cedulas.filter(c => c.id !== cedulaId && c.taskId === taskId);
+            const allInactive = remaining.every(c => c.status === 'anulada' || c.status === 'aplicada_en_campo');
+            if (allInactive) {
+              const anyApplied = remaining.some(c => c.status === 'aplicada_en_campo');
+              setTasks(prev => prev.map(t => t.id === taskId
+                ? { ...t, status: anyApplied ? 'completed_by_user' : 'skipped' }
+                : t));
+            }
+          }
           window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
         } finally { setActionLoading(null); }
       },
@@ -639,7 +670,76 @@ function CedulasAplicacion() {
 
   // ── Row renderer (shared between overdue panel and main list) ────────────
   const renderCedulaRow = (task, { allowSkipTask = false } = {}) => {
-    const cedula   = cedulasByTaskId[task.id];
+    const allCedulas = cedulasByTaskId[task.id] || [];
+    const isSplit    = allCedulas.length > 1;
+
+    // ── Multi-lote split: one sub-row per cedula ───────────────────────────
+    if (isSplit) {
+      return (
+        <div key={task.id} className={`cedula-row cedula-row--split${isOverdue(task) ? ' overdue' : ''}`}>
+          <div className="cedula-row-info">
+            <span className="cedula-row-name" title={task.activityName}>{task.activityName}</span>
+            <span className="cedula-row-meta">
+              {task.loteName}
+              {task.responsableName ? ` · ${task.responsableName}` : ''}
+            </span>
+          </div>
+          <div className="cedula-row-badges">
+            <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
+              {isOverdue(task) ? 'Vencida' : 'Pendiente'}
+            </span>
+            <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
+          </div>
+          <div className="cedula-split-rows">
+            {allCedulas.map(c => {
+              const isLdg = actionLoading === c.id;
+              const canAnular = c.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
+              return (
+                <div key={c.id} className="cedula-split-sub-row">
+                  <div className="cedula-split-sub-info">
+                    <span className="cedula-split-lote">{c.splitLoteNombre || '—'}</span>
+                    <span className="cedula-consecutivo">{c.consecutivo}</span>
+                    {c.status === 'pendiente'          && <span className="cedula-flow-badge pendiente">Pendiente</span>}
+                    {c.status === 'en_transito'        && <span className="cedula-flow-badge en-transito">En Tránsito</span>}
+                    {c.status === 'aplicada_en_campo'  && <span className="cedula-flow-badge aplicada">Aplicada</span>}
+                  </div>
+                  <div className="cedula-split-sub-actions">
+                    {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
+                      <button className="btn btn-secondary cedula-btn-action"
+                        onClick={() => handleMezclaLista(c.id)} disabled={isLdg}>
+                        <FiCheckCircle size={14} />
+                        {isLdg ? 'Procesando…' : 'Mezcla Lista'}
+                      </button>
+                    )}
+                    {c.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
+                      <button className="btn btn-primary cedula-btn-action"
+                        onClick={() => handleAplicada(c.id)} disabled={isLdg}>
+                        <FaTractor size={14} />
+                        {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
+                      </button>
+                    )}
+                    <button className="btn btn-secondary cedula-btn-preview"
+                      onClick={() => { setPreviewTask(task); setPreviewCedula(c); }}
+                      title="Ver Cédula de Aplicación">
+                      <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
+                    </button>
+                    {canAnular && (
+                      <button className="btn btn-danger cedula-btn-action cedula-btn-anular"
+                        onClick={() => handleAnular(c.id)} disabled={isLdg}>
+                        <FiX size={13} /> Anular
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Single cedula ──────────────────────────────────────────────────────
+    const cedula   = allCedulas[0] || null;
     const isLdg    = actionLoading === (cedula ? cedula.id : `new-${task.id}`)
                   || actionLoading === `skip-${task.id}`;
     const showKebab = cedula && cedula.status !== 'aplicada_en_campo'
@@ -744,7 +844,7 @@ function CedulasAplicacion() {
             {cedula && (
               <button
                 className="btn btn-secondary cedula-btn-preview"
-                onClick={() => setPreviewTask(task)}
+                onClick={() => { setPreviewTask(task); setPreviewCedula(cedula); }}
                 title="Ver Cédula de Aplicación"
               >
                 <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
@@ -843,23 +943,23 @@ function CedulasAplicacion() {
 
       {/* ── PREVIEW MODAL ── */}
       {previewTask && createPortal(
-        <div className="ca-preview-backdrop" onClick={() => setPreviewTask(null)}>
+        <div className="ca-preview-backdrop" onClick={() => { setPreviewTask(null); setPreviewCedula(null); }}>
           <div className="ca-preview-container" onClick={e => e.stopPropagation()}>
 
             {/* Toolbar */}
             <div className="ca-preview-toolbar">
               <span className="ca-preview-toolbar-title">
                 Cédula de Aplicación — {previewTask.activityName}
-                {cedulasByTaskId[previewTask.id] && (
+                {activeCedula && (
                   <span className="ca-toolbar-consecutivo">
-                    {cedulasByTaskId[previewTask.id].consecutivo}
+                    {activeCedula.consecutivo}
                   </span>
                 )}
               </span>
               <div className="ca-preview-toolbar-actions">
                 {/* ── Acciones de flujo inline ── */}
                 {(() => {
-                  const cedula = cedulasByTaskId[previewTask.id];
+                  const cedula = activeCedula;
                   const isLdg  = actionLoading === cedula?.id;
                   if (!cedula) return null;
                   if (cedula.status === 'aplicada_en_campo') {
@@ -902,7 +1002,7 @@ function CedulasAplicacion() {
                 <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => window.print()}>
                   <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
                 </button>
-                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => setPreviewTask(null)}>
+                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => { setPreviewTask(null); setPreviewCedula(null); }}>
                   <FiX size={15} /> <span className="ca-toolbar-btn-text">Cerrar</span>
                 </button>
               </div>
@@ -930,8 +1030,8 @@ function CedulasAplicacion() {
                   <div className="ca-doc-title-block">
                     <div className="ca-doc-title">CÉDULA DE APLICACIÓN DE AGROQUÍMICOS</div>
                     <div className="ca-doc-subtitle">Aplicación: {previewTask.activityName}</div>
-                    {cedulasByTaskId[previewTask.id] && (
-                      <div className="ca-doc-consecutivo">{cedulasByTaskId[previewTask.id].consecutivo}</div>
+                    {activeCedula && (
+                      <div className="ca-doc-consecutivo">{activeCedula.consecutivo}</div>
                     )}
                   </div>
                 </div>
@@ -986,7 +1086,7 @@ function CedulasAplicacion() {
                     <div className="ca-dato">
                       <span className="ca-dato-label">Método de Aplicación:</span>
                       <span className="ca-dato-value">
-                        {cedulasByTaskId[previewTask.id]?.metodoAplicacion || previewCal?.metodo || '—'}
+                        {activeCedula?.metodoAplicacion || previewCal?.metodo || '—'}
                       </span>
                     </div>
                     {previewPackageName && (
@@ -998,8 +1098,8 @@ function CedulasAplicacion() {
                   </div>
                   <div className="ca-dato ca-dato-col">
                     <div className="ca-dato">
-                      <span className="ca-dato-label">Grupo:</span>
-                      <span className="ca-dato-value">{previewTask.loteName}</span>
+                      <span className="ca-dato-label">{activeCedula?.splitLoteNombre ? 'Lote:' : 'Grupo:'}</span>
+                      <span className="ca-dato-value">{activeCedula?.splitLoteNombre || previewTask.loteName}</span>
                     </div>
                     {(previewSource?.cosecha || previewSource?.etapa) && (
                       <div className="ca-dato">
@@ -1170,7 +1270,7 @@ function CedulasAplicacion() {
 
                 {/* ── Sobrante + Condiciones del tiempo ── */}
                 {(() => {
-                  const cedula = cedulasByTaskId[previewTask.id];
+                  const cedula = activeCedula;
                   return (
                     <>
                       <div className="ca-campo-data-row">
@@ -1214,7 +1314,7 @@ function CedulasAplicacion() {
                   <div className="ca-sig-block">
                     <div className="ca-sig-line ca-sig-line--prefilled">
                       {(() => {
-                        const cedula = cedulasByTaskId[previewTask.id];
+                        const cedula = activeCedula;
                         if (!cedula?.aplicadaAt) return null;
                         const d = cedula.aplicadaAt?.seconds
                           ? new Date(cedula.aplicadaAt.seconds * 1000)
@@ -1227,7 +1327,7 @@ function CedulasAplicacion() {
                   <div className="ca-sig-block">
                     <div className="ca-sig-line ca-sig-line--prefilled">
                       {(() => {
-                        const cedula = cedulasByTaskId[previewTask.id];
+                        const cedula = activeCedula;
                         if (!cedula?.horaInicio && !cedula?.horaFinal) return null;
                         return [cedula.horaInicio || '___', cedula.horaFinal || '___'].join(' / ');
                       })()}
@@ -1236,7 +1336,7 @@ function CedulasAplicacion() {
                   </div>
                   <div className="ca-sig-block">
                     <div className="ca-sig-line ca-sig-line--prefilled">
-                      {cedulasByTaskId[previewTask.id]?.operario || null}
+                      {activeCedula?.operario || null}
                     </div>
                     <div className="ca-sig-label">Operario</div>
                   </div>
@@ -1252,13 +1352,13 @@ function CedulasAplicacion() {
                   </div>
                   <div className="ca-sig-block">
                     <div className="ca-sig-line ca-sig-line--prefilled">
-                      {cedulasByTaskId[previewTask.id]?.mezclaListaNombre || null}
+                      {activeCedula?.mezclaListaNombre || null}
                     </div>
                     <div className="ca-sig-label">Encargado de Bodega</div>
                   </div>
                   <div className="ca-sig-block">
                     <div className="ca-sig-line ca-sig-line--prefilled">
-                      {cedulasByTaskId[previewTask.id]?.supAplicaciones || previewTecnicoResponsable}
+                      {activeCedula?.supAplicaciones || previewTecnicoResponsable}
                     </div>
                     <div className="ca-sig-label">Sup. Aplicaciones / Regente</div>
                   </div>
