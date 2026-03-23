@@ -18,8 +18,36 @@ const tsToDate = (ts) => {
 const formatDateLong = (d) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('es-ES', {
-    day: '2-digit', month: 'long', year: 'numeric',
+    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC',
   });
+};
+
+const PARAM_DEFAULTS = {
+  diasSiembraICosecha: 400,
+  diasForzaICosecha:   150,
+  diasChapeaIICosecha: 215,
+  diasForzaIICosecha:  150,
+};
+
+const calcFechaCosecha = (source, config) => {
+  if (!source?.fechaCreacion) return null;
+  const cosecha = source.cosecha || '';
+  const etapa   = source.etapa   || '';
+  const cfg = { ...PARAM_DEFAULTS, ...config };
+  let dias = null;
+  if (cosecha === 'I Cosecha') {
+    if (etapa === 'Desarrollo')  dias = cfg.diasSiembraICosecha;
+    else if (etapa === 'Postforza') dias = cfg.diasForzaICosecha;
+  } else if (cosecha === 'II Cosecha') {
+    if (etapa === 'Desarrollo')  dias = cfg.diasChapeaIICosecha;
+    else if (etapa === 'Postforza') dias = cfg.diasForzaIICosecha;
+  }
+  if (dias == null) return null;
+  const base = tsToDate(source.fechaCreacion);
+  if (!base) return null;
+  const result = new Date(base);
+  result.setUTCDate(result.getUTCDate() + Number(dias));
+  return result;
 };
 
 const formatShortDate = (iso) => {
@@ -93,7 +121,9 @@ function CedulasAplicacion() {
   const [packages,  setPackages]  = useState([]);
   const [productos, setProductos] = useState([]);
   const [cedulas,   setCedulas]   = useState([]);
-  const [config,    setConfig]    = useState({});
+  const [config,        setConfig]        = useState({});
+  const [calibraciones, setCalibraciones] = useState([]);
+  const [maquinaria,    setMaquinaria]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [previewTask, setPreviewTask] = useState(null);
   const [anchorWeek, setAnchorWeek] = useState(0);  // 0 = esta semana
@@ -130,7 +160,9 @@ function CedulasAplicacion() {
       apiFetch('/api/productos').then(r => r.json()),
       apiFetch('/api/cedulas').then(r => r.json()),
       apiFetch('/api/config').then(r => r.json()),
-    ]).then(([t, l, g, s, p, pr, c, cfg]) => {
+      apiFetch('/api/calibraciones').then(r => r.json()),
+      apiFetch('/api/maquinaria').then(r => r.json()),
+    ]).then(([t, l, g, s, p, pr, c, cfg, cal, maq]) => {
       setTasks(Array.isArray(t) ? t : []);
       setLotes(Array.isArray(l) ? l : []);
       setGrupos(Array.isArray(g) ? g : []);
@@ -139,6 +171,8 @@ function CedulasAplicacion() {
       setProductos(Array.isArray(pr) ? pr : []);
       setCedulas(Array.isArray(c) ? c : []);
       setConfig(cfg || {});
+      setCalibraciones(Array.isArray(cal) ? cal : []);
+      setMaquinaria(Array.isArray(maq) ? maq : []);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -690,86 +724,178 @@ function CedulasAplicacion() {
                 <hr className="ca-doc-divider" />
 
                 {/* ── Datos generales ── */}
-                <div className="ca-section-title">Datos Generales</div>
+                <div className="ca-section-title ca-section-title--split">
+                  <span>Datos Generales</span>
+                  {/* TODO: hacer dinámico — nombre de calibración desde activity.calibracionNombre */}
+                  <span className="ca-section-cal-name">Calibración: Calibración 2500L</span>
+                </div>
                 <div className="ca-datos-grid">
-                  <div className="ca-dato">
-                    <span className="ca-dato-label">Fecha Programada de Aplicación</span>
-                    <span className="ca-dato-value">{formatDateLong(previewTask.dueDate)}</span>
-                  </div>
-                  <div className="ca-dato">
-                    <span className="ca-dato-label">Lote / Grupo</span>
-                    <span className="ca-dato-value">{previewTask.loteName}</span>
-                  </div>
-                  {previewSource?.fechaCreacion && (
+                  <div className="ca-dato ca-dato-col">
                     <div className="ca-dato">
-                      <span className="ca-dato-label">Fecha de Creación</span>
-                      <span className="ca-dato-value">{formatDateLong(tsToDate(previewSource.fechaCreacion))}</span>
+                      <span className="ca-dato-label">F. Prog. Aplicación:</span>
+                      <span className="ca-dato-value">{formatDateLong(previewTask.dueDate)}</span>
                     </div>
-                  )}
-                  {(previewSource?.cosecha || previewSource?.etapa) && (
                     <div className="ca-dato">
-                      <span className="ca-dato-label">Cosecha / Etapa</span>
+                      <span className="ca-dato-label">F. Prog. Cosecha:</span>
+                      <span className="ca-dato-value">{formatDateLong(calcFechaCosecha(previewSource, config))}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">F. Creación de Grupo:</span>
+                      <span className="ca-dato-value">{formatDateLong(tsToDate(previewSource?.fechaCreacion))}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Periodo de Carencia:</span>
                       <span className="ca-dato-value">
-                        {[previewSource.cosecha, previewSource.etapa].filter(Boolean).join(' / ')}
+                        {(() => {
+                          const max = previewProductos.reduce((m, p) => {
+                            const dias = Number(getProductoCatalog(p.productoId)?.periodoACosecha) || 0;
+                            return Math.max(m, dias);
+                          }, 0);
+                          return max > 0 ? `${max} días` : '—';
+                        })()}
                       </span>
                     </div>
-                  )}
-                  <div className="ca-dato">
-                    <span className="ca-dato-label">Área Calculada (ha)</span>
-                    <span className="ca-dato-value">{pvTotalHa > 0 ? pvTotalHa.toFixed(4) : (previewTask.loteHectareas ?? '—')}</span>
-                  </div>
-                  <div className="ca-dato">
-                    <span className="ca-dato-label">Responsable</span>
-                    <span className="ca-dato-value">{previewTask.responsableName || '—'}</span>
-                  </div>
-                  {previewPackageName && (
-                    <div className="ca-dato ca-dato-full">
-                      <span className="ca-dato-label">Paquete Técnico</span>
-                      <span className="ca-dato-value">{previewPackageName}</span>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Periodo de Reingreso:</span>
+                      <span className="ca-dato-value">
+                        {(() => {
+                          const max = previewProductos.reduce((m, p) => {
+                            const horas = Number(getProductoCatalog(p.productoId)?.periodoReingreso) || 0;
+                            return Math.max(m, horas);
+                          }, 0);
+                          return max > 0 ? `${max} h` : '—';
+                        })()}
+                      </span>
                     </div>
-                  )}
+                    {/* TODO: hacer dinámico — agregar campo metodoAplicacion a actividades del paquete */}
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Método de Aplicación:</span>
+                      <span className="ca-dato-value">Spray Boom</span>
+                    </div>
+                    {previewPackageName && (
+                      <div className="ca-dato">
+                        <span className="ca-dato-label">Paq. Técnico:</span>
+                        <span className="ca-dato-value">{previewPackageName}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="ca-dato ca-dato-col">
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Grupo:</span>
+                      <span className="ca-dato-value">{previewTask.loteName}</span>
+                    </div>
+                    {(previewSource?.cosecha || previewSource?.etapa) && (
+                      <div className="ca-dato">
+                        <span className="ca-dato-label">Etapa:</span>
+                        <span className="ca-dato-value">
+                          {[previewSource.cosecha, previewSource.etapa].filter(Boolean).join(' / ')}
+                        </span>
+                      </div>
+                    )}
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Área (ha):</span>
+                      <span className="ca-dato-value">{pvTotalHa > 0 ? pvTotalHa.toFixed(2) : (previewTask.loteHectareas ?? '—')}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Total Plantas:</span>
+                      <span className="ca-dato-value">
+                        {(() => {
+                          const total = previewBloques.reduce((s, b) => s + (Number(b.plantas) || 0), 0);
+                          return total > 0 ? total.toLocaleString('es-ES') : '—';
+                        })()}
+                      </span>
+                    </div>
+                    {/* TODO: hacer dinámico — agregar campo volumenPorHa a actividades del paquete */}
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Volumen (Lt/Ha):</span>
+                      <span className="ca-dato-value">—</span>
+                    </div>
+                    {/* TODO: hacer dinámico — tomar valor del campo "capacidad" del activo asignado */}
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Litros aplicador:</span>
+                      <span className="ca-dato-value">—</span>
+                    </div>
+                    {/* Total = (Volumen * Área) / Litros aplicador — dinámico cuando los campos anteriores estén disponibles */}
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Total boones requeridos:</span>
+                      <span className="ca-dato-value">
+                        {(() => {
+                          const volumen = previewTask.activity?.volumenPorHa;
+                          const litros  = previewTask.activity?.litrosAplicador;
+                          const area    = pvTotalHa > 0 ? pvTotalHa : (previewTask.loteHectareas ?? 0);
+                          if (!volumen || !litros || !area) return '—';
+                          return ((volumen * area) / litros).toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ── Columna 3: Calibración ── */}
+                  {(() => {
+                    // TODO: hacer dinámico — leer nombre de calibración desde activity.calibracionNombre
+                    const nombreCal = 'Calibración 2500L';
+                    const cal = calibraciones.find(c => c.nombre === nombreCal);
+                    return (
+                      <div className="ca-dato ca-dato-col">
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">Tractor:</span>
+                          <span className="ca-dato-value">{maquinaria.find(m => m.id === cal?.tractorId)?.codigo || cal?.tractorNombre || '—'}</span>
+                        </div>
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">Aplicador:</span>
+                          <span className="ca-dato-value">{maquinaria.find(m => m.id === cal?.aplicadorId)?.codigo || cal?.aplicadorNombre || '—'}</span>
+                        </div>
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">RPM Recomendada:</span>
+                          <span className="ca-dato-value">{cal?.rpmRecomendado || '—'}</span>
+                        </div>
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">Marcha Recomendada:</span>
+                          <span className="ca-dato-value">{cal?.marchaRecomendada || '—'}</span>
+                        </div>
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">Tipo de Boquilla:</span>
+                          <span className="ca-dato-value">{cal?.tipoBoquilla || '—'}</span>
+                        </div>
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">Presión Recomendada:</span>
+                          <span className="ca-dato-value">{cal?.presionRecomendada || '—'}</span>
+                        </div>
+                        <div className="ca-dato">
+                          <span className="ca-dato-label">Km/H Recomendados:</span>
+                          <span className="ca-dato-value">{cal?.velocidadKmH || '—'}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* ── Tabla de bloques (sólo para grupos) ── */}
                 {previewBloques.length > 0 && (
                   <>
-                    <div className="ca-section-title">Bloques Incluidos</div>
-                    <table className="ca-doc-table ca-table-sm">
-                      <thead>
-                        <tr>
-                          <th>Lote</th>
-                          <th>Bloque</th>
-                          <th className="ca-col-num">Ha.</th>
-                          <th className="ca-col-num">Plantas</th>
-                          <th>Material / Variedad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewBloques.map(b => (
-                          <tr key={b.id}>
-                            <td>{b.loteNombre || '—'}</td>
-                            <td>{b.bloque || '—'}</td>
-                            <td className="ca-col-num">{b.areaCalculada ?? '—'}</td>
-                            <td className="ca-col-num">{b.plantas?.toLocaleString() ?? '—'}</td>
-                            <td>{b.materialNombre || b.variedad || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      {previewBloques.length > 1 && (
-                        <tfoot>
-                          <tr>
-                            <td colSpan={2}><strong>Total</strong></td>
-                            <td className="ca-col-num"><strong>{pvTotalHa.toFixed(4)}</strong></td>
-                            <td colSpan={2}></td>
-                          </tr>
-                        </tfoot>
-                      )}
-                    </table>
+                    <div className="ca-bloques-summary">
+                      <div className="ca-bloques-summary-row ca-bloques-summary-header">
+                        <span>Lote</span>
+                        <span>Bloques</span>
+                      </div>
+                      {Object.entries(
+                        previewBloques.reduce((acc, b) => {
+                          const lote = b.loteNombre || '—';
+                          if (!acc[lote]) acc[lote] = [];
+                          acc[lote].push(b.bloque || '—');
+                          return acc;
+                        }, {})
+                      ).map(([lote, bloques]) => (
+                        <div key={lote} className="ca-bloques-summary-row">
+                          <span className="ca-bloques-summary-lote">{lote}</span>
+                          <span className="ca-bloques-summary-list">{[...bloques].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(', ')}</span>
+                        </div>
+                      ))}
+                    </div>
                   </>
                 )}
 
                 {/* ── Tabla de productos ── */}
-                <div className="ca-section-title">Total Productos (Dosificación)</div>
                 {previewProductos.length === 0 ? (
                   <p className="ca-empty-products">Sin productos registrados.</p>
                 ) : (
@@ -777,33 +903,49 @@ function CedulasAplicacion() {
                     <thead>
                       <tr>
                         <th>Id</th>
-                        <th>Nombre Comercial — Ingrediente Activo</th>
-                        <th className="ca-col-num">Días a Cosecha</th>
-                        <th className="ca-col-num">Per. Reingreso (h)</th>
+                        <th>Nombre Comercial — Ing. Activo</th>
+                        <th className="ca-col-num">Per. Carencia</th>
+                        <th className="ca-col-num">Per. Reing.</th>
                         <th className="ca-col-num">Cant./Ha</th>
+                        <th className="ca-col-num">Boom</th>
+                        <th className="ca-col-num">Fracción</th>
                         <th>Unidad</th>
                         <th className="ca-col-num">Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {previewProductos.map((prod, i) => {
-                        const info       = getProductoCatalog(prod.productoId);
-                        const cantPorHa  = prod.cantidadPorHa ?? prod.cantidad;
-                        const hectareas  = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas || 1);
-                        const total      = cantPorHa != null
+                        const info        = getProductoCatalog(prod.productoId);
+                        const cantPorHa   = prod.cantidadPorHa ?? prod.cantidad;
+                        const hectareas   = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas || 1);
+                        const total       = cantPorHa != null
                           ? (parseFloat(cantPorHa) * hectareas).toFixed(3)
                           : '—';
-                        const nombreFull = info?.ingredienteActivo
-                          ? `${prod.nombreComercial} — ${info.ingredienteActivo}`
-                          : prod.nombreComercial;
+                        const nombreFull  = info
+                          ? `${info.nombreComercial}${info.ingredienteActivo ? ' — ' + info.ingredienteActivo : ''}`
+                          : (prod.nombreComercial || '—');
+                        const volumen     = parseFloat(previewTask.activity?.volumenPorHa);
+                        const litros      = parseFloat(previewTask.activity?.litrosAplicador);
+                        const cantBoom    = (cantPorHa != null && volumen && litros)
+                          ? ((parseFloat(cantPorHa) * litros) / volumen).toFixed(3)
+                          : '—';
+                        const totalBoones = (volumen && litros && hectareas)
+                          ? (volumen * hectareas) / litros
+                          : null;
+                        const fraccion    = totalBoones != null ? totalBoones - Math.floor(totalBoones) : null;
+                        const cantFraccion = (cantBoom !== '—' && fraccion != null)
+                          ? (parseFloat(cantBoom) * fraccion).toFixed(3)
+                          : '—';
                         return (
                           <tr key={prod.productoId || i}>
                             <td>{info?.idProducto || '—'}</td>
                             <td>{nombreFull}</td>
-                            <td className="ca-col-num">{prod.periodoACosecha ?? '—'}</td>
-                            <td className="ca-col-num">{prod.periodoReingreso ?? '—'}</td>
+                            <td className="ca-col-num">{info?.periodoACosecha ?? '—'}</td>
+                            <td className="ca-col-num">{info?.periodoReingreso ?? '—'}</td>
                             <td className="ca-col-num">{cantPorHa ?? '—'}</td>
-                            <td>{prod.unidad || '—'}</td>
+                            <td className="ca-col-num">{cantBoom}</td>
+                            <td className="ca-col-num">{cantFraccion}</td>
+                            <td>{info?.unidad || prod.unidad || '—'}</td>
                             <td className="ca-col-num"><strong>{total}</strong></td>
                           </tr>
                         );
@@ -814,8 +956,7 @@ function CedulasAplicacion() {
 
                 {/* ── Nota de seguridad ── */}
                 <div className="ca-doc-safety-note">
-                  No olvide usar el Equipo de Protección Personal durante la aplicación.
-                  Recuerde no contaminar fuentes de agua con productos o envases vacíos.
+                  No olvide usar el Equipo de Protección Personal durante la aplicación y de asegurarse del buen estado del mismo. No fume ni ingiera alimentos durante la aplicación. Recuerde no contaminar fuentes de agua con productos o envases vacíos.
                 </div>
 
                 {/* ── Firma operarios ── */}
