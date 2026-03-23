@@ -614,11 +614,85 @@
   border-bottom: 1px solid #aaa;
   height: 28px;
 }
+.ca-sig-line--prefilled {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+  font-size: 0.88rem;
+  color: #333;
+  text-align: center;
+}
 
 .ca-sig-label {
   font-size: 0.73rem;
   color: #555;
   text-align: center;
+}
+
+/* ── Líneas de datos del documento (sobrante / condiciones) ── */
+.ca-campo-data-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 0.82rem;
+  color: #222;
+}
+.ca-campo-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.ca-campo-label {
+  font-weight: 600;
+  white-space: nowrap;
+  color: #555;
+}
+.ca-campo-value {
+  color: #222;
+}
+
+/* ── Modal Aplicada en Campo ── */
+.aplicada-modal {
+  min-width: 340px;
+  max-width: 480px;
+}
+.aplicada-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.aplicada-field label {
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+}
+.aplicada-field select,
+.aplicada-field input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  width: 100%;
+}
+.aplicada-toggle {
+  display: flex;
+  gap: 8px;
+}
+.aplicada-toggle .btn {
+  flex: 1;
+}
+.aplicada-field-row {
+  display: flex;
+  gap: 12px;
+}
+.aplicada-field-row .aplicada-field {
+  flex: 1;
 }
 
 /* Footer */

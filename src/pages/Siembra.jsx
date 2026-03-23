@@ -390,6 +390,7 @@ function Siembra() {
   const getSwipeHandlers = (idx) => ({
     onPointerDown(e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.target.closest('input, select, button, a')) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       swipeState.current[idx] = {
         startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,

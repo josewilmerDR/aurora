@@ -110,6 +110,137 @@ function ConfirmModal({ config, onClose }) {
   );
 }
 
+// ── Modal Aplicada en Campo ───────────────────────────────────────────────────
+const CONDICIONES_TIEMPO = ['Soleado', 'Despejado', 'Parcialmente nublado', 'Nublado', 'Llovizna', 'Lluvia', 'Ventoso', 'Niebla', 'Tormenta'];
+
+const nowTimeStr = () => {
+  const n = new Date();
+  return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+};
+
+function AplicadaModal({ lotes, currentUser, onClose, onConfirm }) {
+  const [sobrante,          setSobrante]          = useState(false);
+  const [sobranteLoteId,    setSobranteLoteId]    = useState('');
+  const [condicionesTiempo, setCondicionesTiempo] = useState('');
+  const [temperatura,       setTemperatura]       = useState('');
+  const [humedadRelativa,   setHumedadRelativa]   = useState('');
+  const [horaInicio,        setHoraInicio]        = useState('');
+  const [horaFinal,         setHoraFinal]         = useState(() => nowTimeStr());
+  const [operario,          setOperario]          = useState(() => currentUser?.nombre || '');
+  const [fetchingWeather,   setFetchingWeather]   = useState(false);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    setFetchingWeather(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude, longitude } }) => {
+        try {
+          const r = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m&timezone=auto`
+          );
+          const d = await r.json();
+          if (d.current?.temperature_2m    != null) setTemperatura(d.current.temperature_2m);
+          if (d.current?.relative_humidity_2m != null) setHumedadRelativa(d.current.relative_humidity_2m);
+        } catch { /* sin internet o API no disponible — el usuario llena manualmente */ }
+        setFetchingWeather(false);
+      },
+      () => setFetchingWeather(false),
+      { timeout: 8000 }
+    );
+  }, []);
+
+  const handleConfirm = () => {
+    if (sobrante && !sobranteLoteId) {
+      alert('Seleccione el lote donde fue depositado el sobrante.');
+      return;
+    }
+    if (horaInicio && horaFinal && horaInicio >= horaFinal) {
+      alert('La hora de inicio debe ser menor que la hora final.');
+      return;
+    }
+    onConfirm({
+      sobrante,
+      sobranteLoteId:     sobrante ? sobranteLoteId   : null,
+      sobranteLoteNombre: sobrante ? (lotes.find(l => l.id === sobranteLoteId)?.nombreLote || null) : null,
+      condicionesTiempo:  condicionesTiempo || null,
+      temperatura:        temperatura !== '' ? Number(temperatura)     : null,
+      humedadRelativa:    humedadRelativa !== '' ? Number(humedadRelativa) : null,
+      horaInicio:         horaInicio  || null,
+      horaFinal:          horaFinal   || null,
+      operario:           operario    || null,
+    });
+  };
+
+  return createPortal(
+    <div className="param-modal-backdrop" onClick={onClose}>
+      <div className="param-modal aplicada-modal" onClick={e => e.stopPropagation()}>
+        <div className="param-modal-header">
+          <FaTractor size={16} />
+          <span>Confirmar Aplicación en Campo</span>
+        </div>
+
+        <div className="aplicada-field">
+          <label>¿Hubo sobrante de mezcla?</label>
+          <div className="aplicada-toggle">
+            <button className={`btn ${!sobrante ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSobrante(false)}>No</button>
+            <button className={`btn ${sobrante  ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSobrante(true)}>Sí</button>
+          </div>
+        </div>
+        {sobrante && (
+          <div className="aplicada-field">
+            <label>Lote donde fue depositado el sobrante</label>
+            <select value={sobranteLoteId} onChange={e => setSobranteLoteId(e.target.value)}>
+              <option value="">— Seleccionar lote —</option>
+              {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div className="aplicada-field">
+          <label>Condiciones del tiempo</label>
+          <select value={condicionesTiempo} onChange={e => setCondicionesTiempo(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {CONDICIONES_TIEMPO.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <div className="aplicada-field-row">
+          <div className="aplicada-field">
+            <label>Temperatura (°C){fetchingWeather ? ' ⏳' : ''}</label>
+            <input type="number" step="0.1" value={temperatura} onChange={e => setTemperatura(e.target.value)} placeholder="—" />
+          </div>
+          <div className="aplicada-field">
+            <label>% Humedad Relativa{fetchingWeather ? ' ⏳' : ''}</label>
+            <input type="number" step="1" min="0" max="100" value={humedadRelativa} onChange={e => setHumedadRelativa(e.target.value)} placeholder="—" />
+          </div>
+        </div>
+
+        <div className="aplicada-field-row">
+          <div className="aplicada-field">
+            <label>Hora inicio</label>
+            <input type="time" value={horaInicio} onChange={e => setHoraInicio(e.target.value)} />
+          </div>
+          <div className="aplicada-field">
+            <label>Hora final</label>
+            <input type="time" value={horaFinal} onChange={e => setHoraFinal(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="aplicada-field">
+          <label>Operario</label>
+          <input type="text" value={operario} onChange={e => setOperario(e.target.value)} placeholder="Nombre del operario" />
+        </div>
+
+        <div className="param-modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleConfirm}>Confirmar</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function CedulasAplicacion() {
   const apiFetch = useApiFetch();
@@ -132,6 +263,7 @@ function CedulasAplicacion() {
   const [showNuevaModal, setShowNuevaModal] = useState(false);
   const [openMenuId,    setOpenMenuId]    = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
+  const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
   const docRef = useRef(null);
 
   useEffect(() => {
@@ -308,31 +440,31 @@ function CedulasAplicacion() {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, { method: 'PUT' });
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al actualizar la cédula.'); return; }
           setCedulas(prev => prev.map(c =>
-            c.id === cedulaId ? { ...c, status: 'en_transito', mezclaListaAt: new Date().toISOString() } : c
+            c.id === cedulaId ? { ...c, status: 'en_transito', mezclaListaAt: new Date().toISOString(), mezclaListaNombre: currentUser?.nombre || null } : c
           ));
         } finally { setActionLoading(null); }
       },
     });
   };
 
-  const handleAplicada = (cedulaId) => {
-    setConfirmModal({
-      title: 'Confirmar aplicación en campo',
-      body: '¿Confirmar que la aplicación fue realizada en campo?',
-      confirmLabel: 'Confirmar',
-      onConfirm: async () => {
-        setActionLoading(cedulaId);
-        try {
-          const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, { method: 'PUT' });
-          if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al registrar la aplicación.'); return; }
-          const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
-          setCedulas(prev => prev.map(c =>
-            c.id === cedulaId ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString() } : c
-          ));
-          if (taskId) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed_by_user' } : t));
-        } finally { setActionLoading(null); }
-      },
-    });
+  const handleAplicada = (cedulaId) => setAplicadaModal(cedulaId);
+
+  const submitAplicada = async (cedulaId, data) => {
+    setAplicadaModal(null);
+    setActionLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al registrar la aplicación.'); return; }
+      const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
+      setCedulas(prev => prev.map(c =>
+        c.id === cedulaId ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString(), ...data } : c
+      ));
+      if (taskId) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed_by_user' } : t));
+    } finally { setActionLoading(null); }
   };
 
   const handleAnular = (cedulaId) => {
@@ -805,24 +937,31 @@ function CedulasAplicacion() {
                         })()}
                       </span>
                     </div>
-                    {/* TODO: hacer dinámico — agregar campo volumenPorHa a actividades del paquete */}
                     <div className="ca-dato">
                       <span className="ca-dato-label">Volumen (Lt/Ha):</span>
-                      <span className="ca-dato-value">—</span>
+                      <span className="ca-dato-value">
+                        {calibraciones.find(c => c.nombre === 'Calibración 2500L')?.volumen ?? '—'}
+                      </span>
                     </div>
-                    {/* TODO: hacer dinámico — tomar valor del campo "capacidad" del activo asignado */}
                     <div className="ca-dato">
                       <span className="ca-dato-label">Litros aplicador:</span>
-                      <span className="ca-dato-value">—</span>
+                      <span className="ca-dato-value">
+                        {(() => {
+                          const cal = calibraciones.find(c => c.nombre === 'Calibración 2500L');
+                          const aplicador = maquinaria.find(m => m.id === cal?.aplicadorId);
+                          return aplicador?.capacidad != null ? aplicador.capacidad : '—';
+                        })()}
+                      </span>
                     </div>
-                    {/* Total = (Volumen * Área) / Litros aplicador — dinámico cuando los campos anteriores estén disponibles */}
                     <div className="ca-dato">
                       <span className="ca-dato-label">Total boones requeridos:</span>
                       <span className="ca-dato-value">
                         {(() => {
-                          const volumen = previewTask.activity?.volumenPorHa;
-                          const litros  = previewTask.activity?.litrosAplicador;
-                          const area    = pvTotalHa > 0 ? pvTotalHa : (previewTask.loteHectareas ?? 0);
+                          const cal      = calibraciones.find(c => c.nombre === 'Calibración 2500L');
+                          const volumen  = parseFloat(cal?.volumen);
+                          const aplicador = maquinaria.find(m => m.id === cal?.aplicadorId);
+                          const litros   = parseFloat(aplicador?.capacidad);
+                          const area     = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas ?? 0);
                           if (!volumen || !litros || !area) return '—';
                           return ((volumen * area) / litros).toFixed(2);
                         })()}
@@ -924,17 +1063,18 @@ function CedulasAplicacion() {
                         const nombreFull  = info
                           ? `${info.nombreComercial}${info.ingredienteActivo ? ' — ' + info.ingredienteActivo : ''}`
                           : (prod.nombreComercial || '—');
-                        const volumen     = parseFloat(previewTask.activity?.volumenPorHa);
-                        const litros      = parseFloat(previewTask.activity?.litrosAplicador);
-                        const cantBoom    = (cantPorHa != null && volumen && litros)
-                          ? ((parseFloat(cantPorHa) * litros) / volumen).toFixed(3)
-                          : '—';
+                        const cal         = calibraciones.find(c => c.nombre === 'Calibración 2500L');
+                        const volumen     = parseFloat(cal?.volumen);
+                        const litros      = parseFloat(maquinaria.find(m => m.id === cal?.aplicadorId)?.capacidad);
                         const totalBoones = (volumen && litros && hectareas)
                           ? (volumen * hectareas) / litros
                           : null;
-                        const fraccion    = totalBoones != null ? totalBoones - Math.floor(totalBoones) : null;
-                        const cantFraccion = (cantBoom !== '—' && fraccion != null)
-                          ? (parseFloat(cantBoom) * fraccion).toFixed(3)
+                        const fracDecimal = totalBoones != null ? totalBoones % 1 : null;
+                        const cantBoom    = (cantPorHa != null && volumen && litros && totalBoones > 1)
+                          ? ((parseFloat(cantPorHa) * litros) / volumen).toFixed(3)
+                          : '—';
+                        const cantFraccion = (cantPorHa != null && volumen && litros && fracDecimal != null && fracDecimal > 0)
+                          ? ((parseFloat(cantPorHa) * litros / volumen) * fracDecimal).toFixed(3)
                           : '—';
                         return (
                           <tr key={prod.productoId || i}>
@@ -959,18 +1099,76 @@ function CedulasAplicacion() {
                   No olvide usar el Equipo de Protección Personal durante la aplicación y de asegurarse del buen estado del mismo. No fume ni ingiera alimentos durante la aplicación. Recuerde no contaminar fuentes de agua con productos o envases vacíos.
                 </div>
 
+                {/* ── Sobrante + Condiciones del tiempo ── */}
+                {(() => {
+                  const cedula = cedulasByTaskId[previewTask.id];
+                  return (
+                    <>
+                      <div className="ca-campo-data-row">
+                        <div className="ca-campo-item">
+                          <span className="ca-campo-label">Sobrante:</span>
+                          <span className="ca-campo-value">
+                            {cedula?.sobrante === true ? 'Sí' : cedula?.sobrante === false ? 'No' : '___'}
+                          </span>
+                        </div>
+                        {cedula?.sobrante && (
+                          <div className="ca-campo-item">
+                            <span className="ca-campo-label">Depositado en:</span>
+                            <span className="ca-campo-value">{cedula?.sobranteLoteNombre || '___________'}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="ca-campo-data-row">
+                        <div className="ca-campo-item">
+                          <span className="ca-campo-label">Condiciones del tiempo:</span>
+                          <span className="ca-campo-value">{cedula?.condicionesTiempo || '___________'}</span>
+                        </div>
+                        <div className="ca-campo-item">
+                          <span className="ca-campo-label">Temperatura:</span>
+                          <span className="ca-campo-value">
+                            {cedula?.temperatura != null ? `${cedula.temperatura}°C` : '___'}
+                          </span>
+                        </div>
+                        <div className="ca-campo-item">
+                          <span className="ca-campo-label">% Humedad Relativa:</span>
+                          <span className="ca-campo-value">
+                            {cedula?.humedadRelativa != null ? `${cedula.humedadRelativa}%` : '___'}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+
                 {/* ── Firma operarios ── */}
                 <div className="ca-doc-sig-row">
                   <div className="ca-sig-block">
-                    <div className="ca-sig-line" />
+                    <div className="ca-sig-line ca-sig-line--prefilled">
+                      {(() => {
+                        const cedula = cedulasByTaskId[previewTask.id];
+                        if (!cedula?.aplicadaAt) return null;
+                        const d = cedula.aplicadaAt?.seconds
+                          ? new Date(cedula.aplicadaAt.seconds * 1000)
+                          : new Date(cedula.aplicadaAt);
+                        return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', timeZone:'UTC' });
+                      })()}
+                    </div>
                     <div className="ca-sig-label">Fecha de Aplicación</div>
                   </div>
                   <div className="ca-sig-block">
-                    <div className="ca-sig-line" />
+                    <div className="ca-sig-line ca-sig-line--prefilled">
+                      {(() => {
+                        const cedula = cedulasByTaskId[previewTask.id];
+                        if (!cedula?.horaInicio && !cedula?.horaFinal) return null;
+                        return [cedula.horaInicio || '___', cedula.horaFinal || '___'].join(' / ');
+                      })()}
+                    </div>
                     <div className="ca-sig-label">Hora Inicial / Hora Final</div>
                   </div>
                   <div className="ca-sig-block">
-                    <div className="ca-sig-line" />
+                    <div className="ca-sig-line ca-sig-line--prefilled">
+                      {cedulasByTaskId[previewTask.id]?.operario || null}
+                    </div>
                     <div className="ca-sig-label">Operario</div>
                   </div>
                 </div>
@@ -978,15 +1176,21 @@ function CedulasAplicacion() {
                 {/* ── Firmas finales ── */}
                 <div className="ca-doc-sig-row ca-doc-sig-final">
                   <div className="ca-sig-block">
-                    <div className="ca-sig-line" />
+                    <div className="ca-sig-line ca-sig-line--prefilled">
+                      {config.administrador || null}
+                    </div>
                     <div className="ca-sig-label">Encargado de Finca</div>
                   </div>
                   <div className="ca-sig-block">
-                    <div className="ca-sig-line" />
+                    <div className="ca-sig-line ca-sig-line--prefilled">
+                      {cedulasByTaskId[previewTask.id]?.mezclaListaNombre || null}
+                    </div>
                     <div className="ca-sig-label">Encargado de Bodega</div>
                   </div>
                   <div className="ca-sig-block">
-                    <div className="ca-sig-line" />
+                    <div className="ca-sig-line ca-sig-line--prefilled">
+                      {packages.find(p => p.id === previewSource?.paqueteId)?.tecnicoResponsable || null}
+                    </div>
                     <div className="ca-sig-label">Sup. Aplicaciones / Regente</div>
                   </div>
                 </div>
@@ -1018,6 +1222,15 @@ function CedulasAplicacion() {
       {/* ── Confirm Modal ── */}
       {confirmModal && (
         <ConfirmModal config={confirmModal} onClose={() => setConfirmModal(null)} />
+      )}
+      {/* ── Aplicada Modal ── */}
+      {aplicadaModal && (
+        <AplicadaModal
+          lotes={lotes}
+          currentUser={currentUser}
+          onClose={() => setAplicadaModal(null)}
+          onConfirm={(data) => submitAplicada(aplicadaModal, data)}
+        />
       )}
     </div>
   );
