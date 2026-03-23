@@ -434,12 +434,22 @@
 .ca-section-title {
   font-size: 0.78rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   color: #fff;
   background: #1a2a3a;
   padding: 5px 10px;
   margin: 14px 0 8px;
+}
+
+.ca-section-title--split {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ca-section-cal-name {
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 /* Datos grid */
@@ -455,18 +465,61 @@
 
 .ca-dato {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .ca-dato-full {
   grid-column: 1 / -1;
 }
 
+.ca-bloques-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 28px;
+  margin-bottom: 20px;
+}
+
+.ca-bloques-summary-row {
+  display: grid;
+  grid-template-columns: 15% 85%;
+  align-items: baseline;
+  font-size: 0.82rem;
+  color: #1a1a2e;
+}
+
+.ca-bloques-summary-header {
+  background: #1a2a3a;
+  color: #fff;
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.ca-bloques-summary-lote {
+  font-weight: 700;
+  padding-right: 6px;
+  padding-left: 8px;
+}
+
+.ca-bloques-summary-list {
+  color: #333;
+  padding-left: 8px;
+}
+
+.ca-dato-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .ca-dato-label {
   font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: #666;
   font-weight: 600;
 }
