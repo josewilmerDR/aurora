@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FiArrowLeft } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './HistorialAplicaciones.css';
@@ -293,7 +293,11 @@ function HistorialAplicaciones() {
                   return (
                     <tr key={`${row.id}-${idx}`}>
                       {/* Identificación */}
-                      <td className="historial-consecutivo">{row.consecutivo}</td>
+                      <td className="historial-consecutivo">
+                        {row.status === 'aplicada_en_campo'
+                          ? <Link to={`/aplicaciones/cedula/${row.id}`} className="historial-cedula-link">{row.consecutivo}</Link>
+                          : row.consecutivo}
+                      </td>
                       <td>
                         <span className={`historial-badge ${STATUS_CLASS[row.status] || ''}`}>
                           {STATUS_LABEL[row.status] || row.status}

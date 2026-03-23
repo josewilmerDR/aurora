@@ -51,6 +51,7 @@ import Horimetro from './pages/Horimetro';
 import GrupoManagement from './pages/GrupoManagement';
 import CedulasAplicacion from './pages/CedulasAplicacion';
 import HistorialAplicaciones from './pages/HistorialAplicaciones';
+import CedulaViewer from './pages/CedulaViewer';
 import Siembra from './pages/Siembra';
 import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
@@ -166,7 +167,8 @@ const MainLayout = () => {
     localStorage.setItem('aurora_push_prompt_dismissed', 'true');
     setPushPromptDismissed(true);
   };
-  const title = routeTitles[location.pathname] || 'Aurora';
+  const title = routeTitles[location.pathname]
+    || (location.pathname.startsWith('/aplicaciones/cedula/') ? 'Cédula de Aplicación' : 'Aurora');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchActiveIdx, setSearchActiveIdx] = useState(-1);
@@ -410,6 +412,7 @@ function App() {
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
             <Route path="/aplicaciones/historial" element={<RoleRoute path="/aplicaciones/historial"><HistorialAplicaciones /></RoleRoute>} />
+            <Route path="/aplicaciones/cedula/:id" element={<RoleRoute path="/aplicaciones/cedulas"><CedulaViewer /></RoleRoute>} />
             <Route path="/siembra" element={<RoleRoute path="/siembra"><Siembra /></RoleRoute>} />
             <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />

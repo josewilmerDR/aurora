@@ -525,6 +525,38 @@ app.get('/api/cedulas', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/cedulas/:id', authenticate, async (req, res) => {
+  try {
+    const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const data = ownership.doc.data();
+    const cedula = serializeCedula(ownership.doc.id, data);
+
+    // Enrich with calibración details for the viewer
+    if (data.snap_calibracionId) {
+      const calDoc = await db.collection('calibraciones').doc(data.snap_calibracionId).get();
+      if (calDoc.exists) {
+        cedula.calibracion = { id: calDoc.id, ...calDoc.data() };
+        const cal = calDoc.data();
+        const maqIds = [cal.aplicadorId, cal.tractorId].filter(Boolean);
+        if (maqIds.length > 0) {
+          const maqDocs = await Promise.all(maqIds.map(mid => db.collection('maquinaria').doc(mid).get()));
+          const maqMap = {};
+          maqDocs.forEach(d => { if (d.exists) maqMap[d.id] = d.data(); });
+          cedula.calibracionAplicador = cal.aplicadorId ? (maqMap[cal.aplicadorId] || null) : null;
+          cedula.calibracionTractor   = cal.tractorId   ? (maqMap[cal.tractorId]   || null) : null;
+        }
+      }
+    }
+
+    res.json(cedula);
+  } catch (error) {
+    console.error('Error fetching cedula by id:', error);
+    res.status(500).json({ message: 'Error al obtener la cédula.' });
+  }
+});
+
 app.post('/api/cedulas', authenticate, async (req, res) => {
   try {
     const { taskId } = req.body;
