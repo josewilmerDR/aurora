@@ -658,6 +658,18 @@
 .aplicada-modal {
   min-width: 340px;
   max-width: 480px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding-bottom: 0;
+}
+
+.aplicada-modal .param-modal-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--aurora-background);
+  padding: 16px 0 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--aurora-border);
 }
 .aplicada-field {
   display: flex;

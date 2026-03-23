@@ -158,6 +158,10 @@
   min-width: 750px;
 }
 
+.historial-table--wide {
+  min-width: 3400px;
+}
+
 .historial-table thead th {
   background: var(--aurora-dark-blue);
   color: var(--aurora-light);
@@ -219,6 +223,29 @@
 .badge-green {
   background: rgba(51, 255, 153, 0.12);
   color: var(--aurora-green);
+}
+
+/* ── Columnas especiales ──────────────────────────────────────────────────── */
+.historial-th-group {
+  position: sticky;
+  background: var(--aurora-dark-blue);
+  z-index: 1;
+}
+
+.historial-td-nowrap {
+  white-space: nowrap;
+}
+
+.historial-td-bloques {
+  max-width: 200px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.historial-td-producto {
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* ── Ver más ──────────────────────────────────────────────────────────────── */
