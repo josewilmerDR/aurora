@@ -118,7 +118,7 @@ const nowTimeStr = () => {
   return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
 };
 
-function AplicadaModal({ lotes, currentUser, onClose, onConfirm }) {
+function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
   const [sobrante,          setSobrante]          = useState(false);
   const [sobranteLoteId,    setSobranteLoteId]    = useState('');
   const [condicionesTiempo, setCondicionesTiempo] = useState('');
@@ -127,6 +127,10 @@ function AplicadaModal({ lotes, currentUser, onClose, onConfirm }) {
   const [horaInicio,        setHoraInicio]        = useState('');
   const [horaFinal,         setHoraFinal]         = useState(() => nowTimeStr());
   const [operario,          setOperario]          = useState(() => currentUser?.nombre || '');
+  const [metodoAplicacion,  setMetodoAplicacion]  = useState(() => prefill?.metodoAplicacion || '');
+  const [encargadoFinca,    setEncargadoFinca]    = useState(() => prefill?.encargadoFinca || '');
+  const [encargadoBodega,   setEncargadoBodega]   = useState(() => prefill?.encargadoBodega || '');
+  const [supAplicaciones,   setSupAplicaciones]   = useState(() => prefill?.supAplicaciones || '');
   const [fetchingWeather,   setFetchingWeather]   = useState(false);
 
   useEffect(() => {
@@ -168,6 +172,10 @@ function AplicadaModal({ lotes, currentUser, onClose, onConfirm }) {
       horaInicio:         horaInicio  || null,
       horaFinal:          horaFinal   || null,
       operario:           operario    || null,
+      metodoAplicacion:   metodoAplicacion  || null,
+      encargadoFinca:     encargadoFinca    || null,
+      encargadoBodega:    encargadoBodega   || null,
+      supAplicaciones:    supAplicaciones   || null,
     });
   };
 
@@ -229,6 +237,26 @@ function AplicadaModal({ lotes, currentUser, onClose, onConfirm }) {
         <div className="aplicada-field">
           <label>Operario</label>
           <input type="text" value={operario} onChange={e => setOperario(e.target.value)} placeholder="Nombre del operario" />
+        </div>
+
+        <div className="aplicada-field">
+          <label>Método de Aplicación</label>
+          <input type="text" value={metodoAplicacion} onChange={e => setMetodoAplicacion(e.target.value)} placeholder="Ej: Spray Boom, Drench…" />
+        </div>
+
+        <div className="aplicada-field">
+          <label>Encargado de Finca</label>
+          <input type="text" value={encargadoFinca} onChange={e => setEncargadoFinca(e.target.value)} placeholder="Nombre del encargado de finca" />
+        </div>
+
+        <div className="aplicada-field">
+          <label>Encargado de Bodega</label>
+          <input type="text" value={encargadoBodega} onChange={e => setEncargadoBodega(e.target.value)} placeholder="Nombre del encargado de bodega" />
+        </div>
+
+        <div className="aplicada-field">
+          <label>Sup. Aplicaciones / Regente</label>
+          <input type="text" value={supAplicaciones} onChange={e => setSupAplicaciones(e.target.value)} placeholder="Nombre del supervisor o regente" />
         </div>
 
         <div className="param-modal-actions">
@@ -380,8 +408,11 @@ function CedulasAplicacion() {
 
   // ── Computed preview data ─────────────────────────────────────────────────
   const previewSource = previewTask ? getSource(previewTask) : null;
-  const previewPackageName = previewSource?.paqueteId
-    ? getPackageName(previewSource.paqueteId) : null;
+  const previewPkg = previewSource?.paqueteId
+    ? (packages.find(p => p.id === previewSource.paqueteId) || null)
+    : null;
+  const previewPackageName = previewPkg?.nombrePaquete || null;
+  const previewTecnicoResponsable = previewPkg?.tecnicoResponsable || null;
   const previewProductos = previewTask?.activity?.productos || [];
 
   const previewBloques = useMemo(() => {
@@ -396,6 +427,31 @@ function CedulasAplicacion() {
   const pvTotalHa = previewBloques.reduce(
     (s, b) => s + (parseFloat(b.areaCalculada) || 0), 0
   );
+
+  // Calibración: desde la actividad de la tarea, con fallback en la actividad actual del paquete
+  const previewCal = (() => {
+    // 1. calibracionId guardado directamente en la actividad de la tarea
+    const calId = previewTask?.activity?.calibracionId
+      // 2. fallback: buscar la actividad equivalente en el paquete actual
+      || (() => {
+        if (!previewSource?.paqueteId || !previewTask) return null;
+        const pkg = packages.find(p => p.id === previewSource.paqueteId);
+        if (!pkg) return null;
+        const actName = previewTask.activityName || previewTask.activity?.name;
+        const actDay  = previewTask.activity?.day;
+        const pkgAct  = pkg.activities?.find(a =>
+          (actName && a.name === actName) || (actDay != null && String(a.day) === String(actDay))
+        );
+        return pkgAct?.calibracionId || null;
+      })();
+    return calId ? (calibraciones.find(c => c.id === calId) || null) : null;
+  })();
+  const previewCalAplicador = previewCal?.aplicadorId
+    ? (maquinaria.find(m => m.id === previewCal.aplicadorId) || null)
+    : null;
+  const previewCalTractor = previewCal?.tractorId
+    ? (maquinaria.find(m => m.id === previewCal.tractorId) || null)
+    : null;
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleGenerarCedula = async (taskId) => {
@@ -437,7 +493,11 @@ function CedulasAplicacion() {
       onConfirm: async () => {
         setActionLoading(cedulaId);
         try {
-          const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, { method: 'PUT' });
+          const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre: currentUser?.nombre || null }),
+          });
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al actualizar la cédula.'); return; }
           setCedulas(prev => prev.map(c =>
             c.id === cedulaId ? { ...c, status: 'en_transito', mezclaListaAt: new Date().toISOString(), mezclaListaNombre: currentUser?.nombre || null } : c
@@ -447,7 +507,30 @@ function CedulasAplicacion() {
     });
   };
 
-  const handleAplicada = (cedulaId) => setAplicadaModal(cedulaId);
+  const handleAplicada = (cedulaId) => {
+    const cedula = cedulas.find(c => c.id === cedulaId);
+    const task   = tasks.find(t => t.id === cedula?.taskId);
+    const source = task ? getSource(task) : null;
+    const pkg    = source?.paqueteId ? packages.find(p => p.id === source.paqueteId) : null;
+    // Resolver calibracionId: desde la tarea o desde la actividad del paquete
+    let calId = task?.activity?.calibracionId;
+    if (!calId && pkg) {
+      const actName = task?.activityName || task?.activity?.name;
+      const actDay  = task?.activity?.day;
+      const pkgAct  = pkg.activities?.find(a =>
+        (actName && a.name === actName) || (actDay != null && String(a.day) === String(actDay))
+      );
+      calId = pkgAct?.calibracionId || null;
+    }
+    const cal = calId ? calibraciones.find(c => c.id === calId) : null;
+    setAplicadaModal({
+      cedulaId,
+      metodoAplicacion: cal?.metodo           || '',
+      encargadoFinca:   config?.administrador  || '',
+      encargadoBodega:  cedula?.mezclaListaNombre || '',
+      supAplicaciones:  pkg?.tecnicoResponsable   || '',
+    });
+  };
 
   const submitAplicada = async (cedulaId, data) => {
     setAplicadaModal(null);
@@ -858,8 +941,9 @@ function CedulasAplicacion() {
                 {/* ── Datos generales ── */}
                 <div className="ca-section-title ca-section-title--split">
                   <span>Datos Generales</span>
-                  {/* TODO: hacer dinámico — nombre de calibración desde activity.calibracionNombre */}
-                  <span className="ca-section-cal-name">Calibración: Calibración 2500L</span>
+                  {previewCal && (
+                    <span className="ca-section-cal-name">Calibración: {previewCal.nombre}</span>
+                  )}
                 </div>
                 <div className="ca-datos-grid">
                   <div className="ca-dato ca-dato-col">
@@ -899,10 +983,11 @@ function CedulasAplicacion() {
                         })()}
                       </span>
                     </div>
-                    {/* TODO: hacer dinámico — agregar campo metodoAplicacion a actividades del paquete */}
                     <div className="ca-dato">
                       <span className="ca-dato-label">Método de Aplicación:</span>
-                      <span className="ca-dato-value">Spray Boom</span>
+                      <span className="ca-dato-value">
+                        {cedulasByTaskId[previewTask.id]?.metodoAplicacion || previewCal?.metodo || '—'}
+                      </span>
                     </div>
                     {previewPackageName && (
                       <div className="ca-dato">
@@ -939,29 +1024,21 @@ function CedulasAplicacion() {
                     </div>
                     <div className="ca-dato">
                       <span className="ca-dato-label">Volumen (Lt/Ha):</span>
-                      <span className="ca-dato-value">
-                        {calibraciones.find(c => c.nombre === 'Calibración 2500L')?.volumen ?? '—'}
-                      </span>
+                      <span className="ca-dato-value">{previewCal?.volumen ?? '—'}</span>
                     </div>
                     <div className="ca-dato">
                       <span className="ca-dato-label">Litros aplicador:</span>
                       <span className="ca-dato-value">
-                        {(() => {
-                          const cal = calibraciones.find(c => c.nombre === 'Calibración 2500L');
-                          const aplicador = maquinaria.find(m => m.id === cal?.aplicadorId);
-                          return aplicador?.capacidad != null ? aplicador.capacidad : '—';
-                        })()}
+                        {previewCalAplicador?.capacidad ?? '—'}
                       </span>
                     </div>
                     <div className="ca-dato">
                       <span className="ca-dato-label">Total boones requeridos:</span>
                       <span className="ca-dato-value">
                         {(() => {
-                          const cal      = calibraciones.find(c => c.nombre === 'Calibración 2500L');
-                          const volumen  = parseFloat(cal?.volumen);
-                          const aplicador = maquinaria.find(m => m.id === cal?.aplicadorId);
-                          const litros   = parseFloat(aplicador?.capacidad);
-                          const area     = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas ?? 0);
+                          const volumen = parseFloat(previewCal?.volumen);
+                          const litros  = parseFloat(previewCalAplicador?.capacidad);
+                          const area    = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas ?? 0);
                           if (!volumen || !litros || !area) return '—';
                           return ((volumen * area) / litros).toFixed(2);
                         })()}
@@ -970,43 +1047,36 @@ function CedulasAplicacion() {
                   </div>
 
                   {/* ── Columna 3: Calibración ── */}
-                  {(() => {
-                    // TODO: hacer dinámico — leer nombre de calibración desde activity.calibracionNombre
-                    const nombreCal = 'Calibración 2500L';
-                    const cal = calibraciones.find(c => c.nombre === nombreCal);
-                    return (
-                      <div className="ca-dato ca-dato-col">
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">Tractor:</span>
-                          <span className="ca-dato-value">{maquinaria.find(m => m.id === cal?.tractorId)?.codigo || cal?.tractorNombre || '—'}</span>
-                        </div>
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">Aplicador:</span>
-                          <span className="ca-dato-value">{maquinaria.find(m => m.id === cal?.aplicadorId)?.codigo || cal?.aplicadorNombre || '—'}</span>
-                        </div>
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">RPM Recomendada:</span>
-                          <span className="ca-dato-value">{cal?.rpmRecomendado || '—'}</span>
-                        </div>
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">Marcha Recomendada:</span>
-                          <span className="ca-dato-value">{cal?.marchaRecomendada || '—'}</span>
-                        </div>
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">Tipo de Boquilla:</span>
-                          <span className="ca-dato-value">{cal?.tipoBoquilla || '—'}</span>
-                        </div>
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">Presión Recomendada:</span>
-                          <span className="ca-dato-value">{cal?.presionRecomendada || '—'}</span>
-                        </div>
-                        <div className="ca-dato">
-                          <span className="ca-dato-label">Km/H Recomendados:</span>
-                          <span className="ca-dato-value">{cal?.velocidadKmH || '—'}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <div className="ca-dato ca-dato-col">
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Tractor:</span>
+                      <span className="ca-dato-value">{previewCalTractor?.codigo || previewCal?.tractorNombre || '—'}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Aplicador:</span>
+                      <span className="ca-dato-value">{previewCalAplicador?.codigo || previewCal?.aplicadorNombre || '—'}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">RPM Recomendada:</span>
+                      <span className="ca-dato-value">{previewCal?.rpmRecomendado || '—'}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Marcha Recomendada:</span>
+                      <span className="ca-dato-value">{previewCal?.marchaRecomendada || '—'}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Tipo de Boquilla:</span>
+                      <span className="ca-dato-value">{previewCal?.tipoBoquilla || '—'}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Presión Recomendada:</span>
+                      <span className="ca-dato-value">{previewCal?.presionRecomendada || '—'}</span>
+                    </div>
+                    <div className="ca-dato">
+                      <span className="ca-dato-label">Km/H Recomendados:</span>
+                      <span className="ca-dato-value">{previewCal?.velocidadKmH || '—'}</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* ── Tabla de bloques (sólo para grupos) ── */}
@@ -1063,9 +1133,8 @@ function CedulasAplicacion() {
                         const nombreFull  = info
                           ? `${info.nombreComercial}${info.ingredienteActivo ? ' — ' + info.ingredienteActivo : ''}`
                           : (prod.nombreComercial || '—');
-                        const cal         = calibraciones.find(c => c.nombre === 'Calibración 2500L');
-                        const volumen     = parseFloat(cal?.volumen);
-                        const litros      = parseFloat(maquinaria.find(m => m.id === cal?.aplicadorId)?.capacidad);
+                        const volumen     = parseFloat(previewCal?.volumen);
+                        const litros      = parseFloat(previewCalAplicador?.capacidad);
                         const totalBoones = (volumen && litros && hectareas)
                           ? (volumen * hectareas) / litros
                           : null;
@@ -1189,7 +1258,7 @@ function CedulasAplicacion() {
                   </div>
                   <div className="ca-sig-block">
                     <div className="ca-sig-line ca-sig-line--prefilled">
-                      {packages.find(p => p.id === previewSource?.paqueteId)?.tecnicoResponsable || null}
+                      {cedulasByTaskId[previewTask.id]?.supAplicaciones || previewTecnicoResponsable}
                     </div>
                     <div className="ca-sig-label">Sup. Aplicaciones / Regente</div>
                   </div>
@@ -1228,8 +1297,9 @@ function CedulasAplicacion() {
         <AplicadaModal
           lotes={lotes}
           currentUser={currentUser}
+          prefill={aplicadaModal}
           onClose={() => setAplicadaModal(null)}
-          onConfirm={(data) => submitAplicada(aplicadaModal, data)}
+          onConfirm={(data) => submitAplicada(aplicadaModal.cedulaId, data)}
         />
       )}
     </div>

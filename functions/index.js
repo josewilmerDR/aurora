@@ -637,8 +637,7 @@ app.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       }
     }
 
-    const userDoc = await db.collection('usuarios').doc(req.uid).get();
-    const mezclaListaNombre = userDoc.exists ? (userDoc.data().nombre || null) : null;
+    const mezclaListaNombre = req.body?.nombre || null;
 
     batch.update(db.collection('cedulas').doc(req.params.id), {
       status: 'en_transito',
@@ -664,16 +663,191 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       return res.status(409).json({ message: `La cédula no está en tránsito (estado actual: ${cedula.status}).` });
     }
 
-    const batch = db.batch();
+    // ── Recopilar datos para snapshot ──────────────────────────────────────
+    const taskDoc = await db.collection('scheduled_tasks').doc(cedula.taskId).get();
+    const taskData = taskDoc.exists ? taskDoc.data() : {};
+
+    // Fuente: lote o grupo
+    let sourceData = null, sourceType = null, sourceId = null;
+    if (taskData.loteId) {
+      const d = await db.collection('lotes').doc(taskData.loteId).get();
+      if (d.exists) { sourceData = d.data(); sourceType = 'lote'; sourceId = taskData.loteId; }
+    } else if (taskData.grupoId) {
+      const d = await db.collection('grupos').doc(taskData.grupoId).get();
+      if (d.exists) { sourceData = d.data(); sourceType = 'grupo'; sourceId = taskData.grupoId; }
+    }
+
+    // Paquete técnico
+    let pkgData = null;
+    if (sourceData?.paqueteId) {
+      const d = await db.collection('packages').doc(sourceData.paqueteId).get();
+      if (d.exists) pkgData = d.data();
+    }
+
+    // Config (parámetros para fecha de cosecha)
+    const configDoc = await db.collection('config').doc(req.fincaId).get();
+    const configData = configDoc.exists ? configDoc.data() : {};
+
+    // Calibración: desde la actividad de la tarea, con fallback en la actividad actual del paquete
+    let calData = null;
+    let calibracionId = taskData.activity?.calibracionId || cedula.calibracionId || null;
+    if (!calibracionId && pkgData?.activities) {
+      const actName = taskData.activity?.name;
+      const actDay  = taskData.activity?.day;
+      const pkgAct  = pkgData.activities.find(a =>
+        (actName && a.name === actName) || (actDay != null && String(a.day) === String(actDay))
+      );
+      calibracionId = pkgAct?.calibracionId || null;
+    }
+    if (calibracionId) {
+      const d = await db.collection('calibraciones').doc(calibracionId).get();
+      if (d.exists) calData = { id: d.id, ...d.data() };
+    }
+
+    // Maquinaria del aplicador (capacidad de boon)
+    let litrosAplicador = null;
+    if (calData?.aplicadorId) {
+      const d = await db.collection('maquinaria').doc(calData.aplicadorId).get();
+      if (d.exists) litrosAplicador = parseFloat(d.data().capacidad) || null;
+    }
+
+    // Bloques / siembras
+    const bloqueIds = (Array.isArray(taskData.bloques) && taskData.bloques.length > 0)
+      ? taskData.bloques
+      : (Array.isArray(sourceData?.bloques) ? sourceData.bloques : []);
+    let bloquesList = [];
+    if (bloqueIds.length > 0) {
+      for (let i = 0; i < bloqueIds.length; i += 10) {
+        const chunk = bloqueIds.slice(i, i + 10);
+        const snap = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
+        snap.docs.forEach(d => bloquesList.push({ id: d.id, ...d.data() }));
+      }
+    }
+
+    // Catálogo de productos
+    const productos = taskData.activity?.productos || [];
+    const productoIds = [...new Set(productos.map(p => p.productoId).filter(Boolean))];
+    const catMap = {};
+    for (let i = 0; i < productoIds.length; i += 10) {
+      const chunk = productoIds.slice(i, i + 10);
+      const snap = await db.collection('productos').where(FieldPath.documentId(), 'in', chunk).get();
+      snap.docs.forEach(d => { catMap[d.id] = d.data(); });
+    }
+
+    // ── Cálculos derivados ─────────────────────────────────────────────────
+    const areaHa = bloquesList.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0)
+                || parseFloat(sourceData?.hectareas || 0) || 0;
+    const totalPlantas = bloquesList.reduce((s, b) => s + (Number(b.plantas) || 0), 0);
+
+    const cosecha = sourceData?.cosecha || pkgData?.tipoCosecha || '';
+    const etapa   = sourceData?.etapa   || pkgData?.etapaCultivo || '';
+
+    const PARAM_DEFAULTS = { diasSiembraICosecha: 400, diasForzaICosecha: 150, diasChapeaIICosecha: 215, diasForzaIICosecha: 150 };
+    const cfg = { ...PARAM_DEFAULTS, ...configData };
+    let fechaCosecha = null;
+    if (sourceData?.fechaCreacion) {
+      let dias = null;
+      if      (cosecha === 'I Cosecha'  && etapa === 'Desarrollo')   dias = cfg.diasSiembraICosecha;
+      else if (cosecha === 'I Cosecha'  && etapa === 'Postforza')    dias = cfg.diasForzaICosecha;
+      else if (cosecha === 'II Cosecha' && etapa === 'Desarrollo')   dias = cfg.diasChapeaIICosecha;
+      else if (cosecha === 'II Cosecha' && etapa === 'Postforza')    dias = cfg.diasForzaIICosecha;
+      if (dias != null) {
+        const base = sourceData.fechaCreacion.toDate ? sourceData.fechaCreacion.toDate() : new Date(sourceData.fechaCreacion);
+        const fc = new Date(base);
+        fc.setUTCDate(fc.getUTCDate() + Number(dias));
+        fechaCosecha = fc.toISOString().split('T')[0];
+      }
+    }
+
+    const volumenPorHa = calData ? (parseFloat(calData.volumen) || null) : null;
+    const totalBoones  = (volumenPorHa && litrosAplicador && areaHa)
+      ? (volumenPorHa * areaHa) / litrosAplicador : null;
+
+    // Snapshot de productos (uno por ítem, con datos del catálogo)
+    let periodoCarenciaMax = 0, periodoReingresoMax = 0;
+    const productosSnap = productos.map(prod => {
+      const cat = catMap[prod.productoId] || {};
+      const cantPorHa = prod.cantidadPorHa !== undefined
+        ? parseFloat(prod.cantidadPorHa)
+        : (prod.cantidad !== undefined ? parseFloat(prod.cantidad) : null);
+      const total = cantPorHa != null && areaHa ? parseFloat((cantPorHa * areaHa).toFixed(4)) : null;
+      const perCarencia  = Number(cat.periodoACosecha)  || 0;
+      const perReingreso = Number(cat.periodoReingreso) || 0;
+      if (perCarencia  > periodoCarenciaMax)  periodoCarenciaMax  = perCarencia;
+      if (perReingreso > periodoReingresoMax) periodoReingresoMax = perReingreso;
+      let cantBoom = null, cantFraccion = null;
+      if (cantPorHa != null && volumenPorHa && litrosAplicador && totalBoones) {
+        cantBoom = parseFloat(((cantPorHa * litrosAplicador) / volumenPorHa).toFixed(4));
+        const fracDecimal = totalBoones % 1;
+        cantFraccion = fracDecimal > 0 ? parseFloat((cantBoom * fracDecimal).toFixed(4)) : null;
+      }
+      return {
+        productoId: prod.productoId || null,
+        idProducto: cat.idProducto || null,
+        nombreComercial: cat.nombreComercial || prod.nombreComercial || null,
+        ingredienteActivo: cat.ingredienteActivo || null,
+        cantidadPorHa: cantPorHa,
+        unidad: cat.unidad || prod.unidad || null,
+        total,
+        periodoCarencia:  perCarencia  || null,
+        periodoReingreso: perReingreso || null,
+        cantBoom,
+        cantFraccion,
+      };
+    });
+
+    const bloquesSnap = bloquesList.map(b => ({
+      id: b.id,
+      bloque:        b.bloque        || null,
+      loteNombre:    b.loteNombre    || null,
+      areaCalculada: parseFloat(b.areaCalculada) || null,
+      plantas:       Number(b.plantas) || null,
+    }));
+
+    const snapDueDate = taskData.executeAt
+      ? (taskData.executeAt.toDate ? taskData.executeAt.toDate().toISOString().split('T')[0] : taskData.executeAt)
+      : null;
+    const snapFechaCreacionGrupo = sourceData?.fechaCreacion
+      ? (sourceData.fechaCreacion.toDate ? sourceData.fechaCreacion.toDate().toISOString().split('T')[0] : sourceData.fechaCreacion)
+      : null;
+
+    // ── Construir updateData ───────────────────────────────────────────────
     const { sobrante, sobranteLoteId, sobranteLoteNombre,
             condicionesTiempo, temperatura, humedadRelativa,
-            horaInicio, horaFinal, operario } = req.body || {};
+            horaInicio, horaFinal, operario,
+            metodoAplicacion, encargadoFinca, encargadoBodega, supAplicaciones } = req.body || {};
 
     const updateData = {
       status: 'aplicada_en_campo',
       aplicadaAt: Timestamp.now(),
       aplicadaPor: req.uid,
       sobrante: sobrante === true,
+      // Campos completados por el usuario en el formulario
+      metodoAplicacion: metodoAplicacion || calData?.metodo || null,
+      encargadoFinca:   encargadoFinca   || null,
+      encargadoBodega:  encargadoBodega  || null,
+      supAplicaciones:  supAplicaciones  || pkgData?.tecnicoResponsable || null,
+      // Snapshot: datos del momento de la aplicación
+      snap_activityName:         taskData.activity?.name || null,
+      snap_dueDate:              snapDueDate,
+      snap_fechaCosecha:         fechaCosecha,
+      snap_fechaCreacionGrupo:   snapFechaCreacionGrupo,
+      snap_sourceType:           sourceType,
+      snap_sourceName:           sourceData?.nombreGrupo || sourceData?.nombreLote || null,
+      snap_cosecha:              cosecha || null,
+      snap_etapa:                etapa   || null,
+      snap_paqueteTecnico:       pkgData?.nombrePaquete || null,
+      snap_areaHa:               areaHa  || null,
+      snap_totalPlantas:         totalPlantas || null,
+      snap_periodoCarenciaMax:   periodoCarenciaMax  || null,
+      snap_periodoReingresoMax:  periodoReingresoMax || null,
+      snap_calibracionId:        calibracionId       || null,
+      snap_calibracionNombre:    calData?.nombre     || null,
+      snap_volumenPorHa:         volumenPorHa,
+      snap_litrosAplicador:      litrosAplicador,
+      snap_totalBoones:          totalBoones != null ? parseFloat(totalBoones.toFixed(2)) : null,
+      snap_productos:            productosSnap,
+      snap_bloques:              bloquesSnap,
     };
     if (sobrante) {
       if (sobranteLoteId)     updateData.sobranteLoteId     = sobranteLoteId;
@@ -686,6 +860,7 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     if (horaFinal         != null) updateData.horaFinal         = horaFinal;
     if (operario          != null) updateData.operario          = operario;
 
+    const batch = db.batch();
     batch.update(db.collection('cedulas').doc(req.params.id), updateData);
     // Marcar tarea como completada — inventario ya fue debitado en mezcla-lista
     batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
@@ -5190,7 +5365,7 @@ app.post('/api/calibraciones', authenticate, async (req, res) => {
       'nombre', 'fecha', 'tractorId', 'tractorNombre',
       'aplicadorId', 'aplicadorNombre', 'volumen', 'rpmRecomendado',
       'marchaRecomendada', 'tipoBoquilla', 'presionRecomendada',
-      'velocidadKmH', 'responsableId', 'responsableNombre',
+      'velocidadKmH', 'responsableId', 'responsableNombre', 'metodo',
     ]);
     if (!data.nombre?.trim()) {
       return res.status(400).json({ message: 'El nombre es obligatorio.' });
@@ -5212,7 +5387,7 @@ app.put('/api/calibraciones/:id', authenticate, async (req, res) => {
       'nombre', 'fecha', 'tractorId', 'tractorNombre',
       'aplicadorId', 'aplicadorNombre', 'volumen', 'rpmRecomendado',
       'marchaRecomendada', 'tipoBoquilla', 'presionRecomendada',
-      'velocidadKmH', 'responsableId', 'responsableNombre',
+      'velocidadKmH', 'responsableId', 'responsableNombre', 'metodo',
     ]);
     await db.collection('calibraciones').doc(req.params.id).update(data);
     res.status(200).json({ id: req.params.id, ...data });

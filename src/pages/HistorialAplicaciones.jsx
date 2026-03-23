@@ -7,22 +7,26 @@ import './HistorialAplicaciones.css';
 const PAGE_SIZE = 50;
 
 const DATE_FIELDS = [
-  { value: 'generadaAt',    label: 'Fecha de generación' },
-  { value: 'mezclaListaAt', label: 'Fecha mezcla lista' },
-  { value: 'aplicadaAt',    label: 'Fecha de aplicación' },
-  { value: 'dueDate',       label: 'Fecha programada' },
+  { value: 'generadaAt',       label: 'Fecha de generación' },
+  { value: 'mezclaListaAt',    label: 'Fecha mezcla lista' },
+  { value: 'aplicadaAt',       label: 'Fecha de aplicación' },
+  { value: 'snap_dueDate',     label: 'F. Prog. Aplicación' },
+  { value: 'snap_fechaCosecha',label: 'F. Prog. Cosecha' },
 ];
 
 const SORT_FIELDS = [
-  { value: '',              label: '— Ninguno —' },
-  { value: 'consecutivo',   label: 'Consecutivo' },
-  { value: 'status',        label: 'Estado' },
-  { value: 'generadaAt',    label: 'Fecha generación' },
-  { value: 'mezclaListaAt', label: 'Fecha mezcla' },
-  { value: 'aplicadaAt',    label: 'Fecha aplicación' },
-  { value: 'dueDate',       label: 'Fecha programada' },
-  { value: 'activityName',  label: 'Tarea' },
-  { value: 'loteName',      label: 'Lote / Grupo' },
+  { value: '',                       label: '— Ninguno —' },
+  { value: 'consecutivo',            label: 'Consecutivo' },
+  { value: 'status',                 label: 'Estado' },
+  { value: 'generadaAt',             label: 'Fecha generación' },
+  { value: 'mezclaListaAt',          label: 'Fecha mezcla' },
+  { value: 'aplicadaAt',             label: 'Fecha aplicación' },
+  { value: 'snap_dueDate',           label: 'F. Prog. Aplicación' },
+  { value: 'snap_fechaCosecha',      label: 'F. Prog. Cosecha' },
+  { value: 'snap_activityName',      label: 'Aplicación' },
+  { value: 'snap_sourceName',        label: 'Grupo / Lote' },
+  { value: 'snap_paqueteTecnico',    label: 'Paq. Técnico' },
+  { value: 'snap_calibracionNombre', label: 'Calibración' },
 ];
 
 const STATUS_LABEL = {
@@ -44,21 +48,23 @@ const fmt = (iso) => {
   });
 };
 
+const n = (v, decimals) => {
+  if (v == null) return '—';
+  return decimals != null ? Number(v).toFixed(decimals) : String(v);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 function HistorialAplicaciones() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [cedulas,  setCedulas]  = useState([]);
-  const [tasks,    setTasks]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [page,     setPage]     = useState(1);
 
-  // Filtros de período
   const [filterDateField, setFilterDateField] = useState('generadaAt');
   const [filterFrom,      setFilterFrom]      = useState('');
   const [filterTo,        setFilterTo]        = useState('');
 
-  // Ordenamiento: tres niveles
   const [sorts, setSorts] = useState([
     { field: 'generadaAt', dir: 'desc' },
     { field: '',           dir: 'asc'  },
@@ -66,44 +72,36 @@ function HistorialAplicaciones() {
   ]);
 
   useEffect(() => {
-    Promise.all([
-      apiFetch('/api/cedulas').then(r => r.json()),
-      apiFetch('/api/tasks').then(r => r.json()),
-    ]).then(([c, t]) => {
-      setCedulas(Array.isArray(c) ? c : []);
-      setTasks(Array.isArray(t) ? t : []);
-    }).catch(console.error).finally(() => setLoading(false));
+    apiFetch('/api/cedulas').then(r => r.json())
+      .then(c => setCedulas(Array.isArray(c) ? c : []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  // Join cedulas con datos de la tarea
-  const enriched = useMemo(() => {
-    const taskMap = {};
-    for (const t of tasks) taskMap[t.id] = t;
-    return cedulas.map(c => {
-      const task = taskMap[c.taskId] || {};
-      return {
-        ...c,
-        activityName: task.activityName || task.activity?.name || '—',
-        loteName:     task.loteName     || '—',
-        dueDate:      task.dueDate      || null,
-      };
+  // Aplanar: una fila por (cédula × producto). Cédulas sin productos → 1 fila con prod null.
+  const flattened = useMemo(() => {
+    return cedulas.flatMap(c => {
+      const prods = Array.isArray(c.snap_productos) && c.snap_productos.length > 0
+        ? c.snap_productos
+        : [null];
+      return prods.map(prod => ({ ...c, _prod: prod }));
     });
-  }, [cedulas, tasks]);
+  }, [cedulas]);
 
   // Filtrado por período
   const filtered = useMemo(() => {
-    if (!filterFrom && !filterTo) return enriched;
-    return enriched.filter(c => {
-      const raw = c[filterDateField];
+    if (!filterFrom && !filterTo) return flattened;
+    return flattened.filter(row => {
+      const raw = row[filterDateField];
       if (!raw) return false;
       const d = new Date(raw);
       if (filterFrom && d < new Date(filterFrom + 'T00:00:00')) return false;
       if (filterTo   && d > new Date(filterTo   + 'T23:59:59')) return false;
       return true;
     });
-  }, [enriched, filterDateField, filterFrom, filterTo]);
+  }, [flattened, filterDateField, filterFrom, filterTo]);
 
-  // Ordenamiento multi-nivel
+  // Ordenamiento multi-nivel (sobre campos de la cédula)
   const sorted = useMemo(() => {
     const active = sorts.filter(s => s.field);
     if (active.length === 0) return filtered;
@@ -123,9 +121,8 @@ function HistorialAplicaciones() {
     });
   }, [filtered, sorts]);
 
-  // Paginación
-  const visible  = useMemo(() => sorted.slice(0, page * PAGE_SIZE), [sorted, page]);
-  const hasMore  = visible.length < sorted.length;
+  const visible = useMemo(() => sorted.slice(0, page * PAGE_SIZE), [sorted, page]);
+  const hasMore = visible.length < sorted.length;
 
   const updateSort = (i, key, value) => {
     setSorts(prev => {
@@ -136,11 +133,7 @@ function HistorialAplicaciones() {
     setPage(1);
   };
 
-  const clearFilters = () => {
-    setFilterFrom('');
-    setFilterTo('');
-    setPage(1);
-  };
+  const clearFilters = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
 
   if (loading) return <div className="empty-state">Cargando historial…</div>;
 
@@ -154,7 +147,6 @@ function HistorialAplicaciones() {
       {/* ── Panel de controles ── */}
       <div className="historial-controls">
 
-        {/* Filtro por período */}
         <div className="historial-control-block">
           <span className="historial-control-title">Período</span>
           <div className="historial-control-row">
@@ -193,7 +185,6 @@ function HistorialAplicaciones() {
           </div>
         </div>
 
-        {/* Ordenamiento */}
         <div className="historial-control-block">
           <span className="historial-control-title">Ordenamiento</span>
           <div className="historial-sort-rows">
@@ -231,7 +222,7 @@ function HistorialAplicaciones() {
       <div className="historial-count">
         {sorted.length === 0
           ? 'Sin resultados para los filtros aplicados.'
-          : `Mostrando ${visible.length} de ${sorted.length} cédula${sorted.length !== 1 ? 's' : ''}${sorted.length !== enriched.length ? ` (${enriched.length} en total)` : ''}`
+          : `Mostrando ${visible.length} de ${sorted.length} fila${sorted.length !== 1 ? 's' : ''} (${cedulas.length} cédula${cedulas.length !== 1 ? 's' : ''})`
         }
       </div>
 
@@ -239,36 +230,124 @@ function HistorialAplicaciones() {
       {sorted.length > 0 && (
         <>
           <div className="historial-table-wrap">
-            <table className="historial-table">
+            <table className="historial-table historial-table--wide">
               <thead>
                 <tr>
-                  <th>Consecutivo</th>
-                  <th>Estado</th>
-                  <th>Tarea</th>
-                  <th>Lote / Grupo</th>
-                  <th>F. Programada</th>
-                  <th>Generada</th>
-                  <th>Mezcla Lista</th>
-                  <th>Aplicada</th>
+                  {/* Identificación */}
+                  <th className="historial-th-group">Consecutivo</th>
+                  <th className="historial-th-group">Estado</th>
+                  {/* Datos de la aplicación */}
+                  <th>Aplicación</th>
+                  <th>F. Prog. Aplic.</th>
+                  <th>F. Prog. Cosecha</th>
+                  <th>F. Creación Grupo</th>
+                  <th>Per. Carencia (d)</th>
+                  <th>Per. Reingreso (h)</th>
+                  <th>Método Aplicación</th>
+                  <th>Paq. Técnico</th>
+                  <th>Grupo</th>
+                  <th>Etapa</th>
+                  <th>Área (ha)</th>
+                  <th>Total Plantas</th>
+                  <th>Volumen (Lt/Ha)</th>
+                  <th>Litros Aplicador</th>
+                  <th>Total Boones Req.</th>
+                  <th>Calibración</th>
+                  {/* Bloques */}
+                  <th>Lote</th>
+                  <th>Bloques</th>
+                  {/* Producto (se repite por fila) */}
+                  <th>Id Producto</th>
+                  <th>Nombre Comercial — Ing. Activo</th>
+                  <th>Cant./Ha</th>
+                  <th>Unidad</th>
+                  <th>Total Prod.</th>
+                  {/* Campo */}
+                  <th>Sobrante</th>
+                  <th>Depositado en</th>
+                  <th>Cond. del Tiempo</th>
+                  <th>Temperatura</th>
+                  <th>% Hum. Relativa</th>
+                  <th>Fecha Aplicación</th>
+                  <th>Hora Inicial</th>
+                  <th>Hora Final</th>
+                  <th>Operario</th>
+                  {/* Responsables */}
+                  <th>Enc. de Finca</th>
+                  <th>Enc. de Bodega</th>
+                  <th>Sup. Aplicaciones / Regente</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map(c => (
-                  <tr key={c.id}>
-                    <td className="historial-consecutivo">{c.consecutivo}</td>
-                    <td>
-                      <span className={`historial-badge ${STATUS_CLASS[c.status] || ''}`}>
-                        {STATUS_LABEL[c.status] || c.status}
-                      </span>
-                    </td>
-                    <td>{c.activityName}</td>
-                    <td>{c.loteName}</td>
-                    <td>{fmt(c.dueDate)}</td>
-                    <td>{fmt(c.generadaAt)}</td>
-                    <td>{fmt(c.mezclaListaAt)}</td>
-                    <td>{fmt(c.aplicadaAt)}</td>
-                  </tr>
-                ))}
+                {visible.map((row, idx) => {
+                  const prod = row._prod;
+                  // Lotes y bloques del snapshot
+                  const bloquesArr = Array.isArray(row.snap_bloques) ? row.snap_bloques : [];
+                  const lotesUnicos = [...new Set(bloquesArr.map(b => b.loteNombre).filter(Boolean))].join(', ');
+                  const bloqueNombres = bloquesArr
+                    .map(b => b.bloque)
+                    .filter(Boolean)
+                    .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))
+                    .join(', ');
+
+                  return (
+                    <tr key={`${row.id}-${idx}`}>
+                      {/* Identificación */}
+                      <td className="historial-consecutivo">{row.consecutivo}</td>
+                      <td>
+                        <span className={`historial-badge ${STATUS_CLASS[row.status] || ''}`}>
+                          {STATUS_LABEL[row.status] || row.status}
+                        </span>
+                      </td>
+                      {/* Datos de la aplicación */}
+                      <td className="historial-td-nowrap">{row.snap_activityName || '—'}</td>
+                      <td className="historial-td-nowrap">{fmt(row.snap_dueDate)}</td>
+                      <td className="historial-td-nowrap">{fmt(row.snap_fechaCosecha)}</td>
+                      <td className="historial-td-nowrap">{fmt(row.snap_fechaCreacionGrupo)}</td>
+                      <td>{n(row.snap_periodoCarenciaMax)}</td>
+                      <td>{n(row.snap_periodoReingresoMax)}</td>
+                      <td>{row.metodoAplicacion || '—'}</td>
+                      <td>{row.snap_paqueteTecnico || '—'}</td>
+                      <td className="historial-td-nowrap">{row.snap_sourceName || '—'}</td>
+                      <td className="historial-td-nowrap">
+                        {[row.snap_cosecha, row.snap_etapa].filter(Boolean).join(' / ') || '—'}
+                      </td>
+                      <td>{n(row.snap_areaHa, 2)}</td>
+                      <td>{row.snap_totalPlantas ? Number(row.snap_totalPlantas).toLocaleString('es-ES') : '—'}</td>
+                      <td>{n(row.snap_volumenPorHa)}</td>
+                      <td>{n(row.snap_litrosAplicador)}</td>
+                      <td>{n(row.snap_totalBoones, 2)}</td>
+                      <td className="historial-td-nowrap">{row.snap_calibracionNombre || '—'}</td>
+                      {/* Bloques */}
+                      <td className="historial-td-nowrap">{lotesUnicos || '—'}</td>
+                      <td className="historial-td-bloques">{bloqueNombres || '—'}</td>
+                      {/* Producto */}
+                      <td>{prod?.idProducto ?? '—'}</td>
+                      <td className="historial-td-producto">
+                        {prod
+                          ? [prod.nombreComercial, prod.ingredienteActivo].filter(Boolean).join(' — ') || '—'
+                          : '—'}
+                      </td>
+                      <td>{prod ? n(prod.cantidadPorHa) : '—'}</td>
+                      <td>{prod?.unidad ?? '—'}</td>
+                      <td>{prod ? n(prod.total, 3) : '—'}</td>
+                      {/* Campo */}
+                      <td>{row.sobrante === true ? 'Sí' : row.sobrante === false ? 'No' : '—'}</td>
+                      <td className="historial-td-nowrap">{row.sobranteLoteNombre || '—'}</td>
+                      <td className="historial-td-nowrap">{row.condicionesTiempo || '—'}</td>
+                      <td>{row.temperatura != null ? `${row.temperatura}°C` : '—'}</td>
+                      <td>{row.humedadRelativa != null ? `${row.humedadRelativa}%` : '—'}</td>
+                      <td className="historial-td-nowrap">{fmt(row.aplicadaAt)}</td>
+                      <td>{row.horaInicio || '—'}</td>
+                      <td>{row.horaFinal  || '—'}</td>
+                      <td className="historial-td-nowrap">{row.operario || '—'}</td>
+                      {/* Responsables */}
+                      <td className="historial-td-nowrap">{row.encargadoFinca   || '—'}</td>
+                      <td className="historial-td-nowrap">{row.encargadoBodega  || '—'}</td>
+                      <td className="historial-td-nowrap">{row.supAplicaciones  || '—'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

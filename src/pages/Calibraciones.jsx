@@ -34,6 +34,7 @@ const EMPTY_FORM = {
   velocidadKmH: '',
   responsableId: '',
   responsableNombre: '',
+  metodo: '',
 };
 
 // Columnas visibles en la tabla (sin la columna de acciones)
@@ -49,6 +50,7 @@ const COLUMNS = [
   { key: 'presion',         label: 'Presión' },
   { key: 'velocidad',       label: 'Km/H' },
   { key: 'responsable',     label: 'Responsable' },
+  { key: 'metodo',          label: 'Método' },
 ];
 
 const ALL_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
@@ -424,6 +426,7 @@ function Calibraciones() {
         </td>
       );
       case 'responsable': return <td key={key}>{item.responsableNombre || <span className="cal-td-empty">—</span>}</td>;
+      case 'metodo':      return <td key={key}>{item.metodo || <span className="cal-td-empty">—</span>}</td>;
       default:            return null;
     }
   };
@@ -594,6 +597,16 @@ function Calibraciones() {
                 />
               </div>
 
+              <div className="cal-field cal-field--full">
+                <label>Método</label>
+                <input
+                  name="metodo"
+                  value={form.metodo}
+                  onChange={handleChange}
+                  placeholder="Ej. Método de los vasos"
+                />
+              </div>
+
             </div>
 
             <div className="cal-form-actions">
@@ -709,6 +722,7 @@ function Calibraciones() {
                     <div className="cal-card-field"><span className="cal-card-label">Km/H</span><span>{item.velocidadKmH}</span></div>
                   )}
                   {item.responsableNombre && <div className="cal-card-field"><span className="cal-card-label">Responsable</span><span>{item.responsableNombre}</span></div>}
+                  {item.metodo && <div className="cal-card-field"><span className="cal-card-label">Método</span><span>{item.metodo}</span></div>}
                 </div>
               </div>
             ))}
