@@ -24,6 +24,7 @@
 /* Ajustamos el ancho de las columnas */
 .activities-table .col-day { width: 100px; }
 .activities-table .col-name { width: auto; }
+.activities-table .col-cal { width: 170px; }
 .activities-table .col-user { width: 140px; }
 .activities-table .col-action { width: 1%; white-space: nowrap; text-align: right; }
 

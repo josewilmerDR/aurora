@@ -26,6 +26,7 @@ const EMPTY_FORM = {
   tractorNombre: '',
   aplicadorId: '',
   aplicadorNombre: '',
+  volumen: '',
   rpmRecomendado: '',
   marchaRecomendada: '',
   tipoBoquilla: '',
@@ -41,6 +42,7 @@ const COLUMNS = [
   { key: 'fecha',           label: 'Fecha' },
   { key: 'tractor',         label: 'Tractor' },
   { key: 'aplicador',       label: 'Aplicador' },
+  { key: 'volumen',         label: 'Volumen' },
   { key: 'rpm',             label: 'RPM' },
   { key: 'marcha',          label: 'Marcha' },
   { key: 'boquilla',        label: 'Boquilla' },
@@ -409,6 +411,7 @@ function Calibraciones() {
       case 'fecha':       return <td key={key} className="cal-td-secondary">{formatFecha(item.fecha)}</td>;
       case 'tractor':     return <td key={key}>{item.tractorNombre    || <span className="cal-td-empty">—</span>}</td>;
       case 'aplicador':   return <td key={key}>{item.aplicadorNombre  || <span className="cal-td-empty">—</span>}</td>;
+      case 'volumen':     return <td key={key} className="cal-td-secondary">{item.volumen != null && item.volumen !== '' ? item.volumen : <span className="cal-td-empty">—</span>}</td>;
       case 'rpm':         return <td key={key} className="cal-td-secondary">{item.rpmRecomendado   || <span className="cal-td-empty">—</span>}</td>;
       case 'marcha':      return <td key={key} className="cal-td-secondary">{item.marchaRecomendada || <span className="cal-td-empty">—</span>}</td>;
       case 'boquilla':    return <td key={key} className="cal-td-secondary">{item.tipoBoquilla      || <span className="cal-td-empty">—</span>}</td>;
@@ -509,6 +512,19 @@ function Calibraciones() {
                   onChange={handleAplicadorChange}
                   activos={activos}
                   placeholder="— Buscar aplicador —"
+                />
+              </div>
+
+              <div className="cal-field">
+                <label>Volumen</label>
+                <input
+                  name="volumen"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={form.volumen}
+                  onChange={handleChange}
+                  placeholder="Ej. 200"
                 />
               </div>
 
@@ -684,6 +700,7 @@ function Calibraciones() {
                 <div className="cal-card-fields">
                   {item.tractorNombre    && <div className="cal-card-field"><span className="cal-card-label">Tractor</span><span>{item.tractorNombre}</span></div>}
                   {item.aplicadorNombre  && <div className="cal-card-field"><span className="cal-card-label">Aplicador</span><span>{item.aplicadorNombre}</span></div>}
+                  {(item.volumen != null && item.volumen !== '') && <div className="cal-card-field"><span className="cal-card-label">Volumen</span><span>{item.volumen}</span></div>}
                   {item.rpmRecomendado   && <div className="cal-card-field"><span className="cal-card-label">RPM</span><span>{item.rpmRecomendado}</span></div>}
                   {item.marchaRecomendada && <div className="cal-card-field"><span className="cal-card-label">Marcha</span><span>{item.marchaRecomendada}</span></div>}
                   {item.tipoBoquilla     && <div className="cal-card-field"><span className="cal-card-label">Boquilla</span><span>{item.tipoBoquilla}</span></div>}

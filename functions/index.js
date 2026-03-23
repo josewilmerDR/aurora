@@ -637,10 +637,14 @@ app.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       }
     }
 
+    const userDoc = await db.collection('usuarios').doc(req.uid).get();
+    const mezclaListaNombre = userDoc.exists ? (userDoc.data().nombre || null) : null;
+
     batch.update(db.collection('cedulas').doc(req.params.id), {
       status: 'en_transito',
       mezclaListaAt: Timestamp.now(),
       mezclaListaPor: req.uid,
+      mezclaListaNombre,
     });
     await batch.commit();
     res.json({ id: req.params.id, status: 'en_transito' });
@@ -661,11 +665,28 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     }
 
     const batch = db.batch();
-    batch.update(db.collection('cedulas').doc(req.params.id), {
+    const { sobrante, sobranteLoteId, sobranteLoteNombre,
+            condicionesTiempo, temperatura, humedadRelativa,
+            horaInicio, horaFinal, operario } = req.body || {};
+
+    const updateData = {
       status: 'aplicada_en_campo',
       aplicadaAt: Timestamp.now(),
       aplicadaPor: req.uid,
-    });
+      sobrante: sobrante === true,
+    };
+    if (sobrante) {
+      if (sobranteLoteId)     updateData.sobranteLoteId     = sobranteLoteId;
+      if (sobranteLoteNombre) updateData.sobranteLoteNombre = sobranteLoteNombre;
+    }
+    if (condicionesTiempo != null) updateData.condicionesTiempo = condicionesTiempo;
+    if (temperatura       != null) updateData.temperatura       = Number(temperatura);
+    if (humedadRelativa   != null) updateData.humedadRelativa   = Number(humedadRelativa);
+    if (horaInicio        != null) updateData.horaInicio        = horaInicio;
+    if (horaFinal         != null) updateData.horaFinal         = horaFinal;
+    if (operario          != null) updateData.operario          = operario;
+
+    batch.update(db.collection('cedulas').doc(req.params.id), updateData);
     // Marcar tarea como completada — inventario ya fue debitado en mezcla-lista
     batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
       status: 'completed_by_user',
@@ -1192,7 +1213,7 @@ app.post('/api/packages', authenticate, async (req, res) => {
   try {
     const { nombrePaquete } = req.body;
     if (!nombrePaquete) return res.status(400).json({ message: 'nombrePaquete es requerido.' });
-    const pkg = { ...pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']), fincaId: req.fincaId };
+    const pkg = { ...pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'tecnicoResponsable', 'activities', 'descripcion']), fincaId: req.fincaId };
     const docRef = await db.collection('packages').add(pkg);
     res.status(201).json({ id: docRef.id, ...pkg });
   } catch (error) {
@@ -1205,7 +1226,7 @@ app.put('/api/packages/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const pkgData = pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'activities', 'descripcion']);
+    const pkgData = pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'tecnicoResponsable', 'activities', 'descripcion']);
     await db.collection('packages').doc(id).update(pkgData);
     res.status(200).json({ id, ...pkgData });
   } catch (error) {
@@ -2858,15 +2879,17 @@ app.get('/api/config', authenticate, async (req, res) => {
 
 app.put('/api/config', authenticate, async (req, res) => {
   try {
-    const { nombreEmpresa, identificacion, direccion, whatsapp, correo, logoBase64, mediaType,
+    const { nombreEmpresa, identificacion, representanteLegal, administrador, direccion, whatsapp, correo, logoBase64, mediaType,
             diasIDesarrollo, diasIIDesarrollo, diasPostForza,
             diasSiembraICosecha, diasForzaICosecha, diasChapeaIICosecha, diasForzaIICosecha,
             plantasPorHa, kgPorPlanta, kgPorHa, rechazoICosecha, rechazoIICosecha } = req.body;
 
     const data = { fincaId: req.fincaId, updatedAt: Timestamp.now() };
-    if (nombreEmpresa    !== undefined) data.nombreEmpresa    = nombreEmpresa;
-    if (identificacion   !== undefined) data.identificacion   = identificacion;
-    if (direccion        !== undefined) data.direccion        = direccion;
+    if (nombreEmpresa      !== undefined) data.nombreEmpresa      = nombreEmpresa;
+    if (identificacion     !== undefined) data.identificacion     = identificacion;
+    if (representanteLegal !== undefined) data.representanteLegal = representanteLegal;
+    if (administrador      !== undefined) data.administrador      = administrador;
+    if (direccion          !== undefined) data.direccion          = direccion;
     if (whatsapp         !== undefined) data.whatsapp         = whatsapp;
     if (correo           !== undefined) data.correo           = correo;
     if (diasIDesarrollo  !== undefined) data.diasIDesarrollo  = Number(diasIDesarrollo);
@@ -5165,7 +5188,7 @@ app.post('/api/calibraciones', authenticate, async (req, res) => {
   try {
     const data = pick(req.body, [
       'nombre', 'fecha', 'tractorId', 'tractorNombre',
-      'aplicadorId', 'aplicadorNombre', 'rpmRecomendado',
+      'aplicadorId', 'aplicadorNombre', 'volumen', 'rpmRecomendado',
       'marchaRecomendada', 'tipoBoquilla', 'presionRecomendada',
       'velocidadKmH', 'responsableId', 'responsableNombre',
     ]);
@@ -5187,7 +5210,7 @@ app.put('/api/calibraciones/:id', authenticate, async (req, res) => {
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const data = pick(req.body, [
       'nombre', 'fecha', 'tractorId', 'tractorNombre',
-      'aplicadorId', 'aplicadorNombre', 'rpmRecomendado',
+      'aplicadorId', 'aplicadorNombre', 'volumen', 'rpmRecomendado',
       'marchaRecomendada', 'tipoBoquilla', 'presionRecomendada',
       'velocidadKmH', 'responsableId', 'responsableNombre',
     ]);

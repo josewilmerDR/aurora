@@ -6,7 +6,7 @@ import './ConfigCuenta.css';
 
 function ConfigCuenta() {
   const apiFetch = useApiFetch();
-  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 });
+  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', representanteLegal: '', administrador: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 });
   const [logoUrl, setLogoUrl] = useState('');
   const [preview, setPreview] = useState('');
   const [logoFile, setLogoFile] = useState(null);
@@ -22,6 +22,8 @@ function ConfigCuenta() {
         setForm({
           nombreEmpresa:    data.nombreEmpresa    || '',
           identificacion:   data.identificacion   || '',
+          representanteLegal: data.representanteLegal || '',
+          administrador:    data.administrador    || '',
           direccion:        data.direccion        || '',
           whatsapp:         data.whatsapp         || '',
           correo:           data.correo           || '',
@@ -147,6 +149,22 @@ function ConfigCuenta() {
                 id="identificacion" name="identificacion"
                 value={form.identificacion} onChange={handleChange}
                 placeholder="Ej: 3-101-123456"
+              />
+            </div>
+            <div className="form-control">
+              <label htmlFor="representanteLegal">Representante legal</label>
+              <input
+                id="representanteLegal" name="representanteLegal"
+                value={form.representanteLegal} onChange={handleChange}
+                placeholder="Nombre del representante legal"
+              />
+            </div>
+            <div className="form-control">
+              <label htmlFor="administrador">Administrador</label>
+              <input
+                id="administrador" name="administrador"
+                value={form.administrador} onChange={handleChange}
+                placeholder="Nombre del administrador"
               />
             </div>
             <div className="form-control" style={{ gridColumn: '1 / -1' }}>

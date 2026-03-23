@@ -10,11 +10,13 @@ function PackageManagement() {
   const [users, setUsers] = useState([]);
   const [productos, setProductos] = useState([]);
   const [plantillas, setPlantillas] = useState([]);
+  const [calibraciones, setCalibraciones] = useState([]);
   const [formData, setFormData] = useState({
     id: null,
     nombrePaquete: '',
     tipoCosecha: '',
     etapaCultivo: '',
+    tecnicoResponsable: '',
     activities: []
   });
   const [isEditing, setIsEditing] = useState(false);
@@ -56,6 +58,7 @@ function PackageManagement() {
     apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
     apiFetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
     apiFetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
+    apiFetch('/api/calibraciones').then(res => res.json()).then(setCalibraciones).catch(console.error);
   }, []);
 
   const handleInputChange = (e) => {
@@ -76,7 +79,7 @@ function PackageManagement() {
   const addActivity = () => {
     setFormData(prev => ({
       ...prev,
-      activities: [...prev.activities, { day: '', name: '', responsableId: '', productos: [] }]
+      activities: [...prev.activities, { day: '', name: '', responsableId: '', calibracionId: '', productos: [] }]
     }));
   };
 
@@ -193,7 +196,7 @@ function PackageManagement() {
   };
 
   const resetForm = () => {
-    setFormData({ id: null, nombrePaquete: '', tipoCosecha: '', etapaCultivo: '', activities: [] });
+    setFormData({ id: null, nombrePaquete: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
     setIsEditing(false);
     setExpandedActivities(new Set());
   };
@@ -231,6 +234,7 @@ function PackageManagement() {
       nombrePaquete: `Copia de ${pkg.nombrePaquete}`,
       tipoCosecha: pkg.tipoCosecha,
       etapaCultivo: pkg.etapaCultivo,
+      tecnicoResponsable: pkg.tecnicoResponsable || '',
       activities: pkg.activities || [],
     };
     try {
@@ -290,6 +294,16 @@ function PackageManagement() {
                 <option value="N/A">N/A</option>
               </select>
             </div>
+            <div className="form-control">
+              <label htmlFor="tecnicoResponsable">Técnico responsable</label>
+              <input
+                id="tecnicoResponsable"
+                name="tecnicoResponsable"
+                value={formData.tecnicoResponsable}
+                onChange={handleInputChange}
+                placeholder="Nombre del técnico responsable"
+              />
+            </div>
           </div>
 
           <h3>Actividades Programadas</h3>
@@ -299,6 +313,7 @@ function PackageManagement() {
                 <tr>
                   <th className="col-day">Día</th>
                   <th className="col-name">Actividad</th>
+                  <th className="col-cal">Volumen/Calibración</th>
                   <th className="col-user">Responsable</th>
                   <th className="col-action"></th>
                 </tr>
@@ -344,6 +359,14 @@ function PackageManagement() {
                         </div>
                       </td>
                       <td>
+                        <select value={activity.calibracionId || ''} onChange={(e) => handleActivityChange(index, 'calibracionId', e.target.value)}>
+                          <option value="">-- Ninguna --</option>
+                          {calibraciones.map(cal => (
+                            <option key={cal.id} value={cal.id}>{cal.nombre}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
                         <select value={activity.responsableId} onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}>
                           <option value="">-- Asignar --</option>
                           {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
@@ -380,7 +403,7 @@ function PackageManagement() {
                     </tr>
                     {expandedActivities.has(index) && (
                       <tr key={`products-${index}`} className="products-subrow-tr">
-                        <td colSpan="4">
+                        <td colSpan="5">
                           <div className="products-subrow">
                             <div className="products-subrow-header">
                               <span className="products-subrow-label">Productos de mezcla:</span>

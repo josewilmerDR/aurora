@@ -63,8 +63,6 @@ function MaquinariaList() {
     setForm(prev => ({
       ...prev,
       [name]: value,
-      // limpiar capacidad si se cambia a un tipo que no es de aplicaciones
-      ...(name === 'tipo' && value !== TIPO_APLICACIONES ? { capacidad: '' } : {}),
     }));
   };
 
@@ -272,6 +270,19 @@ function MaquinariaList() {
               </div>
 
               <div className="maq-field">
+                <label>Cap. litros</label>
+                <input
+                  name="capacidad"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.capacidad}
+                  onChange={handleChange}
+                  placeholder="Ej. 500"
+                />
+              </div>
+
+              <div className="maq-field">
                 <label>Tipo</label>
                 <select name="tipo" value={form.tipo} onChange={handleChange}>
                   <option value="">— Seleccionar —</option>
@@ -288,21 +299,6 @@ function MaquinariaList() {
                   placeholder="Ej. Finca Aurora"
                 />
               </div>
-
-              {form.tipo === TIPO_APLICACIONES && (
-                <div className="maq-field">
-                  <label>Capacidad (litros)</label>
-                  <input
-                    name="capacidad"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.capacidad}
-                    onChange={handleChange}
-                    placeholder="Ej. 500"
-                  />
-                </div>
-              )}
 
               <div className="maq-field maq-field--full">
                 <label>Observación</label>
@@ -361,6 +357,7 @@ function MaquinariaList() {
                   <th>ID</th>
                   <th>CC</th>
                   <th>Descripción</th>
+                  <th>Cap. litros</th>
                   <th>Tipo</th>
                   <th>Ubicación</th>
                   <th>Observación</th>
@@ -373,12 +370,10 @@ function MaquinariaList() {
                     <td className="maq-td-code">{item.idMaquina || '—'}</td>
                     <td className="maq-td-code">{item.codigo || '—'}</td>
                     <td className="maq-td-desc">{item.descripcion}</td>
+                    <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>
                     <td>
                       {item.tipo
-                        ? <div className="maq-tipo-cell">
-                            <span className="maq-tipo-badge">{item.tipo}</span>
-                            {item.capacidad ? <span className="maq-capacidad-note">{item.capacidad} L</span> : null}
-                          </div>
+                        ? <span className="maq-tipo-badge">{item.tipo}</span>
                         : <span className="maq-td-empty">—</span>}
                     </td>
                     <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>
