@@ -200,6 +200,17 @@
   white-space: nowrap;
 }
 
+.historial-cedula-link {
+  color: var(--aurora-magenta);
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.historial-cedula-link:hover {
+  text-decoration: underline;
+  color: var(--aurora-green);
+}
+
 /* ── Badges de estado ─────────────────────────────────────────────────────── */
 .historial-badge {
   display: inline-block;
