@@ -3584,7 +3584,10 @@ app.get('/api/siembras', authenticate, async (req, res) => {
     if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
     if (hasta)  query = query.where('fecha', '<=', Timestamp.fromDate(new Date(hasta)));
     const snap = await query.orderBy('fecha', 'desc').limit(300).get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
+    const data = snap.docs.map(d => {
+      const raw = d.data();
+      return { id: d.id, ...raw, fecha: raw.fecha.toDate().toISOString(), fechaCierre: raw.fechaCierre ? raw.fechaCierre.toDate().toISOString() : null };
+    });
     res.status(200).json(data);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener siembras.' });
@@ -3599,23 +3602,41 @@ app.post('/api/siembras', authenticate, async (req, res) => {
     const plantas_ = parseInt(plantas) || 0;
     const densidad_ = parseFloat(densidad) || 0;
     const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+    const esCerrado = cerrado === true || cerrado === 'true';
+    const fechaCierre = esCerrado ? Timestamp.now() : null;
 
+    const bloqueNorm = bloque || '';
     const ref = await db.collection('siembras').add({
       fincaId: req.fincaId,
       loteId, loteNombre: loteNombre || '',
-      bloque: bloque || '',
+      bloque: bloqueNorm,
       plantas: plantas_, densidad: densidad_,
       areaCalculada,
       materialId: materialId || '',
       materialNombre: materialNombre || '',
       rangoPesos: rangoPesos || '',
       variedad: variedad || '',
-      cerrado: cerrado === true || cerrado === 'true',
+      cerrado: esCerrado,
+      ...(fechaCierre && { fechaCierre }),
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       responsableId: responsableId || '',
       responsableNombre: responsableNombre || '',
       createdAt: Timestamp.now(),
     });
+
+    if (esCerrado) {
+      const siblingsSnap = await db.collection('siembras')
+        .where('fincaId', '==', req.fincaId)
+        .where('loteId', '==', loteId)
+        .where('bloque', '==', bloqueNorm)
+        .get();
+      const batch = db.batch();
+      siblingsSnap.docs.forEach(d => {
+        if (d.id !== ref.id) batch.update(d.ref, { cerrado: true, fechaCierre });
+      });
+      await batch.commit();
+    }
+
     res.status(201).json({ id: ref.id, areaCalculada });
   } catch (error) {
     res.status(500).json({ message: 'Error al registrar siembra.' });
@@ -3626,13 +3647,38 @@ app.put('/api/siembras/:id', authenticate, async (req, res) => {
   try {
     const updates = { ...req.body };
     if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
-    if (updates.plantas !== undefined || updates.densidad !== undefined) {
+
+    const needsDoc = updates.plantas !== undefined || updates.densidad !== undefined || updates.cerrado === true;
+    if (needsDoc) {
       const doc = await db.collection('siembras').doc(req.params.id).get();
       const current = doc.data();
-      const plantas_ = parseInt(updates.plantas ?? current.plantas) || 0;
-      const densidad_ = parseFloat(updates.densidad ?? current.densidad) || 0;
-      updates.areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+
+      if (updates.plantas !== undefined || updates.densidad !== undefined) {
+        const plantas_ = parseInt(updates.plantas ?? current.plantas) || 0;
+        const densidad_ = parseFloat(updates.densidad ?? current.densidad) || 0;
+        updates.areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+      }
+
+      if (updates.cerrado !== undefined) {
+        const fechaCierreUpdate = updates.cerrado === true ? Timestamp.now() : FieldValue.delete();
+        const siblingsSnap = await db.collection('siembras')
+          .where('fincaId', '==', current.fincaId)
+          .where('loteId', '==', current.loteId)
+          .where('bloque', '==', current.bloque)
+          .get();
+        const batch = db.batch();
+        const thisId = req.params.id;
+        siblingsSnap.docs.forEach(d => {
+          const sibUpdates = d.id === thisId
+            ? { ...updates, fechaCierre: fechaCierreUpdate }
+            : { cerrado: updates.cerrado, fechaCierre: fechaCierreUpdate };
+          batch.update(d.ref, sibUpdates);
+        });
+        await batch.commit();
+        return res.status(200).json({ message: 'Siembra actualizada.' });
+      }
     }
+
     await db.collection('siembras').doc(req.params.id).update(updates);
     res.status(200).json({ message: 'Siembra actualizada.' });
   } catch (error) {

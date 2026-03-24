@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
-  FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle,
+  FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
   FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -21,7 +21,7 @@ const SORT_FIELDS = [
   { value: 'area',     label: 'Área' },
   { value: 'material', label: 'Material' },
   { value: 'variedad', label: 'Variedad' },
-  { value: 'cerrado',  label: 'Cerrado' },
+  { value: 'fechaCierre', label: 'F. Cierre' },
 ];
 
 function getSortVal(r, field) {
@@ -33,8 +33,8 @@ function getSortVal(r, field) {
     case 'area':     return r.areaCalculada || 0;
     case 'material': return (r.materialNombre || '').toLowerCase();
     case 'variedad': return (r.variedad || '').toLowerCase();
-    case 'cerrado':  return r.cerrado ? 1 : 0;
-    default:         return '';
+    case 'fechaCierre': return r.fechaCierre || '';
+    default:            return '';
   }
 }
 
@@ -260,6 +260,14 @@ function SiembraHistorial() {
     { field: '',      dir: 'asc'  },
   ]);
 
+  const [rowMenu, setRowMenu] = useState(null);
+  useEffect(() => {
+    if (rowMenu === null) return;
+    const close = () => setRowMenu(null);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [rowMenu]);
+
   const [expandedRows, setExpandedRows] = useState(new Set());
   const toggleExpanded = (id) => setExpandedRows(prev => {
     const next = new Set(prev);
@@ -383,7 +391,10 @@ function SiembraHistorial() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cerrado: nuevoCerrado }),
         });
-        setRegistros(prev => prev.map(r => r.id === reg.id ? { ...r, cerrado: nuevoCerrado } : r));
+        const ahora = nuevoCerrado ? new Date().toISOString() : null;
+        setRegistros(prev => prev.map(r =>
+          (r.loteId === reg.loteId && r.bloque === reg.bloque) ? { ...r, cerrado: nuevoCerrado, fechaCierre: ahora } : r
+        ));
       } catch {
         showToast('Error al actualizar.', 'error');
       }
@@ -425,13 +436,14 @@ function SiembraHistorial() {
 
   // ── Export CSV ───────────────────────────────────────────────────────────
   const exportXLSX = () => {
-    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'Responsable'];
+    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
     const rows = displayData.map(r => [
       r.fecha, r.loteNombre || '', r.bloque || '',
       r.plantas, r.densidad,
       r.areaCalculada || '',
       r.materialNombre || '', r.variedad || '',
       r.cerrado ? 'Sí' : 'No',
+      r.fechaCierre ? formatFecha(r.fechaCierre) : '',
       r.responsableNombre || '',
     ]);
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -445,13 +457,14 @@ function SiembraHistorial() {
   };
 
   const exportCSV = () => {
-    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'Responsable'];
+    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
     const rows = displayData.map(r => [
       r.fecha, r.loteNombre || '', r.bloque || '',
       r.plantas, r.densidad,
       r.areaCalculada || '',
       r.materialNombre || '', r.variedad || '',
       r.cerrado ? 'Sí' : 'No',
+      r.fechaCierre ? formatFecha(r.fechaCierre) : '',
       r.responsableNombre || '',
     ]);
     const csv = [headers, ...rows]
@@ -627,7 +640,7 @@ function SiembraHistorial() {
                   <th>Material</th>
                   <th>Variedad</th>
                   <th>Responsable</th>
-                  <th className="th-center">Cerrado</th>
+                  <th className="td-readonly">F. Cierre</th>
                   <th className="print-hide"></th>
                 </tr>
               </thead>
@@ -650,19 +663,25 @@ function SiembraHistorial() {
                         <td data-col="mat">{r.materialNombre || '—'}</td>
                         <td data-col="variedad">{r.variedad || '—'}</td>
                         <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>
-                        <td className="td-center" data-col="cerrado">
-                          <button
-                            className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
-                            onClick={() => toggleCerrado(r)}
-                            title={r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
-                          >
-                            {r.cerrado ? <FiCheckCircle size={18} /> : <FiCircle size={18} />}
-                          </button>
-                        </td>
-                        <td className="print-hide" data-col="del">
-                          <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
-                            <FiTrash2 size={14} />
-                          </button>
+                        <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>
+                        <td className="print-hide" data-col="menu">
+                          <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
+                            <button className="hist-kebab-btn" onClick={() => setRowMenu(rowMenu === r.id ? null : r.id)}>
+                              <FiMoreVertical size={16} />
+                            </button>
+                            {rowMenu === r.id && (
+                              <div className="hist-kebab-dropdown">
+                                <button className="hist-kebab-item" onClick={() => { setRowMenu(null); toggleCerrado(r); }}>
+                                  {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
+                                  {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
+                                </button>
+                                <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setRowMenu(null); handleDelete(r.id); }}>
+                                  <FiTrash2 size={13} />
+                                  Eliminar
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {isExpanded && (
@@ -684,6 +703,7 @@ function SiembraHistorial() {
                                 { label: 'Material',     value: r.materialNombre || '—' },
                                 { label: 'Variedad',     value: r.variedad || '—' },
                                 { label: 'Responsable',  value: r.responsableNombre || '—' },
+                                { label: 'F. Cierre',    value: r.fechaCierre ? formatFecha(r.fechaCierre) : '—' },
                               ].map(({ label, value }) => (
                                 <div key={label} className="hist-expanded-field">
                                   <span className="hist-expanded-label">{label}</span>
@@ -695,8 +715,8 @@ function SiembraHistorial() {
                                   className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
                                   onClick={() => toggleCerrado(r)}
                                 >
-                                  {r.cerrado ? <FiCheckCircle size={15} /> : <FiCircle size={15} />}
-                                  {r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
+                                  {r.cerrado ? <FiCircle size={15} /> : <FiCheckCircle size={15} />}
+                                  {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
                                 </button>
                                 <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
                                   <FiTrash2 size={14} />

@@ -18,7 +18,7 @@ const SORT_FIELDS = [
   { value: 'area',     label: 'Área' },
   { value: 'material', label: 'Material' },
   { value: 'variedad', label: 'Variedad' },
-  { value: 'cerrado',  label: 'Cerrado' },
+  { value: 'fechaCierre', label: 'F. Cierre' },
 ];
 
 function getSortVal(r, field) {
@@ -30,8 +30,8 @@ function getSortVal(r, field) {
     case 'area':     return r.areaCalculada || 0;
     case 'material': return (r.materialNombre || '').toLowerCase();
     case 'variedad': return (r.variedad || '').toLowerCase();
-    case 'cerrado':  return r.cerrado ? 1 : 0;
-    default:         return '';
+    case 'fechaCierre': return r.fechaCierre || '';
+    default:            return '';
   }
 }
 
@@ -344,7 +344,8 @@ function Siembra() {
   const displayedRegistros = useMemo(() => applySort(registros, sortConfig).slice(0, 20), [registros, sortConfig]);
   const fileInputRef                = useRef(null);
   const swipeState                  = useRef({});
-  const [rowMenu, setRowMenu]       = useState(null);
+  const [rowMenu, setRowMenu]           = useState(null);
+  const [histRowMenu, setHistRowMenu]   = useState(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const toggleExpanded = (id) => setExpandedRows(prev => {
     const next = new Set(prev);
@@ -358,6 +359,12 @@ function Siembra() {
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [rowMenu]);
+  useEffect(() => {
+    if (histRowMenu === null) return;
+    const close = () => setHistRowMenu(null);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [histRowMenu]);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
@@ -711,7 +718,10 @@ function Siembra() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cerrado: nuevoCerrado }),
         });
-        setRegistros(prev => prev.map(r => r.id === reg.id ? { ...r, cerrado: nuevoCerrado } : r));
+        const ahora = nuevoCerrado ? new Date().toISOString() : null;
+        setRegistros(prev => prev.map(r =>
+          (r.loteId === reg.loteId && r.bloque === reg.bloque) ? { ...r, cerrado: nuevoCerrado, fechaCierre: ahora } : r
+        ));
       } catch {
         showToast('Error al actualizar.', 'error');
       }
@@ -1014,7 +1024,7 @@ function Siembra() {
                 <th>Área</th>
                 <th>Material</th>
                 <th>Variedad</th>
-                <th className="th-center">Cerrado</th>
+                <th className="td-readonly">F. Cierre</th>
                 <th></th>
               </tr>
             </thead>
@@ -1035,19 +1045,25 @@ function Siembra() {
                       <td className="td-calc" data-col="area" data-label="Área">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>
                       <td data-col="mat" data-label="Material">{r.materialNombre || '—'}</td>
                       <td data-col="variedad" data-label="Variedad">{r.variedad || '—'}</td>
-                      <td className="td-center" data-col="cerrado">
-                        <button
-                          className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
-                          onClick={() => toggleCerrado(r)}
-                          title={r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
-                        >
-                          {r.cerrado ? <FiCheckCircle size={18} /> : <FiCircle size={18} />}
-                        </button>
-                      </td>
-                      <td data-col="del">
-                        <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
-                          <FiTrash2 size={14} />
-                        </button>
+                      <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>
+                      <td data-col="menu">
+                        <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
+                          <button className="hist-kebab-btn" onClick={() => setHistRowMenu(histRowMenu === r.id ? null : r.id)}>
+                            <FiMoreVertical size={16} />
+                          </button>
+                          {histRowMenu === r.id && (
+                            <div className="hist-kebab-dropdown">
+                              <button className="hist-kebab-item" onClick={() => { setHistRowMenu(null); toggleCerrado(r); }}>
+                                {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
+                                {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
+                              </button>
+                              <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setHistRowMenu(null); handleDelete(r.id); }}>
+                                <FiTrash2 size={13} />
+                                Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {isExpanded && (
@@ -1066,8 +1082,9 @@ function Siembra() {
                               { label: 'Plantas',  value: r.plantas?.toLocaleString() },
                               { label: 'Densidad', value: r.densidad?.toLocaleString() },
                               { label: 'Área',     value: r.areaCalculada ? r.areaCalculada + ' ha' : '—' },
-                              { label: 'Material', value: r.materialNombre || '—' },
-                              { label: 'Variedad', value: r.variedad || '—' },
+                              { label: 'Material',  value: r.materialNombre || '—' },
+                              { label: 'Variedad',  value: r.variedad || '—' },
+                              { label: 'F. Cierre', value: r.fechaCierre ? formatFecha(r.fechaCierre) : '—' },
                             ].map(({ label, value }) => (
                               <div key={label} className="hist-expanded-field">
                                 <span className="hist-expanded-label">{label}</span>
@@ -1079,8 +1096,8 @@ function Siembra() {
                                 className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
                                 onClick={() => toggleCerrado(r)}
                               >
-                                {r.cerrado ? <FiCheckCircle size={15} /> : <FiCircle size={15} />}
-                                {r.cerrado ? 'Marcar como abierto' : 'Marcar como cerrado'}
+                                {r.cerrado ? <FiCircle size={15} /> : <FiCheckCircle size={15} />}
+                                {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
                               </button>
                               <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
                                 <FiTrash2 size={14} />

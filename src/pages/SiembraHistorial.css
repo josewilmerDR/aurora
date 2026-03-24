@@ -600,3 +600,50 @@
     print-color-adjust: exact;
   }
 }
+
+/* ── Menú kebab por fila ─────────────────────────────────────────────────────── */
+.hist-kebab-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.hist-kebab-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: opacity 0.15s;
+}
+.hist-kebab-btn:hover { opacity: 1; }
+.hist-kebab-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 200;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  min-width: 160px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.hist-kebab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-light);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.hist-kebab-item:hover { background: rgba(255,255,255,0.06); color: var(--aurora-green); }
+.hist-kebab-item-danger:hover { color: #e05555; }
