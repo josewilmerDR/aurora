@@ -292,7 +292,7 @@ function CedulasAplicacion() {
   const [openMenuId,    setOpenMenuId]    = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
-  const [previewCedula, setPreviewCedula] = useState(null); // cedula shown in preview modal
+  const [previewCedulaId, setPreviewCedulaId] = useState(null); // ID of cedula shown in preview modal
   const docRef = useRef(null);
 
   useEffect(() => {
@@ -413,6 +413,7 @@ function CedulasAplicacion() {
 
   // ── Computed preview data ─────────────────────────────────────────────────
   // The specific cedula shown in the preview (set on "Ver Cédula" click)
+  const previewCedula = previewCedulaId ? (cedulas.find(c => c.id === previewCedulaId) || null) : null;
   const activeCedula = previewCedula || (previewTask ? (cedulasByTaskId[previewTask.id]?.[0] || null) : null);
 
   const previewSource = previewTask ? getSource(previewTask) : null;
@@ -436,7 +437,7 @@ function CedulasAplicacion() {
     return bloqueIds
       .map(id => siembras.find(s => s.id === id))
       .filter(Boolean);
-  }, [previewSource, siembras, previewCedula, previewTask]);
+  }, [previewSource, siembras, previewCedula, previewTask, cedulas]);
 
   const pvTotalHa = previewBloques.reduce(
     (s, b) => s + (parseFloat(b.areaCalculada) || 0), 0
@@ -719,7 +720,7 @@ function CedulasAplicacion() {
                       </button>
                     )}
                     <button className="btn btn-secondary cedula-btn-preview"
-                      onClick={() => { setPreviewTask(task); setPreviewCedula(c); }}
+                      onClick={() => { setPreviewTask(task); setPreviewCedulaId(c.id); }}
                       title="Ver Cédula de Aplicación">
                       <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
                     </button>
@@ -844,7 +845,7 @@ function CedulasAplicacion() {
             {cedula && (
               <button
                 className="btn btn-secondary cedula-btn-preview"
-                onClick={() => { setPreviewTask(task); setPreviewCedula(cedula); }}
+                onClick={() => { setPreviewTask(task); setPreviewCedulaId(cedula.id); }}
                 title="Ver Cédula de Aplicación"
               >
                 <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
@@ -943,7 +944,7 @@ function CedulasAplicacion() {
 
       {/* ── PREVIEW MODAL ── */}
       {previewTask && createPortal(
-        <div className="ca-preview-backdrop" onClick={() => { setPreviewTask(null); setPreviewCedula(null); }}>
+        <div className="ca-preview-backdrop" onClick={() => { setPreviewTask(null); setPreviewCedulaId(null); }}>
           <div className="ca-preview-container" onClick={e => e.stopPropagation()}>
 
             {/* Toolbar */}
@@ -1002,7 +1003,7 @@ function CedulasAplicacion() {
                 <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => window.print()}>
                   <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
                 </button>
-                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => { setPreviewTask(null); setPreviewCedula(null); }}>
+                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => { setPreviewTask(null); setPreviewCedulaId(null); }}>
                   <FiX size={15} /> <span className="ca-toolbar-btn-text">Cerrar</span>
                 </button>
               </div>
@@ -1098,8 +1099,8 @@ function CedulasAplicacion() {
                   </div>
                   <div className="ca-dato ca-dato-col">
                     <div className="ca-dato">
-                      <span className="ca-dato-label">{activeCedula?.splitLoteNombre ? 'Lote:' : 'Grupo:'}</span>
-                      <span className="ca-dato-value">{activeCedula?.splitLoteNombre || previewTask.loteName}</span>
+                      <span className="ca-dato-label">Grupo:</span>
+                      <span className="ca-dato-value">{previewTask.loteName}</span>
                     </div>
                     {(previewSource?.cosecha || previewSource?.etapa) && (
                       <div className="ca-dato">
