@@ -281,10 +281,6 @@ export default function CedulaViewer() {
           {/* Bloques */}
           {bloques.length > 0 && (
             <div className="ca-bloques-summary">
-              <div className="ca-bloques-summary-row ca-bloques-summary-header">
-                <span>Lote</span>
-                <span>Bloques</span>
-              </div>
               {Object.entries(
                 bloques.reduce((acc, b) => {
                   const lote = b.loteNombre || '—';
@@ -294,8 +290,10 @@ export default function CedulaViewer() {
                 }, {})
               ).map(([lote, bs]) => (
                 <div key={lote} className="ca-bloques-summary-row">
-                  <span className="ca-bloques-summary-lote">{lote}</span>
-                  <span className="ca-bloques-summary-list">
+                  <span className="ca-bloques-label">Lote:</span>
+                  <span className="ca-bloques-value">{lote}</span>
+                  <span className="ca-bloques-label">Bloques:</span>
+                  <span className="ca-bloques-value">
                     {[...bs].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(', ')}
                   </span>
                 </div>
