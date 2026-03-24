@@ -946,7 +946,7 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       snap_fechaCosecha:         fechaCosecha,
       snap_fechaCreacionGrupo:   snapFechaCreacionGrupo,
       snap_sourceType:           sourceType,
-      snap_sourceName:           cedula.splitLoteNombre || sourceData?.nombreGrupo || sourceData?.nombreLote || null,
+      snap_sourceName:           sourceData?.nombreGrupo || sourceData?.nombreLote || null,
       snap_cosecha:              cosecha || null,
       snap_etapa:                etapa   || null,
       snap_paqueteTecnico:       pkgData?.nombrePaquete || null,
