@@ -65,6 +65,8 @@ const isOverdue = (task) => {
     < new Date(today.getFullYear(), today.getMonth(), today.getDate());
 };
 
+const toInputDate = d => d.toISOString().slice(0, 10);
+
 // Semana: domingo → sábado. offsetWeeks=0 → esta semana, 1 → próxima semana
 const getWeekBounds = (offsetWeeks = 0) => {
   const now = new Date();
@@ -285,8 +287,8 @@ function CedulasAplicacion() {
   const [maquinaria,    setMaquinaria]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [previewTask, setPreviewTask] = useState(null);
-  const [anchorWeek, setAnchorWeek] = useState(0);  // 0 = esta semana
-  const [weeksShown, setWeeksShown] = useState(2);  // cuántas semanas mostrar
+  const [dateFrom, setDateFrom] = useState(() => toInputDate(getWeekBounds(0).start));
+  const [dateTo,   setDateTo]   = useState(() => toInputDate(getWeekBounds(1).end));
   const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
   const [showNuevaModal, setShowNuevaModal] = useState(false);
   const [openMenuId,    setOpenMenuId]    = useState(null);
@@ -294,6 +296,7 @@ function CedulasAplicacion() {
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
   const [previewCedulaId, setPreviewCedulaId] = useState(null); // ID of cedula shown in preview modal
   const docRef = useRef(null);
+  const dateFromAdjusted = useRef(false);
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -361,6 +364,16 @@ function CedulasAplicacion() {
     [tasks]
   );
 
+  // ── Ajuste inicial de dateFrom según tarea vencida más antigua ───────────
+  useEffect(() => {
+    if (dateFromAdjusted.current || aplicacionTasks.length === 0) return;
+    dateFromAdjusted.current = true;
+    const overdue = aplicacionTasks.filter(isOverdue);
+    if (overdue.length === 0) return;
+    const oldest = overdue.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b);
+    setDateFrom(toInputDate(new Date(oldest.dueDate)));
+  }, [aplicacionTasks]);
+
   // taskId → cedula[] (array, since a task can have multiple split cedulas)
   const cedulasByTaskId = useMemo(() => {
     const map = {};
@@ -372,32 +385,13 @@ function CedulasAplicacion() {
   }, [cedulas]);
 
   const visibleTasks = useMemo(() => {
-    const start = getWeekBounds(anchorWeek).start;
-    const end   = getWeekBounds(anchorWeek + weeksShown - 1).end;
+    const start = new Date(dateFrom + 'T00:00:00');
+    const end   = new Date(dateTo   + 'T23:59:59');
     return aplicacionTasks.filter(t => {
       const due = new Date(t.dueDate);
-      return due >= start && due <= end;
+      return isOverdue(t) || (due >= start && due <= end);
     });
-  }, [aplicacionTasks, anchorWeek, weeksShown]);
-
-  const rangeLabel = useMemo(() => {
-    const from = getWeekBounds(anchorWeek);
-    const to   = getWeekBounds(anchorWeek + weeksShown - 1);
-    const fmt  = d => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-    return `${fmt(from.start)} – ${fmt(to.end)}`;
-  }, [anchorWeek, weeksShown]);
-
-  const hasMoreWeeks = useMemo(() => {
-    const currentEnd = getWeekBounds(anchorWeek + weeksShown - 1).end;
-    return aplicacionTasks.some(t => new Date(t.dueDate) > currentEnd);
-  }, [aplicacionTasks, anchorWeek, weeksShown]);
-
-  const overdueItems = useMemo(() =>
-    aplicacionTasks.filter(isOverdue),
-    [aplicacionTasks]
-  );
-
-  const [showOverdue, setShowOverdue] = useState(false);
+  }, [aplicacionTasks, dateFrom, dateTo]);
 
   const getSource = (task) => {
     if (task.loteId)  return lotes.find(l => l.id === task.loteId)   || null;
@@ -546,7 +540,7 @@ function CedulasAplicacion() {
       metodoAplicacion: cal?.metodo           || '',
       encargadoFinca:   config?.administrador  || '',
       encargadoBodega:  cedula?.mezclaListaNombre || '',
-      supAplicaciones:  pkg?.tecnicoResponsable   || '',
+      supAplicaciones:  pkg?.tecnicoResponsable || cedula?.tecnicoResponsable || '',
     });
   };
 
@@ -882,58 +876,29 @@ function CedulasAplicacion() {
         )}
       </div>
 
-      {/* ── Panel de Vencidas ── */}
-      {overdueItems.length > 0 && (
-        <div className="cedulas-overdue-panel">
-          <button
-            className="cedulas-overdue-header"
-            onClick={() => setShowOverdue(v => !v)}
-          >
-            <span className="cedulas-overdue-title">
-              ⚠ Cédulas Vencidas
-              <span className="cedulas-overdue-badge">{overdueItems.length}</span>
-            </span>
-            <span className="cedulas-overdue-chevron">{showOverdue ? '▲' : '▼'}</span>
-          </button>
-          {showOverdue && (
-            <div className="cedulas-overdue-list">
-              {overdueItems.map(task => renderCedulaRow(task, { allowSkipTask: true }))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Barra de filtro ── */}
       <div className="cedulas-filter-bar">
-        <div className="cedulas-period-nav">
-          <button
-            className="btn btn-secondary cedulas-nav-btn"
-            onClick={() => { setAnchorWeek(w => w - 1); setWeeksShown(2); }}
-            title="Semana anterior"
-          >‹</button>
-          <span className="cedulas-period-label">{rangeLabel}</span>
-          <button
-            className="btn btn-secondary cedulas-nav-btn"
-            onClick={() => { setAnchorWeek(w => w + 1); setWeeksShown(2); }}
-            title="Semana siguiente"
-          >›</button>
-          {anchorWeek !== 0 && (
-            <button
-              className="btn btn-secondary cedulas-nav-today"
-              onClick={() => { setAnchorWeek(0); setWeeksShown(2); }}
-              title="Volver a esta semana"
-            >Hoy</button>
-          )}
+        <div className="cedulas-date-range">
+          <label className="cedulas-date-label">
+            Fecha inicial
+            <input
+              type="date"
+              className="cedulas-date-input"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+            />
+          </label>
+          <label className="cedulas-date-label">
+            Fecha final
+            <input
+              type="date"
+              className="cedulas-date-input"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+            />
+          </label>
         </div>
         <span className="cedulas-filter-count">{visibleTasks.length} tarea(s)</span>
-        {hasMoreWeeks && (
-          <button
-            className="btn btn-secondary cedulas-filter-toggle"
-            onClick={() => setWeeksShown(n => n + 1)}
-          >
-            Ver más cédulas
-          </button>
-        )}
       </div>
 
       {visibleTasks.length === 0 ? (
@@ -944,9 +909,10 @@ function CedulasAplicacion() {
         </div>
       ) : (
         <div className="cedulas-list">
-          {visibleTasks.map(task => renderCedulaRow(task))}
+          {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
         </div>
       )}
+
 
       {/* ── PREVIEW MODAL ── */}
       {previewTask && createPortal(
@@ -1106,7 +1072,7 @@ function CedulasAplicacion() {
                   <div className="ca-dato ca-dato-col">
                     <div className="ca-dato">
                       <span className="ca-dato-label">Grupo:</span>
-                      <span className="ca-dato-value">{previewTask.loteName}</span>
+                      <span className="ca-dato-value">{activeCedula?.snap_sourceName || previewTask.loteName || '—'}</span>
                     </div>
                     {(previewSource?.cosecha || previewSource?.etapa) && (
                       <div className="ca-dato">
@@ -1387,6 +1353,7 @@ function CedulasAplicacion() {
           grupos={grupos}
           siembras={siembras}
           productos={productos}
+          calibraciones={calibraciones}
           apiFetch={apiFetch}
           onSuccess={handleNuevaCedulaSuccess}
           onClose={() => setShowNuevaModal(false)}
