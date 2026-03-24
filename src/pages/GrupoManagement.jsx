@@ -80,14 +80,49 @@ function GrupoManagement() {
     cerradoSiembras.filter(s => !assignedIds.has(s.id)),
   [cerradoSiembras, assignedIds]);
 
+  // Consolidate available siembras by loteId+bloque so each block appears once
+  const consolidatedBloques = useMemo(() => {
+    const map = new Map();
+    for (const s of availableSiembras) {
+      const key = `${s.loteId}__${s.bloque}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          ids: [],
+          loteId: s.loteId,
+          loteNombre: s.loteNombre || s.loteId,
+          bloque: s.bloque,
+          plantas: 0,
+          areaCalculada: 0,
+          variedad: s.variedad || '',
+          materialNombre: s.materialNombre || '',
+        });
+      }
+      const entry = map.get(key);
+      entry.ids.push(s.id);
+      entry.plantas += (s.plantas || 0);
+      entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
+    }
+    return [...map.values()];
+  }, [availableSiembras]);
+
   const byLote = useMemo(() =>
-    availableSiembras.reduce((acc, s) => {
-      const key = s.loteNombre || s.loteId;
+    consolidatedBloques.reduce((acc, s) => {
+      const key = s.loteNombre;
       if (!acc[key]) acc[key] = [];
       acc[key].push(s);
       return acc;
     }, {}),
-  [availableSiembras]);
+  [consolidatedBloques]);
+
+  const selectedBlockCount = useMemo(() => {
+    const keys = new Set();
+    for (const id of formData.bloques) {
+      const s = siembras.find(s => s.id === id);
+      if (s) keys.add(`${s.loteId}__${s.bloque}`);
+    }
+    return keys.size;
+  }, [formData.bloques, siembras]);
 
   // ── Paquetes filtrados ────────────────────────────────────────────────────
   const cosechas = useMemo(() => [...new Set(packages.map(p => p.tipoCosecha).filter(Boolean))], [packages]);
@@ -114,13 +149,15 @@ function GrupoManagement() {
     });
   };
 
-  const toggleBloque = (siembraId) =>
-    setFormData(prev => ({
-      ...prev,
-      bloques: prev.bloques.includes(siembraId)
-        ? prev.bloques.filter(id => id !== siembraId)
-        : [...prev.bloques, siembraId],
-    }));
+  const toggleBloque = (ids) =>
+    setFormData(prev => {
+      const allSelected = ids.every(id => prev.bloques.includes(id));
+      if (allSelected) {
+        return { ...prev, bloques: prev.bloques.filter(id => !ids.includes(id)) };
+      }
+      const newIds = ids.filter(id => !prev.bloques.includes(id));
+      return { ...prev, bloques: [...prev.bloques, ...newIds] };
+    });
 
   const resetForm = () => {
     setIsEditing(false);
@@ -285,7 +322,7 @@ function GrupoManagement() {
           <div className="bloques-section">
             <div className="bloques-header">
               <span className="bloques-title">Bloques</span>
-              <span className="bloques-count">{formData.bloques.length} seleccionado(s)</span>
+              <span className="bloques-count">{selectedBlockCount} bloque(s) seleccionado(s)</span>
             </div>
             {Object.keys(byLote).length === 0 ? (
               <p className="bloques-empty">
@@ -297,17 +334,20 @@ function GrupoManagement() {
               Object.entries(byLote).map(([loteNombre, registros]) => (
                 <div key={loteNombre} className="bloque-lote-group">
                   <div className="bloque-lote-label">{loteNombre}</div>
-                  {registros.map(s => (
-                    <label key={s.id} className={`bloque-checkbox-row${formData.bloques.includes(s.id) ? ' checked' : ''}`}>
-                      <input type="checkbox" checked={formData.bloques.includes(s.id)} onChange={() => toggleBloque(s.id)} />
-                      <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                      <span className="bloque-meta">
-                        {s.plantas?.toLocaleString()} plantas
-                        {s.areaCalculada ? ` · ${s.areaCalculada} ha` : ''}
-                        {s.variedad ? ` · ${s.variedad}` : ''}
-                      </span>
-                    </label>
-                  ))}
+                  {registros.map(s => {
+                    const isChecked = s.ids.every(id => formData.bloques.includes(id));
+                    return (
+                      <label key={s.key} className={`bloque-checkbox-row${isChecked ? ' checked' : ''}`}>
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleBloque(s.ids)} />
+                        <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                        <span className="bloque-meta">
+                          {s.plantas?.toLocaleString()} plantas
+                          {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                          {s.variedad ? ` · ${s.variedad}` : ''}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               ))
             )}
