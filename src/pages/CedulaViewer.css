@@ -42,19 +42,98 @@
   font-size: 0.95rem;
 }
 
+@media (max-width: 600px) {
+  /* Toolbar compacto: 2 filas — título arriba, acciones abajo */
+  .cedula-viewer-toolbar {
+    flex-wrap: wrap;
+    gap: 0;
+    padding: 10px 12px 0;
+  }
+
+  /* Fila 1: [← icono] título + badge */
+  .cedula-viewer-toolbar-left {
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+
+  /* Botón Volver: solo icono */
+  .cedula-viewer-toolbar-left > .btn {
+    padding: 5px 7px;
+    flex-shrink: 0;
+  }
+  .cedula-viewer-toolbar-left > .btn .ca-toolbar-btn-text {
+    display: none;
+  }
+
+  .ca-preview-toolbar-title {
+    flex: 1;
+    white-space: normal;
+    word-break: break-word;
+    font-size: 0.82rem;
+  }
+
+  /* Fila 2: acciones como tira de iconos */
+  .ca-preview-toolbar-actions {
+    flex-wrap: nowrap;
+    gap: 0;
+    width: calc(100% + 24px);
+    margin: 0 -12px;
+    border-top: 1px solid var(--aurora-border);
+  }
+
+  .ca-preview-toolbar-actions .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 4px;
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid var(--aurora-border);
+    background: transparent;
+    font-size: 0.78rem;
+  }
+
+  .ca-preview-toolbar-actions .btn:last-child {
+    border-right: none;
+  }
+
+  .ca-toolbar-btn-text {
+    display: none;
+  }
+}
+
 @media print {
+  /* Eliminar encabezados/pies de página nativos del navegador */
+  @page {
+    margin: 0;
+  }
+
   /* Ocultar shell de la app */
   .app-header,
-  .sidebar {
+  .sidebar,
+  .mn-bar,
+  .mn-backdrop,
+  .mn-sheet,
+  .aurora-chat-fab,
+  .aurora-chat-window {
     display: none !important;
   }
 
-  /* Resetear layout a flujo normal */
+  /* Resetear layout a flujo normal — liberar altura fija y overflow del shell móvil */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
   .app-wrapper,
   .app-layout,
   .content-area,
   .cedula-viewer {
     display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
