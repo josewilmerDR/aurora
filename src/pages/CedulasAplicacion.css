@@ -386,8 +386,10 @@
 .ca-doc-wrap {
   background: #c8d8e8;
   padding: 24px;
+  overflow-x: auto;
   overflow-y: auto;
   max-height: calc(90vh - 56px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .ca-document {
@@ -397,7 +399,7 @@
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 0.85rem;
   line-height: 1.4;
-  max-width: 780px;
+  width: 780px;
   margin: 0 auto;
   box-shadow: 0 2px 12px rgba(0,0,0,0.15);
 }
@@ -509,10 +511,10 @@
 .ca-datos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px 20px;
+  gap: 5px 20px;
   background: #f5f7fa;
   border: 1px solid #d0d8e4;
-  padding: 12px;
+  padding: 8px 12px;
   border-radius: 4px;
 }
 
@@ -531,37 +533,34 @@
 .ca-bloques-summary {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 28px;
-  margin-bottom: 20px;
+  gap: 3px;
+  margin-top: 20px;
+  margin-bottom: 16px;
 }
 
 .ca-bloques-summary-row {
   display: grid;
-  grid-template-columns: 15% 85%;
-  align-items: baseline;
-  font-size: 0.82rem;
-  color: #1a1a2e;
+  grid-template-columns: max-content 160px max-content 1fr;
+  align-items: stretch;
+  font-size: 0.8rem;
+  border: 1px solid #d0d8e0;
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.ca-bloques-summary-header {
+.ca-bloques-label {
   background: #1a2a3a;
   color: #fff;
+  font-weight: 600;
   font-size: 0.73rem;
-  font-weight: 700;
   padding: 4px 8px;
-  border-radius: 2px;
+  white-space: nowrap;
 }
 
-.ca-bloques-summary-lote {
-  font-weight: 700;
-  padding-right: 6px;
-  padding-left: 8px;
-}
-
-.ca-bloques-summary-list {
-  color: #333;
-  padding-left: 8px;
+.ca-bloques-value {
+  background: #fff;
+  color: #222;
+  padding: 4px 10px;
 }
 
 .ca-dato-col {
@@ -594,17 +593,19 @@
 .ca-doc-table th {
   background: #1a2a3a;
   color: #ffffff;
-  padding: 7px 10px;
+  padding: 4px 8px;
   text-align: left;
   font-weight: 600;
   font-size: 0.73rem;
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .ca-doc-table td {
-  padding: 7px 10px;
+  padding: 4px 8px;
   border-bottom: 1px solid #e8edf2;
   color: #222;
+  line-height: 1.2;
 }
 
 .ca-doc-table tbody tr:hover {
@@ -614,12 +615,12 @@
 .ca-doc-table tfoot td {
   border-top: 2px solid #1a2a3a;
   border-bottom: none;
-  padding-top: 8px;
+  padding-top: 5px;
 }
 
 .ca-table-sm td,
 .ca-table-sm th {
-  padding: 5px 8px;
+  padding: 3px 6px;
 }
 
 .ca-col-num {
@@ -638,10 +639,10 @@
   background: #fff8e6;
   border: 1px solid #f0d890;
   border-radius: 4px;
-  padding: 10px 14px;
-  font-size: 0.78rem;
+  padding: 5px 10px;
+  font-size: 0.75rem;
   color: #5a4a00;
-  margin: 16px 0 12px;
+  margin: 10px 0 8px;
   font-style: italic;
 }
 
@@ -1492,17 +1493,16 @@
   .ca-preview-toolbar-actions .btn:last-child {
     border-right: none;
   }
+  .ca-preview-toolbar-actions .btn.btn-primary {
+    background: var(--aurora-green);
+    color: var(--aurora-dark-blue);
+  }
   .ca-toolbar-btn-text {
     display: none;
   }
   /* Documento: scroll horizontal a ancho carta */
   .ca-doc-wrap {
     padding: 16px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .ca-document {
-    min-width: 720px;
   }
 
   /* Modal Nueva Cédula */
@@ -1585,17 +1585,25 @@
 
 /* ── Print ────────────────────────────────────────────────────────────────── */
 @media print {
+  body.ca-printing #root { display: none; }
   .ca-preview-backdrop {
     position: static;
     background: none;
     padding: 0;
     overflow: visible;
   }
+  .ca-preview-container {
+    overflow: visible;
+    box-shadow: none;
+    max-width: none;
+    border-radius: 0;
+  }
   .ca-preview-toolbar { display: none; }
   .ca-doc-wrap {
     background: none;
     padding: 0;
     max-height: none;
+    overflow: visible;
   }
   .ca-document {
     box-shadow: none;

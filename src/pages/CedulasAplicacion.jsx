@@ -633,6 +633,12 @@ function CedulasAplicacion() {
     setShowNuevaModal(false);
   };
 
+  const handlePrint = () => {
+    document.body.classList.add('ca-printing');
+    window.print();
+    document.body.classList.remove('ca-printing');
+  };
+
   // ── PDF share ─────────────────────────────────────────────────────────────
   const handleShare = async () => {
     if (!docRef.current || !previewTask) return;
@@ -1000,7 +1006,7 @@ function CedulasAplicacion() {
                 <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={handleShare}>
                   <FiShare2 size={15} /> <span className="ca-toolbar-btn-text">Compartir</span>
                 </button>
-                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => window.print()}>
+                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={handlePrint}>
                   <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
                 </button>
                 <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => { setPreviewTask(null); setPreviewCedulaId(null); }}>
@@ -1184,10 +1190,6 @@ function CedulasAplicacion() {
                 {previewBloques.length > 0 && (
                   <>
                     <div className="ca-bloques-summary">
-                      <div className="ca-bloques-summary-row ca-bloques-summary-header">
-                        <span>Lote</span>
-                        <span>Bloques</span>
-                      </div>
                       {Object.entries(
                         previewBloques.reduce((acc, b) => {
                           const lote = b.loteNombre || '—';
@@ -1197,8 +1199,10 @@ function CedulasAplicacion() {
                         }, {})
                       ).map(([lote, bloques]) => (
                         <div key={lote} className="ca-bloques-summary-row">
-                          <span className="ca-bloques-summary-lote">{lote}</span>
-                          <span className="ca-bloques-summary-list">{[...bloques].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(', ')}</span>
+                          <span className="ca-bloques-label">Lote:</span>
+                          <span className="ca-bloques-value">{lote}</span>
+                          <span className="ca-bloques-label">Bloques:</span>
+                          <span className="ca-bloques-value">{[...bloques].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(', ')}</span>
                         </div>
                       ))}
                     </div>
