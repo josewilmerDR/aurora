@@ -511,7 +511,7 @@
 .ca-datos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 5px 20px;
+  gap: 2px 20px;
   background: #f5f7fa;
   border: 1px solid #d0d8e4;
   padding: 8px 12px;
@@ -566,7 +566,7 @@
 .ca-dato-col {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .ca-dato-label {
@@ -602,7 +602,7 @@
 }
 
 .ca-doc-table td {
-  padding: 4px 8px;
+  padding: 2px 8px;
   border-bottom: 1px solid #e8edf2;
   color: #222;
   line-height: 1.2;
@@ -655,7 +655,7 @@
 }
 
 .ca-doc-sig-final {
-  margin-top: 30px;
+  margin-top: 25px;
 }
 
 .ca-sig-block {
@@ -1597,6 +1597,8 @@
     box-shadow: none;
     max-width: none;
     border-radius: 0;
+    background: none;
+    padding: 0;
   }
   .ca-preview-toolbar { display: none; }
   .ca-doc-wrap {
