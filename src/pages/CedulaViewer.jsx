@@ -194,12 +194,12 @@ export default function CedulaViewer() {
                 </span>
               </div>
               <div className="ca-dato">
-                <span className="ca-dato-label">Método de Aplicación:</span>
+                <span className="ca-dato-label">Método de Apl.:</span>
                 <span className="ca-dato-value">{cedula.metodoAplicacion || cal?.metodo || '—'}</span>
               </div>
               {cedula.snap_paqueteTecnico && (
                 <div className="ca-dato">
-                  <span className="ca-dato-label">Paq. Técnico:</span>
+                  <span className="ca-dato-label">Paq. Téc.:</span>
                   <span className="ca-dato-value">{cedula.snap_paqueteTecnico}</span>
                 </div>
               )}
@@ -260,11 +260,11 @@ export default function CedulaViewer() {
                 <span className="ca-dato-value">{cal?.rpmRecomendado || '—'}</span>
               </div>
               <div className="ca-dato">
-                <span className="ca-dato-label">Marcha Recomendada:</span>
+                <span className="ca-dato-label">Marcha Rec.:</span>
                 <span className="ca-dato-value">{cal?.marchaRecomendada || '—'}</span>
               </div>
               <div className="ca-dato">
-                <span className="ca-dato-label">Tipo de Boquilla:</span>
+                <span className="ca-dato-label">Tipo Boq.:</span>
                 <span className="ca-dato-value">{cal?.tipoBoquilla || '—'}</span>
               </div>
               <div className="ca-dato">

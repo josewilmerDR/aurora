@@ -1091,14 +1091,14 @@ function CedulasAplicacion() {
                       </span>
                     </div>
                     <div className="ca-dato">
-                      <span className="ca-dato-label">Método de Aplicación:</span>
+                      <span className="ca-dato-label">Método de Apl.:</span>
                       <span className="ca-dato-value">
                         {activeCedula?.metodoAplicacion || previewCal?.metodo || '—'}
                       </span>
                     </div>
                     {previewPackageName && (
                       <div className="ca-dato">
-                        <span className="ca-dato-label">Paq. Técnico:</span>
+                        <span className="ca-dato-label">Paq. Téc.:</span>
                         <span className="ca-dato-value">{previewPackageName}</span>
                       </div>
                     )}
@@ -1168,11 +1168,11 @@ function CedulasAplicacion() {
                       <span className="ca-dato-value">{previewCal?.rpmRecomendado || '—'}</span>
                     </div>
                     <div className="ca-dato">
-                      <span className="ca-dato-label">Marcha Recomendada:</span>
+                      <span className="ca-dato-label">Marcha Rec.:</span>
                       <span className="ca-dato-value">{previewCal?.marchaRecomendada || '—'}</span>
                     </div>
                     <div className="ca-dato">
-                      <span className="ca-dato-label">Tipo de Boquilla:</span>
+                      <span className="ca-dato-label">Tipo Boq.:</span>
                       <span className="ca-dato-value">{previewCal?.tipoBoquilla || '—'}</span>
                     </div>
                     <div className="ca-dato">

@@ -41,3 +41,34 @@
   color: #ff6b6b;
   font-size: 0.95rem;
 }
+
+@media print {
+  /* Ocultar shell de la app */
+  .app-header,
+  .sidebar {
+    display: none !important;
+  }
+
+  /* Resetear layout a flujo normal */
+  .app-wrapper,
+  .app-layout,
+  .content-area,
+  .cedula-viewer {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+  }
+
+  /* Ocultar barra de herramientas del viewer */
+  .cedula-viewer-toolbar {
+    display: none !important;
+  }
+
+  /* Documento limpio, sin sombra ni margen extra */
+  .ca-doc-paper {
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+}
