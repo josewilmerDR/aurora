@@ -177,30 +177,34 @@
   gap: 12px;
 }
 
-.cedulas-period-nav {
+.cedulas-date-range {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-end;
+  gap: 12px;
 }
 
-.cedulas-nav-btn {
-  padding: 4px 10px;
-  font-size: 1rem;
-  line-height: 1;
-  min-width: 30px;
-}
-
-.cedulas-period-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  min-width: 150px;
-  text-align: center;
-}
-
-.cedulas-nav-today {
+.cedulas-date-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 0.75rem;
-  padding: 4px 10px;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.cedulas-date-input {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.cedulas-date-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
 }
 
 .cedulas-filter-count {
@@ -211,12 +215,6 @@
   text-align: center;
 }
 
-.cedulas-filter-toggle {
-  font-size: 0.8rem;
-  padding: 5px 14px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 
 .cedulas-historial-btn {
   font-size: 0.8rem;
@@ -792,8 +790,42 @@
 
 /* ── Modal Nueva Cédula ──────────────────────────────────────────────────── */
 .nca-modal {
-  max-width: 700px;
+  max-width: 760px;
 }
+
+/* ── Tabla de actividad estilo PackageManagement ── */
+.nca-activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.nca-activity-table thead th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  padding: 0 8px 6px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.nca-activity-table tbody td {
+  padding: 8px;
+  vertical-align: middle;
+}
+
+.nca-col-fecha       { width: 150px; }
+.nca-col-actividad   { width: auto; }
+.nca-col-calibracion { width: 190px; }
+.nca-col-tecnico     { width: 180px; }
+.nca-col-action      { width: 1%; white-space: nowrap; text-align: right; }
+
+.nca-sub-row > td {
+  padding: 12px 8px 4px;
+  border-top: 1px solid var(--aurora-border);
+}
+
 
 .nca-form {
   padding: 20px 24px 28px;
@@ -885,6 +917,11 @@
 
 .nca-select-grow {
   flex: 1;
+}
+
+.nca-lote-select {
+  width: 100%;
+  margin-top: 8px;
 }
 
 .nca-toggle-row {
@@ -1358,7 +1395,7 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  .cedulas-period-nav {
+  .cedulas-date-range {
     flex: 1 0 100%;
     justify-content: center;
   }
@@ -1367,10 +1404,7 @@
     text-align: center;
     margin: 0;
   }
-  .cedulas-filter-toggle {
-    flex: 1;
-    justify-content: center;
-  }
+
   .cedulas-top-actions .cedulas-nueva-btn,
   .cedulas-top-actions .cedulas-historial-btn {
     flex: 1;

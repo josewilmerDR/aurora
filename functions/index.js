@@ -943,12 +943,14 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       // Snapshot: datos del momento de la aplicación
       snap_activityName:         taskData.activity?.name || null,
       snap_dueDate:              snapDueDate,
-      snap_fechaCosecha:         fechaCosecha,
-      snap_fechaCreacionGrupo:   snapFechaCreacionGrupo,
+      snap_fechaCosecha:         taskData.type === 'MANUAL' ? (cedula.snap_fechaCosecha       || null) : fechaCosecha,
+      snap_fechaCreacionGrupo:   taskData.type === 'MANUAL' ? (cedula.snap_fechaCreacionGrupo || null) : snapFechaCreacionGrupo,
       snap_sourceType:           sourceType,
-      snap_sourceName:           sourceData?.nombreGrupo || sourceData?.nombreLote || null,
-      snap_cosecha:              cosecha || null,
-      snap_etapa:                etapa   || null,
+      snap_sourceName:           taskData.type === 'MANUAL'
+        ? (cedula.snap_sourceName || null)
+        : (sourceData?.nombreGrupo || sourceData?.nombreLote || null),
+      snap_cosecha:              taskData.type === 'MANUAL' ? (cedula.snap_cosecha || null) : (cosecha || null),
+      snap_etapa:                taskData.type === 'MANUAL' ? (cedula.snap_etapa   || null) : (etapa   || null),
       snap_paqueteTecnico:       pkgData?.nombrePaquete || null,
       snap_areaHa:               areaHa  || null,
       snap_totalPlantas:         totalPlantas || null,
@@ -1004,7 +1006,7 @@ app.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
 
 app.post('/api/cedulas/manual', authenticate, async (req, res) => {
   try {
-    const { fecha, activityName, loteId, grupoId, bloques, productos } = req.body;
+    const { fecha, activityName, loteId, grupoId, bloques, productos, calibracionId, tecnicoResponsable } = req.body;
 
     if (!fecha) return res.status(400).json({ message: 'La fecha es requerida.' });
     if (!activityName?.trim()) return res.status(400).json({ message: 'El nombre de la aplicación es requerido.' });
@@ -1042,11 +1044,73 @@ app.post('/api/cedulas/manual', authenticate, async (req, res) => {
       fincaId: req.fincaId,
       ...(loteId ? { loteId } : { grupoId }),
       ...(Array.isArray(bloques) && bloques.length > 0 ? { bloques } : {}),
-      activity: { name: activityName.trim(), type: 'aplicacion', productos: enrichedProductos },
+      activity: { name: activityName.trim(), type: 'aplicacion', productos: enrichedProductos, ...(calibracionId ? { calibracionId } : {}) },
       executeAt,
       createdAt: Timestamp.now(),
     };
     const taskRef = await db.collection('scheduled_tasks').add(taskData);
+
+    // Calibración snap fields
+    let calData = null;
+    let litrosAplicador = null;
+    if (calibracionId) {
+      const calDoc = await db.collection('calibraciones').doc(calibracionId).get();
+      if (calDoc.exists) {
+        calData = { id: calDoc.id, ...calDoc.data() };
+        if (calData.aplicadorId) {
+          const maqDoc = await db.collection('maquinaria').doc(calData.aplicadorId).get();
+          if (maqDoc.exists) litrosAplicador = parseFloat(maqDoc.data().capacidad) || null;
+        }
+      }
+    }
+
+    // Compute snap_sourceName, snap_fechaCosecha and related group fields
+    let snapSourceName = 'N/A';
+    let snapCosecha = null, snapEtapa = null, snapFechaCosecha = null, snapFechaCreacionGrupo = null;
+    if (Array.isArray(bloques) && bloques.length > 0 && loteId) {
+      const [siembrasSnap, gruposSnap, configDoc] = await Promise.all([
+        db.collection('siembras').where('loteId', '==', loteId).get(),
+        db.collection('grupos').where('fincaId', '==', req.fincaId).get(),
+        db.collection('config').doc(req.fincaId).get(),
+      ]);
+      const configData = configDoc.exists ? configDoc.data() : {};
+      const PARAM_DEFAULTS = { diasSiembraICosecha: 400, diasForzaICosecha: 150, diasChapeaIICosecha: 215, diasForzaIICosecha: 150 };
+      const cfg = { ...PARAM_DEFAULTS, ...configData };
+
+      const loteBloqueIds = new Set(siembrasSnap.docs.map(d => d.id));
+      const selectedSet   = new Set(bloques);
+      let matchedData = null, matchCount = 0;
+      for (const gDoc of gruposSnap.docs) {
+        const gData   = gDoc.data();
+        const gInLote = (gData.bloques || []).filter(id => loteBloqueIds.has(id));
+        if (gInLote.length === 0) continue;
+        const gSet = new Set(gInLote);
+        if (selectedSet.size === gSet.size && [...selectedSet].every(id => gSet.has(id))) {
+          matchCount++;
+          matchedData = gData;
+        }
+      }
+      if (matchCount === 1 && matchedData) {
+        snapSourceName = matchedData.nombreGrupo || 'N/A';
+        snapCosecha    = matchedData.cosecha || null;
+        snapEtapa      = matchedData.etapa   || null;
+        const fc = matchedData.fechaCreacion;
+        snapFechaCreacionGrupo = fc?.toDate ? fc.toDate().toISOString().split('T')[0] : (fc || null);
+        if (fc && snapCosecha && snapEtapa) {
+          let dias = null;
+          if      (snapCosecha === 'I Cosecha'  && snapEtapa === 'Desarrollo')  dias = cfg.diasSiembraICosecha;
+          else if (snapCosecha === 'I Cosecha'  && snapEtapa === 'Postforza')   dias = cfg.diasForzaICosecha;
+          else if (snapCosecha === 'II Cosecha' && snapEtapa === 'Desarrollo')  dias = cfg.diasChapeaIICosecha;
+          else if (snapCosecha === 'II Cosecha' && snapEtapa === 'Postforza')   dias = cfg.diasForzaIICosecha;
+          if (dias != null) {
+            const base = fc.toDate ? fc.toDate() : new Date(fc);
+            const d = new Date(base);
+            d.setDate(d.getDate() + dias);
+            snapFechaCosecha = d.toISOString().split('T')[0];
+          }
+        }
+      }
+    }
 
     const consecutivo = await nextCedulaConsecutivo(req.fincaId);
     const cedulaData = {
@@ -1060,6 +1124,17 @@ app.post('/api/cedulas/manual', authenticate, async (req, res) => {
       mezclaListaPor: null,
       aplicadaAt: null,
       aplicadaPor: null,
+      snap_sourceName:           snapSourceName,
+      snap_sourceType:           'lote',
+      snap_cosecha:              snapCosecha,
+      snap_etapa:                snapEtapa,
+      snap_fechaCosecha:         snapFechaCosecha,
+      snap_fechaCreacionGrupo:   snapFechaCreacionGrupo,
+      snap_calibracionId:     calData?.id           || null,
+      snap_calibracionNombre: calData?.nombre        || null,
+      snap_volumenPorHa:      calData ? (parseFloat(calData.volumen) || null) : null,
+      snap_litrosAplicador:   litrosAplicador,
+      ...(tecnicoResponsable?.trim() ? { tecnicoResponsable: tecnicoResponsable.trim() } : {}),
     };
     const cedulaRef = await db.collection('cedulas').add(cedulaData);
 

@@ -73,7 +73,7 @@ function HistorialAplicaciones() {
 
   useEffect(() => {
     apiFetch('/api/cedulas').then(r => r.json())
-      .then(c => setCedulas(Array.isArray(c) ? c : []))
+      .then(c => setCedulas(Array.isArray(c) ? c.filter(ced => ced.status === 'aplicada_en_campo') : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
