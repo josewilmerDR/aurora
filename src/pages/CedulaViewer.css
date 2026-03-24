@@ -15,10 +15,13 @@
   gap: 8px;
 }
 
-.cedula-viewer-toolbar-left {
+/* Zona central: título + badge — ocupa el espacio sobrante en desktop */
+.cedula-viewer-toolbar-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
   flex-wrap: wrap;
 }
 
@@ -43,62 +46,43 @@
 }
 
 @media (max-width: 600px) {
-  /* Toolbar compacto: 2 filas — título arriba, acciones abajo */
+  /* Grid de 3 columnas exactamente iguales */
   .cedula-viewer-toolbar {
-    flex-wrap: wrap;
-    gap: 0;
-    padding: 10px 12px 0;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr;
+    padding: 0 !important;
   }
 
-  /* Fila 1: [← icono] título + badge */
-  .cedula-viewer-toolbar-left {
-    flex: 1 0 100%;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 6px;
-    padding-bottom: 8px;
-  }
-
-  /* Botón Volver: solo icono */
-  .cedula-viewer-toolbar-left > .btn {
-    padding: 5px 7px;
-    flex-shrink: 0;
-  }
-  .cedula-viewer-toolbar-left > .btn .ca-toolbar-btn-text {
+  /* Zona de título/badge: fuera del flujo */
+  .cedula-viewer-toolbar-info {
     display: none;
   }
 
-  .ca-preview-toolbar-title {
-    flex: 1;
-    white-space: normal;
-    word-break: break-word;
-    font-size: 0.82rem;
+  /* El wrapper de acciones desaparece: sus hijos pasan a ser celdas del grid */
+  .cedula-viewer-toolbar .ca-preview-toolbar-actions {
+    display: contents;
   }
 
-  /* Fila 2: acciones como tira de iconos */
-  .ca-preview-toolbar-actions {
-    flex-wrap: nowrap;
-    gap: 0;
-    width: calc(100% + 24px);
-    margin: 0 -12px;
-    border-top: 1px solid var(--aurora-border);
-  }
-
-  .ca-preview-toolbar-actions .btn {
-    flex: 1;
+  /* Estilo uniforme para los tres botones-celda */
+  .cedula-viewer-toolbar .cedula-viewer-back-btn,
+  .cedula-viewer-toolbar .ca-preview-toolbar-actions .btn {
+    display: flex;
+    align-items: center;
     justify-content: center;
     padding: 10px 4px;
     border-radius: 0;
-    border: none;
-    border-right: 1px solid var(--aurora-border);
+    border: none !important;
+    border-right: 1px solid var(--aurora-border) !important;
     background: transparent;
     font-size: 0.78rem;
+    width: 100%;
   }
 
-  .ca-preview-toolbar-actions .btn:last-child {
-    border-right: none;
+  .cedula-viewer-toolbar .ca-preview-toolbar-actions .btn:last-child {
+    border-right: none !important;
   }
 
+  .cedula-viewer-toolbar .cedula-viewer-back-btn .ca-toolbar-btn-text,
   .ca-toolbar-btn-text {
     display: none;
   }

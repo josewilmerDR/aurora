@@ -108,10 +108,10 @@ export default function CedulaViewer() {
 
       {/* ── Toolbar ── */}
       <div className="ca-preview-toolbar cedula-viewer-toolbar">
-        <div className="cedula-viewer-toolbar-left">
-          <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => navigate(-1)}>
-            <FiArrowLeft size={15} /> <span className="ca-toolbar-btn-text">Volver</span>
-          </button>
+        <button className="btn btn-secondary ca-toolbar-icon-btn cedula-viewer-back-btn" onClick={() => navigate(-1)}>
+          <FiArrowLeft size={15} /> <span className="ca-toolbar-btn-text">Volver</span>
+        </button>
+        <div className="cedula-viewer-toolbar-info">
           <span className="ca-preview-toolbar-title">
             Cédula de Aplicación — {cedula.snap_activityName || '—'}
             <span className="ca-toolbar-consecutivo">{cedula.consecutivo}</span>
