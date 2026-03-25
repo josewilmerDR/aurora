@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiPlus, FiX, FiFileText, FiMoreVertical } from 'react-icons/fi';
+import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive } from 'react-icons/fi';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import './TaskTracking.css';
@@ -372,9 +372,6 @@ function TaskTracking() {
             <button onClick={() => setFilter('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
             <button onClick={() => setFilter('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
             <button onClick={() => setFilter('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
-            <button onClick={() => setFilter('archived')} className={`pill-btn pill-btn--archived ${filter === 'archived' ? 'active' : ''}`}>
-              Archivadas{archivedIds.size > 0 && <span className="pill-count">{archivedIds.size}</span>}
-            </button>
           </div>
         </div>
       </div>
@@ -534,6 +531,13 @@ function TaskTracking() {
 
       {filter === 'all' ? (
         <>
+          {archivedIds.size > 0 && (
+            <button className="archived-shortcut" onClick={() => setFilter('archived')}>
+              <FiArchive size={14} />
+              <span>Archivadas</span>
+              <span className="archived-shortcut__count">{archivedIds.size}</span>
+            </button>
+          )}
           {groupedTasks.overdue.length === 0 && groupedTasks.pending.length === 0 && groupedTasks.completed.length === 0 && (
             <p className="empty-state">No hay actividades en esta categoría.</p>
           )}
@@ -560,6 +564,9 @@ function TaskTracking() {
         </>
       ) : filter === 'archived' ? (
         <>
+          <button className="archived-back" onClick={() => setFilter('all')}>
+            ← Volver a Todas
+          </button>
           {filteredTasks.length === 0
             ? <p className="empty-state">No hay tareas archivadas.</p>
             : <div className="tasks-grid archived-grid">{filteredTasks.map(renderTaskCard)}</div>

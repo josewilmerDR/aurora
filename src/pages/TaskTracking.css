@@ -445,25 +445,50 @@
   background: rgba(255, 107, 107, 0.1) !important;
 }
 
-.pill-btn--archived {
-  opacity: 0.65;
-}
-
-.pill-btn--archived.active {
-  opacity: 1;
-}
-
-.pill-count {
+.archived-shortcut {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.15);
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: opacity 0.15s;
+}
+
+.archived-shortcut:hover {
+  opacity: 0.8;
+}
+
+.archived-shortcut__count {
+  background: rgba(255,255,255,0.12);
   border-radius: 8px;
+  padding: 1px 6px;
   font-size: 0.72rem;
   font-weight: 700;
-  padding: 1px 6px;
-  margin-left: 5px;
-  line-height: 1.4;
+}
+
+.archived-back {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 16px;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.archived-back:hover {
+  opacity: 1;
 }
 
 .archived-grid {
