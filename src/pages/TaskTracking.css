@@ -427,13 +427,45 @@
   border: none;
   padding: 9px 14px;
   font-size: 0.88rem;
-  color: #ff6b6b;
+  color: var(--aurora-light);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .task-kebab-dropdown button:hover {
-  background: rgba(255, 107, 107, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.task-kebab-dropdown__delete {
+  color: #ff6b6b !important;
+  border-top: 1px solid var(--aurora-border) !important;
+}
+
+.task-kebab-dropdown__delete:hover {
+  background: rgba(255, 107, 107, 0.1) !important;
+}
+
+.task-archived-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--aurora-light);
+  opacity: 0.5;
+  letter-spacing: 0.03em;
+}
+
+.task-group--archived {
+  opacity: 0.6;
+}
+
+.task-group-title--archived {
+  color: var(--aurora-light);
+  opacity: 0.4;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .task-aplicacion-tag {
