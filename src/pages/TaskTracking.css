@@ -540,90 +540,117 @@
   opacity: 1;
 }
 
-/* Estilo para los grupos de tareas */
-.task-group {
-  margin-bottom: 30px;
-}
-
-.task-group-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-}
-
-/* Layout para las tarjetas de tarea */
-.tasks-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-/* Estilos para cada tarjeta de tarea */
-.task-card {
-  background-color: var(--aurora-background);
+/* ── Lista de tareas estilo bandeja de entrada ── */
+.tasks-list {
   border: 1px solid var(--aurora-border);
-  border-left: 5px solid var(--aurora-border);
-  padding: 20px;
-  border-radius: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.task-row {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.task-card.status-overdue {
-  border-left-color: var(--aurora-magenta);
-}
-.task-card.status-pending {
-  border-left-color: #f0ad4e;
-}
-.task-card.status-completed {
-  border-left-color: var(--aurora-green);
-  opacity: 0.7;
-}
-
-.task-card-header h4 {
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.task-card-body .task-detail {
-  font-size: 0.95rem;
-  display: block;
-  color: var(--aurora-light);
-  opacity: 0.8;
-}
-
-.task-card-footer {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--aurora-border);
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  font-size: 0.9rem;
+  gap: 14px;
+  padding: 0 16px;
+  height: 52px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--aurora-border);
+  background: var(--aurora-background);
+  transition: background 0.12s;
+  position: relative;
 }
 
-.task-status-badge {
-    padding: 4px 10px;
-    border-radius: 15px;
-    font-weight: 600;
-    font-size: 0.8rem;
+.task-row:last-child {
+  border-bottom: none;
 }
 
-.status-overdue .task-status-badge {
-    background-color: var(--aurora-magenta);
-    color: white;
+.task-row:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
-.status-pending .task-status-badge {
-    background-color: #f0ad4e;
-    color: var(--aurora-dark-blue);
+
+.task-row.status-completed {
+  opacity: 0.55;
 }
-.status-completed .task-status-badge {
-    background-color: var(--aurora-green);
-    color: var(--aurora-dark-blue);
+
+/* Indicador de estado (punto de color) */
+.task-row__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.task-row.status-overdue .task-row__dot {
+  background: var(--aurora-magenta);
+  box-shadow: 0 0 5px rgba(204, 51, 255, 0.6);
+}
+
+.task-row.status-pending .task-row__dot {
+  background: #f0ad4e;
+}
+
+.task-row.status-completed .task-row__dot {
+  background: var(--aurora-green);
+}
+
+/* Nombre de la actividad */
+.task-row__name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 2;
+  min-width: 0;
+  color: var(--aurora-light);
+}
+
+.task-row.status-completed .task-row__name {
+  font-weight: 400;
+}
+
+/* Lote · responsable */
+.task-row__meta {
+  font-size: 0.83rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-row__unassigned {
+  color: var(--aurora-magenta);
+  opacity: 1;
+  font-style: normal;
+}
+
+/* Tags (badge de tipo + cédula) */
+.task-row__tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Fecha */
+.task-row__date {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 68px;
+  text-align: right;
+}
+
+.task-row.status-overdue .task-row__date {
+  color: var(--aurora-magenta);
+  opacity: 1;
+  font-weight: 600;
 }
 
 .task-cedula-link {
@@ -668,8 +695,12 @@
     font-size: 0.88rem;
   }
 
-  .tasks-grid {
-    grid-template-columns: 1fr;
+  .task-row__name {
+    flex: 3;
+  }
+
+  .task-row__meta {
+    display: none;
   }
 
   .nueva-aplicacion-panel {
