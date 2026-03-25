@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "emulators": "firebase emulators:start --import=./.firebase/emulators-data --export-on-exit=./.firebase/emulators-data",
-    "seed": "node functions/seed.js"
+    "seed": "node functions/seed.js",
+    "dump-seed": "node functions/dump-seed.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.11.2",
