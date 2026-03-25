@@ -56,10 +56,6 @@
   },
   "firestore": [
     {
-      "database": "(default)",
-      "rules": "firestore.rules"
-    },
-    {
       "database": "auroradatabase",
       "rules": "firestore.rules",
       "indexes": "firestore.indexes.json"
@@ -81,9 +77,6 @@
     },
     "auth": {
       "port": 9099
-    },
-    "storage": {
-      "port": 9199
     }
   }
 }

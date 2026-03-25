@@ -12,6 +12,7 @@ firestore-debug.log
 .firebase/
 firebase-export-*/
 *.stackdump
+firebase-data
 
 # Service account keys (nunca subir a git)
 scripts/service-account.json
