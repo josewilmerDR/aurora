@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import './GrupoManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX } from 'react-icons/fi';
@@ -39,6 +40,7 @@ const calcFechaCosecha = (grupo, config) => {
 // ─────────────────────────────────────────────────────────────────────────────
 function GrupoManagement() {
   const apiFetch = useApiFetch();
+  const navigate = useNavigate();
   const [grupos,       setGrupos]       = useState([]);
   const [siembras,     setSiembras]     = useState([]);
   const [packages,     setPackages]     = useState([]);
@@ -47,6 +49,7 @@ function GrupoManagement() {
   const [toast,        setToast]        = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [deleting,     setDeleting]     = useState(false);
+  const [deleteModal,  setDeleteModal]  = useState(null); // { type: 'aplicada'|'en_transito', grupoId, grupoName, cedulasAplicadas, cedulasEnTransito }
   const [previewGrupo, setPreviewGrupo] = useState(null);
   const docRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -185,8 +188,23 @@ function GrupoManagement() {
     window.scrollTo(0, 0);
   };
 
-  const handleDeleteClick    = (grupo) => setConfirmModal({ grupoId: grupo.id, grupoName: grupo.nombreGrupo });
-  const handleDeleteConfirm  = async () => {
+  const handleDeleteClick = async (grupo) => {
+    try {
+      const res = await apiFetch(`/api/grupos/${grupo.id}/delete-check`);
+      const data = await res.json();
+      if (data.cedulasAplicadas.length > 0) {
+        setDeleteModal({ type: 'aplicada', grupoId: grupo.id, grupoName: grupo.nombreGrupo, cedulasAplicadas: data.cedulasAplicadas, cedulasEnTransito: [] });
+      } else if (data.cedulasEnTransito.length > 0) {
+        setDeleteModal({ type: 'en_transito', grupoId: grupo.id, grupoName: grupo.nombreGrupo, cedulasAplicadas: [], cedulasEnTransito: data.cedulasEnTransito });
+      } else {
+        setConfirmModal({ grupoId: grupo.id, grupoName: grupo.nombreGrupo });
+      }
+    } catch {
+      showToast('Error al verificar dependencias.', 'error');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/grupos/${confirmModal.grupoId}`, { method: 'DELETE' });
@@ -196,6 +214,23 @@ function GrupoManagement() {
       showToast('Grupo eliminado correctamente');
     } catch {
       showToast('Error al eliminar el grupo.', 'error');
+    } finally { setDeleting(false); }
+  };
+
+  const handleAnularYEliminar = async () => {
+    setDeleting(true);
+    try {
+      for (const cedula of deleteModal.cedulasEnTransito) {
+        const res = await apiFetch(`/api/cedulas/${cedula.id}/anular`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: 'Anulada por eliminación de grupo' }) });
+        if (!res.ok) throw new Error(`No se pudo anular la cédula ${cedula.consecutivo}`);
+      }
+      const res = await apiFetch(`/api/grupos/${deleteModal.grupoId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setDeleteModal(null);
+      fetchAll();
+      showToast('Cédulas anuladas y grupo eliminado correctamente');
+    } catch (err) {
+      showToast(err.message || 'Error al eliminar el grupo.', 'error');
     } finally { setDeleting(false); }
   };
 
@@ -275,11 +310,68 @@ function GrupoManagement() {
       {confirmModal && (
         <ConfirmModal
           title={`¿Eliminar "${confirmModal.grupoName}"?`}
-          message="Esta acción eliminará permanentemente el grupo. No se puede deshacer."
+          message="Al eliminar este grupo, sus bloques quedarán libres y podrán asignarse a otros grupos. Ten en cuenta que los registros históricos (cédulas de aplicación y actividades completadas) que hacen referencia a este grupo seguirán mostrando su nombre. Esta acción no se puede deshacer."
           onConfirm={handleDeleteConfirm}
           onCancel={() => setConfirmModal(null)}
           loading={deleting}
         />
+      )}
+
+      {deleteModal && (
+        <div className="grupo-delete-overlay" onClick={() => !deleting && setDeleteModal(null)}>
+          <div className="grupo-delete-modal" onClick={e => e.stopPropagation()}>
+            {deleteModal.type === 'aplicada' ? (
+              <>
+                <h3 className="grupo-delete-modal__title grupo-delete-modal__title--block">
+                  No es posible eliminar este grupo
+                </h3>
+                <p>
+                  El grupo <strong>"{deleteModal.grupoName}"</strong> tiene cédulas ya <strong>aplicadas en campo</strong>.
+                  Estas forman parte del registro fitosanitario y no pueden eliminarse.
+                </p>
+                <p className="grupo-delete-modal__section-label">Cédulas aplicadas</p>
+                <ul className="grupo-delete-modal__list">
+                  {deleteModal.cedulasAplicadas.map(c => (
+                    <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
+                  ))}
+                </ul>
+                <div className="grupo-delete-modal__actions">
+                  <button className="btn btn-secondary" onClick={() => setDeleteModal(null)}>Entendido</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="grupo-delete-modal__title grupo-delete-modal__title--warn">
+                  Hay cédulas pendientes de resolución
+                </h3>
+                <p>
+                  Las siguientes cédulas del grupo <strong>"{deleteModal.grupoName}"</strong> están en estado <strong>Mezcla lista</strong>.
+                  Debes resolverlas antes de poder eliminar el grupo.
+                </p>
+                <p className="grupo-delete-modal__section-label">Cédulas en Mezcla lista</p>
+                <ul className="grupo-delete-modal__list">
+                  {deleteModal.cedulasEnTransito.map(c => (
+                    <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
+                  ))}
+                </ul>
+                <p className="grupo-delete-modal__hint">
+                  Puedes anularlas ahora (se revertirá el inventario descontado) o ir a Cédulas de Aplicación para marcarlas como aplicadas en campo.
+                </p>
+                <div className="grupo-delete-modal__actions">
+                  <button className="btn btn-danger" onClick={handleAnularYEliminar} disabled={deleting}>
+                    {deleting ? 'Anulando...' : 'Anular cédulas y eliminar grupo'}
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => { setDeleteModal(null); navigate('/aplicaciones/cedulas'); }} disabled={deleting}>
+                    Ir a Cédulas de Aplicación
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => setDeleteModal(null)} disabled={deleting}>
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── FORMULARIO ── */}

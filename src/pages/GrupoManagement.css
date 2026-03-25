@@ -1,5 +1,89 @@
 @import './LoteManagement.css';
 
+/* ── Modal eliminación de grupo ─────────────────────────────────────────── */
+.grupo-delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.grupo-delete-modal {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 28px;
+  max-width: 460px;
+  width: 90%;
+  color: var(--aurora-light);
+}
+
+.grupo-delete-modal__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.grupo-delete-modal__title--block { color: #ff6b6b; }
+.grupo-delete-modal__title--warn  { color: #ffb347; }
+
+.grupo-delete-modal p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  opacity: 0.85;
+}
+
+.grupo-delete-modal__section-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  margin-bottom: 6px !important;
+}
+
+.grupo-delete-modal__list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px 0;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.grupo-delete-modal__list li {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.grupo-delete-modal__list li:last-child { border-bottom: none; }
+
+.grupo-delete-modal__hint {
+  font-size: 0.82rem !important;
+  opacity: 0.55 !important;
+  font-style: italic;
+}
+
+.grupo-delete-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.btn-ghost {
+  background: none;
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+}
+
+.btn-ghost:hover { background: rgba(255,255,255,0.05); }
+
 /* ── Bloques section ── */
 .bloques-section {
   margin-top: 24px;

@@ -1986,18 +1986,85 @@ app.put('/api/grupos/:id', authenticate, async (req, res) => {
     }
 });
 
+app.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const ownership = await verifyOwnership('grupos', id, req.fincaId);
+        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+        const tasksSnap = await db.collection('scheduled_tasks')
+            .where('grupoId', '==', id)
+            .where('status', '==', 'pending')
+            .get();
+
+        const pendingTaskIds = tasksSnap.docs.map(d => d.id);
+        const cedulasAplicadas = [];
+        const cedulasEnTransito = [];
+
+        if (pendingTaskIds.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
+            for (const chunk of chunks) {
+                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                cSnap.docs.forEach(doc => {
+                    const d = doc.data();
+                    if (d.status === 'aplicada_en_campo') {
+                        cedulasAplicadas.push({ id: doc.id, consecutivo: d.consecutivo, lote: d.splitLoteNombre || null });
+                    } else if (d.status === 'en_transito') {
+                        cedulasEnTransito.push({ id: doc.id, consecutivo: d.consecutivo, lote: d.splitLoteNombre || null });
+                    }
+                });
+            }
+        }
+
+        res.json({ cedulasAplicadas, cedulasEnTransito });
+    } catch (error) {
+        console.error('Error checking grupo delete:', error);
+        res.status(500).json({ message: 'Error al verificar dependencias.' });
+    }
+});
+
 app.delete('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-        const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
+
+        const allTasksSnap = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
+        const pendingTasks = allTasksSnap.docs.filter(d => d.data().status === 'pending');
+        const pendingTaskIds = pendingTasks.map(d => d.id);
+
+        // Rechazar si hay cédulas en estado bloqueante
+        if (pendingTaskIds.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
+            for (const chunk of chunks) {
+                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                for (const doc of cSnap.docs) {
+                    const s = doc.data().status;
+                    if (s === 'aplicada_en_campo') return res.status(409).json({ code: 'CEDULA_APLICADA', message: 'Hay cédulas aplicadas en campo.' });
+                    if (s === 'en_transito')      return res.status(409).json({ code: 'CEDULA_EN_TRANSITO', message: 'Hay cédulas en estado Mezcla lista.' });
+                }
+            }
+        }
+
+        // Eliminar cédulas pendientes/anuladas de las tareas pending, luego las tareas pending, luego el grupo
         const batch = db.batch();
-        tasksSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        if (pendingTaskIds.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
+            for (const chunk of chunks) {
+                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                cSnap.docs.forEach(doc => batch.delete(doc.ref));
+            }
+            pendingTasks.forEach(doc => batch.delete(doc.ref));
+        }
         batch.delete(db.collection('grupos').doc(id));
         await batch.commit();
-        res.status(200).json({ message: 'Grupo y tareas asociadas eliminados correctamente.' });
+
+        res.status(200).json({ message: 'Grupo eliminado correctamente.' });
     } catch (error) {
+        console.error('Error deleting grupo:', error);
         res.status(500).json({ message: 'Error al eliminar el grupo.' });
     }
 });

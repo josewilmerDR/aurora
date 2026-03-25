@@ -14,12 +14,14 @@ function PackageManagement() {
   const [formData, setFormData] = useState({
     id: null,
     nombrePaquete: '',
+    descripcion: '',
     tipoCosecha: '',
     etapaCultivo: '',
     tecnicoResponsable: '',
     activities: []
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
   const [focusedActivity, setFocusedActivity] = useState(null);
   const [toast, setToast] = useState(null);
@@ -27,6 +29,7 @@ function PackageManagement() {
 
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
+  const [pkgDepsModal, setPkgDepsModal] = useState(null);
   const [prodOpenIdx, setProdOpenIdx] = useState(null);
   const [prodSearch, setProdSearch] = useState('');
   const [prodDropdownPos, setProdDropdownPos] = useState({ top: 0, left: 0 });
@@ -191,13 +194,15 @@ function PackageManagement() {
       .sort((a, b) => Number(a.day) - Number(b.day));
     setFormData({ ...pkg, activities: normalizedActivities });
     setIsEditing(true);
+    setIsFormOpen(true);
     setExpandedActivities(new Set());
     window.scrollTo(0, 0);
   };
 
   const resetForm = () => {
-    setFormData({ id: null, nombrePaquete: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
+    setFormData({ id: null, nombrePaquete: '', descripcion: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
     setIsEditing(false);
+    setIsFormOpen(false);
     setExpandedActivities(new Set());
   };
 
@@ -252,6 +257,24 @@ function PackageManagement() {
     }
   };
 
+  const handleDeleteClick = async (pkg) => {
+    try {
+      const [lotesData, gruposData] = await Promise.all([
+        apiFetch('/api/lotes').then(r => r.json()),
+        apiFetch('/api/grupos').then(r => r.json()),
+      ]);
+      const depLotes = lotesData.filter(l => l.paqueteId === pkg.id);
+      const depGrupos = gruposData.filter(g => g.paqueteId === pkg.id);
+      if (depLotes.length > 0 || depGrupos.length > 0) {
+        setPkgDepsModal({ name: pkg.nombrePaquete, lotes: depLotes, grupos: depGrupos });
+      } else {
+        setPendingDeletePkgId(pkg.id);
+      }
+    } catch {
+      showToast('Error al verificar dependencias.', 'error');
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
@@ -265,15 +288,69 @@ function PackageManagement() {
   };
 
   return (
-    <div className="lote-management-layout">
+    <div className="pkg-page-wrapper">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {pkgDepsModal && (
+        <div className="pkg-deps-overlay" onClick={() => setPkgDepsModal(null)}>
+          <div className="pkg-deps-modal" onClick={e => e.stopPropagation()}>
+            <h3>No es posible eliminar este paquete</h3>
+            <p>
+              El paquete <strong>"{pkgDepsModal.name}"</strong> está siendo usado por los siguientes registros.
+              Por favor, resuelve estas dependencias antes de eliminarlo.
+            </p>
+            {pkgDepsModal.lotes.length > 0 && (
+              <>
+                <p className="pkg-deps-section-label">Lotes</p>
+                <ul className="pkg-deps-list">
+                  {pkgDepsModal.lotes.map(l => <li key={l.id}>{l.nombreLote}</li>)}
+                </ul>
+              </>
+            )}
+            {pkgDepsModal.grupos.length > 0 && (
+              <>
+                <p className="pkg-deps-section-label">Grupos</p>
+                <ul className="pkg-deps-list">
+                  {pkgDepsModal.grupos.map(g => <li key={g.id}>{g.nombreGrupo}</li>)}
+                </ul>
+              </>
+            )}
+            <div className="pkg-deps-actions">
+              <button className="btn btn-secondary" onClick={() => setPkgDepsModal(null)}>Entendido</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="pkg-page-header">
+        <h1 className="pkg-page-title">Paquetes de Tareas</h1>
+        {!isFormOpen && packages.length > 0 && (
+          <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
+            <FiPlus /> Nuevo Paquete
+          </button>
+        )}
+      </div>
+      <div className="lote-management-layout">
       <div className="form-card">
-        <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Tareas'}</h2>
-        <form onSubmit={handleSubmit} className="lote-form">
+        {isFormOpen ? (
+          <>
+          <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Tareas'}</h2>
+          <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
             <div className="form-control">
               <label htmlFor="nombrePaquete">Nombre del Paquete</label>
-              <input id="nombrePaquete" name="nombrePaquete" value={formData.nombrePaquete} onChange={handleInputChange} required />
+              <input id="nombrePaquete" name="nombrePaquete" value={formData.nombrePaquete} onChange={handleInputChange} maxLength={19} required />
+            </div>
+            <div className="form-control form-control--full">
+              <label htmlFor="descripcion">Descripción del Paquete</label>
+              <textarea
+                id="descripcion"
+                name="descripcion"
+                value={formData.descripcion}
+                onChange={handleInputChange}
+                placeholder="Ej: Paquete para la etapa inicial de desarrollo, incluye aplicaciones preventivas contra hongos y fertilización base."
+                rows={3}
+              />
             </div>
             <div className="form-control">
               <label htmlFor="tipoCosecha">Tipo de Cosecha</label>
@@ -500,9 +577,22 @@ function PackageManagement() {
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">{isEditing ? 'Actualizar Paquete' : 'Guardar Paquete'}</button>
-            {isEditing && <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>}
+            <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
           </div>
         </form>
+        </>
+        ) : packages.length === 0 ? (
+          <div className="pkg-form-placeholder">
+            <p>¡Aún no hay ningún paquete creado!<br />Empieza creando el primero.</p>
+            <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
+              <FiPlus /> Nuevo Paquete
+            </button>
+          </div>
+        ) : (
+          <div className="pkg-form-placeholder">
+            <p>Selecciona un paquete de la lista para editarlo,<br />o crea uno nuevo con el botón de arriba.</p>
+          </div>
+        )}
       </div>
 
       <div className="list-card">
@@ -531,7 +621,7 @@ function PackageManagement() {
                     <button onClick={() => handleDuplicate(pkg)} className="icon-btn" title="Duplicar paquete">
                       <FiCopy size={17} />
                     </button>
-                    <button onClick={() => setPendingDeletePkgId(pkg.id)} className="icon-btn delete" title="Eliminar">
+                    <button onClick={() => handleDeleteClick(pkg)} className="icon-btn delete" title="Eliminar">
                       <FiTrash2 size={18} />
                     </button>
                   </>
@@ -541,6 +631,7 @@ function PackageManagement() {
           ))}
         </ul>
         {packages.length === 0 && <p className="empty-state">No hay paquetes creados.</p>}
+      </div>
       </div>
     </div>
   );
