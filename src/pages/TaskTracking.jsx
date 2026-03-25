@@ -110,6 +110,15 @@ function TaskTracking() {
     setOpenKebabId(null);
   };
 
+  const unarchiveTask = (taskId, e) => {
+    e.stopPropagation();
+    const next = new Set(archivedIds);
+    next.delete(taskId);
+    setArchivedIds(next);
+    localStorage.setItem(archivedKey, JSON.stringify([...next]));
+    setOpenKebabId(null);
+  };
+
   useEffect(() => {
     if (!openKebabId) return;
     const handler = (e) => { if (!e.target.closest('.task-kebab-menu')) setOpenKebabId(null); };
@@ -264,6 +273,7 @@ function TaskTracking() {
   const visibleTasks = tasksWithStatus.filter(t => !dismissedIds.has(t.id));
 
   const filteredTasks = visibleTasks.filter(task => {
+    if (filter === 'archived') return archivedIds.has(task.id);
     if (archivedIds.has(task.id)) return false;
     if (filter === 'all') return true;
     if (filter === 'unassigned') return !task.activity?.responsableId;
@@ -299,7 +309,9 @@ function TaskTracking() {
             </button>
             {openKebabId === task.id && (
               <div className="task-kebab-dropdown">
-                {!archivedIds.has(task.id) && (
+                {archivedIds.has(task.id) ? (
+                  <button onClick={e => unarchiveTask(task.id, e)}>Desarchivar</button>
+                ) : (
                   <button onClick={e => archiveTask(task.id, e)}>Archivar</button>
                 )}
                 <button className="task-kebab-dropdown__delete" onClick={e => dismissTask(task.id, e)}>Eliminar del panel</button>
@@ -317,9 +329,6 @@ function TaskTracking() {
       <div className="task-card-footer">
         <span>{new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
         <span className="task-status-badge">{task.displayStatus.text}</span>
-        {archivedIds.has(task.id) && (
-          <span className="task-archived-badge">Archivada</span>
-        )}
         {(task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) && (
           <Link
             to={`/aplicaciones/cedulas?open=${task.id}`}
@@ -338,7 +347,6 @@ function TaskTracking() {
     overdue:   visibleTasks.filter(t => !archivedIds.has(t.id) && t.displayStatus.key === 'overdue'),
     pending:   visibleTasks.filter(t => !archivedIds.has(t.id) && t.displayStatus.key === 'pending'),
     completed: visibleTasks.filter(t => !archivedIds.has(t.id) && t.displayStatus.key === 'completed'),
-    archived:  visibleTasks.filter(t => archivedIds.has(t.id)),
   };
 
   if (loading) return <div className="empty-state">Cargando actividades...</div>;
@@ -364,6 +372,9 @@ function TaskTracking() {
             <button onClick={() => setFilter('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
             <button onClick={() => setFilter('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
             <button onClick={() => setFilter('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
+            <button onClick={() => setFilter('archived')} className={`pill-btn pill-btn--archived ${filter === 'archived' ? 'active' : ''}`}>
+              Archivadas{archivedIds.size > 0 && <span className="pill-count">{archivedIds.size}</span>}
+            </button>
           </div>
         </div>
       </div>
@@ -523,7 +534,7 @@ function TaskTracking() {
 
       {filter === 'all' ? (
         <>
-          {groupedTasks.overdue.length === 0 && groupedTasks.pending.length === 0 && groupedTasks.completed.length === 0 && groupedTasks.archived.length === 0 && (
+          {groupedTasks.overdue.length === 0 && groupedTasks.pending.length === 0 && groupedTasks.completed.length === 0 && (
             <p className="empty-state">No hay actividades en esta categoría.</p>
           )}
           <div>
@@ -545,13 +556,14 @@ function TaskTracking() {
                 <div className="tasks-grid">{groupedTasks.completed.map(renderTaskCard)}</div>
               </div>
             )}
-            {groupedTasks.archived.length > 0 && (
-              <div className="task-group task-group--archived">
-                <h3 className="task-group-title task-group-title--archived">Archivadas</h3>
-                <div className="tasks-grid">{groupedTasks.archived.map(renderTaskCard)}</div>
-              </div>
-            )}
           </div>
+        </>
+      ) : filter === 'archived' ? (
+        <>
+          {filteredTasks.length === 0
+            ? <p className="empty-state">No hay tareas archivadas.</p>
+            : <div className="tasks-grid archived-grid">{filteredTasks.map(renderTaskCard)}</div>
+          }
         </>
       ) : (
         <>
