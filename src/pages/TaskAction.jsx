@@ -106,9 +106,9 @@ const TaskAction = () => {
   if (error) return <div className="task-action-state error">Error: {error}</div>;
 
   const isCompleted = task.status === 'completed_by_user';
+  const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
   const isAplicacion = task.activity?.type === 'aplicacion'
     || (task.activity?.productos?.length > 0 && !isSolicitudCompra);
-  const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
   const loteHectareas = task.loteHectareas || 1;
 
   return (

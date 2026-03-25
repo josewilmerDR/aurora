@@ -161,7 +161,7 @@ const enrichTask = async (taskDoc) => {
       ? responsable.nombre
       : (task.activity?.responsableNombre || 'Proveeduría'),
     responsableTel: responsable ? responsable.telefono : '—',
-    dueDate: task.executeAt.toDate().toISOString(),
+    dueDate: task.executeAt?.toDate?.()?.toISOString() ?? null,
     status: task.status,
     type: task.type,
     ...task,
@@ -328,7 +328,9 @@ app.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) => {
 app.get('/api/tasks', authenticate, async (req, res) => {
   try {
     const tasksSnapshot = await db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get();
-    let enrichedTasks = (await Promise.all(tasksSnapshot.docs.map(enrichTask))).filter(t => t !== null);
+    let enrichedTasks = (await Promise.all(
+        tasksSnapshot.docs.map(doc => enrichTask(doc).catch(err => { console.error(`enrichTask failed for ${doc.id}:`, err); return null; }))
+    )).filter(t => t !== null);
 
     // Trabajadores solo ven las tareas asignadas a ellos
     if (req.userRole === 'trabajador') {
