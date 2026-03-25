@@ -245,6 +245,8 @@ function TaskTracking() {
     .filter(task => task.type !== 'REMINDER_3_DAY')
     .map(task => ({ ...task, displayStatus: getTaskDisplayStatus(task) }));
 
+  const visibleTasks = tasksWithStatus.filter(t => !dismissedIds.has(t.id));
+
   const filteredTasks = visibleTasks.filter(task => {
     if (filter === 'all') return true;
     if (filter === 'unassigned') return !task.activity?.responsableId;
@@ -308,8 +310,6 @@ function TaskTracking() {
       </div>
     </div>
   );
-
-  const visibleTasks = tasksWithStatus.filter(t => !dismissedIds.has(t.id));
 
   const groupedTasks = {
     overdue:   visibleTasks.filter(t => t.displayStatus.key === 'overdue'),
