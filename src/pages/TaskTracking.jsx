@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiPlus, FiX, FiFileText } from 'react-icons/fi';
+import { FiPlus, FiX, FiFileText, FiMoreVertical } from 'react-icons/fi';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import './TaskTracking.css';
@@ -14,7 +14,7 @@ function useQuery() {
 
 function TaskTracking() {
   const apiFetch = useApiFetch();
-  const { activeFincaId } = useUser();
+  const { activeFincaId, firebaseUser } = useUser();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,6 +41,14 @@ function TaskTracking() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const debounceRef = useRef(null);
+
+  // --- Tareas descartadas del panel (solo frontend, persiste en localStorage) ---
+  const dismissedKey = `aurora_dismissed_tasks_${firebaseUser?.uid || 'guest'}`;
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(`aurora_dismissed_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')); }
+    catch { return new Set(); }
+  });
+  const [openKebabId, setOpenKebabId] = useState(null);
 
   const fetchTasks = useCallback(() => {
     apiFetch('/api/tasks')
@@ -76,6 +84,22 @@ function TaskTracking() {
     });
     return () => { unsubscribe(); clearTimeout(debounceRef.current); };
   }, [activeFincaId, fetchTasks]);
+
+  const dismissTask = (taskId, e) => {
+    e.stopPropagation();
+    const next = new Set(dismissedIds);
+    next.add(taskId);
+    setDismissedIds(next);
+    localStorage.setItem(dismissedKey, JSON.stringify([...next]));
+    setOpenKebabId(null);
+  };
+
+  useEffect(() => {
+    if (!openKebabId) return;
+    const handler = (e) => { if (!e.target.closest('.task-kebab-menu')) setOpenKebabId(null); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openKebabId]);
 
   // Cargar lotes, usuarios, productos y plantillas cuando se abre el formulario
   useEffect(() => {
@@ -221,7 +245,7 @@ function TaskTracking() {
     .filter(task => task.type !== 'REMINDER_3_DAY')
     .map(task => ({ ...task, displayStatus: getTaskDisplayStatus(task) }));
 
-  const filteredTasks = tasksWithStatus.filter(task => {
+  const filteredTasks = visibleTasks.filter(task => {
     if (filter === 'all') return true;
     if (filter === 'unassigned') return !task.activity?.responsableId;
     return task.displayStatus.key === filter;
@@ -236,15 +260,31 @@ function TaskTracking() {
     >
       <div className="task-card-header">
         <h4>{task.activityName}</h4>
-        {task.activity?.type === 'aplicacion' && (
-          <span className="task-aplicacion-tag">⚗ Aplicación</span>
-        )}
-        {task.type === 'SOLICITUD_COMPRA' && (
-          <span className="task-aplicacion-tag" style={{ background: 'var(--aurora-magenta)', color: '#fff' }}>🛒 Compra</span>
-        )}
-        {task.type === 'PLANILLA_PAGO' && (
-          <span className="task-aplicacion-tag" style={{ background: 'rgba(51,255,153,0.15)', color: 'var(--aurora-green)', border: '1px solid var(--aurora-green)' }}>💰 Planilla</span>
-        )}
+        <div className="task-card-header-right">
+          {task.activity?.type === 'aplicacion' && (
+            <span className="task-aplicacion-tag">⚗ Aplicación</span>
+          )}
+          {task.type === 'SOLICITUD_COMPRA' && (
+            <span className="task-aplicacion-tag" style={{ background: 'var(--aurora-magenta)', color: '#fff' }}>🛒 Compra</span>
+          )}
+          {task.type === 'PLANILLA_PAGO' && (
+            <span className="task-aplicacion-tag" style={{ background: 'rgba(51,255,153,0.15)', color: 'var(--aurora-green)', border: '1px solid var(--aurora-green)' }}>💰 Planilla</span>
+          )}
+          <div className="task-kebab-menu">
+            <button
+              className="task-kebab-btn"
+              onClick={e => { e.stopPropagation(); setOpenKebabId(openKebabId === task.id ? null : task.id); }}
+              title="Más opciones"
+            >
+              <FiMoreVertical size={15} />
+            </button>
+            {openKebabId === task.id && (
+              <div className="task-kebab-dropdown">
+                <button onClick={e => dismissTask(task.id, e)}>Eliminar del panel</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <div className="task-card-body">
         {task.type !== 'PLANILLA_PAGO' && (
@@ -269,10 +309,12 @@ function TaskTracking() {
     </div>
   );
 
+  const visibleTasks = tasksWithStatus.filter(t => !dismissedIds.has(t.id));
+
   const groupedTasks = {
-    overdue: tasksWithStatus.filter(t => t.displayStatus.key === 'overdue'),
-    pending: tasksWithStatus.filter(t => t.displayStatus.key === 'pending'),
-    completed: tasksWithStatus.filter(t => t.displayStatus.key === 'completed'),
+    overdue:   visibleTasks.filter(t => t.displayStatus.key === 'overdue'),
+    pending:   visibleTasks.filter(t => t.displayStatus.key === 'pending'),
+    completed: visibleTasks.filter(t => t.displayStatus.key === 'completed'),
   };
 
   if (loading) return <div className="empty-state">Cargando actividades...</div>;
