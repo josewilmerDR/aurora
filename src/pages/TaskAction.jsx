@@ -106,9 +106,9 @@ const TaskAction = () => {
   if (error) return <div className="task-action-state error">Error: {error}</div>;
 
   const isCompleted = task.status === 'completed_by_user';
+  const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
   const isAplicacion = task.activity?.type === 'aplicacion'
     || (task.activity?.productos?.length > 0 && !isSolicitudCompra);
-  const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
   const loteHectareas = task.loteHectareas || 1;
 
   return (
@@ -253,18 +253,22 @@ const TaskAction = () => {
             )}
 
             <div className="action-buttons-row">
-              <button
-                className={`btn-action reschedule ${action === 'reschedule' ? 'active' : ''}`}
-                onClick={() => setAction(action === 'reschedule' ? null : 'reschedule')}
-              >
-                📅 Reprogramar
-              </button>
-              <button
-                className={`btn-action reassign ${action === 'reassign' ? 'active' : ''}`}
-                onClick={() => setAction(action === 'reassign' ? null : 'reassign')}
-              >
-                👤 Reasignar
-              </button>
+              {!isCompleted && (
+                <>
+                  <button
+                    className={`btn-action reschedule ${action === 'reschedule' ? 'active' : ''}`}
+                    onClick={() => setAction(action === 'reschedule' ? null : 'reschedule')}
+                  >
+                    📅 Reprogramar
+                  </button>
+                  <button
+                    className={`btn-action reassign ${action === 'reassign' ? 'active' : ''}`}
+                    onClick={() => setAction(action === 'reassign' ? null : 'reassign')}
+                  >
+                    👤 Reasignar
+                  </button>
+                </>
+              )}
               {isSolicitudCompra && (
                 <button
                   className="btn-action generate-po"
@@ -283,7 +287,7 @@ const TaskAction = () => {
               )}
             </div>
 
-            {action === 'reschedule' && (
+            {!isCompleted && action === 'reschedule' && (
               <div className="action-panel">
                 <label>Nueva fecha</label>
                 <input
@@ -302,7 +306,7 @@ const TaskAction = () => {
               </div>
             )}
 
-            {action === 'reassign' && (
+            {!isCompleted && action === 'reassign' && (
               <div className="action-panel">
                 <label>Nuevo responsable</label>
                 <select

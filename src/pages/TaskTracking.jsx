@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiPlus, FiX, FiFileText } from 'react-icons/fi';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive } from 'react-icons/fi';
 import './TaskTracking.css';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -14,14 +12,23 @@ function useQuery() {
 
 function TaskTracking() {
   const apiFetch = useApiFetch();
-  const { activeFincaId } = useUser();
+  const { firebaseUser } = useUser();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  const location = useLocation();
   const urlQuery = useQuery();
   const [filter, setFilter] = useState(urlQuery.get('filter') || 'all');
+
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter);
+    const params = new URLSearchParams(location.search);
+    if (newFilter === 'all') { params.delete('filter'); } else { params.set('filter', newFilter); }
+    const qs = params.toString();
+    navigate(qs ? `?${qs}` : location.pathname, { replace: true });
+  };
 
   // --- Estado del formulario de nueva tarea ---
   const [showNewTask, setShowNewTask] = useState(false);
@@ -40,7 +47,20 @@ function TaskTracking() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  const debounceRef = useRef(null);
+  // --- Tareas descartadas del panel (solo frontend, persiste en localStorage) ---
+  const dismissedKey = `aurora_dismissed_tasks_${firebaseUser?.uid || 'guest'}`;
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(`aurora_dismissed_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')); }
+    catch { return new Set(); }
+  });
+
+  const archivedKey = `aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`;
+  const [archivedIds, setArchivedIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')); }
+    catch { return new Set(); }
+  });
+
+  const [openKebabId, setOpenKebabId] = useState(null);
 
   const fetchTasks = useCallback(() => {
     apiFetch('/api/tasks')
@@ -58,24 +78,39 @@ function TaskTracking() {
     fetchTasks();
   }, [fetchTasks]);
 
-  // Listener en tiempo real: onSnapshot solo dispara cuando hay cambios reales en Firestore.
-  // Sin actividad (fines de semana, noches) el WebSocket está abierto pero no genera lecturas.
+  const dismissTask = (taskId, e) => {
+    e.stopPropagation();
+    const next = new Set(dismissedIds);
+    next.add(taskId);
+    setDismissedIds(next);
+    localStorage.setItem(dismissedKey, JSON.stringify([...next]));
+    setOpenKebabId(null);
+  };
+
+  const archiveTask = (taskId, e) => {
+    e.stopPropagation();
+    const next = new Set(archivedIds);
+    next.add(taskId);
+    setArchivedIds(next);
+    localStorage.setItem(archivedKey, JSON.stringify([...next]));
+    setOpenKebabId(null);
+  };
+
+  const unarchiveTask = (taskId, e) => {
+    e.stopPropagation();
+    const next = new Set(archivedIds);
+    next.delete(taskId);
+    setArchivedIds(next);
+    localStorage.setItem(archivedKey, JSON.stringify([...next]));
+    setOpenKebabId(null);
+  };
+
   useEffect(() => {
-    if (!activeFincaId) return;
-    const isFirst = { current: true };
-    const q = query(
-      collection(db, 'scheduled_tasks'),
-      where('fincaId', '==', activeFincaId)
-    );
-    const unsubscribe = onSnapshot(q, () => {
-      // Ignorar el disparo inicial (ya lo carga fetchTasks arriba)
-      if (isFirst.current) { isFirst.current = false; return; }
-      // Debounce 400ms para agrupar escrituras en lote
-      clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(fetchTasks, 400);
-    });
-    return () => { unsubscribe(); clearTimeout(debounceRef.current); };
-  }, [activeFincaId, fetchTasks]);
+    if (!openKebabId) return;
+    const handler = (e) => { if (!e.target.closest('.task-kebab-menu')) setOpenKebabId(null); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openKebabId]);
 
   // Cargar lotes, usuarios, productos y plantillas cuando se abre el formulario
   useEffect(() => {
@@ -221,7 +256,11 @@ function TaskTracking() {
     .filter(task => task.type !== 'REMINDER_3_DAY')
     .map(task => ({ ...task, displayStatus: getTaskDisplayStatus(task) }));
 
-  const filteredTasks = tasksWithStatus.filter(task => {
+  const visibleTasks = tasksWithStatus.filter(t => !dismissedIds.has(t.id));
+
+  const filteredTasks = visibleTasks.filter(task => {
+    if (filter === 'archived') return archivedIds.has(task.id);
+    if (archivedIds.has(task.id)) return false;
     if (filter === 'all') return true;
     if (filter === 'unassigned') return !task.activity?.responsableId;
     return task.displayStatus.key === filter;
@@ -230,14 +269,20 @@ function TaskTracking() {
   const renderTaskCard = (task) => (
     <div
       key={task.id}
-      className={`task-card ${task.displayStatus.className}`}
+      className={`task-row ${task.displayStatus.className}`}
       onClick={() => task.type === 'PLANILLA_PAGO' ? navigate('/hr/planilla/fijo') : navigate(`/task/${task.id}`)}
-      style={{ cursor: 'pointer' }}
     >
-      <div className="task-card-header">
-        <h4>{task.activityName}</h4>
+      <span className="task-row__dot" title={task.displayStatus.text} />
+      <span className="task-row__name">{task.activityName}</span>
+      <span className="task-row__meta">
+        {task.type !== 'PLANILLA_PAGO' && task.loteName && <>{task.loteName} · </>}
+        {task.activity?.responsableId
+          ? task.responsableName
+          : <em className="task-row__unassigned">Sin asignar</em>}
+      </span>
+      <div className="task-row__tags">
         {task.activity?.type === 'aplicacion' && (
-          <span className="task-aplicacion-tag">⚗ Aplicación</span>
+          <span className="task-aplicacion-tag">⚗ Aplic.</span>
         )}
         {task.type === 'SOLICITUD_COMPRA' && (
           <span className="task-aplicacion-tag" style={{ background: 'var(--aurora-magenta)', color: '#fff' }}>🛒 Compra</span>
@@ -245,16 +290,6 @@ function TaskTracking() {
         {task.type === 'PLANILLA_PAGO' && (
           <span className="task-aplicacion-tag" style={{ background: 'rgba(51,255,153,0.15)', color: 'var(--aurora-green)', border: '1px solid var(--aurora-green)' }}>💰 Planilla</span>
         )}
-      </div>
-      <div className="task-card-body">
-        {task.type !== 'PLANILLA_PAGO' && (
-          <span className="task-detail"><strong>Lote:</strong> {task.loteName}</span>
-        )}
-        <span className="task-detail"><strong>Responsable:</strong> {task.activity?.responsableId ? task.responsableName : <em style={{ color: 'var(--aurora-magenta)', fontStyle: 'normal' }}>Sin asignar</em>}</span>
-      </div>
-      <div className="task-card-footer">
-        <span>{new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</span>
-        <span className="task-status-badge">{task.displayStatus.text}</span>
         {(task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) && (
           <Link
             to={`/aplicaciones/cedulas?open=${task.id}`}
@@ -262,18 +297,46 @@ function TaskTracking() {
             onClick={e => e.stopPropagation()}
             title="Ver Cédula de Aplicación"
           >
-            <FiFileText size={13} /> Cédula
+            <FiFileText size={12} /> Cédula
           </Link>
+        )}
+      </div>
+      <span className="task-row__date">
+        {new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short' })}
+      </span>
+      <div className="task-kebab-menu">
+        <button
+          className="task-kebab-btn"
+          onClick={e => { e.stopPropagation(); setOpenKebabId(openKebabId === task.id ? null : task.id); }}
+          title="Más opciones"
+        >
+          <FiMoreVertical size={15} />
+        </button>
+        {openKebabId === task.id && (
+          <div className="task-kebab-dropdown">
+            {archivedIds.has(task.id) ? (
+              <button onClick={e => unarchiveTask(task.id, e)}>Desarchivar</button>
+            ) : (
+              <button onClick={e => archiveTask(task.id, e)}>Archivar</button>
+            )}
+            <button className="task-kebab-dropdown__delete" onClick={e => dismissTask(task.id, e)}>Eliminar del panel</button>
+          </div>
         )}
       </div>
     </div>
   );
 
-  const groupedTasks = {
-    overdue: tasksWithStatus.filter(t => t.displayStatus.key === 'overdue'),
-    pending: tasksWithStatus.filter(t => t.displayStatus.key === 'pending'),
-    completed: tasksWithStatus.filter(t => t.displayStatus.key === 'completed'),
-  };
+  const allTasksSorted = visibleTasks
+    .filter(t => !archivedIds.has(t.id))
+    .sort((a, b) => {
+      const aCompleted = a.displayStatus.key === 'completed';
+      const bCompleted = b.displayStatus.key === 'completed';
+      if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+      // ambas completadas → más reciente primero; ambas no-completadas → más urgente primero
+      return aCompleted
+        ? new Date(b.dueDate) - new Date(a.dueDate)
+        : new Date(a.dueDate) - new Date(b.dueDate);
+    });
 
   if (loading) return <div className="empty-state">Cargando actividades...</div>;
   if (error) return <div className="empty-state">Error: {error}</div>;
@@ -293,11 +356,11 @@ function TaskTracking() {
             {showNewTask ? 'Cancelar' : 'Nueva Actividad'}
           </button>
           <div className="filter-pills">
-            <button onClick={() => setFilter('all')} className={`pill-btn ${filter === 'all' ? 'active' : ''}`}>Todas</button>
-            <button onClick={() => setFilter('overdue')} className={`pill-btn ${filter === 'overdue' ? 'active' : ''}`}>Vencidas</button>
-            <button onClick={() => setFilter('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
-            <button onClick={() => setFilter('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
-            <button onClick={() => setFilter('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
+            <button onClick={() => handleFilterChange('all')} className={`pill-btn ${filter === 'all' ? 'active' : ''}`}>Todas</button>
+            <button onClick={() => handleFilterChange('overdue')} className={`pill-btn ${filter === 'overdue' ? 'active' : ''}`}>Vencidas</button>
+            <button onClick={() => handleFilterChange('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
+            <button onClick={() => handleFilterChange('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
+            <button onClick={() => handleFilterChange('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
           </div>
         </div>
       </div>
@@ -455,33 +518,37 @@ function TaskTracking() {
         </div>
       )}
 
-      {filteredTasks.length === 0 && <p className="empty-state">No hay actividades en esta categoría.</p>}
-
       {filter === 'all' ? (
-        <div>
-          {groupedTasks.overdue.length > 0 && (
-            <div className="task-group">
-              <h3 className="task-group-title">Vencidas</h3>
-              <div className="tasks-grid">{groupedTasks.overdue.map(renderTaskCard)}</div>
-            </div>
+        <>
+          {archivedIds.size > 0 && (
+            <button className="archived-shortcut" onClick={() => handleFilterChange('archived')}>
+              <FiArchive size={14} />
+              <span>Archivadas</span>
+              <span className="archived-shortcut__count">{archivedIds.size}</span>
+            </button>
           )}
-          {groupedTasks.pending.length > 0 && (
-            <div className="task-group">
-              <h3 className="task-group-title">Pendientes</h3>
-              <div className="tasks-grid">{groupedTasks.pending.map(renderTaskCard)}</div>
-            </div>
-          )}
-          {groupedTasks.completed.length > 0 && (
-            <div className="task-group">
-              <h3 className="task-group-title">Hechas</h3>
-              <div className="tasks-grid">{groupedTasks.completed.map(renderTaskCard)}</div>
-            </div>
-          )}
-        </div>
+          {allTasksSorted.length === 0
+            ? <p className="empty-state">No hay actividades en esta categoría.</p>
+            : <div className="tasks-list">{allTasksSorted.map(renderTaskCard)}</div>
+          }
+        </>
+      ) : filter === 'archived' ? (
+        <>
+          <button className="archived-back" onClick={() => handleFilterChange('all')}>
+            ← Volver a Todas
+          </button>
+          {filteredTasks.length === 0
+            ? <p className="empty-state">No hay tareas archivadas.</p>
+            : <div className="tasks-list archived-grid">{filteredTasks.map(renderTaskCard)}</div>
+          }
+        </>
       ) : (
-        <div className="tasks-grid">
-          {filteredTasks.map(renderTaskCard)}
-        </div>
+        <>
+          {filteredTasks.length === 0 && <p className="empty-state">No hay actividades en esta categoría.</p>}
+          <div className="tasks-list">
+            {filteredTasks.map(renderTaskCard)}
+          </div>
+        </>
       )}
     </div>
   );

@@ -155,13 +155,13 @@ const enrichTask = async (taskDoc) => {
     activityName: task.activity?.name,
     loteName: source
       ? (source.nombreLote || source.nombreGrupo || '—')
-      : (task.loteId || task.grupoId) ? 'No encontrado' : '—',
+      : (task.snap_grupoNombre || task.snap_loteNombre || ((task.loteId || task.grupoId) ? 'Eliminado' : '—')),
     loteHectareas,
     responsableName: responsable
       ? responsable.nombre
       : (task.activity?.responsableNombre || 'Proveeduría'),
     responsableTel: responsable ? responsable.telefono : '—',
-    dueDate: task.executeAt.toDate().toISOString(),
+    dueDate: task.executeAt?.toDate?.()?.toISOString() ?? null,
     status: task.status,
     type: task.type,
     ...task,
@@ -328,7 +328,9 @@ app.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) => {
 app.get('/api/tasks', authenticate, async (req, res) => {
   try {
     const tasksSnapshot = await db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get();
-    let enrichedTasks = (await Promise.all(tasksSnapshot.docs.map(enrichTask))).filter(t => t !== null);
+    let enrichedTasks = (await Promise.all(
+        tasksSnapshot.docs.map(doc => enrichTask(doc).catch(err => { console.error(`enrichTask failed for ${doc.id}:`, err); return null; }))
+    )).filter(t => t !== null);
 
     // Trabajadores solo ven las tareas asignadas a ellos
     if (req.userRole === 'trabajador') {
@@ -2030,9 +2032,13 @@ app.delete('/api/grupos/:id', authenticate, async (req, res) => {
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
+        const grupoDoc = await db.collection('grupos').doc(id).get();
+        const snap_grupoNombre = grupoDoc.data()?.nombreGrupo || '';
+
         const allTasksSnap = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
-        const pendingTasks = allTasksSnap.docs.filter(d => d.data().status === 'pending');
-        const pendingTaskIds = pendingTasks.map(d => d.id);
+        const pendingTasks    = allTasksSnap.docs.filter(d => d.data().status === 'pending');
+        const completedTasks  = allTasksSnap.docs.filter(d => d.data().status !== 'pending');
+        const pendingTaskIds  = pendingTasks.map(d => d.id);
 
         // Rechazar si hay cédulas en estado bloqueante
         if (pendingTaskIds.length > 0) {
@@ -2048,8 +2054,14 @@ app.delete('/api/grupos/:id', authenticate, async (req, res) => {
             }
         }
 
-        // Eliminar cédulas pendientes/anuladas de las tareas pending, luego las tareas pending, luego el grupo
         const batch = db.batch();
+
+        // Snapshot del nombre del grupo en las tareas completadas/skipped (historial)
+        completedTasks.forEach(doc => {
+            batch.update(doc.ref, { snap_grupoNombre });
+        });
+
+        // Eliminar cédulas pendientes/anuladas de las tareas pending, luego las tareas pending
         if (pendingTaskIds.length > 0) {
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
@@ -2059,6 +2071,7 @@ app.delete('/api/grupos/:id', authenticate, async (req, res) => {
             }
             pendingTasks.forEach(doc => batch.delete(doc.ref));
         }
+
         batch.delete(db.collection('grupos').doc(id));
         await batch.commit();
 
