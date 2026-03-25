@@ -113,7 +113,8 @@
   background: rgba(51, 255, 153, 0.04);
 }
 
-.siembra-table-entrada tbody tr {
+.siembra-table-entrada tbody tr,
+.siembra-table-historial tbody tr {
   touch-action: pan-y;
   position: relative;
 }
@@ -246,6 +247,11 @@
 
 .siembra-table-historial {
   min-width: 860px;
+}
+
+/* Swipe hints solo visibles en mobile; en desktop ocupan una columna fantasma */
+.siembra-table-historial .swipe-hint {
+  display: none !important;
 }
 
 /* Fila cerrada */
@@ -709,12 +715,6 @@
   /* Neutralizar text-align: center heredado de td-center */
   .siembra-table-entrada td[data-col="cerrado"] {
     text-align: left;
-  }
-
-  /* ── Historial: touch support ── */
-  .siembra-table-historial tbody tr {
-    touch-action: pan-y;
-    position: relative;
   }
 
   /* expand-toggle: always hidden in compact mode */
