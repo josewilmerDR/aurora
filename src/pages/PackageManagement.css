@@ -1,6 +1,111 @@
 /* Reutilizamos el layout de LoteManagement */
 @import url('./LoteManagement.css');
 
+.pkg-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pkg-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pkg-page-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
+.pkg-form-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 200px;
+  text-align: center;
+  color: var(--aurora-light);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.pkg-form-placeholder p {
+  opacity: 0.45;
+  margin: 0;
+}
+
+/* ── Modal de dependencias ───────────────────────────────────────────────── */
+.pkg-deps-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.pkg-deps-modal {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 28px;
+  max-width: 420px;
+  width: 90%;
+  color: var(--aurora-light);
+}
+
+.pkg-deps-modal h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #ff6b6b;
+}
+
+.pkg-deps-modal p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  opacity: 0.85;
+}
+
+.pkg-deps-section-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  margin-bottom: 6px !important;
+}
+
+.pkg-deps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px 0;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pkg-deps-list li {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.pkg-deps-list li:last-child {
+  border-bottom: none;
+}
+
+.pkg-deps-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 /* Estilos específicos para la tabla de actividades */
 .activities-table {
   margin-top: 20px;

@@ -132,6 +132,21 @@
   flex-direction: column;
 }
 
+.form-control--full {
+  grid-column: 1 / -1;
+}
+
+.form-control textarea {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  padding: 12px;
+  border-radius: 5px;
+  font-size: 1rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
 .form-control label {
   margin-bottom: 8px;
   font-size: 0.9rem;
