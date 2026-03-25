@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, Link } from 'react-router-dom';
-import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle } from 'react-icons/fi';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -306,6 +306,9 @@ function CedulasAplicacion() {
   }, [openMenuId]);
 
   const location = useLocation();
+  const navigate = useNavigate();
+  const savedScrollRef   = useRef(0);
+  const openedViaUrlRef  = useRef(false);
 
   const loadCedulas = useCallback(() =>
     apiFetch('/api/cedulas').then(r => r.json()).then(d => {
@@ -347,7 +350,7 @@ function CedulasAplicacion() {
     const openId = params.get('open');
     if (openId) {
       const task = tasks.find(t => t.id === openId);
-      if (task) setPreviewTask(task);
+      if (task) { openedViaUrlRef.current = true; setPreviewTask(task); }
     }
   }, [tasks, location.search]);
 
@@ -633,6 +636,20 @@ function CedulasAplicacion() {
     document.body.classList.remove('ca-printing');
   };
 
+  // ── Cerrar viewer (back-aware) ────────────────────────────────────────────
+  const handleCloseViewer = () => {
+    const viaUrl = openedViaUrlRef.current;
+    const scroll = savedScrollRef.current;
+    setPreviewTask(null);
+    setPreviewCedulaId(null);
+    openedViaUrlRef.current = false;
+    if (viaUrl) {
+      navigate(-1);
+    } else {
+      requestAnimationFrame(() => window.scrollTo({ top: scroll, behavior: 'instant' }));
+    }
+  };
+
   // ── PDF share ─────────────────────────────────────────────────────────────
   const handleShare = async () => {
     if (!docRef.current || !previewTask) return;
@@ -720,7 +737,7 @@ function CedulasAplicacion() {
                       </button>
                     )}
                     <button className="btn btn-secondary cedula-btn-preview"
-                      onClick={() => { setPreviewTask(task); setPreviewCedulaId(c.id); }}
+                      onClick={() => { openedViaUrlRef.current = false; savedScrollRef.current = window.scrollY; setPreviewTask(task); setPreviewCedulaId(c.id); }}
                       title="Ver Cédula de Aplicación">
                       <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
                     </button>
@@ -845,7 +862,7 @@ function CedulasAplicacion() {
             {cedula && (
               <button
                 className="btn btn-secondary cedula-btn-preview"
-                onClick={() => { setPreviewTask(task); setPreviewCedulaId(cedula.id); }}
+                onClick={() => { openedViaUrlRef.current = false; savedScrollRef.current = window.scrollY; setPreviewTask(task); setPreviewCedulaId(cedula.id); }}
                 title="Ver Cédula de Aplicación"
               >
                 <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
@@ -916,11 +933,15 @@ function CedulasAplicacion() {
 
       {/* ── PREVIEW MODAL ── */}
       {previewTask && createPortal(
-        <div className="ca-preview-backdrop" onClick={() => { setPreviewTask(null); setPreviewCedulaId(null); }}>
+        <div className="ca-preview-backdrop" onClick={handleCloseViewer}>
           <div className="ca-preview-container" onClick={e => e.stopPropagation()}>
 
             {/* Toolbar */}
             <div className="ca-preview-toolbar">
+              <button className="ca-preview-back-btn" onClick={handleCloseViewer} title="Volver">
+                <FiArrowLeft size={16} />
+                <span>Volver</span>
+              </button>
               <span className="ca-preview-toolbar-title">
                 Cédula de Aplicación — {previewTask.activityName}
                 {activeCedula && (
@@ -974,9 +995,6 @@ function CedulasAplicacion() {
                 </button>
                 <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={handlePrint}>
                   <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
-                </button>
-                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => { setPreviewTask(null); setPreviewCedulaId(null); }}>
-                  <FiX size={15} /> <span className="ca-toolbar-btn-text">Cerrar</span>
                 </button>
               </div>
             </div>
