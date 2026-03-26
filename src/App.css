@@ -272,6 +272,15 @@
   /* Este div contendrá el contenido específico de la página (las tarjetas, etc) */
 }
 
+/* SimpleLayout no tiene header ni nav inferior: necesita su propio scroll */
+@media (max-width: 768px) {
+  .SimpleApp {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* En mobile la sidebar desaparece y se usa MobileNav (barra inferior) */
 @media (max-width: 768px) {
   /* ── Layout de pantalla completa: el scroll ocurre dentro del content-area,

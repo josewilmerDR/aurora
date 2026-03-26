@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive } from 'react-icons/fi';
+import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu, FiChevronDown } from 'react-icons/fi';
 import './TaskTracking.css';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -61,6 +61,15 @@ function TaskTracking() {
   });
 
   const [openKebabId, setOpenKebabId] = useState(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+
+  const FILTER_LABELS = {
+    all: 'Todas',
+    overdue: 'Vencidas',
+    pending: 'Pendientes',
+    completed: 'Hechas',
+    unassigned: 'Sin Asignar',
+  };
 
   const fetchTasks = useCallback(() => {
     apiFetch('/api/tasks')
@@ -111,6 +120,16 @@ function TaskTracking() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [openKebabId]);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest('.filter-hamburger') && !e.target.closest('.filter-bar'))
+        setFilterMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [filterMenuOpen]);
 
   // Cargar lotes, usuarios, productos y plantillas cuando se abre el formulario
   useEffect(() => {
@@ -361,6 +380,38 @@ function TaskTracking() {
             <button onClick={() => handleFilterChange('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
             <button onClick={() => handleFilterChange('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
             <button onClick={() => handleFilterChange('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
+          </div>
+
+          {/* Barra de filtro mobile: [≡]  Etiqueta activa  [+] */}
+          <div className="filter-bar">
+            <button
+              className="filter-bar__menu-btn"
+              onClick={() => setFilterMenuOpen(o => !o)}
+              title="Filtrar"
+            >
+              <FiMenu size={17} />
+            </button>
+            <span className="filter-bar__label">{FILTER_LABELS[filter] ?? 'Todas'}</span>
+            <button
+              className="filter-bar__add-btn"
+              onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
+              title={showNewTask ? 'Cancelar' : 'Nueva Actividad'}
+            >
+              {showNewTask ? <FiX size={17} /> : <FiPlus size={17} />}
+            </button>
+            {filterMenuOpen && (
+              <div className="filter-bar__dropdown">
+                {Object.entries(FILTER_LABELS).map(([key, label]) => (
+                  <button
+                    key={key}
+                    className={`filter-hamburger__option${filter === key ? ' active' : ''}`}
+                    onClick={() => { handleFilterChange(key); setFilterMenuOpen(false); }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

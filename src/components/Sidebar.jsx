@@ -121,7 +121,7 @@ export const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${u
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const apiFetch = useApiFetch();
-  const { currentUser, logout } = useUser();
+  const { currentUser, firebaseUser, logout } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -167,11 +167,24 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   // Badge counts
   const refreshOverdueCount = useCallback(() => {
-    apiFetch('/api/tasks/overdue-count')
+    const archivedIds = new Set(
+      JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')
+    );
+    const today = new Date();
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    apiFetch('/api/tasks')
       .then((r) => r.json())
-      .then((data) => setTareasVencidasCount(data.count || 0))
+      .then((tasks) => {
+        const count = tasks.filter(t =>
+          t.type !== 'REMINDER_3_DAY' &&
+          !['completed_by_user', 'skipped'].includes(t.status) &&
+          !archivedIds.has(t.id) &&
+          new Date(new Date(t.dueDate).getFullYear(), new Date(t.dueDate).getMonth(), new Date(t.dueDate).getDate()) < todayDay
+        ).length;
+        setTareasVencidasCount(count);
+      })
       .catch(() => { });
-  }, [apiFetch]);
+  }, [apiFetch, firebaseUser?.uid]);
 
   useEffect(() => {
     apiFetch('/api/productos')

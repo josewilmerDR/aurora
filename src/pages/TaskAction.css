@@ -385,6 +385,78 @@
   opacity: 0.85;
 }
 
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .task-action-wrapper {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .task-action-card {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    padding: 20px 16px 32px;
+    max-width: 100%;
+  }
+
+  .task-action-card h1 {
+    font-size: 1.25rem;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+  }
+
+  /* Info grid: etiqueta encima del valor */
+  .task-info-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 20px;
+  }
+
+  .task-info-label {
+    margin-top: 12px;
+    margin-bottom: 2px;
+    font-size: 0.72rem;
+  }
+
+  .task-info-value {
+    font-size: 0.95rem;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--aurora-border);
+  }
+
+  .task-info-grid > :last-child {
+    border-bottom: none;
+  }
+
+  /* Tabla de receta: scroll horizontal */
+  .recipe-panel {
+    padding: 14px 12px;
+    overflow-x: auto;
+  }
+
+  .recipe-table {
+    min-width: 320px;
+    font-size: 0.83rem;
+  }
+
+  .recipe-table th,
+  .recipe-table td {
+    padding: 6px 8px;
+  }
+
+  /* Botones de acción: se apilan en columna */
+  .action-buttons-row {
+    flex-direction: column;
+  }
+
+  .btn-action {
+    width: 100%;
+    padding: 12px;
+  }
+}
+
 /* States */
 .task-action-state {
   min-height: 100vh;

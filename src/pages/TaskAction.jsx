@@ -35,7 +35,7 @@ const TaskAction = () => {
       try {
         const res = await fetch('/api/users');
         const data = await res.json();
-        setUsers(data);
+        setUsers(Array.isArray(data) ? data : []);
       } catch (_) {}
     };
 
@@ -246,7 +246,7 @@ const TaskAction = () => {
           <div className="task-actions-section">
             <h2>Acciones</h2>
 
-            {!isCompleted && (
+            {!isCompleted && !isAplicacion && (
               <button className="btn-complete" onClick={handleCompleteTask} disabled={saving}>
                 {saving ? 'Guardando…' : '✓ Marcar como Hecha'}
               </button>
@@ -255,12 +255,14 @@ const TaskAction = () => {
             <div className="action-buttons-row">
               {!isCompleted && (
                 <>
-                  <button
-                    className={`btn-action reschedule ${action === 'reschedule' ? 'active' : ''}`}
-                    onClick={() => setAction(action === 'reschedule' ? null : 'reschedule')}
-                  >
-                    📅 Reprogramar
-                  </button>
+                  {!isAplicacion && (
+                    <button
+                      className={`btn-action reschedule ${action === 'reschedule' ? 'active' : ''}`}
+                      onClick={() => setAction(action === 'reschedule' ? null : 'reschedule')}
+                    >
+                      📅 Reprogramar
+                    </button>
+                  )}
                   <button
                     className={`btn-action reassign ${action === 'reassign' ? 'active' : ''}`}
                     onClick={() => setAction(action === 'reassign' ? null : 'reassign')}
@@ -287,7 +289,7 @@ const TaskAction = () => {
               )}
             </div>
 
-            {!isCompleted && action === 'reschedule' && (
+            {!isCompleted && !isAplicacion && action === 'reschedule' && (
               <div className="action-panel">
                 <label>Nueva fecha</label>
                 <input
