@@ -318,6 +318,21 @@
   background: var(--aurora-dark-blue);
 }
 
+/* ── Pin button (desktop only) ───────────────────────────────────────────────── */
+.aurora-chat-pin-btn {
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+}
+.aurora-chat-pin-btn:hover { opacity: 0.8; }
+.aurora-chat-pin-btn.pinned {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+@media (max-width: 480px) {
+  .aurora-chat-pin-btn { display: none; }
+}
+
 /* ── Responsive: mobile ─────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .aurora-chat-panel {

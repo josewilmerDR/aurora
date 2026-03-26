@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiStar, FiGrid, FiSettings, FiLogOut, FiChevronDown, FiChevronRight,
+  FiHome, FiStar, FiGrid, FiSettings, FiLogOut, FiChevronDown, FiChevronRight,
   FiClock, FiSliders, FiX,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
@@ -142,12 +142,7 @@ export default function MobileNav() {
   // ── Sheet: Todas ──────────────────────────────────────────────────────────
   const TodasSheet = () => (
     <>
-      {canAccess(DASHBOARD_ITEM) && (
-        <div className="mn-sheet-section">
-          <NavItem item={DASHBOARD_ITEM} showPin />
-        </div>
-      )}
-      {MODULES.map((mod) => {
+{MODULES.map((mod) => {
         const visibleItems = mod.items.filter(canAccess);
         if (!visibleItems.length) return null;
         const expanded = expandedMods.has(mod.id);
@@ -220,6 +215,15 @@ export default function MobileNav() {
 
       {/* Bottom nav bar */}
       <nav className="mn-bar">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `mn-tab${isActive ? ' active' : ''}`}
+          onClick={() => setSheet(null)}
+        >
+          <FiHome size={22} />
+          <span>Home</span>
+        </NavLink>
         <button
           className={`mn-tab${sheet === 'favoritos' ? ' active' : ''}`}
           onClick={() => handleTabPress('favoritos')}

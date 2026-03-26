@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiGrid, FiPackage, FiUsers, FiArchive,
+  FiHome, FiGrid, FiPackage, FiUsers, FiArchive,
   FiDroplet, FiFileText, FiShoppingCart, FiTruck, FiLogOut, FiPlusCircle,
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
@@ -13,7 +13,7 @@ import { useApiFetch } from '../hooks/useApiFetch';
 import './Sidebar.css';
 
 // ─── Module definitions ───────────────────────────────────────────────────────
-export const DASHBOARD_ITEM = { label: 'Panel de Control', to: '/', icon: FiGrid, minRole: 'trabajador' };
+export const DASHBOARD_ITEM = { label: 'Home', to: '/', icon: FiHome, minRole: 'trabajador' };
 
 export const MODULES = [
   {
