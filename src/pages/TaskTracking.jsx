@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu, FiChevronDown } from 'react-icons/fi';
 import './TaskTracking.css';
 import Toast from '../components/Toast';
@@ -289,7 +289,13 @@ function TaskTracking() {
     <div
       key={task.id}
       className={`task-row ${task.displayStatus.className}`}
-      onClick={() => task.type === 'PLANILLA_PAGO' ? navigate('/hr/planilla/fijo') : navigate(`/task/${task.id}`)}
+      onClick={() => {
+        if (task.type === 'PLANILLA_PAGO') return navigate('/hr/planilla/fijo');
+        if (task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) {
+          return navigate(`/aplicaciones/cedulas?open=${task.id}`);
+        }
+        navigate(`/task/${task.id}`);
+      }}
     >
       <span className="task-row__dot" title={task.displayStatus.text} />
       <span className="task-row__name">{task.activityName}</span>
@@ -310,14 +316,9 @@ function TaskTracking() {
           <span className="task-aplicacion-tag" style={{ background: 'rgba(51,255,153,0.15)', color: 'var(--aurora-green)', border: '1px solid var(--aurora-green)' }}>💰 Planilla</span>
         )}
         {(task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) && (
-          <Link
-            to={`/aplicaciones/cedulas?open=${task.id}`}
-            className="task-cedula-link"
-            onClick={e => e.stopPropagation()}
-            title="Ver Cédula de Aplicación"
-          >
+          <span className="task-cedula-link" title="Ver Cédula de Aplicación">
             <FiFileText size={12} /> Cédula
-          </Link>
+          </span>
         )}
       </div>
       <span className="task-row__date">
