@@ -331,7 +331,8 @@
   }
   .app-header-search-back   { display: none; }
   .app-header-search-toggle { display: none; }
-  .main-search-bar          { flex: 1; }
+  .main-search-bar          { flex: 1; min-width: 0; }
+  .main-search-bar input    { min-width: 0; }
 
   .app-header-profile-name { display: none; }
   .app-header-profile-btn {
@@ -341,7 +342,7 @@
 
   .main-header { flex-wrap: wrap; }
   .main-header h1 { font-size: 1.5rem; }
-  .main-search-bar { flex-basis: 100%; }
+  .main-header .main-search-bar { flex-basis: 100%; }
 }
 
 @keyframes mobileSearchIn {
