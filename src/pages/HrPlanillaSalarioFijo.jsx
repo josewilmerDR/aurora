@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './HR.css';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiMail, FiThumbsUp } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiMail, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
@@ -9,6 +9,7 @@ import { useUser } from '../contexts/UserContext';
 const CCSS_RATE = 0.1083;
 // Horas semanales por defecto si la ficha no tiene horario configurado
 const JORNADA_HORAS_DEFAULT = 48;
+const ESTADO_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
 
 const DIAS_HORARIO = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
 function calcHorasSemanales(horario = {}) {
@@ -64,16 +65,98 @@ function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesd
   return dias;
 }
 
+// Art. 140 Código de Trabajo CR: el mes se computa como 30 días.
+// Detecta si el período cubre un mes calendario completo (del 1 al último día del mes).
+function esMesCompleto(dias) {
+  if (!dias || dias.length === 0) return false;
+  const toD = (f) => f instanceof Date ? f : new Date(f);
+  const d1 = toD(dias[0].fecha);
+  const d2 = toD(dias[dias.length - 1].fecha);
+  const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
+  return (
+    d1.getDate() === 1 &&
+    d2.getMonth() === d1.getMonth() &&
+    d2.getFullYear() === d1.getFullYear() &&
+    d2.getDate() === ultimoDelMes
+  );
+}
+
+// Detecta si el período es una segunda quincena (del 16 al último día del mes).
+// La 2ª quincena siempre vale 15 días (= 30 − 15) bajo Art. 140 CT.
+function esSegundaQuincena(dias) {
+  if (!dias || dias.length === 0) return false;
+  const toD = (f) => f instanceof Date ? f : new Date(f);
+  const d1 = toD(dias[0].fecha);
+  const d2 = toD(dias[dias.length - 1].fecha);
+  const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
+  return (
+    d1.getDate() === 16 &&
+    d2.getDate() === ultimoDelMes &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getFullYear() === d2.getFullYear()
+  );
+}
+
+// Detecta empleados de nuevasFilas que ya aparecen en otras planillas (pendiente/aprobada/pagada)
+// con días que se solapan con el período actual. Devuelve lista de conflictos para mostrar al usuario.
+function detectarSolapamientos(nuevasFilas, planillas, editingId, fechaInicio, fechaFin) {
+  const ESTADOS = new Set(['pendiente', 'aprobada', 'pagada']);
+  const conflicts = [];
+  for (const planilla of planillas) {
+    if (planilla.id === editingId) continue;
+    if (!ESTADOS.has(planilla.estado)) continue;
+    const pI = planilla.periodoInicio?.substring(0, 10);
+    const pF = planilla.periodoFin?.substring(0, 10);
+    if (!pI || !pF || pI > fechaFin || pF < fechaInicio) continue;
+
+    for (const filaExistente of (planilla.filas || [])) {
+      if (!nuevasFilas.find(f => f.trabajadorId === filaExistente.trabajadorId)) continue;
+      const diasSolapados = (filaExistente.dias || []).filter(d => {
+        const s = typeof d.fecha === 'string' ? d.fecha.substring(0, 10) : null;
+        return s && s >= fechaInicio && s <= fechaFin;
+      }).map(d => d.fecha.substring(0, 10)).sort();
+      if (!diasSolapados.length) continue;
+
+      const d0 = new Date(diasSolapados[0] + 'T12:00:00');
+      const dN = new Date(diasSolapados[diasSolapados.length - 1] + 'T12:00:00');
+      const diasLabel = diasSolapados.length === 1
+        ? fmtShort(d0)
+        : `${fmtShort(d0)} – ${fmtShort(dN)}`;
+
+      const existing = conflicts.find(c => c.trabajadorId === filaExistente.trabajadorId);
+      const entry = { estado: planilla.estado, consecutivo: planilla.numeroConsecutivo || null, diasLabel };
+      if (existing) {
+        existing.detalle.push(entry);
+      } else {
+        conflicts.push({ trabajadorId: filaExistente.trabajadorId, trabajadorNombre: filaExistente.trabajadorNombre, detalle: [entry] });
+      }
+    }
+  }
+  return conflicts;
+}
+
 function recalcFila(fila) {
   const diario = fila.salarioDiario ?? (fila.salarioMensual / 30);
   // Valor-hora = salario mensual × 12 meses / 52 semanas / horas semanales
   const horasSemanales = Number(fila.horasSemanales) || JORNADA_HORAS_DEFAULT;
   const valorHora = (fila.salarioMensual * 12) / 52 / horasSemanales;
-  const salarioOrdinario = fila.dias.reduce((s, d) => {
+
+  // Aplicar convención de 30 días (Art. 140 CT CR):
+  // - Mes completo (1→último): objetivo = 30 días (día 31 no cuenta, febrero se completa)
+  // - 2ª quincena (16→último): objetivo = 15 días (día 16 en meses de 31 no cuenta, febrero se completa)
+  const mesCompleto       = esMesCompleto(fila.dias);
+  const segQuincena       = !mesCompleto && esSegundaQuincena(fila.dias);
+  const aplicarConvencion = mesCompleto || segQuincena;
+  const diasObjetivo      = mesCompleto ? 30 : 15;
+  const calDias           = fila.dias.length;
+  const salarioDiasReales = fila.dias.reduce((s, d, idx) => {
     if (d.ausente) return s;
+    if (aplicarConvencion && calDias > diasObjetivo && idx >= diasObjetivo) return s;
     const deduccionParcial = (d.horasParciales || 0) * valorHora;
     return s + diario - deduccionParcial;
   }, 0);
+  const diasVirtuales = aplicarConvencion && calDias < diasObjetivo ? diasObjetivo - calDias : 0;
+  const salarioOrdinario = salarioDiasReales + diasVirtuales * diario;
   const salarioExtraordinario = fila.dias.reduce((s, d) => s + (Number(d.salarioExtra) || 0), 0);
   const salarioBruto        = salarioOrdinario + salarioExtraordinario;
   const deduccionCCSS       = salarioBruto * CCSS_RATE;
@@ -121,6 +204,9 @@ function HrPlanillaSalarioFijo() {
   const [aprobarConfirmId, setAprobarConfirmId]     = useState(null);
   const [pagarConfirmId, setPagarConfirmId]         = useState(null);
   const [noEnviarComprobante, setNoEnviarComprobante] = useState(false);
+  const [solapamientos, setSolapamientos]           = useState(null); // null=ok, array=show warning modal
+  const [pendingFilas, setPendingFilas]             = useState(null);
+  const [confirmEmailSolap, setConfirmEmailSolap]   = useState('');
 
   const fetchPlanillas = () =>
     apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(setPlanillas).catch(console.error);
@@ -174,34 +260,16 @@ function HrPlanillaSalarioFijo() {
       const fichasMap = {};
       fichasArr.forEach(f => { fichasMap[f.userId] = f; });
 
-      // Build set of employee IDs already covered by an active planilla
-      // that overlaps with the current period (pendiente_pago or pagado).
-      // Overlap: existing.inicio <= periodoFin  &&  existing.fin >= periodoInicio
-      const ACTIVE = new Set(['pendiente_pago', 'pagado']);
-      const bloqueados = new Set();
-      planillas.forEach(p => {
-        if (!ACTIVE.has(p.estado)) return;
-        const pI = p.periodoInicio.substring(0, 10);
-        const pF = p.periodoFin.substring(0, 10);
-        if (pI <= fechaFin && pF >= fechaInicio) {
-          (p.filas || []).forEach(f => bloqueados.add(f.trabajadorId));
-        }
-      });
-
       const nuevasFilas = users
         .filter(u => {
           if (!u.empleadoPlanilla || !(Number(fichasMap[u.id]?.salarioBase) > 0)) return false;
-          // Exclude employees who haven't started before or on the last day of the period
           const fi = fichasMap[u.id]?.fechaIngreso;
           if (fi && fi > fechaFin) return false;
-          // Exclude employees already in an active overlapping planilla
-          if (bloqueados.has(u.id)) return false;
           return true;
         })
         .map(u => {
           const ficha          = fichasMap[u.id] || {};
           const fi             = ficha.fechaIngreso || '';
-          // If fechaIngreso falls inside the period, only count from that day
           const efectivoDesde  = fi && fi > fechaInicio ? fi : fechaInicio;
           const parcial        = efectivoDesde > fechaInicio;
           const horasSemanales = calcHorasSemanales(ficha.horarioSemanal);
@@ -221,17 +289,17 @@ function HrPlanillaSalarioFijo() {
           });
         });
 
-      if (bloqueados.size > 0) {
-        const excluidos = bloqueados.size;
-        const msg = nuevasFilas.length === 0
-          ? `Todos los empleados (${excluidos}) ya tienen planilla activa o pagada para este período.`
-          : `${excluidos} empleado(s) excluido(s) por tener planilla activa o pagada en este período.`;
-        showToast(msg, nuevasFilas.length === 0 ? 'error' : 'warning');
+      // Detect overlap with existing planillas (pendiente / aprobada / pagada)
+      const conflictos = detectarSolapamientos(nuevasFilas, planillas, editingId, fechaInicio, fechaFin);
+      if (conflictos.length > 0) {
+        setPendingFilas(nuevasFilas);
+        setSolapamientos(conflictos);
+        setConfirmEmailSolap('');
+      } else {
+        setFilas(nuevasFilas);
+        setLoaded(true);
+        setDetalleId(null);
       }
-
-      setFilas(nuevasFilas);
-      setLoaded(true);
-      setDetalleId(null);
     } catch {
       showToast('Error al cargar datos de empleados.', 'error');
     } finally {
@@ -288,7 +356,42 @@ function HrPlanillaSalarioFijo() {
       recalcFila({ ...f, deduccionesExtra: f.deduccionesExtra.filter((_, i) => i !== idx) })));
 
   const { label: periodoLabel, inicio: periodoInicio, fin: periodoFin, dias: periodoDias } = getPeriodo();
+  // Art. 140 CT: detectar si el período es un mes calendario completo (del 1 al último día del mes)
+  const esPeriodoMesCompleto = (() => {
+    if (!fechaInicio || !fechaFin) return false;
+    const d1 = new Date(fechaInicio + 'T12:00:00');
+    const d2 = new Date(fechaFin    + 'T12:00:00');
+    const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
+    return d1.getDate() === 1 &&
+           d2.getMonth() === d1.getMonth() &&
+           d2.getFullYear() === d1.getFullYear() &&
+           d2.getDate() === ultimoDelMes;
+  })();
+  const esPeriodoSegundaQuincena = (() => {
+    if (!fechaInicio || !fechaFin) return false;
+    const d1 = new Date(fechaInicio + 'T12:00:00');
+    const d2 = new Date(fechaFin    + 'T12:00:00');
+    const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
+    return d1.getDate() === 16 &&
+           d2.getMonth() === d1.getMonth() &&
+           d2.getFullYear() === d1.getFullYear() &&
+           d2.getDate() === ultimoDelMes;
+  })();
+  const diasEfectivos = esPeriodoMesCompleto ? 30 : esPeriodoSegundaQuincena ? 15 : periodoDias;
   const totalGeneral = filas.reduce((s, f) => s + Math.max(0, f.totalNeto), 0);
+
+  const handleConfirmarSolapamiento = () => {
+    if (confirmEmailSolap.trim().toLowerCase() !== (currentUser?.email || '').toLowerCase()) {
+      showToast('El correo ingresado no coincide con el usuario actual.', 'error');
+      return;
+    }
+    setFilas(pendingFilas);
+    setLoaded(true);
+    setDetalleId(null);
+    setSolapamientos(null);
+    setPendingFilas(null);
+    setConfirmEmailSolap('');
+  };
 
   const handleGuardar = async () => {
     if (!filas.length) { showToast('No hay empleados en la planilla.', 'error'); return; }
@@ -474,7 +577,12 @@ function HrPlanillaSalarioFijo() {
         {fechasValidas && (
           <div className="hr-periodo-preview">
             Período: <strong>{periodoLabel}</strong>
-            {' · '}Factor: <strong>{periodoDias}/30 días</strong>
+            {' · '}Factor: <strong>{diasEfectivos}/30 días</strong>
+            {(esPeriodoMesCompleto || esPeriodoSegundaQuincena) && periodoDias !== diasEfectivos && (
+              <span style={{ opacity: 0.55, fontSize: '0.8rem', marginLeft: 6 }}>
+                (mes calendario = 30 días · Art. 140 CT)
+              </span>
+            )}
           </div>
         )}
 
@@ -821,6 +929,61 @@ function HrPlanillaSalarioFijo() {
             <p>La planilla ha quedado en estado <strong>Pendiente</strong>.</p>
             <p className="planilla-modal-sub">Se ha enviado una notificación a los supervisores para su aprobación.</p>
             <button className="btn btn-primary" onClick={() => setConfirmModal(false)}>Entendido</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Solapamiento warning modal ── */}
+      {solapamientos && (
+        <div className="planilla-modal-overlay">
+          <div className="planilla-modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="planilla-modal-icon" style={{ color: '#ffc107' }}>
+              <FiAlertTriangle size={36} />
+            </div>
+            <h3>Empleados ya incluidos en planilla activa</h3>
+            <p>Los siguientes empleados ya han sido incluidos en una planilla para este período o días del período:</p>
+            <ul style={{ textAlign: 'left', margin: '8px 0 12px', padding: '0 0 0 18px', fontSize: '0.9rem', lineHeight: 1.9, color: 'var(--aurora-light)' }}>
+              {solapamientos.map(c => (
+                <li key={c.trabajadorId}>
+                  <strong>{c.trabajadorNombre}</strong>:{' '}
+                  {c.detalle.map((d, i) => (
+                    <span key={i}>
+                      {i > 0 && '; '}
+                      planilla en estado <em style={{ color: '#ffc107' }}>{ESTADO_LABELS[d.estado] || d.estado}</em>
+                      {d.consecutivo ? ` (${d.consecutivo})` : ''}, días: {d.diasLabel}
+                    </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+            <p className="planilla-modal-sub">
+              Su inclusión en esta planilla implicará un pago adicional por los mismos días. Si está seguro de continuar, escriba su correo de usuario y haga clic en <strong>Aceptar</strong>.
+            </p>
+            <input
+              type="email"
+              placeholder="Su correo de usuario"
+              value={confirmEmailSolap}
+              onChange={e => setConfirmEmailSolap(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleConfirmarSolapamiento()}
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '8px 12px',
+                borderRadius: 6, border: '1px solid var(--aurora-border)',
+                background: 'var(--aurora-dark-blue)', color: 'var(--aurora-light)',
+                fontSize: '0.95rem', marginBottom: 12,
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button className="btn btn-secondary" onClick={() => { setSolapamientos(null); setPendingFilas(null); setConfirmEmailSolap(''); }}>
+                Cancelar
+              </button>
+              <button
+                className="btn"
+                style={{ background: 'rgba(255,193,7,0.15)', color: '#ffc107', border: '1px solid rgba(255,193,7,0.4)' }}
+                onClick={handleConfirmarSolapamiento}
+              >
+                <FiAlertTriangle size={14} /> Aceptar de todas formas
+              </button>
+            </div>
           </div>
         </div>
       )}
