@@ -3267,7 +3267,7 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
 
       // Resolver nombre del aprobador
       let aprobadoPor = req.userEmail;
-      const userSnap = await db.collection('usuarios')
+      const userSnap = await db.collection('users')
         .where('email', '==', req.userEmail)
         .where('fincaId', '==', req.fincaId)
         .limit(1).get();
