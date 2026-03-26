@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2, FiBell } from 'react-icons/fi';
+import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2, FiBell, FiMapPin } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './AuroraChat.css';
@@ -54,17 +54,38 @@ export default function AuroraChat() {
   const [planillaDraftStates, setPlanillaDraftStates] = useState({});
   const [reminderBadge, setReminderBadge] = useState(0);
 
+  const [pinned, setPinned] = useState(() =>
+    localStorage.getItem('aurora_chat_pinned') === 'true'
+  );
+
   const fileRef = useRef(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
   const pendingRemindersRef = useRef([]);
   const openRef = useRef(open);
+  const panelRef = useRef(null);
+  const fabRef = useRef(null);
 
   const speechSupported = !!SpeechRecognition;
 
   // Mantener openRef sincronizado para accederlo dentro de efectos asíncronos
   useEffect(() => { openRef.current = open; }, [open]);
+
+  // Cerrar al hacer clic fuera del panel y del FAB (solo si no está fijado)
+  useEffect(() => {
+    if (!open || pinned) return;
+    const handler = (e) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target) &&
+        fabRef.current   && !fabRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open, pinned]);
 
   useEffect(() => {
     if (open) {
@@ -121,19 +142,6 @@ export default function AuroraChat() {
       })),
     ]);
   }, [open]);
-
-  // Listen for external open requests (e.g. from dashboard search bar)
-  useEffect(() => {
-    const handler = (e) => {
-      setOpen(true);
-      if (e.detail?.query) {
-        setInput(e.detail.query);
-        setTimeout(() => textareaRef.current?.focus(), 100);
-      }
-    };
-    window.addEventListener('aurora:open', handler);
-    return () => window.removeEventListener('aurora:open', handler);
-  }, []);
 
   const handleImageFile = async (e) => {
     const file = e.target.files[0];
@@ -198,6 +206,18 @@ export default function AuroraChat() {
       setThinking(false);
     }
   }, [input, image, thinking, messages, currentUser, apiFetch]);
+
+  // Listen for external open requests (e.g. from dashboard search bar)
+  useEffect(() => {
+    const handler = (e) => {
+      setOpen(true);
+      if (e.detail?.query) {
+        handleSend(e.detail.query);
+      }
+    };
+    window.addEventListener('aurora:open', handler);
+    return () => window.removeEventListener('aurora:open', handler);
+  }, [handleSend]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -445,12 +465,25 @@ export default function AuroraChat() {
   return (
     <>
       {open && (
-        <div className="aurora-chat-panel">
+        <div className="aurora-chat-panel" ref={panelRef}>
           <div className="aurora-chat-header">
             <span className="aurora-chat-header-title">✦ Aurora</span>
-            <button className="aurora-chat-btn" onClick={() => setOpen(false)} title="Cerrar">
-              <FiX size={16} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <button
+                className={`aurora-chat-btn aurora-chat-pin-btn${pinned ? ' pinned' : ''}`}
+                onClick={() => {
+                  const next = !pinned;
+                  setPinned(next);
+                  localStorage.setItem('aurora_chat_pinned', String(next));
+                }}
+                title={pinned ? 'Desfijar chat' : 'Fijar chat (mantener abierto)'}
+              >
+                <FiMapPin size={15} />
+              </button>
+              <button className="aurora-chat-btn" onClick={() => setOpen(false)} title="Cerrar">
+                <FiX size={16} />
+              </button>
+            </div>
           </div>
 
           <div className="aurora-chat-messages">
@@ -552,6 +585,7 @@ export default function AuroraChat() {
       )}
 
       <button
+        ref={fabRef}
         className={`aurora-chat-fab${open ? ' aurora-chat-fab-open' : ''}`}
         onClick={() => setOpen(o => !o)}
         title="Aurora AI"

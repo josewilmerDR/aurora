@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { FiMenu, FiUser, FiSearch, FiArrowLeft } from 'react-icons/fi';
-import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigate, Navigate, NavLink } from 'react-router-dom';
 import UserManagement from './pages/UserManagement';
 import PackageManagement from './pages/PackageManagement';
 import LoteManagement from './pages/LoteManagement';
@@ -157,6 +157,7 @@ const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useUser();
+  const [profileOpen, setProfileOpen] = useState(false);
   const { pendingReminders, dismissReminder } = useReminderPoller();
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
@@ -274,10 +275,10 @@ const MainLayout = () => {
         <button className="app-header-menu-btn" onClick={toggleCollapse} title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}>
           <FiMenu size={20} />
         </button>
-        <div className="app-header-brand">
+        <NavLink to="/" className="app-header-brand">
           <img src="/aurora-logo.png" alt="Aurora" className="app-header-logo" />
           <span className="app-header-name">Aurora</span>
-        </div>
+        </NavLink>
 
         {/* Buscador desktop + móvil expandido */}
         <div className="app-header-search" ref={wrapperRef}>
@@ -318,8 +319,8 @@ const MainLayout = () => {
         </button>
 
         <button
-          className="app-header-profile-btn"
-          onClick={() => navigate('/mi-perfil')}
+          className={`app-header-profile-btn${profileOpen ? ' active' : ''}`}
+          onClick={() => setProfileOpen(o => !o)}
           title="Mi perfil"
         >
           <FiUser size={17} />
@@ -338,6 +339,14 @@ const MainLayout = () => {
       <MobileNav />
       <AuroraChat />
       <ReminderNotification reminders={pendingReminders} onDismiss={dismissReminder} />
+
+      {/* ── Profile panel ── */}
+      {profileOpen && (
+        <div className="profile-panel-backdrop" onClick={() => setProfileOpen(false)} />
+      )}
+      <div className={`profile-panel${profileOpen ? ' open' : ''}`}>
+        <MiPerfil />
+      </div>
       {showPushPrompt && (
         <div className="push-prompt">
           <span className="push-prompt-text">¿Activar notificaciones para recordatorios?</span>
