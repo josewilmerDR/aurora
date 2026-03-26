@@ -17,7 +17,7 @@
 /* En móvil, el scroll ocurre dentro del content-area, no a nivel de documento.
    Esto hace que el header y la barra inferior sean totalmente independientes. */
 @media (max-width: 768px) {
-  html, body {
+  html, body, #root {
     height: 100%;
     overflow: hidden;
   }

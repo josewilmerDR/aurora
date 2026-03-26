@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useUser } from '../contexts/UserContext';
 import './Dashboard.css'; // Importamos los nuevos estilos del Dashboard
 
 function Dashboard() {
   const apiFetch = useApiFetch();
+  const { firebaseUser } = useUser();
   const [stats, setStats] = useState({ overdue: 0, pending: 0, completed: 0 });
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [lotes, setLotes] = useState([]);
@@ -29,11 +31,15 @@ function Dashboard() {
       apiFetch('/api/lotes').then(res => res.json()),
       apiFetch('/api/productos').then(res => res.json()),
     ]).then(([tasksData, lotesData, productosData]) => {
+      const archivedIds = new Set(
+        JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')
+      );
+
       const taskStats = { overdue: 0, pending: 0, completed: 0 };
       const pendingTasks = [];
 
       tasksData
-        .filter(task => task.type !== 'REMINDER_3_DAY' && task.status !== 'skipped')
+        .filter(task => task.type !== 'REMINDER_3_DAY' && task.status !== 'skipped' && !archivedIds.has(task.id))
         .forEach(task => {
             const status = getTaskStatus(task);
             if (status === 'completed') taskStats.completed++;
@@ -57,7 +63,7 @@ function Dashboard() {
       setError("No se pudieron cargar los datos del dashboard.");
       setLoading(false);
     });
-  }, []);
+  }, [firebaseUser?.uid]);
 
   if (loading) {
     return <div>Cargando...</div>;
