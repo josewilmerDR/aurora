@@ -1,201 +1,280 @@
-import { useState, useEffect } from 'react';
-import { FiSearch, FiFileText, FiChevronRight } from 'react-icons/fi';
+import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { FiFilter, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './HR.css';
-import './HrPlanillaPorUnidad.css';
+import './HistorialAplicaciones.css';
+
+const PAGE_SIZE = 50;
+
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 
 const fmtMoney = (n) =>
   n == null ? '—' : '₡' + Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtDate = (iso) =>
-  iso ? new Date(iso).toLocaleDateString('es-CR') : '—';
+const fmtNum = (n) =>
+  n == null ? '—' : Number(n).toLocaleString('es-CR');
 
 function HrHistorialPlanillaHoras() {
   const apiFetch = useApiFetch();
-  const [planillas, setPlanillas] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState('');
-  const [selectedId, setSelectedId] = useState(null);
+  const [rows,    setRows]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page,    setPage]    = useState(1);
+
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo,   setFilterTo]   = useState('');
+  const [sorts,      setSorts]      = useState([{ field: 'fecha', dir: 'desc' }]);
+  const [colFilters, setColFilters] = useState({});
+  const [filterPopover, setFilterPopover] = useState(null);
 
   useEffect(() => {
-    apiFetch('/api/hr/planilla-unidad')
+    apiFetch('/api/hr/planilla-unidad/historial')
       .then(r => r.json())
-      .then(data => {
-        setPlanillas(data.filter(p => p.estado === 'pagada'));
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      .then(data => { setRows(Array.isArray(data) ? data : []); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = planillas.filter(p => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      (p.consecutivo || '').toLowerCase().includes(q) ||
-      (p.encargadoNombre || '').toLowerCase().includes(q) ||
-      fmtDate(p.fecha).includes(q)
-    );
-  });
+  const filtered = useMemo(() => {
+    const activeCol = Object.entries(colFilters).filter(([, v]) => v.trim());
+    return rows.filter(row => {
+      if (filterFrom || filterTo) {
+        const d = row.fecha ? new Date(row.fecha) : null;
+        if (!d) return false;
+        if (filterFrom && d < new Date(filterFrom + 'T00:00:00')) return false;
+        if (filterTo   && d > new Date(filterTo   + 'T23:59:59')) return false;
+      }
+      for (const [field, val] of activeCol) {
+        const cell = row[field];
+        if (cell == null) return false;
+        if (!String(cell).toLowerCase().includes(val.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [rows, filterFrom, filterTo, colFilters]);
 
-  const selected = planillas.find(p => p.id === selectedId);
+  const sorted = useMemo(() => {
+    const active = sorts.filter(s => s.field);
+    if (!active.length) return filtered;
+    return [...filtered].sort((a, b) => {
+      for (const { field, dir } of active) {
+        const va = a[field] ?? '';
+        const vb = b[field] ?? '';
+        const cmp = typeof va === 'string' && typeof vb === 'string'
+          ? va.localeCompare(vb, 'es')
+          : va < vb ? -1 : va > vb ? 1 : 0;
+        if (cmp !== 0) return dir === 'desc' ? -cmp : cmp;
+      }
+      return 0;
+    });
+  }, [filtered, sorts]);
+
+  const visible = useMemo(() => sorted.slice(0, page * PAGE_SIZE), [sorted, page]);
+
+  const handleThSort = (field) => {
+    setSorts(prev => {
+      const next = [...prev];
+      next[0] = next[0].field === field
+        ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' }
+        : { field, dir: 'asc' };
+      return next;
+    });
+    setPage(1);
+  };
+
+  const openFilter = (e, field) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (filterPopover?.field === field) { setFilterPopover(null); return; }
+    const th = e.currentTarget.closest('th') ?? e.currentTarget;
+    const rect = th.getBoundingClientRect();
+    setFilterPopover({ field, x: rect.left, y: rect.bottom + 4 });
+  };
+
+  const setColFilter = (field, val) => {
+    setColFilters(prev =>
+      val ? { ...prev, [field]: val }
+          : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+    );
+    setPage(1);
+  };
+
+  const clearAllFilters = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
+
+  const SortTh = ({ field, children, className }) => {
+    const active    = sorts[0].field === field;
+    const dir       = active ? sorts[0].dir : null;
+    const hasFilter = !!(colFilters[field]?.trim());
+    return (
+      <th
+        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}${className ? ' ' + className : ''}`}
+        onClick={() => handleThSort(field)}
+        onContextMenu={e => openFilter(e, field)}
+      >
+        {children}
+        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span
+          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
+          onClick={e => openFilter(e, field)}
+          title="Filtrar columna (o clic derecho)"
+        >
+          <FiFilter size={10} />
+        </span>
+      </th>
+    );
+  };
+
+  if (loading) return <div className="empty-state">Cargando historial…</div>;
 
   return (
-    <div className="ficha-page-layout">
+    <>
+      <div className="historial-wrap">
 
-      {/* ── Left: detail of selected planilla ── */}
-      <div>
-        {!selected ? (
-          <div className="form-card">
-            <div className="empty-state" style={{ padding: '60px 0' }}>
-              <FiFileText size={40} style={{ opacity: 0.2, marginBottom: 16 }} />
-              <p style={{ marginTop: 0 }}>Selecciona una planilla de la lista para ver su detalle.</p>
+        {/* ── Controles de fecha ── */}
+        <div className="historial-controls">
+          <div className="historial-control-block">
+            <div className="historial-control-row">
+              <label className="historial-ctrl-label">Fecha de</label>
+              <input
+                type="date"
+                className="historial-date-input"
+                value={filterFrom}
+                onChange={e => { setFilterFrom(e.target.value); setPage(1); }}
+              />
+              <label className="historial-ctrl-label">a</label>
+              <input
+                type="date"
+                className="historial-date-input"
+                value={filterTo}
+                onChange={e => { setFilterTo(e.target.value); setPage(1); }}
+              />
+              {(filterFrom || filterTo) && (
+                <button className="btn btn-secondary historial-clear-btn" onClick={clearAllFilters}>
+                  Limpiar
+                </button>
+              )}
             </div>
           </div>
+        </div>
+
+        {/* ── Contador + aviso filtros de columna ── */}
+        <div className="historial-count">
+          {sorted.length === 0
+            ? 'Sin resultados para los filtros aplicados.'
+            : `Mostrando ${visible.length} de ${sorted.length} fila${sorted.length !== 1 ? 's' : ''}`
+          }
+          {Object.values(colFilters).some(v => v.trim()) && (
+            <button
+              className="historial-clear-col-filters"
+              onClick={() => { setColFilters({}); setPage(1); }}
+            >
+              <FiX size={11} /> Limpiar filtros de columna
+            </button>
+          )}
+        </div>
+
+        {/* ── Tabla ── */}
+        {sorted.length === 0 ? (
+          <div className="empty-state">No hay planillas aprobadas en el historial.</div>
         ) : (
-          <div className="form-card">
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--aurora-light)' }}>
-                  Planilla por Unidad / Hora
-                </div>
-                <div style={{ fontSize: '0.82rem', opacity: 0.55, marginTop: 2 }}>
-                  {selected.consecutivo || '—'} &nbsp;·&nbsp; {fmtDate(selected.fecha)} &nbsp;·&nbsp; {selected.encargadoNombre || '—'}
-                </div>
-              </div>
-              <span className="planilla-badge planilla-badge--pagada" style={{ marginLeft: 'auto' }}>Pagada</span>
-            </div>
-
-            {/* Segmentos */}
-            <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Segmentos de trabajo
-            </h3>
-            {(selected.segmentos || []).length === 0 ? (
-              <p style={{ opacity: 0.45, fontSize: '0.85rem' }}>Sin segmentos registrados.</p>
-            ) : (
-              <div className="planilla-hist-list" style={{ marginBottom: 24 }}>
-                <div className="planilla-hist-header" style={{ gridTemplateColumns: '1fr 1fr 1fr auto auto' }}>
-                  <div>Lote</div>
-                  <div>Labor</div>
-                  <div>Grupo</div>
-                  <div style={{ textAlign: 'right' }}>Avance</div>
-                  <div style={{ textAlign: 'right' }}>Costo/u</div>
-                </div>
-                {(selected.segmentos || []).map((seg, i) => (
-                  <div key={seg.id || i} className="planilla-hist-row" style={{ gridTemplateColumns: '1fr 1fr 1fr auto auto' }}>
-                    <div>{seg.loteNombre || '—'}</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.75 }}>{seg.labor || '—'}</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.75 }}>{seg.grupo || '—'}</div>
-                    <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.82rem' }}>
-                      {seg.avanceHa ? `${seg.avanceHa} ${seg.unidad || ''}`.trim() : '—'}
-                    </div>
-                    <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.82rem' }}>
-                      {seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Trabajadores */}
-            <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Detalle de trabajadores
-            </h3>
-            {(selected.trabajadores || []).length === 0 ? (
-              <p style={{ opacity: 0.45, fontSize: '0.85rem' }}>Sin trabajadores registrados.</p>
-            ) : (
-              <div className="planilla-hist-list">
-                <div className="planilla-hist-header" style={{ gridTemplateColumns: '1fr auto' }}>
-                  <div>Trabajador</div>
-                  <div style={{ textAlign: 'right' }}>Total neto</div>
-                </div>
-                {(selected.trabajadores || [])
-                  .filter(t => t.total > 0 || Object.values(t.cantidades || {}).some(v => v && Number(v) !== 0))
-                  .map((t, i) => (
-                    <div key={t.trabajadorId || i} className="planilla-hist-row" style={{ gridTemplateColumns: '1fr auto' }}>
-                      <div className="planilla-hist-periodo">{t.trabajadorNombre || '—'}</div>
-                      <div className="planilla-hist-total">{fmtMoney(t.total)}</div>
-                    </div>
+          <>
+            <div className="historial-table-wrap">
+              <table className="historial-table historial-table--wide">
+                <thead>
+                  <tr>
+                    {/* Identificación */}
+                    <SortTh field="consecutivo"     className="historial-th-group">N°</SortTh>
+                    <SortTh field="fecha"           className="historial-th-group">Fecha</SortTh>
+                    <SortTh field="encargadoNombre" className="historial-th-group">Encargado</SortTh>
+                    <SortTh field="aprobadoPor"     className="historial-th-group">Aprobado por</SortTh>
+                    {/* Segmento */}
+                    <SortTh field="loteNombre">Lote</SortTh>
+                    <SortTh field="grupo">Grupo</SortTh>
+                    <SortTh field="labor">Labor</SortTh>
+                    <SortTh field="avanceHa">Avance (Ha)</SortTh>
+                    <SortTh field="unidad">Unidad</SortTh>
+                    <SortTh field="costoUnitario">Costo Unitario</SortTh>
+                    {/* Trabajador */}
+                    <SortTh field="trabajadorNombre">Trabajador</SortTh>
+                    <SortTh field="cantidad">Cantidad</SortTh>
+                    <SortTh field="subtotal">Total</SortTh>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((row, idx) => (
+                    <tr key={row.id || idx}>
+                      <td className="historial-consecutivo">{row.consecutivo || '—'}</td>
+                      <td className="historial-td-nowrap">{fmtDate(row.fecha)}</td>
+                      <td className="historial-td-nowrap">{row.encargadoNombre || '—'}</td>
+                      <td className="historial-td-nowrap">{row.aprobadoPor    || '—'}</td>
+                      <td className="historial-td-nowrap">{row.loteNombre     || '—'}</td>
+                      <td>{row.grupo  || '—'}</td>
+                      <td>{row.labor  || '—'}</td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {row.avanceHa ? fmtNum(row.avanceHa) : '—'}
+                      </td>
+                      <td>{row.unidad || '—'}</td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {fmtMoney(row.costoUnitario)}
+                      </td>
+                      <td className="historial-td-nowrap">{row.trabajadorNombre || '—'}</td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {row.cantidad != null ? fmtNum(row.cantidad) : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {fmtMoney(row.subtotal)}
+                      </td>
+                    </tr>
                   ))}
-                <div className="planilla-hist-row" style={{ gridTemplateColumns: '1fr auto', borderTop: '1px solid var(--aurora-border)', marginTop: 4, paddingTop: 8 }}>
-                  <div style={{ fontWeight: 600 }}>Total general</div>
-                  <div style={{ fontWeight: 700, color: 'var(--aurora-green)', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmtMoney(selected.totalGeneral)}
-                  </div>
-                </div>
-              </div>
-            )}
+                </tbody>
+              </table>
+            </div>
 
-            {selected.observaciones && (
-              <div style={{ marginTop: 20, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 6, fontSize: '0.85rem', opacity: 0.75 }}>
-                <strong>Observaciones:</strong> {selected.observaciones}
+            {visible.length < sorted.length && (
+              <div className="historial-load-more">
+                <button className="btn btn-secondary" onClick={() => setPage(p => p + 1)}>
+                  Ver más — {sorted.length - visible.length} restante{sorted.length - visible.length !== 1 ? 's' : ''}
+                </button>
               </div>
             )}
-          </div>
+          </>
         )}
+
       </div>
 
-      {/* ── Right: searchable planilla list ── */}
-      <div className="empleados-panel">
-        <div className="empleados-panel-header">
-          <span>Planillas pagadas</span>
-          <span className="empleados-panel-count">{planillas.length}</span>
-        </div>
-
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--aurora-border)', position: 'relative' }}>
-          <FiSearch size={13} style={{ position: 'absolute', left: 22, top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-          <input
-            type="text"
-            placeholder="Buscar por encargado, fecha o N°..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width: '100%',
-              background: 'var(--aurora-dark-blue)',
-              border: '1px solid var(--aurora-border)',
-              borderRadius: 4,
-              color: 'var(--aurora-light)',
-              padding: '7px 10px 7px 28px',
-              fontSize: '0.85rem',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {loading ? (
-          <div style={{ padding: '20px 16px', opacity: 0.4, fontSize: '0.85rem', textAlign: 'center' }}>
-            Cargando...
-          </div>
-        ) : (
-          <ul className="empleados-list">
-            {filtered.map(p => (
-              <li
-                key={p.id}
-                className={`empleados-list-item${selectedId === p.id ? ' empleados-list-item--active' : ''}`}
-                onClick={() => setSelectedId(p.id)}
+      {/* ── Popover filtro de columna ── */}
+      {filterPopover && createPortal(
+        <>
+          <div className="historial-filter-backdrop" onClick={() => setFilterPopover(null)} />
+          <div
+            className="historial-filter-popover"
+            style={{ left: filterPopover.x, top: filterPopover.y }}
+          >
+            <FiFilter size={13} className="historial-filter-popover-icon" />
+            <input
+              autoFocus
+              className="historial-filter-input"
+              placeholder="Filtrar…"
+              value={colFilters[filterPopover.field] || ''}
+              onChange={e => setColFilter(filterPopover.field, e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
+            />
+            {colFilters[filterPopover.field] && (
+              <button
+                className="historial-filter-clear"
+                title="Limpiar filtro"
+                onClick={() => { setColFilter(filterPopover.field, ''); setFilterPopover(null); }}
               >
-                <div className="empleados-list-avatar" style={{ fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                  {p.consecutivo ? p.consecutivo.replace('PU-', '') : '—'}
-                </div>
-                <div className="empleados-list-info">
-                  <div className="empleados-list-name">{fmtDate(p.fecha)}</div>
-                  <div className="empleados-list-sub">
-                    {p.encargadoNombre || '—'} &nbsp;·&nbsp; {fmtMoney(p.totalGeneral)}
-                  </div>
-                </div>
-                <FiChevronRight size={14} style={{ opacity: 0.3, flexShrink: 0 }} />
-              </li>
-            ))}
-            {filtered.length === 0 && !loading && (
-              <li style={{ padding: '20px 16px', opacity: 0.4, fontSize: '0.85rem', textAlign: 'center' }}>
-                Sin resultados
-              </li>
+                <FiX size={13} />
+              </button>
             )}
-          </ul>
-        )}
-      </div>
-
-    </div>
+          </div>
+        </>,
+        document.body
+      )}
+    </>
   );
 }
 

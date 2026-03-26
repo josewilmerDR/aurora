@@ -3189,6 +3189,23 @@ app.get('/api/hr/planilla-unidad', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/hr/planilla-unidad/historial', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('hr_planilla_unidad_historial')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('aprobadoAt', 'desc')
+      .get();
+    const data = snap.docs.map(d => ({
+      id: d.id, ...d.data(),
+      fecha:      d.data().fecha?.toDate?.()?.toISOString()      || null,
+      aprobadoAt: d.data().aprobadoAt?.toDate?.()?.toISOString() || null,
+    }));
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener historial de planillas.' });
+  }
+});
+
 app.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
   try {
     const { fecha, encargadoId, encargadoNombre, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
@@ -3243,6 +3260,61 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
     if (totalGeneral !== undefined) update.totalGeneral = Number(totalGeneral);
     if (estado !== undefined) update.estado = estado;
     if (observaciones !== undefined) update.observaciones = observaciones;
+
+    // ── Snapshot al aprobar ────────────────────────────────────────────────────
+    if (estado === 'aprobada' && !ownership.doc.data().snapshotCreado) {
+      const doc = ownership.doc.data();
+
+      // Resolver nombre del aprobador
+      let aprobadoPor = req.userEmail;
+      const userSnap = await db.collection('usuarios')
+        .where('email', '==', req.userEmail)
+        .where('fincaId', '==', req.fincaId)
+        .limit(1).get();
+      if (!userSnap.empty) aprobadoPor = userSnap.docs[0].data().nombre;
+
+      const aprobadoAt = Timestamp.now();
+      const segs    = doc.segmentos   || [];
+      const workers = doc.trabajadores || [];
+      const batch = db.batch();
+
+      workers.forEach(worker => {
+        segs.forEach(seg => {
+          const cantidad = Number(worker.cantidades?.[seg.id]) || 0;
+          if (cantidad <= 0) return;
+          const costoUnitario = Number(seg.costoUnitario) || 0;
+          const ref = db.collection('hr_planilla_unidad_historial').doc();
+          batch.set(ref, {
+            fincaId:          req.fincaId,
+            planillaId:       req.params.id,
+            consecutivo:      doc.consecutivo   || '',
+            fecha:            doc.fecha         || null,   // Timestamp
+            encargadoNombre:  doc.encargadoNombre || '',
+            aprobadoPor,
+            aprobadoAt,
+            observaciones:    doc.observaciones || '',
+            totalGeneral:     Number(doc.totalGeneral) || 0,
+            // Segmento
+            loteNombre:       seg.loteNombre   || '',
+            grupo:            seg.grupo        || '',
+            labor:            seg.labor        || '',
+            avanceHa:         Number(seg.avanceHa) || 0,
+            unidad:           seg.unidad       || '',
+            costoUnitario,
+            // Trabajador
+            trabajadorId:     worker.trabajadorId   || '',
+            trabajadorNombre: worker.trabajadorNombre || '',
+            cantidad,
+            subtotal:         cantidad * costoUnitario,
+            totalTrabajador:  Number(worker.total) || 0,
+          });
+        });
+      });
+
+      await batch.commit();
+      update.snapshotCreado = true;
+    }
+
     await db.collection('hr_planilla_unidad').doc(req.params.id).update(update);
     res.status(200).json({ message: 'Planilla actualizada.' });
   } catch (error) {
