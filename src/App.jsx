@@ -29,7 +29,6 @@ import HrFicha from './pages/HrFicha';
 import HrAsistencia from './pages/HrAsistencia';
 import HrHorasExtra from './pages/HrHorasExtra';
 import HrPermisos from './pages/HrPermisos';
-import HrPlanilla from './pages/HrPlanilla';
 import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
 import HrPlanillaReporte from './pages/HrPlanillaReporte';
 import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
@@ -429,7 +428,6 @@ function App() {
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
             <Route path="/compras" element={<RoleRoute path="/compras"><InvoiceScan /></RoleRoute>} />
-            <Route path="/hr/planilla" element={<RoleRoute path="/hr/planilla"><HrPlanilla /></RoleRoute>} />
             <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
             <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorHora /></RoleRoute>} />
             <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaHoras /></RoleRoute>} />
