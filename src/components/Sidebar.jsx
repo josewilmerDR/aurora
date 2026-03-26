@@ -66,7 +66,7 @@ export const MODULES = [
       { label: 'Horas Extra', to: '/hr/horas-extra', icon: FiClock, minRole: 'encargado' },
       { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },
       { label: 'Planilla', icon: FiDollarSign, minRole: 'encargado', children: [
-        { label: 'Salario Fijo / Mensual', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
+        { label: 'Fijo / Mensual', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
         { label: 'Por Hora / Unidad', to: '/hr/planilla/horas', icon: FiClock, minRole: 'encargado', draftKey: 'hr-planilla-unidad' },
         { label: 'Historial de Planilla', to: '/hr/planilla/horas/historial', icon: FiList, minRole: 'encargado' },
       ]},
