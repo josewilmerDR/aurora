@@ -1368,6 +1368,13 @@ button.collapsible-section-header:hover { opacity: 1; }
   border: 1px solid rgba(255, 193, 7, 0.3);
 }
 
+.planilla-badge--aprobada {
+  background: rgba(51, 153, 255, 0.12);
+  color: #5599ff;
+  border: 1px solid rgba(51, 153, 255, 0.3);
+}
+
+.planilla-badge--pagada,
 .planilla-badge--pagado {
   background: rgba(51, 255, 153, 0.12);
   color: var(--aurora-green);

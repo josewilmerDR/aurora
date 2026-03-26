@@ -13,6 +13,7 @@ export const ROLE_LEVELS = {
   trabajador: 1,
   encargado: 2,
   supervisor: 3,
+  rrhh: 3,
   administrador: 4,
 };
 
@@ -21,6 +22,7 @@ export const ROLE_LABELS = {
   trabajador: 'Trabajador',
   encargado: 'Encargado',
   supervisor: 'Supervisor',
+  rrhh: 'RR.HH.',
   administrador: 'Administrador',
 };
 

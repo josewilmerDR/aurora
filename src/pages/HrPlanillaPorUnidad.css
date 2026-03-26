@@ -20,10 +20,27 @@
 
 .pu-history-col {
   flex: 1;
-  min-width: 220px;
-  max-width: 280px;
+  min-width: 320px;
+  max-width: 400px;
   position: sticky;
   top: 16px;
+}
+
+/* ── Empty state (sin formulario activo) ─────────────────────────────────────── */
+.pu-empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 220px;
+  gap: 4px;
+}
+
+@media (max-width: 768px) {
+  .pu-empty-state-card {
+    display: none;
+  }
 }
 
 /* ── Panel de historial ──────────────────────────────────────────────────────── */

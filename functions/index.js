@@ -2962,7 +2962,7 @@ app.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
       periodoLabel: periodoLabel || '',
       filas,
       totalGeneral: Number(totalGeneral) || 0,
-      estado: 'pendiente_pago',
+      estado: 'pendiente',
       numeroConsecutivo,
       fincaId: req.fincaId,
       createdAt: Timestamp.now(),
@@ -3019,6 +3019,15 @@ app.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
 app.put('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
   try {
     const { estado, filas, totalGeneral, periodoInicio, periodoFin, periodoLabel } = req.body;
+
+    // Role checks for state transitions
+    const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(req.userRole);
+    const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
+    if (estado === 'aprobada' && !canAprobar)
+      return res.status(403).json({ message: 'No tienes permisos para aprobar planillas.' });
+    if (estado === 'pagada' && !canPagar)
+      return res.status(403).json({ message: 'No tienes permisos para pagar planillas.' });
+
     const update = { updatedAt: Timestamp.now() };
     if (estado) update.estado = estado;
     if (filas) {
@@ -3030,8 +3039,8 @@ app.put('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
     if (periodoLabel)  update.periodoLabel  = periodoLabel;
     await db.collection('hr_planilla_fijo').doc(req.params.id).update(update);
 
-    // If marking as pagado, complete the associated dashboard task
-    if (estado === 'pagado') {
+    // If marking as pagada, complete the associated dashboard task
+    if (estado === 'pagada') {
       const taskSnap = await db.collection('scheduled_tasks')
         .where('fincaId', '==', req.fincaId)
         .where('planillaId', '==', req.params.id)
@@ -3218,6 +3227,15 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const { fecha, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
+
+    // Role checks for state transitions
+    const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(req.userRole);
+    const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
+    if (estado === 'aprobada' && !canAprobar)
+      return res.status(403).json({ message: 'No tienes permisos para aprobar planillas.' });
+    if (estado === 'pagada' && !canPagar)
+      return res.status(403).json({ message: 'No tienes permisos para pagar planillas.' });
+
     const update = { updatedAt: Timestamp.now() };
     if (fecha !== undefined) update.fecha = Timestamp.fromDate(new Date(fecha + 'T12:00:00'));
     if (segmentos !== undefined) update.segmentos = segmentos;

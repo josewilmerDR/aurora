@@ -34,6 +34,7 @@ import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
 import HrPlanillaReporte from './pages/HrPlanillaReporte';
 import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
 import HrHistorialPagos from './pages/HrHistorialPagos';
+import HrHistorialPlanillaHoras from './pages/HrHistorialPlanillaHoras';
 import HrHistorial from './pages/HrHistorial';
 import HrDocumentos from './pages/HrDocumentos';
 import HrMemorandums from './pages/HrMemorandums';
@@ -76,7 +77,7 @@ const ROUTE_MIN_ROLE = {
   '/productos/todos': 'encargado',
   '/siembra/materiales': 'encargado',
   '/ordenes-compra/historial': 'encargado',
-  '/hr/planilla/fijo': 'supervisor',
+  '/hr/planilla/fijo': 'encargado',
   '/hr/planilla/horas': 'encargado',
 };
 
@@ -431,6 +432,7 @@ function App() {
             <Route path="/hr/planilla" element={<RoleRoute path="/hr/planilla"><HrPlanilla /></RoleRoute>} />
             <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
             <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorHora /></RoleRoute>} />
+            <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaHoras /></RoleRoute>} />
             <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPagos /></RoleRoute>} />
             <Route path="/hr/memorandums" element={<RoleRoute path="/hr/memorandums"><HrMemorandums /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
