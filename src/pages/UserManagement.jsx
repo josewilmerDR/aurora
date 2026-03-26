@@ -177,6 +177,7 @@ function UserManagement() {
                 <option value="trabajador">Trabajador</option>
                 <option value="encargado">Encargado</option>
                 <option value="supervisor">Supervisor</option>
+                <option value="rrhh">RR.HH.</option>
                 <option value="administrador">Administrador</option>
               </select>
             </div>

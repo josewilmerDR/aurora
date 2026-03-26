@@ -110,13 +110,16 @@ function HrHistorialPagos() {
                         {fila ? fmt(fila.totalNeto) : '—'}
                       </div>
                       <div>
-                        {p.estado === 'pagado' && (
-                          <span className="planilla-badge planilla-badge--pagado">Pagado</span>
-                        )}
-                        {p.estado === 'pendiente_pago' && (
+                        {p.estado === 'pendiente' && (
                           <span className="planilla-badge planilla-badge--pendiente">Pendiente</span>
                         )}
-                        {p.estado !== 'pagado' && p.estado !== 'pendiente_pago' && (
+                        {p.estado === 'aprobada' && (
+                          <span className="planilla-badge planilla-badge--aprobada">Aprobada</span>
+                        )}
+                        {(p.estado === 'pagada' || p.estado === 'pagado') && (
+                          <span className="planilla-badge planilla-badge--pagada">Pagada</span>
+                        )}
+                        {!['pendiente', 'aprobada', 'pagada', 'pagado'].includes(p.estado) && (
                           <span className="planilla-badge planilla-badge--otro">{p.estado}</span>
                         )}
                       </div>

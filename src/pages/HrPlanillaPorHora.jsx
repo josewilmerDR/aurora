@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye, FiEdit2 } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye, FiEdit2, FiThumbsUp, FiCheckCircle, FiFileText } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
@@ -293,6 +293,9 @@ function HrPlanillaPorHora() {
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
+  const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(currentUser?.rol);
+  const canPagar   = ['administrador', 'rrhh'].includes(currentUser?.rol);
+
   const [fecha, setFecha, clearFechaDraft] = useDraft('hr-planilla-fecha', todayStr);
   const [observaciones, setObservaciones, clearObsDraft] = useDraft('hr-planilla-observaciones', '');
   const [segmentos, setSegmentos, clearSegsDraft] = useDraft('hr-planilla-segmentos', () => [newSegmento()]);
@@ -321,8 +324,9 @@ function HrPlanillaPorHora() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const previewRef = useRef(null);
   const [removedWorkerIds, setRemovedWorkerIds] = useState([]);
-  const [historialTab, setHistorialTab] = useState('historial');
+  const [historialTab, setHistorialTab] = useState('pendientes');
   const [plantillas, setPlantillas] = useState([]);
+  const [showForm, setShowForm] = useState(false);
   const [showSavePlantilla, setShowSavePlantilla] = useState(false);
   const [nombrePlantilla, setNombrePlantilla] = useState('');
   const [savingPlantilla, setSavingPlantilla] = useState(false);
@@ -340,17 +344,18 @@ function HrPlanillaPorHora() {
   const fetchHistorial = useCallback(() => {
     apiFetch('/api/hr/planilla-unidad')
       .then(r => r.json())
-      .then(data => setHistorial(data.slice(0, 12)))
+      .then(data => setHistorial(data.filter(p => p.estado !== 'pagada').slice(0, 12)))
       .catch(console.error);
   }, []);
 
   const fetchPlantillas = useCallback(() => {
-    if (!currentUser?.userId) return;
-    apiFetch(`/api/hr/plantillas-planilla?encargadoId=${currentUser.userId}`)
+    const encId = currentUser?.userId || currentUser?.uid;
+    if (!encId) return;
+    apiFetch(`/api/hr/plantillas-planilla?encargadoId=${encId}`)
       .then(r => r.json())
       .then(setPlantillas)
       .catch(console.error);
-  }, [currentUser?.userId]);
+  }, [currentUser?.userId, currentUser?.uid]);
 
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
@@ -383,6 +388,7 @@ function HrPlanillaPorHora() {
       return next;
     });
     markDraftActive(DRAFT_FORM_KEY);
+    setShowForm(true);
     showToast('Planilla cargada desde Aurora. Revisa y guarda cuando esté lista.');
     // Clear state so reload doesn't re-apply
     window.history.replaceState({}, '');
@@ -390,19 +396,24 @@ function HrPlanillaPorHora() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser?.userId) return;
-    apiFetch(`/api/hr/subordinados?encargadoId=${currentUser.userId}`)
+    const isAdmin = currentUser?.rol === 'administrador';
+    if (!isAdmin && !currentUser?.userId) return;
+    const url = isAdmin
+      ? '/api/users'
+      : `/api/hr/subordinados?encargadoId=${currentUser.userId}`;
+    apiFetch(url)
       .then(r => r.json())
       .then(data => {
-        setTrabajadores([...data].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
+        const empleados = isAdmin ? data.filter(u => u.empleadoPlanilla) : data;
+        setTrabajadores([...empleados].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
         setCantidades(prev => {
           const next = { ...prev };
-          data.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
+          empleados.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
           return next;
         });
       })
       .catch(console.error);
-  }, [currentUser?.userId]);
+  }, [currentUser?.userId, currentUser?.rol]);
 
   // Moves focus to the same field in the next/prev segment (horizontal — kept for worker rows)
   const makeTabHandler = (segId, refsObj) => (e) => {
@@ -491,14 +502,15 @@ function HrPlanillaPorHora() {
   const totalGeneral = () => visibleWorkers.reduce((sum, t) => sum + workerTotal(t.id), 0);
 
   const handleGuardar = async (estado) => {
-    if (!currentUser?.userId) {
+    const encId = currentUser?.userId || currentUser?.uid;
+    if (!encId) {
       showToast('Tu cuenta no está vinculada a un perfil de empleado en el sistema.', 'error');
       return;
     }
     setGuardando(true);
     const body = {
       fecha,
-      encargadoId: currentUser.userId,
+      encargadoId: encId,
       encargadoNombre: currentUser.nombre || '',
       segmentos,
       trabajadores: visibleWorkers.map(t => ({
@@ -535,6 +547,7 @@ function HrPlanillaPorHora() {
       setFillAll({});
       setRemovedWorkerIds([]);
       showToast(estado === 'borrador' ? 'Borrador guardado.' : 'Planilla guardada correctamente.');
+      setShowForm(false);
       fetchHistorial();
     } catch {
       showToast('Error al guardar la planilla.', 'error');
@@ -617,7 +630,37 @@ function HrPlanillaPorHora() {
     }
   };
 
-  const EDITABLE_STATES = ['borrador', 'pendiente_pago'];
+  const EDITABLE_STATES = ['borrador', 'pendiente'];
+
+  const handleAprobar = async (p, e) => {
+    e.stopPropagation();
+    try {
+      const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'aprobada' }),
+      });
+      if (!res.ok) throw new Error();
+      showToast('Planilla aprobada.');
+      fetchHistorial();
+    } catch {
+      showToast('Error al aprobar la planilla.', 'error');
+    }
+  };
+
+  const handlePagar = async (p, e) => {
+    e.stopPropagation();
+    try {
+      const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'pagada' }),
+      });
+      if (!res.ok) throw new Error();
+      showToast('Planilla marcada como pagada.');
+      fetchHistorial();
+    } catch {
+      showToast('Error al pagar la planilla.', 'error');
+    }
+  };
 
   const handleEliminar = async (p, e) => {
     e.stopPropagation();
@@ -640,7 +683,8 @@ function HrPlanillaPorHora() {
 
   const handleGuardarPlantilla = async () => {
     const nombre = nombrePlantilla.trim();
-    if (!nombre || !currentUser?.userId) return;
+    const encId = currentUser?.userId || currentUser?.uid;
+    if (!nombre || !encId) return;
     setSavingPlantilla(true);
     try {
       const res = await apiFetch('/api/hr/plantillas-planilla', {
@@ -650,7 +694,7 @@ function HrPlanillaPorHora() {
         nombre,
         segmentos,
         trabajadores: visibleWorkers.map(t => ({ trabajadorId: t.id, cantidades: cantidades[t.id] || {} })),
-        encargadoId: currentUser.userId,
+        encargadoId: encId,
       }),
       });
       if (!res.ok) throw new Error();
@@ -700,7 +744,7 @@ function HrPlanillaPorHora() {
     setFillAll({});
     setRemovedWorkerIds([]);
     markDraftActive(DRAFT_FORM_KEY);
-    document.querySelector('.pu-main-col')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setShowForm(true);
     showToast(`Plantilla "${p.nombre}" cargada.`);
   };
 
@@ -713,24 +757,23 @@ function HrPlanillaPorHora() {
       newCantidades[t.id] = saved?.cantidades || {};
     });
     setCantidades(newCantidades);
-    setFecha(p.fecha || todayStr());
+    setFecha(p.fecha ? p.fecha.split('T')[0] : todayStr());
     setObservaciones(p.observaciones || '');
     setPlanillaId(p.id);
     setConsecutivo(p.consecutivo);
     setFillAll({});
     setRemovedWorkerIds([]);
     markDraftActive(DRAFT_FORM_KEY);
-    // Scroll form into view
-    document.querySelector('.pu-main-col')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setShowForm(true);
   };
 
   const CONFIG_ROWS = 6; // lote, labor, grupo, avance, unidad, costo
 
-  const ESTADO_LABEL = { borrador: 'Borrador', pendiente_pago: 'Pendiente', pagado: 'Pagado' };
-  const ESTADO_CLASS = { borrador: 'pendiente', pendiente_pago: 'warning', pagado: 'active' };
+  const ESTADO_LABEL = { borrador: 'Borrador', pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
+  const ESTADO_CLASS = { borrador: 'otro', pendiente: 'pendiente', aprobada: 'aprobado', pagada: 'active' };
 
   return (
-    <div className="pu-page-layout">
+    <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* ── Vista previa de planilla ── */}
@@ -955,8 +998,27 @@ function HrPlanillaPorHora() {
         </div>
       )}
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        {!showForm && (
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <FiPlus size={15} /> Nueva planilla
+          </button>
+        )}
+      </div>
+
+      <div className="pu-page-layout">
       {/* ── Columna principal (3/4) ── */}
-      <div className="pu-main-col">
+      {!showForm && (
+        <div className="pu-main-col">
+          <div className="form-card pu-empty-state-card">
+            <FiFileText size={36} style={{ opacity: 0.2, marginBottom: 12 }} />
+            <p style={{ margin: 0, opacity: 0.5, fontSize: '0.95rem' }}>
+              Edita una planilla existente o crea una nueva en el botón <strong>"Nueva planilla"</strong>.
+            </p>
+          </div>
+        </div>
+      )}
+      {showForm && <div className="pu-main-col">
 
       {/* ── Sección 1: Encabezado (Fecha + Encargado) ── */}
       <div className="form-card pu-section-card pu-section-header-card">
@@ -966,7 +1028,7 @@ function HrPlanillaPorHora() {
             {consecutivo && <span className="status-badge status-badge--pendiente" style={{ marginLeft: 10 }}>{consecutivo}</span>}
           </h2>
         </div>
-        {currentUser && !currentUser.userId && (
+        {currentUser && !currentUser.userId && currentUser.rol !== 'administrador' && (
           <div className="pu-warning">
             Tu cuenta no está vinculada a un perfil de empleado. Pide a un administrador que registre tu usuario con el mismo correo.
           </div>
@@ -1307,7 +1369,7 @@ function HrPlanillaPorHora() {
           <button className="btn btn-secondary" onClick={() => handleGuardar('borrador')} disabled={guardando}>
             Guardar borrador
           </button>
-          <button className="btn btn-primary" onClick={() => handleGuardar('pendiente_pago')} disabled={guardando || trabajadores.length === 0}>
+          <button className="btn btn-primary" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
             <FiSave size={15} />
             {guardando ? 'Guardando…' : 'Guardar planilla'}
           </button>
@@ -1323,6 +1385,7 @@ function HrPlanillaPorHora() {
               setConsecutivo(null);
               setFillAll({});
               setRemovedWorkerIds([]);
+              setShowForm(false);
             }}
             disabled={guardando}
           >
@@ -1330,7 +1393,7 @@ function HrPlanillaPorHora() {
           </button>
         </div>
       </div>
-      </div>{/* /pu-main-col */}
+      </div>}{/* /pu-main-col */}
 
       {/* ── Panel lateral: Historial / Plantillas ── */}
       <div className="pu-history-col">
@@ -1339,10 +1402,10 @@ function HrPlanillaPorHora() {
           {/* Tabs */}
           <div className="pu-panel-tabs">
             <button
-              className={`pu-panel-tab${historialTab === 'historial' ? ' pu-panel-tab--active' : ''}`}
-              onClick={() => setHistorialTab('historial')}
+              className={`pu-panel-tab${historialTab === 'pendientes' ? ' pu-panel-tab--active' : ''}`}
+              onClick={() => setHistorialTab('pendientes')}
             >
-              Historial
+              Pendientes
             </button>
             <button
               className={`pu-panel-tab${historialTab === 'plantillas' ? ' pu-panel-tab--active' : ''}`}
@@ -1350,18 +1413,18 @@ function HrPlanillaPorHora() {
             >
               Plantillas
             </button>
-            {historialTab === 'historial' && (
+            {historialTab === 'pendientes' && (
               <button className="icon-btn" onClick={fetchHistorial} title="Actualizar" style={{ marginLeft: 'auto' }}>
                 <FiRefreshCw size={14} />
               </button>
             )}
           </div>
 
-          {/* ── Tab Historial ── */}
-          {historialTab === 'historial' && (
+          {/* ── Tab Pendientes ── */}
+          {historialTab === 'pendientes' && (
             historial.length === 0 ? (
               <p className="empty-state" style={{ margin: '4px 0 0', fontSize: '0.82rem' }}>
-                No hay planillas guardadas.
+                No hay planillas para editar. Crea una dando click en el botón "Nueva planilla".
               </p>
             ) : (
               <ul className="pu-history-list">
@@ -1401,6 +1464,26 @@ function HrPlanillaPorHora() {
                             title="Eliminar planilla"
                           >
                             <FiTrash2 size={13} />
+                          </button>
+                        )}
+                        {p.estado === 'pendiente' && canAprobar && (
+                          <button
+                            className="pu-history-preview-btn"
+                            style={{ color: '#5599ff', borderColor: 'rgba(51,153,255,0.3)' }}
+                            onClick={e => handleAprobar(p, e)}
+                            title="Aprobar planilla"
+                          >
+                            <FiThumbsUp size={13} /> Aprobar
+                          </button>
+                        )}
+                        {p.estado === 'aprobada' && canPagar && (
+                          <button
+                            className="pu-history-preview-btn"
+                            style={{ color: 'var(--aurora-green)', borderColor: 'rgba(51,255,153,0.3)' }}
+                            onClick={e => handlePagar(p, e)}
+                            title="Pagar planilla"
+                          >
+                            <FiCheckCircle size={13} /> Pagar
                           </button>
                         )}
                         <button
@@ -1497,6 +1580,7 @@ function HrPlanillaPorHora() {
         </div>
       </div>
 
+      </div>{/* /pu-page-layout */}
     </div>
   );
 }
