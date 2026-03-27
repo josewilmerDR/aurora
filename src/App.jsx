@@ -128,9 +128,11 @@ const routeTitles = {
 
 // --- Route guards ---
 const ProtectedRoute = ({ children }) => {
-  const { isLoggedIn, isLoading, needsOrgSelection } = useUser();
+  const { isLoggedIn, isLoading, needsOrgSelection, firebaseUser, activeFincaId, currentUser } = useUser();
   const location = useLocation();
-  if (isLoading) return <div className="app-loading">Cargando...</div>;
+  if (isLoading) return <div className="app-loading" />;
+  // Finca seleccionada pero perfil aún cargando: spinner en vez de redirigir a /login
+  if (firebaseUser && activeFincaId && !currentUser) return <div className="app-loading" />;
   if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   if (needsOrgSelection) return <OrgSelector />;
   return children;

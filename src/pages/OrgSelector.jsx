@@ -15,7 +15,7 @@ export default function OrgSelector() {
     <div className="login-page">
       <div className="login-card org-selector-card">
         <div className="login-logo">
-          <span className="login-logo-text">AU</span>
+          <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
           <span className="login-logo-label">Aurora</span>
         </div>
 

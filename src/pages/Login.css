@@ -461,3 +461,34 @@
 .login-back-btn:hover {
   opacity: 0.8;
 }
+
+/* Estado de carga tras autenticación con Google */
+.login-google-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 0 16px;
+  width: 100%;
+}
+
+.login-google-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(51, 255, 153, 0.2);
+  border-top-color: var(--aurora-green);
+  border-radius: 50%;
+  animation: login-google-spin 0.75s linear infinite;
+}
+
+@keyframes login-google-spin {
+  to { transform: rotate(360deg); }
+}
+
+.login-google-loading-text {
+  font-size: 0.875rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  text-align: center;
+}
