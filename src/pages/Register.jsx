@@ -25,6 +25,7 @@ export default function Register() {
   const [fincaNombre, setFincaNombre] = useState('');
   const [nombreAdmin, setNombreAdmin] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -107,19 +108,18 @@ export default function Register() {
 
   // Registrarse con Google (directo al paso 2)
   const handleGoogle = async () => {
-    setSubmitting(true);
+    setGoogleLoading(true);
     setError('');
     try {
       await signInWithPopup(auth, googleProvider);
-      setStep(2);
+      // Mantener estado de carga — el useEffect navegará o irá al paso 2 cuando needsSetup resuelva
     } catch (err) {
+      setGoogleLoading(false);
       if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
         setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
       } else if (err.code !== 'auth/popup-closed-by-user') {
         setError('No se pudo continuar con Google.');
       }
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -137,6 +137,12 @@ export default function Register() {
         </p>
 
         {step === 1 && (
+          googleLoading ? (
+            <div className="login-google-loading">
+              <div className="login-google-spinner" />
+              <p className="login-google-loading-text">Verificando cuenta...</p>
+            </div>
+          ) : (
           <>
             <button className="login-btn-google" onClick={handleGoogle} disabled={submitting}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -211,6 +217,7 @@ export default function Register() {
               </button>
             </form>
           </>
+          )
         )}
 
         {step === 2 && (
