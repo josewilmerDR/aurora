@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './HR.css';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiMail, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
@@ -187,10 +187,10 @@ function HrPlanillaSalarioFijo() {
   const canPagar   = ['administrador', 'rrhh'].includes(currentUser?.rol);
 
   const today = new Date();
-  const [fechaInicio, setFechaInicio] = useState(
-    new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
-  );
-  const [fechaFin, setFechaFin] = useState(today.toISOString().split('T')[0]);
+  const _y = today.getFullYear();
+  const _m = String(today.getMonth() + 1).padStart(2, '0');
+  const [fechaInicio, setFechaInicio] = useState(`${_y}-${_m}-01`);
+  const [fechaFin, setFechaFin]       = useState(`${_y}-${_m}-15`);
   const [loaded, setLoaded]         = useState(false);
   const [loading, setLoading]       = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -207,9 +207,15 @@ function HrPlanillaSalarioFijo() {
   const [solapamientos, setSolapamientos]           = useState(null); // null=ok, array=show warning modal
   const [pendingFilas, setPendingFilas]             = useState(null);
   const [confirmEmailSolap, setConfirmEmailSolap]   = useState('');
+  const [editarFechas, setEditarFechas]             = useState(false);
+  const [planillasLoaded, setPlanillasLoaded]       = useState(false);
+  const autoDateDone = useRef(false);
 
   const fetchPlanillas = () =>
-    apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(setPlanillas).catch(console.error);
+    apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(data => {
+      setPlanillas(data);
+      setPlanillasLoaded(true);
+    }).catch(console.error);
 
   useEffect(() => {
     Promise.all([
@@ -233,8 +239,30 @@ function HrPlanillaSalarioFijo() {
       setFechaFin(ff);
       setFilas(restored);
       setLoaded(true);
+      autoDateDone.current = true; // don't overwrite restored dates
     } catch { /* ignore */ }
   }, []);
+
+  // Auto-adjust default dates once planillas load:
+  // If today is day 16+ AND a planilla for the 1–15 of this month already exists → switch to 16–last day.
+  useEffect(() => {
+    if (!planillasLoaded || autoDateDone.current || loaded) return;
+    autoDateDone.current = true;
+    const t = new Date();
+    if (t.getDate() < 16) return; // keep 1–15 default
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const existe1a15 = planillas.some(p => {
+      const pI = p.periodoInicio?.substring(0, 10);
+      const pF = p.periodoFin?.substring(0, 10);
+      return pI === `${y}-${m}-01` && pF === `${y}-${m}-15`;
+    });
+    if (existe1a15) {
+      const lastDay = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+      setFechaInicio(`${y}-${m}-16`);
+      setFechaFin(`${y}-${m}-${String(lastDay).padStart(2, '0')}`);
+    }
+  }, [planillasLoaded, loaded]);
 
   const getPeriodo = () => {
     const inicio = new Date(fechaInicio + 'T12:00:00');
@@ -561,14 +589,19 @@ function HrPlanillaSalarioFijo() {
         <div className="planilla-config-bar">
           <div className="form-control">
             <label>Fecha inicio</label>
-            <input type="date" value={fechaInicio}
+            <input type="date" value={fechaInicio} disabled={!editarFechas}
               onChange={e => handleFechaChange('inicio', e.target.value)} />
           </div>
           <div className="form-control">
             <label>Fecha fin</label>
-            <input type="date" value={fechaFin}
+            <input type="date" value={fechaFin} disabled={!editarFechas}
               onChange={e => handleFechaChange('fin', e.target.value)} />
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.88rem', color: 'var(--aurora-light)', alignSelf: 'flex-end', marginBottom: 4, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+            <input type="checkbox" checked={editarFechas} onChange={e => setEditarFechas(e.target.checked)}
+              style={{ accentColor: 'var(--aurora-green)', width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }} />
+            Editar fechas
+          </label>
           <button className="btn btn-primary planilla-config-btn" onClick={handleCargar}
             disabled={loading || !users.length || !fechasValidas}>
             <FiRefreshCw /> {loading ? 'Cargando...' : 'Previsualizar'}
@@ -592,7 +625,7 @@ function HrPlanillaSalarioFijo() {
             <div className="planilla-sum-section-divider" />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <span className="form-section-title" style={{ margin: 0 }}>Planilla — {periodoLabel}</span>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div className="planilla-header-actions-bar" style={{ display: 'flex', gap: 10 }}>
                 <button className="btn btn-secondary" title="Descartar y cerrar" onClick={() => {
                   setLoaded(false); setFilas([]); setDetalleId(null); setEditingId(null);
                   sessionStorage.removeItem('aurora_planilla_fijo_state');
