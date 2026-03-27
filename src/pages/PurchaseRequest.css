@@ -94,7 +94,7 @@
 }
 
 .pr-product-list::-webkit-scrollbar {
-  width: 5px;
+  width: 10px;
 }
 
 .pr-product-list::-webkit-scrollbar-track {

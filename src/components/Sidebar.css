@@ -151,7 +151,7 @@
 }
 
 .sidebar-links::-webkit-scrollbar {
-  width: 4px;
+  width: 8px;
 }
 .sidebar-links::-webkit-scrollbar-track {
   background: transparent;
