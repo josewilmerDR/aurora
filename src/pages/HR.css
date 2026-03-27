@@ -1455,3 +1455,135 @@ button.collapsible-section-header:hover { opacity: 1; }
   cursor: pointer;
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Mobile — Planilla Fija / Mensual (≤ 768 px)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Página ──────────────────────────────────────────────── */
+  .planilla-page-wrap { gap: 16px; }
+
+  /* ── Config bar: stack vertical ──────────────────────────── */
+  .planilla-config-bar { flex-direction: column; gap: 10px; }
+  .planilla-config-bar .form-control { min-width: 0; width: 100%; }
+  .planilla-config-btn { width: 100%; justify-content: center; }
+
+  /* ── Botones de acción (Cancelar / Previsualizar / Guardar) ─ */
+  .planilla-header-actions-bar { flex-wrap: wrap !important; gap: 8px !important; }
+  .planilla-header-actions-bar .btn { flex: 1; justify-content: center; font-size: 0.82rem; min-width: 0; }
+
+  /* ── Tabla resumen → tarjetas ─────────────────────────────── */
+  .planilla-sum-header { display: none; }
+  .planilla-sum-wrap   { overflow-x: visible; }
+
+  .planilla-sum-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    min-width: 0 !important;
+    padding: 12px 0;
+    row-gap: 2px;
+  }
+
+  /* Reset padding heredado del grid de escritorio */
+  .planilla-sum-row > div { padding: 0; }
+
+  /* Nombre: ocupa el espacio sobrante de la primera línea */
+  .planilla-sum-nombre {
+    order: 1;
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 8px;
+    font-size: 0.92rem;
+    border-bottom: 1px solid rgba(42, 74, 106, 0.5);
+    margin-bottom: 6px;
+    align-items: flex-start;
+  }
+
+  /* Botones editar/eliminar: primera línea junto al nombre */
+  .planilla-sum-actions { order: 1; flex: 0 0 auto; padding: 0; align-self: flex-start; }
+
+  /* Celdas de valor: cada una ocupa el 100 % → línea propia */
+  .planilla-sum-row > div:nth-child(2),
+  .planilla-sum-row > div:nth-child(3),
+  .planilla-sum-row > div:nth-child(4),
+  .planilla-sum-row > div:nth-child(5),
+  .planilla-sum-row > div:nth-child(6) {
+    order: 2;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 0.86rem;
+    text-align: right;
+  }
+
+  /* Etiquetas automáticas via ::before */
+  .planilla-sum-row > div:nth-child(2)::before { content: 'Ordinario'; }
+  .planilla-sum-row > div:nth-child(3)::before { content: 'Extraordinario'; }
+  .planilla-sum-row > div:nth-child(4)::before { content: 'Salario Bruto'; }
+  .planilla-sum-row > div:nth-child(5)::before { content: 'Deducciones'; }
+  .planilla-sum-row > div:nth-child(6)::before { content: 'Total Neto'; }
+
+  .planilla-sum-row > div:nth-child(2)::before,
+  .planilla-sum-row > div:nth-child(3)::before,
+  .planilla-sum-row > div:nth-child(4)::before,
+  .planilla-sum-row > div:nth-child(5)::before,
+  .planilla-sum-row > div:nth-child(6)::before {
+    color: var(--aurora-light);
+    opacity: 0.45;
+    font-size: 0.78rem;
+    text-align: left;
+    font-weight: 400;
+  }
+
+  /* Total Neto: resaltar */
+  .planilla-sum-neto {
+    font-weight: 700;
+    font-size: 0.92rem !important;
+    padding-top: 6px !important;
+    margin-top: 4px !important;
+    border-top: 1px solid var(--aurora-border);
+  }
+  .planilla-sum-neto::before { font-weight: 700 !important; opacity: 0.7 !important; }
+
+  /* Gran total al pie */
+  .planilla-grand-total { padding: 12px 0; font-size: 0.95rem; }
+
+  /* ── Vista detalle ───────────────────────────────────────── */
+  /* Cuadro de resumen: full-width en móvil */
+  .planilla-det-summary { margin-left: 0; max-width: 100%; width: 100%; }
+
+  /* ── Historial → tarjeta 2 columnas ─────────────────────── */
+  .planilla-hist-header { display: none; }
+
+  .planilla-hist-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 8px;
+    padding: 12px 4px;
+    min-width: 0;
+  }
+
+  /* Período → fila 1, col 1 */
+  .planilla-hist-periodo { grid-column: 1; grid-row: 1; font-size: 0.88rem; }
+
+  /* N.° empleados → oculto en móvil */
+  .planilla-hist-row > div:nth-child(2) { display: none; }
+
+  /* Total → fila 2, col 1 */
+  .planilla-hist-total { grid-column: 1; grid-row: 2; font-size: 0.97rem; }
+
+  /* Estado (badge) → fila 1, col 2 */
+  .planilla-hist-row > div:nth-child(4) { grid-column: 2; grid-row: 1; }
+
+  /* Acciones → fila 2, col 2 */
+  .planilla-hist-actions { grid-column: 2; grid-row: 2; gap: 4px; flex-wrap: wrap; }
+  .planilla-hist-pay-btn { font-size: 0.78rem; padding: 4px 8px; }
+
+  /* ── Modales ─────────────────────────────────────────────── */
+  .planilla-modal { padding: 24px 18px; }
+}
