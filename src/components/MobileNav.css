@@ -130,7 +130,7 @@
   padding: 8px 0 12px;
 }
 
-.mn-sheet-body::-webkit-scrollbar { width: 3px; }
+.mn-sheet-body::-webkit-scrollbar { width: 6px; }
 .mn-sheet-body::-webkit-scrollbar-thumb { background: var(--aurora-border); border-radius: 3px; }
 
 /* ── Sheet sections ───────────────────────────────────────────────────────── */
