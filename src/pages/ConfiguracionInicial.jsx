@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
@@ -80,6 +80,39 @@ const ENTIDADES = [
     isValid: (r) => !!r.nombreComercial,
   },
   {
+    key: 'unidades-medida',
+    nombre: 'Unidades de Medida',
+    descripcion: 'Unidades utilizadas en actividades de campo, dosis de productos y conversiones.',
+    icon: FiHash,
+    endpoint: '/api/unidades-medida',
+    adminPath: '/admin/unidades-medida',
+    excelHeaders: ['Nombre', 'Descripción', 'Factor de conversión', 'Unidad base', 'Precio', 'Labor'],
+    sampleRow:    ['Litro', 'Unidad de volumen líquido', '1', '', '', 'Chapea manual'],
+    fileName:     'plantilla_unidades_medida.xlsx',
+    sheetName:    'Unidades de Medida',
+    parseRow: (row) => ({
+      nombre:           String(row['Nombre']                || '').trim(),
+      descripcion:      String(row['Descripción']           || '').trim(),
+      factorConversion: row['Factor de conversión'] !== '' ? row['Factor de conversión'] : '',
+      unidadBase:       String(row['Unidad base']           || '').trim(),
+      precio:           row['Precio'] !== '' ? row['Precio'] : '',
+      _laborNombre:     String(row['Labor']                 || '').trim(),
+    }),
+    isValid: (r) => !!r.nombre,
+    prepareItems: async (items, apiFetch) => {
+      const labores = await apiFetch('/api/labores').then(r => r.json()).catch(() => []);
+      const laborMap = {};
+      for (const l of labores) {
+        if (l.descripcion) laborMap[l.descripcion.toLowerCase()] = l.id;
+        if (l.codigo)      laborMap[l.codigo.toLowerCase()]      = l.id;
+      }
+      return items.map(({ _laborNombre, ...item }) => ({
+        ...item,
+        labor: _laborNombre ? (laborMap[_laborNombre.toLowerCase()] ?? '') : '',
+      }));
+    },
+  },
+  {
     key: 'labores',
     nombre: 'Lista de Labores',
     descripcion: 'Tipos de trabajo registrables en horímetro y actividades de campo.',
@@ -133,7 +166,8 @@ function EntidadCard({ entidad }) {
     try {
       const workbook = XLSX.read(await file.arrayBuffer());
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
-      const validas = rows.map(entidad.parseRow).filter(entidad.isValid);
+      let validas = rows.map(entidad.parseRow).filter(entidad.isValid);
+      if (entidad.prepareItems) validas = await entidad.prepareItems(validas, apiFetch);
       if (!validas.length) {
         setImportResult({ error: true });
         return;
