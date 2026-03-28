@@ -301,6 +301,7 @@
   border-color: var(--aurora-green);
 }
 
+
 .ingreso-grid-wrapper {
   overflow-x: auto;
   border: 1px solid var(--aurora-border);
@@ -915,7 +916,7 @@ select.pg-input option {
 .pg-col-id        { width: 88px;  }
 .pg-col-name      { min-width: 160px; }
 .pg-col-ing       { min-width: 150px; }
-.pg-col-tipo      { width: 140px; }
+.pg-col-tipo      { min-width: 210px; }
 .pg-col-plaga     { min-width: 140px; }
 .pg-col-dosis     { width: 78px;  }
 .pg-col-unidad    { width: 70px;  }

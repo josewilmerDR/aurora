@@ -1,11 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiDownload, FiUpload } from 'react-icons/fi';
-import * as XLSX from 'xlsx';
+import { useState, useEffect } from 'react';
+import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './MaquinariaList.css';
-
-const EXCEL_HEADERS = ['ID Activo', 'Código (CC)', 'Descripción', 'Tipo', 'Ubicación', 'Capacidad (litros)', 'Observación'];
 
 const TIPOS = [
   'CARRETA DE SEMILLA',
@@ -43,9 +40,6 @@ function MaquinariaList() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [filter, setFilter] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const fileInputRef = useRef(null);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -123,66 +117,6 @@ function MaquinariaList() {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const sample = ['0403-0020', '3-20', 'TRACTOR JOHN DEERE 5075E', 'TRACTOR DE LLANTAS', 'Finca Aurora', '', ''];
-    const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, sample]);
-    ws['!cols'] = EXCEL_HEADERS.map(() => ({ wch: 22 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Maquinaria');
-    XLSX.writeFile(wb, 'plantilla_maquinaria.xlsx');
-  };
-
-  const handleExcelImport = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const workbook = XLSX.read(await file.arrayBuffer());
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
-      const validas = rows
-        .map(row => ({
-          idMaquina:   String(row['ID Activo']         || '').trim(),
-          codigo:      String(row['Código (CC)']       || '').trim(),
-          descripcion: String(row['Descripción']       || '').trim(),
-          tipo:        String(row['Tipo']              || '').trim(),
-          ubicacion:   String(row['Ubicación']         || '').trim(),
-          capacidad:   row['Capacidad (litros)']       || '',
-          observacion: String(row['Observación']       || '').trim(),
-        }))
-        .filter(r => r.descripcion);
-      if (!validas.length) {
-        setImportResult({ error: true });
-        return;
-      }
-      let creados = 0, actualizados = 0, errores = 0;
-      for (const item of validas) {
-        try {
-          const res = await apiFetch('/api/maquinaria', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item),
-          });
-          if (!res.ok) { errores++; continue; }
-          const data = await res.json();
-          data.merged ? actualizados++ : creados++;
-        } catch { errores++; }
-      }
-      const parts = [
-        creados     > 0 && `${creados} creado(s)`,
-        actualizados > 0 && `${actualizados} actualizado(s)`,
-        errores     > 0 && `${errores} error(es)`,
-      ].filter(Boolean).join(' · ');
-      setImportResult({ ok: true, msg: parts });
-      fetchItems();
-    } catch {
-      setImportResult({ error: true });
-    } finally {
-      setImporting(false);
-      e.target.value = '';
-    }
-  };
-
   const q = filter.toLowerCase();
   const filtered = items.filter(item =>
     !q ||
@@ -205,24 +139,6 @@ function MaquinariaList() {
             value={filter}
             onChange={e => setFilter(e.target.value)}
           />
-          <div className="maq-import-section">
-            <div className="maq-import-buttons">
-              <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate} title="Descargar plantilla Excel">
-                <FiDownload size={14} /> Plantilla
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing} title="Importar desde Excel">
-                <FiUpload size={14} /> {importing ? 'Importando…' : 'Importar Excel'}
-              </button>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleExcelImport} />
-            </div>
-            {importResult && (
-              <p className={`maq-import-result ${importResult.error ? 'maq-import-error' : 'maq-import-ok'}`}>
-                {importResult.error
-                  ? '⚠ No se pudo leer el archivo. Usa la plantilla.'
-                  : `✓ ${importResult.msg}`}
-              </p>
-            )}
-          </div>
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus size={15} /> Nuevo Activo
           </button>
@@ -357,9 +273,9 @@ function MaquinariaList() {
                   <th>ID</th>
                   <th>CC</th>
                   <th>Descripción</th>
-                  <th>Cap. litros</th>
                   <th>Tipo</th>
                   <th>Ubicación</th>
+                  <th>Cap. litros</th>
                   <th>Observación</th>
                   <th></th>
                 </tr>
@@ -370,13 +286,13 @@ function MaquinariaList() {
                     <td className="maq-td-code">{item.idMaquina || '—'}</td>
                     <td className="maq-td-code">{item.codigo || '—'}</td>
                     <td className="maq-td-desc">{item.descripcion}</td>
-                    <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>
                     <td>
                       {item.tipo
                         ? <span className="maq-tipo-badge">{item.tipo}</span>
                         : <span className="maq-td-empty">—</span>}
                     </td>
                     <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>
+                    <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>
                     <td className="maq-td-obs">{item.observacion || <span className="maq-td-empty">—</span>}</td>
                     <td className="maq-td-actions">
                       <button className="maq-btn-icon" onClick={() => handleEdit(item)} title="Editar">
