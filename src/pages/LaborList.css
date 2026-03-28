@@ -119,26 +119,6 @@
   border-top: 1px solid var(--aurora-border);
 }
 
-/* ── Import section ── */
-.lab-import-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.lab-import-buttons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.lab-import-result {
-  font-size: 0.78rem;
-  margin: 0;
-}
-.lab-import-ok    { color: var(--aurora-green); }
-.lab-import-error { color: var(--aurora-magenta); }
-
 /* ── Section header ── */
 .lab-section {
   display: flex;

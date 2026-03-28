@@ -1,11 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiDownload, FiUpload } from 'react-icons/fi';
-import * as XLSX from 'xlsx';
+import { useState, useEffect } from 'react';
+import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './LaborList.css';
-
-const EXCEL_HEADERS = ['Código', 'Descripción', 'Observación'];
 
 const EMPTY_FORM = {
   id: null,
@@ -24,10 +21,6 @@ function LaborList() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [filter, setFilter] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const fileInputRef = useRef(null);
-
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchItems = () =>
@@ -101,62 +94,6 @@ function LaborList() {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const sample = ['CHAP-01', 'Chapea manual', ''];
-    const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, sample]);
-    ws['!cols'] = EXCEL_HEADERS.map(() => ({ wch: 28 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Labores');
-    XLSX.writeFile(wb, 'plantilla_labores.xlsx');
-  };
-
-  const handleExcelImport = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const workbook = XLSX.read(await file.arrayBuffer());
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
-      const validas = rows
-        .map(row => ({
-          codigo:      String(row['Código']      || '').trim(),
-          descripcion: String(row['Descripción'] || '').trim(),
-          observacion: String(row['Observación'] || '').trim(),
-        }))
-        .filter(r => r.descripcion);
-      if (!validas.length) {
-        setImportResult({ error: true });
-        return;
-      }
-      let creados = 0, actualizados = 0, errores = 0;
-      for (const item of validas) {
-        try {
-          const res = await apiFetch('/api/labores', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item),
-          });
-          if (!res.ok) { errores++; continue; }
-          const data = await res.json();
-          data.merged ? actualizados++ : creados++;
-        } catch { errores++; }
-      }
-      const parts = [
-        creados      > 0 && `${creados} creado(s)`,
-        actualizados > 0 && `${actualizados} actualizado(s)`,
-        errores      > 0 && `${errores} error(es)`,
-      ].filter(Boolean).join(' · ');
-      setImportResult({ ok: true, msg: parts });
-      fetchItems();
-    } catch {
-      setImportResult({ error: true });
-    } finally {
-      setImporting(false);
-      e.target.value = '';
-    }
-  };
-
   const q = filter.toLowerCase();
   const filtered = items.filter(item =>
     !q ||
@@ -176,24 +113,6 @@ function LaborList() {
             value={filter}
             onChange={e => setFilter(e.target.value)}
           />
-          <div className="lab-import-section">
-            <div className="lab-import-buttons">
-              <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate} title="Descargar plantilla Excel">
-                <FiDownload size={14} /> Plantilla
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing} title="Importar desde Excel">
-                <FiUpload size={14} /> {importing ? 'Importando…' : 'Importar Excel'}
-              </button>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleExcelImport} />
-            </div>
-            {importResult && (
-              <p className={`lab-import-result ${importResult.error ? 'lab-import-error' : 'lab-import-ok'}`}>
-                {importResult.error
-                  ? '⚠ No se pudo leer el archivo. Usa la plantilla.'
-                  : `✓ ${importResult.msg}`}
-              </p>
-            )}
-          </div>
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus size={15} /> Nueva Labor
           </button>
