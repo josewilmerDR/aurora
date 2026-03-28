@@ -37,6 +37,45 @@ const calcFechaCosecha = (grupo, config) => {
   return result;
 };
 
+// ── Modal nuevo valor de catálogo (cosecha / etapa) ──────────────────────────
+function NuevoCatalogModal({ field, onConfirm, onCancel }) {
+  const [nombre, setNombre] = useState('');
+  const label = field === 'cosecha' ? 'cosecha' : 'etapa';
+  const placeholder = field === 'cosecha' ? 'Ej. Cosecha I 2024' : 'Ej. Desarrollo';
+  return createPortal(
+    <div className="grupo-catalog-backdrop">
+      <div className="grupo-catalog-modal">
+        <div className="grupo-catalog-header">
+          <FiPlus size={16} />
+          <span>Nueva {label}</span>
+        </div>
+        <label className="grupo-catalog-label">
+          Nombre <span className="grupo-catalog-required">*</span>
+          <input
+            className="grupo-catalog-input"
+            placeholder={placeholder}
+            value={nombre}
+            onChange={e => setNombre(e.target.value)}
+            autoFocus
+            onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
+          />
+        </label>
+        <div className="grupo-catalog-actions">
+          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
+          <button
+            className="btn btn-primary"
+            disabled={!nombre.trim()}
+            onClick={() => onConfirm(nombre.trim())}
+          >
+            Agregar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function GrupoManagement() {
   const apiFetch = useApiFetch();
@@ -45,7 +84,12 @@ function GrupoManagement() {
   const [siembras,     setSiembras]     = useState([]);
   const [packages,     setPackages]     = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
+  const [showForm,     setShowForm]     = useState(false);
+  const [showLibres,   setShowLibres]   = useState(false);
   const [isEditing,    setIsEditing]    = useState(false);
+  const [catalogModal, setCatalogModal] = useState(null); // null | { field: 'cosecha'|'etapa' }
+  const [localCosechas, setLocalCosechas] = useState([]);
+  const [localEtapas,   setLocalEtapas]   = useState([]);
   const [toast,        setToast]        = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [deleting,     setDeleting]     = useState(false);
@@ -129,8 +173,21 @@ function GrupoManagement() {
   }, [formData.bloques, siembras]);
 
   // ── Paquetes filtrados ────────────────────────────────────────────────────
-  const cosechas = useMemo(() => [...new Set(packages.map(p => p.tipoCosecha).filter(Boolean))], [packages]);
-  const etapas   = useMemo(() => [...new Set(packages.map(p => p.etapaCultivo).filter(Boolean))], [packages]);
+  const cosechasCatalog = useMemo(() =>
+    [...new Set([
+      ...grupos.map(g => g.cosecha).filter(Boolean),
+      ...packages.map(p => p.tipoCosecha).filter(Boolean),
+      ...localCosechas,
+    ])].sort(),
+  [grupos, packages, localCosechas]);
+
+  const etapasCatalog = useMemo(() =>
+    [...new Set([
+      ...grupos.map(g => g.etapa).filter(Boolean),
+      ...packages.map(p => p.etapaCultivo).filter(Boolean),
+      ...localEtapas,
+    ])].sort(),
+  [grupos, packages, localEtapas]);
 
   const filteredPackages = useMemo(() =>
     packages.filter(p =>
@@ -161,7 +218,27 @@ function GrupoManagement() {
 
   const resetForm = () => {
     setIsEditing(false);
+    setShowForm(false);
+    setShowLibres(false);
     setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '' });
+  };
+
+  const handleNewGrupo = () => {
+    setIsEditing(false);
+    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '' });
+    setShowForm(true);
+  };
+
+  const handleCatalogConfirm = (nombre) => {
+    const { field } = catalogModal;
+    if (field === 'cosecha') {
+      setLocalCosechas(prev => [...new Set([...prev, nombre])]);
+      setFormData(prev => ({ ...prev, cosecha: nombre, paqueteId: '' }));
+    } else {
+      setLocalEtapas(prev => [...new Set([...prev, nombre])]);
+      setFormData(prev => ({ ...prev, etapa: nombre, paqueteId: '' }));
+    }
+    setCatalogModal(null);
   };
 
   const formatDateForInput = (ts) => {
@@ -173,6 +250,7 @@ function GrupoManagement() {
 
   const handleEdit = (grupo) => {
     setIsEditing(true);
+    setShowForm(true);
     setFormData({
       id:           grupo.id,
       nombreGrupo:  grupo.nombreGrupo  || '',
@@ -302,8 +380,15 @@ function GrupoManagement() {
   const getPackageName = (id) => packages.find(p => p.id === id)?.nombrePaquete || '—';
 
   return (
-    <div className="lote-management-layout">
+    <div className="grupo-page-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {catalogModal && (
+        <NuevoCatalogModal
+          field={catalogModal.field}
+          onConfirm={handleCatalogConfirm}
+          onCancel={() => setCatalogModal(null)}
+        />
+      )}
       {confirmModal && (
         <ConfirmModal
           title={`¿Eliminar "${confirmModal.grupoName}"?`}
@@ -371,10 +456,23 @@ function GrupoManagement() {
         </div>
       )}
 
-      {/* ── FORMULARIO ── */}
+      {/* ── Encabezado de página con botón ── */}
+      <div className="grupo-page-header">
+        {grupos.length > 0 && !showForm && (
+          <button className="btn btn-primary" onClick={handleNewGrupo}>
+            <FiPlus size={15} /> Nuevo Grupo
+          </button>
+        )}
+      </div>
+
+      <div className="lote-management-layout">
+
+      {/* ── FORMULARIO / CTA ── */}
       <div className="form-card">
-        <h2>{isEditing ? 'Editando Grupo' : 'Crear Nuevo Grupo'}</h2>
-        <form onSubmit={handleSubmit} className="lote-form">
+        {showForm ? (
+          <>
+          <h2>{isEditing ? 'Editando Grupo' : 'Crear Nuevo Grupo'}</h2>
+          <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
             <div className="form-control">
               <label htmlFor="nombreGrupo">Nombre de Grupo</label>
@@ -386,27 +484,41 @@ function GrupoManagement() {
             </div>
             <div className="form-control">
               <label htmlFor="cosecha">Cosecha</label>
-              <input
-                id="cosecha" name="cosecha" list="cosechas-list"
-                value={formData.cosecha} onChange={handleInputChange}
-                placeholder="Ej. Cosecha I 2024"
-                autoComplete="off"
-              />
-              <datalist id="cosechas-list">
-                {cosechas.map(c => <option key={c} value={c} />)}
-              </datalist>
+              <select
+                id="cosecha"
+                name="cosecha"
+                value={formData.cosecha}
+                onChange={e => {
+                  if (e.target.value === '__nueva__') {
+                    setCatalogModal({ field: 'cosecha' });
+                  } else {
+                    handleInputChange(e);
+                  }
+                }}
+              >
+                <option value="">-- Seleccionar --</option>
+                {cosechasCatalog.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="__nueva__">＋ Nueva cosecha</option>
+              </select>
             </div>
             <div className="form-control">
               <label htmlFor="etapa">Etapa</label>
-              <input
-                id="etapa" name="etapa" list="etapas-list"
-                value={formData.etapa} onChange={handleInputChange}
-                placeholder="Ej. Desarrollo"
-                autoComplete="off"
-              />
-              <datalist id="etapas-list">
-                {etapas.map(e => <option key={e} value={e} />)}
-              </datalist>
+              <select
+                id="etapa"
+                name="etapa"
+                value={formData.etapa}
+                onChange={e => {
+                  if (e.target.value === '__nueva__') {
+                    setCatalogModal({ field: 'etapa' });
+                  } else {
+                    handleInputChange(e);
+                  }
+                }}
+              >
+                <option value="">-- Seleccionar --</option>
+                {etapasCatalog.map(e => <option key={e} value={e}>{e}</option>)}
+                <option value="__nueva__">＋ Nueva etapa</option>
+              </select>
             </div>
             <div className="form-control" style={{ gridColumn: '1 / -1' }}>
               <label htmlFor="paqueteId">Paquete de Aplicaciones</label>
@@ -417,71 +529,131 @@ function GrupoManagement() {
             </div>
           </div>
 
-          {/* BLOQUES */}
+          {/* ── Sección 1: Bloques del grupo ── */}
           <div className="bloques-section">
             <div className="bloques-header">
-              <span className="bloques-title">Bloques</span>
-              <span className="bloques-count">{selectedBlockCount} bloque(s) seleccionado(s)</span>
+              <span className="bloques-title">Bloques del grupo</span>
+              <span className="bloques-count">{selectedBlockCount} bloque(s) asignado(s)</span>
             </div>
 
-            {/* Bloques ya seleccionados para este grupo */}
             {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
               <div key={loteNombre} className="bloque-lote-group">
                 <div className="bloque-lote-label">{loteNombre}</div>
                 {registros.map(s => (
-                  <label key={s.key} className="bloque-checkbox-row checked">
-                    <input type="checkbox" checked onChange={() => toggleBloque(s.ids)} />
+                  <div key={s.key} className="bloque-checkbox-row checked">
                     <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
                     <span className="bloque-meta">
                       {s.plantas?.toLocaleString()} plantas
                       {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
                       {s.variedad ? ` · ${s.variedad}` : ''}
                     </span>
-                  </label>
+                    <button type="button" className="bloque-btn-quitar" onClick={() => toggleBloque(s.ids)}>
+                      Quitar
+                    </button>
+                  </div>
                 ))}
               </div>
             ))}
 
-            {/* Lotes y bloques sin agrupar */}
-            {Object.keys(byLoteLibres).length > 0 && (
-              <>
-                <div className="bloques-sublabel">Lotes y bloques sin agrupar</div>
-                {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
-                  <div key={loteNombre} className="bloque-lote-group">
-                    <div className="bloque-lote-label">{loteNombre}</div>
-                    {registros.map(s => (
-                      <label key={s.key} className="bloque-checkbox-row">
-                        <input type="checkbox" checked={false} onChange={() => toggleBloque(s.ids)} />
-                        <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                        <span className="bloque-meta">
-                          {s.plantas?.toLocaleString()} plantas
-                          {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                          {s.variedad ? ` · ${s.variedad}` : ''}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                ))}
-              </>
-            )}
-
-            {/* Estado vacío total */}
-            {consolidatedBloques.length === 0 && (
-              <p className="bloques-empty">
-                {cerradoSiembras.length === 0
-                  ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
-                  : 'Todos los bloques cerrados ya están asignados a un grupo.'}
-              </p>
+            {/* Estado vacío: botón "Agregar bloques" DENTRO cuando no hay bloques */}
+            {selectedBlockCount === 0 && (
+              <div className="bloques-empty-wrap">
+                <p className="bloques-empty">
+                  {consolidatedBloques.length === 0
+                    ? cerradoSiembras.length === 0
+                      ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
+                      : 'Todos los bloques cerrados ya están asignados a otros grupos.'
+                    : 'Sin bloques asignados aún.'}
+                </p>
+                {Object.keys(byLoteLibres).length > 0 && (
+                  <button
+                    type="button"
+                    className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
+                    onClick={() => setShowLibres(v => !v)}
+                  >
+                    <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
+
+          {/* Botón "Agregar bloques" FUERA cuando ya hay bloques */}
+          {selectedBlockCount > 0 && Object.keys(byLoteLibres).length > 0 && (
+            <div className="bloques-agregar-wrap">
+              <button
+                type="button"
+                className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
+                onClick={() => setShowLibres(v => !v)}
+              >
+                <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Sección 2: Lotes y bloques sin agrupar (condicional) ── */}
+          {showLibres && Object.keys(byLoteLibres).length > 0 && (
+            <div className="bloques-section bloques-section--libres">
+              <div className="bloques-header bloques-header--muted">
+                <span className="bloques-title">Lotes y bloques sin agrupar</span>
+                <span className="bloques-count">
+                  {Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0)} disponible(s)
+                </span>
+              </div>
+
+              {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
+                <div key={loteNombre} className="bloque-lote-group">
+                  <div className="bloque-lote-label">{loteNombre}</div>
+                  {registros.map(s => (
+                    <div key={s.key} className="bloque-checkbox-row">
+                      <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                      <span className="bloque-meta">
+                        {s.plantas?.toLocaleString()} plantas
+                        {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                        {s.variedad ? ` · ${s.variedad}` : ''}
+                      </span>
+                      <button type="button" className="bloque-btn-agregar" onClick={() => toggleBloque(s.ids)}>
+                        Agregar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
               <FiPlus /> {isEditing ? 'Actualizar Grupo' : 'Crear Grupo'}
             </button>
-            {isEditing && <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>}
+            <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
           </div>
         </form>
+          </>
+        ) : grupos.length === 0 ? (
+          /* CTA: primer grupo */
+          <div className="grupo-cta">
+            <div className="grupo-cta-icon"><FiPlus size={28} /></div>
+            <p className="grupo-cta-title">Aún no hay grupos creados</p>
+            <p className="grupo-cta-desc">
+              Organiza los bloques de siembra cerrados en grupos de producción
+              para gestionar aplicaciones, cosechas y reportes.
+            </p>
+            <button className="btn btn-primary" onClick={handleNewGrupo}>
+              <FiPlus size={15} /> Crear primer grupo
+            </button>
+          </div>
+        ) : (
+          /* CTA: grupos existentes */
+          <div className="grupo-cta grupo-cta--secondary">
+            <div className="grupo-cta-icon"><FiEdit size={24} /></div>
+            <p className="grupo-cta-title">Selecciona un grupo para editarlo</p>
+            <p className="grupo-cta-desc">
+              Elige un grupo de la lista para modificar sus bloques, cosecha
+              o paquete de aplicaciones.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── LISTA ── */}
@@ -622,6 +794,7 @@ function GrupoManagement() {
         </div>,
         document.body
       )}
+      </div>{/* lote-management-layout */}
     </div>
   );
 }

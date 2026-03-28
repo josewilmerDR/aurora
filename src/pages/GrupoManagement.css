@@ -1,5 +1,69 @@
 @import './LoteManagement.css';
 
+/* Ampliar columna derecha (lista de grupos) a 375px */
+.grupo-page-wrap .lote-management-layout {
+  grid-template-columns: 1fr 320px;
+}
+
+@media (max-width: 768px) {
+  .grupo-page-wrap .lote-management-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Wrapper de página ───────────────────────────────────────────────────── */
+.grupo-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Encabezado de página con botón ─────────────────────────────────────── */
+.grupo-page-header {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 36px; /* reserva espacio aunque el botón no esté visible */
+}
+
+/* ── Llamado a la acción (CTA) ───────────────────────────────────────────── */
+.grupo-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 40px 24px;
+}
+
+.grupo-cta--secondary {
+  padding: 32px 24px;
+  opacity: 0.75;
+}
+
+.grupo-cta-icon {
+  color: var(--aurora-green);
+  opacity: 0.6;
+}
+
+.grupo-cta--secondary .grupo-cta-icon {
+  color: rgba(230, 242, 255, 0.3);
+}
+
+.grupo-cta-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.grupo-cta-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(230, 242, 255, 0.5);
+  line-height: 1.55;
+  max-width: 280px;
+}
+
 /* ── Modal eliminación de grupo ─────────────────────────────────────────── */
 .grupo-delete-overlay {
   position: fixed;
@@ -121,17 +185,69 @@
   margin: 0;
 }
 
-/* Sub-encabezado de sección dentro de bloques */
-.bloques-sublabel {
-  padding: 8px 14px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(230, 242, 255, 0.35);
-  background: rgba(0, 0, 0, 0.12);
-  border-top: 1px solid var(--aurora-border);
-  border-bottom: 1px solid var(--aurora-border);
+/* Botón "Agregar bloques" */
+.bloques-empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+}
+
+.bloques-empty-wrap .bloques-empty {
+  padding: 0;
+  text-align: center;
+}
+
+.bloques-agregar-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 0;
+}
+
+.bloques-agregar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  border: 1px dashed rgba(51, 255, 153, 0.4);
+  color: var(--aurora-green);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.bloques-agregar-btn:hover {
+  background: rgba(51, 255, 153, 0.07);
+  border-color: rgba(51, 255, 153, 0.65);
+}
+
+.bloques-agregar-btn--open {
+  border-style: solid;
+  border-color: rgba(51, 255, 153, 0.3);
+  color: rgba(230, 242, 255, 0.5);
+}
+
+.bloques-agregar-btn--open:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(230, 242, 255, 0.25);
+}
+
+/* Segunda sección: sin agrupar — borde y cabecera atenuados */
+.bloques-section--libres {
+  border-color: rgba(42, 74, 106, 0.5);
+}
+
+.bloques-header--muted {
+  background-color: rgba(255, 255, 255, 0.02);
+  border-bottom-color: rgba(42, 74, 106, 0.5);
+}
+
+.bloques-header--muted .bloques-title {
+  color: rgba(230, 242, 255, 0.45);
+  font-weight: 500;
 }
 
 /* Lote group header inside bloques */
@@ -153,30 +269,16 @@
   opacity: 0.45;
 }
 
-/* Individual checkbox row */
+/* Individual block row */
 .bloque-checkbox-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 14px;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.bloque-checkbox-row:hover {
-  background-color: rgba(255, 255, 255, 0.03);
 }
 
 .bloque-checkbox-row.checked {
   background-color: rgba(51, 255, 153, 0.05);
-}
-
-.bloque-checkbox-row input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--aurora-green);
-  flex-shrink: 0;
-  cursor: pointer;
 }
 
 .bloque-nombre {
@@ -184,12 +286,45 @@
   color: var(--aurora-light);
   font-weight: 500;
   min-width: 80px;
+  flex-shrink: 0;
 }
 
 .bloque-meta {
   font-size: 0.8rem;
   color: var(--aurora-light);
   opacity: 0.5;
+  flex: 1;
+}
+
+/* Botones Quitar / Agregar */
+.bloque-btn-quitar,
+.bloque-btn-agregar {
+  flex-shrink: 0;
+  padding: 3px 11px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: background-color 0.15s;
+}
+
+.bloque-btn-quitar {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.08);
+}
+.bloque-btn-quitar:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
+
+.bloque-btn-agregar {
+  color: var(--aurora-green);
+  border-color: rgba(51, 255, 153, 0.35);
+  background: rgba(51, 255, 153, 0.08);
+}
+.bloque-btn-agregar:hover {
+  background: rgba(51, 255, 153, 0.2);
 }
 
 /* ── Preview modal ── */
@@ -384,6 +519,73 @@
   border-top: 1px solid #e0e0e0;
   padding-top: 14px;
   margin-top: 8px;
+}
+
+/* ── Modal nuevo valor de catálogo (cosecha / etapa) ── */
+.grupo-catalog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.grupo-catalog-modal {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 24px;
+  width: 90%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--aurora-light);
+}
+
+.grupo-catalog-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+}
+
+.grupo-catalog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+}
+
+.grupo-catalog-required {
+  color: #ff6b6b;
+}
+
+.grupo-catalog-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.grupo-catalog-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.grupo-catalog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media print {
