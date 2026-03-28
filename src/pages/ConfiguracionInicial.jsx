@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
@@ -224,6 +224,342 @@ function EntidadCard({ entidad }) {
   );
 }
 
+// ── Helper: Firestore Timestamp JSON → YYYY-MM-DD ─────────────────────────────
+function timestampToDateStr(ts) {
+  if (!ts) return null;
+  if (typeof ts === 'string') return ts.slice(0, 10);
+  const secs = ts.seconds ?? ts._seconds;
+  return secs != null ? new Date(secs * 1000).toISOString().slice(0, 10) : null;
+}
+
+// ── Helper: cualquier valor de fecha de Excel → YYYY-MM-DD o null ─────────────
+// xlsx puede devolver: JS Date, número serial Excel, o string
+function toDateStr(val) {
+  if (val == null || val === '') return null;
+  if (val instanceof Date) {
+    return isNaN(val) ? null : val.toISOString().slice(0, 10);
+  }
+  if (typeof val === 'number') {
+    // Número serial Excel: 1 = 1 ene 1900; ajuste de los 25569 días al epoch Unix
+    const d = new Date((val - 25569) * 86400 * 1000);
+    return isNaN(d) ? null : d.toISOString().slice(0, 10);
+  }
+  const s = String(val).trim();
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+}
+
+// ── Plantilla Lotes + Grupos + Bloques ────────────────────────────────────────
+const LGB_HEADERS = [
+  'Código de lote', 'Nombre del lote', 'Fecha del lote',
+  'Nombre del grupo', 'Fecha del grupo', 'Cosecha', 'Etapa',
+  'Fecha de siembra', 'Bloque', 'Plantas', 'Densidad', 'Área (calc.)',
+  'Material', 'Variedad', 'Rango de pesos', 'Cerrado', 'Fecha de cierre',
+];
+
+const LGB_SAMPLE = [
+  'LOT-001', 'Lote Principal', '2024-01-15',
+  'Grupo A', '2024-01-15', 'Cosecha 2024', 'Etapa 1',
+  '2024-01-15', 'B-01', 500, 250, '',
+  'Clon X', 'Grande', '18-22 kg', 'SI', '2024-06-30',
+];
+
+function LotesGruposCard() {
+  const apiFetch = useApiFetch();
+  const navigate = useNavigate();
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [showNavPrompt, setShowNavPrompt] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([LGB_HEADERS, LGB_SAMPLE]);
+    ws['!cols'] = LGB_HEADERS.map(() => ({ wch: 18 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lotes-Grupos-Bloques');
+    XLSX.writeFile(wb, 'plantilla_lotes_grupos_bloques.xlsx');
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer());
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+
+      if (!rows.length) {
+        setImportResult({ error: true, msg: 'El archivo está vacío.' });
+        return;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const filasSaltadas = [];
+
+      const parsed = rows.map((row, idx) => {
+        const cerradoVal = String(row['Cerrado'] || '').trim().toUpperCase();
+        const esCerrado = ['SI', 'TRUE', '1', 'YES'].includes(cerradoVal);
+        const fechaCierre  = toDateStr(row['Fecha de cierre']);
+        const fechaSiembra = toDateStr(row['Fecha de siembra']) || fechaCierre || today;
+        return {
+          _fila:              idx + 2, // número de fila en el Excel (encabezado = 1)
+          codigoLote:         String(row['Código de lote']   || '').trim(),
+          nombreLote:         String(row['Nombre del lote']  || '').trim(),
+          fechaCreacionLote:  toDateStr(row['Fecha del lote'])   || today,
+          nombreGrupo:        String(row['Nombre del grupo'] || '').trim(),
+          fechaCreacionGrupo: toDateStr(row['Fecha del grupo'])  || today,
+          cosecha:            String(row['Cosecha']          || '').trim(),
+          etapa:              String(row['Etapa']            || '').trim(),
+          fecha:              fechaSiembra,
+          bloque:             String(row['Bloque']           || '').trim(),
+          plantas:            Number(row['Plantas'])         || 0,
+          densidad:           Number(row['Densidad'])        || 0,
+          materialNombre:     String(row['Material']         || '').trim(),
+          variedad:           String(row['Variedad']         || '').trim(),
+          rangoPesos:         String(row['Rango de pesos']   || '').trim(),
+          cerrado:            esCerrado,
+          fechaCierre:        esCerrado ? fechaCierre : null,
+        };
+      }).filter(r => {
+        const razon = !r.codigoLote ? 'falta "Código de lote"'
+                    : !r.nombreGrupo ? 'falta "Nombre del grupo"'
+                    : null;
+        if (razon) { filasSaltadas.push(`Fila ${r._fila}: ${razon}`); return false; }
+        return true;
+      });
+
+      if (!parsed.length) {
+        const detalle = filasSaltadas.slice(0, 3).join(' | ');
+        setImportResult({ error: true, msg: `Sin filas válidas. ${detalle}` });
+        return;
+      }
+
+      // ── Phase 0: Materiales de siembra ─────────────────────────────────────
+      const existingMateriales = await apiFetch('/api/materiales-siembra').then(r => r.json());
+      const materialMap = {}; // nombre → { id }
+      for (const m of existingMateriales) {
+        if (m.nombre) materialMap[m.nombre] = { id: m.id };
+      }
+
+      const uniqueMateriales = new Map();
+      for (const r of parsed) {
+        if (r.materialNombre && !uniqueMateriales.has(r.materialNombre))
+          uniqueMateriales.set(r.materialNombre, { variedad: r.variedad, rangoPesos: r.rangoPesos });
+      }
+
+      let materialesCreados = 0;
+      for (const [nombre, { variedad, rangoPesos }] of uniqueMateriales) {
+        if (materialMap[nombre]) continue;
+        try {
+          const res = await apiFetch('/api/materiales-siembra', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, variedad, rangoPesos }),
+          });
+          if (!res.ok) continue;
+          materialMap[nombre] = { id: (await res.json()).id };
+          materialesCreados++;
+        } catch { /* non-blocking */ }
+      }
+
+      // ── Phase 1: Lotes ──────────────────────────────────────────────────────
+      const existingLotes = await apiFetch('/api/lotes').then(r => r.json());
+      const loteMap = {};
+      for (const l of existingLotes) {
+        if (l.codigoLote) loteMap[l.codigoLote] = l.id;
+      }
+
+      const uniqueLotes = new Map();
+      for (const r of parsed) {
+        if (!uniqueLotes.has(r.codigoLote))
+          uniqueLotes.set(r.codigoLote, { nombreLote: r.nombreLote, fechaCreacion: r.fechaCreacionLote });
+      }
+
+      let lotesCreados = 0, lotesExistentes = 0, lotesError = 0;
+      for (const [codigoLote, { nombreLote, fechaCreacion }] of uniqueLotes) {
+        if (loteMap[codigoLote]) { lotesExistentes++; continue; }
+        try {
+          const res = await apiFetch('/api/lotes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion }),
+          });
+          if (!res.ok) { lotesError++; continue; }
+          loteMap[codigoLote] = (await res.json()).id;
+          lotesCreados++;
+        } catch { lotesError++; }
+      }
+
+      // ── Phase 2: Siembras (bloques) ─────────────────────────────────────────
+      const grupoQueue = {};
+      let siembrasCreadas = 0, siembrasError = 0;
+      for (const r of parsed) {
+        const loteId = loteMap[r.codigoLote];
+        if (!loteId) { siembrasError++; continue; }
+        try {
+          const mat = r.materialNombre ? materialMap[r.materialNombre] : null;
+          const payload = {
+            loteId,
+            loteNombre: r.nombreLote || r.codigoLote,
+            bloque: r.bloque,
+            plantas: r.plantas,
+            densidad: r.densidad,
+            materialId: mat?.id || '',
+            materialNombre: r.materialNombre,
+            variedad: r.variedad,
+            rangoPesos: r.rangoPesos,
+            cerrado: r.cerrado,
+            fecha: r.fecha,
+            ...(r.cerrado && r.fechaCierre ? { fechaCierre: r.fechaCierre } : {}),
+          };
+          const res = await apiFetch('/api/siembras', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) { siembrasError++; continue; }
+          const data = await res.json();
+          if (!grupoQueue[r.nombreGrupo]) {
+            grupoQueue[r.nombreGrupo] = { fechaCreacion: r.fechaCreacionGrupo, cosecha: r.cosecha, etapa: r.etapa, siembraIds: [] };
+          }
+          grupoQueue[r.nombreGrupo].siembraIds.push(data.id);
+          siembrasCreadas++;
+        } catch { siembrasError++; }
+      }
+
+      // ── Phase 3: Grupos ─────────────────────────────────────────────────────
+      const existingGrupos = await apiFetch('/api/grupos').then(r => r.json());
+      const grupoMap = {};
+      for (const g of existingGrupos) {
+        if (g.nombreGrupo) grupoMap[g.nombreGrupo] = g;
+      }
+
+      let gruposCreados = 0, gruposActualizados = 0, gruposError = 0;
+      for (const [nombreGrupo, { fechaCreacion, cosecha, etapa, siembraIds }] of Object.entries(grupoQueue)) {
+        if (!siembraIds.length) continue;
+        try {
+          if (grupoMap[nombreGrupo]) {
+            const existing = grupoMap[nombreGrupo];
+            const newBloques = [...new Set([...(existing.bloques || []), ...siembraIds])];
+            const existingFecha = timestampToDateStr(existing.fechaCreacion) || fechaCreacion;
+            const res = await apiFetch(`/api/grupos/${existing.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                nombreGrupo,
+                cosecha: existing.cosecha || cosecha,
+                etapa: existing.etapa || etapa,
+                fechaCreacion: existingFecha,
+                paqueteId: existing.paqueteId || '',
+                bloques: newBloques,
+              }),
+            });
+            if (!res.ok) { gruposError++; continue; }
+            gruposActualizados++;
+          } else {
+            const res = await apiFetch('/api/grupos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombreGrupo, cosecha, etapa, fechaCreacion, bloques: siembraIds }),
+            });
+            if (!res.ok) { gruposError++; continue; }
+            gruposCreados++;
+          }
+        } catch { gruposError++; }
+      }
+
+      const totalErrors = lotesError + siembrasError + gruposError;
+      const totalCreados = lotesCreados + siembrasCreadas + gruposCreados + gruposActualizados;
+
+      const partesExito = [
+        materialesCreados  > 0 && `${materialesCreados} material(es)`,
+        lotesCreados       > 0 && `${lotesCreados} lote(s)`,
+        lotesExistentes    > 0 && `${lotesExistentes} lote(s) ya existían`,
+        siembrasCreadas    > 0 && `${siembrasCreadas} bloque(s)`,
+        gruposCreados      > 0 && `${gruposCreados} grupo(s)`,
+        gruposActualizados > 0 && `${gruposActualizados} grupo(s) actualizado(s)`,
+      ].filter(Boolean).join(' · ');
+
+      const advertencias = [
+        ...filasSaltadas.slice(0, 3),
+        totalErrors > 0 && `${totalErrors} registro(s) con error al guardar`,
+      ].filter(Boolean);
+
+      if (totalCreados === 0 && totalErrors > 0) {
+        const detalle = advertencias.join(' | ');
+        setImportResult({ error: true, msg: `No se creó ningún registro. Posible causa: fechas en formato incorrecto o datos inválidos. Detalle: ${detalle}` });
+      } else {
+        const msgOk = partesExito ? `Creados: ${partesExito}` : 'Sin cambios nuevos.';
+        const msgWarn = advertencias.length ? ` ⚠ ${advertencias.join(' | ')}` : '';
+        setImportResult({ ok: true, msg: msgOk + msgWarn });
+        setShowNavPrompt(totalCreados > 0);
+      }
+    } catch {
+      setImportResult({ error: true, msg: 'Error inesperado al procesar el archivo.' });
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="ci-card">
+      <div className="ci-card-header">
+        <span className="ci-card-icon"><FiLayers size={18} /></span>
+        <span className="ci-card-nombre">Lotes, Grupos y Bloques</span>
+        <Link to="/lotes" className="ci-card-link" title="Ir a Gestión de Lotes">
+          <FiExternalLink size={13} />
+        </Link>
+      </div>
+      <p className="ci-card-desc">
+        Carga combinada: lotes, grupos de producción y bloques de siembra. Un grupo se crea una sola vez aunque aparezca en varios renglones.
+      </p>
+      <div className="ci-import-row">
+        <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
+          <FiDownload size={13} /> Plantilla
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+        >
+          <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          onChange={handleImport}
+        />
+      </div>
+      {importResult && (
+        <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
+          {importResult.error
+            ? `⚠ ${importResult.msg || 'No se pudo procesar el archivo.'}`
+            : `✓ ${importResult.msg}`}
+        </p>
+      )}
+      {showNavPrompt && (
+        <div className="ci-nav-prompt">
+          <span>¿Ir a <strong>Gestión de Lotes</strong> para revisar los datos?</span>
+          <div className="ci-nav-prompt-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/lotes')}>
+              <FiArrowRight size={13} /> Ir ahora
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowNavPrompt(false)}>
+              <FiX size={13} /> No, continuar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 function ConfiguracionInicial() {
   const [toast, setToast] = useState(null);
@@ -245,6 +581,7 @@ function ConfiguracionInicial() {
         {ENTIDADES.map(entidad => (
           <EntidadCard key={entidad.key} entidad={entidad} />
         ))}
+        <LotesGruposCard />
       </div>
     </div>
   );
