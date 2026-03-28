@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiChevronRight, FiChevronDown, FiMoreVertical, FiCopy, FiX } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiChevronRight, FiChevronDown, FiMoreVertical, FiCopy, FiX, FiEdit2, FiSettings } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -316,6 +316,102 @@ function ConfirmCerrarModal({ config, onCancel }) {
   );
 }
 
+// ── Modal editar registro de siembra ─────────────────────────────────────────
+function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving }) {
+  const [fecha, setFecha]           = useState(record.fecha ? record.fecha.slice(0, 10) : '');
+  const [loteId, setLoteId]         = useState(record.loteId || '');
+  const [bloque, setBloque]         = useState(record.bloque || '');
+  const [plantas, setPlantas]       = useState(String(record.plantas || ''));
+  const [densidad, setDensidad]     = useState(String(record.densidad || '65000'));
+  const [materialId, setMaterialId] = useState(record.materialId || '');
+
+  const area = plantas && densidad && Number(densidad) > 0
+    ? (Number(plantas) / Number(densidad)).toFixed(4) : '';
+
+  const handleSave = () => {
+    const lote = lotes.find(l => l.id === loteId);
+    const mat  = materiales.find(m => m.id === materialId);
+    onSave({
+      fecha,
+      loteId,
+      loteNombre:     lote?.nombreLote   || record.loteNombre || '',
+      bloque,
+      plantas:        Number(plantas)    || 0,
+      densidad:       Number(densidad)   || 65000,
+      areaCalculada:  area ? parseFloat(area) : null,
+      materialId:     mat?.id            || '',
+      materialNombre: mat?.nombre        || '',
+      rangoPesos:     mat?.rangoPesos    || '',
+      variedad:       mat?.variedad      || '',
+    });
+  };
+
+  return createPortal(
+    <div className="param-modal-backdrop" onPointerDown={onCancel}>
+      <div className="param-modal" style={{ maxWidth: 480 }} onPointerDown={e => e.stopPropagation()}>
+        <div className="param-modal-header">
+          <FiEdit2 size={16} style={{ flexShrink: 0 }} />
+          <span>Editar registro de siembra</span>
+        </div>
+        <div className="edit-siembra-grid">
+          <label className="mat-modal-label">
+            Fecha
+            <input className="mat-modal-input" type="date" value={fecha}
+              onChange={e => setFecha(e.target.value)} disabled={saving} />
+          </label>
+          <label className="mat-modal-label">
+            Lote
+            <select className="mat-modal-input" value={loteId}
+              onChange={e => setLoteId(e.target.value)} disabled={saving}>
+              <option value="">— seleccionar —</option>
+              {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+            </select>
+          </label>
+          <label className="mat-modal-label">
+            Bloque
+            <input className="mat-modal-input" placeholder="Ej: A" value={bloque}
+              onChange={e => setBloque(e.target.value)} disabled={saving} />
+          </label>
+          <label className="mat-modal-label">
+            Plantas
+            <input className="mat-modal-input" type="number" min="0" value={plantas}
+              onChange={e => setPlantas(e.target.value)} disabled={saving} />
+          </label>
+          <label className="mat-modal-label">
+            Densidad <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>(pl/ha)</span>
+            <input className="mat-modal-input" type="number" min="1" value={densidad}
+              onChange={e => setDensidad(e.target.value)} disabled={saving} />
+          </label>
+          <label className="mat-modal-label">
+            Área calculada
+            <input className="mat-modal-input" value={area ? area + ' ha' : '—'} readOnly disabled
+              style={{ opacity: 0.55 }} />
+          </label>
+          <label className="mat-modal-label" style={{ gridColumn: '1 / -1' }}>
+            Material
+            <select className="mat-modal-input" value={materialId}
+              onChange={e => setMaterialId(e.target.value)} disabled={saving}>
+              <option value="">— sin material —</option>
+              {materiales.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.nombre}{m.variedad ? ` · ${m.variedad}` : ''}{m.rangoPesos ? ` (${m.rangoPesos})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="param-modal-actions">
+          <button className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancelar</button>
+          <button className="btn btn-primary" disabled={!fecha || !loteId || saving} onClick={handleSave}>
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function Siembra() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -347,6 +443,8 @@ function Siembra() {
   const [rowMenu, setRowMenu]           = useState(null);
   const [histRowMenu, setHistRowMenu]   = useState(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [editRecord, setEditRecord]     = useState(null);
+  const [editSaving, setEditSaving]     = useState(false);
   const toggleExpanded = (id) => setExpandedRows(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -769,6 +867,24 @@ function Siembra() {
     });
   };
 
+  const handleEditSave = async (data) => {
+    setEditSaving(true);
+    try {
+      await apiFetch(`/api/siembras/${editRecord.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      setRegistros(prev => prev.map(r => r.id === editRecord.id ? { ...r, ...data } : r));
+      setEditRecord(null);
+      showToast('Registro actualizado.');
+    } catch {
+      showToast('Error al actualizar.', 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const formatFecha = (iso) => {
     const d = new Date(iso.slice(0, 10) + 'T12:00:00');
     const day   = d.getDate().toString().padStart(2, '0');
@@ -823,6 +939,16 @@ function Siembra() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && <ConfirmCerrarModal config={confirmModal} onCancel={() => setConfirmModal(null)} />}
       {matModal && <NuevoMaterialModal initial={matModal} onConfirm={handleMatModalConfirm} onCancel={handleMatModalCancel} />}
+      {editRecord && (
+        <EditSiembraModal
+          record={editRecord}
+          lotes={lotes}
+          materiales={materiales}
+          onSave={handleEditSave}
+          onCancel={() => setEditRecord(null)}
+          saving={editSaving}
+        />
+      )}
 
       {draftRestored && (
         <div className="siembra-draft-banner">
@@ -975,6 +1101,10 @@ function Siembra() {
           <button className="btn btn-primary" onClick={handleGuardar} disabled={loading || scanning}>
             {loading ? 'Guardando...' : 'Guardar'}
           </button>
+          <Link to="/siembra/materiales" className="siembra-materiales-link" style={{ marginLeft: 'auto' }}>
+            <FiSettings size={11} />
+            Gestionar materiales
+          </Link>
         </div>
       </div>
 
@@ -1053,6 +1183,10 @@ function Siembra() {
                           </button>
                           {histRowMenu === r.id && (
                             <div className="hist-kebab-dropdown">
+                              <button className="hist-kebab-item" onClick={() => { setHistRowMenu(null); setEditRecord(r); }}>
+                                <FiEdit2 size={13} />
+                                Editar
+                              </button>
                               <button className="hist-kebab-item" onClick={() => { setHistRowMenu(null); toggleCerrado(r); }}>
                                 {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
                                 {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
@@ -1098,6 +1232,9 @@ function Siembra() {
                               >
                                 {r.cerrado ? <FiCircle size={15} /> : <FiCheckCircle size={15} />}
                                 {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
+                              </button>
+                              <button className="btn-icon" onClick={() => setEditRecord(r)}>
+                                <FiEdit2 size={14} />
                               </button>
                               <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
                                 <FiTrash2 size={14} />
