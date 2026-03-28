@@ -1,23 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import {
-  FiClock, FiPlus, FiX, FiCheck, FiEdit, FiTrash2, FiFilter, FiChevronDown,
+  FiClock, FiPlus, FiX, FiCheck, FiEdit, FiTrash2, FiFilter, FiSliders,
   FiCamera, FiUpload, FiZap, FiSearch,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
 
-const SORT_OPTIONS = [
-  { value: '',              label: '— Sin ordenar —' },
-  { value: 'fecha',         label: 'Fecha' },
-  { value: 'tractorNombre', label: 'Tractor' },
-  { value: 'loteNombre',    label: 'Lote' },
-  { value: 'operarioNombre',label: 'Operario' },
-  { value: 'labor',         label: 'Labor' },
-  { value: 'horaInicio',    label: 'Hora de Inicio' },
-];
 
 const DRAFT_KEY = 'aurora_horimetro_draft';
 
@@ -97,6 +90,22 @@ function compressImage(file) {
   });
 }
 
+const COLUMNS = [
+  { id: 'fecha',            label: 'Fecha',             filterType: 'date'   },
+  { id: 'tractorNombre',    label: 'Tractor'                                  },
+  { id: 'implemento',       label: 'Implemento'                               },
+  { id: 'horimetroInicial', label: 'Horímetro Inicial', filterType: 'number' },
+  { id: 'horimetroFinal',   label: 'Horímetro Final',   filterType: 'number' },
+  { id: 'horas',            label: 'Horas',             plain: true           },
+  { id: 'loteNombre',       label: 'Lote'                                     },
+  { id: 'grupo',            label: 'Grupo'                                    },
+  { id: 'bloque',           label: 'Bloque',            plain: true           },
+  { id: 'labor',            label: 'Labor'                                    },
+  { id: 'horaInicio',       label: 'Hora Inicial'                             },
+  { id: 'horaFinal',        label: 'Hora Final'                               },
+  { id: 'operarioNombre',   label: 'Operario'                                 },
+];
+
 function Horimetro() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -135,21 +144,12 @@ function Horimetro() {
   const [isEditing, setIsEditing] = useState(_draft?.isEditing ?? false);
   const [saving, setSaving]       = useState(false);
 
-  // Filters
-  const [filterFechaDesde, setFilterFechaDesde] = useState('');
-  const [filterFechaHasta, setFilterFechaHasta] = useState('');
-  const [filterOperario, setFilterOperario] = useState('');
-  const [filterTractor, setFilterTractor] = useState('');
-  const [filterLote, setFilterLote] = useState('');
-  const [filterLabor, setFilterLabor] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Sorting — 3 levels
-  const [sorts, setSorts] = useState([
-    { field: 'fecha', dir: 'desc' },
-    { field: '',      dir: 'asc' },
-    { field: '',      dir: 'asc' },
-  ]);
+  const [colFilters,    setColFilters]    = useState({});
+  const [filterPopover, setFilterPopover] = useState(null);
+  const [hiddenCols,    setHiddenCols]    = useState(new Set());
+  const [colMenu,       setColMenu]       = useState(null);
+  const [rangeConfirm,  setRangeConfirm]  = useState(null);
+  const [sorts, setSorts] = useState([{ field: 'fecha', dir: 'desc' }]);
 
   const fetchRecords = () =>
     apiFetch('/api/horimetro')
@@ -288,12 +288,7 @@ function Horimetro() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.fecha || !form.tractorId) {
-      showToast('Fecha y tractor son obligatorios.', 'error');
-      return;
-    }
+  const doSave = async () => {
     setSaving(true);
     try {
       const url    = isEditing ? `/api/horimetro/${form.id}` : '/api/horimetro';
@@ -312,6 +307,50 @@ function Horimetro() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const checkHoraAndSave = () => {
+    if (form.horaInicio && form.horaFinal) {
+      const [hI, mI] = form.horaInicio.split(':').map(Number);
+      const [hF, mF] = form.horaFinal.split(':').map(Number);
+      const diffMin = (hF * 60 + mF) - (hI * 60 + mI);
+      if (diffMin > 12 * 60) {
+        setRangeConfirm({
+          title: 'Rango inusual de horas',
+          message: `El rango de horas trabajadas es de ${(diffMin / 60).toFixed(1)} h. ¿Es correcto?`,
+          onConfirm: () => { setRangeConfirm(null); doSave(); },
+        });
+        return;
+      }
+    }
+    doSave();
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.fecha || !form.tractorId) {
+      showToast('Fecha y tractor son obligatorios.', 'error');
+      return;
+    }
+    const ini = parseFloat(form.horimetroInicial);
+    const fin = parseFloat(form.horimetroFinal);
+    if (!isNaN(ini) && !isNaN(fin) && ini >= fin) {
+      showToast('El horímetro inicial debe ser menor que el final.', 'error');
+      return;
+    }
+    if (form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal) {
+      showToast('La hora de inicio debe ser menor que la hora final.', 'error');
+      return;
+    }
+    if (!isNaN(ini) && !isNaN(fin) && (fin - ini) > 12) {
+      setRangeConfirm({
+        title: 'Rango inusual de horímetro',
+        message: `El rango del horímetro es de ${(fin - ini).toFixed(1)} h. ¿Es correcto?`,
+        onConfirm: () => { setRangeConfirm(null); checkHoraAndSave(); },
+      });
+      return;
+    }
+    checkHoraAndSave();
   };
 
   // ── Derived asset lists ────────────────────────────────────────────────────
@@ -342,33 +381,83 @@ function Horimetro() {
   }, [grupos, siembras, form.grupo]);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => records.filter(r => {
-    if (filterFechaDesde && r.fecha < filterFechaDesde) return false;
-    if (filterFechaHasta && r.fecha > filterFechaHasta) return false;
-    if (filterOperario   && r.operarioId !== filterOperario)   return false;
-    if (filterTractor    && r.tractorId  !== filterTractor)    return false;
-    if (filterLote       && r.loteId     !== filterLote)       return false;
-    if (filterLabor      && !r.labor?.toLowerCase().includes(filterLabor.toLowerCase())) return false;
-    return true;
-  }), [records, filterFechaDesde, filterFechaHasta, filterOperario, filterTractor, filterLote, filterLabor]);
+  const filtered = useMemo(() => {
+    const activeCol = Object.entries(colFilters).filter(([, f]) => {
+      if (!f) return false;
+      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
+      return !!f.value?.trim();
+    });
+    return records.filter(r => {
+      for (const [field, filter] of activeCol) {
+        const cell = r[field];
+        if (filter.type === 'range') {
+          if (cell == null || cell === '') return false;
+          const num = Number(cell);
+          if (!isNaN(num) && cell !== '') {
+            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
+            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
+          } else {
+            const str = String(cell);
+            if (filter.from && str < filter.from) return false;
+            if (filter.to   && str > filter.to)   return false;
+          }
+        } else {
+          if (cell == null) return false;
+          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+  }, [records, colFilters]);
 
   const sorted = useMemo(() => multiSort(filtered, sorts), [filtered, sorts]);
 
-  const activeFiltersCount = [
-    filterFechaDesde, filterFechaHasta, filterOperario,
-    filterTractor, filterLote, filterLabor,
-  ].filter(Boolean).length;
+  const handleThSort = (field) => {
+    setSorts(prev => {
+      const next = [...prev];
+      next[0] = next[0].field === field
+        ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' }
+        : { field, dir: 'asc' };
+      return next;
+    });
+  };
 
-  const updateSort = (idx, field) =>
-    setSorts(prev => prev.map((s, i) => i === idx ? { ...s, field } : s));
+  const openFilter = (e, field, filterType = 'text') => {
+    e.stopPropagation();
+    if (filterPopover?.field === field) { setFilterPopover(null); return; }
+    const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+    const rect = th.getBoundingClientRect();
+    setFilterPopover({ field, x: rect.left, y: rect.bottom + 4, filterType });
+  };
 
-  const updateSortDir = (idx, dir) =>
-    setSorts(prev => prev.map((s, i) => i === idx ? { ...s, dir } : s));
+  const openColMenu = (e) => {
+    e.preventDefault();
+    setColMenu({ x: e.clientX, y: e.clientY });
+  };
 
-  const clearFilters = () => {
-    setFilterFechaDesde(''); setFilterFechaHasta('');
-    setFilterOperario('');   setFilterTractor('');
-    setFilterLote('');       setFilterLabor('');
+  const toggleCol = (id) => {
+    setHiddenCols(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const hiddenCount = hiddenCols.size;
+
+  const handleColBtnClick = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
+  };
+
+  const setColFilter = (field, filterObj) => {
+    const empty = !filterObj ||
+      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
+    setColFilters(prev => empty
+      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+      : { ...prev, [field]: filterObj }
+    );
   };
 
   // ── Scan handlers ──────────────────────────────────────────────────────────
@@ -469,19 +558,70 @@ function Horimetro() {
       : g.nombreGrupo;
   };
 
+  // ── Inline validation ─────────────────────────────────────────────────────
+  const errHorimetro = (() => {
+    const ini = parseFloat(form.horimetroInicial);
+    const fin = parseFloat(form.horimetroFinal);
+    return !isNaN(ini) && !isNaN(fin) && ini >= fin;
+  })();
+  const errHora = !!(form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal);
+
+  // ── Sort+filter column header ──────────────────────────────────────────────
+  const SortTh = ({ field, children, filterType = 'text' }) => {
+    const active = sorts[0].field === field;
+    const dir    = active ? sorts[0].dir : null;
+    const f      = colFilters[field];
+    const hasFilter = f
+      ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim())
+      : false;
+    return (
+      <th
+        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        onClick={() => handleThSort(field)}
+      >
+        {children}
+        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`} onClick={e => openFilter(e, field, filterType)} title="Filtrar columna (o clic derecho)">
+          <FiFilter size={10} />
+        </span>
+      </th>
+    );
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="hor-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {rangeConfirm && (
+        <ConfirmModal
+          title={rangeConfirm.title}
+          message={rangeConfirm.message}
+          confirmLabel="Sí, es correcto"
+          onConfirm={rangeConfirm.onConfirm}
+          onCancel={() => setRangeConfirm(null)}
+        />
+      )}
 
       {/* ── Form card ── */}
       {showForm ? (
         <div className="hor-form-card">
           <div className="hor-form-header">
             <span>{isEditing ? 'Editar Registro' : 'Nuevo Registro de Horímetro'}</span>
-            <button className="hor-close-btn" onClick={resetForm} title="Cancelar">
-              <FiX size={16} />
-            </button>
+            <div className="hor-form-header-right">
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="btn btn-secondary hor-scan-header-btn"
+                  onClick={() => { resetForm(); setScanStep('upload'); setScanImage(null); setScanError(null); }}
+                >
+                  <FiCamera size={14} /> Escanear Formulario
+                </button>
+              )}
+              <button className="hor-close-btn" onClick={resetForm} title="Cancelar">
+                <FiX size={16} />
+              </button>
+            </div>
           </div>
 
           <form className="hor-form" onSubmit={handleSubmit}>
@@ -515,6 +655,7 @@ function Horimetro() {
                   type="number" name="horimetroInicial"
                   value={form.horimetroInicial} onChange={handleChange}
                   min="0" step="0.1" placeholder="0.0"
+                  className={errHorimetro ? 'hor-input-error' : ''}
                 />
               </div>
 
@@ -524,17 +665,26 @@ function Horimetro() {
                   type="number" name="horimetroFinal"
                   value={form.horimetroFinal} onChange={handleChange}
                   min="0" step="0.1" placeholder="0.0"
+                  className={errHorimetro ? 'hor-input-error' : ''}
                 />
+                {errHorimetro && <span className="hor-field-error">El final debe ser mayor que el inicial</span>}
               </div>
 
               <div className="hor-field">
                 <label>Hora de Inicio</label>
-                <input type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange} />
+                <input
+                  type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange}
+                  className={errHora ? 'hor-input-error' : ''}
+                />
               </div>
 
               <div className="hor-field">
                 <label>Hora Final</label>
-                <input type="time" name="horaFinal" value={form.horaFinal} onChange={handleChange} />
+                <input
+                  type="time" name="horaFinal" value={form.horaFinal} onChange={handleChange}
+                  className={errHora ? 'hor-input-error' : ''}
+                />
+                {errHora && <span className="hor-field-error">La hora final debe ser mayor que la inicial</span>}
               </div>
             </div>
 
@@ -640,7 +790,6 @@ function Horimetro() {
             <p className="hor-section-label">Operario</p>
             <div className="hor-form-grid">
               <div className="hor-field">
-                <label>Operario</label>
                 <select name="operarioId" value={form.operarioId} onChange={handleChange}>
                   <option value="">— Seleccionar —</option>
                   {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
@@ -797,104 +946,11 @@ function Horimetro() {
         </div>
       ) : (
         <div className="hor-toolbar">
-          <button className="btn btn-secondary" onClick={() => { setScanStep('upload'); setScanImage(null); setScanError(null); }}>
-            <FiCamera size={14} /> Escanear Formulario
-          </button>
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus size={15} /> Nuevo
           </button>
         </div>
       )}
-
-      {/* ── Sort + Filter controls ── */}
-      <div className="hor-controls">
-        <div className="hor-sort-row">
-          <span className="hor-control-label">Ordenar por</span>
-          {sorts.map((s, i) => (
-            <div key={i} className="hor-sort-group">
-              {i > 0 && <span className="hor-sort-sep">luego por</span>}
-              <select
-                className="hor-sort-select"
-                value={s.field}
-                onChange={e => updateSort(i, e.target.value)}
-              >
-                {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {s.field && (
-                <select
-                  className="hor-sort-dir"
-                  value={s.dir}
-                  onChange={e => updateSortDir(i, e.target.value)}
-                >
-                  <option value="asc">↑ Asc</option>
-                  <option value="desc">↓ Desc</option>
-                </select>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <button
-          className={`hor-filter-btn${showFilters ? ' active' : ''}`}
-          onClick={() => setShowFilters(v => !v)}
-        >
-          <FiFilter size={14} />
-          Filtros
-          {activeFiltersCount > 0 && (
-            <span className="hor-filter-badge">{activeFiltersCount}</span>
-          )}
-          <FiChevronDown size={12} className={showFilters ? 'hor-chevron-up' : ''} />
-        </button>
-
-        {showFilters && (
-          <div className="hor-filters">
-            <div className="hor-filter-grid">
-              <div className="hor-field">
-                <label>Fecha desde</label>
-                <input type="date" value={filterFechaDesde} onChange={e => setFilterFechaDesde(e.target.value)} />
-              </div>
-              <div className="hor-field">
-                <label>Fecha hasta</label>
-                <input type="date" value={filterFechaHasta} onChange={e => setFilterFechaHasta(e.target.value)} />
-              </div>
-              <div className="hor-field">
-                <label>Operario</label>
-                <select value={filterOperario} onChange={e => setFilterOperario(e.target.value)}>
-                  <option value="">Todos</option>
-                  {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                </select>
-              </div>
-              <div className="hor-field">
-                <label>Tractor / Máquina</label>
-                <select value={filterTractor} onChange={e => setFilterTractor(e.target.value)}>
-                  <option value="">Todos</option>
-                  {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
-                </select>
-              </div>
-              <div className="hor-field">
-                <label>Lote</label>
-                <select value={filterLote} onChange={e => setFilterLote(e.target.value)}>
-                  <option value="">Todos</option>
-                  {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                </select>
-              </div>
-              <div className="hor-field">
-                <label>Labor</label>
-                <input
-                  value={filterLabor}
-                  onChange={e => setFilterLabor(e.target.value)}
-                  placeholder="Buscar labor…"
-                />
-              </div>
-            </div>
-            {activeFiltersCount > 0 && (
-              <button className="hor-clear-filters" onClick={clearFilters}>
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* ── Historical table ── */}
       <section className="hor-section">
@@ -902,6 +958,12 @@ function Horimetro() {
           <FiClock size={14} />
           <span>Historial de Registros</span>
           {sorted.length > 0 && <span className="hor-count">{sorted.length}</span>}
+          {Object.values(colFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
+            <button className="historial-clear-col-filters" onClick={() => setColFilters({})}>
+              <FiX size={11} />
+              Limpiar filtros de columna
+            </button>
+          )}
           {showForm && (
             <button className="hor-add-inline" onClick={handleNew} title="Nuevo registro">
               <FiPlus size={13} />
@@ -929,21 +991,21 @@ function Horimetro() {
           <div className="hor-table-wrap">
             <table className="hor-table">
               <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Tractor</th>
-                  <th>Implemento</th>
-                  <th>Hor. Ini.</th>
-                  <th>Hor. Fin.</th>
-                  <th>Horas</th>
-                  <th>Lote</th>
-                  <th>Grupo</th>
-                  <th>Bloque</th>
-                  <th>Labor</th>
-                  <th>Inicio</th>
-                  <th>Final</th>
-                  <th>Operario</th>
-                  <th></th>
+                <tr onContextMenu={openColMenu}>
+                  {COLUMNS.map(col => hiddenCols.has(col.id) ? null : col.plain
+                    ? <th key={col.id}>{col.label}</th>
+                    : <SortTh key={col.id} field={col.id} filterType={col.filterType}>{col.label}</SortTh>
+                  )}
+                  <th className="hor-th-settings">
+                    <button
+                      className={`hor-col-toggle-btn${hiddenCount > 0 ? ' hor-col-toggle-btn--active' : ''}`}
+                      onClick={handleColBtnClick}
+                      title="Personalizar columnas visibles"
+                    >
+                      <FiSliders size={12} />
+                      {hiddenCount > 0 && <span className="hor-col-hidden-badge">{hiddenCount}</span>}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -951,19 +1013,19 @@ function Horimetro() {
                   const hrs = horasUsadas(rec);
                   return (
                     <tr key={rec.id}>
-                      <td className="hor-td-date">{rec.fecha || '—'}</td>
-                      <td className="hor-td-maq">{rec.tractorNombre || '—'}</td>
-                      <td>{rec.implemento || <span className="hor-td-empty">—</span>}</td>
-                      <td className="hor-td-num">{rec.horimetroInicial !== '' && rec.horimetroInicial != null ? rec.horimetroInicial : <span className="hor-td-empty">—</span>}</td>
-                      <td className="hor-td-num">{rec.horimetroFinal   !== '' && rec.horimetroFinal   != null ? rec.horimetroFinal   : <span className="hor-td-empty">—</span>}</td>
-                      <td className={`hor-td-horas${hrs ? '' : ' hor-td-empty'}`}>{hrs ?? '—'}</td>
-                      <td>{rec.loteNombre || <span className="hor-td-empty">—</span>}</td>
-                      <td>{rec.grupo      || <span className="hor-td-empty">—</span>}</td>
-                      <td>{rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || <span className="hor-td-empty">—</span>)}</td>
-                      <td className="hor-td-labor">{rec.labor || <span className="hor-td-empty">—</span>}</td>
-                      <td className="hor-td-time">{rec.horaInicio || '—'}</td>
-                      <td className="hor-td-time">{rec.horaFinal  || '—'}</td>
-                      <td>{rec.operarioNombre || <span className="hor-td-empty">—</span>}</td>
+                      {!hiddenCols.has('fecha')            && <td className="hor-td-date">{rec.fecha || '—'}</td>}
+                      {!hiddenCols.has('tractorNombre')    && <td className="hor-td-maq">{rec.tractorNombre || '—'}</td>}
+                      {!hiddenCols.has('implemento')       && <td>{rec.implemento || <span className="hor-td-empty">—</span>}</td>}
+                      {!hiddenCols.has('horimetroInicial') && <td className="hor-td-num">{rec.horimetroInicial !== '' && rec.horimetroInicial != null ? rec.horimetroInicial : <span className="hor-td-empty">—</span>}</td>}
+                      {!hiddenCols.has('horimetroFinal')   && <td className="hor-td-num">{rec.horimetroFinal   !== '' && rec.horimetroFinal   != null ? rec.horimetroFinal   : <span className="hor-td-empty">—</span>}</td>}
+                      {!hiddenCols.has('horas')            && <td className={`hor-td-horas${hrs ? '' : ' hor-td-empty'}`}>{hrs ?? '—'}</td>}
+                      {!hiddenCols.has('loteNombre')       && <td>{rec.loteNombre || <span className="hor-td-empty">—</span>}</td>}
+                      {!hiddenCols.has('grupo')            && <td>{rec.grupo      || <span className="hor-td-empty">—</span>}</td>}
+                      {!hiddenCols.has('bloque')           && <td>{rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || <span className="hor-td-empty">—</span>)}</td>}
+                      {!hiddenCols.has('labor')            && <td className="hor-td-labor">{rec.labor || <span className="hor-td-empty">—</span>}</td>}
+                      {!hiddenCols.has('horaInicio')       && <td className="hor-td-time">{rec.horaInicio || '—'}</td>}
+                      {!hiddenCols.has('horaFinal')        && <td className="hor-td-time">{rec.horaFinal  || '—'}</td>}
+                      {!hiddenCols.has('operarioNombre')   && <td>{rec.operarioNombre || <span className="hor-td-empty">—</span>}</td>}
                       <td className="hor-td-actions">
                         <button className="hor-btn-icon" onClick={() => handleEdit(rec)} title="Editar">
                           <FiEdit size={13} />
@@ -981,6 +1043,101 @@ function Horimetro() {
         )}
       </section>
     </div>
+
+    {filterPopover && createPortal(
+      <>
+        <div className="historial-filter-backdrop" onClick={() => setFilterPopover(null)} />
+        <div
+          className={`historial-filter-popover${filterPopover.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
+          style={{ left: filterPopover.x, top: filterPopover.y }}
+        >
+          <FiFilter size={13} className="historial-filter-popover-icon" />
+          {filterPopover.filterType !== 'text' ? (
+            <>
+              <div className="historial-filter-range">
+                <div className="historial-filter-range-row">
+                  <span className="historial-filter-range-label">De</span>
+                  <input
+                    autoFocus
+                    type={filterPopover.filterType}
+                    className="historial-filter-input"
+                    value={colFilters[filterPopover.field]?.from || ''}
+                    onChange={e => setColFilter(filterPopover.field, {
+                      type: 'range',
+                      from: e.target.value,
+                      to: colFilters[filterPopover.field]?.to || '',
+                    })}
+                    onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
+                  />
+                </div>
+                <div className="historial-filter-range-row">
+                  <span className="historial-filter-range-label">A</span>
+                  <input
+                    type={filterPopover.filterType}
+                    className="historial-filter-input"
+                    value={colFilters[filterPopover.field]?.to || ''}
+                    onChange={e => setColFilter(filterPopover.field, {
+                      type: 'range',
+                      from: colFilters[filterPopover.field]?.from || '',
+                      to: e.target.value,
+                    })}
+                    onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
+                  />
+                </div>
+              </div>
+              {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
+                <button className="historial-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, null); setFilterPopover(null); }}>
+                  <FiX size={13} />
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <input
+                autoFocus
+                className="historial-filter-input"
+                placeholder="Filtrar…"
+                value={colFilters[filterPopover.field]?.value || ''}
+                onChange={e => setColFilter(filterPopover.field, { type: 'text', value: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
+              />
+              {colFilters[filterPopover.field]?.value && (
+                <button className="historial-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, null); setFilterPopover(null); }}>
+                  <FiX size={13} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </>,
+      document.body
+    )}
+
+    {colMenu && createPortal(
+      <>
+        <div className="hor-col-menu-backdrop" onClick={() => setColMenu(null)} />
+        <div className="hor-col-menu" style={{ left: colMenu.x, top: colMenu.y }}>
+          <div className="hor-col-menu-title">Columnas visibles</div>
+          {COLUMNS.map(col => (
+            <button
+              key={col.id}
+              className={`hor-col-menu-item${hiddenCols.has(col.id) ? ' is-hidden' : ''}`}
+              onClick={() => toggleCol(col.id)}
+            >
+              <span className="hor-col-menu-check" />
+              {col.label}
+            </button>
+          ))}
+          {hiddenCols.size > 0 && (
+            <button className="hor-col-menu-reset" onClick={() => { setHiddenCols(new Set()); setColMenu(null); }}>
+              Mostrar todas
+            </button>
+          )}
+        </div>
+      </>,
+      document.body
+    )}
+    </>
   );
 }
 
