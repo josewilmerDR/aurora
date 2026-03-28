@@ -604,6 +604,19 @@
   opacity: 0.4;
 }
 
+/* ── Edit siembra modal: grid de campos ─────────────────────────────────────── */
+.edit-siembra-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .edit-siembra-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Celda material nuevo (modo confirmaado) ─────────────────────────────────── */
 .td-nuevo-mat {
   display: flex;
@@ -892,6 +905,10 @@
     padding: 10px 8px;
   }
 
+  .siembra-materiales-link {
+    display: none;
+  }
+
   /* Basurero: oculto en mobile */
   .row-del-desktop {
     display: none;
@@ -1004,3 +1021,241 @@
 }
 .hist-kebab-item:hover { background: rgba(255,255,255,0.06); color: var(--aurora-green); }
 .hist-kebab-item-danger:hover { color: #e05555; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Página: Materiales de Siembra  (clases sm-*)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.sm-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 680px;
+}
+
+/* ── Header ── */
+.sm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sm-title-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sm-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
+.sm-count {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  border: 1px solid rgba(51, 255, 153, 0.2);
+  padding: 1px 9px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* ── Formulario de creación ── */
+.sm-form-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sm-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--aurora-border);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.sm-close-btn {
+  background: none;
+  border: none;
+  color: rgba(230, 242, 255, 0.35);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.sm-close-btn:hover { color: var(--aurora-light); }
+
+.sm-form { padding: 18px; }
+
+.sm-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.sm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sm-field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(230, 242, 255, 0.5);
+}
+
+.sm-required { color: var(--aurora-magenta); margin-left: 2px; }
+
+.sm-field input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.sm-field input:focus { border-color: var(--aurora-green); }
+.sm-field input::placeholder { color: rgba(230, 242, 255, 0.22); }
+
+.sm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+/* ── Lista de materiales ── */
+.sm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sm-item {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  transition: border-color 0.15s;
+}
+.sm-item:hover { border-color: rgba(230, 242, 255, 0.18); }
+.sm-item--editing { border-color: rgba(51, 255, 153, 0.3); }
+
+.sm-item-view {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sm-item-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.sm-item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.sm-item-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Modo edición inline ── */
+.sm-item-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sm-edit-input {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  color: var(--aurora-light);
+  padding: 6px 9px;
+  font-size: 0.85rem;
+  outline: none;
+  flex: 1;
+  min-width: 80px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.sm-edit-input:focus { border-color: var(--aurora-green); }
+.sm-edit-input::placeholder { color: rgba(230, 242, 255, 0.22); }
+
+/* ── Botones de acción ── */
+.sm-item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sm-btn-icon {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: rgba(230, 242, 255, 0.35);
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sm-btn-icon:hover         { color: var(--aurora-green); border-color: var(--aurora-border); }
+.sm-btn-danger:hover       { color: #ff5555; border-color: var(--aurora-border); }
+.sm-btn-success            { color: var(--aurora-green); opacity: 0.9; }
+.sm-btn-success:hover      { opacity: 1; border-color: var(--aurora-border); }
+
+/* ── Empty state ── */
+.sm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 20px;
+  border: 1px dashed rgba(230, 242, 255, 0.1);
+  border-radius: 10px;
+  text-align: center;
+}
+.sm-empty p       { font-size: 0.9rem; color: rgba(230, 242, 255, 0.45); margin: 0; }
+.sm-empty-hint    { font-size: 0.8rem !important; color: rgba(230, 242, 255, 0.25) !important; }
+
+/* ── Mobile ── */
+@media (max-width: 560px) {
+  .sm-item-edit {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sm-edit-input { flex: unset; }
+  .sm-item-edit .sm-item-actions { align-self: flex-end; }
+}
