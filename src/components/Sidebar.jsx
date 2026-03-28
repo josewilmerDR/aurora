@@ -40,7 +40,7 @@ export const MODULES = [
           { label: 'Horímetro', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador' },
         ]
       },
-      { label: 'Gestión de Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
+      { label: 'Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
       { label: 'Grupos', to: '/grupos', icon: FiLayers, minRole: 'encargado' },
     ],
   },
