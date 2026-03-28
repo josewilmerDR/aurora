@@ -5651,7 +5651,7 @@ app.post('/api/unidades-medida', authenticate, async (req, res) => {
   try {
     const { nombre, descripcion, precio, labor, factorConversion, unidadBase } = req.body;
     if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
-    const ref = await db.collection('unidades_medida').add({
+    const data = {
       nombre:           nombre.trim(),
       descripcion:      descripcion      ? String(descripcion).trim()       : '',
       precio:           precio != null && precio !== '' ? parseFloat(precio) || 0 : null,
@@ -5659,9 +5659,21 @@ app.post('/api/unidades-medida', authenticate, async (req, res) => {
       factorConversion: factorConversion != null && factorConversion !== '' ? parseFloat(factorConversion) || null : null,
       unidadBase:       unidadBase       ? String(unidadBase).trim()        : '',
       fincaId: req.fincaId,
-      creadoEn: Timestamp.now(),
-    });
-    res.status(201).json({ id: ref.id });
+    };
+    // Upsert by nombre
+    const existing = await db.collection('unidades_medida')
+      .where('fincaId', '==', req.fincaId)
+      .where('nombre', '==', data.nombre)
+      .limit(1).get();
+    if (!existing.empty) {
+      const doc = existing.docs[0];
+      const { fincaId, ...updateData } = data;
+      await doc.ref.update({ ...updateData, actualizadoEn: Timestamp.now() });
+      return res.status(200).json({ id: doc.id, merged: true });
+    }
+    data.creadoEn = Timestamp.now();
+    const ref = await db.collection('unidades_medida').add(data);
+    res.status(201).json({ id: ref.id, merged: false });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear unidad de medida.' });
   }
