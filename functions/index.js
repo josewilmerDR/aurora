@@ -5649,10 +5649,15 @@ app.get('/api/unidades-medida', authenticate, async (req, res) => {
 
 app.post('/api/unidades-medida', authenticate, async (req, res) => {
   try {
-    const { nombre } = req.body;
+    const { nombre, descripcion, precio, labor, factorConversion, unidadBase } = req.body;
     if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
     const ref = await db.collection('unidades_medida').add({
-      nombre: nombre.trim(),
+      nombre:           nombre.trim(),
+      descripcion:      descripcion      ? String(descripcion).trim()       : '',
+      precio:           precio != null && precio !== '' ? parseFloat(precio) || 0 : null,
+      labor:            labor            ? String(labor).trim()             : '',
+      factorConversion: factorConversion != null && factorConversion !== '' ? parseFloat(factorConversion) || null : null,
+      unidadBase:       unidadBase       ? String(unidadBase).trim()        : '',
       fincaId: req.fincaId,
       creadoEn: Timestamp.now(),
     });
@@ -5666,11 +5671,16 @@ app.put('/api/unidades-medida/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('unidades_medida', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const { nombre } = req.body;
+    const { nombre, descripcion, precio, labor, factorConversion, unidadBase } = req.body;
     if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
     await db.collection('unidades_medida').doc(req.params.id).update({
-      nombre: nombre.trim(),
-      actualizadoEn: Timestamp.now(),
+      nombre:           nombre.trim(),
+      descripcion:      descripcion      ? String(descripcion).trim()       : '',
+      precio:           precio != null && precio !== '' ? parseFloat(precio) || 0 : null,
+      labor:            labor            ? String(labor).trim()             : '',
+      factorConversion: factorConversion != null && factorConversion !== '' ? parseFloat(factorConversion) || null : null,
+      unidadBase:       unidadBase       ? String(unidadBase).trim()        : '',
+      actualizadoEn:    Timestamp.now(),
     });
     res.status(200).json({ message: 'Unidad actualizada.' });
   } catch (error) {

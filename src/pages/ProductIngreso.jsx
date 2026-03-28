@@ -1,15 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import './ProductManagement.css';
-import { FiPlus, FiUpload, FiDownload, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiCheck } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
-
-const EXCEL_HEADERS = [
-  'ID Producto', 'Nombre Comercial', 'Unidad', 'Cantidad', 'Total', 'IVA (%)',
-];
 
 let _uid = 0;
 const newRow = () => ({
@@ -141,13 +136,9 @@ function ProductIngreso() {
   const [filas, setFilas] = useState([newRow()]);
   const [proveedor, setProveedor] = useState('');
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
   const [toast, setToast] = useState(null);
   const [movimientos, setMovimientos] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
-  const fileInputRef = useRef(null);
-
   // Listas de opciones compartidas (persisten durante la sesión)
   const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g']);
   const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
@@ -258,81 +249,11 @@ function ProductIngreso() {
     showToast(msg, errores > 0 ? 'warning' : 'success');
   };
 
-  const handleDownloadTemplate = () => {
-    const sample = ['PD-001', 'Round-up', 'L', 50, 775.00, 0];
-    const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, sample]);
-    ws['!cols'] = EXCEL_HEADERS.map(() => ({ wch: 22 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Productos');
-    XLSX.writeFile(wb, 'plantilla_productos.xlsx');
-  };
-
-  const handleExcelImport = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const workbook = XLSX.read(await file.arrayBuffer());
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
-      const cargadas = rows
-        .map(row => ({
-          ...newRow(),
-          idProducto:      String(row['ID Producto']      || '').trim(),
-          nombreComercial: String(row['Nombre Comercial'] || '').trim(),
-          unidad:          String(row['Unidad']           || 'L').trim(),
-          cantidad:        String(row['Cantidad']         || ''),
-          total:           String(row['Total']            || ''),
-          iva:             parseFloat(row['IVA (%)'])     || 0,
-        }))
-        .filter(f => f.idProducto || f.nombreComercial);
-      if (cargadas.length > 0) {
-        // Registrar unidades/ivas nuevos provenientes del Excel
-        cargadas.forEach(f => {
-          addUnidad(f.unidad);
-          addIva(f.iva);
-        });
-        setFilas(cargadas);
-        setImportResult({ loaded: cargadas.length });
-      } else {
-        setImportResult({ error: true });
-      }
-    } catch {
-      setImportResult({ error: true });
-    } finally {
-      setImporting(false);
-      e.target.value = '';
-    }
-  };
-
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="form-card ingreso-grid-card">
-
-        {/* Importación masiva */}
-        <div className="import-section">
-          <span className="import-label">Importación masiva</span>
-          <div className="import-buttons">
-            <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
-              <FiDownload size={15} /> Descargar plantilla
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
-              <FiUpload size={15} /> {importing ? 'Cargando…' : 'Cargar desde Excel'}
-            </button>
-            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleExcelImport} />
-          </div>
-          {importResult && (
-            <p className={`import-result ${importResult.error ? 'import-error' : 'import-ok'}`}>
-              {importResult.error
-                ? '⚠ No se pudo leer el archivo. Usa la plantilla descargada.'
-                : `✓ ${importResult.loaded} fila(s) cargadas en la grilla — revisa y guarda.`}
-            </p>
-          )}
-        </div>
-
-        <div className="form-section-divider" />
 
         {/* Cabecera */}
         <div className="ingreso-grid-header">

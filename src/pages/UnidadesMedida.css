@@ -1,0 +1,193 @@
+/* ── Wrapper de página ── */
+.um-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Encabezado de página con botón ── */
+.um-page-header {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 36px;
+}
+
+/* ── Override columna izquierda más ancha ── */
+.um-layout {
+  grid-template-columns: 1fr 300px;
+}
+
+@media (max-width: 768px) {
+  .um-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Llamado a la acción (CTA) ── */
+.um-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 40px 24px;
+}
+
+.um-cta--secondary {
+  padding: 32px 24px;
+  opacity: 0.75;
+}
+
+.um-cta-icon {
+  color: var(--aurora-green);
+  opacity: 0.6;
+}
+
+.um-cta--secondary .um-cta-icon {
+  color: rgba(230, 242, 255, 0.3);
+}
+
+.um-cta-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.um-cta-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(230, 242, 255, 0.5);
+  line-height: 1.55;
+  max-width: 280px;
+}
+
+/* ── Contador en el encabezado de lista ── */
+.um-list-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  border-radius: 10px;
+  vertical-align: middle;
+}
+
+/* Ocultar spinners en inputs numéricos del formulario */
+.um-form-card input[type="number"]::-webkit-inner-spin-button,
+.um-form-card input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.um-form-card input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.um-form-card {
+  max-width: 680px;
+  margin-bottom: 24px;
+}
+
+.um-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.um-form-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.um-required {
+  color: #ff6b6b;
+}
+
+.um-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 520px) {
+  .um-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.um-field-full {
+  grid-column: 1 / -1;
+}
+
+/* ── Metadatos en la lista ── */
+.um-item-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}
+
+.um-meta-sep {
+  opacity: 0.4;
+}
+
+.um-meta-labor {
+  color: var(--aurora-green);
+  opacity: 0.85;
+}
+
+.um-meta-conversion {
+  color: var(--aurora-magenta);
+  opacity: 0.85;
+}
+
+/* ── Combobox labor ── */
+.um-labor-dropdown {
+  position: absolute;
+  min-width: 240px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-green);
+  border-radius: 6px;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  z-index: 1200;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.um-labor-dropdown-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+}
+
+.um-labor-dropdown-item:hover,
+.um-labor-dropdown-item--active {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+.um-labor-desc {
+  flex: 1;
+}
+
+.um-labor-codigo {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
