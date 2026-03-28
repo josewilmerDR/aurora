@@ -109,14 +109,15 @@ function GrupoManagement() {
     return [...map.values()];
   }, [availableSiembras]);
 
-  const byLote = useMemo(() =>
-    consolidatedBloques.reduce((acc, s) => {
-      const key = s.loteNombre;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(s);
-      return acc;
-    }, {}),
-  [consolidatedBloques]);
+  const byLoteSeleccionados = useMemo(() => {
+    const sel = consolidatedBloques.filter(b => b.ids.some(id => formData.bloques.includes(id)));
+    return sel.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
+  }, [consolidatedBloques, formData.bloques]);
+
+  const byLoteLibres = useMemo(() => {
+    const lib = consolidatedBloques.filter(b => !b.ids.some(id => formData.bloques.includes(id)));
+    return lib.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
+  }, [consolidatedBloques, formData.bloques]);
 
   const selectedBlockCount = useMemo(() => {
     const keys = new Set();
@@ -129,10 +130,7 @@ function GrupoManagement() {
 
   // ── Paquetes filtrados ────────────────────────────────────────────────────
   const cosechas = useMemo(() => [...new Set(packages.map(p => p.tipoCosecha).filter(Boolean))], [packages]);
-  const etapas   = useMemo(() => [...new Set(
-    packages.filter(p => !formData.cosecha || p.tipoCosecha === formData.cosecha)
-            .map(p => p.etapaCultivo).filter(Boolean)
-  )], [packages, formData.cosecha]);
+  const etapas   = useMemo(() => [...new Set(packages.map(p => p.etapaCultivo).filter(Boolean))], [packages]);
 
   const filteredPackages = useMemo(() =>
     packages.filter(p =>
@@ -146,8 +144,7 @@ function GrupoManagement() {
     const { name, value } = e.target;
     setFormData(prev => {
       const next = { ...prev, [name]: value };
-      if (name === 'cosecha') { next.etapa = ''; next.paqueteId = ''; }
-      if (name === 'etapa')   { next.paqueteId = ''; }
+      if (name === 'cosecha' || name === 'etapa') next.paqueteId = '';
       return next;
     });
   };
@@ -389,17 +386,27 @@ function GrupoManagement() {
             </div>
             <div className="form-control">
               <label htmlFor="cosecha">Cosecha</label>
-              <select id="cosecha" name="cosecha" value={formData.cosecha} onChange={handleInputChange}>
-                <option value="">-- Seleccionar Cosecha --</option>
-                {cosechas.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <input
+                id="cosecha" name="cosecha" list="cosechas-list"
+                value={formData.cosecha} onChange={handleInputChange}
+                placeholder="Ej. Cosecha I 2024"
+                autoComplete="off"
+              />
+              <datalist id="cosechas-list">
+                {cosechas.map(c => <option key={c} value={c} />)}
+              </datalist>
             </div>
             <div className="form-control">
               <label htmlFor="etapa">Etapa</label>
-              <select id="etapa" name="etapa" value={formData.etapa} onChange={handleInputChange}>
-                <option value="">-- Seleccionar Etapa --</option>
-                {etapas.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
+              <input
+                id="etapa" name="etapa" list="etapas-list"
+                value={formData.etapa} onChange={handleInputChange}
+                placeholder="Ej. Desarrollo"
+                autoComplete="off"
+              />
+              <datalist id="etapas-list">
+                {etapas.map(e => <option key={e} value={e} />)}
+              </datalist>
             </div>
             <div className="form-control" style={{ gridColumn: '1 / -1' }}>
               <label htmlFor="paqueteId">Paquete de Aplicaciones</label>
@@ -416,21 +423,35 @@ function GrupoManagement() {
               <span className="bloques-title">Bloques</span>
               <span className="bloques-count">{selectedBlockCount} bloque(s) seleccionado(s)</span>
             </div>
-            {Object.keys(byLote).length === 0 ? (
-              <p className="bloques-empty">
-                {cerradoSiembras.length === 0
-                  ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
-                  : 'Todos los bloques cerrados ya están asignados a un grupo.'}
-              </p>
-            ) : (
-              Object.entries(byLote).map(([loteNombre, registros]) => (
-                <div key={loteNombre} className="bloque-lote-group">
-                  <div className="bloque-lote-label">{loteNombre}</div>
-                  {registros.map(s => {
-                    const isChecked = s.ids.every(id => formData.bloques.includes(id));
-                    return (
-                      <label key={s.key} className={`bloque-checkbox-row${isChecked ? ' checked' : ''}`}>
-                        <input type="checkbox" checked={isChecked} onChange={() => toggleBloque(s.ids)} />
+
+            {/* Bloques ya seleccionados para este grupo */}
+            {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
+              <div key={loteNombre} className="bloque-lote-group">
+                <div className="bloque-lote-label">{loteNombre}</div>
+                {registros.map(s => (
+                  <label key={s.key} className="bloque-checkbox-row checked">
+                    <input type="checkbox" checked onChange={() => toggleBloque(s.ids)} />
+                    <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                    <span className="bloque-meta">
+                      {s.plantas?.toLocaleString()} plantas
+                      {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                      {s.variedad ? ` · ${s.variedad}` : ''}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ))}
+
+            {/* Lotes y bloques sin agrupar */}
+            {Object.keys(byLoteLibres).length > 0 && (
+              <>
+                <div className="bloques-sublabel">Lotes y bloques sin agrupar</div>
+                {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
+                  <div key={loteNombre} className="bloque-lote-group">
+                    <div className="bloque-lote-label">{loteNombre}</div>
+                    {registros.map(s => (
+                      <label key={s.key} className="bloque-checkbox-row">
+                        <input type="checkbox" checked={false} onChange={() => toggleBloque(s.ids)} />
                         <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
                         <span className="bloque-meta">
                           {s.plantas?.toLocaleString()} plantas
@@ -438,10 +459,19 @@ function GrupoManagement() {
                           {s.variedad ? ` · ${s.variedad}` : ''}
                         </span>
                       </label>
-                    );
-                  })}
-                </div>
-              ))
+                    ))}
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Estado vacío total */}
+            {consolidatedBloques.length === 0 && (
+              <p className="bloques-empty">
+                {cerradoSiembras.length === 0
+                  ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
+                  : 'Todos los bloques cerrados ya están asignados a un grupo.'}
+              </p>
             )}
           </div>
 

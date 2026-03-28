@@ -121,6 +121,19 @@
   margin: 0;
 }
 
+/* Sub-encabezado de sección dentro de bloques */
+.bloques-sublabel {
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(230, 242, 255, 0.35);
+  background: rgba(0, 0, 0, 0.12);
+  border-top: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
 /* Lote group header inside bloques */
 .bloque-lote-group {
   border-bottom: 1px solid var(--aurora-border);

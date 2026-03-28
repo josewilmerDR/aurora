@@ -3871,7 +3871,12 @@ app.post('/api/siembras', authenticate, async (req, res) => {
     const densidad_ = parseFloat(densidad) || 0;
     const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
     const esCerrado = cerrado === true || cerrado === 'true';
-    const fechaCierre = esCerrado ? Timestamp.now() : null;
+    const inputFechaCierre = req.body.fechaCierre;
+    const fechaCierre = esCerrado
+      ? (inputFechaCierre && String(inputFechaCierre).trim()
+          ? Timestamp.fromDate(new Date(String(inputFechaCierre).trim() + 'T12:00:00'))
+          : Timestamp.now())
+      : null;
 
     const bloqueNorm = bloque || '';
     const ref = await db.collection('siembras').add({
