@@ -98,9 +98,10 @@ export const MODULES = [
   },
   {
     id: 'admin',
-    nombre: 'Administración',
+    nombre: 'Administración del Sistema',
     icon: FiSettings,
     items: [
+      { label: 'Configuración Inicial', to: '/admin/config-inicial', icon: FiSettings, minRole: 'administrador' },
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador', draftKey: 'user-mgmt' },
       { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
       { label: 'Lista de Labores', to: '/admin/labores', icon: FiList, minRole: 'supervisor' },

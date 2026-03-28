@@ -1378,7 +1378,8 @@ app.get('/api/productos', authenticate, async (req, res) => {
 
 const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo',
   'plagaQueControla', 'periodoReingreso', 'periodoACosecha', 'cantidadPorHa',
-  'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario', 'proveedor', 'activo'];
+  'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario',
+  'iva', 'proveedor', 'registroFitosanitario', 'observacion', 'activo'];
 
 app.post('/api/productos', authenticate, async (req, res) => {
   try {

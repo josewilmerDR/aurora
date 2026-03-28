@@ -44,6 +44,7 @@ import MonitoreoConfig from './pages/MonitoreoConfig';
 import ConfigCuenta from './pages/ConfigCuenta';
 import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
+import ConfiguracionInicial from './pages/ConfiguracionInicial';
 import Calibraciones from './pages/Calibraciones';
 import LaborList from './pages/LaborList';
 import UnidadesMedida from './pages/UnidadesMedida';
@@ -113,6 +114,7 @@ const routeTitles = {
   '/monitoreo/config': 'Tipos de Monitoreo',
   '/config/cuenta': 'Configuración de Cuenta',
   '/admin/parametros': 'Parámetros y KPI',
+  '/admin/config-inicial': 'Configuración Inicial',
   '/admin/maquinaria': 'Lista de Activos',
   '/admin/labores': 'Lista de Labores',
   '/admin/unidades-medida': 'Unidades de Medida',
@@ -436,6 +438,7 @@ function App() {
             <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPagos /></RoleRoute>} />
             <Route path="/hr/memorandums" element={<RoleRoute path="/hr/memorandums"><HrMemorandums /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
+            <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><ConfiguracionInicial /></RoleRoute>} />
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />

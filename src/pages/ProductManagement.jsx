@@ -24,12 +24,15 @@ const COLUMNS = [
   { key: 'stockActual',       label: 'Stock actual',        thClass: 'pg-col-stock',     defaultVisible: true,  required: true },
   { key: 'stockMinimo',       label: 'Stock mínimo',        thClass: 'pg-col-stockmin',  defaultVisible: true  },
   { key: 'precioUnitario',    label: 'Precio unitario',     thClass: 'pg-col-precio',    defaultVisible: true  },
-  { key: 'moneda',            label: 'Moneda',              thClass: 'pg-col-moneda',    defaultVisible: false },
-  { key: 'proveedor',         label: 'Proveedor',           thClass: 'pg-col-proveedor', defaultVisible: true  },
+  { key: 'moneda',                 label: 'Moneda',                  thClass: 'pg-col-moneda',    defaultVisible: false },
+  { key: 'iva',                    label: 'IVA (%)',                  thClass: 'pg-col-iva',       defaultVisible: false },
+  { key: 'proveedor',              label: 'Proveedor',                thClass: 'pg-col-proveedor', defaultVisible: true  },
+  { key: 'registroFitosanitario',  label: 'Reg. Fitosanitario',       thClass: 'pg-col-registro',  defaultVisible: false },
+  { key: 'observacion',            label: 'Observación',              thClass: 'pg-col-obs',       defaultVisible: false },
 ];
 
 const FIELD_LABELS = Object.fromEntries(COLUMNS.map(c => [c.key, c.label]));
-const NUM_FIELDS = ['cantidadPorHa', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'tipoCambio'];
+const NUM_FIELDS = ['cantidadPorHa', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'tipoCambio', 'iva'];
 
 function loadVisibleCols() {
   try {

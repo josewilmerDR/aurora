@@ -18,9 +18,12 @@ function EditProductoModal({ producto, onClose, onSaved }) {
     unidad:            producto.unidad             ?? '',
     stockMinimo:       producto.stockMinimo        ?? '',
     precioUnitario:    producto.precioUnitario      ?? '',
-    moneda:            producto.moneda             ?? 'USD',
-    tipoCambio:        producto.tipoCambio         ?? 1,
-    proveedor:         producto.proveedor          ?? '',
+    moneda:                producto.moneda                ?? 'USD',
+    tipoCambio:            producto.tipoCambio            ?? 1,
+    iva:                   producto.iva                   ?? 0,
+    proveedor:             producto.proveedor             ?? '',
+    registroFitosanitario: producto.registroFitosanitario ?? '',
+    observacion:           producto.observacion           ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -47,6 +50,7 @@ function EditProductoModal({ producto, onClose, onSaved }) {
           stockMinimo:      form.stockMinimo      !== '' ? Number(form.stockMinimo)      : 0,
           precioUnitario:   form.precioUnitario   !== '' ? Number(form.precioUnitario)   : 0,
           tipoCambio:       form.tipoCambio       !== '' ? Number(form.tipoCambio)       : 1,
+          iva:              form.iva              !== '' ? Number(form.iva)              : 0,
         }),
       });
       const data = await res.json();
@@ -92,6 +96,14 @@ function EditProductoModal({ producto, onClose, onSaved }) {
             <div className="ep-field ep-field-wide">
               <label>Proveedor</label>
               <input value={form.proveedor} onChange={e => set('proveedor', e.target.value)} placeholder="Nombre del proveedor" />
+            </div>
+            <div className="ep-field">
+              <label>No. Registro Fitosanitario</label>
+              <input value={form.registroFitosanitario} onChange={e => set('registroFitosanitario', e.target.value)} placeholder="Ej. B-0123" />
+            </div>
+            <div className="ep-field ep-field-wide">
+              <label>Observación</label>
+              <input value={form.observacion} onChange={e => set('observacion', e.target.value)} placeholder="Notas sobre el producto" />
             </div>
           </div>
 
@@ -140,6 +152,10 @@ function EditProductoModal({ producto, onClose, onSaved }) {
             <div className="ep-field">
               <label>Tipo de cambio</label>
               <input type="number" min="0" step="0.01" value={form.tipoCambio} onChange={e => set('tipoCambio', e.target.value)} placeholder="1" />
+            </div>
+            <div className="ep-field">
+              <label>IVA (%)</label>
+              <input type="number" min="0" step="0.01" value={form.iva} onChange={e => set('iva', e.target.value)} placeholder="0" />
             </div>
           </div>
 

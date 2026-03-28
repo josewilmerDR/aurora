@@ -1,0 +1,141 @@
+@import './LoteManagement.css';
+
+.ci-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Intro banner ── */
+.ci-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  color: rgba(230, 242, 255, 0.5);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.ci-intro svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--aurora-green);
+}
+
+.ci-intro p { margin: 0; }
+
+/* ── Grid de tarjetas ── */
+.ci-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ── Tarjeta ── */
+.ci-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s;
+}
+
+.ci-card:hover {
+  border-color: rgba(51, 255, 153, 0.25);
+}
+
+.ci-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ci-card-icon {
+  color: var(--aurora-green);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ci-card-nombre {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  flex: 1;
+}
+
+.ci-card-count {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ci-card-link {
+  color: rgba(230, 242, 255, 0.25);
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 4px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.ci-card-link:hover { color: var(--aurora-green); }
+
+.ci-card-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: rgba(230, 242, 255, 0.4);
+  line-height: 1.45;
+}
+
+/* ── Import row ── */
+.ci-import-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ci-import-result {
+  margin: 0;
+  font-size: 0.78rem;
+}
+.ci-import-ok    { color: var(--aurora-green); }
+.ci-import-error { color: var(--aurora-magenta); }
+
+/* ── Prompt de navegación post-importación ── */
+.ci-nav-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(51, 255, 153, 0.06);
+  border: 1px solid rgba(51, 255, 153, 0.2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.84rem;
+  color: var(--aurora-light);
+}
+
+.ci-nav-prompt strong {
+  color: var(--aurora-green);
+}
+
+.ci-nav-prompt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
