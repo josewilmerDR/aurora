@@ -116,7 +116,7 @@ function LoteManagement() {
   const [confirmModal, setConfirmModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
-    id: null, codigoLote: '', nombreLote: '', fechaCreacion: '', paqueteId: '', hectareas: ''
+    id: null, codigoLote: '', nombreLote: '', fechaCreacion: ''
   });
   const [siembras, setSiembras] = useState([]);
   const [loadingSiembras, setLoadingSiembras] = useState(false);
@@ -165,7 +165,7 @@ function LoteManagement() {
 
   const resetForm = () => {
     setIsEditing(false);
-    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '', paqueteId: '', hectareas: '' });
+    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '' });
     setView('hub');
   };
 
@@ -177,7 +177,7 @@ function LoteManagement() {
 
   const handleNewLote = () => {
     setIsEditing(false);
-    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '', paqueteId: '', hectareas: '' });
+    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '' });
     setView('form');
     setSelectedLote(null);
   };
@@ -189,8 +189,6 @@ function LoteManagement() {
       codigoLote: lote.codigoLote || '',
       nombreLote: lote.nombreLote || '',
       fechaCreacion: formatDateForInput(lote.fechaCreacion),
-      paqueteId: lote.paqueteId || '',
-      hectareas: lote.hectareas || ''
     });
     setView('form');
   };
@@ -268,52 +266,7 @@ function LoteManagement() {
                 <label htmlFor="fechaCreacion">Fecha de Creación</label>
                 <input id="fechaCreacion" name="fechaCreacion" value={formData.fechaCreacion} onChange={handleInputChange} type="date" required />
               </div>
-              <div className="form-control">
-                <label htmlFor="paqueteId">Paquete de Tareas</label>
-                <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange}>
-                  <option value="">-- Seleccionar Paquete --</option>
-                  {packages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
-                </select>
-              </div>
-              <div className="form-control">
-                <label htmlFor="hectareas">Hectáreas</label>
-                <input id="hectareas" name="hectareas" type="number" step="0.01" min="0.01" value={formData.hectareas} onChange={handleInputChange} placeholder="Ej: 2.5" />
-              </div>
             </div>
-
-            {formData.paqueteId && (() => {
-              const p = packages.find(pk => pk.id === formData.paqueteId);
-              if (!p) return null;
-              const sorted = [...p.activities].sort((a, b) => Number(a.day) - Number(b.day));
-              return (
-                <div className="package-preview">
-                  <div className="package-preview-header">
-                    <span className="package-preview-title">{p.activities.length} actividad(es) a programar</span>
-                    <span className="package-preview-meta">{p.tipoCosecha} · {p.etapaCultivo}</span>
-                  </div>
-                  <ul className="package-preview-list">
-                    {sorted.map((act, i) => {
-                      let dateStr = null;
-                      if (formData.fechaCreacion) {
-                        const base = new Date(formData.fechaCreacion + 'T00:00:00Z');
-                        const d = new Date(base.getTime() + Number(act.day) * 86400000);
-                        dateStr = d.toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short' });
-                      }
-                      return (
-                        <li key={i} className="package-preview-item">
-                          <span className="preview-day">Día {act.day}</span>
-                          <span className="preview-name">{act.name}</span>
-                          {dateStr && <span className="preview-date">{dateStr}</span>}
-                          <span className={`preview-type-badge preview-badge-${act.type || 'notificacion'}`}>
-                            {act.type === 'aplicacion' ? 'Aplicación' : 'Notificación'}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })()}
 
             <div className="form-actions">
               <button type="submit" className="btn btn-primary">

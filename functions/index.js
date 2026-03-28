@@ -1773,8 +1773,25 @@ app.put('/api/lotes/:id', authenticate, async (req, res) => {
         delete loteData.id;
         await db.collection('lotes').doc(id).update(loteData);
 
+        // Propagate nombreLote changes to related collections
+        const originalNombre = originalData.nombreLote || '';
+        const newNombre = loteData.nombreLote !== undefined ? (loteData.nombreLote || '') : originalNombre;
+        if (originalNombre !== newNombre) {
+            const [siembrasSnap, monitoreosSnap, horimetroSnap] = await Promise.all([
+                db.collection('siembras').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
+                db.collection('monitoreos').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
+                db.collection('horimetro').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
+            ]);
+            const allDocs = [...siembrasSnap.docs, ...monitoreosSnap.docs, ...horimetroSnap.docs];
+            if (allDocs.length > 0) {
+                const propagateBatch = db.batch();
+                allDocs.forEach(doc => propagateBatch.update(doc.ref, { loteNombre: newNombre }));
+                await propagateBatch.commit();
+            }
+        }
+
         const hasDateChanged = originalData.fechaCreacion.toMillis() !== loteData.fechaCreacion.toMillis();
-        const hasPackageChanged = originalData.paqueteId !== loteData.paqueteId;
+        const hasPackageChanged = (originalData.paqueteId || '') !== (loteData.paqueteId || '');
 
         if (hasDateChanged || hasPackageChanged) {
             const tasksQuery = db.collection('scheduled_tasks').where('loteId', '==', id);
@@ -1782,6 +1799,11 @@ app.put('/api/lotes/:id', authenticate, async (req, res) => {
             const deleteBatch = db.batch();
             tasksSnapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
             await deleteBatch.commit();
+
+            if (!loteData.paqueteId) {
+                res.status(200).json({ id, ...loteData });
+                return;
+            }
 
             const paqueteDoc = await db.collection('packages').doc(loteData.paqueteId).get();
             if (paqueteDoc.exists) {
