@@ -36,7 +36,7 @@ export const MODULES = [
         ]
       },
       { label: 'Horímetro', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador' },
-      { label: 'Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado' },
+      { label: 'Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado', draftKey: 'lote-nuevo' },
       { label: 'Grupos', to: '/grupos', icon: FiLayers, minRole: 'encargado' },
     ],
   },

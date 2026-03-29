@@ -5,109 +5,114 @@ import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
 
-// ── Siembras Tab ──────────────────────────────────────────────────────────────
-function groupSiembrasByBloque(siembras) {
-  const map = new Map();
-  for (const r of siembras) {
-    const key = r.bloque || '__sin_bloque__';
-    if (!map.has(key)) {
-      map.set(key, { bloque: r.bloque || '', plantas: 0, area: 0, cerrado: false, fechaMs: 0, responsableNombre: '', materiales: new Set() });
-    }
-    const g = map.get(key);
-    g.plantas += r.plantas || 0;
-    g.area += parseFloat(r.areaCalculada) || 0;
-    if (r.cerrado) g.cerrado = true;
-    const ms = new Date(r.fecha).getTime();
-    if (ms > g.fechaMs) {
-      g.fechaMs = ms;
-      g.responsableNombre = r.responsableNombre || '';
-    }
-    if (r.materialNombre) {
-      const mat = r.materialNombre + (r.variedad ? ` · ${r.variedad}` : '') + (r.rangoPesos ? ` (${r.rangoPesos})` : '');
-      g.materiales.add(mat);
-    }
-  }
-  return [...map.values()].sort((a, b) => {
-    if (a.bloque === '') return 1;
-    if (b.bloque === '') return -1;
-    return a.bloque.localeCompare(b.bloque, 'es', { numeric: true });
-  });
-}
+// ── Detalles Tab ──────────────────────────────────────────────────────────────
+function DetallesTab({ siembras, grupos, loading }) {
+  if (loading) return <p className="hub-loading">Cargando detalles...</p>;
+  if (siembras.length === 0) return <p className="empty-state">No hay registros de siembra para este lote.</p>;
 
-function SiembrasTab({ siembras, loading }) {
-  if (loading) return <p className="hub-loading">Cargando siembras...</p>;
-
-  if (siembras.length === 0) {
-    return <p className="empty-state">No hay registros de siembra para este lote.</p>;
+  // Agrega datos por etiqueta de bloque
+  const bloqueData = new Map();
+  for (const s of siembras) {
+    const key = s.bloque || 'Sin bloque';
+    if (!bloqueData.has(key)) bloqueData.set(key, { plantas: 0, area: 0, materiales: new Set(), cerrado: false });
+    const d = bloqueData.get(key);
+    d.plantas += s.plantas || 0;
+    d.area    += parseFloat(s.areaCalculada) || 0;
+    if (s.materialNombre) {
+      const mat = s.materialNombre + (s.variedad ? ` · ${s.variedad}` : '') + (s.rangoPesos ? ` (${s.rangoPesos})` : '');
+      d.materiales.add(mat);
+    }
+    if (s.cerrado) d.cerrado = true;
   }
 
-  const grupos = groupSiembrasByBloque(siembras);
-  const totalPlantas = grupos.reduce((s, g) => s + g.plantas, 0);
-  const totalArea = grupos.reduce((s, g) => s + g.area, 0);
+  const siembraById = new Map(siembras.map(s => [s.id, s.bloque || 'Sin bloque']));
+  const siembraIds  = new Set(siembras.map(s => s.id));
+
+  const assignedIds = new Set();
+  const gruposConBloques = [];
+  for (const g of [...grupos].sort((a, b) => a.nombreGrupo.localeCompare(b.nombreGrupo, 'es', { numeric: true }))) {
+    const bloques = [...new Set(
+      (g.bloques || []).filter(id => siembraIds.has(id)).map(id => siembraById.get(id))
+    )].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+    if (!bloques.length) continue;
+    (g.bloques || []).filter(id => siembraIds.has(id)).forEach(id => assignedIds.add(id));
+    gruposConBloques.push({ id: g.id, nombre: g.nombreGrupo, bloques });
+  }
+
+  const sinGrupo = [...new Set(
+    siembras.filter(s => !assignedIds.has(s.id)).map(s => s.bloque || 'Sin bloque')
+  )].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+
+  const BloqueItem = ({ label }) => {
+    const d = bloqueData.get(label) || { plantas: 0, area: 0, materiales: new Set(), cerrado: false };
+    return (
+      <li className={`detalles-bloque${d.cerrado ? ' detalles-bloque--cerrado' : ''}`}>
+        <div className="detalles-bloque-header">
+          <span className="detalles-bloque-nombre">{label}</span>
+          {d.cerrado && <span className="detalles-bloque-badge">Cerrado</span>}
+        </div>
+        <div className="detalles-bloque-info">
+          {d.plantas > 0 && <span>{d.plantas.toLocaleString('es-ES')} plantas</span>}
+          {d.area > 0 && <span>{d.area.toFixed(2)} ha</span>}
+          {d.materiales.size > 0 && <span>{[...d.materiales].join(' / ')}</span>}
+        </div>
+      </li>
+    );
+  };
 
   return (
     <div className="hub-tab-content">
-      <div className="siembra-stats">
-        <div className="siembra-stat">
-          <span className="stat-value">{totalPlantas.toLocaleString('es-ES')}</span>
-          <span className="stat-label">Plantas totales</span>
+      {gruposConBloques.map(g => (
+        <div key={g.id} className="detalles-grupo">
+          <span className="detalles-grupo-nombre">{g.nombre}</span>
+          <ul className="detalles-bloques">
+            {g.bloques.map(b => <BloqueItem key={b} label={b} />)}
+          </ul>
         </div>
-        <div className="siembra-stat">
-          <span className="stat-value">{totalArea.toFixed(2)} ha</span>
-          <span className="stat-label">Área calculada</span>
+      ))}
+      {sinGrupo.length > 0 && (
+        <div className="detalles-grupo detalles-grupo--sin-grupo">
+          <span className="detalles-grupo-nombre">Sin grupo</span>
+          <ul className="detalles-bloques">
+            {sinGrupo.map(b => <BloqueItem key={b} label={b} />)}
+          </ul>
         </div>
-        <div className="siembra-stat">
-          <span className="stat-value">{grupos.filter(g => g.bloque).length || '—'}</span>
-          <span className="stat-label">Bloques</span>
-        </div>
-        <div className="siembra-stat">
-          <span className="stat-value">{Math.round(totalPlantas * 1.6 * 0.9).toLocaleString('es-ES')}</span>
-          <span className="stat-label">Kg esperados (1ª)</span>
-        </div>
-      </div>
-
-      <div className="siembra-records">
-        {grupos.map((g, i) => (
-          <div key={i} className={`siembra-record ${g.cerrado ? 'cerrado' : ''}`}>
-            <div className="siembra-record-main">
-              <div className="siembra-record-title">
-                <span className="siembra-bloque">{g.bloque ? `Bloque ${g.bloque}` : 'Sin bloque'}</span>
-                {g.cerrado && <span className="siembra-badge-cerrado">Cerrado</span>}
-              </div>
-              <div className="siembra-record-meta">
-                <FiCalendar size={12} />
-                {new Date(g.fechaMs).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                {g.responsableNombre && <> · {g.responsableNombre}</>}
-              </div>
-            </div>
-            <div className="siembra-record-data">
-              <div className="siembra-data-item">
-                <span className="data-label">Plantas</span>
-                <span className="data-value">{g.plantas.toLocaleString('es-ES')}</span>
-              </div>
-              <div className="siembra-data-item">
-                <span className="data-label">Área</span>
-                <span className="data-value">{g.area.toFixed(2)} ha</span>
-              </div>
-              {g.materiales.size > 0 && (
-                <div className="siembra-data-item siembra-data-material">
-                  <span className="data-label">Material</span>
-                  <span className="data-value">{[...g.materiales].join(', ')}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      )}
+      {gruposConBloques.length === 0 && sinGrupo.length === 0 && (
+        <p className="empty-state">No hay grupos ni bloques asignados a este lote.</p>
+      )}
     </div>
   );
 }
+
+// ── Draft persistence ─────────────────────────────────────────────────────────
+const DRAFT_LS = 'aurora_draft_lote-nuevo';
+const DRAFT_SS = 'aurora_draftActive_lote-nuevo';
+const EMPTY_FORM = { id: null, codigoLote: '', nombreLote: '', fechaCreacion: '' };
+
+function loadLoteDraft() { try { return JSON.parse(localStorage.getItem(DRAFT_LS)); } catch { return null; } }
+function saveLoteDraft(data) {
+  try {
+    localStorage.setItem(DRAFT_LS, JSON.stringify(data));
+    sessionStorage.setItem(DRAFT_SS, '1');
+    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+  } catch {}
+}
+function clearLoteDraft() {
+  try {
+    localStorage.removeItem(DRAFT_LS);
+    sessionStorage.removeItem(DRAFT_SS);
+    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+  } catch {}
+}
+function isLoteDraftMeaningful(d) { return d && (d.codigoLote || d.nombreLote || d.fechaCreacion); }
 
 // ── Main Component ────────────────────────────────────────────────────────────
 function LoteManagement() {
   const apiFetch = useApiFetch();
   const [lotes, setLotes] = useState([]);
   const [packages, setPackages] = useState([]);
+  const [grupos, setGrupos] = useState([]);
   const [selectedLote, setSelectedLote] = useState(null);
   const [view, setView] = useState('hub'); // 'hub' | 'form'
   const [isEditing, setIsEditing] = useState(false);
@@ -115,9 +120,7 @@ function LoteManagement() {
   const showToast = (message, type = 'success') => setToast({ message, type });
   const [confirmModal, setConfirmModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [formData, setFormData] = useState({
-    id: null, codigoLote: '', nombreLote: '', fechaCreacion: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [siembras, setSiembras] = useState([]);
   const [loadingSiembras, setLoadingSiembras] = useState(false);
   const [activeTab, setActiveTab] = useState('siembras');
@@ -134,7 +137,32 @@ function LoteManagement() {
     apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
   }, [apiFetch]);
 
-  useEffect(() => { fetchLotes(); fetchPackages(); }, []);
+  useEffect(() => {
+    fetchLotes();
+    fetchPackages();
+    apiFetch('/api/grupos').then(res => res.json()).then(setGrupos).catch(console.error);
+  }, []);
+
+  // Restaura borrador al montar (sobrevive navegación y cierre de pestaña)
+  useEffect(() => {
+    const draft = loadLoteDraft();
+    if (!isLoteDraftMeaningful(draft)) return;
+    setFormData({ ...EMPTY_FORM, codigoLote: draft.codigoLote || '', nombreLote: draft.nombreLote || '', fechaCreacion: draft.fechaCreacion || '' });
+    setView('form');
+    setIsEditing(false);
+    try { sessionStorage.setItem(DRAFT_SS, '1'); window.dispatchEvent(new CustomEvent('aurora-draft-change')); } catch {}
+  }, []);
+
+  // Guarda borrador en cada cambio del formulario de creación
+  useEffect(() => {
+    if (isEditing || view !== 'form') return;
+    const { codigoLote, nombreLote, fechaCreacion } = formData;
+    if (codigoLote || nombreLote || fechaCreacion) {
+      saveLoteDraft({ codigoLote, nombreLote, fechaCreacion });
+    } else {
+      clearLoteDraft();
+    }
+  }, [formData, isEditing, view]);
 
   useEffect(() => {
     if (!selectedLote) { setSiembras([]); return; }
@@ -164,8 +192,9 @@ function LoteManagement() {
   };
 
   const resetForm = () => {
+    if (!isEditing) clearLoteDraft();
     setIsEditing(false);
-    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '' });
+    setFormData(EMPTY_FORM);
     setView('hub');
   };
 
@@ -176,8 +205,12 @@ function LoteManagement() {
   };
 
   const handleNewLote = () => {
+    const draft = loadLoteDraft();
     setIsEditing(false);
-    setFormData({ id: null, codigoLote: '', nombreLote: '', fechaCreacion: '' });
+    setFormData(isLoteDraftMeaningful(draft)
+      ? { ...EMPTY_FORM, codigoLote: draft.codigoLote || '', nombreLote: draft.nombreLote || '', fechaCreacion: draft.fechaCreacion || '' }
+      : EMPTY_FORM
+    );
     setView('form');
     setSelectedLote(null);
   };
@@ -337,12 +370,12 @@ function LoteManagement() {
             className={`hub-tab ${activeTab === 'siembras' ? 'active' : ''}`}
             onClick={() => setActiveTab('siembras')}
           >
-            Siembras
+            Detalles del lote
           </button>
         </div>
 
         {activeTab === 'siembras' && (
-          <SiembrasTab siembras={siembras} loading={loadingSiembras} />
+          <DetallesTab siembras={siembras} grupos={grupos} loading={loadingSiembras} />
         )}
       </div>
     );
