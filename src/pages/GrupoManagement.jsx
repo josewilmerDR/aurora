@@ -468,7 +468,7 @@ function GrupoManagement() {
       <div className="lote-management-layout">
 
       {/* ── FORMULARIO / CTA ── */}
-      <div className="form-card">
+      <div className={`form-card${!showForm ? ' form-card--cta' : ''}`}>
         {showForm ? (
           <>
           <h2>{isEditing ? 'Editando Grupo' : 'Crear Nuevo Grupo'}</h2>

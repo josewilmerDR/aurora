@@ -9,6 +9,10 @@
   .grupo-page-wrap .lote-management-layout {
     grid-template-columns: 1fr;
   }
+
+  .grupo-page-wrap .form-card--cta {
+    display: none;
+  }
 }
 
 /* ── Wrapper de página ───────────────────────────────────────────────────── */
