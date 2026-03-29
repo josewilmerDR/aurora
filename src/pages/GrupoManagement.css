@@ -1,32 +1,35 @@
 @import './LoteManagement.css';
 
-/* Ampliar columna derecha (lista de grupos) a 375px */
-.grupo-page-wrap .lote-management-layout {
-  grid-template-columns: 1fr 320px;
-}
-
-@media (max-width: 768px) {
-  .grupo-page-wrap .lote-management-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .grupo-page-wrap .form-card--cta {
-    display: none;
-  }
-}
-
-/* ── Wrapper de página ───────────────────────────────────────────────────── */
-.grupo-page-wrap {
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.grupo-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* ── Encabezado de página con botón ─────────────────────────────────────── */
-.grupo-page-header {
-  display: flex;
-  justify-content: flex-end;
-  min-height: 36px; /* reserva espacio aunque el botón no esté visible */
+@media (min-width: 769px) {
+  .grupo-page--selected .lote-management-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .grupo-page--selected .lote-list-panel {
+    position: sticky;
+    top: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .grupo-page--selected .lote-list-panel,
+  .grupo-page--form .lote-list-panel {
+    display: none;
+  }
+
+  .grupo-page--selected .lote-page-header {
+    display: none;
+  }
 }
 
 /* ── Llamado a la acción (CTA) ───────────────────────────────────────────── */
@@ -335,37 +338,40 @@
 .gp-preview-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.82);
+  top: 62px;    /* below app header */
   z-index: 1000;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 24px 16px 48px;
+  overflow: hidden;
 }
 
-.gp-preview-container {
-  width: 100%;
-  max-width: 860px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+@media (max-width: 768px) {
+  .gp-preview-backdrop {
+    bottom: 62px;   /* above mobile bottom nav */
+  }
 }
 
 .gp-preview-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  padding: 12px 16px;
+  background: var(--aurora-dark-blue);
+  border-bottom: 1px solid var(--aurora-border);
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .gp-preview-toolbar-title {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--aurora-light);
+  flex: 1;
+  text-align: center;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gp-preview-toolbar-actions {
@@ -373,19 +379,63 @@
   gap: 8px;
 }
 
-/* ── Documento (fondo gris, papel blanco) ── */
+.gp-toolbar-icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.gp-toolbar-btn-text {
+  display: none;
+}
+
+/* ── Documento (papel blanco sobre fondo gris) ── */
 .gp-doc-wrap {
   background: #c8d8e8;
-  padding: 20px;
-  border-radius: 6px;
+  padding: 24px;
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .gp-document {
   background: #ffffff;
   padding: 36px 40px;
-  font-family: Arial, sans-serif;
-  color: #1a1a1a;
-  font-size: 13px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #1a1a2e;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  width: 760px;
+  margin: 0 auto;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 600px) {
+  .gp-preview-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    padding: 0;
+    gap: 0;
+  }
+  .gp-preview-toolbar-title { display: none; }
+  .gp-preview-toolbar-actions { display: contents; }
+  .gp-preview-toolbar .gp-toolbar-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 4px;
+    border-radius: 0;
+    border: none !important;
+    border-right: 1px solid var(--aurora-border) !important;
+    background: transparent;
+    font-size: 0.78rem;
+    width: 100%;
+  }
+  .gp-preview-toolbar-actions .gp-toolbar-icon-btn:last-child {
+    border-right: none !important;
+  }
+  .gp-toolbar-btn-text { display: none; } /* handled globally below */
 }
 
 .gp-doc-header {
@@ -592,13 +642,102 @@
   gap: 8px;
 }
 
+/* ── Hub del grupo ───────────────────────────────────────────────────────── */
+.grupo-hub {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.grupo-hub-bloques-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 8px;
+}
+
+.grupo-hub-bloques-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-light);
+  opacity: 0.45;
+}
+
+.grupo-hub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.grupo-hub .hor-table-wrap {
+  border-radius: 0;
+}
+
+.grupo-hub .hor-table {
+  width: auto;
+  min-width: 0;
+}
+
+.grupo-hub .hor-table th,
+.grupo-hub .hor-table td {
+  padding: 7px 8px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .grupo-hub .hor-table-wrap {
+    margin-left: -24px;
+    margin-right: -24px;
+  }
+}
+
+.grupo-hub-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.grupo-hub-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+}
+
+.grupo-hub-table tfoot td {
+  border-top: 1px solid var(--aurora-border);
+  border-bottom: none;
+  padding-top: 10px;
+}
+
+.grupo-hub-table .gp-col-num {
+  text-align: right;
+}
+
 @media print {
   .gp-preview-backdrop {
     position: static;
+    overflow: visible;
+  }
+  .gp-preview-toolbar { display: none; }
+  .gp-doc-wrap {
     background: none;
     padding: 0;
     overflow: visible;
   }
-  .gp-preview-toolbar { display: none; }
+  .gp-document {
+    box-shadow: none;
+    width: auto;
+    padding: 20px;
+  }
   .lote-management-layout { display: none !important; }
 }
