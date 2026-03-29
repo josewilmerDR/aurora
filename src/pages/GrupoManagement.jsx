@@ -714,6 +714,9 @@ function GrupoManagement() {
 
     return (
       <div className="grupo-hub">
+        <button className="grupo-hub-back" onClick={() => setSelectedGrupo(null)}>
+          <FiArrowLeft size={13} /> Todos los grupos
+        </button>
         <div className="hub-header">
           <div className="hub-title-block">
             <h2 className="hub-lote-code">{selectedGrupo.nombreGrupo}</h2>
@@ -909,7 +912,7 @@ function GrupoManagement() {
             <button
               key={grupo.id}
               className={`lote-bubble${selectedGrupo?.id === grupo.id ? ' lote-bubble--active' : ''}`}
-              onClick={() => handleSelectGrupo(grupo)}
+              onClick={() => selectedGrupo?.id === grupo.id ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
             >
               <span className="lote-bubble-avatar">{grupo.nombreGrupo.slice(0, 4)}</span>
               <span className="lote-bubble-label">{grupo.nombreGrupo}</span>
@@ -957,7 +960,7 @@ function GrupoManagement() {
                 <li
                   key={grupo.id}
                   className={`lote-list-item${selectedGrupo?.id === grupo.id && !showForm ? ' active' : ''}`}
-                  onClick={() => handleSelectGrupo(grupo)}
+                  onClick={() => selectedGrupo?.id === grupo.id && !showForm ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
                 >
                   <div className="lote-list-info">
                     <span className="lote-list-code">{grupo.nombreGrupo}</span>

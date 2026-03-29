@@ -643,6 +643,25 @@
 }
 
 /* ── Hub del grupo ───────────────────────────────────────────────────────── */
+.grupo-hub-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0 0 12px 0;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.38;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.grupo-hub-back:hover {
+  opacity: 0.75;
+}
+
 .grupo-hub {
   background-color: var(--aurora-background);
   border: 1px solid var(--aurora-border);
