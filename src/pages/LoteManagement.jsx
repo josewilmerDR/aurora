@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import './LoteManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight } from 'react-icons/fi';
 import Toast from '../components/Toast';
@@ -124,6 +124,14 @@ function LoteManagement() {
   const [siembras, setSiembras] = useState([]);
   const [loadingSiembras, setLoadingSiembras] = useState(false);
   const [activeTab, setActiveTab] = useState('siembras');
+  const carouselRef = useRef(null);
+
+  // Centra la burbuja activa en el carousel cuando cambia el lote seleccionado
+  useEffect(() => {
+    if (!selectedLote || !carouselRef.current) return;
+    const active = carouselRef.current.querySelector('.lote-bubble--active');
+    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedLote]);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
   const fetchLotes = useCallback(() => {
@@ -202,6 +210,8 @@ function LoteManagement() {
     setSelectedLote(lote);
     setView('hub');
     setActiveTab('siembras');
+    if (window.innerWidth <= 768)
+      document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNewLote = () => {
@@ -304,7 +314,7 @@ function LoteManagement() {
             <div className="form-actions">
               <button type="submit" className="btn btn-primary">
                 <FiPlus />
-                {isEditing ? 'Actualizar Lote' : 'Crear y Programar'}
+                {isEditing ? 'Actualizar Lote' : 'Crear Lote'}
               </button>
               <button type="button" onClick={resetForm} className="btn btn-secondary">
                 Cancelar
@@ -316,12 +326,7 @@ function LoteManagement() {
     }
 
     if (!selectedLote) {
-      return (
-        <div className="lote-hub lote-hub-empty">
-          <FiChevronRight size={32} opacity={0.3} />
-          <p>Selecciona un lote para ver su bitácora</p>
-        </div>
-      );
+      return null;
     }
 
     return (
@@ -383,7 +388,7 @@ function LoteManagement() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="lote-management-layout">
+    <div className={`lote-page${selectedLote && view === 'hub' ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && (
         <ConfirmModal
@@ -399,15 +404,46 @@ function LoteManagement() {
         />
       )}
 
-      {/* ── Left: form or hub ── */}
-      {renderRightPanel()}
+      {/* ── Mobile sticky carousel ── */}
+      {selectedLote && view === 'hub' && (
+        <div className="lote-carousel" ref={carouselRef}>
+          {lotes.map(lote => (
+            <button
+              key={lote.id}
+              className={`lote-bubble${selectedLote?.id === lote.id ? ' lote-bubble--active' : ''}`}
+              onClick={() => handleSelectLote(lote)}
+            >
+              <span className="lote-bubble-avatar">{lote.codigoLote.slice(0, 4)}</span>
+              <span className="lote-bubble-label">
+                {lote.nombreLote && lote.nombreLote !== lote.codigoLote ? lote.nombreLote : lote.codigoLote}
+              </span>
+            </button>
+          ))}
+          <button className="lote-bubble lote-bubble--add" onClick={handleNewLote}>
+            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+            <span className="lote-bubble-label">Nuevo</span>
+          </button>
+        </div>
+      )}
 
-      {/* ── Right: lote list ── */}
-      <div className="lote-list-panel">
-        <button onClick={handleNewLote} className="btn btn-primary btn-full">
-          <FiPlus /> Crear nuevo lote
-        </button>
-        {lotes.length === 0
+      {/* ── Page header ── */}
+      {view !== 'form' && (
+        <div className="lote-page-header">
+          <button onClick={handleNewLote} className="btn btn-primary">
+            <FiPlus /> Crear nuevo lote
+          </button>
+        </div>
+      )}
+
+      <div className="lote-management-layout">
+        {/* ── Left: form or hub ── */}
+        {renderRightPanel()}
+
+        {/* ── Right: lote list ── */}
+        <div className="lote-list-panel">
+          <h3 className="lote-list-title">Lotes Activos</h3>
+
+          {lotes.length === 0
           ? <p className="empty-state" style={{ marginTop: '1rem' }}>No hay lotes creados.</p>
           : (
             <ul className="lote-list">
@@ -432,6 +468,7 @@ function LoteManagement() {
             </ul>
           )
         }
+        </div>
       </div>
     </div>
   );

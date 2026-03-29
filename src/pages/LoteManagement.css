@@ -1,18 +1,46 @@
 /* ── Layout ──────────────────────────────────────────────────────────────── */
-.lote-management-layout {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 20px;
-  align-items: start;
+.lote-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-@media (max-width: 768px) {
-  .lote-management-layout {
-    grid-template-columns: 1fr;
+.lote-page-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.lote-management-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 769px) {
+  .lote-page--selected .lote-management-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .lote-page--selected .lote-list-panel {
+    position: sticky;
+    top: 0;
   }
 }
 
 /* ── Left panel: lote list ───────────────────────────────────────────────── */
+.lote-list-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  margin: 0 0 4px;
+}
+
 .lote-list-panel {
   background-color: var(--aurora-background);
   border: 1px solid var(--aurora-border);
@@ -41,7 +69,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 10px;
   border-radius: 6px;
   cursor: pointer;
   border: 1px solid transparent;
@@ -60,18 +88,19 @@
 
 .lote-list-info {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .lote-list-code {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: var(--aurora-light);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .lote-list-item.active .lote-list-code {
@@ -103,6 +132,106 @@
 .lote-list-item:hover .lote-list-arrow,
 .lote-list-item.active .lote-list-arrow {
   opacity: 0.7;
+}
+
+/* ── Mobile carousel ─────────────────────────────────────────────────────── */
+.lote-carousel {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .lote-carousel {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--aurora-dark-blue);
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 16px;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--aurora-border);
+  }
+
+  .lote-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lote-page--selected .lote-list-panel {
+    display: none;
+  }
+
+  .lote-page--selected .lote-page-header {
+    display: none;
+  }
+}
+
+.lote-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  scroll-snap-align: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 64px;
+}
+
+.lote-bubble-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(230, 242, 255, 0.07);
+  border: 2px solid var(--aurora-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.lote-bubble--active .lote-bubble-avatar {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+.lote-bubble-label {
+  font-size: 0.68rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 64px;
+  text-align: center;
+  transition: opacity 0.15s;
+}
+
+.lote-bubble--active .lote-bubble-label {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+.lote-bubble-avatar--add {
+  font-size: 1.5rem;
+  font-weight: 300;
+  background: rgba(230, 242, 255, 0.04);
+  border-style: dashed;
+}
+
+.lote-bubble--add:hover .lote-bubble-avatar {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
 }
 
 /* ── Right panel: form card ──────────────────────────────────────────────── */
