@@ -171,6 +171,8 @@ const MainLayout = () => {
 
   const [swUpdateVisible, setSwUpdateVisible] = useState(false);
   useEffect(() => {
+    // Comprueba si onNeedRefresh se disparó antes de que React montara
+    if (window.__swUpdatePending) setSwUpdateVisible(true);
     const handler = () => setSwUpdateVisible(true);
     window.addEventListener('sw-update-available', handler);
     return () => window.removeEventListener('sw-update-available', handler);
@@ -368,8 +370,8 @@ const MainLayout = () => {
       {swUpdateVisible && (
         <div className="update-prompt">
           <span className="push-prompt-text">Nueva versión disponible — tu trabajo guardado no se perderá</span>
-          <button className="push-prompt-btn" onClick={() => window.__swUpdate?.()}>Actualizar</button>
-          <button className="push-prompt-dismiss" onClick={() => setSwUpdateVisible(false)}>Ahora no</button>
+          <button className="push-prompt-btn" onClick={() => { window.__swUpdatePending = false; window.__swUpdate?.(); }}>Actualizar</button>
+          <button className="push-prompt-dismiss" onClick={() => { window.__swUpdatePending = false; setSwUpdateVisible(false); }}>Ahora no</button>
         </div>
       )}
     </div>
