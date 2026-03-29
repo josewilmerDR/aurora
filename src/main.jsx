@@ -17,6 +17,16 @@ const updateSW = registerSW({
   },
 });
 
+// En SPAs el browser no hace check del SW en cada navegación.
+// Forzamos el chequeo al volver al tab y cada hora.
+if ('serviceWorker' in navigator) {
+  const checkForUpdate = () => navigator.serviceWorker.ready.then(r => r.update()).catch(() => {});
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+  setInterval(checkForUpdate, 60 * 60 * 1000);
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

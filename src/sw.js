@@ -8,6 +8,11 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+// Permite que la app dispare la activación del SW en espera
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 // API calls: NetworkFirst → intenta red, si falla usa caché (lectura offline)
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/'),
