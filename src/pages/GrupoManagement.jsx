@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import './GrupoManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -36,6 +36,33 @@ const calcFechaCosecha = (grupo, config) => {
   result.setDate(result.getDate() + dias);
   return result;
 };
+
+// ── Tabla de bloques: helpers de ordenamiento / filtrado ─────────────────────
+function compare(a, b, field) {
+  const av = a[field] ?? '';
+  const bv = b[field] ?? '';
+  if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+  return String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
+}
+function multiSort(records, sorts) {
+  const active = sorts.filter(s => s.field);
+  if (!active.length) return [...records];
+  return [...records].sort((a, b) => {
+    for (const s of active) {
+      const r = compare(a, b, s.field);
+      if (r !== 0) return s.dir === 'desc' ? -r : r;
+    }
+    return 0;
+  });
+}
+const BLOQUE_COLS = [
+  { id: 'loteNombre', label: 'Lote'     },
+  { id: 'bloque',     label: 'Bloque'   },
+  { id: 'ha',         label: 'Ha.',     filterType: 'number' },
+  { id: 'plantas',    label: 'Plantas', filterType: 'number' },
+  { id: 'material',   label: 'Material' },
+  { id: 'kg',         label: 'Kg Est.', filterType: 'number' },
+];
 
 // ── Modal nuevo valor de catálogo (cosecha / etapa) ──────────────────────────
 function NuevoCatalogModal({ field, onConfirm, onCancel }) {
@@ -80,22 +107,29 @@ function NuevoCatalogModal({ field, onConfirm, onCancel }) {
 function GrupoManagement() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [grupos,       setGrupos]       = useState([]);
-  const [siembras,     setSiembras]     = useState([]);
-  const [packages,     setPackages]     = useState([]);
+  const [grupos,        setGrupos]        = useState([]);
+  const [siembras,      setSiembras]      = useState([]);
+  const [packages,      setPackages]      = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
-  const [showForm,     setShowForm]     = useState(false);
-  const [showLibres,   setShowLibres]   = useState(false);
-  const [isEditing,    setIsEditing]    = useState(false);
-  const [catalogModal, setCatalogModal] = useState(null); // null | { field: 'cosecha'|'etapa' }
+  const [selectedGrupo, setSelectedGrupo] = useState(null);
+  const [showForm,      setShowForm]      = useState(false);
+  const [showLibres,    setShowLibres]    = useState(false);
+  const [isEditing,     setIsEditing]     = useState(false);
+  const [catalogModal,  setCatalogModal]  = useState(null);
   const [localCosechas, setLocalCosechas] = useState([]);
   const [localEtapas,   setLocalEtapas]   = useState([]);
-  const [toast,        setToast]        = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null);
-  const [deleting,     setDeleting]     = useState(false);
-  const [deleteModal,  setDeleteModal]  = useState(null); // { type: 'aplicada'|'en_transito', grupoId, grupoName, cedulasAplicadas, cedulasEnTransito }
-  const [previewGrupo, setPreviewGrupo] = useState(null);
-  const docRef = useRef(null);
+  const [toast,         setToast]         = useState(null);
+  const [confirmModal,  setConfirmModal]  = useState(null);
+  const [deleting,      setDeleting]      = useState(false);
+  const [deleteModal,   setDeleteModal]   = useState(null);
+  const [previewGrupo,     setPreviewGrupo]     = useState(null);
+  const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'loteNombre', dir: 'asc' }]);
+  const [bloqueColFilters, setBloqueColFilters] = useState({});
+  const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
+  const [bloqueHiddenCols, setBloqueHiddenCols] = useState(new Set());
+  const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
+  const docRef      = useRef(null);
+  const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const [formData, setFormData] = useState({
@@ -104,13 +138,21 @@ function GrupoManagement() {
   });
 
   const fetchAll = () => {
-    apiFetch('/api/grupos').then(r => r.json()).then(setGrupos).catch(console.error);
+    const gruposP = apiFetch('/api/grupos').then(r => r.json()).then(data => { setGrupos(data); return data; }).catch(console.error);
     apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
     apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
+    return gruposP;
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  // Centra la burbuja activa en el carousel cuando cambia el grupo seleccionado
+  useEffect(() => {
+    if (!selectedGrupo || !carouselRef.current) return;
+    const active = carouselRef.current.querySelector('.lote-bubble--active');
+    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedGrupo]);
 
   // ── Bloques eligibles ─────────────────────────────────────────────────────
   const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
@@ -127,7 +169,6 @@ function GrupoManagement() {
     cerradoSiembras.filter(s => !assignedIds.has(s.id)),
   [cerradoSiembras, assignedIds]);
 
-  // Consolidate available siembras by loteId+bloque so each block appears once
   const consolidatedBloques = useMemo(() => {
     const map = new Map();
     for (const s of availableSiembras) {
@@ -196,6 +237,117 @@ function GrupoManagement() {
     ),
   [packages, formData.cosecha, formData.etapa]);
 
+  // ── Datos del grupo seleccionado (hub) ────────────────────────────────────
+  const selectedBloques = useMemo(() => {
+    if (!selectedGrupo) return [];
+    return (selectedGrupo.bloques || [])
+      .map(id => siembras.find(s => s.id === id))
+      .filter(Boolean);
+  }, [selectedGrupo, siembras]);
+
+  const selectedFechaCosecha = useMemo(
+    () => selectedGrupo ? calcFechaCosecha(selectedGrupo, empresaConfig) : null,
+    [selectedGrupo, empresaConfig]
+  );
+
+  const selectedTotalHa      = selectedBloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
+  const selectedTotalPlantas = selectedBloques.reduce((s, b) => s + (b.plantas || 0), 0);
+  const selectedTotalKg      = selectedTotalPlantas * 1.6;
+
+  // ── Tabla de bloques: normalizar, filtrar, ordenar ────────────────────────
+  const selectedBloquesNorm = useMemo(() =>
+    selectedBloques.map(b => ({
+      ...b,
+      ha:       parseFloat(b.areaCalculada) || 0,
+      material: b.materialNombre || b.variedad || '',
+      kg:       (b.plantas || 0) * 1.6,
+    })),
+  [selectedBloques]);
+
+  const bloqueFiltered = useMemo(() => {
+    const active = Object.entries(bloqueColFilters).filter(([, f]) => {
+      if (!f) return false;
+      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
+      return !!f.value?.trim();
+    });
+    if (!active.length) return selectedBloquesNorm;
+    return selectedBloquesNorm.filter(r => {
+      for (const [field, filter] of active) {
+        const cell = r[field];
+        if (filter.type === 'range') {
+          if (cell == null || cell === '') return false;
+          const num = Number(cell);
+          if (!isNaN(num)) {
+            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
+            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
+          } else {
+            const str = String(cell);
+            if (filter.from && str < filter.from) return false;
+            if (filter.to   && str > filter.to)   return false;
+          }
+        } else {
+          if (cell == null) return false;
+          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+  }, [selectedBloquesNorm, bloqueColFilters]);
+
+  const bloqueSorted = useMemo(() => multiSort(bloqueFiltered, bloqueSorts), [bloqueFiltered, bloqueSorts]);
+
+  const filtTotalHa      = bloqueSorted.reduce((s, b) => s + (b.ha || 0), 0);
+  const filtTotalPlantas = bloqueSorted.reduce((s, b) => s + (b.plantas || 0), 0);
+  const filtTotalKg      = filtTotalPlantas * 1.6;
+
+  const setBloqueColFilter = (field, filterObj) => {
+    const empty = !filterObj ||
+      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
+    setBloqueColFilters(prev => empty
+      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+      : { ...prev, [field]: filterObj }
+    );
+  };
+
+  const handleBloqueColBtnClick = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
+  };
+
+  const BloqueSortTh = ({ field, children, filterType = 'text' }) => {
+    const active    = bloqueSorts[0].field === field;
+    const dir       = active ? bloqueSorts[0].dir : null;
+    const f         = bloqueColFilters[field];
+    const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
+    return (
+      <th
+        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        onClick={() => setBloqueSorts(prev => {
+          const next = [...prev];
+          next[0] = next[0].field === field ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' };
+          return next;
+        })}
+      >
+        {children}
+        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span
+          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
+          title="Filtrar columna"
+          onClick={e => {
+            e.stopPropagation();
+            if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
+            const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+            const rect = th.getBoundingClientRect();
+            setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
+          }}
+        >
+          <FiFilter size={10} />
+        </span>
+      </th>
+    );
+  };
+
   // ── Handlers form ─────────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -227,6 +379,14 @@ function GrupoManagement() {
     setIsEditing(false);
     setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '' });
     setShowForm(true);
+    setSelectedGrupo(null);
+  };
+
+  const handleSelectGrupo = (grupo) => {
+    setSelectedGrupo(grupo);
+    setShowForm(false);
+    if (window.innerWidth <= 768)
+      document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCatalogConfirm = (nombre) => {
@@ -252,15 +412,14 @@ function GrupoManagement() {
     setIsEditing(true);
     setShowForm(true);
     setFormData({
-      id:           grupo.id,
-      nombreGrupo:  grupo.nombreGrupo  || '',
-      cosecha:      grupo.cosecha      || '',
-      etapa:        grupo.etapa        || '',
+      id:            grupo.id,
+      nombreGrupo:   grupo.nombreGrupo  || '',
+      cosecha:       grupo.cosecha      || '',
+      etapa:         grupo.etapa        || '',
       fechaCreacion: grupo.fechaCreacion ? formatDateForInput(grupo.fechaCreacion) : '',
-      bloques:      Array.isArray(grupo.bloques) ? grupo.bloques : [],
-      paqueteId:    grupo.paqueteId    || '',
+      bloques:       Array.isArray(grupo.bloques) ? grupo.bloques : [],
+      paqueteId:     grupo.paqueteId    || '',
     });
-    window.scrollTo(0, 0);
   };
 
   const handleDeleteClick = async (grupo) => {
@@ -284,6 +443,7 @@ function GrupoManagement() {
     try {
       const res = await apiFetch(`/api/grupos/${confirmModal.grupoId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
+      if (selectedGrupo?.id === confirmModal.grupoId) setSelectedGrupo(null);
       setConfirmModal(null);
       fetchAll();
       showToast('Grupo eliminado correctamente');
@@ -301,6 +461,7 @@ function GrupoManagement() {
       }
       const res = await apiFetch(`/api/grupos/${deleteModal.grupoId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
+      if (selectedGrupo?.id === deleteModal.grupoId) setSelectedGrupo(null);
       setDeleteModal(null);
       fetchAll();
       showToast('Cédulas anuladas y grupo eliminado correctamente');
@@ -317,7 +478,13 @@ function GrupoManagement() {
     try {
       const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
       if (!res.ok) throw new Error();
-      fetchAll();
+      const saved     = await res.json();
+      const newGrupos = await fetchAll();
+      const savedId   = isEditing ? formData.id : saved.id;
+      if (savedId && newGrupos) {
+        const found = newGrupos.find(g => g.id === savedId);
+        if (found) setSelectedGrupo(found);
+      }
       resetForm();
       showToast(isEditing ? 'Grupo actualizado correctamente' : formData.paqueteId ? 'Grupo creado y tareas programadas' : 'Grupo creado correctamente');
     } catch {
@@ -325,7 +492,7 @@ function GrupoManagement() {
     }
   };
 
-  // ── Preview ───────────────────────────────────────────────────────────────
+  // ── Preview (PDF / impresión) ─────────────────────────────────────────────
   const handleCompartir = async () => {
     if (!docRef.current) return;
     try {
@@ -362,7 +529,6 @@ function GrupoManagement() {
     }
   };
 
-  // Enrich bloques of preview grupo with siembra data
   const previewBloques = useMemo(() => {
     if (!previewGrupo) return [];
     return (previewGrupo.bloques || [])
@@ -379,9 +545,292 @@ function GrupoManagement() {
 
   const getPackageName = (id) => packages.find(p => p.id === id)?.nombrePaquete || '—';
 
+  // ── Panel principal (hub o formulario) ───────────────────────────────────
+  const renderPanel = () => {
+    if (showForm) {
+      return (
+        <div className="form-card">
+          <h2>{isEditing ? 'Editar Grupo' : 'Crear Nuevo Grupo'}</h2>
+          <form onSubmit={handleSubmit} className="lote-form">
+            <div className="form-grid">
+              <div className="form-control">
+                <label htmlFor="nombreGrupo">Nombre de Grupo</label>
+                <input id="nombreGrupo" name="nombreGrupo" value={formData.nombreGrupo} onChange={handleInputChange} required />
+              </div>
+              <div className="form-control">
+                <label htmlFor="fechaCreacion">Fecha de Creación</label>
+                <input id="fechaCreacion" name="fechaCreacion" type="date" value={formData.fechaCreacion} onChange={handleInputChange} required />
+              </div>
+              <div className="form-control">
+                <label htmlFor="cosecha">Cosecha</label>
+                <select
+                  id="cosecha"
+                  name="cosecha"
+                  value={formData.cosecha}
+                  onChange={e => {
+                    if (e.target.value === '__nueva__') {
+                      setCatalogModal({ field: 'cosecha' });
+                    } else {
+                      handleInputChange(e);
+                    }
+                  }}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {cosechasCatalog.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__nueva__">＋ Nueva cosecha</option>
+                </select>
+              </div>
+              <div className="form-control">
+                <label htmlFor="etapa">Etapa</label>
+                <select
+                  id="etapa"
+                  name="etapa"
+                  value={formData.etapa}
+                  onChange={e => {
+                    if (e.target.value === '__nueva__') {
+                      setCatalogModal({ field: 'etapa' });
+                    } else {
+                      handleInputChange(e);
+                    }
+                  }}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {etapasCatalog.map(e => <option key={e} value={e}>{e}</option>)}
+                  <option value="__nueva__">＋ Nueva etapa</option>
+                </select>
+              </div>
+              <div className="form-control" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="paqueteId">Paquete de Aplicaciones</label>
+                <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} disabled={filteredPackages.length === 0}>
+                  <option value="">{filteredPackages.length === 0 ? '-- Sin paquetes para esta cosecha/etapa --' : '-- Seleccionar Paquete --'}</option>
+                  {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* ── Sección 1: Bloques del grupo ── */}
+            <div className="bloques-section">
+              <div className="bloques-header">
+                <span className="bloques-title">Bloques del grupo</span>
+                <span className="bloques-count">{selectedBlockCount} bloque(s) asignado(s)</span>
+              </div>
+
+              {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
+                <div key={loteNombre} className="bloque-lote-group">
+                  <div className="bloque-lote-label">{loteNombre}</div>
+                  {registros.map(s => (
+                    <div key={s.key} className="bloque-checkbox-row checked">
+                      <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                      <span className="bloque-meta">
+                        {s.plantas?.toLocaleString()} plantas
+                        {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                        {s.variedad ? ` · ${s.variedad}` : ''}
+                      </span>
+                      <button type="button" className="bloque-btn-quitar" onClick={() => toggleBloque(s.ids)}>
+                        Quitar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {selectedBlockCount === 0 && (
+                <div className="bloques-empty-wrap">
+                  <p className="bloques-empty">
+                    {consolidatedBloques.length === 0
+                      ? cerradoSiembras.length === 0
+                        ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
+                        : 'Todos los bloques cerrados ya están asignados a otros grupos.'
+                      : 'Sin bloques asignados aún.'}
+                  </p>
+                  {Object.keys(byLoteLibres).length > 0 && (
+                    <button
+                      type="button"
+                      className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
+                      onClick={() => setShowLibres(v => !v)}
+                    >
+                      <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedBlockCount > 0 && Object.keys(byLoteLibres).length > 0 && (
+              <div className="bloques-agregar-wrap">
+                <button
+                  type="button"
+                  className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
+                  onClick={() => setShowLibres(v => !v)}
+                >
+                  <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
+                </button>
+              </div>
+            )}
+
+            {/* ── Sección 2: Lotes y bloques sin agrupar (condicional) ── */}
+            {showLibres && Object.keys(byLoteLibres).length > 0 && (
+              <div className="bloques-section bloques-section--libres">
+                <div className="bloques-header bloques-header--muted">
+                  <span className="bloques-title">Lotes y bloques sin agrupar</span>
+                  <span className="bloques-count">
+                    {Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0)} disponible(s)
+                  </span>
+                </div>
+
+                {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
+                  <div key={loteNombre} className="bloque-lote-group">
+                    <div className="bloque-lote-label">{loteNombre}</div>
+                    {registros.map(s => (
+                      <div key={s.key} className="bloque-checkbox-row">
+                        <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                        <span className="bloque-meta">
+                          {s.plantas?.toLocaleString()} plantas
+                          {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                          {s.variedad ? ` · ${s.variedad}` : ''}
+                        </span>
+                        <button type="button" className="bloque-btn-agregar" onClick={() => toggleBloque(s.ids)}>
+                          Agregar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary">
+                <FiPlus /> {isEditing ? 'Actualizar Grupo' : 'Crear Grupo'}
+              </button>
+              <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    if (!selectedGrupo) return null;
+
+    return (
+      <div className="grupo-hub">
+        <button className="grupo-hub-back" onClick={() => setSelectedGrupo(null)}>
+          <FiArrowLeft size={13} /> Todos los grupos
+        </button>
+        <div className="hub-header">
+          <div className="hub-title-block">
+            <h2 className="hub-lote-code">{selectedGrupo.nombreGrupo}</h2>
+          </div>
+          <div className="hub-header-actions">
+            <button onClick={() => setPreviewGrupo(selectedGrupo)} className="icon-btn" title="Vista previa / PDF">
+              <FiEye size={16} />
+            </button>
+            <button onClick={() => handleEdit(selectedGrupo)} className="icon-btn" title="Editar">
+              <FiEdit size={16} />
+            </button>
+            <button onClick={() => handleDeleteClick(selectedGrupo)} className="icon-btn delete" title="Eliminar">
+              <FiTrash2 size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="hub-info-pills">
+          <span className="hub-pill">
+            <FiCalendar size={13} />
+            {formatDateLong(tsToDate(selectedGrupo.fechaCreacion))}
+          </span>
+          {selectedGrupo.cosecha && <span className="hub-pill">{selectedGrupo.cosecha}</span>}
+          {selectedGrupo.etapa   && <span className="hub-pill">{selectedGrupo.etapa}</span>}
+          {selectedBloques.length > 0 && (
+            <span className="hub-pill">
+              <FiLayers size={13} />
+              {selectedBloques.length} bloque(s)
+            </span>
+          )}
+          {selectedGrupo.paqueteId && (
+            <span className="hub-pill">
+              <FiPackage size={13} />
+              {getPackageName(selectedGrupo.paqueteId)}
+            </span>
+          )}
+          {selectedFechaCosecha && (
+            <span className="hub-pill hub-pill-muted">
+              Cosecha est.: {formatDateLong(selectedFechaCosecha)}
+            </span>
+          )}
+        </div>
+
+        <div className="grupo-hub-bloques-header">
+          <p className="grupo-hub-bloques-title">Bloques</p>
+          {Object.values(bloqueColFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
+            <button className="historial-clear-col-filters" onClick={() => setBloqueColFilters({})}>
+              <FiX size={11} /> Limpiar filtros
+            </button>
+          )}
+        </div>
+        {selectedBloques.length === 0 ? (
+          <p className="empty-state">Este grupo no tiene bloques asignados.</p>
+        ) : (
+          <div className="hor-table-wrap">
+            <table className="hor-table grupo-hub-table">
+              <thead>
+                <tr>
+                  {!bloqueHiddenCols.has('loteNombre') && <BloqueSortTh field="loteNombre">Lote</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('bloque')     && <BloqueSortTh field="bloque">Bloque</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('ha')         && <BloqueSortTh field="ha" filterType="number">Ha.</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('plantas')    && <BloqueSortTh field="plantas" filterType="number">Plantas</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('material')   && <BloqueSortTh field="material">Material</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('kg')         && <BloqueSortTh field="kg" filterType="number">Kg Est.</BloqueSortTh>}
+                  <th className="hor-th-settings">
+                    <button
+                      className={`hor-col-toggle-btn${bloqueHiddenCols.size > 0 ? ' hor-col-toggle-btn--active' : ''}`}
+                      onClick={handleBloqueColBtnClick}
+                      title="Personalizar columnas visibles"
+                    >
+                      <FiSliders size={12} />
+                      {bloqueHiddenCols.size > 0 && <span className="hor-col-hidden-badge">{bloqueHiddenCols.size}</span>}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {bloqueSorted.map(b => (
+                  <tr key={b.id}>
+                    {!bloqueHiddenCols.has('loteNombre') && <td>{b.loteNombre || '—'}</td>}
+                    {!bloqueHiddenCols.has('bloque')     && <td>{b.bloque || '—'}</td>}
+                    {!bloqueHiddenCols.has('ha')         && <td className="hor-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
+                    {!bloqueHiddenCols.has('plantas')    && <td className="hor-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
+                    {!bloqueHiddenCols.has('material')   && <td>{b.material || '—'}</td>}
+                    {!bloqueHiddenCols.has('kg')         && <td className="hor-td-num">{b.kg ? b.kg.toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>}
+                    <td />
+                  </tr>
+                ))}
+              </tbody>
+              {bloqueSorted.length > 0 && (
+                <tfoot>
+                  <tr>
+                    {!bloqueHiddenCols.has('loteNombre') && <td><strong>Totales</strong></td>}
+                    {!bloqueHiddenCols.has('bloque')     && <td />}
+                    {!bloqueHiddenCols.has('ha')         && <td className="hor-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
+                    {!bloqueHiddenCols.has('plantas')    && <td className="hor-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
+                    {!bloqueHiddenCols.has('material')   && <td />}
+                    {!bloqueHiddenCols.has('kg')         && <td className="hor-td-num"><strong>{filtTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>}
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="grupo-page-wrap">
+    <div className={`grupo-page${selectedGrupo && !showForm ? ' grupo-page--selected' : ''}${showForm ? ' grupo-page--form' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       {catalogModal && (
         <NuevoCatalogModal
           field={catalogModal.field}
@@ -456,263 +905,100 @@ function GrupoManagement() {
         </div>
       )}
 
-      {/* ── Encabezado de página con botón ── */}
-      <div className="grupo-page-header">
-        {grupos.length > 0 && !showForm && (
+      {/* ── Mobile sticky carousel ── */}
+      {selectedGrupo && !showForm && (
+        <div className="lote-carousel" ref={carouselRef}>
+          {grupos.map(grupo => (
+            <button
+              key={grupo.id}
+              className={`lote-bubble${selectedGrupo?.id === grupo.id ? ' lote-bubble--active' : ''}`}
+              onClick={() => selectedGrupo?.id === grupo.id ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
+            >
+              <span className="lote-bubble-avatar">{grupo.nombreGrupo.slice(0, 4)}</span>
+              <span className="lote-bubble-label">{grupo.nombreGrupo}</span>
+            </button>
+          ))}
+          <button className="lote-bubble lote-bubble--add" onClick={handleNewGrupo}>
+            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+            <span className="lote-bubble-label">Nuevo</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Page header ── */}
+      {!showForm && (
+        <div className="lote-page-header">
           <button className="btn btn-primary" onClick={handleNewGrupo}>
             <FiPlus size={15} /> Nuevo Grupo
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="lote-management-layout">
 
-      {/* ── FORMULARIO / CTA ── */}
-      <div className={`form-card${!showForm ? ' form-card--cta' : ''}`}>
-        {showForm ? (
-          <>
-          <h2>{isEditing ? 'Editando Grupo' : 'Crear Nuevo Grupo'}</h2>
-          <form onSubmit={handleSubmit} className="lote-form">
-          <div className="form-grid">
-            <div className="form-control">
-              <label htmlFor="nombreGrupo">Nombre de Grupo</label>
-              <input id="nombreGrupo" name="nombreGrupo" value={formData.nombreGrupo} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="fechaCreacion">Fecha de Creación</label>
-              <input id="fechaCreacion" name="fechaCreacion" type="date" value={formData.fechaCreacion} onChange={handleInputChange} required />
-            </div>
-            <div className="form-control">
-              <label htmlFor="cosecha">Cosecha</label>
-              <select
-                id="cosecha"
-                name="cosecha"
-                value={formData.cosecha}
-                onChange={e => {
-                  if (e.target.value === '__nueva__') {
-                    setCatalogModal({ field: 'cosecha' });
-                  } else {
-                    handleInputChange(e);
-                  }
-                }}
-              >
-                <option value="">-- Seleccionar --</option>
-                {cosechasCatalog.map(c => <option key={c} value={c}>{c}</option>)}
-                <option value="__nueva__">＋ Nueva cosecha</option>
-              </select>
-            </div>
-            <div className="form-control">
-              <label htmlFor="etapa">Etapa</label>
-              <select
-                id="etapa"
-                name="etapa"
-                value={formData.etapa}
-                onChange={e => {
-                  if (e.target.value === '__nueva__') {
-                    setCatalogModal({ field: 'etapa' });
-                  } else {
-                    handleInputChange(e);
-                  }
-                }}
-              >
-                <option value="">-- Seleccionar --</option>
-                {etapasCatalog.map(e => <option key={e} value={e}>{e}</option>)}
-                <option value="__nueva__">＋ Nueva etapa</option>
-              </select>
-            </div>
-            <div className="form-control" style={{ gridColumn: '1 / -1' }}>
-              <label htmlFor="paqueteId">Paquete de Aplicaciones</label>
-              <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} disabled={filteredPackages.length === 0}>
-                <option value="">{filteredPackages.length === 0 ? '-- Sin paquetes para esta cosecha/etapa --' : '-- Seleccionar Paquete --'}</option>
-                {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
-              </select>
-            </div>
-          </div>
+        {/* Hub o formulario */}
+        {renderPanel()}
 
-          {/* ── Sección 1: Bloques del grupo ── */}
-          <div className="bloques-section">
-            <div className="bloques-header">
-              <span className="bloques-title">Bloques del grupo</span>
-              <span className="bloques-count">{selectedBlockCount} bloque(s) asignado(s)</span>
-            </div>
-
-            {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
-              <div key={loteNombre} className="bloque-lote-group">
-                <div className="bloque-lote-label">{loteNombre}</div>
-                {registros.map(s => (
-                  <div key={s.key} className="bloque-checkbox-row checked">
-                    <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                    <span className="bloque-meta">
-                      {s.plantas?.toLocaleString()} plantas
-                      {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                      {s.variedad ? ` · ${s.variedad}` : ''}
-                    </span>
-                    <button type="button" className="bloque-btn-quitar" onClick={() => toggleBloque(s.ids)}>
-                      Quitar
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {/* Estado vacío: botón "Agregar bloques" DENTRO cuando no hay bloques */}
-            {selectedBlockCount === 0 && (
-              <div className="bloques-empty-wrap">
-                <p className="bloques-empty">
-                  {consolidatedBloques.length === 0
-                    ? cerradoSiembras.length === 0
-                      ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
-                      : 'Todos los bloques cerrados ya están asignados a otros grupos.'
-                    : 'Sin bloques asignados aún.'}
-                </p>
-                {Object.keys(byLoteLibres).length > 0 && (
-                  <button
-                    type="button"
-                    className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
-                    onClick={() => setShowLibres(v => !v)}
-                  >
-                    <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Botón "Agregar bloques" FUERA cuando ya hay bloques */}
-          {selectedBlockCount > 0 && Object.keys(byLoteLibres).length > 0 && (
-            <div className="bloques-agregar-wrap">
-              <button
-                type="button"
-                className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
-                onClick={() => setShowLibres(v => !v)}
-              >
-                <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
+        {/* Lista compacta */}
+        <div className="lote-list-panel">
+          <h3 className="lote-list-title">Grupos</h3>
+          {grupos.length === 0 ? (
+            <div className="grupo-cta">
+              <div className="grupo-cta-icon"><FiPlus size={24} /></div>
+              <p className="grupo-cta-title">Sin grupos creados</p>
+              <p className="grupo-cta-desc">
+                Organiza los bloques de siembra cerrados en grupos de producción
+                para gestionar aplicaciones, cosechas y reportes.
+              </p>
+              <button className="btn btn-primary btn-full" onClick={handleNewGrupo}>
+                <FiPlus size={15} /> Crear primer grupo
               </button>
             </div>
-          )}
-
-          {/* ── Sección 2: Lotes y bloques sin agrupar (condicional) ── */}
-          {showLibres && Object.keys(byLoteLibres).length > 0 && (
-            <div className="bloques-section bloques-section--libres">
-              <div className="bloques-header bloques-header--muted">
-                <span className="bloques-title">Lotes y bloques sin agrupar</span>
-                <span className="bloques-count">
-                  {Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0)} disponible(s)
-                </span>
-              </div>
-
-              {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
-                <div key={loteNombre} className="bloque-lote-group">
-                  <div className="bloque-lote-label">{loteNombre}</div>
-                  {registros.map(s => (
-                    <div key={s.key} className="bloque-checkbox-row">
-                      <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                      <span className="bloque-meta">
-                        {s.plantas?.toLocaleString()} plantas
-                        {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                        {s.variedad ? ` · ${s.variedad}` : ''}
-                      </span>
-                      <button type="button" className="bloque-btn-agregar" onClick={() => toggleBloque(s.ids)}>
-                        Agregar
-                      </button>
-                    </div>
-                  ))}
-                </div>
+          ) : (
+            <ul className="lote-list">
+              {grupos.map(grupo => (
+                <li
+                  key={grupo.id}
+                  className={`lote-list-item${selectedGrupo?.id === grupo.id && !showForm ? ' active' : ''}`}
+                  onClick={() => selectedGrupo?.id === grupo.id && !showForm ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
+                >
+                  <div className="lote-list-info">
+                    <span className="lote-list-code">{grupo.nombreGrupo}</span>
+                    {(grupo.cosecha || grupo.etapa) && (
+                      <span className="lote-list-name">{[grupo.cosecha, grupo.etapa].filter(Boolean).join(' · ')}</span>
+                    )}
+                  </div>
+                  <FiChevronRight size={14} className="lote-list-arrow" />
+                </li>
               ))}
-            </div>
+            </ul>
           )}
+        </div>
 
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary">
-              <FiPlus /> {isEditing ? 'Actualizar Grupo' : 'Crear Grupo'}
-            </button>
-            <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
-          </div>
-        </form>
-          </>
-        ) : grupos.length === 0 ? (
-          /* CTA: primer grupo */
-          <div className="grupo-cta">
-            <div className="grupo-cta-icon"><FiPlus size={28} /></div>
-            <p className="grupo-cta-title">Aún no hay grupos creados</p>
-            <p className="grupo-cta-desc">
-              Organiza los bloques de siembra cerrados en grupos de producción
-              para gestionar aplicaciones, cosechas y reportes.
-            </p>
-            <button className="btn btn-primary" onClick={handleNewGrupo}>
-              <FiPlus size={15} /> Crear primer grupo
-            </button>
-          </div>
-        ) : (
-          /* CTA: grupos existentes */
-          <div className="grupo-cta grupo-cta--secondary">
-            <div className="grupo-cta-icon"><FiEdit size={24} /></div>
-            <p className="grupo-cta-title">Selecciona un grupo para editarlo</p>
-            <p className="grupo-cta-desc">
-              Elige un grupo de la lista para modificar sus bloques, cosecha
-              o paquete de aplicaciones.
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* ── LISTA ── */}
-      <div className="list-card">
-        <h2>Grupos Existentes</h2>
-        <ul className="info-list">
-          {grupos.map(grupo => (
-            <li key={grupo.id}>
-              <div>
-                <div className="item-main-text">{grupo.nombreGrupo}</div>
-                <div className="item-sub-text">
-                  {[grupo.cosecha, grupo.etapa].filter(Boolean).join(' · ')}
-                  {grupo.bloques?.length ? ` · ${grupo.bloques.length} bloque(s)` : ''}
-                </div>
-                {grupo.paqueteId && <div className="item-sub-text">{getPackageName(grupo.paqueteId)}</div>}
-              </div>
-              <div className="lote-actions">
-                <button onClick={() => setPreviewGrupo(grupo)} className="icon-btn" title="Ver">
-                  <FiEye size={18} />
-                </button>
-                <button onClick={() => handleEdit(grupo)} className="icon-btn" title="Editar">
-                  <FiEdit size={18} />
-                </button>
-                <button onClick={() => handleDeleteClick(grupo)} className="icon-btn delete" title="Eliminar">
-                  <FiTrash2 size={18} />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {grupos.length === 0 && <p className="empty-state">No hay grupos creados.</p>}
-      </div>
-
-      {/* ── PREVIEW MODAL ── */}
+      {/* ── Preview modal (PDF / impresión) ── */}
       {previewGrupo && createPortal(
-        <div className="gp-preview-backdrop" onClick={() => setPreviewGrupo(null)}>
-          <div className="gp-preview-container" onClick={e => e.stopPropagation()}>
+        <div className="gp-preview-backdrop">
 
-            {/* Toolbar */}
-            <div className="gp-preview-toolbar">
-              <span className="gp-preview-toolbar-title">Vista previa — {previewGrupo.nombreGrupo}</span>
-              <div className="gp-preview-toolbar-actions">
-                <button className="btn btn-secondary" onClick={handleCompartir}>
-                  <FiShare2 size={15} /> Compartir
-                </button>
-                <button className="btn btn-secondary" onClick={() => window.print()}>
-                  <FiPrinter size={15} /> Imprimir
-                </button>
-                <button className="btn btn-secondary" onClick={() => setPreviewGrupo(null)}>
-                  <FiX size={15} /> Cerrar
-                </button>
-              </div>
+          <div className="gp-preview-toolbar">
+            <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => setPreviewGrupo(null)}>
+              <FiArrowLeft size={15} /> <span className="gp-toolbar-btn-text">Volver</span>
+            </button>
+            <span className="gp-preview-toolbar-title">Grupo — {previewGrupo.nombreGrupo}</span>
+            <div className="gp-preview-toolbar-actions">
+              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={handleCompartir}>
+                <FiShare2 size={15} /> <span className="gp-toolbar-btn-text">Compartir</span>
+              </button>
+              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => window.print()}>
+                <FiPrinter size={15} /> <span className="gp-toolbar-btn-text">Imprimir</span>
+              </button>
             </div>
+          </div>
 
-            {/* Documento */}
-            <div className="gp-doc-wrap">
-              <div className="gp-document" ref={docRef}>
+          <div className="gp-doc-wrap">
+            <div className="gp-document" ref={docRef}>
 
-                {/* Encabezado empresa */}
                 <div className="gp-doc-header">
                   <div className="gp-doc-brand">
                     {empresaConfig.logoUrl
@@ -733,7 +1019,6 @@ function GrupoManagement() {
 
                 <hr className="gp-doc-divider" />
 
-                {/* Info del grupo */}
                 <div className="gp-doc-grupo-info">
                   <div className="gp-doc-grupo-title">GRUPO: {previewGrupo.nombreGrupo}</div>
                   <div className="gp-doc-grupo-meta">
@@ -745,7 +1030,6 @@ function GrupoManagement() {
                   </div>
                 </div>
 
-                {/* Tabla de bloques */}
                 <table className="gp-doc-table">
                   <thead>
                     <tr>
@@ -790,11 +1074,111 @@ function GrupoManagement() {
                 </div>
               </div>
             </div>
+          </div>,
+          document.body
+      )}
+
+      {/* ── Filter popover (tabla de bloques) ── */}
+      {bloqueFilterPop && createPortal(
+        <>
+          <div className="historial-filter-backdrop" onClick={() => setBloqueFilterPop(null)} />
+          <div
+            className={`historial-filter-popover${bloqueFilterPop.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
+            style={{ left: bloqueFilterPop.x, top: bloqueFilterPop.y }}
+          >
+            <FiFilter size={13} className="historial-filter-popover-icon" />
+            {bloqueFilterPop.filterType !== 'text' ? (
+              <>
+                <div className="historial-filter-range">
+                  <div className="historial-filter-range-row">
+                    <span className="historial-filter-range-label">De</span>
+                    <input
+                      autoFocus
+                      type={bloqueFilterPop.filterType}
+                      className="historial-filter-input"
+                      value={bloqueColFilters[bloqueFilterPop.field]?.from || ''}
+                      onChange={e => setBloqueColFilter(bloqueFilterPop.field, {
+                        type: 'range',
+                        from: e.target.value,
+                        to: bloqueColFilters[bloqueFilterPop.field]?.to || '',
+                      })}
+                      onKeyDown={e => { if (e.key === 'Escape') setBloqueFilterPop(null); }}
+                    />
+                  </div>
+                  <div className="historial-filter-range-row">
+                    <span className="historial-filter-range-label">A</span>
+                    <input
+                      type={bloqueFilterPop.filterType}
+                      className="historial-filter-input"
+                      value={bloqueColFilters[bloqueFilterPop.field]?.to || ''}
+                      onChange={e => setBloqueColFilter(bloqueFilterPop.field, {
+                        type: 'range',
+                        from: bloqueColFilters[bloqueFilterPop.field]?.from || '',
+                        to: e.target.value,
+                      })}
+                      onKeyDown={e => { if (e.key === 'Escape') setBloqueFilterPop(null); }}
+                    />
+                  </div>
+                </div>
+                {(bloqueColFilters[bloqueFilterPop.field]?.from || bloqueColFilters[bloqueFilterPop.field]?.to) && (
+                  <button className="historial-filter-clear" title="Limpiar filtro"
+                    onClick={() => { setBloqueColFilter(bloqueFilterPop.field, null); setBloqueFilterPop(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  className="historial-filter-input"
+                  placeholder="Filtrar…"
+                  value={bloqueColFilters[bloqueFilterPop.field]?.value || ''}
+                  onChange={e => setBloqueColFilter(bloqueFilterPop.field, { type: 'text', value: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setBloqueFilterPop(null); }}
+                />
+                {bloqueColFilters[bloqueFilterPop.field]?.value && (
+                  <button className="historial-filter-clear" title="Limpiar filtro"
+                    onClick={() => { setBloqueColFilter(bloqueFilterPop.field, null); setBloqueFilterPop(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            )}
           </div>
-        </div>,
+        </>,
         document.body
       )}
-      </div>{/* lote-management-layout */}
+
+      {/* ── Column menu (tabla de bloques) ── */}
+      {bloqueColMenu && createPortal(
+        <>
+          <div className="hor-col-menu-backdrop" onClick={() => setBloqueColMenu(null)} />
+          <div className="hor-col-menu" style={{ left: bloqueColMenu.x, top: bloqueColMenu.y }}>
+            <div className="hor-col-menu-title">Columnas visibles</div>
+            {BLOQUE_COLS.map(col => (
+              <button
+                key={col.id}
+                className={`hor-col-menu-item${bloqueHiddenCols.has(col.id) ? ' is-hidden' : ''}`}
+                onClick={() => setBloqueHiddenCols(prev => {
+                  const next = new Set(prev);
+                  next.has(col.id) ? next.delete(col.id) : next.add(col.id);
+                  return next;
+                })}
+              >
+                <span className="hor-col-menu-check" />
+                {col.label}
+              </button>
+            ))}
+            {bloqueHiddenCols.size > 0 && (
+              <button className="hor-col-menu-reset" onClick={() => { setBloqueHiddenCols(new Set()); setBloqueColMenu(null); }}>
+                Mostrar todas
+              </button>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
