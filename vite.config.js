@@ -9,7 +9,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['aurora-logo.png', 'icon-512-maskable.png'],
 
       // ── Web App Manifest ──────────────────────────────────────────────────
