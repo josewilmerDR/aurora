@@ -168,6 +168,13 @@ const MainLayout = () => {
     localStorage.getItem('aurora_push_prompt_dismissed') === 'true'
   );
   const showPushPrompt = permission === 'default' && !isSubscribed && !pushPromptDismissed && 'PushManager' in window;
+
+  const [swUpdateVisible, setSwUpdateVisible] = useState(false);
+  useEffect(() => {
+    const handler = () => setSwUpdateVisible(true);
+    window.addEventListener('sw-update-available', handler);
+    return () => window.removeEventListener('sw-update-available', handler);
+  }, []);
   const dismissPushPrompt = () => {
     localStorage.setItem('aurora_push_prompt_dismissed', 'true');
     setPushPromptDismissed(true);
@@ -356,6 +363,13 @@ const MainLayout = () => {
           <span className="push-prompt-text">¿Activar notificaciones para recordatorios?</span>
           <button className="push-prompt-btn" onClick={subscribe}>Activar</button>
           <button className="push-prompt-dismiss" onClick={dismissPushPrompt}>Ahora no</button>
+        </div>
+      )}
+      {swUpdateVisible && (
+        <div className="update-prompt">
+          <span className="push-prompt-text">Nueva versión disponible — tu trabajo guardado no se perderá</span>
+          <button className="push-prompt-btn" onClick={() => window.__swUpdate?.()}>Actualizar</button>
+          <button className="push-prompt-dismiss" onClick={() => setSwUpdateVisible(false)}>Ahora no</button>
         </div>
       )}
     </div>
