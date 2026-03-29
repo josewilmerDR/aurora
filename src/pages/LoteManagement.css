@@ -301,6 +301,25 @@
 }
 
 /* ── Right panel: hub ────────────────────────────────────────────────────── */
+.lote-hub-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0 0 12px 0;
+  color: var(--aurora-light);
+  font-size: 0.75rem;
+  opacity: 0.38;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.lote-hub-back:hover {
+  opacity: 0.75;
+}
+
 .lote-hub {
   background-color: var(--aurora-background);
   border: 1px solid var(--aurora-border);

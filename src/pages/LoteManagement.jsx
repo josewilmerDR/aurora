@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import './LoteManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -294,7 +294,7 @@ function LoteManagement() {
     if (view === 'form') {
       return (
         <div className="form-card">
-          <h2>{isEditing ? 'Editando Lote' : 'Crear Nuevo Lote'}</h2>
+          <h2>{isEditing ? 'Editar Lote' : 'Crear Nuevo Lote'}</h2>
           <form onSubmit={handleSubmit} className="lote-form">
             <div className="form-grid">
               <div className="form-control">
@@ -331,6 +331,9 @@ function LoteManagement() {
 
     return (
       <div className="lote-hub">
+        <button className="lote-hub-back" onClick={() => setSelectedLote(null)}>
+          <FiArrowLeft size={13} /> Todos los lotes
+        </button>
         <div className="hub-header">
           <div className="hub-title-block">
             <h2 className="hub-lote-code">{selectedLote.codigoLote}</h2>
@@ -411,7 +414,7 @@ function LoteManagement() {
             <button
               key={lote.id}
               className={`lote-bubble${selectedLote?.id === lote.id ? ' lote-bubble--active' : ''}`}
-              onClick={() => handleSelectLote(lote)}
+              onClick={() => selectedLote?.id === lote.id ? setSelectedLote(null) : handleSelectLote(lote)}
             >
               <span className="lote-bubble-avatar">{lote.codigoLote.slice(0, 4)}</span>
               <span className="lote-bubble-label">
@@ -430,7 +433,7 @@ function LoteManagement() {
       {view !== 'form' && (
         <div className="lote-page-header">
           <button onClick={handleNewLote} className="btn btn-primary">
-            <FiPlus /> Crear nuevo lote
+            <FiPlus /> Nuevo Lote
           </button>
         </div>
       )}
@@ -440,7 +443,7 @@ function LoteManagement() {
         {renderRightPanel()}
 
         {/* ── Right: lote list ── */}
-        <div className="lote-list-panel">
+        {view !== 'form' && <div className="lote-list-panel">
           <h3 className="lote-list-title">Lotes Activos</h3>
 
           {lotes.length === 0
@@ -451,7 +454,7 @@ function LoteManagement() {
                 <li
                   key={lote.id}
                   className={`lote-list-item ${selectedLote?.id === lote.id && view === 'hub' ? 'active' : ''}`}
-                  onClick={() => handleSelectLote(lote)}
+                  onClick={() => selectedLote?.id === lote.id && view === 'hub' ? setSelectedLote(null) : handleSelectLote(lote)}
                 >
                   <div className="lote-list-info">
                     <span className="lote-list-code">{lote.codigoLote}</span>
@@ -468,7 +471,7 @@ function LoteManagement() {
             </ul>
           )
         }
-        </div>
+        </div>}
       </div>
     </div>
   );
