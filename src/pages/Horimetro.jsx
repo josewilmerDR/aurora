@@ -126,7 +126,9 @@ function Horimetro() {
   const [laborQuery, setLaborQuery] = useState('');
   const [laborOpen, setLaborOpen] = useState(false);
   const timeDropdownRef = useRef(null);
+  const clockBtnRefs   = useRef({});
   const [timeDropdown, setTimeDropdown] = useState(null); // null | 'horaInicio' | 'horaFinal'
+  const [dropdownPos,  setDropdownPos]  = useState({ top: 0, right: 0 });
 
   // Scan state
   const scanFileRef = useRef(null);
@@ -234,9 +236,9 @@ function Horimetro() {
   useEffect(() => {
     if (!timeDropdown) return;
     const handler = (e) => {
-      if (timeDropdownRef.current && !timeDropdownRef.current.contains(e.target)) {
-        setTimeDropdown(null);
-      }
+      const inDropdown = timeDropdownRef.current?.contains(e.target);
+      const inBtn = Object.values(clockBtnRefs.current).some(r => r?.contains(e.target));
+      if (!inDropdown && !inBtn) setTimeDropdown(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -851,7 +853,7 @@ function Horimetro() {
             )}
 
             <p className="hor-section-label">Maquinaria</p>
-            <div className="hor-form-grid">
+            <div className="hor-form-grid hor-grid-4">
               <div className="hor-field">
                 <label>Tractor <span className="hor-req">*</span></label>
                 <select name="tractorId" value={form.tractorId} onChange={handleChange} required>
@@ -889,79 +891,10 @@ function Horimetro() {
                 {errHorimetro && <span className="hor-field-error">El final debe ser mayor que el inicial</span>}
               </div>
 
-              {['horaInicio', 'horaFinal'].map(field => (
-                <div key={field} className="hor-field">
-                  <label>{field === 'horaInicio' ? 'Hora de Inicio' : 'Hora Final'}</label>
-                  <div className="hor-time-row" ref={timeDropdown === field ? timeDropdownRef : null}>
-                    <input
-                      type="time" name={field} value={form[field]} onChange={handleChange}
-                      className={errHora && field === 'horaFinal' ? 'hor-input-error' : ''}
-                    />
-                    <div className="hor-time-dd-wrap">
-                      <button
-                        type="button"
-                        className={`hor-now-btn${timeDropdown === field ? ' hor-now-btn--active' : ''}`}
-                        onClick={() => setTimeDropdown(p => p === field ? null : field)}
-                        title="Opciones de hora"
-                      >
-                        <FiClock size={13} />
-                      </button>
-                      {timeDropdown === field && (
-                        <div className="hor-time-dropdown">
-                          <button type="button" className="hor-tdd-item hor-tdd-now"
-                            onClick={() => setNow(field)}>
-                            Hora actual
-                          </button>
-                          <div className="hor-tdd-divider" />
-                          {[{ h: 1/60, label: '+1m' }, { h: 1/12, label: '+5m' }, { h: 0.25, label: '+15m' }, { h: 0.5, label: '+30m' }, { h: 1, label: '+1h' }].map(({ h, label }) => (
-                            <button key={label} type="button" className="hor-tdd-item hor-tdd-pos"
-                              onClick={() => applyOffset(field, h)}>
-                              {label}
-                            </button>
-                          ))}
-                          <div className="hor-tdd-divider" />
-                          {[{ h: -1/60, label: '-1m' }, { h: -1/12, label: '-5m' }, { h: -0.25, label: '-15m' }, { h: -0.5, label: '-30m' }, { h: -1, label: '-1h' }].map(({ h, label }) => (
-                            <button key={label} type="button" className="hor-tdd-item hor-tdd-neg"
-                              onClick={() => applyOffset(field, h)}>
-                              {label}
-                            </button>
-                          ))}
-                          <div className="hor-tdd-divider" />
-                          <button type="button" className="hor-tdd-item hor-tdd-close"
-                            onClick={() => setTimeDropdown(null)}>
-                            Cerrar
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {errHora && field === 'horaFinal' && <span className="hor-field-error">La hora final debe ser mayor que la inicial</span>}
-                </div>
-              ))}
             </div>
-            {form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (
-              <label className="hor-dia-siguiente-label">
-                <input
-                  type="checkbox" name="diaSiguiente"
-                  checked={!!form.diaSiguiente} onChange={handleChange}
-                />
-                Finaliza el día siguiente
-              </label>
-            )}
-            {form.diaSiguiente && form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (() => {
-              const [hI, mI] = form.horaInicio.split(':').map(Number);
-              const [hF, mF] = form.horaFinal.split(':').map(Number);
-              const diff = ((hF * 60 + mF) - (hI * 60 + mI) + 24 * 60) % (24 * 60);
-              const h = Math.floor(diff / 60), m = diff % 60;
-              return (
-                <p className="hor-nocturno-info">
-                  Turno nocturno · finaliza el día siguiente · {h}h {m > 0 ? `${m}m` : ''} de trabajo
-                </p>
-              );
-            })()}
 
             <p className="hor-section-label">Ubicación y Labor</p>
-            <div className="hor-form-grid">
+            <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
                 <label>Lote</label>
                 <select name="loteId" value={form.loteId} onChange={handleChange}>
@@ -982,30 +915,31 @@ function Horimetro() {
 
               <div className="hor-field hor-field--full">
                 <label>Bloques</label>
-                {!form.grupo ? (
-                  <p className="hor-check-empty">Seleccione un grupo primero.</p>
-                ) : bloquesDelGrupo.length === 0 ? (
-                  <p className="hor-check-empty">Este grupo no tiene bloques.</p>
-                ) : (
-                  <div className="hor-check-list">
-                    {bloquesDelGrupo.map(s => {
-                      const val = s.bloque || s.id;
-                      return (
-                        <label key={s.id} className="hor-check-row">
-                          <input
-                            type="checkbox"
-                            checked={(form.bloques || []).includes(val)}
-                            onChange={() => toggleBloque(val)}
-                          />
-                          <span>Bloque {s.bloque || s.id}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="hor-check-list">
+                  {!form.grupo ? (
+                    <p className="hor-check-empty">Seleccione un grupo primero.</p>
+                  ) : bloquesDelGrupo.length === 0 ? (
+                    <p className="hor-check-empty">Este grupo no tiene bloques.</p>
+                  ) : bloquesDelGrupo.map(s => {
+                    const val = s.bloque || s.id;
+                    return (
+                      <label key={s.id} className="hor-check-row">
+                        <input
+                          type="checkbox"
+                          checked={(form.bloques || []).includes(val)}
+                          onChange={() => toggleBloque(val)}
+                        />
+                        <span>Bloque {s.bloque || s.id}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="hor-field hor-field--full">
+            </div>
+
+            <div className="hor-form-grid hor-labor-hora-grid">
+              <div className="hor-field hor-field--labor">
                 <label>Labor</label>
                 <div className="hor-labor-combo" ref={laborRef}>
                   <div className="hor-labor-input-wrap" onClick={() => setLaborOpen(true)}>
@@ -1057,15 +991,69 @@ function Horimetro() {
                   )}
                 </div>
               </div>
+              {['horaInicio', 'horaFinal'].map(field => (
+                <div key={field} className="hor-field">
+                  <label>{field === 'horaInicio' ? 'Hora de Inicio' : 'Hora Final'}</label>
+                  <div className="hor-time-row" ref={timeDropdown === field ? timeDropdownRef : null}>
+                    <input
+                      type="time" name={field} value={form[field]} onChange={handleChange}
+                      className={errHora && field === 'horaFinal' ? 'hor-input-error' : ''}
+                    />
+                    <div className="hor-time-dd-wrap">
+                      <button
+                        type="button"
+                        ref={el => { clockBtnRefs.current[field] = el; }}
+                        className={`hor-now-btn${timeDropdown === field ? ' hor-now-btn--active' : ''}`}
+                        onClick={() => {
+                          if (timeDropdown === field) { setTimeDropdown(null); return; }
+                          const btn = clockBtnRefs.current[field];
+                          if (btn) {
+                            const r = btn.getBoundingClientRect();
+                            setDropdownPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                          }
+                          setTimeDropdown(field);
+                        }}
+                        title="Opciones de hora"
+                      >
+                        <FiClock size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  {errHora && field === 'horaFinal' && <span className="hor-field-error">La hora final debe ser mayor que la inicial</span>}
+                </div>
+              ))}
             </div>
+            {form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (
+              <label className="hor-dia-siguiente-label">
+                <input
+                  type="checkbox" name="diaSiguiente"
+                  checked={!!form.diaSiguiente} onChange={handleChange}
+                />
+                Finaliza el día siguiente
+              </label>
+            )}
+            {form.diaSiguiente && form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (() => {
+              const [hI, mI] = form.horaInicio.split(':').map(Number);
+              const [hF, mF] = form.horaFinal.split(':').map(Number);
+              const diff = ((hF * 60 + mF) - (hI * 60 + mI) + 24 * 60) % (24 * 60);
+              const h = Math.floor(diff / 60), m = diff % 60;
+              return (
+                <p className="hor-nocturno-info">
+                  Turno nocturno · finaliza el día siguiente · {h}h {m > 0 ? `${m}m` : ''} de trabajo
+                </p>
+              );
+            })()}
 
-            <div className="hor-form-actions">
-              <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
-              {!isEditing && (
+            {!isEditing && (
+              <div className="hor-add-line-wrap">
                 <button type="button" className="btn btn-secondary" onClick={handleAddLine}>
                   <FiPlus size={14} /> Agregar línea
                 </button>
-              )}
+              </div>
+            )}
+
+            <div className="hor-form-actions">
+              <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
               <button type="submit" className="btn btn-primary" disabled={saving}>
                 <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : pendingLines.length > 0 ? `Guardar ${pendingLines.length + 1} líneas` : 'Registrar'}
               </button>
@@ -1401,6 +1389,38 @@ function Horimetro() {
       </>,
       document.body
     )}
+      {timeDropdown && createPortal(
+        <div
+          ref={timeDropdownRef}
+          className="hor-time-dropdown"
+          style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, left: 'auto', zIndex: 9999 }}
+        >
+          <button type="button" className="hor-tdd-item hor-tdd-now"
+            onClick={() => { setNow(timeDropdown); setTimeDropdown(null); }}>
+            Hora actual
+          </button>
+          <div className="hor-tdd-divider" />
+          {[{ h: 1/60, label: '+1m' }, { h: 1/12, label: '+5m' }, { h: 0.25, label: '+15m' }, { h: 0.5, label: '+30m' }, { h: 1, label: '+1h' }].map(({ h, label }) => (
+            <button key={label} type="button" className="hor-tdd-item hor-tdd-pos"
+              onClick={() => applyOffset(timeDropdown, h)}>
+              {label}
+            </button>
+          ))}
+          <div className="hor-tdd-divider" />
+          {[{ h: -1/60, label: '-1m' }, { h: -1/12, label: '-5m' }, { h: -0.25, label: '-15m' }, { h: -0.5, label: '-30m' }, { h: -1, label: '-1h' }].map(({ h, label }) => (
+            <button key={label} type="button" className="hor-tdd-item hor-tdd-neg"
+              onClick={() => applyOffset(timeDropdown, h)}>
+              {label}
+            </button>
+          ))}
+          <div className="hor-tdd-divider" />
+          <button type="button" className="hor-tdd-item hor-tdd-close"
+            onClick={() => setTimeDropdown(null)}>
+            Cerrar
+          </button>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

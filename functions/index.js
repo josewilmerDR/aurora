@@ -1777,12 +1777,11 @@ app.put('/api/lotes/:id', authenticate, async (req, res) => {
         const originalNombre = originalData.nombreLote || '';
         const newNombre = loteData.nombreLote !== undefined ? (loteData.nombreLote || '') : originalNombre;
         if (originalNombre !== newNombre) {
-            const [siembrasSnap, monitoreosSnap, horimetroSnap] = await Promise.all([
+            const [siembrasSnap, monitoreosSnap] = await Promise.all([
                 db.collection('siembras').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
                 db.collection('monitoreos').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
-                db.collection('horimetro').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
             ]);
-            const allDocs = [...siembrasSnap.docs, ...monitoreosSnap.docs, ...horimetroSnap.docs];
+            const allDocs = [...siembrasSnap.docs, ...monitoreosSnap.docs];
             if (allDocs.length > 0) {
                 const propagateBatch = db.batch();
                 allDocs.forEach(doc => propagateBatch.update(doc.ref, { loteNombre: newNombre }));

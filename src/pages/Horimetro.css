@@ -84,11 +84,27 @@
   grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
   gap: 12px;
 }
+.hor-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.hor-grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 700px) {
+  .hor-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .hor-form { padding: 12px; }
+}
+@media (max-width: 480px) {
+  .hor-grid-4,
+  .hor-grid-2 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 360px) {
+  .hor-grid-4,
+  .hor-grid-2 { grid-template-columns: 1fr; }
+}
 
 .hor-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  min-width: 0;
 }
 .hor-field--full { grid-column: 1 / -1; }
 
@@ -113,17 +129,36 @@
   outline: none;
   transition: border-color 0.15s;
   font-family: inherit;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .hor-field input:focus,
 .hor-field select:focus { border-color: var(--aurora-green); }
 
 .hor-form-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--aurora-border);
+}
+.hor-add-line-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+@media (max-width: 480px) {
+  .hor-form-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .hor-add-line-wrap .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ── Sort + Filter controls ── */
@@ -401,10 +436,6 @@
   border-color: var(--aurora-green);
 }
 .hor-time-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 200;
   background: var(--aurora-background);
   border: 1px solid var(--aurora-border);
   border-radius: 8px;
@@ -617,6 +648,27 @@
   padding: 6px 0;
 }
 
+/* ── Labor + hora grid ── */
+.hor-labor-hora-grid {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+.hor-field--labor {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .hor-labor-hora-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hor-field--labor {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 400px) {
+  .hor-labor-hora-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Labor combobox ── */
 .hor-labor-combo {
   position: relative;
@@ -625,8 +677,9 @@
 .hor-labor-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 0 10px;
+  height: 36px;
   background-color: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-border);
   border-radius: 6px;
@@ -645,8 +698,9 @@
   background: none;
   border: none;
   outline: none;
+  padding: 0;
   color: var(--aurora-light);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .hor-labor-input-wrap input.hor-labor-has-value::placeholder {
