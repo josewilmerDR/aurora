@@ -35,7 +35,7 @@ export const MODULES = [
           { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
         ]
       },
-      { label: 'Horímetro', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador' },
+      { label: 'Horímetros', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador', draftKey: 'horimetro-registro' },
       { label: 'Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado', draftKey: 'lote-nuevo' },
       { label: 'Grupos', to: '/grupos', icon: FiLayers, minRole: 'encargado' },
     ],
