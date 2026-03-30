@@ -125,7 +125,7 @@ const routeTitles = {
   '/siembra': 'Registro de Siembra',
   '/siembra/materiales': 'Materiales de Siembra',
   '/siembra/historial': 'Historial de Siembra',
-  '/operaciones/horimetro': 'Horímetro',
+  '/operaciones/horimetro': 'Horímetros',
 };
 
 // --- Route guards ---

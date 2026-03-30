@@ -12,11 +12,20 @@ import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
 
 
-const DRAFT_KEY = 'aurora_horimetro_draft';
+const DRAFT_KEY        = 'aurora_horimetro_draft';
+const DRAFT_ACTIVE_KEY = 'aurora_draftActive_horimetro-registro';
 
-const saveDraft  = (form, isEditing) => sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ form, isEditing }));
-const clearDraft = () => sessionStorage.removeItem(DRAFT_KEY);
-const loadDraft  = () => { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY)); } catch { return null; } };
+const saveDraft = (form, isEditing) => {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, isEditing }));
+  sessionStorage.setItem(DRAFT_ACTIVE_KEY, '1');
+  window.dispatchEvent(new Event('aurora-draft-change'));
+};
+const clearDraft = () => {
+  localStorage.removeItem(DRAFT_KEY);
+  sessionStorage.removeItem(DRAFT_ACTIVE_KEY);
+  window.dispatchEvent(new Event('aurora-draft-change'));
+};
+const loadDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch { return null; } };
 
 const EMPTY_FORM = {
   id: null,
@@ -175,6 +184,14 @@ function Horimetro() {
       setLabores(Array.isArray(laboresData) ? laboresData : []);
     }).catch(() => { });
     fetchRecords();
+  }, []);
+
+  // Restore sidebar draft badge if a cross-session draft exists
+  useEffect(() => {
+    if (loadDraft()) {
+      sessionStorage.setItem(DRAFT_ACTIVE_KEY, '1');
+      window.dispatchEvent(new Event('aurora-draft-change'));
+    }
   }, []);
 
   // Pre-fill from Aurora chat "Revisar en formulario" (passed via router state)
