@@ -42,6 +42,7 @@ const EMPTY_FORM = {
   labor: '',
   horaInicio: '',
   horaFinal: '',
+  diaSiguiente: false,
   operarioId: '',
   operarioNombre: '',
 };
@@ -124,6 +125,8 @@ function Horimetro() {
   const laborRef = useRef(null);
   const [laborQuery, setLaborQuery] = useState('');
   const [laborOpen, setLaborOpen] = useState(false);
+  const timeDropdownRef = useRef(null);
+  const [timeDropdown, setTimeDropdown] = useState(null); // null | 'horaInicio' | 'horaFinal'
 
   // Scan state
   const scanFileRef = useRef(null);
@@ -157,7 +160,10 @@ function Horimetro() {
   const [filterPopover, setFilterPopover] = useState(null);
   const [hiddenCols,    setHiddenCols]    = useState(new Set());
   const [colMenu,       setColMenu]       = useState(null);
-  const [rangeConfirm,  setRangeConfirm]  = useState(null);
+  const [rangeConfirm,      setRangeConfirm]      = useState(null);
+  const [horimetroConfirm,  setHorimetroConfirm]  = useState(null);
+  const [lastHorimetroFinal, setLastHorimetroFinal] = useState(null);
+  const [pendingLines,      setPendingLines]      = useState([]);
   const [sorts, setSorts] = useState([{ field: 'fecha', dir: 'desc' }]);
 
   const fetchRecords = () =>
@@ -224,13 +230,60 @@ function Horimetro() {
     return () => document.removeEventListener('mousedown', handler);
   }, [laborOpen]);
 
+  // Close time dropdown on outside click
+  useEffect(() => {
+    if (!timeDropdown) return;
+    const handler = (e) => {
+      if (timeDropdownRef.current && !timeDropdownRef.current.contains(e.target)) {
+        setTimeDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [timeDropdown]);
+
+  const getLastHorimetroFinal = (tractorId) => {
+    if (!tractorId) return null;
+    const tRecords = records
+      .filter(r => r.tractorId === tractorId && r.horimetroFinal != null && r.horimetroFinal !== '')
+      .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    if (!tRecords.length) return null;
+    const val = parseFloat(tRecords[0].horimetroFinal);
+    return isNaN(val) ? null : val;
+  };
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    let autoLastFinal = undefined;
+    if (name === 'tractorId' && !isEditing) {
+      autoLastFinal = value ? getLastHorimetroFinal(value) : null;
+      setLastHorimetroFinal(autoLastFinal);
+    }
     setForm(prev => {
       const next = { ...prev, [name]: value };
       if (name === 'tractorId') {
         const t = tractores.find(x => x.id === value);
         next.tractorNombre = t ? t.descripcion : '';
+        if (!isEditing && autoLastFinal != null) {
+          next.horimetroInicial = String(autoLastFinal);
+          next.horimetroFinal   = String(autoLastFinal);
+        }
+      }
+      if (name === 'horimetroInicial') {
+        if (!prev.horimetroFinal || prev.horimetroFinal === prev.horimetroInicial) {
+          next.horimetroFinal = value;
+        }
+      }
+      if (name === 'horaInicio') {
+        if (!prev.horaFinal || prev.horaFinal === prev.horaInicio) {
+          next.horaFinal = value;
+        }
+      }
+      if (name === 'horaInicio' || name === 'horaFinal') {
+        const ini = name === 'horaInicio' ? value : next.horaInicio;
+        const fin = name === 'horaFinal'  ? value : next.horaFinal;
+        if (ini && fin && fin < ini) next.diaSiguiente = true;
       }
       if (name === 'loteId') {
         const l = lotes.find(x => x.id === value);
@@ -270,6 +323,7 @@ function Horimetro() {
     setForm(EMPTY_FORM);
     setIsEditing(false);
     setShowForm(false);
+    setPendingLines([]);
   };
 
   const handleNew = () => {
@@ -308,15 +362,26 @@ function Horimetro() {
   const doSave = async () => {
     setSaving(true);
     try {
-      const url    = isEditing ? `/api/horimetro/${form.id}` : '/api/horimetro';
-      const method = isEditing ? 'PUT' : 'POST';
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error();
-      showToast(isEditing ? 'Registro actualizado.' : 'Registro guardado.');
+      if (isEditing) {
+        const res = await apiFetch(`/api/horimetro/${form.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+        if (!res.ok) throw new Error();
+        showToast('Registro actualizado.');
+      } else {
+        const allLines = [...pendingLines, form];
+        for (const line of allLines) {
+          const res = await apiFetch('/api/horimetro', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(line),
+          });
+          if (!res.ok) throw new Error();
+        }
+        showToast(allLines.length > 1 ? `${allLines.length} registros guardados.` : 'Registro guardado.');
+      }
       resetForm();
       fetchRecords();
     } catch {
@@ -330,7 +395,8 @@ function Horimetro() {
     if (form.horaInicio && form.horaFinal) {
       const [hI, mI] = form.horaInicio.split(':').map(Number);
       const [hF, mF] = form.horaFinal.split(':').map(Number);
-      const diffMin = (hF * 60 + mF) - (hI * 60 + mI);
+      const rawDiff  = (hF * 60 + mF) - (hI * 60 + mI);
+      const diffMin  = form.diaSiguiente && rawDiff <= 0 ? rawDiff + 24 * 60 : rawDiff;
       if (diffMin > 12 * 60) {
         setRangeConfirm({
           title: 'Rango inusual de horas',
@@ -351,11 +417,19 @@ function Horimetro() {
     }
     const ini = parseFloat(form.horimetroInicial);
     const fin = parseFloat(form.horimetroFinal);
-    if (!isNaN(ini) && !isNaN(fin) && ini >= fin) {
-      showToast('El horímetro inicial debe ser menor que el final.', 'error');
+    if (!isNaN(ini) && !isNaN(fin) && ini > fin) {
+      showToast('El horímetro inicial no puede ser mayor que el final.', 'error');
       return;
     }
-    if (form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal) {
+    if (!isNaN(ini) && !isNaN(fin) && ini === fin) {
+      setRangeConfirm({
+        title: 'Horímetro sin variación',
+        message: `El horímetro inicial y final son iguales (${ini}). Esto puede indicar que el activo no operó (ej. mantenimiento). ¿Desea continuar?`,
+        onConfirm: () => { setRangeConfirm(null); checkMismatchAndSave(); },
+      });
+      return;
+    }
+    if (form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal && !form.diaSiguiente) {
       showToast('La hora de inicio debe ser menor que la hora final.', 'error');
       return;
     }
@@ -363,11 +437,83 @@ function Horimetro() {
       setRangeConfirm({
         title: 'Rango inusual de horímetro',
         message: `El rango del horímetro es de ${(fin - ini).toFixed(1)} h. ¿Es correcto?`,
-        onConfirm: () => { setRangeConfirm(null); checkHoraAndSave(); },
+        onConfirm: () => { setRangeConfirm(null); checkMismatchAndSave(); },
+      });
+      return;
+    }
+    checkMismatchAndSave();
+  };
+
+  const checkMismatchAndSave = () => {
+    const ini = parseFloat(form.horimetroInicial);
+    if (!isEditing && lastHorimetroFinal !== null && !isNaN(ini) && ini !== lastHorimetroFinal) {
+      setHorimetroConfirm({
+        onConfirm: () => { setHorimetroConfirm(null); checkHoraAndSave(); },
       });
       return;
     }
     checkHoraAndSave();
+  };
+
+  const handleAddLine = () => {
+    if (!form.fecha || !form.tractorId) {
+      showToast('Fecha y tractor son obligatorios.', 'error');
+      return;
+    }
+    const ini = parseFloat(form.horimetroInicial);
+    const fin = parseFloat(form.horimetroFinal);
+    if (!isNaN(ini) && !isNaN(fin) && ini > fin) {
+      showToast('El horímetro inicial no puede ser mayor que el final.', 'error');
+      return;
+    }
+    setPendingLines(prev => [...prev, { ...form }]);
+    setForm(prev => ({
+      ...EMPTY_FORM,
+      fecha:           prev.fecha,
+      tractorId:       prev.tractorId,
+      tractorNombre:   prev.tractorNombre,
+      implemento:      prev.implemento,
+      operarioId:      prev.operarioId,
+      operarioNombre:  prev.operarioNombre,
+      horimetroInicial: prev.horimetroFinal ?? '',
+      horimetroFinal:   prev.horimetroFinal ?? '',
+      horaInicio:      prev.horaFinal ?? '',
+      horaFinal:       prev.horaFinal ?? '',
+      diaSiguiente:    prev.diaSiguiente ?? false,
+    }));
+  };
+
+  // ── Time helpers ──────────────────────────────────────────────────────────
+  const applyOffset = (fieldName, hours) => {
+    setForm(prev => {
+      const now = () => {
+        const d = new Date();
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      };
+      const base = prev[fieldName] || now();
+      const isFinWithOvernight = fieldName === 'horaFinal' && prev.diaSiguiente;
+      const [hB, mB] = base.split(':').map(Number);
+      const baseAbsMin = isFinWithOvernight ? hB * 60 + mB + 24 * 60 : hB * 60 + mB;
+      const totalMin   = baseAbsMin + Math.round(hours * 60);
+      const finMin     = ((totalMin % (24 * 60)) + 24 * 60) % (24 * 60);
+      const value      = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
+      const next = { ...prev, [fieldName]: value };
+      if (fieldName === 'horaFinal' && prev.horaInicio) {
+        next.diaSiguiente = totalMin >= 24 * 60;
+      }
+      saveDraft(next, isEditing);
+      return next;
+    });
+  };
+
+  const setNow = (fieldName) => {
+    const d = new Date();
+    const value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    setForm(prev => {
+      const next = { ...prev, [fieldName]: value };
+      saveDraft(next, isEditing);
+      return next;
+    });
   };
 
   // ── Derived asset lists ────────────────────────────────────────────────────
@@ -392,9 +538,17 @@ function Horimetro() {
   const bloquesDelGrupo = useMemo(() => {
     const grupoSel = grupos.find(g => g.nombreGrupo === form.grupo);
     if (!grupoSel || !Array.isArray(grupoSel.bloques)) return [];
+    const seen = new Set();
     return grupoSel.bloques
       .map(id => siembras.find(s => s.id === id))
-      .filter(Boolean);
+      .filter(s => {
+        if (!s) return false;
+        const key = s.bloque || s.id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => parseInt(a.bloque || a.id) - parseInt(b.bloque || b.id));
   }, [grupos, siembras, form.grupo]);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
@@ -566,10 +720,11 @@ function Horimetro() {
   };
 
   const grupoLabel = (g) => {
-    const bloqueNums = (g.bloques || [])
-      .map(id => siembras.find(s => s.id === id)?.bloque)
-      .filter(Boolean)
-      .sort((a, b) => parseInt(a) - parseInt(b));
+    const bloqueNums = [...new Set(
+      (g.bloques || [])
+        .map(id => siembras.find(s => s.id === id)?.bloque)
+        .filter(Boolean)
+    )].sort((a, b) => parseInt(a) - parseInt(b));
     return bloqueNums.length
       ? `${g.nombreGrupo} (${bloqueNums.join(', ')})`
       : g.nombreGrupo;
@@ -579,9 +734,9 @@ function Horimetro() {
   const errHorimetro = (() => {
     const ini = parseFloat(form.horimetroInicial);
     const fin = parseFloat(form.horimetroFinal);
-    return !isNaN(ini) && !isNaN(fin) && ini >= fin;
+    return !isNaN(ini) && !isNaN(fin) && ini > fin;
   })();
-  const errHora = !!(form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal);
+  const errHora = !!(form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal && !form.diaSiguiente);
 
   // ── Sort+filter column header ──────────────────────────────────────────────
   const SortTh = ({ field, children, filterType = 'text' }) => {
@@ -619,6 +774,15 @@ function Horimetro() {
           onCancel={() => setRangeConfirm(null)}
         />
       )}
+      {horimetroConfirm && (
+        <ConfirmModal
+          title="Horímetro inicial distinto al anterior"
+          message={`El horímetro inicial ingresado (${parseFloat(form.horimetroInicial)}) es distinto al último horímetro final registrado para este activo (${lastHorimetroFinal}). ¿Desea continuar de todas formas?`}
+          confirmLabel="Aceptar"
+          onConfirm={horimetroConfirm.onConfirm}
+          onCancel={() => setHorimetroConfirm(null)}
+        />
+      )}
 
       {/* ── Form card ── */}
       {showForm ? (
@@ -643,13 +807,51 @@ function Horimetro() {
 
           <form className="hor-form" onSubmit={handleSubmit}>
 
+            <div className="hor-global-section">
+              <div className="hor-form-grid">
+                <div className="hor-field">
+                  <label>Fecha <span className="hor-req">*</span></label>
+                  <input type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
+                </div>
+                <div className="hor-field">
+                  <label>Operario</label>
+                  <select name="operarioId" value={form.operarioId} onChange={handleChange}>
+                    <option value="">— Seleccionar —</option>
+                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {pendingLines.length > 0 && (
+              <div className="hor-pending-lines">
+                <p className="hor-pending-title">
+                  <FiCheck size={13} /> {pendingLines.length} línea{pendingLines.length > 1 ? 's' : ''} lista{pendingLines.length > 1 ? 's' : ''} para guardar
+                </p>
+                {pendingLines.map((line, idx) => (
+                  <div key={idx} className="hor-pending-row">
+                    <span className="hor-pending-num">{idx + 1}</span>
+                    <span className="hor-pending-detail">
+                      {[line.labor, line.loteNombre, line.grupo].filter(Boolean).join(' · ') || '—'}
+                    </span>
+                    <span className="hor-pending-times">
+                      {line.horimetroInicial}–{line.horimetroFinal}
+                      {(line.horaInicio || line.horaFinal) && ` · ${line.horaInicio || '?'}–${line.horaFinal || '?'}`}
+                    </span>
+                    <button
+                      type="button" className="hor-pending-del"
+                      onClick={() => setPendingLines(prev => prev.filter((_, i) => i !== idx))}
+                      title="Quitar línea"
+                    >
+                      <FiX size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <p className="hor-section-label">Maquinaria</p>
             <div className="hor-form-grid">
-              <div className="hor-field">
-                <label>Fecha <span className="hor-req">*</span></label>
-                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
-              </div>
-
               <div className="hor-field">
                 <label>Tractor <span className="hor-req">*</span></label>
                 <select name="tractorId" value={form.tractorId} onChange={handleChange} required>
@@ -687,23 +889,76 @@ function Horimetro() {
                 {errHorimetro && <span className="hor-field-error">El final debe ser mayor que el inicial</span>}
               </div>
 
-              <div className="hor-field">
-                <label>Hora de Inicio</label>
-                <input
-                  type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange}
-                  className={errHora ? 'hor-input-error' : ''}
-                />
-              </div>
-
-              <div className="hor-field">
-                <label>Hora Final</label>
-                <input
-                  type="time" name="horaFinal" value={form.horaFinal} onChange={handleChange}
-                  className={errHora ? 'hor-input-error' : ''}
-                />
-                {errHora && <span className="hor-field-error">La hora final debe ser mayor que la inicial</span>}
-              </div>
+              {['horaInicio', 'horaFinal'].map(field => (
+                <div key={field} className="hor-field">
+                  <label>{field === 'horaInicio' ? 'Hora de Inicio' : 'Hora Final'}</label>
+                  <div className="hor-time-row" ref={timeDropdown === field ? timeDropdownRef : null}>
+                    <input
+                      type="time" name={field} value={form[field]} onChange={handleChange}
+                      className={errHora && field === 'horaFinal' ? 'hor-input-error' : ''}
+                    />
+                    <div className="hor-time-dd-wrap">
+                      <button
+                        type="button"
+                        className={`hor-now-btn${timeDropdown === field ? ' hor-now-btn--active' : ''}`}
+                        onClick={() => setTimeDropdown(p => p === field ? null : field)}
+                        title="Opciones de hora"
+                      >
+                        <FiClock size={13} />
+                      </button>
+                      {timeDropdown === field && (
+                        <div className="hor-time-dropdown">
+                          <button type="button" className="hor-tdd-item hor-tdd-now"
+                            onClick={() => setNow(field)}>
+                            Hora actual
+                          </button>
+                          <div className="hor-tdd-divider" />
+                          {[{ h: 1/60, label: '+1m' }, { h: 1/12, label: '+5m' }, { h: 0.25, label: '+15m' }, { h: 0.5, label: '+30m' }, { h: 1, label: '+1h' }].map(({ h, label }) => (
+                            <button key={label} type="button" className="hor-tdd-item hor-tdd-pos"
+                              onClick={() => applyOffset(field, h)}>
+                              {label}
+                            </button>
+                          ))}
+                          <div className="hor-tdd-divider" />
+                          {[{ h: -1/60, label: '-1m' }, { h: -1/12, label: '-5m' }, { h: -0.25, label: '-15m' }, { h: -0.5, label: '-30m' }, { h: -1, label: '-1h' }].map(({ h, label }) => (
+                            <button key={label} type="button" className="hor-tdd-item hor-tdd-neg"
+                              onClick={() => applyOffset(field, h)}>
+                              {label}
+                            </button>
+                          ))}
+                          <div className="hor-tdd-divider" />
+                          <button type="button" className="hor-tdd-item hor-tdd-close"
+                            onClick={() => setTimeDropdown(null)}>
+                            Cerrar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {errHora && field === 'horaFinal' && <span className="hor-field-error">La hora final debe ser mayor que la inicial</span>}
+                </div>
+              ))}
             </div>
+            {form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (
+              <label className="hor-dia-siguiente-label">
+                <input
+                  type="checkbox" name="diaSiguiente"
+                  checked={!!form.diaSiguiente} onChange={handleChange}
+                />
+                Finaliza el día siguiente
+              </label>
+            )}
+            {form.diaSiguiente && form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (() => {
+              const [hI, mI] = form.horaInicio.split(':').map(Number);
+              const [hF, mF] = form.horaFinal.split(':').map(Number);
+              const diff = ((hF * 60 + mF) - (hI * 60 + mI) + 24 * 60) % (24 * 60);
+              const h = Math.floor(diff / 60), m = diff % 60;
+              return (
+                <p className="hor-nocturno-info">
+                  Turno nocturno · finaliza el día siguiente · {h}h {m > 0 ? `${m}m` : ''} de trabajo
+                </p>
+              );
+            })()}
 
             <p className="hor-section-label">Ubicación y Labor</p>
             <div className="hor-form-grid">
@@ -804,20 +1059,15 @@ function Horimetro() {
               </div>
             </div>
 
-            <p className="hor-section-label">Operario</p>
-            <div className="hor-form-grid">
-              <div className="hor-field">
-                <select name="operarioId" value={form.operarioId} onChange={handleChange}>
-                  <option value="">— Seleccionar —</option>
-                  {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                </select>
-              </div>
-            </div>
-
             <div className="hor-form-actions">
               <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
+              {!isEditing && (
+                <button type="button" className="btn btn-secondary" onClick={handleAddLine}>
+                  <FiPlus size={14} /> Agregar línea
+                </button>
+              )}
               <button type="submit" className="btn btn-primary" disabled={saving}>
-                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : 'Registrar'}
+                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : pendingLines.length > 0 ? `Guardar ${pendingLines.length + 1} líneas` : 'Registrar'}
               </button>
             </div>
           </form>
@@ -961,17 +1211,17 @@ function Horimetro() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : records.length > 0 ? (
         <div className="hor-toolbar">
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus size={15} /> Nuevo
           </button>
         </div>
-      )}
+      ) : null}
 
       {/* ── Historical table ── */}
       <section className="hor-section">
-        <div className="hor-section-header">
+        {records.length > 0 && <div className="hor-section-header">
           <FiClock size={14} />
           <span>Historial de Registros</span>
           {sorted.length > 0 && <span className="hor-count">{sorted.length}</span>}
@@ -981,23 +1231,20 @@ function Horimetro() {
               Limpiar filtros de columna
             </button>
           )}
-          {showForm && (
-            <button className="hor-add-inline" onClick={handleNew} title="Nuevo registro">
-              <FiPlus size={13} />
-            </button>
-          )}
-        </div>
+        </div>}
 
         {loading ? (
           <p className="hor-empty">Cargando…</p>
         ) : sorted.length === 0 ? (
           <div className="hor-empty-state">
-            <FiClock size={32} />
-            <p>
-              {records.length === 0
-                ? 'No hay registros aún.'
-                : 'Sin resultados para los filtros activos.'}
-            </p>
+            {!(records.length === 0 && showForm) && <FiClock size={32} />}
+            {!(records.length === 0 && showForm) && (
+              <p>
+                {records.length === 0
+                  ? 'No hay registros aún.'
+                  : 'Sin resultados para los filtros activos.'}
+              </p>
+            )}
             {records.length === 0 && !showForm && (
               <button className="btn btn-primary" onClick={handleNew}>
                 <FiPlus size={14} /> Crear el primero
