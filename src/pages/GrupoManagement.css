@@ -554,6 +554,20 @@
   background: #f9fbfd;
 }
 
+.gp-doc-subtotal-row td {
+  background: #edf2f7;
+  border-top: 1px solid #c8d6e0;
+  border-bottom: 1px solid #c8d6e0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding-block: 4px;
+}
+
+.gp-doc-subtotal-label {
+  font-style: italic;
+  color: #4a6a8a;
+}
+
 .gp-doc-table tfoot td {
   border-top: 2px solid #1a2a3a;
   border-bottom: none;

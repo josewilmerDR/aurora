@@ -827,3 +827,22 @@
     margin-left: auto;
   }
 }
+
+/* ── Subtotal row ─────────────────────────────────────────────────────────── */
+.lote-subtotal-row {
+  background: rgba(42, 74, 106, 0.35);
+  border-top: 1px solid var(--aurora-border) !important;
+  border-bottom: 2px solid var(--aurora-border) !important;
+}
+
+.lote-subtotal-row td {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  padding-block: 4px;
+}
+
+.lote-subtotal-label {
+  font-style: italic;
+  opacity: 0.75;
+}
