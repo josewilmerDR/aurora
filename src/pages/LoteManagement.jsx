@@ -1,89 +1,42 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import './LoteManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
 
-// ── Detalles Tab ──────────────────────────────────────────────────────────────
-function DetallesTab({ siembras, grupos, loading }) {
-  if (loading) return <p className="hub-loading">Cargando detalles...</p>;
-  if (siembras.length === 0) return <p className="empty-state">No hay registros de siembra para este lote.</p>;
+// ── Helpers de módulo ─────────────────────────────────────────────────────────
+const formatDateLong = (date) => {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+};
 
-  // Agrega datos por etiqueta de bloque
-  const bloqueData = new Map();
-  for (const s of siembras) {
-    const key = s.bloque || 'Sin bloque';
-    if (!bloqueData.has(key)) bloqueData.set(key, { plantas: 0, area: 0, materiales: new Set(), cerrado: false });
-    const d = bloqueData.get(key);
-    d.plantas += s.plantas || 0;
-    d.area    += parseFloat(s.areaCalculada) || 0;
-    if (s.materialNombre) {
-      const mat = s.materialNombre + (s.variedad ? ` · ${s.variedad}` : '') + (s.rangoPesos ? ` (${s.rangoPesos})` : '');
-      d.materiales.add(mat);
-    }
-    if (s.cerrado) d.cerrado = true;
-  }
-
-  const siembraById = new Map(siembras.map(s => [s.id, s.bloque || 'Sin bloque']));
-  const siembraIds  = new Set(siembras.map(s => s.id));
-
-  const assignedIds = new Set();
-  const gruposConBloques = [];
-  for (const g of [...grupos].sort((a, b) => a.nombreGrupo.localeCompare(b.nombreGrupo, 'es', { numeric: true }))) {
-    const bloques = [...new Set(
-      (g.bloques || []).filter(id => siembraIds.has(id)).map(id => siembraById.get(id))
-    )].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-    if (!bloques.length) continue;
-    (g.bloques || []).filter(id => siembraIds.has(id)).forEach(id => assignedIds.add(id));
-    gruposConBloques.push({ id: g.id, nombre: g.nombreGrupo, bloques });
-  }
-
-  const sinGrupo = [...new Set(
-    siembras.filter(s => !assignedIds.has(s.id)).map(s => s.bloque || 'Sin bloque')
-  )].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-
-  const BloqueItem = ({ label }) => {
-    const d = bloqueData.get(label) || { plantas: 0, area: 0, materiales: new Set(), cerrado: false };
-    return (
-      <li className={`detalles-bloque${d.cerrado ? ' detalles-bloque--cerrado' : ''}`}>
-        <div className="detalles-bloque-header">
-          <span className="detalles-bloque-nombre">{label}</span>
-          {d.cerrado && <span className="detalles-bloque-badge">Cerrado</span>}
-        </div>
-        <div className="detalles-bloque-info">
-          {d.plantas > 0 && <span>{d.plantas.toLocaleString('es-ES')} plantas</span>}
-          {d.area > 0 && <span>{d.area.toFixed(2)} ha</span>}
-          {d.materiales.size > 0 && <span>{[...d.materiales].join(' / ')}</span>}
-        </div>
-      </li>
-    );
-  };
-
-  return (
-    <div className="hub-tab-content">
-      {gruposConBloques.map(g => (
-        <div key={g.id} className="detalles-grupo">
-          <span className="detalles-grupo-nombre">{g.nombre}</span>
-          <ul className="detalles-bloques">
-            {g.bloques.map(b => <BloqueItem key={b} label={b} />)}
-          </ul>
-        </div>
-      ))}
-      {sinGrupo.length > 0 && (
-        <div className="detalles-grupo detalles-grupo--sin-grupo">
-          <span className="detalles-grupo-nombre">Sin grupo</span>
-          <ul className="detalles-bloques">
-            {sinGrupo.map(b => <BloqueItem key={b} label={b} />)}
-          </ul>
-        </div>
-      )}
-      {gruposConBloques.length === 0 && sinGrupo.length === 0 && (
-        <p className="empty-state">No hay grupos ni bloques asignados a este lote.</p>
-      )}
-    </div>
-  );
+// ── Table helpers ─────────────────────────────────────────────────────────────
+function compare(a, b, field) {
+  const av = a[field] ?? '';
+  const bv = b[field] ?? '';
+  if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+  return String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
 }
+function multiSort(records, sorts) {
+  const active = sorts.filter(s => s.field);
+  if (!active.length) return [...records];
+  return [...records].sort((a, b) => {
+    for (const s of active) {
+      const r = compare(a, b, s.field);
+      if (r !== 0) return s.dir === 'desc' ? -r : r;
+    }
+    return 0;
+  });
+}
+const LOTE_BLOQUE_COLS = [
+  { id: 'grupo',    label: 'Grupo'    },
+  { id: 'bloque',   label: 'Bloque'   },
+  { id: 'ha',       label: 'Ha.',     filterType: 'number' },
+  { id: 'plantas',  label: 'Plantas', filterType: 'number' },
+  { id: 'material', label: 'Material' },
+];
 
 // ── Draft persistence ─────────────────────────────────────────────────────────
 const DRAFT_LS = 'aurora_draft_lote-nuevo';
@@ -123,8 +76,15 @@ function LoteManagement() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [siembras, setSiembras] = useState([]);
   const [loadingSiembras, setLoadingSiembras] = useState(false);
-  const [activeTab, setActiveTab] = useState('siembras');
+  const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'grupo', dir: 'asc' }]);
+  const [bloqueColFilters, setBloqueColFilters] = useState({});
+  const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
+  const [bloqueHiddenCols, setBloqueHiddenCols] = useState(new Set());
+  const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
+  const [empresaConfig, setEmpresaConfig] = useState({});
+  const [previewLote,   setPreviewLote]   = useState(null);
   const carouselRef = useRef(null);
+  const docRef      = useRef(null);
 
   // Centra la burbuja activa en el carousel cuando cambia el lote seleccionado
   useEffect(() => {
@@ -149,6 +109,7 @@ function LoteManagement() {
     fetchLotes();
     fetchPackages();
     apiFetch('/api/grupos').then(res => res.json()).then(setGrupos).catch(console.error);
+    apiFetch('/api/config').then(res => res.json()).then(setEmpresaConfig).catch(console.error);
   }, []);
 
   // Restaura borrador al montar (sobrevive navegación y cierre de pestaña)
@@ -181,6 +142,157 @@ function LoteManagement() {
       .catch(() => setLoadingSiembras(false));
   }, [selectedLote]);
 
+  // ── Table data ────────────────────────────────────────────────────────────
+  const loteTableRows = useMemo(() => {
+    if (!siembras.length) return [];
+    const bloqueData = new Map();
+    for (const s of siembras) {
+      const key = s.bloque || 'Sin bloque';
+      if (!bloqueData.has(key)) bloqueData.set(key, { plantas: 0, ha: 0, materiales: new Set() });
+      const d = bloqueData.get(key);
+      d.plantas += s.plantas || 0;
+      d.ha      += parseFloat(s.areaCalculada) || 0;
+      if (s.materialNombre) {
+        const mat = s.materialNombre + (s.variedad ? ` · ${s.variedad}` : '');
+        d.materiales.add(mat);
+      }
+    }
+    const siembraIds     = new Set(siembras.map(s => s.id));
+    const siembraToBloque = new Map(siembras.map(s => [s.id, s.bloque || 'Sin bloque']));
+    const bloqueToGrupo  = new Map();
+    for (const g of grupos) {
+      for (const sid of (g.bloques || [])) {
+        if (siembraIds.has(sid)) {
+          const label = siembraToBloque.get(sid);
+          if (!bloqueToGrupo.has(label)) bloqueToGrupo.set(label, g.nombreGrupo);
+        }
+      }
+    }
+    return [...bloqueData.entries()].map(([bloque, d]) => ({
+      id:       bloque,
+      grupo:    bloqueToGrupo.get(bloque) || 'Sin grupo',
+      bloque,
+      ha:       d.ha,
+      plantas:  d.plantas,
+      material: [...d.materiales].join(' / ') || '',
+    }));
+  }, [siembras, grupos]);
+
+  const loteBloquesFiltered = useMemo(() => {
+    const active = Object.entries(bloqueColFilters).filter(([, f]) => {
+      if (!f) return false;
+      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
+      return !!f.value?.trim();
+    });
+    if (!active.length) return loteTableRows;
+    return loteTableRows.filter(r => {
+      for (const [field, filter] of active) {
+        const cell = r[field];
+        if (filter.type === 'range') {
+          if (cell == null || cell === '') return false;
+          const num = Number(cell);
+          if (!isNaN(num)) {
+            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
+            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
+          }
+        } else {
+          if (cell == null) return false;
+          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+  }, [loteTableRows, bloqueColFilters]);
+
+  const loteBloqueSorted  = useMemo(() => multiSort(loteBloquesFiltered, bloqueSorts), [loteBloquesFiltered, bloqueSorts]);
+  const filtTotalHa       = loteBloqueSorted.reduce((s, b) => s + (b.ha || 0), 0);
+  const filtTotalPlantas  = loteBloqueSorted.reduce((s, b) => s + (b.plantas || 0), 0);
+
+  const groupedBloques = useMemo(() => {
+    const map = new Map();
+    for (const row of loteBloqueSorted) {
+      if (!map.has(row.grupo)) map.set(row.grupo, []);
+      map.get(row.grupo).push(row);
+    }
+    return [...map.entries()].map(([grupo, rows]) => ({
+      grupo,
+      rows,
+      totalHa:      rows.reduce((s, b) => s + (b.ha || 0), 0),
+      totalPlantas: rows.reduce((s, b) => s + (b.plantas || 0), 0),
+    }));
+  }, [loteBloqueSorted]);
+
+  // ── Preview (PDF / impresión) ────────────────────────────────────────────
+  const previewGrouped = useMemo(() => {
+    if (!previewLote) return [];
+    const map = new Map();
+    for (const row of loteTableRows) {
+      if (!map.has(row.grupo)) map.set(row.grupo, []);
+      map.get(row.grupo).push(row);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, 'es', { numeric: true }))
+      .map(([grupo, rows]) => ({
+        grupo,
+        rows: [...rows].sort((a, b) => (a.bloque || '').localeCompare(b.bloque || '', 'es', { numeric: true })),
+        totalHa:      rows.reduce((s, b) => s + (b.ha || 0), 0),
+        totalPlantas: rows.reduce((s, b) => s + (b.plantas || 0), 0),
+      }));
+  }, [previewLote, loteTableRows]);
+
+  const pvTotalHa      = previewGrouped.reduce((s, g) => s + g.totalHa, 0);
+  const pvTotalPlantas = previewGrouped.reduce((s, g) => s + g.totalPlantas, 0);
+
+  const handleCompartirLote = async () => {
+    if (!docRef.current) return;
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas  = await html2canvas(docRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageW   = pdf.internal.pageSize.getWidth();
+      const pageH   = pdf.internal.pageSize.getHeight();
+      const imgH    = (canvas.height * pageW) / canvas.width;
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+        y += pageH;
+      }
+      const filename = `Lote-${previewLote?.codigoLote || 'doc'}.pdf`;
+      const blob     = pdf.output('blob');
+      const file     = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: filename }); } catch {}
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      showToast('No se pudo generar el PDF.', 'error');
+    }
+  };
+
+  const setBloqueColFilter = (field, filterObj) => {
+    const empty = !filterObj ||
+      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
+    setBloqueColFilters(prev => empty
+      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+      : { ...prev, [field]: filterObj }
+    );
+  };
+
+  const handleBloqueColBtnClick = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
+  };
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const formatDateForInput = (timestamp) => {
     const date = new Date(timestamp._seconds * 1000);
@@ -209,7 +321,6 @@ function LoteManagement() {
   const handleSelectLote = (lote) => {
     setSelectedLote(lote);
     setView('hub');
-    setActiveTab('siembras');
     if (window.innerWidth <= 768)
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -287,6 +398,40 @@ function LoteManagement() {
     }
   };
 
+  // ── BloqueSortTh ──────────────────────────────────────────────────────────
+  const BloqueSortTh = ({ field, children, filterType = 'text' }) => {
+    const active    = bloqueSorts[0].field === field;
+    const dir       = active ? bloqueSorts[0].dir : null;
+    const f         = bloqueColFilters[field];
+    const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
+    return (
+      <th
+        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        onClick={() => setBloqueSorts(prev => {
+          const next = [...prev];
+          next[0] = next[0].field === field ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' };
+          return next;
+        })}
+      >
+        {children}
+        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span
+          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
+          title="Filtrar columna"
+          onClick={e => {
+            e.stopPropagation();
+            if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
+            const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+            const rect = th.getBoundingClientRect();
+            setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
+          }}
+        >
+          <FiFilter size={10} />
+        </span>
+      </th>
+    );
+  };
+
   // ── Hub panel ─────────────────────────────────────────────────────────────
   const pkg = selectedLote ? packages.find(p => p.id === selectedLote.paqueteId) : null;
 
@@ -342,6 +487,9 @@ function LoteManagement() {
             )}
           </div>
           <div className="hub-header-actions">
+            <button onClick={() => setPreviewLote(selectedLote)} className="icon-btn" title="Vista previa / PDF">
+              <FiEye size={16} />
+            </button>
             <button onClick={() => handleEdit(selectedLote)} className="icon-btn" title="Editar lote">
               <FiEdit size={16} />
             </button>
@@ -373,17 +521,78 @@ function LoteManagement() {
           )}
         </div>
 
-        <div className="hub-tabs">
-          <button
-            className={`hub-tab ${activeTab === 'siembras' ? 'active' : ''}`}
-            onClick={() => setActiveTab('siembras')}
-          >
-            Detalles del lote
-          </button>
+        <div className="grupo-hub-bloques-header">
+          <p className="grupo-hub-bloques-title">Bloques</p>
+          {Object.values(bloqueColFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
+            <button className="historial-clear-col-filters" onClick={() => setBloqueColFilters({})}>
+              <FiX size={11} /> Limpiar filtros
+            </button>
+          )}
         </div>
-
-        {activeTab === 'siembras' && (
-          <DetallesTab siembras={siembras} grupos={grupos} loading={loadingSiembras} />
+        {loadingSiembras ? (
+          <p className="hub-loading">Cargando detalles...</p>
+        ) : loteTableRows.length === 0 ? (
+          <p className="empty-state">No hay registros de siembra para este lote.</p>
+        ) : (
+          <div className="hor-table-wrap">
+            <table className="hor-table grupo-hub-table">
+              <thead>
+                <tr>
+                  {!bloqueHiddenCols.has('grupo')    && <BloqueSortTh field="grupo">Grupo</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('bloque')   && <BloqueSortTh field="bloque">Bloque</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('ha')       && <BloqueSortTh field="ha" filterType="number">Ha.</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('plantas')  && <BloqueSortTh field="plantas" filterType="number">Plantas</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('material') && <BloqueSortTh field="material">Material</BloqueSortTh>}
+                  <th className="hor-th-settings">
+                    <button
+                      className={`hor-col-toggle-btn${bloqueHiddenCols.size > 0 ? ' hor-col-toggle-btn--active' : ''}`}
+                      onClick={handleBloqueColBtnClick}
+                      title="Personalizar columnas visibles"
+                    >
+                      <FiSliders size={12} />
+                      {bloqueHiddenCols.size > 0 && <span className="hor-col-hidden-badge">{bloqueHiddenCols.size}</span>}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedBloques.map(({ grupo, rows, totalHa, totalPlantas }) => (
+                  <Fragment key={grupo}>
+                    {rows.map(b => (
+                      <tr key={b.id}>
+                        {!bloqueHiddenCols.has('grupo')    && <td>{b.grupo}</td>}
+                        {!bloqueHiddenCols.has('bloque')   && <td>{b.bloque}</td>}
+                        {!bloqueHiddenCols.has('ha')       && <td className="hor-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
+                        {!bloqueHiddenCols.has('plantas')  && <td className="hor-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
+                        {!bloqueHiddenCols.has('material') && <td>{b.material || '—'}</td>}
+                        <td />
+                      </tr>
+                    ))}
+                    <tr className="lote-subtotal-row">
+                      {!bloqueHiddenCols.has('grupo')    && <td className="lote-subtotal-label">{grupo}</td>}
+                      {!bloqueHiddenCols.has('bloque')   && <td />}
+                      {!bloqueHiddenCols.has('ha')       && <td className="hor-td-num">{totalHa.toFixed(4)}</td>}
+                      {!bloqueHiddenCols.has('plantas')  && <td className="hor-td-num">{totalPlantas.toLocaleString()}</td>}
+                      {!bloqueHiddenCols.has('material') && <td />}
+                      <td />
+                    </tr>
+                  </Fragment>
+                ))}
+              </tbody>
+              {loteBloqueSorted.length > 0 && (
+                <tfoot>
+                  <tr>
+                    {!bloqueHiddenCols.has('grupo')    && <td><strong>Totales</strong></td>}
+                    {!bloqueHiddenCols.has('bloque')   && <td />}
+                    {!bloqueHiddenCols.has('ha')       && <td className="hor-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
+                    {!bloqueHiddenCols.has('plantas')  && <td className="hor-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
+                    {!bloqueHiddenCols.has('material') && <td />}
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
         )}
       </div>
     );
@@ -416,10 +625,10 @@ function LoteManagement() {
               className={`lote-bubble${selectedLote?.id === lote.id ? ' lote-bubble--active' : ''}`}
               onClick={() => selectedLote?.id === lote.id ? setSelectedLote(null) : handleSelectLote(lote)}
             >
-              <span className="lote-bubble-avatar">{lote.codigoLote.slice(0, 4)}</span>
-              <span className="lote-bubble-label">
-                {lote.nombreLote && lote.nombreLote !== lote.codigoLote ? lote.nombreLote : lote.codigoLote}
+              <span className="lote-bubble-avatar">
+                {(lote.nombreLote && lote.nombreLote !== lote.codigoLote ? lote.nombreLote : lote.codigoLote).slice(0, 4)}
               </span>
+              <span className="lote-bubble-label">{lote.codigoLote}</span>
             </button>
           ))}
           <button className="lote-bubble lote-bubble--add" onClick={handleNewLote}>
@@ -443,7 +652,96 @@ function LoteManagement() {
         {renderRightPanel()}
 
         {/* ── Right: lote list ── */}
-        {view !== 'form' && <div className="lote-list-panel">
+        {bloqueFilterPop && createPortal(
+        <>
+          <div className="historial-filter-backdrop" onClick={() => setBloqueFilterPop(null)} />
+          <div
+            className={`historial-filter-popover${bloqueFilterPop.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
+            style={{ left: bloqueFilterPop.x, top: bloqueFilterPop.y }}
+          >
+            <FiFilter size={13} className="historial-filter-popover-icon" />
+            {bloqueFilterPop.filterType !== 'text' ? (
+              <>
+                <div className="historial-filter-range">
+                  <div className="historial-filter-range-row">
+                    <span className="historial-filter-range-label">De</span>
+                    <input
+                      autoFocus
+                      type="number"
+                      className="historial-filter-input"
+                      value={bloqueColFilters[bloqueFilterPop.field]?.from || ''}
+                      onChange={e => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from: e.target.value, to: bloqueColFilters[bloqueFilterPop.field]?.to || '' })}
+                      onKeyDown={e => { if (e.key === 'Escape') setBloqueFilterPop(null); }}
+                    />
+                  </div>
+                  <div className="historial-filter-range-row">
+                    <span className="historial-filter-range-label">A</span>
+                    <input
+                      type="number"
+                      className="historial-filter-input"
+                      value={bloqueColFilters[bloqueFilterPop.field]?.to || ''}
+                      onChange={e => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from: bloqueColFilters[bloqueFilterPop.field]?.from || '', to: e.target.value })}
+                      onKeyDown={e => { if (e.key === 'Escape') setBloqueFilterPop(null); }}
+                    />
+                  </div>
+                </div>
+                {(bloqueColFilters[bloqueFilterPop.field]?.from || bloqueColFilters[bloqueFilterPop.field]?.to) && (
+                  <button className="historial-filter-clear" onClick={() => { setBloqueColFilter(bloqueFilterPop.field, null); setBloqueFilterPop(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  className="historial-filter-input"
+                  placeholder="Filtrar…"
+                  value={bloqueColFilters[bloqueFilterPop.field]?.value || ''}
+                  onChange={e => setBloqueColFilter(bloqueFilterPop.field, { type: 'text', value: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setBloqueFilterPop(null); }}
+                />
+                {bloqueColFilters[bloqueFilterPop.field]?.value && (
+                  <button className="historial-filter-clear" onClick={() => { setBloqueColFilter(bloqueFilterPop.field, null); setBloqueFilterPop(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+      {bloqueColMenu && createPortal(
+        <>
+          <div className="hor-col-menu-backdrop" onClick={() => setBloqueColMenu(null)} />
+          <div className="hor-col-menu" style={{ left: bloqueColMenu.x, top: bloqueColMenu.y }}>
+            <div className="hor-col-menu-title">Columnas visibles</div>
+            {LOTE_BLOQUE_COLS.map(col => (
+              <button
+                key={col.id}
+                className={`hor-col-menu-item${bloqueHiddenCols.has(col.id) ? ' is-hidden' : ''}`}
+                onClick={() => setBloqueHiddenCols(prev => {
+                  const next = new Set(prev);
+                  next.has(col.id) ? next.delete(col.id) : next.add(col.id);
+                  return next;
+                })}
+              >
+                <span className="hor-col-menu-check" />
+                {col.label}
+              </button>
+            ))}
+            {bloqueHiddenCols.size > 0 && (
+              <button className="hor-col-menu-reset" onClick={() => { setBloqueHiddenCols(new Set()); setBloqueColMenu(null); }}>
+                Mostrar todas
+              </button>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {view !== 'form' && <div className="lote-list-panel">
           <h3 className="lote-list-title">Lotes Activos</h3>
 
           {lotes.length === 0
@@ -473,6 +771,116 @@ function LoteManagement() {
         }
         </div>}
       </div>
+
+      {/* ── Preview modal (PDF / impresión) ── */}
+      {previewLote && createPortal(
+        <div className="gp-preview-backdrop">
+          <div className="gp-preview-toolbar">
+            <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => setPreviewLote(null)}>
+              <FiArrowLeft size={15} /> <span className="gp-toolbar-btn-text">Volver</span>
+            </button>
+            <span className="gp-preview-toolbar-title">Lote — {previewLote.codigoLote}</span>
+            <div className="gp-preview-toolbar-actions">
+              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={handleCompartirLote}>
+                <FiShare2 size={15} /> <span className="gp-toolbar-btn-text">Compartir</span>
+              </button>
+              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => window.print()}>
+                <FiPrinter size={15} /> <span className="gp-toolbar-btn-text">Imprimir</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="gp-doc-wrap">
+            <div className="gp-document" ref={docRef}>
+              <div className="gp-doc-header">
+                <div className="gp-doc-brand">
+                  {empresaConfig.logoUrl
+                    ? <img src={empresaConfig.logoUrl} alt="Logo" className="gp-doc-logo-img" />
+                    : <div className="gp-doc-logo">AU</div>}
+                  <div className="gp-doc-brand-info">
+                    <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
+                    {empresaConfig.identificacion && <div className="gp-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
+                    {empresaConfig.whatsapp       && <div className="gp-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
+                    {empresaConfig.correo         && <div className="gp-doc-brand-sub">{empresaConfig.correo}</div>}
+                    {empresaConfig.direccion      && <div className="gp-doc-brand-sub">{empresaConfig.direccion}</div>}
+                  </div>
+                </div>
+                <div className="gp-doc-date">
+                  Fecha: <strong>{formatDateLong(new Date())}</strong>
+                </div>
+              </div>
+
+              <hr className="gp-doc-divider" />
+
+              <div className="gp-doc-grupo-info">
+                <div className="gp-doc-grupo-title">
+                  LOTE: {previewLote.codigoLote}
+                  {previewLote.nombreLote && previewLote.nombreLote !== previewLote.codigoLote && ` — ${previewLote.nombreLote}`}
+                </div>
+                <div className="gp-doc-grupo-meta">
+                  <span><strong>Fecha de siembra:</strong> {formatDateLong(previewLote.fechaCreacion?._seconds ? new Date(previewLote.fechaCreacion._seconds * 1000) : new Date(previewLote.fechaCreacion))}</span>
+                  {previewLote.hectareas && <span><strong>Hectáreas:</strong> {previewLote.hectareas} ha</span>}
+                  {packages.find(p => p.id === previewLote.paqueteId) && (
+                    <span><strong>Paquete técnico:</strong> {packages.find(p => p.id === previewLote.paqueteId).nombrePaquete}</span>
+                  )}
+                </div>
+              </div>
+
+              <table className="gp-doc-table">
+                <thead>
+                  <tr>
+                    <th>Grupo</th>
+                    <th>Bloque</th>
+                    <th className="gp-col-num">Ha.</th>
+                    <th className="gp-col-num">Plantas</th>
+                    <th>Material</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewGrouped.length === 0 && (
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '12px', color: '#999' }}>Sin bloques</td></tr>
+                  )}
+                  {previewGrouped.map(({ grupo, rows, totalHa, totalPlantas }) => (
+                    <Fragment key={grupo}>
+                      {rows.map(b => (
+                        <tr key={b.id}>
+                          <td>{b.grupo}</td>
+                          <td>{b.bloque}</td>
+                          <td className="gp-col-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>
+                          <td className="gp-col-num">{b.plantas?.toLocaleString() ?? '—'}</td>
+                          <td>{b.material || '—'}</td>
+                        </tr>
+                      ))}
+                      <tr className="gp-doc-subtotal-row">
+                        <td className="gp-doc-subtotal-label">{grupo}</td>
+                        <td />
+                        <td className="gp-col-num">{totalHa.toFixed(4)}</td>
+                        <td className="gp-col-num">{totalPlantas.toLocaleString()}</td>
+                        <td />
+                      </tr>
+                    </Fragment>
+                  ))}
+                </tbody>
+                {previewGrouped.length > 0 && (
+                  <tfoot>
+                    <tr>
+                      <td colSpan={2}><strong>Totales</strong></td>
+                      <td className="gp-col-num"><strong>{pvTotalHa.toFixed(4)}</strong></td>
+                      <td className="gp-col-num"><strong>{pvTotalPlantas.toLocaleString()}</strong></td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+
+              <div className="gp-doc-footer">
+                Documento generado por Sistema Aurora
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
