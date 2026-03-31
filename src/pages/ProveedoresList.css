@@ -237,19 +237,37 @@
   opacity: 1 !important;
 }
 
-/* ── List panel: empty state ──────────────────────────────────────────────── */
-.prov-list-empty {
+/* ── List panel header (título + botón) ──────────────────────────────────── */
+.prov-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.prov-list-header .lote-list-title {
+  margin: 0;
+}
+
+/* ── Full-page empty state ────────────────────────────────────────────────── */
+.prov-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 28px 0;
-  color: rgba(230, 242, 255, 0.35);
-  font-size: 0.88rem;
+  justify-content: center;
+  gap: 14px;
+  min-height: 60vh;
+  padding: 48px 20px;
+  color: rgba(230, 242, 255, 0.3);
   text-align: center;
 }
 
-.prov-list-empty p {
+.prov-empty-state p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.4);
   margin: 0;
 }
 
