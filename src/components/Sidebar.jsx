@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   FiHome, FiGrid, FiPackage, FiUsers, FiArchive,
-  FiDroplet, FiFileText, FiShoppingCart, FiTruck, FiLogOut, FiPlusCircle,
+  FiDroplet, FiFileText, FiTruck, FiLogOut, FiPlusCircle,
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiBook, FiPaperclip, FiList, FiUserPlus, FiUmbrella,
@@ -47,9 +47,6 @@ export const MODULES = [
     items: [
       { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
       { label: 'Ingreso de Productos', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
-      { label: 'Solicitar Compra', to: '/solicitudes', icon: FiShoppingCart, minRole: 'encargado' },
-      { label: 'Registrar Compra', to: '/compras', icon: FiFileText, minRole: 'supervisor' },
-      { label: 'Recepción de Productos', to: '/recepcion', icon: FiTruck, minRole: 'encargado' },
     ],
   },
   {

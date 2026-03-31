@@ -10,13 +10,10 @@ import TaskAction from './pages/TaskAction';
 import ProductManagement from './pages/ProductManagement';
 import ProductCatalog from './pages/ProductCatalog';
 import ProductIngreso from './pages/ProductIngreso';
-import InvoiceScan from './pages/InvoiceScan';
-import PurchaseRequest from './pages/PurchaseRequest';
 import PurchaseOrder from './pages/PurchaseOrder';
 import OrdenesList from './pages/OrdenesList';
 import OrdenesHistorial from './pages/OrdenesHistorial';
 import ProveedoresList from './pages/ProveedoresList';
-import GoodsReceipt from './pages/GoodsReceipt';
 import Login from './pages/Login';
 import LoginPassword from './pages/LoginPassword';
 import Register from './pages/Register';
@@ -91,9 +88,6 @@ const routeTitles = {
   '/productos': 'Inventario Agroquímicos',
   '/productos/todos': 'Inventario Completo',
   '/ingreso-productos': 'Ingreso de Productos',
-  '/compras': 'Registrar Compra',
-  '/solicitudes': 'Solicitud de Compra',
-  '/recepcion': 'Recepción de Productos',
   '/ordenes-compra': 'Órdenes de Compra',
   '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
   '/proveedores': 'Proveedores',
@@ -427,8 +421,6 @@ function App() {
             <Route path="/productos" element={<RoleRoute path="/productos"><ProductManagement /></RoleRoute>} />
             <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductCatalog /></RoleRoute>} />
             <Route path="/ingreso-productos" element={<RoleRoute path="/ingreso-productos"><ProductIngreso /></RoleRoute>} />
-            <Route path="/solicitudes" element={<RoleRoute path="/solicitudes"><PurchaseRequest /></RoleRoute>} />
-            <Route path="/recepcion" element={<RoleRoute path="/recepcion"><GoodsReceipt /></RoleRoute>} />
             <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OrdenesList /></RoleRoute>} />
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OrdenesHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
@@ -447,7 +439,6 @@ function App() {
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
-            <Route path="/compras" element={<RoleRoute path="/compras"><InvoiceScan /></RoleRoute>} />
             <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
             <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorHora /></RoleRoute>} />
             <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaHoras /></RoleRoute>} />

@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import './ProductManagement.css';
-import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import TomaFisicaModal from './TomaFisicaModal';
 import EditProductoModal from './EditProductoModal';
+import PurchaseRequest from './PurchaseRequest';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];
@@ -57,6 +58,7 @@ function ProductManagement() {
   const [filterTipo, setFilterTipo] = useState('');
   const [toast, setToast] = useState(null);
   const [showTomaFisica, setShowTomaFisica] = useState(false);
+  const [showSolicitud, setShowSolicitud] = useState(false);
   const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {}, { storage: 'local' });
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -469,6 +471,10 @@ function ProductManagement() {
                   <FiClipboard size={16} />
                   Toma Física
                 </button>
+                <button className="btn-solicitar-compra" onClick={() => setShowSolicitud(true)}>
+                  <FiShoppingCart size={15} />
+                  Solicitar Compra
+                </button>
                 <button className="btn-nuevo-producto" onClick={() => setShowNuevoModal(true)}>
                   <FiPlus size={15} />
                   Nuevo Producto
@@ -777,6 +783,25 @@ function ProductManagement() {
             showToast(`"${data.nombreComercial}" creado correctamente.`);
           }}
         />
+      )}
+
+      {showSolicitud && (
+        <div
+          className="ingreso-scan-overlay"
+          onClick={e => { if (e.target === e.currentTarget) setShowSolicitud(false); }}
+        >
+          <div className="ingreso-scan-modal">
+            <button
+              type="button"
+              className="ingreso-scan-modal-close"
+              onClick={() => setShowSolicitud(false)}
+              aria-label="Cerrar"
+            >
+              <FiX size={18} />
+            </button>
+            <PurchaseRequest onClose={() => setShowSolicitud(false)} />
+          </div>
+        </div>
       )}
     </div>
   );

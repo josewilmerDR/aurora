@@ -8,7 +8,7 @@ import './PurchaseRequest.css';
 
 const DEPT_PROVEEDURIA = 'proveeduria';
 
-const PurchaseRequest = () => {
+const PurchaseRequest = ({ onClose } = {}) => {
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -117,6 +117,7 @@ const PurchaseRequest = () => {
       setNotas('');
       setResponsableId(DEPT_PROVEEDURIA);
       setShowPreview(false);
+      setTimeout(() => onClose?.(), 1200);
     } catch {
       showToast('Error al enviar la solicitud', 'error');
     } finally {

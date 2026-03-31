@@ -1383,6 +1383,10 @@ const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', '
 
 app.post('/api/productos', authenticate, async (req, res) => {
   try {
+    const { fechaIngreso, facturaNumero, registrarIngreso, ordenCompraId, ocPoNumber } = req.body;
+    const fechaTs = fechaIngreso
+      ? Timestamp.fromDate(new Date(fechaIngreso + 'T12:00:00'))
+      : Timestamp.now();
     const producto = { ...pick(req.body, CAMPOS_PRODUCTO), fincaId: req.fincaId };
 
     // Verificar si ya existe un producto con el mismo idProducto
@@ -1396,14 +1400,63 @@ app.post('/api/productos', authenticate, async (req, res) => {
       if (!existing.empty) {
         const doc = existing.docs[0];
         const stockIngresado = parseFloat(producto.stockActual) || 0;
-        await doc.ref.update({ stockActual: FieldValue.increment(stockIngresado) });
+        if (registrarIngreso && stockIngresado > 0) {
+          const batch = db.batch();
+          batch.update(doc.ref, { stockActual: FieldValue.increment(stockIngresado) });
+          batch.set(db.collection('movimientos').doc(), {
+            tipo: 'ingreso',
+            productoId: doc.id,
+            idProducto: producto.idProducto || doc.data().idProducto || '',
+            nombreComercial: producto.nombreComercial || doc.data().nombreComercial || '',
+            cantidad: stockIngresado,
+            unidad: producto.unidad || doc.data().unidad || '',
+            precioUnitario: parseFloat(producto.precioUnitario) || 0,
+            iva: parseFloat(producto.iva) || 0,
+            proveedor: producto.proveedor || '',
+            fecha: fechaTs,
+            motivo: producto.proveedor ? `Ingreso: ${producto.proveedor}` : 'Ingreso de inventario',
+            ...(facturaNumero  ? { facturaNumero }  : {}),
+            ...(ordenCompraId  ? { ordenCompraId }  : {}),
+            ...(ocPoNumber     ? { ocPoNumber }     : {}),
+            fincaId: req.fincaId,
+          });
+          await batch.commit();
+        } else {
+          await doc.ref.update({ stockActual: FieldValue.increment(stockIngresado) });
+        }
         const updated = { ...doc.data(), stockActual: (doc.data().stockActual || 0) + stockIngresado };
         return res.status(200).json({ id: doc.id, ...updated, merged: true });
       }
     }
 
-    const docRef = await db.collection('productos').add(producto);
-    res.status(201).json({ id: docRef.id, ...producto, merged: false });
+    const stockIngresado = parseFloat(producto.stockActual) || 0;
+    if (registrarIngreso && stockIngresado > 0) {
+      const newProdRef = db.collection('productos').doc();
+      const batch = db.batch();
+      batch.set(newProdRef, producto);
+      batch.set(db.collection('movimientos').doc(), {
+        tipo: 'ingreso',
+        productoId: newProdRef.id,
+        idProducto: producto.idProducto || '',
+        nombreComercial: producto.nombreComercial || '',
+        cantidad: stockIngresado,
+        unidad: producto.unidad || '',
+        precioUnitario: parseFloat(producto.precioUnitario) || 0,
+        iva: parseFloat(producto.iva) || 0,
+        proveedor: producto.proveedor || '',
+        fecha: fechaTs,
+        motivo: producto.proveedor ? `Ingreso: ${producto.proveedor}` : 'Ingreso de inventario',
+        ...(facturaNumero  ? { facturaNumero }  : {}),
+        ...(ordenCompraId  ? { ordenCompraId }  : {}),
+        ...(ocPoNumber     ? { ocPoNumber }     : {}),
+        fincaId: req.fincaId,
+      });
+      await batch.commit();
+      res.status(201).json({ id: newProdRef.id, ...producto, merged: false });
+    } else {
+      const docRef = await db.collection('productos').add(producto);
+      res.status(201).json({ id: docRef.id, ...producto, merged: false });
+    }
   } catch (error) {
     res.status(500).json({ message: 'Error al crear producto.' });
   }
@@ -2590,6 +2643,26 @@ app.post('/api/ordenes-compra', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error saving orden:', error);
     res.status(500).json({ message: 'Error al guardar la orden de compra.' });
+  }
+});
+
+app.patch('/api/ordenes-compra/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado, items } = req.body;
+    const valid = ['activa', 'completada', 'cancelada', 'recibida', 'recibida_parcialmente'];
+    if (!valid.includes(estado)) return res.status(400).json({ message: 'Estado inválido.' });
+    const docRef = db.collection('ordenes_compra').doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists || doc.data().fincaId !== req.fincaId)
+      return res.status(404).json({ message: 'Orden no encontrada.' });
+    const updateData = { estado, updatedAt: Timestamp.now() };
+    if (Array.isArray(items)) updateData.items = items;
+    await docRef.update(updateData);
+    res.status(200).json({ message: 'Estado actualizado.' });
+  } catch (error) {
+    console.error('Error updating orden estado:', error);
+    res.status(500).json({ message: 'Error al actualizar la orden.' });
   }
 });
 
