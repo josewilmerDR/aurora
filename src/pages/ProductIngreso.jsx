@@ -523,7 +523,7 @@ function ProductIngreso() {
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <h2 className="ingreso-page-title">Ingreso de Productos</h2>
+      <h2 className="ingreso-page-title">Recepción de Mercancía</h2>
 
       <div className="ingreso-top-layout">
 
