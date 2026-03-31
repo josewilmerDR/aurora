@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
@@ -11,6 +11,17 @@ const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante',
 const normalizeTipo = (val) => {
   const s = String(val || '').trim();
   return TIPOS_PRODUCTO.find(t => t.toLowerCase() === s.toLowerCase()) ?? s;
+};
+
+// ── Normalización proveedor ───────────────────────────────────────────────────
+const CATEGORIAS_PROV = ['agroquimicos', 'fertilizantes', 'maquinaria', 'servicios', 'combustible', 'semillas', 'otros'];
+const normalizeCategoriaProv = (val) => {
+  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return CATEGORIAS_PROV.find(c => c === s) ?? '';
+};
+const normalizeTipoPago = (val) => {
+  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return s === 'credito' ? 'credito' : 'contado';
 };
 
 // ── Definición de entidades ───────────────────────────────────────────────────
@@ -129,6 +140,58 @@ const ENTIDADES = [
       observacion: String(row['Observación'] || '').trim(),
     }),
     isValid: (r) => !!r.descripcion,
+  },
+  {
+    key: 'proveedores',
+    nombre: 'Lista de Proveedores',
+    descripcion: 'Proveedores de insumos, maquinaria y servicios — idénticos al módulo Proveedores de Contabilidad.',
+    icon: FiTruck,
+    endpoint: '/api/proveedores',
+    adminPath: '/proveedores',
+    excelHeaders: [
+      'Nombre', 'RUC / Cédula', 'Teléfono', 'Email', 'Dirección',
+      'Tipo de Pago', 'Días de Crédito', 'Moneda',
+      'Contacto', 'WhatsApp', 'Sitio Web',
+      'País de Origen', 'Entrega (días)',
+      'Límite Crédito', 'Descuento (%)', 'Banco', 'Cuenta Bancaria',
+      'Categoría', 'Estado', 'Notas',
+    ],
+    sampleRow: [
+      'AgroDistribuidora S.A.', '3-101-123456', '+506 2222-3333', 'ventas@agrodist.com', 'San José, Costa Rica',
+      'credito', 30, 'USD',
+      'Juan Pérez', '+506 8888-7777', 'https://agrodist.com',
+      'Costa Rica', 3,
+      5000, 5, 'BCR', 'CR21015201001026284066',
+      'agroquimicos', 'activo', '',
+    ],
+    fileName:  'plantilla_proveedores.xlsx',
+    sheetName: 'Proveedores',
+    parseRow: (row) => {
+      const monedaRaw = String(row['Moneda'] || '').trim().toUpperCase();
+      return {
+        nombre:            String(row['Nombre']           || '').trim(),
+        ruc:               String(row['RUC / Cédula']     || '').trim(),
+        telefono:          String(row['Teléfono']          || '').trim(),
+        email:             String(row['Email']             || '').trim(),
+        direccion:         String(row['Dirección']         || '').trim(),
+        tipoPago:          normalizeTipoPago(row['Tipo de Pago']),
+        diasCredito:       row['Días de Crédito']          || 30,
+        moneda:            ['USD', 'CRC'].includes(monedaRaw) ? monedaRaw : 'USD',
+        contacto:          String(row['Contacto']          || '').trim(),
+        whatsapp:          String(row['WhatsApp']          || '').trim(),
+        sitioWeb:          String(row['Sitio Web']         || '').trim(),
+        paisOrigen:        String(row['País de Origen']    || '').trim(),
+        tiempoEntregaDias: row['Entrega (días)']           || '',
+        limiteCredito:     row['Límite Crédito']           || '',
+        descuentoHabitual: row['Descuento (%)']            || '',
+        banco:             String(row['Banco']             || '').trim(),
+        cuentaBancaria:    String(row['Cuenta Bancaria']   || '').trim(),
+        categoria:         normalizeCategoriaProv(row['Categoría']),
+        estado:            String(row['Estado'] || '').trim().toLowerCase() === 'inactivo' ? 'inactivo' : 'activo',
+        notas:             String(row['Notas']             || '').trim(),
+      };
+    },
+    isValid: (r) => !!r.nombre,
   },
 ];
 
