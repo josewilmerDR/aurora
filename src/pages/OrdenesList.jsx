@@ -93,46 +93,97 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
   );
 }
 
-// ─── ProveedorAutocomplete ────────────────────────────────────────────────────
-function ProveedorAutocomplete({ value, onChange, onSelect, proveedores, placeholder }) {
+// ─── ProveedorCombobox ────────────────────────────────────────────────────────
+function ProveedorCombobox({ value, onChange, onSelect, proveedores, placeholder }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [hi, setHi] = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef(null);
+  const listRef = useRef(null);
 
-  const filtered = !value.trim()
-    ? []
-    : proveedores.filter(p =>
-        p.nombre?.toLowerCase().includes(value.toLowerCase())
-      ).slice(0, 7);
+  const filtered = proveedores.filter(p =>
+    !value || p.nombre?.toLowerCase().includes(value.toLowerCase())
+  );
 
-  const calcPos = () => {
-    if (!inputRef.current) return;
-    const r = inputRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + window.scrollY + 3, left: r.left + window.scrollX, width: Math.max(r.width, 260) });
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: Math.max(r.width, 260) });
+    }
+    setOpen(true);
+    setHi(0);
   };
 
+  const selectOption = (p) => {
+    onChange(p.nombre);
+    onSelect?.(p);
+    setOpen(false);
+    setHi(0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   return (
-    <div className="ac-wrap">
+    <>
       <input
         ref={inputRef}
+        className="ingreso-proveedor-input"
         value={value}
-        onChange={e => { onChange(e.target.value); calcPos(); setOpen(true); }}
-        onFocus={() => { calcPos(); setOpen(true); }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        autoComplete="off"
+        onChange={e => { onChange(e.target.value); openDropdown(); }}
+        onFocus={openDropdown}
+        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
       />
       {open && filtered.length > 0 && createPortal(
-        <ul className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
-          {filtered.map(p => (
-            <li key={p.id} onMouseDown={() => { onSelect(p); setOpen(false); }}>
-              <span className="ac-name">{p.nombre}</span>
+        <ul
+          ref={listRef}
+          className="proveedor-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          {filtered.map((p, i) => (
+            <li
+              key={p.id}
+              className={`proveedor-dropdown-item${i === hi ? ' proveedor-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(p)}
+              onMouseEnter={() => setHi(i)}
+            >
+              <span>{p.nombre}</span>
               {p.email && <span className="ac-unit">{p.email}</span>}
             </li>
           ))}
         </ul>,
         document.body
       )}
-    </div>
+    </>
   );
 }
 
@@ -538,13 +589,10 @@ const OrdenesList = () => {
               <div className="ol-oc-header-fields">
                 <div className="ol-oc-field">
                   <label>Proveedor</label>
-                  <ProveedorAutocomplete
+                  <ProveedorCombobox
                     value={proveedor}
                     onChange={setProveedor}
-                    onSelect={p => {
-                      setProveedor(p.nombre);
-                      setContacto(p.email || p.telefono || '');
-                    }}
+                    onSelect={p => setContacto(p.email || p.telefono || '')}
                     proveedores={proveedoresCatalog}
                     placeholder="Nombre del proveedor"
                   />
@@ -676,7 +724,7 @@ const OrdenesList = () => {
                     <FiEye size={15} /> Previsualizar
                   </button>
                   <button type="button" className="btn btn-primary" onClick={handleGuardarOC} disabled={saving}>
-                    <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar OC'}
+                    <FiCheck size={15} /> {saving ? 'Guardando…' : 'Crear OC'}
                   </button>
                 </div>
               </div>
