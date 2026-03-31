@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
-import { FiTruck, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiPhone, FiMail, FiMapPin, FiDollarSign } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import {
+  FiTruck, FiEdit, FiTrash2, FiPlus, FiCheck,
+  FiPhone, FiMail, FiMapPin, FiDollarSign, FiUser,
+  FiArrowLeft, FiChevronRight, FiGlobe, FiClock, FiTag,
+} from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './ProveedoresList.css';
@@ -14,26 +18,60 @@ const EMPTY_FORM = {
   tipoPago: 'contado',
   diasCredito: 30,
   notas: '',
+  moneda: 'USD',
+  contacto: '',
+  whatsapp: '',
+  sitioWeb: '',
+  paisOrigen: '',
+  tiempoEntregaDias: '',
+  limiteCredito: '',
+  banco: '',
+  cuentaBancaria: '',
+  descuentoHabitual: '',
+  categoria: '',
+  estado: 'activo',
 };
 
 const TIPO_PAGO_LABELS = { contado: 'Contado', credito: 'Crédito' };
+
+const CATEGORIA_LABELS = {
+  agroquimicos: 'Agroquímicos',
+  fertilizantes: 'Fertilizantes',
+  maquinaria: 'Maquinaria',
+  servicios: 'Servicios',
+  combustible: 'Combustible',
+  semillas: 'Semillas',
+  otros: 'Otros',
+};
+
+const initials = (name) =>
+  name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
 
 function ProveedoresList() {
   const apiFetch = useApiFetch();
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [selectedProveedor, setSelectedProveedor] = useState(null);
+  const [view, setView] = useState('hub'); // 'hub' | 'form'
   const [isEditing, setIsEditing] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const carouselRef = useRef(null);
+
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  useEffect(() => {
+    if (!selectedProveedor || !carouselRef.current) return;
+    const active = carouselRef.current.querySelector('.lote-bubble--active');
+    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedProveedor]);
 
   const fetchProveedores = () =>
     apiFetch('/api/proveedores')
       .then(r => r.json())
-      .then(setProveedores)
-      .catch(() => showToast('Error al cargar proveedores.', 'error'))
+      .then(data => { setProveedores(data); return data; })
+      .catch(() => { showToast('Error al cargar proveedores.', 'error'); return []; })
       .finally(() => setLoading(false));
 
   useEffect(() => { fetchProveedores(); }, []);
@@ -46,20 +84,27 @@ function ProveedoresList() {
   const resetForm = () => {
     setForm(EMPTY_FORM);
     setIsEditing(false);
-    setShowForm(false);
+    setView('hub');
   };
 
-  const handleEdit = (p) => {
-    setForm({ ...EMPTY_FORM, ...p });
-    setIsEditing(true);
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleSelectProveedor = (p) => {
+    setSelectedProveedor(p);
+    setView('hub');
+    if (window.innerWidth <= 768)
+      document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNew = () => {
     setForm(EMPTY_FORM);
     setIsEditing(false);
-    setShowForm(true);
+    setView('form');
+    setSelectedProveedor(null);
+  };
+
+  const handleEdit = (p) => {
+    setForm({ ...EMPTY_FORM, ...p });
+    setIsEditing(true);
+    setView('form');
   };
 
   const handleDelete = async (id, nombre) => {
@@ -67,6 +112,7 @@ function ProveedoresList() {
     try {
       const res = await apiFetch(`/api/proveedores/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
+      if (selectedProveedor?.id === id) setSelectedProveedor(null);
       showToast('Proveedor eliminado.');
       fetchProveedores();
     } catch {
@@ -90,9 +136,13 @@ function ProveedoresList() {
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error();
+      const saved = await res.json();
+      const freshList = await fetchProveedores();
+      const savedId = isEditing ? form.id : saved.id;
+      const found = freshList.find(p => p.id === savedId);
+      if (found) setSelectedProveedor(found);
       showToast(isEditing ? 'Proveedor actualizado.' : 'Proveedor creado.');
       resetForm();
-      fetchProveedores();
     } catch {
       showToast('Error al guardar.', 'error');
     } finally {
@@ -100,70 +150,39 @@ function ProveedoresList() {
     }
   };
 
-  return (
-    <div className="prov-wrap">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
-      {/* ── Formulario ── */}
-      {!showForm ? (
-        <div className="prov-toolbar">
-          <button className="btn btn-primary" onClick={handleNew}>
-            <FiPlus size={15} /> Nuevo Proveedor
-          </button>
-        </div>
-      ) : (
-        <div className="prov-form-card">
-          <div className="prov-form-header">
-            <span>{isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}</span>
-            <button className="prov-close-btn" onClick={resetForm} title="Cancelar">
-              <FiX size={16} />
-            </button>
-          </div>
-
-          <form className="prov-form" onSubmit={handleSubmit}>
+  // ── Main panel ────────────────────────────────────────────────────────────
+  const renderMainPanel = () => {
+    if (view === 'form') {
+      return (
+        <div className="form-card">
+          <h2>{isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h2>
+          <form onSubmit={handleSubmit}>
             <div className="prov-form-grid">
+
+              {/* ── Datos básicos ── */}
               <div className="prov-field prov-field--full">
                 <label>Nombre <span className="prov-required">*</span></label>
-                <input
-                  name="nombre"
-                  value={form.nombre}
-                  onChange={handleChange}
-                  placeholder="Razón social o nombre comercial"
-                  required
-                />
+                <input name="nombre" value={form.nombre} onChange={handleChange} placeholder="Razón social o nombre comercial" required />
               </div>
-
               <div className="prov-field">
                 <label>RUC / Cédula Jurídica</label>
-                <input
-                  name="ruc"
-                  value={form.ruc}
-                  onChange={handleChange}
-                  placeholder="Ej. 3-101-123456"
-                />
+                <input name="ruc" value={form.ruc} onChange={handleChange} placeholder="Ej. 3-101-123456" />
               </div>
-
               <div className="prov-field">
                 <label>Teléfono</label>
-                <input
-                  name="telefono"
-                  value={form.telefono}
-                  onChange={handleChange}
-                  placeholder="+506 2222-3333"
-                />
+                <input name="telefono" value={form.telefono} onChange={handleChange} placeholder="+506 2222-3333" />
               </div>
-
               <div className="prov-field">
                 <label>Correo electrónico</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  placeholder="ventas@proveedor.com"
-                />
+                <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="ventas@proveedor.com" />
               </div>
-
+              <div className="prov-field">
+                <label>Moneda <span className="prov-required">*</span></label>
+                <select name="moneda" value={form.moneda} onChange={handleChange}>
+                  <option value="USD">USD — Dólar</option>
+                  <option value="CRC">CRC — Colón</option>
+                </select>
+              </div>
               <div className="prov-field">
                 <label>Tipo de pago</label>
                 <select name="tipoPago" value={form.tipoPago} onChange={handleChange}>
@@ -171,135 +190,378 @@ function ProveedoresList() {
                   <option value="credito">Crédito</option>
                 </select>
               </div>
-
               {form.tipoPago === 'credito' && (
                 <div className="prov-field">
                   <label>Días de crédito</label>
-                  <input
-                    type="number"
-                    name="diasCredito"
-                    value={form.diasCredito}
-                    onChange={handleChange}
-                    min="1"
-                    placeholder="30"
-                  />
+                  <input type="number" name="diasCredito" value={form.diasCredito} onChange={handleChange} min="1" placeholder="30" />
                 </div>
               )}
 
+              {/* ── Contacto comercial ── */}
+              <div className="prov-form-divider prov-field--full"><span>Contacto comercial</span></div>
+              <div className="prov-field">
+                <label>Persona de contacto</label>
+                <input name="contacto" value={form.contacto} onChange={handleChange} placeholder="Nombre del representante" />
+              </div>
+              <div className="prov-field">
+                <label>WhatsApp</label>
+                <input name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+506 8888-7777" />
+              </div>
               <div className="prov-field prov-field--full">
-                <label>Dirección</label>
-                <input
-                  name="direccion"
-                  value={form.direccion}
-                  onChange={handleChange}
-                  placeholder="Dirección física o provincia"
-                />
+                <label>Sitio web</label>
+                <input name="sitioWeb" value={form.sitioWeb} onChange={handleChange} placeholder="https://proveedor.com" />
+              </div>
+
+              {/* ── Clasificación ── */}
+              <div className="prov-form-divider prov-field--full"><span>Clasificación</span></div>
+              <div className="prov-field">
+                <label>Categoría</label>
+                <select name="categoria" value={form.categoria} onChange={handleChange}>
+                  <option value="">— Sin categoría —</option>
+                  <option value="agroquimicos">Agroquímicos</option>
+                  <option value="fertilizantes">Fertilizantes</option>
+                  <option value="maquinaria">Maquinaria y equipo</option>
+                  <option value="servicios">Servicios</option>
+                  <option value="combustible">Combustible</option>
+                  <option value="semillas">Semillas</option>
+                  <option value="otros">Otros</option>
+                </select>
+              </div>
+              <div className="prov-field">
+                <label>Estado</label>
+                <select name="estado" value={form.estado} onChange={handleChange}>
+                  <option value="activo">Activo</option>
+                  <option value="inactivo">Inactivo</option>
+                </select>
+              </div>
+              <div className="prov-field">
+                <label>País de origen</label>
+                <input name="paisOrigen" value={form.paisOrigen} onChange={handleChange} placeholder="Ej. Costa Rica, EE.UU." />
+              </div>
+              <div className="prov-field">
+                <label>Tiempo de entrega (días)</label>
+                <input type="number" name="tiempoEntregaDias" value={form.tiempoEntregaDias} onChange={handleChange} min="0" placeholder="3" />
+              </div>
+
+              {/* ── Financiero ── */}
+              <div className="prov-form-divider prov-field--full"><span>Financiero</span></div>
+              <div className="prov-field">
+                <label>Límite de crédito</label>
+                <input type="number" name="limiteCredito" value={form.limiteCredito} onChange={handleChange} min="0" placeholder="0.00" />
+              </div>
+              <div className="prov-field">
+                <label>Descuento habitual (%)</label>
+                <input type="number" name="descuentoHabitual" value={form.descuentoHabitual} onChange={handleChange} min="0" max="100" placeholder="0" />
+              </div>
+              <div className="prov-field">
+                <label>Banco</label>
+                <input name="banco" value={form.banco} onChange={handleChange} placeholder="Ej. BCR, BAC, Davivienda" />
+              </div>
+              <div className="prov-field">
+                <label>Cuenta bancaria</label>
+                <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange} placeholder="Número de cuenta o IBAN" />
               </div>
 
               <div className="prov-field prov-field--full">
+                <label>Dirección</label>
+                <input name="direccion" value={form.direccion} onChange={handleChange} placeholder="Dirección física o provincia" />
+              </div>
+              <div className="prov-field prov-field--full">
                 <label>Notas</label>
-                <textarea
-                  name="notas"
-                  value={form.notas}
-                  onChange={handleChange}
-                  placeholder="Condiciones especiales, productos que provee, contacto comercial…"
-                  rows={2}
-                />
+                <textarea name="notas" value={form.notas} onChange={handleChange} placeholder="Condiciones especiales, productos que provee, contacto comercial…" rows={2} />
               </div>
             </div>
 
-            <div className="prov-form-actions">
-              <button type="button" className="btn btn-secondary" onClick={resetForm}>
-                Cancelar
-              </button>
+            <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={saving}>
-                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : 'Crear Proveedor'}
+                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar Proveedor' : 'Crear Proveedor'}
+              </button>
+              <button type="button" onClick={resetForm} className="btn btn-secondary">
+                Cancelar
               </button>
             </div>
           </form>
         </div>
-      )}
+      );
+    }
 
-      {/* ── Lista ── */}
-      <section className="prov-section">
-        <div className="prov-section-header">
-          <FiTruck size={14} />
-          <span>Proveedores registrados</span>
-          {proveedores.length > 0 && (
-            <span className="prov-count">{proveedores.length}</span>
-          )}
-          {showForm && (
-            <button className="prov-add-inline" onClick={handleNew} title="Nuevo proveedor">
-              <FiPlus size={13} />
+    if (!selectedProveedor) return null;
+
+    const p = selectedProveedor;
+    return (
+      <div className="lote-hub">
+        <button className="lote-hub-back" onClick={() => setSelectedProveedor(null)}>
+          <FiArrowLeft size={13} /> Todos los proveedores
+        </button>
+
+        <div className="hub-header">
+          <div className="hub-title-block">
+            <h2 className="prov-hub-nombre">
+              {p.nombre}
+              {p.moneda && (
+                <span className={`prov-moneda-tag prov-moneda-tag--${p.moneda}`}>{p.moneda}</span>
+              )}
+            </h2>
+          </div>
+          <div className="hub-header-actions">
+            <button className="icon-btn" onClick={() => handleEdit(p)} title="Editar proveedor">
+              <FiEdit size={16} />
             </button>
+            <button className="icon-btn delete" onClick={() => handleDelete(p.id, p.nombre)} title="Eliminar proveedor">
+              <FiTrash2 size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="hub-info-pills">
+          {p.categoria && (
+            <span className="hub-pill">
+              <FiTag size={13} />
+              {CATEGORIA_LABELS[p.categoria] || p.categoria}
+            </span>
+          )}
+          {p.tipoPago && (
+            <span className="hub-pill">
+              <FiDollarSign size={13} />
+              {TIPO_PAGO_LABELS[p.tipoPago] || p.tipoPago}
+              {p.tipoPago === 'credito' && p.diasCredito ? ` · ${p.diasCredito} días` : ''}
+            </span>
+          )}
+          {p.paisOrigen && (
+            <span className="hub-pill">
+              <FiMapPin size={13} />
+              {p.paisOrigen}
+            </span>
+          )}
+          {p.estado === 'inactivo' && (
+            <span className="hub-pill prov-pill-inactivo">Inactivo</span>
           )}
         </div>
 
-        {loading ? (
-          <p className="prov-empty">Cargando…</p>
-        ) : proveedores.length === 0 ? (
-          <div className="prov-empty-state">
-            <FiTruck size={32} />
-            <p>No hay proveedores registrados.</p>
-            <button className="btn btn-primary" onClick={handleNew}>
-              <FiPlus size={14} /> Agregar el primero
-            </button>
-          </div>
-        ) : (
-          <div className="prov-grid">
-            {proveedores.map((p) => (
-              <div key={p.id} className="prov-card">
-                <div className="prov-card-top">
-                  <div className="prov-card-name">{p.nombre}</div>
-                  <div className="prov-card-actions">
-                    <button className="prov-btn-icon" onClick={() => handleEdit(p)} title="Editar">
-                      <FiEdit size={14} />
-                    </button>
-                    <button className="prov-btn-icon prov-btn-danger" onClick={() => handleDelete(p.id, p.nombre)} title="Eliminar">
-                      <FiTrash2 size={14} />
-                    </button>
+        <div className="prov-detail-sections">
+
+          {/* Contacto */}
+          {(p.contacto || p.telefono || p.whatsapp || p.email || p.sitioWeb) && (
+            <div className="prov-detail-section">
+              <h4 className="prov-detail-section-title">Contacto</h4>
+              <div className="prov-detail-rows">
+                {p.contacto && (
+                  <div className="prov-detail-row">
+                    <FiUser size={13} />
+                    <span className="prov-detail-label">Representante</span>
+                    <span className="prov-detail-value">{p.contacto}</span>
                   </div>
-                </div>
-
-                {p.ruc && (
-                  <div className="prov-card-ruc">RUC: {p.ruc}</div>
                 )}
+                {p.telefono && (
+                  <div className="prov-detail-row">
+                    <FiPhone size={13} />
+                    <span className="prov-detail-label">Teléfono</span>
+                    <span className="prov-detail-value">{p.telefono}</span>
+                  </div>
+                )}
+                {p.whatsapp && (
+                  <div className="prov-detail-row">
+                    <FiPhone size={13} />
+                    <span className="prov-detail-label">WhatsApp</span>
+                    <span className="prov-detail-value">{p.whatsapp}</span>
+                  </div>
+                )}
+                {p.email && (
+                  <div className="prov-detail-row">
+                    <FiMail size={13} />
+                    <span className="prov-detail-label">Email</span>
+                    <span className="prov-detail-value">{p.email}</span>
+                  </div>
+                )}
+                {p.sitioWeb && (
+                  <div className="prov-detail-row">
+                    <FiGlobe size={13} />
+                    <span className="prov-detail-label">Sitio web</span>
+                    <a href={p.sitioWeb} target="_blank" rel="noreferrer">{p.sitioWeb}</a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-                <div className="prov-card-meta">
-                  {p.telefono && (
-                    <span className="prov-meta-item">
-                      <FiPhone size={11} /> {p.telefono}
-                    </span>
-                  )}
-                  {p.email && (
-                    <span className="prov-meta-item">
-                      <FiMail size={11} /> {p.email}
-                    </span>
-                  )}
-                  {p.direccion && (
-                    <span className="prov-meta-item">
-                      <FiMapPin size={11} /> {p.direccion}
-                    </span>
-                  )}
-                </div>
+          {/* Identificación */}
+          {(p.ruc || p.direccion) && (
+            <div className="prov-detail-section">
+              <h4 className="prov-detail-section-title">Identificación</h4>
+              <div className="prov-detail-rows">
+                {p.ruc && (
+                  <div className="prov-detail-row">
+                    <span className="prov-detail-label">RUC</span>
+                    <span className="prov-detail-value">{p.ruc}</span>
+                  </div>
+                )}
+                {p.direccion && (
+                  <div className="prov-detail-row">
+                    <FiMapPin size={13} />
+                    <span className="prov-detail-label">Dirección</span>
+                    <span className="prov-detail-value">{p.direccion}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-                <div className="prov-card-footer">
-                  <span className={`prov-badge prov-badge--${p.tipoPago}`}>
-                    <FiDollarSign size={10} />
-                    {TIPO_PAGO_LABELS[p.tipoPago] || p.tipoPago}
-                    {p.tipoPago === 'credito' && p.diasCredito ? ` · ${p.diasCredito} días` : ''}
+          {/* Condiciones financieras */}
+          {(p.limiteCredito || p.descuentoHabitual || p.banco || p.cuentaBancaria) && (
+            <div className="prov-detail-section">
+              <h4 className="prov-detail-section-title">Condiciones financieras</h4>
+              <div className="prov-detail-rows">
+                {p.limiteCredito && (
+                  <div className="prov-detail-row">
+                    <FiDollarSign size={13} />
+                    <span className="prov-detail-label">Límite</span>
+                    <span className="prov-detail-value">
+                      {p.moneda} {Number(p.limiteCredito).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {p.descuentoHabitual && (
+                  <div className="prov-detail-row">
+                    <span className="prov-detail-label">Descuento</span>
+                    <span className="prov-detail-value">{p.descuentoHabitual}%</span>
+                  </div>
+                )}
+                {p.banco && (
+                  <div className="prov-detail-row">
+                    <span className="prov-detail-label">Banco</span>
+                    <span className="prov-detail-value">{p.banco}</span>
+                  </div>
+                )}
+                {p.cuentaBancaria && (
+                  <div className="prov-detail-row">
+                    <span className="prov-detail-label">Cuenta</span>
+                    <span className="prov-detail-value">{p.cuentaBancaria}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Logística */}
+          {p.tiempoEntregaDias != null && p.tiempoEntregaDias !== '' && (
+            <div className="prov-detail-section">
+              <h4 className="prov-detail-section-title">Logística</h4>
+              <div className="prov-detail-rows">
+                <div className="prov-detail-row">
+                  <FiClock size={13} />
+                  <span className="prov-detail-label">Entrega</span>
+                  <span className="prov-detail-value">
+                    {p.tiempoEntregaDias} día{p.tiempoEntregaDias != 1 ? 's' : ''}
                   </span>
-                  {p.notas && (
-                    <span className="prov-card-notas" title={p.notas}>
-                      {p.notas}
-                    </span>
-                  )}
                 </div>
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Notas */}
+          {p.notas && (
+            <div className="prov-detail-section">
+              <h4 className="prov-detail-section-title">Notas</h4>
+              <p className="prov-detail-notas">{p.notas}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div className={`lote-page${selectedProveedor && view === 'hub' ? ' lote-page--selected' : ''}`}>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* ── Mobile carousel ── */}
+      {selectedProveedor && view === 'hub' && (
+        <div className="lote-carousel" ref={carouselRef}>
+          {proveedores.map(p => (
+            <button
+              key={p.id}
+              className={`lote-bubble${selectedProveedor?.id === p.id ? ' lote-bubble--active' : ''}`}
+              onClick={() =>
+                selectedProveedor?.id === p.id
+                  ? setSelectedProveedor(null)
+                  : handleSelectProveedor(p)
+              }
+            >
+              <span className="lote-bubble-avatar">{initials(p.nombre)}</span>
+              <span className="lote-bubble-label">{p.nombre}</span>
+            </button>
+          ))}
+          <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
+            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+            <span className="lote-bubble-label">Nuevo</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Page header ── */}
+      {view !== 'form' && (
+        <div className="lote-page-header">
+          <button className="btn btn-primary" onClick={handleNew}>
+            <FiPlus /> Nuevo Proveedor
+          </button>
+        </div>
+      )}
+
+      <div className="lote-management-layout">
+        {renderMainPanel()}
+
+        {view !== 'form' && (
+          <div className="lote-list-panel">
+            <h3 className="lote-list-title">Proveedores</h3>
+            {loading ? (
+              <p className="hub-loading">Cargando…</p>
+            ) : proveedores.length === 0 ? (
+              <div className="prov-list-empty">
+                <FiTruck size={26} />
+                <p>Sin proveedores aún.</p>
+                <button className="btn btn-primary btn-full" onClick={handleNew}>
+                  <FiPlus size={14} /> Crear el primero
+                </button>
+              </div>
+            ) : (
+              <ul className="lote-list">
+                {proveedores.map(p => (
+                  <li
+                    key={p.id}
+                    className={`lote-list-item${selectedProveedor?.id === p.id && view === 'hub' ? ' active' : ''}`}
+                    onClick={() =>
+                      selectedProveedor?.id === p.id && view === 'hub'
+                        ? setSelectedProveedor(null)
+                        : handleSelectProveedor(p)
+                    }
+                  >
+                    <div className="prov-list-info">
+                      <span className="prov-list-name">
+                        {p.nombre}
+                        {p.moneda && (
+                          <span className={`prov-moneda-tag prov-moneda-tag--${p.moneda}`}>
+                            {p.moneda}
+                          </span>
+                        )}
+                      </span>
+                      {p.categoria && (
+                        <span className="prov-list-sub">
+                          {CATEGORIA_LABELS[p.categoria] || p.categoria}
+                        </span>
+                      )}
+                      {p.estado === 'inactivo' && (
+                        <span className="prov-list-sub prov-list-inactivo">Inactivo</span>
+                      )}
+                    </div>
+                    <FiChevronRight size={14} className="lote-list-arrow" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

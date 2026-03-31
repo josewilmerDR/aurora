@@ -3983,7 +3983,9 @@ app.get('/api/proveedores', authenticate, async (req, res) => {
 
 app.post('/api/proveedores', authenticate, async (req, res) => {
   try {
-    const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas } = req.body;
+    const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas, moneda,
+            contacto, whatsapp, sitioWeb, paisOrigen, tiempoEntregaDias,
+            limiteCredito, banco, cuentaBancaria, descuentoHabitual, categoria, estado } = req.body;
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ message: 'El nombre del proveedor es obligatorio.' });
     }
@@ -3996,6 +3998,18 @@ app.post('/api/proveedores', authenticate, async (req, res) => {
       tipoPago: tipoPago || 'contado',
       diasCredito: tipoPago === 'credito' ? (parseInt(diasCredito) || 30) : null,
       notas: notas?.trim() || '',
+      moneda: moneda || 'USD',
+      contacto: contacto?.trim() || '',
+      whatsapp: whatsapp?.trim() || '',
+      sitioWeb: sitioWeb?.trim() || '',
+      paisOrigen: paisOrigen?.trim() || '',
+      tiempoEntregaDias: tiempoEntregaDias ? parseInt(tiempoEntregaDias) : null,
+      limiteCredito: limiteCredito ? parseFloat(limiteCredito) : null,
+      banco: banco?.trim() || '',
+      cuentaBancaria: cuentaBancaria?.trim() || '',
+      descuentoHabitual: descuentoHabitual ? parseFloat(descuentoHabitual) : null,
+      categoria: categoria?.trim() || '',
+      estado: estado || 'activo',
       fincaId: req.fincaId,
       creadoEn: FieldValue.serverTimestamp(),
     });
@@ -4007,7 +4021,9 @@ app.post('/api/proveedores', authenticate, async (req, res) => {
 
 app.put('/api/proveedores/:id', authenticate, async (req, res) => {
   try {
-    const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas } = req.body;
+    const { nombre, ruc, telefono, email, direccion, tipoPago, diasCredito, notas, moneda,
+            contacto, whatsapp, sitioWeb, paisOrigen, tiempoEntregaDias,
+            limiteCredito, banco, cuentaBancaria, descuentoHabitual, categoria, estado } = req.body;
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ message: 'El nombre del proveedor es obligatorio.' });
     }
@@ -4020,6 +4036,18 @@ app.put('/api/proveedores/:id', authenticate, async (req, res) => {
       tipoPago: tipoPago || 'contado',
       diasCredito: tipoPago === 'credito' ? (parseInt(diasCredito) || 30) : null,
       notas: notas?.trim() || '',
+      moneda: moneda || 'USD',
+      contacto: contacto?.trim() || '',
+      whatsapp: whatsapp?.trim() || '',
+      sitioWeb: sitioWeb?.trim() || '',
+      paisOrigen: paisOrigen?.trim() || '',
+      tiempoEntregaDias: tiempoEntregaDias ? parseInt(tiempoEntregaDias) : null,
+      limiteCredito: limiteCredito ? parseFloat(limiteCredito) : null,
+      banco: banco?.trim() || '',
+      cuentaBancaria: cuentaBancaria?.trim() || '',
+      descuentoHabitual: descuentoHabitual ? parseFloat(descuentoHabitual) : null,
+      categoria: categoria?.trim() || '',
+      estado: estado || 'activo',
     });
     res.json({ message: 'Proveedor actualizado.' });
   } catch (error) {
