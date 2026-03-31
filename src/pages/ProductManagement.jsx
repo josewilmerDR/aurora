@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import './ProductManagement.css';
-import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
@@ -467,6 +468,10 @@ function ProductManagement() {
                     <span className="pg-save-label">Ver cambios </span>({dirtyProducts.length})
                   </button>
                 )}
+                <Link to="/productos/movimientos" className="btn-toma-fisica btn-historial">
+                  <FiList size={15} />
+                  Historial
+                </Link>
                 <button className="btn-toma-fisica" onClick={() => setShowTomaFisica(true)}>
                   <FiClipboard size={16} />
                   Toma Física

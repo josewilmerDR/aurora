@@ -739,7 +739,8 @@ app.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
           cedulaConsecutivo: cedula.consecutivo,
           loteId: taskData.loteId || null,
           grupoId: taskData.grupoId || null,
-          loteNombre: sourceNombre,
+          loteNombre: taskData.loteId  ? sourceNombre : '',
+          grupoNombre: taskData.grupoId ? sourceNombre : '',
           fincaId: req.fincaId,
         });
       }
@@ -2546,17 +2547,23 @@ app.delete('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
 // --- API ENDPOINTS: MOVIMIENTOS ---
 app.get('/api/movimientos', authenticate, async (req, res) => {
   try {
-    const { productoId } = req.query;
+    const { productoId, fechaDesde, fechaHasta } = req.query;
     let query = db.collection('movimientos')
       .where('fincaId', '==', req.fincaId)
       .orderBy('fecha', 'desc')
-      .limit(100);
+      .limit(500);
     if (productoId) {
       query = db.collection('movimientos')
         .where('fincaId', '==', req.fincaId)
         .where('productoId', '==', productoId)
         .orderBy('fecha', 'desc')
-        .limit(100);
+        .limit(500);
+    }
+    if (fechaDesde) {
+      query = query.where('fecha', '>=', Timestamp.fromDate(new Date(fechaDesde + 'T00:00:00')));
+    }
+    if (fechaHasta) {
+      query = query.where('fecha', '<=', Timestamp.fromDate(new Date(fechaHasta + 'T23:59:59')));
     }
     const snapshot = await query.get();
     const movimientos = snapshot.docs.map(doc => ({
@@ -2744,9 +2751,14 @@ app.post('/api/recepciones', authenticate, async (req, res) => {
         batch.set(db.collection('movimientos').doc(), {
           tipo: 'ingreso',
           productoId: item.productoId,
+          idProducto: item.idProducto || '',
           nombreComercial: item.nombreComercial || '',
           cantidad: cantidadRecibida,
           unidad: item.unidad || '',
+          precioUnitario: parseFloat(item.precioUnitario) || 0,
+          proveedor: proveedor || '',
+          ocPoNumber: poNumber || '',
+          ordenCompraId: ordenCompraId || null,
           fecha: Timestamp.now(),
           motivo,
           recepcionId: recepcionRef.id,
