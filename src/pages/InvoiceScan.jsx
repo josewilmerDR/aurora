@@ -53,7 +53,7 @@ const emptyNuevoProducto = {
   precioUnitario: '',
 };
 
-function InvoiceScan() {
+function InvoiceScan({ onDone } = {}) {
   const apiFetch = useApiFetch();
   const [step, setStep] = useState('upload');
   const [imageData, setImageData] = useState(null);
@@ -208,6 +208,7 @@ function InvoiceScan() {
       if (!res.ok) throw new Error(data.message || 'Error al guardar');
       setSaveResult(data);
       setStep('done');
+      onDone?.();
     } catch (err) {
       setSaveError(err.message || 'Error al registrar la compra.');
     } finally {

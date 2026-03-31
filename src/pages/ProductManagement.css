@@ -186,6 +186,78 @@
   grid-column: 1 / -1;
 }
 
+/* ── Tabla de historial de ingresos ───────────────────────────────────── */
+.hist-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.hist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.hist-table thead tr {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.hist-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
+.hist-table td {
+  padding: 7px 12px;
+  color: var(--aurora-light);
+  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+  vertical-align: middle;
+}
+
+.hist-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.hist-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.hist-col-num {
+  text-align: right !important;
+}
+
+.hist-col-fecha {
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+.hist-col-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hist-col-total {
+  font-weight: 600;
+  color: var(--aurora-green);
+}
+
+.hist-empty {
+  opacity: 0.3;
+}
+
 .movimientos-list li {
   display: flex;
   align-items: center;
@@ -264,7 +336,6 @@
 /* ── Ingreso de productos: grilla editable ─────────────────────────────── */
 
 .ingreso-grid-card {
-  grid-column: 1 / -1;
 }
 
 .ingreso-grid-header {
@@ -314,6 +385,68 @@
 }
 
 .ingreso-proveedor-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.ingreso-factura-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ingreso-factura-wrap label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.ingreso-factura-input {
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  width: 150px;
+}
+
+.ingreso-factura-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.ingreso-fecha-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ingreso-fecha-wrap label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.ingreso-fecha-input {
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+.ingreso-fecha-input:focus {
   outline: none;
   border-color: var(--aurora-green);
 }
@@ -1407,7 +1540,8 @@ select.pg-input option {
   margin: 0;
 }
 
-.btn-toma-fisica {
+.btn-toma-fisica,
+.btn-solicitar-compra {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -2120,4 +2254,223 @@ select.pg-input option {
   border-radius: 10px;
   padding: 1px 8px;
   font-size: 0.75rem;
+}
+
+/* ── Ingreso: two-column top layout ────────────────────────────────────── */
+.ingreso-top-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 769px) {
+  .ingreso-top-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    align-items: start;
+    gap: 16px;
+  }
+}
+
+/* ── OC panel (right column) ────────────────────────────────────────────── */
+.ingreso-oc-panel {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ingreso-oc-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.ingreso-oc-count {
+  margin-left: auto;
+  background: rgba(230, 242, 255, 0.1);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  opacity: 1;
+}
+
+.ingreso-oc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.ingreso-oc-card {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+
+.ingreso-oc-card:hover {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.04);
+}
+
+.ingreso-oc-card--loaded {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+}
+
+.ingreso-oc-card--parcial {
+  border-color: rgba(255, 180, 50, 0.45);
+}
+
+.ingreso-oc-card--parcial:hover {
+  border-color: rgba(255, 180, 50, 0.8);
+  background: rgba(255, 180, 50, 0.04);
+}
+
+.ingreso-oc-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.ingreso-oc-badge-parcial {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #ffb432;
+  background: rgba(255, 180, 50, 0.15);
+  border: 1px solid rgba(255, 180, 50, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ingreso-oc-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.ingreso-oc-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.77rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}
+
+.ingreso-oc-meta span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ingreso-oc-fecha {
+  font-size: 0.75rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  margin-top: 2px;
+}
+
+.ingreso-oc-empty {
+  padding: 8px 4px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+.ingreso-oc-empty p {
+  margin: 0;
+}
+
+/* ── Título de página ───────────────────────────────────────────────────── */
+.ingreso-page-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  margin: 0 0 4px;
+}
+
+/* ── Botón Escanear factura ─────────────────────────────────────────────── */
+.ingreso-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--aurora-green);
+  border-radius: 8px;
+  color: var(--aurora-green);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ingreso-scan-btn:hover {
+  background: rgba(51, 255, 153, 0.08);
+}
+
+/* ── Modal overlay ──────────────────────────────────────────────────────── */
+.ingreso-scan-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+
+.ingreso-scan-modal {
+  position: relative;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 900px;
+  padding: 48px 24px 32px;
+}
+
+.ingreso-scan-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+}
+
+.ingreso-scan-modal-close:hover {
+  opacity: 1;
 }
