@@ -1649,7 +1649,7 @@ app.post('/api/inventario/ajuste', authenticate, async (req, res) => {
 // --- API ENDPOINTS: INGRESO CONFIRMADO (ProductIngreso → recepción atómica) ---
 app.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
   try {
-    const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, ocEstado, ocUpdatedItems } = req.body;
+    const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, ocEstado, ocUpdatedItems, imageBase64, mediaType } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
     }
@@ -1687,8 +1687,34 @@ app.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Todos los ítems tienen cantidad cero.' });
     }
 
-    // ── Construir batch ──────────────────────────────────────────────────────
+    // ── Pre-generar ID de recepción para el nombre del archivo ───────────────
     const recepcionRef = db.collection('recepciones').doc();
+
+    // ── Subir imagen de factura a Firebase Storage (si se proveyó) ───────────
+    let facturaImageUrl = null;
+    if (imageBase64) {
+      try {
+        const { randomUUID } = require('crypto');
+        const bucket = admin.storage().bucket();
+        const ext = (mediaType || '').includes('png') ? 'png' : 'jpg';
+        const fileName = `recepciones/${recepcionRef.id}_factura.${ext}`;
+        const file = bucket.file(fileName);
+        const token = randomUUID();
+        await file.save(Buffer.from(imageBase64, 'base64'), {
+          contentType: mediaType || 'image/jpeg',
+          metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+        });
+        const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+        const encodedPath = encodeURIComponent(fileName);
+        facturaImageUrl = isEmulator
+          ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
+          : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+      } catch (storageErr) {
+        console.error('Storage upload failed (factura ingreso):', storageErr.message);
+      }
+    }
+
+    // ── Construir batch ──────────────────────────────────────────────────────
     const batch = db.batch();
     const recepcionItems = [];
     let creados = 0, mergeados = 0;
@@ -1739,9 +1765,10 @@ app.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
         motivo: proveedor ? `Ingreso: ${proveedor}` : 'Ingreso de inventario',
         recepcionId: recepcionRef.id,
         fincaId: req.fincaId,
-        ...(facturaNumero ? { facturaNumero } : {}),
-        ...(ordenCompraId ? { ordenCompraId } : {}),
-        ...(ocPoNumber    ? { ocPoNumber }    : {}),
+        ...(facturaNumero    ? { facturaNumero }    : {}),
+        ...(ordenCompraId   ? { ordenCompraId }   : {}),
+        ...(ocPoNumber      ? { ocPoNumber }      : {}),
+        ...(facturaImageUrl ? { facturaImageUrl } : {}),
       });
 
       recepcionItems.push({
@@ -1763,6 +1790,7 @@ app.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       facturaNumero: facturaNumero || '',
       fechaRecepcion: fechaTs,
       items: recepcionItems,
+      imageUrl: facturaImageUrl || null,
       createdAt: Timestamp.now(),
     });
 
