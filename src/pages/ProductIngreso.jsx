@@ -461,68 +461,61 @@ function ProductIngreso() {
       return;
     }
     setSaving(true);
-    let creados = 0, mergeados = 0, errores = 0;
-    for (const fila of validas) {
-      const { _key, cantidad, total, ...rest } = fila;
-      const payload = {
-        ...rest,           // incluye iva → se persiste en el producto
-        proveedor,
-        stockActual:     parseFloat(cantidad) || 0,
-        precioUnitario:  calcPrecioUnit(fila),
-        tipo:             '',
-        stockMinimo:      0,
-        moneda:           'USD',
-        tipoCambio:       1,
-        plagaQueControla: '',
-        periodoReingreso: 0,
-        periodoACosecha:  0,
-        fechaIngreso:     fecha,
-        facturaNumero:    factura,
-        registrarIngreso: true,
-        ordenCompraId:    loadedOrdenId   || null,
-        ocPoNumber:       loadedOrden?.poNumber || '',
-      };
-      try {
-        const res = await apiFetch('/api/productos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          const d = await res.json();
-          d.merged ? mergeados++ : creados++;
-        } else { errores++; }
-      } catch { errores++; }
-    }
-    setSaving(false);
-    fetchMovimientos();
 
-    // Actualizar estado e ítems recibidos de la OC cargada
-    if (loadedOrden && errores === 0) {
-      const validas2 = filas.filter(f => f.idProducto.trim() && f.nombreComercial.trim());
-      const result = getReceptionStatus(loadedOrden, validas2);
-      if (result) {
-        apiFetch(`/api/ordenes-compra/${loadedOrden.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: result.estado, items: result.updatedItems }),
-        })
-          .then(() => apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes))
-          .catch(console.error);
-      }
+    // Calcular estado de OC (si hay una cargada) antes de enviar
+    let ocEstado = null;
+    let ocUpdatedItems = null;
+    if (loadedOrden) {
+      const result = getReceptionStatus(loadedOrden, validas);
+      if (result) { ocEstado = result.estado; ocUpdatedItems = result.updatedItems; }
     }
 
-    setFilas([newRow()]);
-    setFactura('');
-    setProveedor('');
-    setLoadedOrdenId(null);
-    setLoadedOrden(null);
-    const msg = [
-      creados   > 0 && `${creados} creado(s)`,
-      mergeados > 0 && `${mergeados} stock actualizado`,
-      errores   > 0 && `${errores} error(es)`,
-    ].filter(Boolean).join(' · ');
-    showToast(msg, errores > 0 ? 'warning' : 'success');
+    try {
+      const res = await apiFetch('/api/ingreso/confirmar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: validas.map(f => ({
+            idProducto:      f.idProducto.trim(),
+            nombreComercial: f.nombreComercial,
+            unidad:          f.unidad,
+            cantidad:        parseFloat(f.cantidad) || 0,
+            cantidadOC:      parseFloat(f.cantidadOC) || 0,
+            precioUnitario:  calcPrecioUnit(f),
+            iva:             f.iva ?? 0,
+          })),
+          proveedor,
+          fecha,
+          facturaNumero: factura,
+          ordenCompraId: loadedOrdenId  || null,
+          ocPoNumber:    loadedOrden?.poNumber || '',
+          ocEstado,
+          ocUpdatedItems,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error');
+
+      fetchMovimientos();
+      if (loadedOrden) apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
+
+      setFilas([newRow()]);
+      setFactura('');
+      setProveedor('');
+      setLoadedOrdenId(null);
+      setLoadedOrden(null);
+
+      const msg = [
+        data.creados   > 0 && `${data.creados} creado(s)`,
+        data.mergeados > 0 && `${data.mergeados} stock actualizado`,
+      ].filter(Boolean).join(' · ');
+      showToast(msg || 'Ingreso registrado.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Error al registrar el ingreso.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -530,7 +523,7 @@ function ProductIngreso() {
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <h2 className="ingreso-page-title">Ingreso de Productos</h2>
+      <h2 className="ingreso-page-title">Recepción de Mercancía</h2>
 
       <div className="ingreso-top-layout">
 

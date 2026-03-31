@@ -89,7 +89,7 @@ const routeTitles = {
   '/tasks': 'Seguimiento de Actividades',
   '/productos': 'Inventario Agroquímicos',
   '/productos/todos': 'Inventario Completo',
-  '/ingreso-productos': 'Ingreso de Productos',
+  '/ingreso-productos': 'Recepción de Mercancía',
   '/recepciones': 'Recepción de Mercancía',
   '/productos/movimientos': 'Historial de Movimientos',
   '/ordenes-compra': 'Órdenes de Compra',

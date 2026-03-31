@@ -46,8 +46,7 @@ export const MODULES = [
     icon: FiBox,
     items: [
       { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
-      { label: 'Ingreso de Productos', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
-      { label: 'Recepción de Mercancía', to: '/recepciones', icon: FiPackage, minRole: 'encargado' },
+      { label: 'Recepción de Mercancía', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
       { label: 'Historial de Movimientos', to: '/productos/movimientos', icon: FiList, minRole: 'encargado' },
     ],
   },

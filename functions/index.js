@@ -1646,6 +1646,140 @@ app.post('/api/inventario/ajuste', authenticate, async (req, res) => {
   }
 });
 
+// --- API ENDPOINTS: INGRESO CONFIRMADO (ProductIngreso → recepción atómica) ---
+app.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
+  try {
+    const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, ocEstado, ocUpdatedItems } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
+    }
+    const validos = items.filter(i => (i.idProducto || '').trim() || (i.nombreComercial || '').trim());
+    if (validos.length === 0) {
+      return res.status(400).json({ message: 'Ningún ítem tiene datos suficientes.' });
+    }
+
+    const fechaTs = fecha
+      ? Timestamp.fromDate(new Date(fecha + 'T12:00:00'))
+      : Timestamp.now();
+
+    // ── Pre-resolver productos (async antes del batch) ───────────────────────
+    const resolved = [];
+    for (const item of validos) {
+      const stockIngresado = parseFloat(item.cantidad) || 0;
+      if (stockIngresado <= 0) continue;
+
+      let existingDoc = null;
+      if (item.productoId) {
+        const snap = await db.collection('productos').doc(item.productoId).get();
+        if (snap.exists && snap.data().fincaId === req.fincaId) existingDoc = snap;
+      }
+      if (!existingDoc && (item.idProducto || '').trim()) {
+        const snap = await db.collection('productos')
+          .where('fincaId', '==', req.fincaId)
+          .where('idProducto', '==', item.idProducto.trim())
+          .limit(1).get();
+        if (!snap.empty) existingDoc = snap.docs[0];
+      }
+      resolved.push({ item, stockIngresado, existingDoc });
+    }
+
+    if (resolved.length === 0) {
+      return res.status(400).json({ message: 'Todos los ítems tienen cantidad cero.' });
+    }
+
+    // ── Construir batch ──────────────────────────────────────────────────────
+    const recepcionRef = db.collection('recepciones').doc();
+    const batch = db.batch();
+    const recepcionItems = [];
+    let creados = 0, mergeados = 0;
+
+    for (const { item, stockIngresado, existingDoc } of resolved) {
+      let productoId;
+      if (existingDoc) {
+        productoId = existingDoc.id;
+        batch.update(existingDoc.ref, { stockActual: FieldValue.increment(stockIngresado) });
+        mergeados++;
+      } else {
+        const newRef = db.collection('productos').doc();
+        productoId = newRef.id;
+        batch.set(newRef, {
+          idProducto: (item.idProducto || '').trim(),
+          nombreComercial: item.nombreComercial || '',
+          ingredienteActivo: item.ingredienteActivo || '',
+          tipo: item.tipo || '',
+          unidad: item.unidad || '',
+          precioUnitario: parseFloat(item.precioUnitario) || 0,
+          iva: parseFloat(item.iva) || 0,
+          proveedor: proveedor || '',
+          stockActual: stockIngresado,
+          stockMinimo: 0,
+          cantidadPorHa: 0,
+          moneda: 'USD',
+          tipoCambio: 1,
+          plagaQueControla: '',
+          periodoReingreso: 0,
+          periodoACosecha: 0,
+          activo: true,
+          fincaId: req.fincaId,
+        });
+        creados++;
+      }
+
+      batch.set(db.collection('movimientos').doc(), {
+        tipo: 'ingreso',
+        productoId,
+        idProducto: (item.idProducto || '').trim(),
+        nombreComercial: item.nombreComercial || '',
+        cantidad: stockIngresado,
+        unidad: item.unidad || '',
+        precioUnitario: parseFloat(item.precioUnitario) || 0,
+        iva: parseFloat(item.iva) || 0,
+        proveedor: proveedor || '',
+        fecha: fechaTs,
+        motivo: proveedor ? `Ingreso: ${proveedor}` : 'Ingreso de inventario',
+        recepcionId: recepcionRef.id,
+        fincaId: req.fincaId,
+        ...(facturaNumero ? { facturaNumero } : {}),
+        ...(ordenCompraId ? { ordenCompraId } : {}),
+        ...(ocPoNumber    ? { ocPoNumber }    : {}),
+      });
+
+      recepcionItems.push({
+        productoId,
+        idProducto: (item.idProducto || '').trim(),
+        nombreComercial: item.nombreComercial || '',
+        cantidadOC: parseFloat(item.cantidadOC) || stockIngresado,
+        cantidadRecibida: stockIngresado,
+        unidad: item.unidad || '',
+        precioUnitario: parseFloat(item.precioUnitario) || 0,
+      });
+    }
+
+    batch.set(recepcionRef, {
+      fincaId: req.fincaId,
+      ordenCompraId: ordenCompraId || null,
+      poNumber: ocPoNumber || '',
+      proveedor: proveedor || '',
+      facturaNumero: facturaNumero || '',
+      fechaRecepcion: fechaTs,
+      items: recepcionItems,
+      createdAt: Timestamp.now(),
+    });
+
+    if (ordenCompraId && ocEstado) {
+      const ocUpdate = { estado: ocEstado };
+      if (Array.isArray(ocUpdatedItems)) ocUpdate.items = ocUpdatedItems;
+      batch.update(db.collection('ordenes_compra').doc(ordenCompraId), ocUpdate);
+    }
+
+    await batch.commit();
+    res.status(201).json({ recepcionId: recepcionRef.id, creados, mergeados });
+  } catch (error) {
+    console.error('Error en ingreso/confirmar:', error);
+    res.status(500).json({ message: 'Error al registrar el ingreso.' });
+  }
+});
+
 // --- API ENDPOINTS: PACKAGES (PLANTILLAS) ---
 app.get('/api/packages', authenticate, async (req, res) => {
   try {
