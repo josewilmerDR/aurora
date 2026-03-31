@@ -44,6 +44,31 @@ const CATEGORIA_LABELS = {
   otros: 'Otros',
 };
 
+// ── Draft persistence ─────────────────────────────────────────────────────────
+const DRAFT_LS = 'aurora_draft_proveedor-nuevo';
+const DRAFT_SS = 'aurora_draftActive_proveedor-nuevo';
+
+function loadDraft() { try { return JSON.parse(localStorage.getItem(DRAFT_LS)); } catch { return null; } }
+function saveDraft(data) {
+  try {
+    localStorage.setItem(DRAFT_LS, JSON.stringify(data));
+    sessionStorage.setItem(DRAFT_SS, '1');
+    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+  } catch {}
+}
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_LS);
+    sessionStorage.removeItem(DRAFT_SS);
+    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+  } catch {}
+}
+const DRAFT_TEXT_FIELDS = ['nombre', 'ruc', 'telefono', 'email', 'direccion',
+  'contacto', 'whatsapp', 'sitioWeb', 'paisOrigen', 'banco', 'cuentaBancaria', 'notas'];
+function isDraftMeaningful(d) {
+  return !!d && DRAFT_TEXT_FIELDS.some(k => d[k]?.trim());
+}
+
 const initials = (name) =>
   name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
 
@@ -61,6 +86,16 @@ function ProveedoresList() {
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
+  // Restaura borrador al montar (sobrevive navegación y cierre de pestaña)
+  useEffect(() => {
+    const draft = loadDraft();
+    if (!isDraftMeaningful(draft)) return;
+    setForm({ ...EMPTY_FORM, ...draft, id: null });
+    setView('form');
+    setIsEditing(false);
+    try { sessionStorage.setItem(DRAFT_SS, '1'); window.dispatchEvent(new CustomEvent('aurora-draft-change')); } catch {}
+  }, []);
+
   useEffect(() => {
     if (!selectedProveedor || !carouselRef.current) return;
     const active = carouselRef.current.querySelector('.lote-bubble--active');
@@ -76,12 +111,19 @@ function ProveedoresList() {
 
   useEffect(() => { fetchProveedores(); }, []);
 
+  // Guarda borrador en cada cambio del formulario nuevo
+  useEffect(() => {
+    if (isEditing || view !== 'form') return;
+    isDraftMeaningful(form) ? saveDraft(form) : clearDraft();
+  }, [form, isEditing, view]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const resetForm = () => {
+    if (!isEditing) clearDraft();
     setForm(EMPTY_FORM);
     setIsEditing(false);
     setView('hub');
