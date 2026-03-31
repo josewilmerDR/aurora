@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiPrinter, FiArrowLeft, FiSearch, FiX } from 'react-icons/fi';
 import './PurchaseOrder.css';
@@ -18,6 +19,97 @@ const formatDateLong = (dateStr) => {
   });
 };
 
+function ProveedorCombobox({ value, onChange, proveedores }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+
+  const filtered = proveedores.filter(p =>
+    !value || p.nombre.toLowerCase().includes(value.toLowerCase())
+  );
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setHi(0);
+  };
+
+  const selectOption = (p) => {
+    onChange(p.nombre);
+    setOpen(false);
+    setHi(0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        className="ingreso-proveedor-input"
+        value={value}
+        autoComplete="off"
+        onChange={e => { onChange(e.target.value); openDropdown(); }}
+        onFocus={openDropdown}
+        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
+        onKeyDown={handleKeyDown}
+        placeholder="Nombre del proveedor"
+      />
+      {open && filtered.length > 0 && createPortal(
+        <ul
+          ref={listRef}
+          className="proveedor-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          {filtered.map((p, i) => (
+            <li
+              key={p.id}
+              className={`proveedor-dropdown-item${i === hi ? ' proveedor-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(p)}
+              onMouseEnter={() => setHi(i)}
+            >
+              {p.nombre}
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </>
+  );
+}
+
 const PurchaseOrder = () => {
   const apiFetch = useApiFetch();
   const { taskId } = useParams();
@@ -26,6 +118,7 @@ const PurchaseOrder = () => {
 
   const [loading, setLoading] = useState(true);
   const [catalogo, setCatalogo] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
   const [solicitudId, setSolicitudId] = useState(null);
   const [savedOcId, setSavedOcId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -50,13 +143,15 @@ const PurchaseOrder = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [taskRes, prodRes] = await Promise.all([
+        const [taskRes, prodRes, provRes] = await Promise.all([
           apiFetch(`/api/tasks/${taskId}`),
           apiFetch('/api/productos'),
+          apiFetch('/api/proveedores'),
         ]);
         const task = await taskRes.json();
         const prods = await prodRes.json();
         setCatalogo(prods);
+        setProveedores(await provRes.json());
 
         const taskItems = task.activity?.productos || [];
         setItems(taskItems.map(p => {
@@ -202,10 +297,10 @@ const PurchaseOrder = () => {
             <h3>Encabezado</h3>
             <div className="po-field">
               <label>Proveedor</label>
-              <input
+              <ProveedorCombobox
                 value={proveedor}
-                onChange={e => setProveedor(e.target.value)}
-                placeholder="Nombre del proveedor"
+                onChange={setProveedor}
+                proveedores={proveedores}
               />
             </div>
             <div className="po-field">
