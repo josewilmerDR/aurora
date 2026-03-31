@@ -1,34 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];
 
-function EditProductoModal({ producto, onClose, onSaved }) {
+function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
   const apiFetch = useApiFetch();
-  const [form, setForm] = useState({
-    idProducto:        producto.idProducto        ?? '',
-    nombreComercial:   producto.nombreComercial    ?? '',
-    ingredienteActivo: producto.ingredienteActivo  ?? '',
-    tipo:              producto.tipo               ?? '',
-    plagaQueControla:  producto.plagaQueControla   ?? '',
-    periodoReingreso:  producto.periodoReingreso   ?? '',
-    periodoACosecha:   producto.periodoACosecha    ?? '',
-    cantidadPorHa:     producto.cantidadPorHa      ?? '',
-    unidad:            producto.unidad             ?? '',
-    stockMinimo:       producto.stockMinimo        ?? '',
-    precioUnitario:    producto.precioUnitario      ?? '',
-    moneda:                producto.moneda                ?? 'USD',
-    tipoCambio:            producto.tipoCambio            ?? 1,
-    iva:                   producto.iva                   ?? 0,
-    proveedor:             producto.proveedor             ?? '',
-    registroFitosanitario: producto.registroFitosanitario ?? '',
-    observacion:           producto.observacion           ?? '',
-  });
+  const initialForm = {
+    idProducto:            producto.idProducto            ?? '',
+    nombreComercial:       producto.nombreComercial        ?? '',
+    ingredienteActivo:     producto.ingredienteActivo      ?? '',
+    tipo:                  producto.tipo                   ?? '',
+    plagaQueControla:      producto.plagaQueControla       ?? '',
+    periodoReingreso:      producto.periodoReingreso       ?? '',
+    periodoACosecha:       producto.periodoACosecha        ?? '',
+    cantidadPorHa:         producto.cantidadPorHa          ?? '',
+    unidad:                producto.unidad                 ?? '',
+    stockActual:           producto.stockActual            ?? '',
+    stockMinimo:           producto.stockMinimo            ?? '',
+    precioUnitario:        producto.precioUnitario         ?? '',
+    moneda:                producto.moneda                 ?? 'USD',
+    tipoCambio:            producto.tipoCambio             ?? 1,
+    iva:                   producto.iva                    ?? 0,
+    proveedor:             producto.proveedor              ?? '',
+    registroFitosanitario: producto.registroFitosanitario  ?? '',
+    observacion:           producto.observacion            ?? '',
+  };
+
+  // Siempre se llaman ambos hooks (regla de hooks); se usa el apropiado según isNew.
+  // El borrador del formulario nuevo persiste en localStorage hasta crear o limpiar.
+  const [draftForm, setDraftForm, clearFormDraft] = useDraft('nuevo-producto', initialForm, { storage: 'local' });
+  const [editFormState, setEditFormState] = useState(initialForm);
+
+  const form    = isNew ? draftForm    : editFormState;
+  const setForm = isNew ? setDraftForm : setEditFormState;
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // Marca el badge de draft en la sidebar mientras haya contenido en el formulario nuevo
+  useEffect(() => {
+    if (!isNew) return;
+    const hasContent = Object.values(form).some(v => v !== '' && v !== 0 && v !== 1 && v !== 'USD');
+    if (hasContent) markDraftActive('nuevo-producto');
+  }, [form, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const numericPayload = () => ({
+    ...form,
+    periodoReingreso: form.periodoReingreso !== '' ? Number(form.periodoReingreso) : 0,
+    periodoACosecha:  form.periodoACosecha  !== '' ? Number(form.periodoACosecha)  : 0,
+    cantidadPorHa:    form.cantidadPorHa    !== '' ? Number(form.cantidadPorHa)    : 0,
+    stockActual:      form.stockActual      !== '' ? Number(form.stockActual)      : 0,
+    stockMinimo:      form.stockMinimo      !== '' ? Number(form.stockMinimo)      : 0,
+    precioUnitario:   form.precioUnitario   !== '' ? Number(form.precioUnitario)   : 0,
+    tipoCambio:       form.tipoCambio       !== '' ? Number(form.tipoCambio)       : 1,
+    iva:              form.iva              !== '' ? Number(form.iva)              : 0,
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,23 +69,17 @@ function EditProductoModal({ producto, onClose, onSaved }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await apiFetch(`/api/productos/${producto.id}`, {
-        method: 'PUT',
+      const url    = isNew ? '/api/productos' : `/api/productos/${producto.id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const res = await apiFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          periodoReingreso: form.periodoReingreso !== '' ? Number(form.periodoReingreso) : 0,
-          periodoACosecha:  form.periodoACosecha  !== '' ? Number(form.periodoACosecha)  : 0,
-          cantidadPorHa:    form.cantidadPorHa    !== '' ? Number(form.cantidadPorHa)    : 0,
-          stockMinimo:      form.stockMinimo      !== '' ? Number(form.stockMinimo)      : 0,
-          precioUnitario:   form.precioUnitario   !== '' ? Number(form.precioUnitario)   : 0,
-          tipoCambio:       form.tipoCambio       !== '' ? Number(form.tipoCambio)       : 1,
-          iva:              form.iva              !== '' ? Number(form.iva)              : 0,
-        }),
+        body: JSON.stringify(numericPayload()),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al guardar');
-      onSaved();
+      if (isNew) { clearFormDraft(); clearDraftActive('nuevo-producto'); }
+      onSaved(data);
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -66,7 +90,7 @@ function EditProductoModal({ producto, onClose, onSaved }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content edit-producto-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Editar producto</h2>
+          <h2>{isNew ? 'Nuevo Producto' : 'Editar producto'}</h2>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
@@ -135,6 +159,12 @@ function EditProductoModal({ producto, onClose, onSaved }) {
           {/* Inventario y costo */}
           <div className="ep-section-title">Inventario y costo</div>
           <div className="ep-grid">
+            {isNew && (
+              <div className="ep-field">
+                <label>Stock inicial</label>
+                <input type="number" min="0" step="0.01" value={form.stockActual} onChange={e => set('stockActual', e.target.value)} placeholder="0" />
+              </div>
+            )}
             <div className="ep-field">
               <label>Stock mínimo</label>
               <input type="number" min="0" step="0.01" value={form.stockMinimo} onChange={e => set('stockMinimo', e.target.value)} placeholder="0" />
@@ -162,11 +192,16 @@ function EditProductoModal({ producto, onClose, onSaved }) {
           {error && <p className="toma-error">{error}</p>}
 
           <div className="toma-fisica-footer">
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => { if (isNew) { clearFormDraft(); clearDraftActive('nuevo-producto'); } onClose(); }}
+              disabled={saving}
+            >
               Cancelar
             </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar cambios'}
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Guardando…' : isNew ? 'Crear producto' : 'Guardar cambios'}
             </button>
           </div>
         </form>
