@@ -89,7 +89,7 @@ export const MODULES = [
     icon: FiDollarSign,
     items: [
       { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
-      { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado' },
+      { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
     ],
   },
   {
