@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import './ProductManagement.css';
-import { FiPlus, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
@@ -452,9 +452,6 @@ function ProductIngreso() {
                 proveedores={proveedores}
               />
             </div>
-            <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
-              <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar todo'}
-            </button>
           </div>
         </div>
 
@@ -553,11 +550,21 @@ function ProductIngreso() {
             </tbody>
           </table>
         </div>
+        <div className="ingreso-add-row-bar">
+          <button type="button" className="ingreso-add-row-btn" onClick={addFila}>
+            <FiPlus size={13} /> Agregar fila
+          </button>
+        </div>
 
         <div className="ingreso-grid-footer">
-          <button type="button" className="btn btn-secondary" onClick={addFila}>
-            <FiPlus size={14} /> Agregar fila
-          </button>
+          <div className="ingreso-footer-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setProveedor(''); }} disabled={saving}>
+              <FiX size={15} /> Cancelar
+            </button>
+            <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
+              <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
           {totalGeneral > 0 && (
             <div className="ingreso-totales">
               {ivaTotal > 0 && (
