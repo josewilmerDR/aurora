@@ -87,6 +87,7 @@ const GoodsReceipt = () => {
       cantidadOC: parseFloat(i.cantidad) || 0,
       cantidadRecibida: String(parseFloat(i.cantidad) || ''),
       unidad: i.unidad,
+      precioUnitario: parseFloat(i.precioUnitario) || 0,
     })));
     setNotas('');
     setImage(null);
@@ -141,6 +142,7 @@ const GoodsReceipt = () => {
             cantidadOC: i.cantidadOC,
             cantidadRecibida: parseFloat(i.cantidadRecibida) || 0,
             unidad: i.unidad,
+            precioUnitario: i.precioUnitario || 0,
           })),
           notas,
           imageBase64: image?.base64 || null,
