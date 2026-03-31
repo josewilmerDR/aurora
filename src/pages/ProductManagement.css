@@ -2475,6 +2475,106 @@ select.pg-input option {
   opacity: 1;
 }
 
+/* ── Adjuntar imagen de factura ─────────────────────────────────────────── */
+.ingreso-header-left-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ingreso-attach-label {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ingreso-attach-label--active {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.ingreso-image-preview-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+}
+
+.ingreso-image-thumb {
+  height: 36px;
+  width: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--aurora-green);
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.ingreso-image-thumb:hover {
+  opacity: 1;
+}
+
+.ingreso-image-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--aurora-magenta);
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  padding: 0;
+  line-height: 1;
+}
+
+/* ── Icono factura en historial ─────────────────────────────────────────── */
+.hist-col-img {
+  width: 32px;
+  text-align: center;
+}
+
+.hist-factura-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aurora-green);
+  opacity: 0.65;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.hist-factura-btn:hover {
+  opacity: 1;
+  background: rgba(51, 255, 153, 0.1);
+}
+
+/* ── Lightbox imagen factura ────────────────────────────────────────────── */
+.factura-lightbox-inner {
+  position: relative;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: min(90vw, 820px);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.factura-lightbox-img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(90vh - 60px);
+  border-radius: 6px;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    Historial de Movimientos de Bodega  (MovimientosHistorial.jsx)
    ═══════════════════════════════════════════════════════════════ */

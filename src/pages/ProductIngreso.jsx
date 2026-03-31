@@ -2,10 +2,38 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import './ProductManagement.css';
-import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera } from 'react-icons/fi';
 import InvoiceScan from './InvoiceScan';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
+
+const MAX_IMAGE_PX = 1600;
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_IMAGE_PX || height > MAX_IMAGE_PX) {
+          const ratio = Math.min(MAX_IMAGE_PX / width, MAX_IMAGE_PX / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 let _uid = 0;
 const newRow = () => ({
@@ -339,8 +367,46 @@ function ProductIngreso() {
   const [loadedOrdenId, setLoadedOrdenId] = useState(null);
   const [loadedOrden, setLoadedOrden] = useState(null);
   const [showScan, setShowScan] = useState(false);
+  const [invoiceImage, setInvoiceImage] = useState(null); // { base64, mediaType, previewUrl }
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const imageFileInputRef = useRef(null);
   // Listas de opciones compartidas (persisten durante la sesión)
   const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
+
+  const handleProductsScanned = (lineas, catalogoEscaneado, imgData) => {
+    const newFilas = lineas
+      .map(linea => {
+        const cat = catalogo.find(p => p.id === linea.productoId)
+                 || catalogoEscaneado.find(p => p.id === linea.productoId);
+        return {
+          _key: ++_uid,
+          idProducto:      cat?.idProducto      || linea.idProducto      || '',
+          nombreComercial: cat?.nombreComercial  || linea.nombreComercial || linea.nombreFactura || '',
+          unidad:          cat?.unidad           || linea.unidad          || linea.unidadFactura || 'L',
+          cantidad:        String(linea.cantidadIngresada || linea.cantidadFactura || ''),
+          total:           '',
+          iva:             cat?.iva != null ? cat.iva : 0,
+        };
+      })
+      .filter(f => f.nombreComercial.trim());
+
+    if (newFilas.length === 0) {
+      showToast('No se encontraron productos en la factura.', 'error');
+    } else {
+      setFilas(newFilas);
+      showToast(`${newFilas.length} producto(s) cargado(s) desde la factura. Revisa y guarda.`, 'success');
+    }
+    if (imgData) setInvoiceImage(imgData);
+    setShowScan(false);
+  };
+
+  const handleImageFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try { setInvoiceImage(await compressImage(file)); }
+    catch { showToast('No se pudo procesar la imagen.', 'error'); }
+    e.target.value = '';
+  };
 
   const addIva = (val) => {
     const num = parseFloat(val);
@@ -491,6 +557,8 @@ function ProductIngreso() {
           ocPoNumber:    loadedOrden?.poNumber || '',
           ocEstado,
           ocUpdatedItems,
+          imageBase64:   invoiceImage?.base64    || null,
+          mediaType:     invoiceImage?.mediaType || null,
         }),
       });
 
@@ -505,6 +573,7 @@ function ProductIngreso() {
       setProveedor('');
       setLoadedOrdenId(null);
       setLoadedOrden(null);
+      setInvoiceImage(null);
 
       const msg = [
         data.creados   > 0 && `${data.creados} creado(s)`,
@@ -531,13 +600,49 @@ function ProductIngreso() {
 
         {/* Cabecera */}
         <div className="ingreso-grid-header">
-          <button
-            type="button"
-            className="ingreso-scan-btn"
-            onClick={() => setShowScan(true)}
-          >
-            <FiZap size={14} /> Escanear factura
-          </button>
+          <div className="ingreso-header-left-actions">
+            <button
+              type="button"
+              className="ingreso-scan-btn"
+              onClick={() => setShowScan(true)}
+            >
+              <FiZap size={14} /> Escanear factura
+            </button>
+            <label
+              className={`ingreso-scan-btn ingreso-attach-label${invoiceImage ? ' ingreso-attach-label--active' : ''}`}
+              htmlFor="invoiceImageInput"
+              title="Adjuntar foto de la factura"
+            >
+              <FiCamera size={14} /> {invoiceImage ? 'Cambiar imagen' : 'Adjuntar imagen'}
+            </label>
+            <input
+              id="invoiceImageInput"
+              ref={imageFileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleImageFileSelect}
+            />
+            {invoiceImage && (
+              <div className="ingreso-image-preview-wrap">
+                <img
+                  src={invoiceImage.previewUrl}
+                  alt="Factura adjunta"
+                  className="ingreso-image-thumb"
+                  onClick={() => setLightboxSrc(invoiceImage.previewUrl)}
+                  title="Ver imagen adjunta"
+                />
+                <button
+                  type="button"
+                  className="ingreso-image-remove"
+                  onClick={() => setInvoiceImage(null)}
+                  title="Quitar imagen"
+                >
+                  <FiX size={11} />
+                </button>
+              </div>
+            )}
+          </div>
           <div className="ingreso-header-right">
             <div className="ingreso-factura-wrap">
               <label htmlFor="facturaIngreso">Factura</label>
@@ -674,7 +779,7 @@ function ProductIngreso() {
 
         <div className="ingreso-grid-footer">
           <div className="ingreso-footer-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); }} disabled={saving}>
+            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); }} disabled={saving}>
               <FiX size={15} /> Cancelar
             </button>
             <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
@@ -781,6 +886,7 @@ function ProductIngreso() {
                     <th className="hist-col-num">Precio Unit.</th>
                     <th className="hist-col-num">IVA</th>
                     <th className="hist-col-num">Total</th>
+                    <th className="hist-col-img"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -814,6 +920,18 @@ function ProductIngreso() {
                             ? total.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                             : <span className="hist-empty">—</span>}
                         </td>
+                        <td className="hist-col-img">
+                          {m.facturaImageUrl && (
+                            <button
+                              type="button"
+                              className="hist-factura-btn"
+                              onClick={() => setLightboxSrc(m.facturaImageUrl)}
+                              title="Ver imagen de factura"
+                            >
+                              <FiCamera size={14} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -838,7 +956,27 @@ function ProductIngreso() {
           >
             <FiX size={18} />
           </button>
-          <InvoiceScan onDone={() => { fetchMovimientos(); }} />
+          <InvoiceScan
+            onDone={() => { fetchMovimientos(); }}
+            onProductsScanned={handleProductsScanned}
+          />
+        </div>
+      </div>
+    )}
+
+    {/* Lightbox: imagen de factura */}
+    {lightboxSrc && (
+      <div className="ingreso-scan-overlay" onClick={e => { if (e.target === e.currentTarget) setLightboxSrc(null); }}>
+        <div className="factura-lightbox-inner">
+          <button
+            type="button"
+            className="ingreso-scan-modal-close"
+            onClick={() => setLightboxSrc(null)}
+            aria-label="Cerrar"
+          >
+            <FiX size={18} />
+          </button>
+          <img src={lightboxSrc} alt="Imagen de factura" className="factura-lightbox-img" />
         </div>
       </div>
     )}

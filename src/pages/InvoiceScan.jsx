@@ -53,7 +53,7 @@ const emptyNuevoProducto = {
   precioUnitario: '',
 };
 
-function InvoiceScan({ onDone } = {}) {
+function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
   const apiFetch = useApiFetch();
   const [step, setStep] = useState('upload');
   const [imageData, setImageData] = useState(null);
@@ -142,10 +142,15 @@ function InvoiceScan({ onDone } = {}) {
         nombreComercial: l.nombreFactura || '',
       }));
 
-      setLineas(lineasNormalizadas);
-      setCatalogo(data.catalogo || []);
-      setCurrentIndex(0);
-      setStep('review');
+      if (onProductsScanned) {
+        onProductsScanned(lineasNormalizadas, data.catalogo || [], imageData);
+      } else {
+        setLineas(lineasNormalizadas);
+        setCatalogo(data.catalogo || []);
+        setCurrentIndex(0);
+        setStep('review');
+        onImageScanned?.(imageData);
+      }
     } catch (err) {
       setScanError(err.message || 'Error al escanear la factura.');
     } finally {
