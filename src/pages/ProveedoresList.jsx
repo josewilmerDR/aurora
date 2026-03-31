@@ -517,93 +517,93 @@ function ProveedoresList() {
     <div className={`lote-page${selectedProveedor && view === 'hub' ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Mobile carousel ── */}
-      {selectedProveedor && view === 'hub' && (
-        <div className="lote-carousel" ref={carouselRef}>
-          {proveedores.map(p => (
-            <button
-              key={p.id}
-              className={`lote-bubble${selectedProveedor?.id === p.id ? ' lote-bubble--active' : ''}`}
-              onClick={() =>
-                selectedProveedor?.id === p.id
-                  ? setSelectedProveedor(null)
-                  : handleSelectProveedor(p)
-              }
-            >
-              <span className="lote-bubble-avatar">{initials(p.nombre)}</span>
-              <span className="lote-bubble-label">{p.nombre}</span>
-            </button>
-          ))}
-          <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
-            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
-            <span className="lote-bubble-label">Nuevo</span>
-          </button>
-        </div>
-      )}
-
-      {/* ── Page header ── */}
-      {view !== 'form' && (
-        <div className="lote-page-header">
+      {!loading && proveedores.length === 0 && view !== 'form' ? (
+        <div className="prov-empty-state">
+          <FiTruck size={32} />
+          <p>No hay proveedores aún.</p>
           <button className="btn btn-primary" onClick={handleNew}>
-            <FiPlus /> Nuevo Proveedor
+            <FiPlus size={14} /> Crear el primero
           </button>
         </div>
-      )}
-
-      <div className="lote-management-layout">
-        {renderMainPanel()}
-
-        {view !== 'form' && (
-          <div className="lote-list-panel">
-            <h3 className="lote-list-title">Proveedores</h3>
-            {loading ? (
-              <p className="hub-loading">Cargando…</p>
-            ) : proveedores.length === 0 ? (
-              <div className="prov-list-empty">
-                <FiTruck size={26} />
-                <p>Sin proveedores aún.</p>
-                <button className="btn btn-primary btn-full" onClick={handleNew}>
-                  <FiPlus size={14} /> Crear el primero
+      ) : (
+        <>
+          {/* ── Mobile carousel ── */}
+          {selectedProveedor && view === 'hub' && (
+            <div className="lote-carousel" ref={carouselRef}>
+              {proveedores.map(p => (
+                <button
+                  key={p.id}
+                  className={`lote-bubble${selectedProveedor?.id === p.id ? ' lote-bubble--active' : ''}`}
+                  onClick={() =>
+                    selectedProveedor?.id === p.id
+                      ? setSelectedProveedor(null)
+                      : handleSelectProveedor(p)
+                  }
+                >
+                  <span className="lote-bubble-avatar">{initials(p.nombre)}</span>
+                  <span className="lote-bubble-label">{p.nombre}</span>
                 </button>
-              </div>
-            ) : (
-              <ul className="lote-list">
-                {proveedores.map(p => (
-                  <li
-                    key={p.id}
-                    className={`lote-list-item${selectedProveedor?.id === p.id && view === 'hub' ? ' active' : ''}`}
-                    onClick={() =>
-                      selectedProveedor?.id === p.id && view === 'hub'
-                        ? setSelectedProveedor(null)
-                        : handleSelectProveedor(p)
-                    }
-                  >
-                    <div className="prov-list-info">
-                      <span className="prov-list-name">
-                        {p.nombre}
-                        {p.moneda && (
-                          <span className={`prov-moneda-tag prov-moneda-tag--${p.moneda}`}>
-                            {p.moneda}
+              ))}
+              <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
+                <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+                <span className="lote-bubble-label">Nuevo</span>
+              </button>
+            </div>
+          )}
+
+          <div className="lote-management-layout">
+            {renderMainPanel()}
+
+            {view !== 'form' && (
+              <div className="lote-list-panel">
+                <div className="prov-list-header">
+                  <h3 className="lote-list-title">Proveedores</h3>
+                  <button className="btn btn-primary" onClick={handleNew}>
+                    <FiPlus /> Nuevo Proveedor
+                  </button>
+                </div>
+                {loading ? (
+                  <p className="hub-loading">Cargando…</p>
+                ) : (
+                  <ul className="lote-list">
+                    {proveedores.map(p => (
+                      <li
+                        key={p.id}
+                        className={`lote-list-item${selectedProveedor?.id === p.id && view === 'hub' ? ' active' : ''}`}
+                        onClick={() =>
+                          selectedProveedor?.id === p.id && view === 'hub'
+                            ? setSelectedProveedor(null)
+                            : handleSelectProveedor(p)
+                        }
+                      >
+                        <div className="prov-list-info">
+                          <span className="prov-list-name">
+                            {p.nombre}
+                            {p.moneda && (
+                              <span className={`prov-moneda-tag prov-moneda-tag--${p.moneda}`}>
+                                {p.moneda}
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                      {p.categoria && (
-                        <span className="prov-list-sub">
-                          {CATEGORIA_LABELS[p.categoria] || p.categoria}
-                        </span>
-                      )}
-                      {p.estado === 'inactivo' && (
-                        <span className="prov-list-sub prov-list-inactivo">Inactivo</span>
-                      )}
-                    </div>
-                    <FiChevronRight size={14} className="lote-list-arrow" />
-                  </li>
-                ))}
-              </ul>
+                          {p.categoria && (
+                            <span className="prov-list-sub">
+                              {CATEGORIA_LABELS[p.categoria] || p.categoria}
+                            </span>
+                          )}
+                          {p.estado === 'inactivo' && (
+                            <span className="prov-list-sub prov-list-inactivo">Inactivo</span>
+                          )}
+                        </div>
+                        <FiChevronRight size={14} className="lote-list-arrow" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
