@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './ProductManagement.css';
-import { FiTrash2, FiClipboard, FiColumns, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import TomaFisicaModal from './TomaFisicaModal';
+import EditProductoModal from './EditProductoModal';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];
@@ -12,23 +14,23 @@ const LS_KEY = 'aurora_product_cols';
 
 // Definición completa de columnas
 const COLUMNS = [
-  { key: 'idProducto',        label: 'ID Producto',         thClass: 'pg-col-id',        defaultVisible: true  },
-  { key: 'nombreComercial',   label: 'Nombre Comercial',    thClass: 'pg-col-name',      defaultVisible: true,  required: true },
-  { key: 'ingredienteActivo', label: 'Ingrediente Activo',  thClass: 'pg-col-ing',       defaultVisible: true  },
-  { key: 'tipo',              label: 'Tipo',                thClass: 'pg-col-tipo',      defaultVisible: true  },
-  { key: 'plagaQueControla',  label: 'Plaga / Enfermedad',  thClass: 'pg-col-plaga',     defaultVisible: true  },
-  { key: 'cantidadPorHa',     label: 'Dosis/Ha',            thClass: 'pg-col-dosis',     defaultVisible: true  },
-  { key: 'unidad',            label: 'Unidad',              thClass: 'pg-col-unidad',    defaultVisible: true  },
-  { key: 'periodoReingreso',  label: 'Reingreso (h)',       thClass: 'pg-col-reingreso', defaultVisible: false },
-  { key: 'periodoACosecha',   label: 'A Cosecha (días)',    thClass: 'pg-col-cosecha',   defaultVisible: false },
-  { key: 'stockActual',       label: 'Stock actual',        thClass: 'pg-col-stock',     defaultVisible: true,  required: true },
-  { key: 'stockMinimo',       label: 'Stock mínimo',        thClass: 'pg-col-stockmin',  defaultVisible: true  },
-  { key: 'precioUnitario',    label: 'Precio unitario',     thClass: 'pg-col-precio',    defaultVisible: true  },
-  { key: 'moneda',                 label: 'Moneda',                  thClass: 'pg-col-moneda',    defaultVisible: false },
-  { key: 'iva',                    label: 'IVA (%)',                  thClass: 'pg-col-iva',       defaultVisible: false },
-  { key: 'proveedor',              label: 'Proveedor',                thClass: 'pg-col-proveedor', defaultVisible: true  },
-  { key: 'registroFitosanitario',  label: 'Reg. Fitosanitario',       thClass: 'pg-col-registro',  defaultVisible: false },
-  { key: 'observacion',            label: 'Observación',              thClass: 'pg-col-obs',       defaultVisible: false },
+  { key: 'idProducto',            label: 'ID Producto',        thClass: 'pg-col-id',        defaultVisible: true                        },
+  { key: 'nombreComercial',       label: 'Nombre Comercial',   thClass: 'pg-col-name',      defaultVisible: true,  required: true       },
+  { key: 'ingredienteActivo',     label: 'Ingrediente Activo', thClass: 'pg-col-ing',       defaultVisible: true                        },
+  { key: 'tipo',                  label: 'Tipo',               thClass: 'pg-col-tipo',      defaultVisible: true                        },
+  { key: 'plagaQueControla',      label: 'Plaga / Enfermedad', thClass: 'pg-col-plaga',     defaultVisible: true                        },
+  { key: 'cantidadPorHa',         label: 'Dosis/Ha',           thClass: 'pg-col-dosis',     defaultVisible: true,  filterType: 'number' },
+  { key: 'unidad',                label: 'Unidad',             thClass: 'pg-col-unidad',    defaultVisible: true                        },
+  { key: 'periodoReingreso',      label: 'Reingreso (h)',      thClass: 'pg-col-reingreso', defaultVisible: false, filterType: 'number' },
+  { key: 'periodoACosecha',       label: 'A Cosecha (días)',   thClass: 'pg-col-cosecha',   defaultVisible: false, filterType: 'number' },
+  { key: 'stockActual',           label: 'Stock actual',       thClass: 'pg-col-stock',     defaultVisible: true,  required: true, filterType: 'number' },
+  { key: 'stockMinimo',           label: 'Stock mínimo',       thClass: 'pg-col-stockmin',  defaultVisible: true,  filterType: 'number' },
+  { key: 'precioUnitario',        label: 'Precio unitario',    thClass: 'pg-col-precio',    defaultVisible: true,  filterType: 'number' },
+  { key: 'moneda',                label: 'Moneda',             thClass: 'pg-col-moneda',    defaultVisible: false                       },
+  { key: 'iva',                   label: 'IVA (%)',            thClass: 'pg-col-iva',       defaultVisible: false, filterType: 'number' },
+  { key: 'proveedor',             label: 'Proveedor',          thClass: 'pg-col-proveedor', defaultVisible: true                        },
+  { key: 'registroFitosanitario', label: 'Reg. Fitosanitario', thClass: 'pg-col-registro',  defaultVisible: false                       },
+  { key: 'observacion',           label: 'Observación',        thClass: 'pg-col-obs',       defaultVisible: false                       },
 ];
 
 const FIELD_LABELS = Object.fromEntries(COLUMNS.map(c => [c.key, c.label]));
@@ -49,23 +51,27 @@ function loadVisibleCols() {
 function ProductManagement() {
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
+  const [productosLoaded, setProductosLoaded] = useState(false);
+  const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
   const [toast, setToast] = useState(null);
   const [showTomaFisica, setShowTomaFisica] = useState(false);
-  const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {});
+  const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {}, { storage: 'local' });
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [visibleCols, setVisibleCols] = useState(loadVisibleCols);
-  const [colPicker, setColPicker] = useState(null); // { x, y } | null
+  const [colMenu, setColMenu] = useState(null);
+  const [sorts, setSorts] = useState([{ field: '', dir: 'asc' }]);
+  const [colFilters, setColFilters] = useState({});
+  const [filterPop, setFilterPop] = useState(null);
   const [showInactivos, setShowInactivos] = useState(false);
-  const colPickerRef = useRef(null);
-  const colBtnRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchProductos = (clearEdits = false) => {
     apiFetch('/api/productos').then(res => res.json()).then(data => {
       setProductos(data);
+      setProductosLoaded(true);
       if (clearEdits) {
         clearEditsStorage();
         clearDraftActive('inv-productos');
@@ -74,19 +80,6 @@ function ProductManagement() {
   };
 
   useEffect(() => { fetchProductos(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Close col picker on outside click
-  useEffect(() => {
-    if (!colPicker) return;
-    const handler = (e) => {
-      if (colPickerRef.current && !colPickerRef.current.contains(e.target) &&
-          colBtnRef.current && !colBtnRef.current.contains(e.target)) {
-        setColPicker(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [colPicker]);
 
   const toggleCol = useCallback((key) => {
     setVisibleCols(prev => {
@@ -99,15 +92,19 @@ function ProductManagement() {
     });
   }, []);
 
-  const openColPickerFromBtn = () => {
-    if (colPicker) { setColPicker(null); return; }
-    const rect = colBtnRef.current.getBoundingClientRect();
-    setColPicker({ x: rect.right, y: rect.bottom + 6, alignRight: true });
+  const setColFilter = (field, filterObj) => {
+    const empty = !filterObj ||
+      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
+    setColFilters(prev => empty
+      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+      : { ...prev, [field]: filterObj }
+    );
   };
 
-  const handleTheadContextMenu = (e) => {
-    e.preventDefault();
-    setColPicker({ x: e.clientX, y: e.clientY, alignRight: false });
+  const handleColMenuOpen = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
   };
 
   const getVal = (p, field) =>
@@ -128,12 +125,29 @@ function ProductManagement() {
     });
   }, [productos, edits]);
 
-  // Badge sidebar: activo cuando hay cambios sin guardar
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Badge sidebar: pre-marcar al montar si hay drafts guardados en localStorage
+  // (antes de que la API responda, para evitar que el badge parpadee)
   useEffect(() => {
+    try {
+      const savedEdits = localStorage.getItem('aurora_draft_inv-productos-edits');
+      if (savedEdits && Object.keys(JSON.parse(savedEdits)).length > 0)
+        markDraftActive('inv-productos');
+
+      const savedNuevo = localStorage.getItem('aurora_draft_nuevo-producto');
+      if (savedNuevo) {
+        const parsed = JSON.parse(savedNuevo);
+        if (Object.values(parsed).some(v => v !== '' && v !== 0 && v !== 1 && v !== 'USD'))
+          markDraftActive('nuevo-producto');
+      }
+    } catch {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Badge sidebar: sincronizar con dirtyProducts una vez cargados los productos
+  useEffect(() => {
+    if (!productosLoaded) return;
     if (dirtyProducts.length > 0) markDraftActive('inv-productos');
     else clearDraftActive('inv-productos');
-  }, [dirtyProducts.length]);
+  }, [dirtyProducts.length, productosLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeSummary = useMemo(() => {
     return dirtyProducts.map(p => {
@@ -234,10 +248,53 @@ function ProductManagement() {
       p.ingredienteActivo?.toLowerCase().includes(q) ||
       p.proveedor?.toLowerCase().includes(q);
     const matchTipo = (p) => !filterTipo || p.tipo === filterTipo;
-    const activos = productos.filter(p => p.activo !== false && matchSearch(p) && matchTipo(p));
-    const inactivos = productos.filter(p => p.activo === false && matchSearch(p) && matchTipo(p));
+
+    const activeColFilters = Object.entries(colFilters).filter(([, f]) => {
+      if (!f) return false;
+      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
+      return !!f.value?.trim();
+    });
+    const matchColFilters = (p) => {
+      for (const [field, filter] of activeColFilters) {
+        const cell = getVal(p, field);
+        if (filter.type === 'range') {
+          const num = Number(cell);
+          if (!isNaN(num)) {
+            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
+            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
+          }
+        } else {
+          if (cell == null) return false;
+          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
+        }
+      }
+      return true;
+    };
+
+    const sortFn = (a, b) => {
+      const active = sorts.filter(s => s.field);
+      for (const s of active) {
+        const av = getVal(a, s.field);
+        const bv = getVal(b, s.field);
+        let r;
+        if (av !== '' && bv !== '' && !isNaN(Number(av)) && !isNaN(Number(bv))) {
+          r = Number(av) - Number(bv);
+        } else {
+          r = String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
+        }
+        if (r !== 0) return s.dir === 'desc' ? -r : r;
+      }
+      return 0;
+    };
+
+    const activos = productos
+      .filter(p => p.activo !== false && matchSearch(p) && matchTipo(p) && matchColFilters(p))
+      .sort(sortFn);
+    const inactivos = productos
+      .filter(p => p.activo === false && matchSearch(p) && matchTipo(p) && matchColFilters(p))
+      .sort(sortFn);
     return { filteredActivos: activos, filteredInactivos: inactivos };
-  }, [productos, searchQuery, filterTipo]);
+  }, [productos, searchQuery, filterTipo, colFilters, sorts, edits]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-expandir inactivos cuando la búsqueda tiene coincidencias ahí
   useEffect(() => {
@@ -308,196 +365,352 @@ function ProductManagement() {
     }
   };
 
+  const handleTableKeyDown = (e) => {
+    const vertical   = e.key === 'ArrowDown' || e.key === 'ArrowUp';
+    const horizontal = e.key === 'ArrowRight' || e.key === 'ArrowLeft';
+    if (!vertical && !horizontal) return;
+
+    const cell = e.target.closest('td');
+    if (!cell) return;
+    const row   = cell.closest('tr');
+    const cells = [...row.cells];
+
+    // Para inputs de texto: respetar el cursor hasta que llegue al borde
+    if (horizontal && e.target.tagName === 'INPUT' && e.target.type === 'text') {
+      const { selectionStart: s, selectionEnd: end, value } = e.target;
+      if (e.key === 'ArrowLeft'  && !(s === 0 && end === 0))            return;
+      if (e.key === 'ArrowRight' && !(s === value.length && end === value.length)) return;
+    }
+
+    const focusIn = (targetCell) => {
+      const f = targetCell?.querySelector('input, select');
+      if (!f) return false;
+      e.preventDefault();
+      f.focus();
+      if (f.tagName === 'INPUT' && f.type !== 'number') f.select?.();
+      return true;
+    };
+
+    if (vertical) {
+      const colIndex = cells.indexOf(cell);
+      if (colIndex === -1) return;
+      const targetRow = e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+      focusIn(targetRow?.cells[colIndex]);
+    } else {
+      const delta = e.key === 'ArrowRight' ? 1 : -1;
+      const colIndex = cells.indexOf(cell);
+      for (let i = colIndex + delta; i >= 0 && i < cells.length; i += delta) {
+        if (focusIn(cells[i])) break;
+      }
+    }
+  };
+
+  // ── SortTh ────────────────────────────────────────────────────────────────
+  const SortTh = ({ field, children, filterType = 'text' }) => {
+    const active    = sorts[0].field === field;
+    const dir       = active ? sorts[0].dir : null;
+    const f         = colFilters[field];
+    const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
+    return (
+      <th
+        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        onClick={() => setSorts(prev => {
+          const next = [...prev];
+          if (next[0].field !== field)       next[0] = { field, dir: 'asc' };
+          else if (next[0].dir === 'asc')    next[0] = { field, dir: 'desc' };
+          else                               next[0] = { field: '', dir: 'asc' };
+          return next;
+        })}
+      >
+        {children}
+        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span
+          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
+          title="Filtrar columna"
+          onClick={e => {
+            e.stopPropagation();
+            if (filterPop?.field === field) { setFilterPop(null); return; }
+            const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+            const rect = th.getBoundingClientRect();
+            setFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
+          }}
+        >
+          <FiFilter size={10} />
+        </span>
+      </th>
+    );
+  };
+
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="list-card" style={{ gridColumn: '1 / -1' }}>
 
-        <div className="product-list-header">
-          <h2>Inventario de Agroquímicos</h2>
-          <div className="product-header-actions">
-            {dirtyProducts.length > 0 && (
-              <button className="btn-save-grid" onClick={() => setShowConfirm(true)}>
-                <FiSave size={15} />
-                Guardar {dirtyProducts.length} cambio{dirtyProducts.length !== 1 ? 's' : ''}
-              </button>
-            )}
-            <button
-              ref={colBtnRef}
-              className={`btn-toma-fisica${colPicker ? ' active' : ''}`}
-              onClick={openColPickerFromBtn}
-              title="Mostrar / ocultar columnas"
-            >
-              <FiColumns size={15} />
-              Columnas
-            </button>
-            <button className="btn-toma-fisica" onClick={() => setShowTomaFisica(true)}>
-              <FiClipboard size={16} />
-              Toma Física
+        {productos.length === 0 ? (
+          <div className="pg-empty-state">
+            <FiBox size={32} />
+            <p>No hay productos que mostrar</p>
+            <button className="btn btn-primary" onClick={() => setShowNuevoModal(true)}>
+              <FiPlus size={14} /> Crear el primero
             </button>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="product-list-header">
+              <h2>Inventario de Agroquímicos</h2>
+              <div className="product-header-actions">
+                {dirtyProducts.length > 0 && (
+                  <button className="btn-save-grid" onClick={() => setShowConfirm(true)}>
+                    <FiSave size={15} />
+                    <span className="pg-save-label">Ver cambios </span>({dirtyProducts.length})
+                  </button>
+                )}
+                <button className="btn-toma-fisica" onClick={() => setShowTomaFisica(true)}>
+                  <FiClipboard size={16} />
+                  Toma Física
+                </button>
+                <button className="btn-nuevo-producto" onClick={() => setShowNuevoModal(true)}>
+                  <FiPlus size={15} />
+                  Nuevo Producto
+                </button>
+              </div>
+            </div>
+            <div className="product-filters">
+              <input
+                type="text"
+                className="product-search-input"
+                placeholder="Buscar por nombre, ID o ingrediente…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              <select
+                className="product-filter-select"
+                value={filterTipo}
+                onChange={e => setFilterTipo(e.target.value)}
+              >
+                <option value="">Todos los tipos</option>
+                {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              {Object.keys(colFilters).length > 0 && (
+                <button
+                  className="btn-toma-fisica"
+                  onClick={() => setColFilters({})}
+                  title="Limpiar filtros de columna"
+                >
+                  <FiX size={13} />
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
 
-        <div className="product-filters">
-          <input
-            type="text"
-            className="product-search-input"
-            placeholder="Buscar por nombre, ID o ingrediente…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          <select
-            className="product-filter-select"
-            value={filterTipo}
-            onChange={e => setFilterTipo(e.target.value)}
-          >
-            <option value="">Todos los tipos</option>
-            {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-
-        <div className="product-grid-wrap">
-          <table className="product-grid-table">
-            <thead onContextMenu={handleTheadContextMenu}>
-              <tr>
-                {visibleColumns.map(col => (
-                  <th key={col.key} className={col.thClass}
-                    title="Clic derecho para gestionar columnas">
-                    {col.label}
-                  </th>
-                ))}
-                <th className="pg-col-del"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredActivos.map(p => (
-                <tr key={p.id} className={isDirtyRow(p) ? 'pg-row-dirty' : ''}>
-                  {visibleColumns.map(col => renderCell(p, col.key))}
-                  <td className="pg-del-cell">
-                    <div className="pg-row-actions">
-                      <button
-                        className={`ingreso-row-del pg-inactivar-btn${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                        onClick={() => handleInactivar(p)}
-                        title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Inactivar producto'}
-                      >
-                        <FiToggleLeft size={15} />
-                      </button>
-                      <button
-                        className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                        onClick={() => handleDelete(p)}
-                        title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
-                      >
-                        <FiTrash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredActivos.length === 0 && (
-            <p className="empty-state" style={{ padding: '20px' }}>
-              {productos.filter(p => p.activo !== false).length === 0
-                ? 'No hay productos activos registrados.'
-                : 'Sin resultados para la búsqueda actual.'}
-            </p>
-          )}
-        </div>
-
-        {/* Sección colapsable de productos inactivos */}
-        {(filteredInactivos.length > 0 || productos.some(p => p.activo === false)) && (
-          <div className="pg-inactivos-section">
-            <button
-              className="pg-inactivos-toggle"
-              onClick={() => setShowInactivos(v => !v)}
-            >
-              <span className="pg-inactivos-toggle-label">
-                Productos inactivos
-                <span className="pg-inactivos-count">{filteredInactivos.length}</span>
-              </span>
-              {showInactivos ? <FiChevronUp size={15} /> : <FiChevronDown size={15} />}
-            </button>
-
-            {showInactivos && (
-              <div className="product-grid-wrap">
-                <table className="product-grid-table">
-                  <thead>
-                    <tr>
-                      {visibleColumns.map(col => (
-                        <th key={col.key} className={col.thClass}>{col.label}</th>
-                      ))}
-                      <th className="pg-col-del"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredInactivos.map(p => (
-                      <tr key={p.id} className={['pg-row-inactive', isDirtyRow(p) ? 'pg-row-dirty' : ''].filter(Boolean).join(' ')}>
-                        {visibleColumns.map(col => renderCell(p, col.key))}
-                        <td className="pg-del-cell">
-                          <div className="pg-row-actions">
-                            <button
-                              className="ingreso-row-del pg-activar-btn"
-                              onClick={() => handleActivar(p)}
-                              title="Reactivar producto"
-                            >
-                              <FiToggleRight size={15} />
-                            </button>
-                            <button
-                              className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                              onClick={() => handleDelete(p)}
-                              title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
-                            >
-                              <FiTrash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+            <div className="product-grid-wrap">
+              <table className="product-grid-table" onKeyDown={handleTableKeyDown}>
+                <thead>
+                  <tr>
+                    {visibleColumns.map(col => (
+                      <SortTh key={col.key} field={col.key} filterType={col.filterType || 'text'}>
+                        {col.label}
+                      </SortTh>
                     ))}
-                  </tbody>
-                </table>
-                {filteredInactivos.length === 0 && (
-                  <p className="empty-state" style={{ padding: '20px' }}>Sin resultados para la búsqueda actual.</p>
+                    <th className="pg-col-del">
+                      <button
+                        className={`hor-col-toggle-btn${visibleCols.size < COLUMNS.length ? ' hor-col-toggle-btn--active' : ''}`}
+                        onClick={handleColMenuOpen}
+                        title="Gestionar columnas"
+                      >
+                        <FiSliders size={13} />
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredActivos.map(p => (
+                    <tr key={p.id} className={isDirtyRow(p) ? 'pg-row-dirty' : ''}>
+                      {visibleColumns.map(col => renderCell(p, col.key))}
+                      <td className="pg-del-cell">
+                        <div className="pg-row-actions">
+                          <button
+                            className={`ingreso-row-del pg-inactivar-btn${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
+                            onClick={() => handleInactivar(p)}
+                            title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Inactivar producto'}
+                          >
+                            <FiToggleLeft size={15} />
+                          </button>
+                          <button
+                            className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
+                            onClick={() => handleDelete(p)}
+                            title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredActivos.length === 0 && (
+                <p className="empty-state" style={{ padding: '20px' }}>Sin resultados para la búsqueda actual.</p>
+              )}
+            </div>
+
+            {/* Sección colapsable de productos inactivos */}
+            {(filteredInactivos.length > 0 || productos.some(p => p.activo === false)) && (
+              <div className="pg-inactivos-section">
+                <button
+                  className="pg-inactivos-toggle"
+                  onClick={() => setShowInactivos(v => !v)}
+                >
+                  <span className="pg-inactivos-toggle-label">
+                    Productos inactivos
+                    <span className="pg-inactivos-count">{filteredInactivos.length}</span>
+                  </span>
+                  {showInactivos ? <FiChevronUp size={15} /> : <FiChevronDown size={15} />}
+                </button>
+
+                {showInactivos && (
+                  <div className="product-grid-wrap">
+                    <table className="product-grid-table" onKeyDown={handleTableKeyDown}>
+                      <thead>
+                        <tr>
+                          {visibleColumns.map(col => (
+                            <SortTh key={col.key} field={col.key} filterType={col.filterType || 'text'}>
+                              {col.label}
+                            </SortTh>
+                          ))}
+                          <th className="pg-col-del"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredInactivos.map(p => (
+                          <tr key={p.id} className={['pg-row-inactive', isDirtyRow(p) ? 'pg-row-dirty' : ''].filter(Boolean).join(' ')}>
+                            {visibleColumns.map(col => renderCell(p, col.key))}
+                            <td className="pg-del-cell">
+                              <div className="pg-row-actions">
+                                <button
+                                  className="ingreso-row-del pg-activar-btn"
+                                  onClick={() => handleActivar(p)}
+                                  title="Reactivar producto"
+                                >
+                                  <FiToggleRight size={15} />
+                                </button>
+                                <button
+                                  className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
+                                  onClick={() => handleDelete(p)}
+                                  title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
+                                >
+                                  <FiTrash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredInactivos.length === 0 && (
+                      <p className="empty-state" style={{ padding: '20px' }}>Sin resultados para la búsqueda actual.</p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
-      {/* Selector de columnas */}
-      {colPicker && (
-        <div
-          ref={colPickerRef}
-          className="col-picker"
-          style={{
-            top: colPicker.y,
-            left: colPicker.alignRight ? 'auto' : colPicker.x,
-            right: colPicker.alignRight ? `calc(100vw - ${colPicker.x}px)` : 'auto',
-          }}
-        >
-          <div className="col-picker-title">Columnas visibles</div>
-          {COLUMNS.map(col => (
-            <label key={col.key} className={`col-picker-item${col.required ? ' col-picker-required' : ''}`}>
-              <input
-                type="checkbox"
-                checked={visibleCols.has(col.key)}
-                disabled={col.required}
-                onChange={() => toggleCol(col.key)}
-              />
-              <span>{col.label}</span>
-              {col.required && <span className="col-picker-lock">🔒</span>}
-            </label>
-          ))}
-          <div className="col-picker-footer">
-            <button className="col-picker-reset" onClick={() => {
-              const def = new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
-              localStorage.setItem(LS_KEY, JSON.stringify([...def]));
-              setVisibleCols(def);
-            }}>
-              Restaurar por defecto
-            </button>
+      {/* Filter popover portal */}
+      {filterPop && createPortal(
+        <>
+          <div className="historial-filter-backdrop" onClick={() => setFilterPop(null)} />
+          <div
+            className={`historial-filter-popover${filterPop.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
+            style={{ left: filterPop.x, top: filterPop.y }}
+          >
+            <FiFilter size={13} className="historial-filter-popover-icon" />
+            {filterPop.filterType !== 'text' ? (
+              <>
+                <div className="historial-filter-range">
+                  <div className="historial-filter-range-row">
+                    <span className="historial-filter-range-label">De</span>
+                    <input
+                      autoFocus
+                      type="number"
+                      className="historial-filter-input"
+                      value={colFilters[filterPop.field]?.from || ''}
+                      onChange={e => setColFilter(filterPop.field, { type: 'range', from: e.target.value, to: colFilters[filterPop.field]?.to || '' })}
+                      onKeyDown={e => { if (e.key === 'Escape') setFilterPop(null); }}
+                    />
+                  </div>
+                  <div className="historial-filter-range-row">
+                    <span className="historial-filter-range-label">A</span>
+                    <input
+                      type="number"
+                      className="historial-filter-input"
+                      value={colFilters[filterPop.field]?.to || ''}
+                      onChange={e => setColFilter(filterPop.field, { type: 'range', from: colFilters[filterPop.field]?.from || '', to: e.target.value })}
+                      onKeyDown={e => { if (e.key === 'Escape') setFilterPop(null); }}
+                    />
+                  </div>
+                </div>
+                {(colFilters[filterPop.field]?.from || colFilters[filterPop.field]?.to) && (
+                  <button className="historial-filter-clear" onClick={() => { setColFilter(filterPop.field, null); setFilterPop(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  className="historial-filter-input"
+                  placeholder="Filtrar…"
+                  value={colFilters[filterPop.field]?.value || ''}
+                  onChange={e => setColFilter(filterPop.field, { type: 'text', value: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPop(null); }}
+                />
+                {colFilters[filterPop.field]?.value && (
+                  <button className="historial-filter-clear" onClick={() => { setColFilter(filterPop.field, null); setFilterPop(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            )}
           </div>
-        </div>
+        </>,
+        document.body
+      )}
+
+      {/* Column menu portal */}
+      {colMenu && createPortal(
+        <>
+          <div className="hor-col-menu-backdrop" onClick={() => setColMenu(null)} />
+          <div className="hor-col-menu" style={{ left: colMenu.x, top: colMenu.y }}>
+            <div className="hor-col-menu-title">Columnas visibles</div>
+            {COLUMNS.map(col => (
+              <button
+                key={col.key}
+                className={`hor-col-menu-item${!visibleCols.has(col.key) ? ' is-hidden' : ''}${col.required ? ' col-picker-required' : ''}`}
+                onClick={() => !col.required && toggleCol(col.key)}
+                disabled={col.required}
+              >
+                <span className="hor-col-menu-check" />
+                {col.label}
+                {col.required && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: '0.75em' }}>🔒</span>}
+              </button>
+            ))}
+            {visibleCols.size < COLUMNS.filter(c => c.defaultVisible).length && (
+              <button className="hor-col-menu-reset" onClick={() => {
+                const def = new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
+                localStorage.setItem(LS_KEY, JSON.stringify([...def]));
+                setVisibleCols(def);
+                setColMenu(null);
+              }}>
+                Restaurar por defecto
+              </button>
+            )}
+          </div>
+        </>,
+        document.body
       )}
 
       {/* Modal de confirmación de cambios */}
@@ -533,9 +746,9 @@ function ProductManagement() {
               ))}
             </div>
             <div className="toma-fisica-footer">
-              <button className="btn btn-secondary" onClick={() => setShowConfirm(false)} disabled={saving}>Cancelar</button>
+              <button className="btn btn-secondary" onClick={() => { clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }} disabled={saving}>Descartar</button>
               <button className="btn btn-primary" onClick={handleSaveAll} disabled={saving}>
-                {saving ? 'Guardando…' : 'Confirmar y guardar'}
+                {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
           </div>
@@ -550,6 +763,18 @@ function ProductManagement() {
             setShowTomaFisica(false);
             fetchProductos();
             showToast(`Ajuste aplicado: ${cantidad} producto${cantidad !== 1 ? 's' : ''} actualizado${cantidad !== 1 ? 's' : ''}.`);
+          }}
+        />
+      )}
+
+      {showNuevoModal && (
+        <EditProductoModal
+          isNew
+          onClose={() => setShowNuevoModal(false)}
+          onSaved={(data) => {
+            setShowNuevoModal(false);
+            fetchProductos();
+            showToast(`"${data.nombreComercial}" creado correctamente.`);
           }}
         />
       )}

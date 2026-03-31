@@ -45,7 +45,7 @@ export const MODULES = [
     nombre: 'Bodega',
     icon: FiBox,
     items: [
-      { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado', draftKey: 'inv-productos' },
+      { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
       { label: 'Ingreso de Productos', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
       { label: 'Solicitar Compra', to: '/solicitudes', icon: FiShoppingCart, minRole: 'encargado' },
       { label: 'Registrar Compra', to: '/compras', icon: FiFileText, minRole: 'supervisor' },
@@ -152,6 +152,10 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     return () => window.removeEventListener('aurora-draft-change', handler);
   }, []);
 
+  // Soporta draftKey como string o array de strings
+  const checkDraft = (key) =>
+    Array.isArray(key) ? key.some(k => activeDrafts.has(k)) : activeDrafts.has(key);
+
   // Track recents on route change
   useEffect(() => {
     const path = location.pathname;
@@ -236,7 +240,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     const expanded = expandedGroups.has(item.label);
     const isChildActive = visibleChildren.some(c => location.pathname === c.to);
     const GroupIcon = item.icon;
-    const groupHasDraft = visibleChildren.some(c => c.draftKey && activeDrafts.has(c.draftKey));
+    const groupHasDraft = visibleChildren.some(c => c.draftKey && checkDraft(c.draftKey));
 
     return (
       <div className="sidebar-subgroup">
@@ -265,7 +269,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     const Icon = item.icon;
     const badge = badgeFor(item.to);
     const pinned = pinnedRoutes.includes(item.to);
-    const hasDraft = item.draftKey && activeDrafts.has(item.draftKey);
+    const hasDraft = item.draftKey && checkDraft(item.draftKey);
 
     return (
       <div className="sidebar-item-row">
@@ -350,8 +354,8 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         const expanded = expandedMods.has(mod.id);
         const ModIcon = mod.icon;
         const modHasDraft = mod.items.some(item =>
-          item.draftKey ? activeDrafts.has(item.draftKey)
-          : item.children?.some(c => c.draftKey && activeDrafts.has(c.draftKey))
+          item.draftKey ? checkDraft(item.draftKey)
+          : item.children?.some(c => c.draftKey && checkDraft(c.draftKey))
         );
 
         return (
