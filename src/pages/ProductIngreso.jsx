@@ -73,6 +73,192 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
   );
 }
 
+// ── Combobox proveedor con portal ─────────────────────────────────────────
+function ProveedorCombobox({ value, onChange, proveedores }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+
+  const filtered = proveedores.filter(p =>
+    !value || p.nombre.toLowerCase().includes(value.toLowerCase())
+  );
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setHi(0);
+  };
+
+  const selectOption = (p) => {
+    onChange(p.nombre);
+    setOpen(false);
+    setHi(0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        id="proveedorGlobal"
+        className="ingreso-proveedor-input"
+        value={value}
+        autoComplete="off"
+        onChange={e => { onChange(e.target.value); openDropdown(); }}
+        onFocus={openDropdown}
+        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
+        onKeyDown={handleKeyDown}
+        placeholder="Nombre del proveedor"
+      />
+      {open && filtered.length > 0 && createPortal(
+        <ul
+          ref={listRef}
+          className="proveedor-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          {filtered.map((p, i) => (
+            <li
+              key={p.id}
+              className={`proveedor-dropdown-item${i === hi ? ' proveedor-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(p)}
+              onMouseEnter={() => setHi(i)}
+            >
+              {p.nombre}
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// ── Combobox unidad de medida con portal ──────────────────────────────────
+function UMCombobox({ value, onChange, unidadesMedida }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+
+  const filtered = unidadesMedida.filter(u =>
+    !value || u.nombre.toLowerCase().includes(value.toLowerCase())
+  );
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: Math.max(r.width, 140) });
+    }
+    setOpen(true);
+    setHi(0);
+  };
+
+  const selectOption = (u) => {
+    onChange(u.nombre);
+    setOpen(false);
+    setHi(0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        className="ingreso-um-input"
+        value={value}
+        autoComplete="off"
+        onChange={e => { onChange(e.target.value); openDropdown(); }}
+        onFocus={openDropdown}
+        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
+        onKeyDown={handleKeyDown}
+        placeholder="UM"
+      />
+      {open && filtered.length > 0 && createPortal(
+        <ul
+          ref={listRef}
+          className="proveedor-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          {filtered.map((u, i) => (
+            <li
+              key={u.id}
+              className={`proveedor-dropdown-item${i === hi ? ' proveedor-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(u)}
+              onMouseEnter={() => setHi(i)}
+            >
+              <span className="um-nombre">{u.nombre}</span>
+              {u.descripcion && <span className="um-desc">{u.descripcion}</span>}
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // ── Selector con opción "Nuevo" ────────────────────────────────────────────
 function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) {
   const [adding, setAdding] = useState(false);
@@ -139,13 +325,10 @@ function ProductIngreso() {
   const [toast, setToast] = useState(null);
   const [movimientos, setMovimientos] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
+  const [unidadesMedida, setUnidadesMedida] = useState([]);
   // Listas de opciones compartidas (persisten durante la sesión)
-  const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g']);
   const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
-
-  const addUnidad = (val) => {
-    if (!unidades.includes(val)) setUnidades(prev => [...prev, val]);
-  };
 
   const addIva = (val) => {
     const num = parseFloat(val);
@@ -171,6 +354,8 @@ function ProductIngreso() {
 
   useEffect(() => {
     apiFetch('/api/productos').then(r => r.json()).then(setCatalogo).catch(console.error);
+    apiFetch('/api/proveedores').then(r => r.json()).then(setProveedores).catch(console.error);
+    apiFetch('/api/unidades-medida').then(r => r.json()).then(setUnidadesMedida).catch(console.error);
     fetchMovimientos();
     if (location.state?.editProducto) {
       const p = location.state.editProducto;
@@ -261,12 +446,10 @@ function ProductIngreso() {
           <div className="ingreso-header-right">
             <div className="ingreso-proveedor-wrap">
               <label htmlFor="proveedorGlobal">Proveedor</label>
-              <input
-                id="proveedorGlobal"
-                className="ingreso-proveedor-input"
+              <ProveedorCombobox
                 value={proveedor}
-                onChange={e => setProveedor(e.target.value)}
-                placeholder="Nombre del proveedor"
+                onChange={setProveedor}
+                proveedores={proveedores}
               />
             </div>
             <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
@@ -314,11 +497,10 @@ function ProductIngreso() {
                       />
                     </td>
                     <td className="col-narrow">
-                      <EditableSelect
+                      <UMCombobox
                         value={f.unidad}
-                        options={unidades}
                         onChange={val => update(f._key, 'unidad', val)}
-                        onAddOption={addUnidad}
+                        unidadesMedida={unidadesMedida}
                       />
                     </td>
                     <td className="col-number">
