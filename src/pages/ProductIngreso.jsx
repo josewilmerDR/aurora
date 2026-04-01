@@ -599,6 +599,7 @@ function ProductIngreso() {
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {(step !== 'list' || ocVisibles.length > 0) && (
       <div className="ingreso-title-row">
         <div className="kebab-menu-wrap">
           <button className="btn-kebab" onClick={() => setKebabOpen(o => !o)} title="Más opciones">
@@ -630,6 +631,7 @@ function ProductIngreso() {
           </button>
         )}
       </div>
+      )}
 
       {/* ── Vista lista ── */}
       {step === 'list' && (

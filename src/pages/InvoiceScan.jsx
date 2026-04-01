@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import {
-  FiUpload, FiCamera, FiX, FiCheck, FiAlertCircle,
+  FiCamera, FiX, FiCheck, FiAlertCircle,
   FiZap, FiChevronLeft, FiChevronRight, FiPlus,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -249,7 +249,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
         <div className="scan-card">
           <h2>Escanear Factura con IA</h2>
           <p className="scan-description">
-            Sube una foto de la factura. La IA extraerá los productos y cantidades
+            Sube una foto de la factura. Aurora extraerá los productos y cantidades
             y los asociará con tu catálogo de bodega automáticamente.
           </p>
 
@@ -273,7 +273,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
             ) : (
               <div className="drop-zone-empty">
                 <FiCamera size={40} className="drop-icon" />
-                <p className="drop-text">Haz clic o arrastra una imagen aquí</p>
+                <p className="drop-text">Haz clic aquí para agregar una imagen, o arrástrala y suéltala</p>
                 <p className="drop-hint">JPG, PNG, WebP — máx. ~4 MB</p>
               </div>
             )}
@@ -284,11 +284,8 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
           {scanError && <div className="scan-error"><FiAlertCircle size={16} />{scanError}</div>}
 
           <div className="scan-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={scanning}>
-              <FiUpload size={15} />{imageData ? 'Cambiar imagen' : 'Seleccionar imagen'}
-            </button>
             <button type="button" className="btn btn-primary btn-scan" onClick={handleScan} disabled={!imageData || scanning}>
-              <FiZap size={15} />{scanning ? 'Analizando con IA…' : 'Escanear con IA'}
+              <FiZap size={15} />{scanning ? 'Analizando…' : 'Escanear'}
             </button>
           </div>
 
