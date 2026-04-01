@@ -495,3 +495,57 @@
     max-height: none;
   }
 }
+
+@media (max-width: 600px) {
+  .pr-search-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .pr-search-input-wrap {
+    min-width: 0;
+  }
+
+  .pr-product-list {
+    max-height: 38vh;
+  }
+
+  .pr-order-item-name {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .pr-order-item-stock {
+    margin-left: 0;
+  }
+
+  .pr-preview-table th,
+  .pr-preview-table td {
+    padding: 7px 6px;
+    font-size: 0.8rem;
+  }
+
+  .pr-preview-table td:first-child {
+    display: table-cell;
+  }
+
+  .pr-modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .pr-modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pr-modal-body {
+    padding: 16px;
+  }
+
+  .pr-modal-header {
+    padding: 16px;
+  }
+}

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import './ProductManagement.css';
-import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
@@ -60,6 +60,7 @@ function ProductManagement() {
   const [toast, setToast] = useState(null);
   const [showTomaFisica, setShowTomaFisica] = useState(false);
   const [showSolicitud, setShowSolicitud] = useState(false);
+  const [kebabOpen, setKebabOpen] = useState(false);
   const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {}, { storage: 'local' });
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -460,7 +461,32 @@ function ProductManagement() {
         ) : (
           <>
             <div className="product-list-header">
-              <h2>Inventario de Agroquímicos</h2>
+              <div className="product-title-group">
+                <div className="kebab-menu-wrap">
+                  <button className="btn-kebab" onClick={() => setKebabOpen(o => !o)} title="Más opciones">
+                    <FiMenu size={17} />
+                  </button>
+                  {kebabOpen && (
+                    <>
+                      <div className="kebab-backdrop" onClick={() => setKebabOpen(false)} />
+                      <ul className="kebab-dropdown">
+                        <li onClick={() => { setShowSolicitud(true); setKebabOpen(false); }}>
+                          <FiShoppingCart size={14} /> Solicitar Compra
+                        </li>
+                        <li onClick={() => { setShowTomaFisica(true); setKebabOpen(false); }}>
+                          <FiClipboard size={14} /> Toma Física
+                        </li>
+                        <li onClick={() => setKebabOpen(false)}>
+                          <Link to="/productos/movimientos" className="kebab-link">
+                            <FiList size={14} /> Historial
+                          </Link>
+                        </li>
+                      </ul>
+                    </>
+                  )}
+                </div>
+                <h2>Inventario de Agroquímicos</h2>
+              </div>
               <div className="product-header-actions">
                 {dirtyProducts.length > 0 && (
                   <button className="btn-save-grid" onClick={() => setShowConfirm(true)}>
@@ -468,18 +494,6 @@ function ProductManagement() {
                     <span className="pg-save-label">Ver cambios </span>({dirtyProducts.length})
                   </button>
                 )}
-                <Link to="/productos/movimientos" className="btn-toma-fisica btn-historial">
-                  <FiList size={15} />
-                  Historial
-                </Link>
-                <button className="btn-toma-fisica" onClick={() => setShowTomaFisica(true)}>
-                  <FiClipboard size={16} />
-                  Toma Física
-                </button>
-                <button className="btn-solicitar-compra" onClick={() => setShowSolicitud(true)}>
-                  <FiShoppingCart size={15} />
-                  Solicitar Compra
-                </button>
                 <button className="btn-nuevo-producto" onClick={() => setShowNuevoModal(true)}>
                   <FiPlus size={15} />
                   Nuevo Producto
