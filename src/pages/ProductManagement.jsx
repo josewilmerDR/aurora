@@ -485,7 +485,7 @@ function ProductManagement() {
                     </>
                   )}
                 </div>
-                <h2>Inventario de Agroquímicos</h2>
+                <h2>Existencias</h2>
               </div>
               <div className="product-header-actions">
                 {dirtyProducts.length > 0 && (
@@ -494,9 +494,9 @@ function ProductManagement() {
                     <span className="pg-save-label">Ver cambios </span>({dirtyProducts.length})
                   </button>
                 )}
-                <button className="btn-nuevo-producto" onClick={() => setShowNuevoModal(true)}>
+                <button className="btn-nuevo-producto" onClick={() => setShowNuevoModal(true)} title="Nuevo Producto">
                   <FiPlus size={15} />
-                  Nuevo Producto
+                  <span className="btn-nuevo-label">Nuevo Producto</span>
                 </button>
               </div>
             </div>
