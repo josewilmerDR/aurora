@@ -45,6 +45,82 @@
   flex-shrink: 0;
 }
 
+.product-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* ── Kebab menu ───────────────────────────────────── */
+.kebab-menu-wrap {
+  position: relative;
+}
+
+.btn-kebab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  position: relative;
+  top: 9px;
+  background: transparent;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.btn-kebab:hover {
+  background-color: rgba(230, 242, 255, 0.07);
+  border-color: rgba(230, 242, 255, 0.3);
+}
+
+.kebab-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.kebab-dropdown {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 9999;
+  min-width: 190px;
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+.kebab-dropdown li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.kebab-dropdown li:hover {
+  background-color: rgba(51, 255, 153, 0.07);
+}
+
+.kebab-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
 .stock-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -1198,7 +1274,7 @@ select.pg-input option {
 /* Botón guardar cambios */
 .product-header-actions {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
 }
 
@@ -1529,7 +1605,7 @@ select.pg-input option {
 /* ── Cabecera de la lista de productos ──────────────────────────────────── */
 .product-list-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
@@ -1601,6 +1677,18 @@ select.pg-input option {
 }
 
 @media (max-width: 600px) {
+  .ingreso-scan-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .ingreso-scan-modal {
+    border-radius: 16px 16px 0 0;
+    padding: 48px 16px 24px;
+    max-height: 95dvh;
+    overflow-y: auto;
+  }
+
   .product-list-header {
     flex-direction: column;
     align-items: stretch;
