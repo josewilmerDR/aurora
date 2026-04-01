@@ -477,7 +477,7 @@ function ProductManagement() {
                           <FiClipboard size={14} /> Toma Física
                         </li>
                         <li onClick={() => setKebabOpen(false)}>
-                          <Link to="/productos/movimientos" className="kebab-link">
+                          <Link to="/bodega/agroquimicos/movimientos" className="kebab-link">
                             <FiList size={14} /> Historial
                           </Link>
                         </li>

@@ -74,6 +74,9 @@ const ROUTE_MIN_ROLE = {
   ),
   // Sub-rutas no listadas directamente en MODULES
   '/productos/todos': 'encargado',
+  '/bodega/agroquimicos/existencias': 'encargado',
+  '/bodega/agroquimicos/recepcion': 'encargado',
+  '/bodega/agroquimicos/movimientos': 'encargado',
   '/siembra/materiales': 'encargado',
   '/ordenes-compra/historial': 'encargado',
   '/hr/planilla/fijo': 'encargado',
@@ -92,6 +95,9 @@ const routeTitles = {
   '/ingreso-productos': 'Recepción de Mercancía',
   '/recepciones': 'Recepción de Mercancía',
   '/productos/movimientos': 'Historial de Movimientos',
+  '/bodega/agroquimicos/existencias': 'Existencias — Agroquímicos',
+  '/bodega/agroquimicos/recepcion': 'Recepción de Mercancía',
+  '/bodega/agroquimicos/movimientos': 'Historial de Movimientos',
   '/ordenes-compra': 'Órdenes de Compra',
   '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
   '/proveedores': 'Proveedores',
@@ -422,11 +428,16 @@ function App() {
             <Route path="/users" element={<RoleRoute path="/users"><UserManagement /></RoleRoute>} />
             <Route path="/lotes" element={<RoleRoute path="/lotes"><LoteManagement /></RoleRoute>} />
             <Route path="/grupos" element={<RoleRoute path="/grupos"><GrupoManagement /></RoleRoute>} />
-            <Route path="/productos" element={<RoleRoute path="/productos"><ProductManagement /></RoleRoute>} />
+            {/* Rutas canónicas de bodega — patrón /bodega/:bodegaId/:submodulo */}
+            <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><ProductManagement /></RoleRoute>} />
+            <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><ProductIngreso /></RoleRoute>} />
+            <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
+            {/* Redirects de rutas legacy → canónicas */}
+            <Route path="/productos" element={<Navigate to="/bodega/agroquimicos/existencias" replace />} />
+            <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
+            <Route path="/productos/movimientos" element={<Navigate to="/bodega/agroquimicos/movimientos" replace />} />
             <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductCatalog /></RoleRoute>} />
-            <Route path="/ingreso-productos" element={<RoleRoute path="/ingreso-productos"><ProductIngreso /></RoleRoute>} />
             <Route path="/recepciones" element={<RoleRoute path="/recepciones"><GoodsReceipt /></RoleRoute>} />
-            <Route path="/productos/movimientos" element={<RoleRoute path="/productos/movimientos"><MovimientosHistorial /></RoleRoute>} />
             <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OrdenesList /></RoleRoute>} />
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OrdenesHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
