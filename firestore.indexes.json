@@ -44,7 +44,8 @@
     { "collectionGroup": "hr_fichas",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "encargadoId",    "order": "ASCENDING"  }] },
     { "collectionGroup": "users",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "email",          "order": "ASCENDING"  }] },
     { "collectionGroup": "push_subscriptions",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }, { "fieldPath": "fincaId", "order": "ASCENDING" }] },
-    { "collectionGroup": "calibraciones",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] }
+    { "collectionGroup": "calibraciones",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
+    { "collectionGroup": "bodegas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "orden",          "order": "ASCENDING"  }] }
   ],
   "fieldOverrides": []
 }
