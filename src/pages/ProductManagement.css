@@ -47,7 +47,7 @@
 
 .product-title-group {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   flex-wrap: nowrap;
   flex-shrink: 0;
@@ -62,9 +62,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: center;
-  position: relative;
-  top: 9px;
   background: transparent;
   border: 1px solid var(--aurora-border);
   border-radius: 6px;
@@ -1609,7 +1606,7 @@ select.pg-input option {
 /* ── Cabecera de la lista de productos ──────────────────────────────────── */
 .product-list-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
@@ -1618,6 +1615,7 @@ select.pg-input option {
 
 .product-list-header h2 {
   margin: 0;
+  line-height: 1;
 }
 
 .btn-toma-fisica,
@@ -2564,7 +2562,8 @@ select.pg-input option {
   margin-bottom: 4px;
 }
 
-.ingreso-title-row .kebab-menu-wrap {
+.ingreso-title-row .kebab-menu-wrap,
+.product-title-group .kebab-menu-wrap {
   margin-top: -9px;
 }
 
