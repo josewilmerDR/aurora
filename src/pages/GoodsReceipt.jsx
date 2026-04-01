@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FiArrowLeft, FiCheckCircle, FiEye, FiPackage,
-  FiX, FiImage, FiAlertTriangle, FiCheck
+  FiX, FiImage, FiAlertTriangle, FiCheck, FiPlus
 } from 'react-icons/fi';
 import './GoodsReceipt.css';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -39,6 +40,7 @@ const compressImage = (file) => new Promise((resolve, reject) => {
 
 const GoodsReceipt = () => {
   const apiFetch = useApiFetch();
+  const navigate = useNavigate();
   const imageInputRef = useRef(null);
 
   // List state
@@ -206,11 +208,13 @@ const GoodsReceipt = () => {
           <p className="gr-empty">Cargando órdenes…</p>
         ) : filteredOrdenes.length === 0 ? (
           <div className="gr-empty-state">
-            <FiPackage size={42} />
-            <p>No hay órdenes de compra {filterEstado === 'activa' ? 'activas' : ''}</p>
-            <p className="gr-empty-sub">
-              Genera y guarda una OC desde Seguimiento de Tareas → Generar Orden de Compra
-            </p>
+            <FiPackage size={36} />
+            <p>No hay recepciones pendientes</p>
+            {filterEstado === 'activa' && (
+              <button className="btn btn-primary" onClick={() => navigate('/ingreso-productos')}>
+                <FiPlus size={14} /> Crear una
+              </button>
+            )}
           </div>
         ) : (
           <div className="gr-oc-grid">

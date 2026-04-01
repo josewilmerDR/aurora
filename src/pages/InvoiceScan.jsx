@@ -138,6 +138,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
         notas: l.notas || '',
         cantidadIngresada: l.cantidadCatalogo ?? l.cantidadFactura ?? 0,
         unidad: l.unidadCatalogo || l.unidadFactura || 'L',
+        subtotalLinea: l.subtotalLinea ?? null,
         ...emptyNuevoProducto,
         nombreComercial: l.nombreFactura || '',
       }));
@@ -242,23 +243,6 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
   return (
     <div className="invoice-scan-layout">
 
-      {/* Indicador de pasos */}
-      <div className="scan-steps">
-        <div className={`scan-step ${step === 'upload' ? 'active' : 'done'}`}>
-          <span className="step-num">1</span>
-          <span className="step-label">Cargar Factura</span>
-        </div>
-        <FiChevronRight className="step-arrow" />
-        <div className={`scan-step ${step === 'review' ? 'active' : step === 'done' ? 'done' : ''}`}>
-          <span className="step-num">2</span>
-          <span className="step-label">Revisar Productos</span>
-        </div>
-        <FiChevronRight className="step-arrow" />
-        <div className={`scan-step ${step === 'done' ? 'done' : ''}`}>
-          <span className="step-num">3</span>
-          <span className="step-label">Confirmar</span>
-        </div>
-      </div>
 
       {/* ══════ STEP 1: UPLOAD ══════ */}
       {step === 'upload' && (

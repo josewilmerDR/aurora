@@ -618,6 +618,7 @@
 }
 
 .ingreso-table .col-id      { width: 120px; }
+.col-optional { font-size: 0.7rem; font-weight: 400; opacity: 0.5; }
 .ingreso-table .col-name    { width: 200px; }
 .ingreso-table .col-narrow  { width: 76px; }
 .ingreso-table .col-number  { width: 96px; }
@@ -716,6 +717,7 @@
   display: flex;
   gap: 10px;
   margin-left: auto;
+  align-items: center;
 }
 
 @media (max-width: 768px) {
@@ -2373,6 +2375,12 @@ select.pg-input option {
   gap: 10px;
 }
 
+@media (max-width: 768px) {
+  .ingreso-oc-panel {
+    display: none;
+  }
+}
+
 .ingreso-oc-header {
   display: flex;
   align-items: center;
@@ -2384,6 +2392,7 @@ select.pg-input option {
   color: var(--aurora-light);
   opacity: 0.7;
 }
+
 
 .ingreso-oc-count {
   margin-left: auto;
@@ -2494,12 +2503,167 @@ select.pg-input option {
   margin: 0;
 }
 
+/* ── Empty state lista ──────────────────────────────────────────────────── */
+.ingreso-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 60vh;
+  padding: 48px 20px;
+  color: rgba(230, 242, 255, 0.3);
+  text-align: center;
+}
+
+.ingreso-list-empty p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.4);
+  margin: 0;
+}
+
+/* ── Lista de OCs ───────────────────────────────────────────────────────── */
+.ingreso-oc-list-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.ingreso-oc-list-card {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ingreso-oc-list-card:hover {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.04);
+}
+
+.ingreso-oc-list-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.ingreso-manual-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
 /* ── Título de página ───────────────────────────────────────────────────── */
+.ingreso-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.ingreso-title-row .kebab-menu-wrap {
+  margin-top: -9px;
+}
+
 .ingreso-page-title {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--aurora-light);
-  margin: 0 0 4px;
+  margin: 0;
+}
+
+.ingreso-oc-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--aurora-green);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 7px;
+  border-radius: 5px;
+  opacity: 0.75;
+  transition: opacity 0.15s, background 0.15s;
+  position: relative;
+}
+
+.ingreso-oc-trigger-btn:hover {
+  opacity: 1;
+  background: rgba(51, 255, 153, 0.07);
+}
+
+@media (min-width: 769px) {
+  .ingreso-oc-trigger-btn {
+    display: none;
+  }
+}
+
+.ingreso-oc-trigger-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Modal OC ───────────────────────────────────────────────────────────── */
+.ingreso-oc-modal {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  width: min(420px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ingreso-oc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--aurora-border);
+  flex-shrink: 0;
+}
+
+.ingreso-oc-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.ingreso-oc-modal-body {
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ingreso-oc-badge-loaded {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(51, 255, 153, 0.15);
+  color: var(--aurora-green);
+  border: 1px solid rgba(51, 255, 153, 0.3);
 }
 
 /* ── Botón Escanear factura ─────────────────────────────────────────────── */
@@ -2514,6 +2678,8 @@ select.pg-input option {
   color: var(--aurora-green);
   font-size: 0.85rem;
   font-weight: 600;
+  line-height: 1;
+  box-sizing: border-box;
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -2572,6 +2738,17 @@ select.pg-input option {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+@media (max-width: 600px) {
+  .ingreso-header-left-actions {
+    flex-wrap: nowrap;
+  }
+  .ingreso-header-left-actions .ingreso-scan-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
 
 .ingreso-attach-label {
   cursor: pointer;
