@@ -792,8 +792,6 @@
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 20px;
-  border-bottom: 1px solid var(--aurora-border);
-  padding-bottom: 10px;
 }
 
 .lote-actions {
