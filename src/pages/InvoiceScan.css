@@ -135,7 +135,7 @@
 }
 
 .drop-icon { color: var(--aurora-border); opacity: 0.6; }
-.drop-text { font-size: 0.95rem; color: var(--aurora-light); opacity: 0.65; font-weight: 500; }
+.drop-text { font-size: 0.95rem; color: var(--aurora-green); font-weight: 500; }
 .drop-hint { font-size: 0.78rem; color: var(--aurora-light); opacity: 0.4; }
 
 .drop-zone-preview {
@@ -177,6 +177,13 @@
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 20px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .scan-actions {
+    justify-content: flex-start;
+  }
 }
 
 .btn-scan {
