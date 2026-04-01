@@ -1463,10 +1463,10 @@ app.post('/api/productos', authenticate, async (req, res) => {
     }
 
     const stockIngresado = parseFloat(producto.stockActual) || 0;
-    if (registrarIngreso && stockIngresado > 0) {
-      const newProdRef = db.collection('productos').doc();
-      const batch = db.batch();
-      batch.set(newProdRef, producto);
+    const newProdRef = db.collection('productos').doc();
+    const batch = db.batch();
+    batch.set(newProdRef, producto);
+    if (stockIngresado > 0) {
       batch.set(db.collection('movimientos').doc(), {
         tipo: 'ingreso',
         productoId: newProdRef.id,
@@ -1478,18 +1478,15 @@ app.post('/api/productos', authenticate, async (req, res) => {
         iva: parseFloat(producto.iva) || 0,
         proveedor: producto.proveedor || '',
         fecha: fechaTs,
-        motivo: producto.proveedor ? `Ingreso: ${producto.proveedor}` : 'Ingreso de inventario',
+        motivo: producto.proveedor ? `Ingreso: ${producto.proveedor}` : 'Carga inicial',
         ...(facturaNumero  ? { facturaNumero }  : {}),
         ...(ordenCompraId  ? { ordenCompraId }  : {}),
         ...(ocPoNumber     ? { ocPoNumber }     : {}),
         fincaId: req.fincaId,
       });
-      await batch.commit();
-      res.status(201).json({ id: newProdRef.id, ...producto, merged: false });
-    } else {
-      const docRef = await db.collection('productos').add(producto);
-      res.status(201).json({ id: docRef.id, ...producto, merged: false });
     }
+    await batch.commit();
+    res.status(201).json({ id: newProdRef.id, ...producto, merged: false });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear producto.' });
   }

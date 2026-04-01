@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiSearch, FiX, FiList, FiArrowUp, FiArrowDown } from 'react-icons/fi';
+import { FiSearch, FiX, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './ProductManagement.css';
 
@@ -113,7 +113,7 @@ function MovimientosHistorial() {
 
         {/* ── Encabezado + filtros ── */}
         <div className="mhist-header">
-          <h2><FiList size={18} /> Historial de Movimientos de Bodega</h2>
+          <h2>Historial de Movimientos</h2>
           <div className="mhist-filters">
             <div className="mhist-search-wrap">
               <FiSearch size={14} className="mhist-search-icon" />
