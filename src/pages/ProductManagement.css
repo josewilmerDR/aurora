@@ -49,6 +49,8 @@
   display: flex;
   align-items: baseline;
   gap: 10px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 /* ── Kebab menu ───────────────────────────────────── */
@@ -1609,7 +1611,7 @@ select.pg-input option {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .product-list-header h2 {
@@ -1690,24 +1692,24 @@ select.pg-input option {
   }
 
   .product-list-header {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: baseline;
+    flex-wrap: nowrap;
+  }
+  .product-title-group {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  .product-title-group h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .product-header-actions {
-    width: 100%;
+    flex-shrink: 0;
   }
-  .product-header-actions .btn-save-grid,
-  .product-header-actions .btn-toma-fisica,
-  .product-header-actions .btn-nuevo-producto {
-    flex: 1;
-    justify-content: center;
-    gap: 0;
-    padding: 8px 0;
-  }
-  /* Toma Física y Nuevo Producto: solo ícono */
-  .product-header-actions .btn-toma-fisica,
-  .product-header-actions .btn-nuevo-producto {
-    font-size: 0;
+  .btn-nuevo-label {
+    display: none;
   }
   /* Ver cambios: ícono + número, sin el texto "Ver cambios" */
   .product-header-actions .btn-save-grid {
