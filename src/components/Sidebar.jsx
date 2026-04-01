@@ -45,9 +45,9 @@ export const MODULES = [
     nombre: 'Bodega',
     icon: FiBox,
     items: [
-      { label: 'Inventario Agroquímicos', to: '/productos', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
-      { label: 'Recepción de Mercancía', to: '/ingreso-productos', icon: FiPlusCircle, minRole: 'encargado' },
-      { label: 'Historial de Movimientos', to: '/productos/movimientos', icon: FiList, minRole: 'encargado' },
+      { label: 'Existencias', to: '/bodega/agroquimicos/existencias', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
+      { label: 'Recepción de Mercancía', to: '/bodega/agroquimicos/recepcion', icon: FiPlusCircle, minRole: 'encargado' },
+      { label: 'Historial de Movimientos', to: '/bodega/agroquimicos/movimientos', icon: FiList, minRole: 'encargado' },
     ],
   },
   {
@@ -206,7 +206,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const itemFor = (path) => ALL_ITEMS.find((i) => i.to === path);
   const badgeFor = (to) => {
     if (to === '/' && tareasVencidasCount > 0) return tareasVencidasCount;
-    if (to === '/productos' && stockBajoCount > 0) return stockBajoCount;
+    if (to === '/bodega/agroquimicos/existencias' && stockBajoCount > 0) return stockBajoCount;
     return null;
   };
 

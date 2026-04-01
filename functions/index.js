@@ -1366,6 +1366,38 @@ app.delete('/api/users/:id', authenticate, async (req, res) => {
   }
 });
 
+// --- API ENDPOINTS: BODEGAS ---
+// Una "bodega" es un almacén tipado. El campo `tipo` determina qué componente
+// frontend se renderiza (agroquimicos, combustibles, herramientas, generico…).
+// Si la finca no tiene ninguna bodega, se siembra automáticamente la de agroquímicos.
+app.get('/api/bodegas', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('bodegas')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('orden')
+      .get();
+
+    if (!snap.empty) {
+      return res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }
+
+    // Auto-seed: primera ejecución por finca
+    const defaultBodega = {
+      nombre: 'Agroquímicos',
+      tipo: 'agroquimicos',
+      icono: 'FiDroplet',
+      orden: 1,
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    };
+    const docRef = await db.collection('bodegas').add(defaultBodega);
+    return res.json([{ id: docRef.id, ...defaultBodega }]);
+  } catch (err) {
+    console.error('[bodegas GET]', err);
+    return res.status(500).json({ message: 'Error al obtener bodegas.' });
+  }
+});
+
 // --- API ENDPOINTS: PRODUCTOS ---
 app.get('/api/productos', authenticate, async (req, res) => {
   try {

@@ -608,7 +608,7 @@ function ProductIngreso() {
             <>
               <div className="kebab-backdrop" onClick={() => setKebabOpen(false)} />
               <ul className="kebab-dropdown">
-                <li onClick={() => { navigate('/productos/movimientos'); setKebabOpen(false); }}>
+                <li onClick={() => { navigate('/bodega/agroquimicos/movimientos'); setKebabOpen(false); }}>
                   <FiFileText size={14} /> Ver historial
                 </li>
               </ul>
