@@ -2433,6 +2433,7 @@ Extrae cada línea de producto de la factura y devuelve un arreglo JSON con este
     "unidadFactura": "unidad como aparece en factura (ej: Galón, Pichinga 5L, kg, L)",
     "cantidadCatalogo": 7.57,
     "unidadCatalogo": "unidad del catálogo (ej: L, kg, mL, g)",
+    "subtotalLinea": 150.00,
     "notas": "conversión realizada u observación, o vacío"
   }
 ]
@@ -2441,7 +2442,8 @@ Reglas importantes:
 1. Convierte automáticamente las unidades al sistema métrico del catálogo (ej: 1 Galón = 3.785 L, 1 Pichinga 5L = 5 L).
 2. Si en el catálogo hay un producto con nombre similar, asigna su ID en "productoId".
 3. Si no hay coincidencia, usa null en "productoId" y mantén la unidad de la factura.
-4. Devuelve SOLO el arreglo JSON, sin texto adicional, sin markdown, sin bloques de código.`;
+4. "subtotalLinea" es el importe total de ESA FILA específica (cantidad × precio unitario). Ejemplo: si la fila dice "2 unidades × $75.00 = $150.00", entonces subtotalLinea = 150.00. NO uses el total general de la factura. Si el subtotal de la línea no aparece explícitamente, multiplica cantidad × precio unitario. Si ninguno de los dos está disponible, usa null.
+5. Devuelve SOLO el arreglo JSON, sin texto adicional, sin markdown, sin bloques de código.`;
 
     const response = await anthropicClient.messages.create({
       model: 'claude-sonnet-4-6',

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './ProductManagement.css';
-import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera, FiMenu, FiArrowLeft } from 'react-icons/fi';
 import InvoiceScan from './InvoiceScan';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -58,7 +58,7 @@ function calcIvaAmount(f) {
 }
 
 // ── Autocompletado con Portal (escapa del overflow del contenedor) ─────────
-function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder }) {
+function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder, autoFocus }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef(null);
@@ -81,6 +81,7 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
       <input
         ref={inputRef}
         value={value}
+        autoFocus={autoFocus}
         onChange={e => { onChange(e.target.value); calcPos(); setOpen(true); }}
         onFocus={() => { calcPos(); setOpen(true); }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -353,13 +354,13 @@ const formatDate = (iso) => {
 function ProductIngreso() {
   const apiFetch = useApiFetch();
   const location = useLocation();
+  const navigate = useNavigate();
   const [filas, setFilas] = useState([newRow()]);
   const [factura, setFactura] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0]);
   const [proveedor, setProveedor] = useState('');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [movimientos, setMovimientos] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [unidadesMedida, setUnidadesMedida] = useState([]);
@@ -367,6 +368,10 @@ function ProductIngreso() {
   const [loadedOrdenId, setLoadedOrdenId] = useState(null);
   const [loadedOrden, setLoadedOrden] = useState(null);
   const [showScan, setShowScan] = useState(false);
+  const [ocModalOpen, setOcModalOpen] = useState(false);
+  const [kebabOpen, setKebabOpen] = useState(false);
+  const [step, setStep] = useState('list');
+  const ocVisibles = ordenes.filter(o => o.estado !== 'recibida' && o.estado !== 'completada' && o.estado !== 'cancelada');
   const [invoiceImage, setInvoiceImage] = useState(null); // { base64, mediaType, previewUrl }
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const imageFileInputRef = useRef(null);
@@ -384,7 +389,7 @@ function ProductIngreso() {
           nombreComercial: cat?.nombreComercial  || linea.nombreComercial || linea.nombreFactura || '',
           unidad:          cat?.unidad           || linea.unidad          || linea.unidadFactura || 'L',
           cantidad:        String(linea.cantidadIngresada || linea.cantidadFactura || ''),
-          total:           '',
+          total:           linea.subtotalLinea != null ? String(linea.subtotalLinea) : '',
           iva:             cat?.iva != null ? cat.iva : 0,
         };
       })
@@ -416,9 +421,6 @@ function ProductIngreso() {
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const fetchMovimientos = () => {
-    apiFetch('/api/movimientos').then(r => r.json()).then(setMovimientos).catch(console.error);
-  };
 
   const handleAutocompleteSelect = (rowKey, producto) => {
     setFilas(prev => prev.map(f => f._key === rowKey ? {
@@ -455,6 +457,7 @@ function ProductIngreso() {
     if (orden.proveedor) setProveedor(orden.proveedor);
     setLoadedOrdenId(orden.id);
     setLoadedOrden(orden);
+    setStep('form');
   };
 
   // Devuelve { estado, updatedItems } con cantidadRecibida acumulada por ítem,
@@ -489,7 +492,6 @@ function ProductIngreso() {
     apiFetch('/api/proveedores').then(r => r.json()).then(setProveedores).catch(console.error);
     apiFetch('/api/unidades-medida').then(r => r.json()).then(setUnidadesMedida).catch(console.error);
     apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
-    fetchMovimientos();
     if (location.state?.editProducto) {
       const p = location.state.editProducto;
       const cant  = parseFloat(p.stockActual)    || 0;
@@ -511,7 +513,12 @@ function ProductIngreso() {
   const update = (key, field, value) =>
     setFilas(prev => prev.map(f => f._key === key ? { ...f, [field]: value } : f));
 
-  const addFila = () => setFilas(prev => [...prev, newRow()]);
+  const [newRowKey, setNewRowKey] = useState(null);
+  const addFila = () => {
+    const row = newRow();
+    setFilas(prev => [...prev, row]);
+    setNewRowKey(row._key);
+  };
 
   const removeFila = (key) =>
     setFilas(prev => prev.length > 1 ? prev.filter(f => f._key !== key) : prev);
@@ -521,9 +528,9 @@ function ProductIngreso() {
   const totalGeneral = subtotal + ivaTotal;
 
   const handleGuardarTodo = async () => {
-    const validas = filas.filter(f => f.idProducto.trim() && f.nombreComercial.trim());
+    const validas = filas.filter(f => f.nombreComercial.trim());
     if (validas.length === 0) {
-      showToast('Completa al menos ID y Nombre Comercial en una fila.', 'error');
+      showToast('Completa al menos el Nombre Comercial en una fila.', 'error');
       return;
     }
     setSaving(true);
@@ -565,7 +572,6 @@ function ProductIngreso() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error');
 
-      fetchMovimientos();
       if (loadedOrden) apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
 
       setFilas([newRow()]);
@@ -574,6 +580,7 @@ function ProductIngreso() {
       setLoadedOrdenId(null);
       setLoadedOrden(null);
       setInvoiceImage(null);
+      setStep('list');
 
       const msg = [
         data.creados   > 0 && `${data.creados} creado(s)`,
@@ -592,9 +599,86 @@ function ProductIngreso() {
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <h2 className="ingreso-page-title">Recepción de Mercancía</h2>
+      <div className="ingreso-title-row">
+        <div className="kebab-menu-wrap">
+          <button className="btn-kebab" onClick={() => setKebabOpen(o => !o)} title="Más opciones">
+            <FiMenu size={17} />
+          </button>
+          {kebabOpen && (
+            <>
+              <div className="kebab-backdrop" onClick={() => setKebabOpen(false)} />
+              <ul className="kebab-dropdown">
+                <li onClick={() => { navigate('/productos/movimientos'); setKebabOpen(false); }}>
+                  <FiFileText size={14} /> Ver historial
+                </li>
+              </ul>
+            </>
+          )}
+        </div>
+        <h2 className="ingreso-page-title">Recepción de Mercancía</h2>
+        {step === 'form' && (
+          <button
+            type="button"
+            className="ingreso-oc-trigger-btn"
+            onClick={() => setOcModalOpen(true)}
+          >
+            <FiFileText size={13} />
+            OC
+            {ocVisibles.length > 0 && (
+              <span className="ingreso-oc-trigger-badge">{ocVisibles.length}</span>
+            )}
+          </button>
+        )}
+      </div>
 
-      <div className="ingreso-top-layout">
+      {/* ── Vista lista ── */}
+      {step === 'list' && (
+        ocVisibles.length === 0 ? (
+          <div className="ingreso-list-empty">
+            <FiPackage size={36} />
+            <p>No hay recepciones pendientes</p>
+            <button className="btn btn-primary" onClick={() => setStep('form')}>
+              <FiPlus size={14} /> Crear una
+            </button>
+          </div>
+        ) : (
+          <div className="ingreso-oc-list-view">
+            {ocVisibles.map(orden => {
+              const isParcial = orden.estado === 'recibida_parcialmente';
+              return (
+                <div
+                  key={orden.id}
+                  className={`ingreso-oc-list-card${isParcial ? ' ingreso-oc-card--parcial' : ''}`}
+                  onClick={() => loadOrdenIntoForm(orden)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === 'Enter' && loadOrdenIntoForm(orden)}
+                >
+                  <div className="ingreso-oc-list-card-head">
+                    <span className="ingreso-oc-title">{orden.poNumber || 'OC sin número'}</span>
+                    {isParcial && <span className="ingreso-oc-badge-parcial">Parcial</span>}
+                  </div>
+                  <div className="ingreso-oc-meta">
+                    <span>{orden.proveedor || <em>Sin proveedor</em>}</span>
+                    <span><FiPackage size={11} /> {Array.isArray(orden.items) ? orden.items.length : 0} prod.</span>
+                    <span>{formatDate(orden.fecha)}</span>
+                  </div>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              className="ingreso-add-row-btn ingreso-manual-btn"
+              onClick={() => setStep('form')}
+            >
+              <FiPlus size={13} /> Nueva entrada manual
+            </button>
+          </div>
+        )
+      )}
+
+      {/* ── Vista formulario ── */}
+      {step === 'form' && <div className="ingreso-top-layout">
 
       <div className="form-card ingreso-grid-card">
 
@@ -644,6 +728,16 @@ function ProductIngreso() {
             )}
           </div>
           <div className="ingreso-header-right">
+            <div className="ingreso-fecha-wrap">
+              <label htmlFor="fechaIngreso">Fecha de recepción</label>
+              <input
+                type="date"
+                id="fechaIngreso"
+                value={fecha}
+                onChange={e => setFecha(e.target.value)}
+                className="ingreso-fecha-input"
+              />
+            </div>
             <div className="ingreso-factura-wrap">
               <label htmlFor="facturaIngreso">Factura</label>
               <input
@@ -653,16 +747,6 @@ function ProductIngreso() {
                 onChange={e => setFactura(e.target.value)}
                 className="ingreso-factura-input"
                 placeholder="N° de factura"
-              />
-            </div>
-            <div className="ingreso-fecha-wrap">
-              <label htmlFor="fechaIngreso">Fecha de recepción</label>
-              <input
-                type="date"
-                id="fechaIngreso"
-                value={fecha}
-                onChange={e => setFecha(e.target.value)}
-                className="ingreso-fecha-input"
               />
             </div>
             <div className="ingreso-proveedor-wrap">
@@ -681,7 +765,7 @@ function ProductIngreso() {
           <table className="ingreso-table">
             <thead>
               <tr>
-                <th className="col-id">ID Producto</th>
+                <th className="col-id">ID Producto <span className="col-optional">(opcional)</span></th>
                 <th className="col-name">Nombre Comercial</th>
                 <th className="col-narrow">UM</th>
                 <th className="col-number">Cantidad</th>
@@ -703,6 +787,7 @@ function ProductIngreso() {
                         onSelect={p => handleAutocompleteSelect(f._key, p)}
                         suggestions={catalogo}
                         placeholder="PD-001"
+                        autoFocus={f._key === newRowKey}
                       />
                     </td>
                     <td>
@@ -779,7 +864,7 @@ function ProductIngreso() {
 
         <div className="ingreso-grid-footer">
           <div className="ingreso-footer-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); }} disabled={saving}>
+            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); setLoadedOrdenId(null); setLoadedOrden(null); setStep('list'); }} disabled={saving}>
               <FiX size={15} /> Cancelar
             </button>
             <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
@@ -813,8 +898,8 @@ function ProductIngreso() {
           <div className="ingreso-oc-header">
             <FiFileText size={15} />
             <span>Órdenes de Compra</span>
-            {ordenes.length > 0 && (
-              <span className="ingreso-oc-count">{ordenes.length}</span>
+            {ocVisibles.length > 0 && (
+              <span className="ingreso-oc-count">{ocVisibles.length}</span>
             )}
           </div>
 
@@ -860,89 +945,73 @@ function ProductIngreso() {
           })()}
         </aside>
 
-      </div>{/* /ingreso-top-layout */}
-
-      {/* Historial de Ingresos */}
-      <div className="list-card historial-card">
-        <h2>Historial de Ingresos</h2>
-        {(() => {
-          const ingresos = movimientos.filter(m => m.tipo === 'ingreso');
-          if (ingresos.length === 0) return (
-            <p className="empty-state">No hay ingresos registrados aún.</p>
-          );
-          return (
-            <div className="hist-table-wrap">
-              <table className="hist-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Factura</th>
-                    <th>Proveedor</th>
-                    <th>OC</th>
-                    <th>ID Producto</th>
-                    <th>Nombre Comercial</th>
-                    <th>UM</th>
-                    <th className="hist-col-num">Cantidad</th>
-                    <th className="hist-col-num">Precio Unit.</th>
-                    <th className="hist-col-num">IVA</th>
-                    <th className="hist-col-num">Total</th>
-                    <th className="hist-col-img"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ingresos.map(m => {
-                    const precioUnit = parseFloat(m.precioUnitario) || 0;
-                    const cant       = parseFloat(m.cantidad)       || 0;
-                    const iva        = parseFloat(m.iva)            || 0;
-                    const total      = cant * precioUnit * (1 + iva / 100);
-                    return (
-                      <tr key={m.id}>
-                        <td className="hist-col-fecha">
-                          {new Date(m.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </td>
-                        <td>{m.facturaNumero || <span className="hist-empty">—</span>}</td>
-                        <td>{m.proveedor     || <span className="hist-empty">—</span>}</td>
-                        <td>{m.ocPoNumber    || <span className="hist-empty">—</span>}</td>
-                        <td>{m.idProducto    || <span className="hist-empty">—</span>}</td>
-                        <td className="hist-col-name">{m.nombreComercial}</td>
-                        <td>{m.unidad}</td>
-                        <td className="hist-col-num">{cant.toLocaleString('es-CR')}</td>
-                        <td className="hist-col-num">
-                          {precioUnit > 0
-                            ? precioUnit.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-                            : <span className="hist-empty">—</span>}
-                        </td>
-                        <td className="hist-col-num">
-                          {iva > 0 ? `${iva}%` : <span className="hist-empty">—</span>}
-                        </td>
-                        <td className="hist-col-num hist-col-total">
-                          {total > 0
-                            ? total.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : <span className="hist-empty">—</span>}
-                        </td>
-                        <td className="hist-col-img">
-                          {m.facturaImageUrl && (
-                            <button
-                              type="button"
-                              className="hist-factura-btn"
-                              onClick={() => setLightboxSrc(m.facturaImageUrl)}
-                              title="Ver imagen de factura"
-                            >
-                              <FiCamera size={14} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
-      </div>
+      </div>}{/* /ingreso-top-layout + step form */}
 
     </div>
+
+    {/* Modal: Órdenes de Compra */}
+    {ocModalOpen && (
+      <div className="ingreso-scan-overlay" onClick={e => { if (e.target === e.currentTarget) setOcModalOpen(false); }}>
+        <div className="ingreso-oc-modal">
+          <div className="ingreso-oc-modal-header">
+            <div className="ingreso-oc-modal-title">
+              <FiFileText size={16} />
+              <span>Órdenes de Compra</span>
+              {ocVisibles.length > 0 && (
+                <span className="ingreso-oc-count">{ocVisibles.length}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="ingreso-scan-modal-close"
+              onClick={() => setOcModalOpen(false)}
+              aria-label="Cerrar"
+            >
+              <FiX size={18} />
+            </button>
+          </div>
+          <div className="ingreso-oc-modal-body">
+            {ocVisibles.length === 0 ? (
+              <div className="ingreso-oc-empty">
+                <p>Sin órdenes pendientes.</p>
+              </div>
+            ) : (
+              <div className="ingreso-oc-list">
+                {ocVisibles.map(orden => {
+                  const isLoaded  = loadedOrdenId === orden.id;
+                  const isParcial = orden.estado === 'recibida_parcialmente';
+                  return (
+                    <div
+                      key={orden.id}
+                      className={[
+                        'ingreso-oc-card',
+                        isLoaded  ? 'ingreso-oc-card--loaded'  : '',
+                        isParcial ? 'ingreso-oc-card--parcial' : '',
+                      ].join(' ')}
+                      onClick={() => { loadOrdenIntoForm(orden); setOcModalOpen(false); }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => e.key === 'Enter' && (loadOrdenIntoForm(orden), setOcModalOpen(false))}
+                    >
+                      <div className="ingreso-oc-title-row">
+                        <span className="ingreso-oc-title">{orden.poNumber || 'OC sin número'}</span>
+                        {isParcial && <span className="ingreso-oc-badge-parcial">Parcial</span>}
+                        {isLoaded  && <span className="ingreso-oc-badge-loaded">Cargada</span>}
+                      </div>
+                      <div className="ingreso-oc-meta">
+                        <span>{orden.proveedor || <em>Sin proveedor</em>}</span>
+                        <span><FiPackage size={11} /> {Array.isArray(orden.items) ? orden.items.length : 0} prod.</span>
+                      </div>
+                      <div className="ingreso-oc-fecha">{formatDate(orden.fecha)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Modal: Escanear factura */}
     {showScan && (
@@ -957,7 +1026,7 @@ function ProductIngreso() {
             <FiX size={18} />
           </button>
           <InvoiceScan
-            onDone={() => { fetchMovimientos(); }}
+            onDone={() => {}}
             onProductsScanned={handleProductsScanned}
           />
         </div>
