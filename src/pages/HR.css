@@ -1,5 +1,15 @@
 @import url('./LoteManagement.css');
 
+/* ── Remove number input spinners ─────────────────────────────────────────── */
+.ficha-page-layout input[type=number]::-webkit-outer-spin-button,
+.ficha-page-layout input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.ficha-page-layout input[type=number] {
+  -moz-appearance: textfield;
+}
+
 /* ── Stats row ────────────────────────────────────────────────────────────── */
 .hr-stats {
   display: grid;

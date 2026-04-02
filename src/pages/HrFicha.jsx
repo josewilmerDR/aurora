@@ -4,7 +4,7 @@ import './HR.css';
 import { FiSave, FiUserPlus, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
+import { useUser, ROLE_LABELS } from '../contexts/UserContext';
 
 const DIAS_SEMANA = [
   { key: 'lunes',     label: 'Lunes',      letra: 'L' },
@@ -22,7 +22,7 @@ const EMPTY_HORARIO = Object.fromEntries(
 
 const EMPTY_FICHA = {
   puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'permanente',
-  salarioBase: '', cedula: '', direccion: '', contactoEmergencia: '', telefonoEmergencia: '',
+  salarioBase: '', precioHora: '', cedula: '', encargadoId: '', direccion: '', contactoEmergencia: '', telefonoEmergencia: '',
   notas: '',
   horarioSemanal: EMPTY_HORARIO,
 };
@@ -210,6 +210,7 @@ function HrFicha() {
     }
   };
 
+  const encargados = allUsers.filter(u => ['encargado', 'supervisor', 'administrador'].includes(u.rol));
   const selectedUser = allUsers.find(u => u.id === selectedId);
 
   return (
@@ -334,6 +335,10 @@ function HrFicha() {
                   <option value="administrador">Administrador</option>
                 </select>
               </div>
+              <div className="form-control">
+                <label>Cédula / Identificación</label>
+                <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
+              </div>
             </div>
 
             <button
@@ -368,11 +373,20 @@ function HrFicha() {
               </div>
               <div className="form-control">
                 <label>Salario Base (₡)</label>
-                <input name="salarioBase" type="number" min="0" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
+                <input name="salarioBase" type="number" min="0" step="any" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
               </div>
               <div className="form-control">
-                <label>Cédula / Identificación</label>
-                <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
+                <label>Precio por Hora (₡)</label>
+                <input name="precioHora" type="number" min="0" step="any" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" />
+              </div>
+              <div className="form-control">
+                <label>Encargado / Supervisor directo</label>
+                <select name="encargadoId" value={fichaForm.encargadoId} onChange={handleFichaChange}>
+                  <option value="">— Sin asignar —</option>
+                  {encargados.map(e => (
+                    <option key={e.id} value={e.id}>{e.nombre} ({ROLE_LABELS[e.rol] || e.rol})</option>
+                  ))}
+                </select>
               </div>
             </div>
             </div>
