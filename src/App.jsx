@@ -210,16 +210,18 @@ const MainLayout = () => {
     const q = searchQuery.toLowerCase();
     const results = [];
     MODULES.forEach(mod => {
+      const modMatches = mod.nombre.toLowerCase().includes(q);
       mod.items.forEach(item => {
         if (item.children) {
+          const groupMatches = item.label.toLowerCase().includes(q);
           item.children.forEach(child => {
-            if (hasMinRole(userRole, child.minRole) && child.label.toLowerCase().includes(q)) {
-              results.push({ label: child.label, to: child.to, tag: `${mod.nombre} > ${item.label}`.toLowerCase() });
+            if (hasMinRole(userRole, child.minRole) && (child.label.toLowerCase().includes(q) || groupMatches || modMatches)) {
+              results.push({ label: child.label, to: child.to, tag: `${mod.nombre} > ${item.label}` });
             }
           });
         } else {
-          if (hasMinRole(userRole, item.minRole) && item.label.toLowerCase().includes(q)) {
-            results.push({ label: item.label, to: item.to, tag: mod.nombre.toLowerCase() });
+          if (hasMinRole(userRole, item.minRole) && (item.label.toLowerCase().includes(q) || modMatches)) {
+            results.push({ label: item.label, to: item.to, tag: mod.nombre });
           }
         }
       });
