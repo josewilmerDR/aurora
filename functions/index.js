@@ -3583,7 +3583,8 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
 
     // ── Snapshot al aprobar ────────────────────────────────────────────────────
     if (estado === 'aprobada' && !ownership.doc.data().snapshotCreado) {
-      const doc = ownership.doc.data();
+      // Mezclar datos viejos con los cambios del body para usar siempre la versión más reciente
+      const doc = { ...ownership.doc.data(), ...update };
 
       // Resolver nombre del aprobador
       let aprobadoPor = req.userEmail;

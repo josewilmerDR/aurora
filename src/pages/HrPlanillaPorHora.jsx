@@ -344,6 +344,7 @@ function HrPlanillaPorHora() {
   const [historialLoading, setHistorialLoading] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
   const skipAutoSave = useRef(true);
+  const originalPlanillaRef = useRef(null);
   const [previewPlanilla, setPreviewPlanilla] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const previewRef = useRef(null);
@@ -374,13 +375,14 @@ function HrPlanillaPorHora() {
       .finally(() => setHistorialLoading(false));
   }, []);
 
-  // Auto-guardado al detectar cambios (debounce 2s)
+  // Auto-guardado al detectar cambios (debounce 2s) — solo borradores
   useEffect(() => {
     if (skipAutoSave.current) { skipAutoSave.current = false; return; }
     if (!showForm) return;
+    if (planillaEstado === 'pendiente') return; // pendiente no se auto-guarda
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) return;
-    const estadoGuardado = planillaEstado || 'borrador'; // conserva el estado actual
+    const estadoGuardado = planillaEstado || 'borrador';
     const timer = setTimeout(async () => {
       setAutoSaveStatus('saving');
       const body = {
@@ -788,11 +790,26 @@ function HrPlanillaPorHora() {
 
   const handleAprobarDesdeFormulario = async () => {
     if (!planillaId) return;
+    const encId = currentUser?.userId || currentUser?.uid;
     setGuardando(true);
     try {
+      const body = {
+        fecha,
+        encargadoId: encId,
+        encargadoNombre: currentUser.nombre || '',
+        segmentos,
+        trabajadores: visibleWorkers.map(t => ({
+          trabajadorId: t.id, trabajadorNombre: t.nombre,
+          precioHora: Number(t.precioHora) || 0,
+          cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
+        })),
+        totalGeneral: totalGeneral(),
+        estado: 'aprobada',
+        observaciones,
+      };
       const res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'aprobada' }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
       clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
@@ -879,6 +896,7 @@ function HrPlanillaPorHora() {
   };
 
   const loadPlanilla = (p) => {
+    originalPlanillaRef.current = p;
     setSegmentos(p.segmentos || [newSegmento()]);
     // Rebuild cantidades keyed by current worker ids; fall back to saved data
     const newCantidades = {};
@@ -1599,18 +1617,22 @@ function HrPlanillaPorHora() {
           <button
             className="btn btn-secondary"
             onClick={() => {
-              clearSegsDraft();
-              clearCantsDraft();
-              clearFechaDraft();
-              clearObsDraft();
-              clearDraftActive(DRAFT_FORM_KEY);
-              setPlanillaId(null);
-              setConsecutivo(null);
-              setPlanillaEstado(null);
-              setAutoSaveStatus(null);
-              setFillAll({});
-              setRemovedWorkerIds([]);
-              setShowForm(false);
+              if (planillaEstado === 'pendiente' && originalPlanillaRef.current) {
+                loadPlanilla(originalPlanillaRef.current);
+              } else {
+                clearSegsDraft();
+                clearCantsDraft();
+                clearFechaDraft();
+                clearObsDraft();
+                clearDraftActive(DRAFT_FORM_KEY);
+                setPlanillaId(null);
+                setConsecutivo(null);
+                setPlanillaEstado(null);
+                setAutoSaveStatus(null);
+                setFillAll({});
+                setRemovedWorkerIds([]);
+                setShowForm(false);
+              }
             }}
             disabled={guardando}
           >
