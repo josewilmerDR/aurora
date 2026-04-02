@@ -56,8 +56,6 @@ export const MODULES = [
     icon: FiBriefcase,
     items: [
       { label: 'Ficha del Trabajador', to: '/hr/ficha', icon: FiUser, minRole: 'encargado', draftKey: 'hr-ficha' },
-      { label: 'Registro de Asistencia', to: '/hr/asistencia', icon: FiCalendar, minRole: 'encargado' },
-      { label: 'Horas Extra', to: '/hr/horas-extra', icon: FiClock, minRole: 'encargado' },
       { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },
       { label: 'Planilla', icon: FiDollarSign, minRole: 'encargado', children: [
         { label: 'Fijo / Mensual', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
@@ -66,8 +64,6 @@ export const MODULES = [
       ]},
       { label: 'Historial de Pagos', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
       { label: 'Historial del Empleado', to: '/hr/historial', icon: FiBook, minRole: 'encargado' },
-      { label: 'Documentos Adjuntos', to: '/hr/documentos', icon: FiPaperclip, minRole: 'encargado' },
-      { label: 'Memorándums y Amonestaciones', to: '/hr/memorandums', icon: FiAlertTriangle, minRole: 'supervisor' },
       { label: 'Solicitud de Empleo', to: '/hr/solicitud-empleo', icon: FiUserPlus, minRole: 'supervisor' },
     ],
   },
