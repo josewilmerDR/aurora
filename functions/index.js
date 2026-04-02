@@ -3598,11 +3598,16 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
       const workers = doc.trabajadores || [];
       const batch = db.batch();
 
+      const isHoraUnit = (u) => /^horas?$/i.test((u || '').trim());
       workers.forEach(worker => {
         segs.forEach(seg => {
           const cantidad = Number(worker.cantidades?.[seg.id]) || 0;
           if (cantidad <= 0) return;
-          const costoUnitario = Number(seg.costoUnitario) || 0;
+          const horaDirecta = isHoraUnit(seg.unidad);
+          const horaConFactor = !horaDirecta && isHoraUnit(seg.unidadBase) && seg.factorConversion != null;
+          const costoUnitario = (horaDirecta || horaConFactor)
+            ? (Number(worker.precioHora) || 0) * (horaConFactor ? Number(seg.factorConversion) : 1)
+            : (Number(seg.costoUnitario) || 0);
           const ref = db.collection('hr_planilla_unidad_historial').doc();
           batch.set(ref, {
             fincaId:          req.fincaId,
