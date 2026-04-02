@@ -26,6 +26,108 @@
   top: 16px;
 }
 
+/* ── Full-page empty state (sin historial y sin formulario) ──────────────────── */
+.pu-full-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 60vh;
+  padding: 48px 20px;
+  color: rgba(230, 242, 255, 0.3);
+  text-align: center;
+}
+
+.pu-full-empty-state p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.4);
+  margin: 0;
+}
+
+.pu-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(230, 242, 255, 0.1);
+  border-top-color: var(--aurora-green);
+  border-radius: 50%;
+  animation: pu-spin 0.7s linear infinite;
+}
+
+@keyframes pu-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Lista intermedia de planillas ───────────────────────────────────────────── */
+.pu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pu-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--aurora-background);
+  border-bottom: 1px solid var(--aurora-border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.pu-list-item:last-child { border-bottom: none; }
+
+.pu-list-item:hover { background: rgba(255,255,255,0.04); }
+
+.pu-list-item-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.pu-list-item-consec {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.pu-list-item-encargado {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pu-list-item-meta {
+  font-size: 0.8rem;
+  color: rgba(230, 242, 255, 0.45);
+  white-space: nowrap;
+}
+
+.pu-list-item-total {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  white-space: nowrap;
+}
+
 /* ── Empty state (sin formulario activo) ─────────────────────────────────────── */
 .pu-empty-state-card {
   display: flex;
@@ -451,6 +553,14 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
+}
+
+.pu-autosave-status {
+  font-size: 0.75rem;
+  color: rgba(230, 242, 255, 0.4);
+  font-style: italic;
+  min-width: 120px;
+  text-align: right;
 }
 
 /* Campos FECHA / ENCARGADO fuera de la tabla */
