@@ -492,7 +492,14 @@ function HrPlanillaPorHora() {
           .then(fichas => {
             const fichaMap = {};
             fichas.forEach(f => { fichaMap[f.userId] = f; });
-            return empleados.map(e => ({ ...e, precioHora: Number(fichaMap[e.id]?.precioHora) || 0 }));
+            const enriched = empleados.map(e => ({ ...e, precioHora: Number(fichaMap[e.id]?.precioHora) || 0 }));
+            if (!isAdmin) {
+              const selfId = currentUser.userId;
+              if (!enriched.some(e => e.id === selfId)) {
+                enriched.unshift({ id: selfId, nombre: currentUser.nombre, precioHora: Number(fichaMap[selfId]?.precioHora) || 0, esEncargadoActual: true });
+              }
+            }
+            return enriched;
           })
           .catch(() => empleados);
       })
@@ -1105,7 +1112,7 @@ function HrPlanillaPorHora() {
                         {/* Trabajadores */}
                         {workers.map(t => (
                           <tr key={t.trabajadorId} className="pu-pdoc-row-worker">
-                            <td className="pu-pdoc-worker-name">{t.trabajadorNombre}</td>
+                            <td className="pu-pdoc-worker-name">{t.trabajadorId === currentUser?.userId ? <em><strong>{t.trabajadorNombre}</strong></em> : t.trabajadorNombre}</td>
                             {segs.map((seg, i) => (
                               <td key={i} className="pu-pdoc-td-center">
                                 {t.cantidades?.[seg.id] || '—'}
@@ -1512,7 +1519,7 @@ function HrPlanillaPorHora() {
                         >
                           <FiX size={10} />
                         </button>
-                        {t.nombre}
+                        {t.esEncargadoActual ? <em><strong>{t.nombre}</strong></em> : t.nombre}
                       </div>
                     </td>
                     {segmentos.map((seg, idx) => (

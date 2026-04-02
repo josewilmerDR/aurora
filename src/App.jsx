@@ -25,8 +25,6 @@ import FincaSelector from './pages/FincaSelector';
 import OrgSelector from './pages/OrgSelector';
 import NuevaOrganizacion from './pages/NuevaOrganizacion';
 import HrFicha from './pages/HrFicha';
-import HrAsistencia from './pages/HrAsistencia';
-import HrHorasExtra from './pages/HrHorasExtra';
 import HrPermisos from './pages/HrPermisos';
 import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
 import HrPlanillaReporte from './pages/HrPlanillaReporte';
@@ -34,8 +32,6 @@ import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
 import HrHistorialPagos from './pages/HrHistorialPagos';
 import HrHistorialPlanillaHoras from './pages/HrHistorialPlanillaHoras';
 import HrHistorial from './pages/HrHistorial';
-import HrDocumentos from './pages/HrDocumentos';
-import HrMemorandums from './pages/HrMemorandums';
 import HrSolicitudEmpleo from './pages/HrSolicitudEmpleo';
 import MonitoreoRegistro from './pages/MonitoreoRegistro';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
@@ -102,16 +98,12 @@ const routeTitles = {
   '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
   '/proveedores': 'Proveedores',
   '/hr/ficha': 'Ficha del Trabajador',
-  '/hr/asistencia': 'Registro de Asistencia',
-  '/hr/horas-extra': 'Horas Extra',
   '/hr/permisos': 'Permisos y Vacaciones',
   '/hr/planilla': 'Cálculo de Planilla',
   '/hr/planilla/fijo': 'Planilla — Salario Fijo',
   '/hr/planilla/horas': 'Planilla — Por Hora / Unidad',
   '/hr/historial-pagos': 'Historial de Pagos',
   '/hr/historial': 'Historial del Empleado',
-  '/hr/documentos': 'Documentos Adjuntos',
-  '/hr/memorandums': 'Memorándums y Amonestaciones',
   '/hr/solicitud-empleo': 'Solicitud de Empleo',
   '/monitoreo': 'Registrar Monitoreo',
   '/monitoreo/historial': 'Historial de Monitoreos',
@@ -444,11 +436,8 @@ function App() {
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OrdenesHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
-            <Route path="/hr/asistencia" element={<RoleRoute path="/hr/asistencia"><HrAsistencia /></RoleRoute>} />
-            <Route path="/hr/horas-extra" element={<RoleRoute path="/hr/horas-extra"><HrHorasExtra /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
             <Route path="/hr/historial" element={<RoleRoute path="/hr/historial"><HrHistorial /></RoleRoute>} />
-            <Route path="/hr/documentos" element={<RoleRoute path="/hr/documentos"><HrDocumentos /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
             <Route path="/aplicaciones/historial" element={<RoleRoute path="/aplicaciones/historial"><HistorialAplicaciones /></RoleRoute>} />
@@ -462,7 +451,6 @@ function App() {
             <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorHora /></RoleRoute>} />
             <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaHoras /></RoleRoute>} />
             <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPagos /></RoleRoute>} />
-            <Route path="/hr/memorandums" element={<RoleRoute path="/hr/memorandums"><HrMemorandums /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
             <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><ConfiguracionInicial /></RoleRoute>} />
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
