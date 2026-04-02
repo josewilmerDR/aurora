@@ -27,6 +27,10 @@ function newSegmento() {
   return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '' };
 }
 
+function isHoraUnit(u) {
+  return /^horas?$/i.test((u || '').trim());
+}
+
 const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect, onTabDown }, ref) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -200,6 +204,7 @@ const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupo
   );
 });
 
+// unidades: array of { id, nombre, precio?, ... }
 const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, unidades, onAfterSelect, onTabDown }, ref) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -210,11 +215,11 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
 
   const filtered = unidades.filter(u => {
     const q = (value || '').toLowerCase();
-    return !q || u.toLowerCase().includes(q);
+    return !q || (u.nombre || '').toLowerCase().includes(q);
   });
 
   const selectOption = (u) => {
-    onChange(u);
+    onChange(u.nombre, u.precio ?? null);
     setOpen(false);
     setHighlighted(0);
     onAfterSelect?.();
@@ -264,7 +269,7 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
         value={value === '-' ? '' : value}
         autoComplete="off"
         placeholder="Buscar unidad…"
-        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
+        onChange={e => { onChange(e.target.value, null); setOpen(true); setHighlighted(0); }}
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
       />
@@ -272,12 +277,15 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
         <ul ref={listRef} className="labor-dropdown">
           {filtered.map((u, i) => (
             <li
-              key={u}
+              key={u.id || u.nombre}
               className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
               onMouseDown={() => selectOption(u)}
               onMouseEnter={() => setHighlighted(i)}
             >
-              <span className="labor-dropdown-desc">{u}</span>
+              <span className="labor-dropdown-desc">{u.nombre}</span>
+              {u.precio != null && (
+                <span className="labor-dropdown-code">₡{Number(u.precio).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              )}
             </li>
           ))}
         </ul>
@@ -303,6 +311,7 @@ function HrPlanillaPorHora() {
   const [cantidades, setCantidades, clearCantsDraft] = useDraft('hr-planilla-cantidades', {});
   const [fillAll, setFillAll] = useState({});
   const [lotes, setLotes] = useState([]);
+  const [siembras, setSiembras] = useState([]);
   const [gruposCat, setGruposCat] = useState([]);
   const [laboresCat, setLaboresCat] = useState([]);
   const [unidadesCat, setUnidadesCat] = useState([]);
@@ -359,9 +368,10 @@ function HrPlanillaPorHora() {
 
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
+    apiFetch('/api/siembras').then(r => r.json()).then(data => setSiembras(Array.isArray(data) ? data : [])).catch(console.error);
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
-    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data.map(u => u.nombre) : [])).catch(console.error);
+    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data : [])).catch(console.error);
     apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
     fetchHistorial();
   }, []);
@@ -405,10 +415,20 @@ function HrPlanillaPorHora() {
       .then(r => r.json())
       .then(data => {
         const empleados = isAdmin ? data.filter(u => u.empleadoPlanilla) : data;
-        setTrabajadores([...empleados].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
+        return apiFetch('/api/hr/fichas')
+          .then(r => r.json())
+          .then(fichas => {
+            const fichaMap = {};
+            fichas.forEach(f => { fichaMap[f.userId] = f; });
+            return empleados.map(e => ({ ...e, precioHora: Number(fichaMap[e.id]?.precioHora) || 0 }));
+          })
+          .catch(() => empleados);
+      })
+      .then(enriched => {
+        setTrabajadores([...enriched].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
         setCantidades(prev => {
           const next = { ...prev };
-          empleados.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
+          enriched.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
           return next;
         });
       })
@@ -493,8 +513,15 @@ function HrPlanillaPorHora() {
     return v === '' || v === undefined ? 0 : Number(v);
   };
 
-  const workerTotal = (tId) =>
-    segmentos.reduce((sum, seg) => sum + getCant(tId, seg.id) * (Number(seg.costoUnitario) || 0), 0);
+  const workerTotal = (tId) => {
+    const t = trabajadores.find(w => w.id === tId);
+    return segmentos.reduce((sum, seg) => {
+      const precio = isHoraUnit(seg.unidad)
+        ? (Number(t?.precioHora) || 0)
+        : (Number(seg.costoUnitario) || 0);
+      return sum + getCant(tId, seg.id) * precio;
+    }, 0);
+  };
 
   const segCantTotal = (segId) =>
     visibleWorkers.reduce((sum, t) => sum + getCant(t.id, segId), 0);
@@ -919,7 +946,9 @@ function HrPlanillaPorHora() {
                         <tr className="pu-pdoc-row-config-last">
                           <td className="pu-pdoc-label-cell">COSTO UNITARIO</td>
                           {segs.map((seg, i) => (
-                            <td key={i}>{seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—'}</td>
+                            <td key={i}>
+                              {isHoraUnit(seg.unidad) ? 'por trabajador' : (seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—')}
+                            </td>
                           ))}
                           <td className="pu-pdoc-label-cell" />
                         </tr>
@@ -1108,9 +1137,11 @@ function HrPlanillaPorHora() {
               <tr className="ut-row-config">
                 <td className="ut-label-cell">GRUPO</td>
                 {segmentos.map((seg, idx) => {
-                  const paqueteId = lotes.find(l => l.id === seg.loteId)?.paqueteId;
-                  const gruposFiltrados = paqueteId
-                    ? gruposCat.filter(g => g.paqueteId === paqueteId)
+                  const gruposFiltrados = seg.loteId
+                    ? (() => {
+                        const ids = new Set(siembras.filter(s => s.loteId === seg.loteId).map(s => s.id));
+                        return gruposCat.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
+                      })()
                     : gruposCat;
                   return (
                     <td key={seg.id} className="ut-config-cell">
@@ -1175,7 +1206,12 @@ function HrPlanillaPorHora() {
                       ref={el => { unidadRefs.current[seg.id] = el; }}
                       value={seg.unidad}
                       unidades={unidadesCat}
-                      onChange={v => updSeg(seg.id, 'unidad', v)}
+                      onChange={(nombre, precio) => {
+                        updSeg(seg.id, 'unidad', nombre);
+                        if (!isHoraUnit(nombre) && precio != null && precio !== '') {
+                          updSeg(seg.id, 'costoUnitario', precio);
+                        }
+                      }}
                       onAfterSelect={() => costoRefs.current[seg.id]?.focus()}
                       onTabDown={makeColTabHandler(seg.id, avanceRefs, costoRefs)}
                     />
@@ -1189,26 +1225,30 @@ function HrPlanillaPorHora() {
                 <td className="ut-label-cell">COSTO UNITARIO</td>
                 {segmentos.map((seg, idx) => (
                   <td key={seg.id} className={"ut-config-cell"}>
-                    <input
-                      ref={el => { costoRefs.current[seg.id] = el; }}
-                      className="ut-ctrl" type="number" min="0" step="any"
-                      value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
-                      placeholder="0"
-                      onKeyDown={e => {
-                        if (e.key === 'Tab') {
-                          e.preventDefault();
-                          if (e.shiftKey) { unidadRefs.current[seg.id]?.focus(); return; }
-                          const firstT = visibleWorkers[0];
-                          if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
-                          return;
-                        }
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const firstT = visibleWorkers[0];
-                          if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
-                        }
-                      }}
-                    />
+                    {isHoraUnit(seg.unidad) ? (
+                      <span className="ut-por-trabajador-label">por trabajador</span>
+                    ) : (
+                      <input
+                        ref={el => { costoRefs.current[seg.id] = el; }}
+                        className="ut-ctrl" type="number" min="0" step="any"
+                        value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
+                        placeholder="0"
+                        onKeyDown={e => {
+                          if (e.key === 'Tab') {
+                            e.preventDefault();
+                            if (e.shiftKey) { unidadRefs.current[seg.id]?.focus(); return; }
+                            const firstT = visibleWorkers[0];
+                            if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const firstT = visibleWorkers[0];
+                            if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
+                          }
+                        }}
+                      />
+                    )}
                   </td>
                 ))}
                 <td className="ut-filler-cell" />
