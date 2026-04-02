@@ -1,15 +1,51 @@
+import { useState, useEffect } from 'react';
 import { useUser, ROLE_LABELS } from '../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/apiFetch';
 import './Login.css';
 
 export default function OrgSelector() {
-  const { memberships, selectFinca, firebaseUser, logout } = useUser();
+  const { memberships, selectFinca, firebaseUser, logout, refreshMemberships } = useUser();
   const navigate = useNavigate();
+  const [checking, setChecking] = useState(false);
+
+  // Fallback: si al montar no hay membresías, intentar reclamar invitaciones pendientes.
+  // Cubre el caso en que onAuthStateChanged no pudo completar la verificación a tiempo.
+  useEffect(() => {
+    if (memberships.length > 0) return;
+    setChecking(true);
+    apiFetch('/api/auth/claim-invitations', { method: 'POST' })
+      .then(res => res.ok ? res.json() : { memberships: [] })
+      .then(async (data) => {
+        if (data.memberships?.length > 0) {
+          await refreshMemberships();
+        }
+      })
+      .catch(() => {})
+      .finally(() => setChecking(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ownedOrgs = memberships.filter(m => m.isOwner);
   const invitedOrgs = memberships.filter(m => !m.isOwner);
   const hasOwnOrg = ownedOrgs.length > 0;
   const noMemberships = memberships.length === 0;
+
+  if (checking) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-logo">
+            <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
+            <span className="login-logo-label">Aurora</span>
+          </div>
+          <div className="login-google-loading">
+            <div className="login-google-spinner" />
+            <p className="login-google-loading-text">Verificando cuenta...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">

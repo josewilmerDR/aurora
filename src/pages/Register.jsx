@@ -16,7 +16,7 @@ const PASSWORD_RULES = [
 
 export default function Register() {
   const navigate = useNavigate();
-  const { refreshMemberships, isLoggedIn, needsSetup } = useUser();
+  const { refreshMemberships, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
 
   const [step, setStep] = useState(1); // 1: cuenta, 2: datos de la finca
   const [email, setEmail] = useState('');
@@ -31,10 +31,11 @@ export default function Register() {
   const [showConfirm, setShowConfirm] = useState(false);
 
   // Navegar al dashboard en cuanto el login esté completo (currentUser cargado),
-  // o ir a step 2 si el usuario ya se autenticó pero aún no tiene finca
-  // (cubre el caso de redirect de Google que recarga la página)
+  // o al OrgSelector si el usuario ya tiene membresías pero sin finca activa
+  // (cubre Google sign-in donde el UserContext ya reclamó invitaciones pendientes)
   useEffect(() => {
     if (isLoggedIn) navigate('/', { replace: true });
+    else if (needsOrgSelection) navigate('/', { replace: true });
     else if (needsSetup && step === 1) {
       // Antes de mostrar el formulario de creación de organización,
       // intentar reclamar membresías pendientes (usuario fue agregado por un admin previamente)
@@ -50,7 +51,7 @@ export default function Register() {
         })
         .catch(() => setStep(2));
     }
-  }, [isLoggedIn, needsSetup, step, navigate, refreshMemberships]);
+  }, [isLoggedIn, needsOrgSelection, needsSetup, step, navigate, refreshMemberships]);
 
   const passwordValid = PASSWORD_RULES.every(r => r.test(password));
 
@@ -79,7 +80,18 @@ export default function Register() {
       if (!auth.currentUser) {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      // Crear finca en el backend (el middleware usa el token recién creado)
+      // Verificar invitaciones pendientes ANTES de crear una nueva organización.
+      // Si el usuario fue agregado previamente por un admin, no debe crear una org nueva.
+      const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
+      if (claimRes.ok) {
+        const claimData = await claimRes.json();
+        if (claimData.memberships?.length > 0) {
+          // Tiene invitaciones → recargar membresías y dejar que el useEffect navegue
+          await refreshMemberships();
+          return;
+        }
+      }
+      // Sin invitaciones → crear la organización solicitada
       const res = await apiFetch('/api/auth/register-finca', {
         method: 'POST',
         body: JSON.stringify({ fincaNombre, nombreAdmin }),
