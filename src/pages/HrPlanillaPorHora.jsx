@@ -27,6 +27,10 @@ function newSegmento() {
   return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '' };
 }
 
+function isHoraUnit(u) {
+  return /^horas?$/i.test((u || '').trim());
+}
+
 const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect, onTabDown }, ref) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -405,10 +409,20 @@ function HrPlanillaPorHora() {
       .then(r => r.json())
       .then(data => {
         const empleados = isAdmin ? data.filter(u => u.empleadoPlanilla) : data;
-        setTrabajadores([...empleados].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
+        return apiFetch('/api/hr/fichas')
+          .then(r => r.json())
+          .then(fichas => {
+            const fichaMap = {};
+            fichas.forEach(f => { fichaMap[f.userId] = f; });
+            return empleados.map(e => ({ ...e, precioHora: Number(fichaMap[e.id]?.precioHora) || 0 }));
+          })
+          .catch(() => empleados);
+      })
+      .then(enriched => {
+        setTrabajadores([...enriched].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')));
         setCantidades(prev => {
           const next = { ...prev };
-          empleados.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
+          enriched.forEach(t => { if (!next[t.id]) next[t.id] = {}; });
           return next;
         });
       })
@@ -493,8 +507,15 @@ function HrPlanillaPorHora() {
     return v === '' || v === undefined ? 0 : Number(v);
   };
 
-  const workerTotal = (tId) =>
-    segmentos.reduce((sum, seg) => sum + getCant(tId, seg.id) * (Number(seg.costoUnitario) || 0), 0);
+  const workerTotal = (tId) => {
+    const t = trabajadores.find(w => w.id === tId);
+    return segmentos.reduce((sum, seg) => {
+      const precio = isHoraUnit(seg.unidad)
+        ? (Number(t?.precioHora) || 0)
+        : (Number(seg.costoUnitario) || 0);
+      return sum + getCant(tId, seg.id) * precio;
+    }, 0);
+  };
 
   const segCantTotal = (segId) =>
     visibleWorkers.reduce((sum, t) => sum + getCant(t.id, segId), 0);
@@ -919,7 +940,9 @@ function HrPlanillaPorHora() {
                         <tr className="pu-pdoc-row-config-last">
                           <td className="pu-pdoc-label-cell">COSTO UNITARIO</td>
                           {segs.map((seg, i) => (
-                            <td key={i}>{seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—'}</td>
+                            <td key={i}>
+                              {isHoraUnit(seg.unidad) ? 'por trabajador' : (seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—')}
+                            </td>
                           ))}
                           <td className="pu-pdoc-label-cell" />
                         </tr>
@@ -1189,26 +1212,30 @@ function HrPlanillaPorHora() {
                 <td className="ut-label-cell">COSTO UNITARIO</td>
                 {segmentos.map((seg, idx) => (
                   <td key={seg.id} className={"ut-config-cell"}>
-                    <input
-                      ref={el => { costoRefs.current[seg.id] = el; }}
-                      className="ut-ctrl" type="number" min="0" step="any"
-                      value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
-                      placeholder="0"
-                      onKeyDown={e => {
-                        if (e.key === 'Tab') {
-                          e.preventDefault();
-                          if (e.shiftKey) { unidadRefs.current[seg.id]?.focus(); return; }
-                          const firstT = visibleWorkers[0];
-                          if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
-                          return;
-                        }
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const firstT = visibleWorkers[0];
-                          if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
-                        }
-                      }}
-                    />
+                    {isHoraUnit(seg.unidad) ? (
+                      <span className="ut-por-trabajador-label">por trabajador</span>
+                    ) : (
+                      <input
+                        ref={el => { costoRefs.current[seg.id] = el; }}
+                        className="ut-ctrl" type="number" min="0" step="any"
+                        value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
+                        placeholder="0"
+                        onKeyDown={e => {
+                          if (e.key === 'Tab') {
+                            e.preventDefault();
+                            if (e.shiftKey) { unidadRefs.current[seg.id]?.focus(); return; }
+                            const firstT = visibleWorkers[0];
+                            if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const firstT = visibleWorkers[0];
+                            if (firstT) cantidadRefs.current[seg.id]?.[firstT.id]?.focus();
+                          }
+                        }}
+                      />
+                    )}
                   </td>
                 ))}
                 <td className="ut-filler-cell" />

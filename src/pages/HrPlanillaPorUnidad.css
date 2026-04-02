@@ -600,6 +600,16 @@
   width: 0;
 }
 
+.ut-por-trabajador-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--aurora-green);
+  opacity: 0.75;
+  font-style: italic;
+  padding: 5px 4px;
+  white-space: nowrap;
+}
+
 /* Inputs y selects dentro de las filas de config */
 .ut-ctrl {
   width: 100%;
