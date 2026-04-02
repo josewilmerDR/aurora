@@ -1142,7 +1142,7 @@ function HrPlanillaPorHora() {
                         const ids = new Set(siembras.filter(s => s.loteId === seg.loteId).map(s => s.id));
                         return gruposCat.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
                       })()
-                    : gruposCat;
+                    : [];
                   return (
                     <td key={seg.id} className="ut-config-cell">
                       <GrupoCombobox
