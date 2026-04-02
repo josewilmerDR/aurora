@@ -118,13 +118,22 @@ const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labor
   );
 });
 
-const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupos, onAfterSelect, onTabDown }, ref) {
+const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupos, siembras, onAfterSelect, onTabDown }, ref) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const containerRef = useRef(null);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
+
+  const grupoLabel = (g) => {
+    const nums = [...new Set(
+      (g.bloques || [])
+        .map(id => (siembras || []).find(s => s.id === id)?.bloque)
+        .filter(Boolean)
+    )].sort((a, b) => parseInt(a) - parseInt(b));
+    return nums.length ? `${g.nombreGrupo} (${nums.join(', ')})` : g.nombreGrupo;
+  };
 
   const filtered = grupos.filter(g => {
     const q = (value || '').toLowerCase();
@@ -195,7 +204,7 @@ const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupo
               onMouseDown={() => selectOption(g)}
               onMouseEnter={() => setHighlighted(i)}
             >
-              <span className="labor-dropdown-desc">{g.nombreGrupo}</span>
+              <span className="labor-dropdown-desc">{grupoLabel(g)}</span>
             </li>
           ))}
         </ul>
@@ -327,8 +336,12 @@ function HrPlanillaPorHora() {
   const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
   const [guardando, setGuardando] = useState(false);
   const [planillaId, setPlanillaId] = useState(null);
+  const [planillaEstado, setPlanillaEstado] = useState(null);
   const [consecutivo, setConsecutivo] = useState(null);
   const [historial, setHistorial] = useState([]);
+  const [historialLoading, setHistorialLoading] = useState(true);
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
+  const skipAutoSave = useRef(true);
   const [previewPlanilla, setPreviewPlanilla] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const previewRef = useRef(null);
@@ -351,11 +364,64 @@ function HrPlanillaPorHora() {
   }, [observaciones, segmentos, cantidades]);
 
   const fetchHistorial = useCallback(() => {
+    setHistorialLoading(true);
     apiFetch('/api/hr/planilla-unidad')
       .then(r => r.json())
-      .then(data => setHistorial(data.filter(p => p.estado !== 'pagada').slice(0, 12)))
-      .catch(console.error);
+      .then(data => setHistorial(data.filter(p => ['borrador', 'pendiente'].includes(p.estado))))
+      .catch(console.error)
+      .finally(() => setHistorialLoading(false));
   }, []);
+
+  // Auto-guardado de borrador al detectar cambios (debounce 2s)
+  useEffect(() => {
+    if (skipAutoSave.current) { skipAutoSave.current = false; return; }
+    if (!showForm) return;
+    const encId = currentUser?.userId || currentUser?.uid;
+    if (!encId) return;
+    const timer = setTimeout(async () => {
+      setAutoSaveStatus('saving');
+      const body = {
+        fecha,
+        encargadoId: encId,
+        encargadoNombre: currentUser.nombre || '',
+        segmentos,
+        trabajadores: visibleWorkers.map(t => ({
+          trabajadorId: t.id, trabajadorNombre: t.nombre,
+          cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
+        })),
+        totalGeneral: totalGeneral(),
+        estado: 'borrador',
+        observaciones,
+      };
+      try {
+        let res;
+        if (planillaId) {
+          res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          });
+        } else {
+          res = await apiFetch('/api/hr/planilla-unidad', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setPlanillaId(data.id);
+            setPlanillaEstado('borrador');
+          }
+        }
+        if (res.ok) {
+          setAutoSaveStatus('saved');
+          fetchHistorial();
+        } else {
+          setAutoSaveStatus('error');
+        }
+      } catch {
+        setAutoSaveStatus('error');
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fecha, observaciones, segmentos, cantidades, showForm, fetchHistorial]);
 
   const fetchPlantillas = useCallback(() => {
     const encId = currentUser?.userId || currentUser?.uid;
@@ -553,6 +619,10 @@ function HrPlanillaPorHora() {
         res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.consecutivo) setConsecutivo(data.consecutivo);
+        }
       } else {
         res = await apiFetch('/api/hr/planilla-unidad', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -560,7 +630,7 @@ function HrPlanillaPorHora() {
         if (res.ok) {
           const data = await res.json();
           setPlanillaId(data.id);
-          setConsecutivo(data.consecutivo);
+          if (data.consecutivo) setConsecutivo(data.consecutivo);
         }
       }
       if (!res.ok) throw new Error();
@@ -569,6 +639,7 @@ function HrPlanillaPorHora() {
       clearFechaDraft();
       clearObsDraft();
       clearDraftActive(DRAFT_FORM_KEY);
+      setPlanillaEstado(estado);
       setPlanillaId(null);
       setConsecutivo(null);
       setFillAll({});
@@ -787,10 +858,13 @@ function HrPlanillaPorHora() {
     setFecha(p.fecha ? p.fecha.split('T')[0] : todayStr());
     setObservaciones(p.observaciones || '');
     setPlanillaId(p.id);
+    setPlanillaEstado(p.estado || 'borrador');
     setConsecutivo(p.consecutivo);
     setFillAll({});
     setRemovedWorkerIds([]);
     markDraftActive(DRAFT_FORM_KEY);
+    skipAutoSave.current = true;
+    setAutoSaveStatus(null);
     setShowForm(true);
   };
 
@@ -1027,27 +1101,69 @@ function HrPlanillaPorHora() {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        {!showForm && (
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <FiPlus size={15} /> Nueva planilla
-          </button>
-        )}
-      </div>
-
-      <div className="pu-page-layout">
-      {/* ── Columna principal (3/4) ── */}
-      {!showForm && (
-        <div className="pu-main-col">
-          <div className="form-card pu-empty-state-card">
-            <FiFileText size={36} style={{ opacity: 0.2, marginBottom: 12 }} />
-            <p style={{ margin: 0, opacity: 0.5, fontSize: '0.95rem' }}>
-              Edita una planilla existente o crea una nueva en el botón <strong>"Nueva planilla"</strong>.
-            </p>
-          </div>
+      {/* ── Estado de carga / vacío / lista ── */}
+      {!showForm && historialLoading && (
+        <div className="pu-full-empty-state">
+          <div className="pu-spinner" />
         </div>
       )}
-      {showForm && <div className="pu-main-col">
+
+      {!showForm && !historialLoading && historial.length === 0 && (
+        <div className="pu-full-empty-state">
+          <FiFileText size={44} />
+          <p>No hay borradores ni planillas por aprobar</p>
+          <button className="btn btn-primary" onClick={() => { skipAutoSave.current = true; setAutoSaveStatus(null); setShowForm(true); }}>
+            <FiPlus size={14} /> Crear una
+          </button>
+        </div>
+      )}
+
+      {/* ── Lista intermedia ── */}
+      {!showForm && !historialLoading && historial.length > 0 && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+            <button className="btn btn-primary" onClick={() => { skipAutoSave.current = true; setAutoSaveStatus(null); setShowForm(true); }}>
+              <FiPlus size={15} /> Nueva planilla
+            </button>
+          </div>
+          <ul className="pu-list">
+            {historial.map(p => (
+              <li
+                key={p.id}
+                className="pu-list-item"
+                onClick={() => loadPlanilla(p)}
+                title="Clic para editar"
+              >
+                <div className="pu-list-item-main">
+                  <span className="pu-list-item-consec">{p.consecutivo || 'Borrador'}</span>
+                  <span className="pu-list-item-encargado">{p.encargadoNombre || '—'}</span>
+                  <span className="pu-list-item-meta">
+                    {p.fecha ? new Date(p.fecha).toLocaleDateString('es-CR') : '—'}
+                    {' · '}
+                    {p.segmentos?.length || 0} seg.
+                  </span>
+                  <span className="pu-list-item-total">{fmtMoney(p.totalGeneral)}</span>
+                  <span className={`status-badge status-badge--${ESTADO_CLASS[p.estado] || 'pendiente'}`}>
+                    {ESTADO_LABEL[p.estado] || p.estado}
+                  </span>
+                </div>
+                <button
+                  className="pu-history-preview-btn"
+                  onClick={e => { e.stopPropagation(); setPreviewPlanilla(p); }}
+                  title="Ver vista previa"
+                >
+                  <FiEye size={13} /> Ver
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* ── Formulario ── */}
+      {showForm && (
+      <div className="pu-page-layout">
+      <div className="pu-main-col">
 
       {/* ── Sección 1: Encabezado (Fecha + Encargado) ── */}
       <div className="form-card pu-section-card pu-section-header-card">
@@ -1056,6 +1172,11 @@ function HrPlanillaPorHora() {
             Planilla por Unidad / Hora
             {consecutivo && <span className="status-badge status-badge--pendiente" style={{ marginLeft: 10 }}>{consecutivo}</span>}
           </h2>
+          <span className="pu-autosave-status">
+            {autoSaveStatus === 'saving' && 'Guardando…'}
+            {autoSaveStatus === 'saved'  && 'Borrador guardado'}
+            {autoSaveStatus === 'error'  && 'Error al guardar'}
+          </span>
         </div>
         {currentUser && !currentUser.userId && currentUser.rol !== 'administrador' && (
           <div className="pu-warning">
@@ -1149,6 +1270,7 @@ function HrPlanillaPorHora() {
                         ref={el => { grupoRefs.current[seg.id] = el; }}
                         value={seg.grupo}
                         grupos={gruposFiltrados}
+                        siembras={siembras}
                         onChange={v => updSeg(seg.id, 'grupo', v)}
                         onAfterSelect={() => laborRefs.current[seg.id]?.focus()}
                         onTabDown={makeColTabHandler(seg.id, loteRefs, laborRefs)}
@@ -1406,9 +1528,6 @@ function HrPlanillaPorHora() {
           <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Notas adicionales..." rows={3} />
         </div>
         <div className="form-actions" style={{ marginTop: 14 }}>
-          <button className="btn btn-secondary" onClick={() => handleGuardar('borrador')} disabled={guardando}>
-            Guardar borrador
-          </button>
           <button className="btn btn-primary" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
             <FiSave size={15} />
             {guardando ? 'Guardando…' : 'Guardar planilla'}
@@ -1423,6 +1542,8 @@ function HrPlanillaPorHora() {
               clearDraftActive(DRAFT_FORM_KEY);
               setPlanillaId(null);
               setConsecutivo(null);
+              setPlanillaEstado(null);
+              setAutoSaveStatus(null);
               setFillAll({});
               setRemovedWorkerIds([]);
               setShowForm(false);
@@ -1433,7 +1554,7 @@ function HrPlanillaPorHora() {
           </button>
         </div>
       </div>
-      </div>}{/* /pu-main-col */}
+      </div>{/* /pu-main-col */}
 
       {/* ── Panel lateral: Historial / Plantillas ── */}
       <div className="pu-history-col">
@@ -1460,29 +1581,33 @@ function HrPlanillaPorHora() {
             )}
           </div>
 
-          {/* ── Tab Pendientes ── */}
+          {/* ── Tab Planillas ── */}
           {historialTab === 'pendientes' && (
             historial.length === 0 ? (
               <p className="empty-state" style={{ margin: '4px 0 0', fontSize: '0.82rem' }}>
-                No hay planillas para editar. Crea una dando click en el botón "Nueva planilla".
+                No hay planillas. Crea una con el botón "Nueva planilla".
               </p>
             ) : (
               <ul className="pu-history-list">
                 {historial.map(p => {
                   const editable = EDITABLE_STATES.includes(p.estado);
+                  const handleRowClick = () => {
+                    if (editable) loadPlanilla(p);
+                    else setPreviewPlanilla(p);
+                  };
                   return (
                   <li
                     key={p.id}
-                    className={`pu-history-item${editable ? ' pu-history-item--editable' : ''}${planillaId === p.id ? ' pu-history-item--active' : ''}`}
-                    onClick={editable ? () => loadPlanilla(p) : undefined}
-                    title={editable ? 'Clic para cargar y editar' : undefined}
+                    className={`pu-history-item pu-history-item--editable${planillaId === p.id ? ' pu-history-item--active' : ''}`}
+                    onClick={handleRowClick}
+                    title={editable ? 'Clic para cargar y editar' : 'Clic para ver'}
                   >
                     <div className="pu-history-top">
                       <span className="pu-history-consec">{p.consecutivo || '—'}</span>
                       <span className={`status-badge status-badge--${ESTADO_CLASS[p.estado] || 'pendiente'}`}>
                         {ESTADO_LABEL[p.estado] || p.estado}
                       </span>
-                      {editable && <FiEdit2 size={11} className="pu-history-edit-icon" />}
+                      {editable ? <FiEdit2 size={11} className="pu-history-edit-icon" /> : <FiEye size={11} className="pu-history-edit-icon" />}
                     </div>
                     <div className="pu-history-encargado">{p.encargadoNombre || '—'}</div>
                     <div className="pu-history-meta">
@@ -1620,7 +1745,8 @@ function HrPlanillaPorHora() {
         </div>
       </div>
 
-      </div>{/* /pu-page-layout */}
+      </div>
+      )}
     </div>
   );
 }

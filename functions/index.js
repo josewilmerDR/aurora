@@ -3511,19 +3511,22 @@ app.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
     const { fecha, encargadoId, encargadoNombre, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
     if (!fecha || !encargadoId) return res.status(400).json({ message: 'Fecha y encargado son requeridos.' });
 
-    // Generar consecutivo PU-XXXXX
-    const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
-    let consecutivo = 'PU-00001';
-    await db.runTransaction(async (t) => {
-      const counterDoc = await t.get(counterRef);
-      const next = counterDoc.exists ? (counterDoc.data().value || 0) + 1 : 1;
-      t.set(counterRef, { value: next });
-      consecutivo = `PU-${String(next).padStart(5, '0')}`;
-    });
+    // El consecutivo solo se asigna cuando la planilla sale del estado borrador.
+    // Si se guarda como borrador, se crea sin consecutivo para no desperdiciar números.
+    const esBorrador = !estado || estado === 'borrador';
+    let consecutivo = null;
+    if (!esBorrador) {
+      const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
+      await db.runTransaction(async (t) => {
+        const counterDoc = await t.get(counterRef);
+        const next = counterDoc.exists ? (counterDoc.data().value || 0) + 1 : 1;
+        t.set(counterRef, { value: next });
+        consecutivo = `PU-${String(next).padStart(5, '0')}`;
+      });
+    }
 
-    const ref = await db.collection('hr_planilla_unidad').add({
+    const docData = {
       fincaId: req.fincaId,
-      consecutivo,
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       encargadoId, encargadoNombre: encargadoNombre || '',
       segmentos: segmentos || [],
@@ -3532,7 +3535,10 @@ app.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
       estado: estado || 'borrador',
       observaciones: observaciones || '',
       createdAt: Timestamp.now(),
-    });
+    };
+    if (consecutivo) docData.consecutivo = consecutivo;
+
+    const ref = await db.collection('hr_planilla_unidad').add(docData);
     res.status(201).json({ id: ref.id, consecutivo });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear planilla.' });
@@ -3560,6 +3566,20 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
     if (totalGeneral !== undefined) update.totalGeneral = Number(totalGeneral);
     if (estado !== undefined) update.estado = estado;
     if (observaciones !== undefined) update.observaciones = observaciones;
+
+    // Asignar consecutivo si la planilla aún no tiene uno y está saliendo del borrador
+    const currentData = ownership.doc.data();
+    let consecutivo = currentData.consecutivo || null;
+    if (!consecutivo && estado && estado !== 'borrador') {
+      const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
+      await db.runTransaction(async (t) => {
+        const counterDoc = await t.get(counterRef);
+        const next = counterDoc.exists ? (counterDoc.data().value || 0) + 1 : 1;
+        t.set(counterRef, { value: next });
+        consecutivo = `PU-${String(next).padStart(5, '0')}`;
+      });
+      update.consecutivo = consecutivo;
+    }
 
     // ── Snapshot al aprobar ────────────────────────────────────────────────────
     if (estado === 'aprobada' && !ownership.doc.data().snapshotCreado) {
@@ -3616,7 +3636,7 @@ app.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
     }
 
     await db.collection('hr_planilla_unidad').doc(req.params.id).update(update);
-    res.status(200).json({ message: 'Planilla actualizada.' });
+    res.status(200).json({ message: 'Planilla actualizada.', consecutivo });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar planilla.' });
   }
