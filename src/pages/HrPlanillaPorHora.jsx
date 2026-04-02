@@ -311,6 +311,7 @@ function HrPlanillaPorHora() {
   const [cantidades, setCantidades, clearCantsDraft] = useDraft('hr-planilla-cantidades', {});
   const [fillAll, setFillAll] = useState({});
   const [lotes, setLotes] = useState([]);
+  const [siembras, setSiembras] = useState([]);
   const [gruposCat, setGruposCat] = useState([]);
   const [laboresCat, setLaboresCat] = useState([]);
   const [unidadesCat, setUnidadesCat] = useState([]);
@@ -367,6 +368,7 @@ function HrPlanillaPorHora() {
 
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
+    apiFetch('/api/siembras').then(r => r.json()).then(data => setSiembras(Array.isArray(data) ? data : [])).catch(console.error);
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
     apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data : [])).catch(console.error);
@@ -1135,9 +1137,11 @@ function HrPlanillaPorHora() {
               <tr className="ut-row-config">
                 <td className="ut-label-cell">GRUPO</td>
                 {segmentos.map((seg, idx) => {
-                  const paqueteId = lotes.find(l => l.id === seg.loteId)?.paqueteId;
-                  const gruposFiltrados = paqueteId
-                    ? gruposCat.filter(g => g.paqueteId === paqueteId)
+                  const gruposFiltrados = seg.loteId
+                    ? (() => {
+                        const ids = new Set(siembras.filter(s => s.loteId === seg.loteId).map(s => s.id));
+                        return gruposCat.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
+                      })()
                     : gruposCat;
                   return (
                     <td key={seg.id} className="ut-config-cell">
