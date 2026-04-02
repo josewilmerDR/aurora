@@ -5,6 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import Toast from '../components/Toast';
+import ConfirmModal from '../components/ConfirmModal';
 import './HR.css';
 import './HrPlanillaPorUnidad.css';
 
@@ -24,7 +25,7 @@ function newSegId() {
 }
 
 function newSegmento() {
-  return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '' };
+  return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '', factorConversion: null, unidadBase: '' };
 }
 
 function isHoraUnit(u) {
@@ -228,7 +229,7 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
   });
 
   const selectOption = (u) => {
-    onChange(u.nombre, u.precio ?? null);
+    onChange(u.nombre, u.precio ?? null, u.factorConversion ?? null, u.unidadBase || '');
     setOpen(false);
     setHighlighted(0);
     onAfterSelect?.();
@@ -335,6 +336,7 @@ function HrPlanillaPorHora() {
   const pendingFocusSegId = useRef(null);
   const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
   const [guardando, setGuardando] = useState(false);
+  const [showAprobarConfirm, setShowAprobarConfirm] = useState(false);
   const [planillaId, setPlanillaId] = useState(null);
   const [planillaEstado, setPlanillaEstado] = useState(null);
   const [consecutivo, setConsecutivo] = useState(null);
@@ -372,12 +374,13 @@ function HrPlanillaPorHora() {
       .finally(() => setHistorialLoading(false));
   }, []);
 
-  // Auto-guardado de borrador al detectar cambios (debounce 2s)
+  // Auto-guardado al detectar cambios (debounce 2s)
   useEffect(() => {
     if (skipAutoSave.current) { skipAutoSave.current = false; return; }
     if (!showForm) return;
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) return;
+    const estadoGuardado = planillaEstado || 'borrador'; // conserva el estado actual
     const timer = setTimeout(async () => {
       setAutoSaveStatus('saving');
       const body = {
@@ -387,10 +390,11 @@ function HrPlanillaPorHora() {
         segmentos,
         trabajadores: visibleWorkers.map(t => ({
           trabajadorId: t.id, trabajadorNombre: t.nombre,
+          precioHora: Number(t.precioHora) || 0,
           cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
         })),
         totalGeneral: totalGeneral(),
-        estado: 'borrador',
+        estado: estadoGuardado,
         observaciones,
       };
       try {
@@ -406,7 +410,7 @@ function HrPlanillaPorHora() {
           if (res.ok) {
             const data = await res.json();
             setPlanillaId(data.id);
-            setPlanillaEstado('borrador');
+            setPlanillaEstado(estadoGuardado);
           }
         }
         if (res.ok) {
@@ -421,7 +425,7 @@ function HrPlanillaPorHora() {
     }, 2000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fecha, observaciones, segmentos, cantidades, showForm, fetchHistorial]);
+  }, [fecha, observaciones, segmentos, cantidades, showForm, planillaEstado, fetchHistorial]);
 
   const fetchPlantillas = useCallback(() => {
     const encId = currentUser?.userId || currentUser?.uid;
@@ -582,8 +586,10 @@ function HrPlanillaPorHora() {
   const workerTotal = (tId) => {
     const t = trabajadores.find(w => w.id === tId);
     return segmentos.reduce((sum, seg) => {
-      const precio = isHoraUnit(seg.unidad)
-        ? (Number(t?.precioHora) || 0)
+      const horaDirecta = isHoraUnit(seg.unidad);
+      const horaConFactor = !horaDirecta && isHoraUnit(seg.unidadBase) && seg.factorConversion != null;
+      const precio = (horaDirecta || horaConFactor)
+        ? (Number(t?.precioHora) || 0) * (horaConFactor ? Number(seg.factorConversion) : 1)
         : (Number(seg.costoUnitario) || 0);
       return sum + getCant(tId, seg.id) * precio;
     }, 0);
@@ -608,6 +614,7 @@ function HrPlanillaPorHora() {
       segmentos,
       trabajadores: visibleWorkers.map(t => ({
         trabajadorId: t.id, trabajadorNombre: t.nombre,
+        precioHora: Number(t.precioHora) || 0,
         cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
       })),
       totalGeneral: totalGeneral(),
@@ -779,6 +786,31 @@ function HrPlanillaPorHora() {
     }
   };
 
+  const handleAprobarDesdeFormulario = async () => {
+    if (!planillaId) return;
+    setGuardando(true);
+    try {
+      const res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'aprobada' }),
+      });
+      if (!res.ok) throw new Error();
+      clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
+      clearDraftActive(DRAFT_FORM_KEY);
+      setPlanillaId(null); setConsecutivo(null); setPlanillaEstado(null);
+      setFillAll({}); setRemovedWorkerIds([]);
+      showToast('Planilla aprobada correctamente.');
+      setShowAprobarConfirm(false);
+      setShowForm(false);
+      fetchHistorial();
+    } catch {
+      showToast('Error al aprobar la planilla.', 'error');
+      setShowAprobarConfirm(false);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const handleGuardarPlantilla = async () => {
     const nombre = nombrePlantilla.trim();
     const encId = currentUser?.userId || currentUser?.uid;
@@ -876,6 +908,18 @@ function HrPlanillaPorHora() {
   return (
     <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {showAprobarConfirm && (
+        <ConfirmModal
+          title="Aprobar planilla"
+          message="Esta planilla será aprobada para pago. ¿Desea continuar?"
+          confirmLabel="Aprobar"
+          loadingLabel="Aprobando…"
+          loading={guardando}
+          onConfirm={handleAprobarDesdeFormulario}
+          onCancel={() => setShowAprobarConfirm(false)}
+        />
+      )}
 
       {/* ── Vista previa de planilla ── */}
       {previewPlanilla && (
@@ -1021,7 +1065,11 @@ function HrPlanillaPorHora() {
                           <td className="pu-pdoc-label-cell">COSTO UNITARIO</td>
                           {segs.map((seg, i) => (
                             <td key={i}>
-                              {isHoraUnit(seg.unidad) ? 'por trabajador' : (seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—')}
+                              {isHoraUnit(seg.unidad)
+                                ? 'por trabajador'
+                                : (isHoraUnit(seg.unidadBase) && seg.factorConversion != null)
+                                  ? `×${seg.factorConversion} por trabajador`
+                                  : (seg.costoUnitario ? fmtMoney(seg.costoUnitario) : '—')}
                             </td>
                           ))}
                           <td className="pu-pdoc-label-cell" />
@@ -1328,11 +1376,18 @@ function HrPlanillaPorHora() {
                       ref={el => { unidadRefs.current[seg.id] = el; }}
                       value={seg.unidad}
                       unidades={unidadesCat}
-                      onChange={(nombre, precio) => {
-                        updSeg(seg.id, 'unidad', nombre);
-                        if (!isHoraUnit(nombre) && precio != null && precio !== '') {
-                          updSeg(seg.id, 'costoUnitario', precio);
-                        }
+                      onChange={(nombre, precio, factorConversion, unidadBase) => {
+                        setSegmentos(prev => prev.map(s => {
+                          if (s.id !== seg.id) return s;
+                          const usaHora = isHoraUnit(nombre) || (isHoraUnit(unidadBase) && factorConversion != null);
+                          return {
+                            ...s,
+                            unidad: nombre,
+                            costoUnitario: (!usaHora && precio != null && precio !== '') ? precio : s.costoUnitario,
+                            factorConversion: factorConversion ?? null,
+                            unidadBase: unidadBase || '',
+                          };
+                        }));
                       }}
                       onAfterSelect={() => costoRefs.current[seg.id]?.focus()}
                       onTabDown={makeColTabHandler(seg.id, avanceRefs, costoRefs)}
@@ -1349,6 +1404,8 @@ function HrPlanillaPorHora() {
                   <td key={seg.id} className={"ut-config-cell"}>
                     {isHoraUnit(seg.unidad) ? (
                       <span className="ut-por-trabajador-label">por trabajador</span>
+                    ) : isHoraUnit(seg.unidadBase) && seg.factorConversion != null ? (
+                      <span className="ut-por-trabajador-label">×{seg.factorConversion} por trabajador</span>
                     ) : (
                       <input
                         ref={el => { costoRefs.current[seg.id] = el; }}
@@ -1528,10 +1585,17 @@ function HrPlanillaPorHora() {
           <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Notas adicionales..." rows={3} />
         </div>
         <div className="form-actions" style={{ marginTop: 14 }}>
-          <button className="btn btn-primary" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
-            <FiSave size={15} />
-            {guardando ? 'Guardando…' : 'Guardar planilla'}
-          </button>
+          {planillaEstado === 'pendiente' ? (
+            <button className="btn btn-primary" onClick={() => setShowAprobarConfirm(true)} disabled={guardando}>
+              <FiThumbsUp size={15} />
+              Aprobar
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
+              <FiSave size={15} />
+              {guardando ? 'Guardando…' : 'Guardar planilla'}
+            </button>
+          )}
           <button
             className="btn btn-secondary"
             onClick={() => {

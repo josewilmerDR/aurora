@@ -1,6 +1,6 @@
 import './ConfirmModal.css';
 
-function ConfirmModal({ title, message, onConfirm, onCancel, loading = false, confirmLabel = 'Sí, eliminar' }) {
+function ConfirmModal({ title, message, onConfirm, onCancel, loading = false, confirmLabel = 'Sí, eliminar', loadingLabel = 'Procesando…' }) {
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
@@ -11,7 +11,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel, loading = false, co
             Cancelar
           </button>
           <button className="btn-modal-confirm" onClick={onConfirm} disabled={loading}>
-            {loading ? 'Eliminando…' : confirmLabel}
+            {loading ? loadingLabel : confirmLabel}
           </button>
         </div>
       </div>
