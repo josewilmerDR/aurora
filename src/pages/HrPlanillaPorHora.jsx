@@ -204,6 +204,7 @@ const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupo
   );
 });
 
+// unidades: array of { id, nombre, precio?, ... }
 const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, unidades, onAfterSelect, onTabDown }, ref) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -214,11 +215,11 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
 
   const filtered = unidades.filter(u => {
     const q = (value || '').toLowerCase();
-    return !q || u.toLowerCase().includes(q);
+    return !q || (u.nombre || '').toLowerCase().includes(q);
   });
 
   const selectOption = (u) => {
-    onChange(u);
+    onChange(u.nombre, u.precio ?? null);
     setOpen(false);
     setHighlighted(0);
     onAfterSelect?.();
@@ -268,7 +269,7 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
         value={value === '-' ? '' : value}
         autoComplete="off"
         placeholder="Buscar unidad…"
-        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
+        onChange={e => { onChange(e.target.value, null); setOpen(true); setHighlighted(0); }}
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
       />
@@ -276,12 +277,15 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
         <ul ref={listRef} className="labor-dropdown">
           {filtered.map((u, i) => (
             <li
-              key={u}
+              key={u.id || u.nombre}
               className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
               onMouseDown={() => selectOption(u)}
               onMouseEnter={() => setHighlighted(i)}
             >
-              <span className="labor-dropdown-desc">{u}</span>
+              <span className="labor-dropdown-desc">{u.nombre}</span>
+              {u.precio != null && (
+                <span className="labor-dropdown-code">₡{Number(u.precio).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              )}
             </li>
           ))}
         </ul>
@@ -365,7 +369,7 @@ function HrPlanillaPorHora() {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
     apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
     apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
-    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data.map(u => u.nombre) : [])).catch(console.error);
+    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data : [])).catch(console.error);
     apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
     fetchHistorial();
   }, []);
@@ -1198,7 +1202,12 @@ function HrPlanillaPorHora() {
                       ref={el => { unidadRefs.current[seg.id] = el; }}
                       value={seg.unidad}
                       unidades={unidadesCat}
-                      onChange={v => updSeg(seg.id, 'unidad', v)}
+                      onChange={(nombre, precio) => {
+                        updSeg(seg.id, 'unidad', nombre);
+                        if (!isHoraUnit(nombre) && precio != null && precio !== '') {
+                          updSeg(seg.id, 'costoUnitario', precio);
+                        }
+                      }}
                       onAfterSelect={() => costoRefs.current[seg.id]?.focus()}
                       onTabDown={makeColTabHandler(seg.id, avanceRefs, costoRefs)}
                     />
