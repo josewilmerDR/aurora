@@ -57,31 +57,29 @@ export function UserProvider({ children }) {
       }
       // Cargar membresías ANTES de setear firebaseUser para evitar un render
       // intermedio donde memberships=[] y needsSetup=true causa redirect a /register
+      let membershipsData = [];
       try {
         const res = await apiFetch('/api/auth/memberships');
         if (res.ok) {
           const data = await res.json();
-          let membershipsData = data.memberships || [];
-
-          // Intentar reclamar invitaciones por email siempre:
-          // cubre tanto el caso de primer login sin membresías como el caso de un usuario
-          // que ya tiene su propia organización pero fue agregado a otra por un admin.
-          try {
-            const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
-            if (claimRes.ok) {
-              const claimData = await claimRes.json();
-              const claimed = claimData.memberships || [];
-              // Agregar solo las membresías que aún no están en la lista (evitar duplicados)
-              const newOnes = claimed.filter(cm => !membershipsData.some(m => m.fincaId === cm.fincaId));
-              if (newOnes.length > 0) membershipsData = [...membershipsData, ...newOnes];
-            }
-          } catch { /* silently fail — el usuario verá la pantalla de creación de organización */ }
-
-          setMemberships(membershipsData);
+          membershipsData = data.memberships || [];
         }
-      } catch {
-        // Si falla, dejar sin membresías (el usuario verá la pantalla de setup)
-      }
+      } catch { /* dejar membershipsData vacío */ }
+
+      // Reclamar invitaciones por email siempre — independiente de si GET /memberships tuvo éxito.
+      // Cubre primer login (sin membresías por UID) y usuarios agregados a otra org por un admin.
+      try {
+        const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
+        if (claimRes.ok) {
+          const claimData = await claimRes.json();
+          const claimed = claimData.memberships || [];
+          // Agregar solo las membresías que aún no están en la lista (evitar duplicados)
+          const newOnes = claimed.filter(cm => !membershipsData.some(m => m.fincaId === cm.fincaId));
+          if (newOnes.length > 0) membershipsData = [...membershipsData, ...newOnes];
+        }
+      } catch { /* silently fail */ }
+
+      setMemberships(membershipsData);
 
       // Si hay una finca activa guardada, cargar el perfil ANTES de revelar el usuario
       // autenticado. Así cuando isLoading pase a false, currentUser ya está listo
