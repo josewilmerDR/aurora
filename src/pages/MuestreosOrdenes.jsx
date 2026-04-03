@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
+import FormularioMuestreoModal from './FormularioMuestreoModal';
 import './MuestreosOrdenes.css';
 
 const fmt = (iso) => {
@@ -21,7 +22,7 @@ export default function MuestreosOrdenes() {
   const [search, setSearch]   = useState('');
   const [deleting, setDeleting] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [completing, setCompleting] = useState(null);
+  const [modalOrden, setModalOrden] = useState(null);
 
   useEffect(() => {
     apiFetch('/api/muestreos/ordenes')
@@ -42,16 +43,12 @@ export default function MuestreosOrdenes() {
     );
   }, [ordenes, search]);
 
-  const handleComplete = async (id) => {
-    setCompleting(id);
-    try {
-      await apiFetch(`/api/muestreos/ordenes/${id}/complete`, { method: 'PATCH' });
-      setOrdenes(prev => prev.map(o => o.id === id ? { ...o, status: 'completed_by_user' } : o));
-    } catch {
-      // keep item unchanged on error
-    } finally {
-      setCompleting(null);
-    }
+  const handleComplete = async (id, formularioData = null) => {
+    await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
+      method: 'PATCH',
+      ...(formularioData && { body: JSON.stringify({ formularioData }) }),
+    });
+    setOrdenes(prev => prev.map(o => o.id === id ? { ...o, status: 'completed_by_user' } : o));
   };
 
   const handleDelete = async (id) => {
@@ -88,6 +85,17 @@ export default function MuestreosOrdenes() {
         <div className="mo-state mo-state--error">
           <FiAlertCircle size={18} /> {error}
         </div>
+      )}
+
+      {modalOrden && (
+        <FormularioMuestreoModal
+          orden={modalOrden}
+          onClose={() => setModalOrden(null)}
+          onComplete={async (id, formularioData) => {
+            await handleComplete(id, formularioData);
+            setModalOrden(null);
+          }}
+        />
       )}
 
       {!loading && !error && (
@@ -143,12 +151,11 @@ export default function MuestreosOrdenes() {
                             {o.status === 'pending' && (
                               <button
                                 className="mo-complete-btn"
-                                title="Marcar como hecha"
-                                onClick={() => handleComplete(o.id)}
-                                disabled={completing === o.id}
+                                title="Registrar resultado y marcar como hecha"
+                                onClick={() => setModalOrden(o)}
                               >
                                 <FiCheckCircle size={15} />
-                                {completing === o.id ? '...' : 'Hecha'}
+                                Hecha
                               </button>
                             )}
                             <button
