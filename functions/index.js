@@ -2190,7 +2190,32 @@ app.post('/api/grupos', authenticate, async (req, res) => {
                     await sendNotificationWithLink(taskToNotify.ref, taskToNotify.data, nombreGrupo);
                 }
 
-                return res.status(201).json({ id: grupoRef.id, message: 'Grupo y tareas programadas con éxito.' });
+            }
+        }
+
+        // Si hay paquete de muestreo, crear órdenes de muestreo
+        if (paqueteMuestreoId) {
+            const muestreoDoc = await db.collection('monitoreo_paquetes').doc(paqueteMuestreoId).get();
+            if (muestreoDoc.exists) {
+                const muestreoData = muestreoDoc.data();
+                const grupoCreationDate = new Date(fechaCreacion);
+                const muestreoBatch = db.batch();
+                for (const activity of muestreoData.activities || []) {
+                    const activityDate = new Date(grupoCreationDate);
+                    activityDate.setDate(grupoCreationDate.getDate() + parseInt(activity.day));
+                    const taskRef = db.collection('scheduled_tasks').doc();
+                    muestreoBatch.set(taskRef, {
+                        type: 'MUESTREO',
+                        executeAt: Timestamp.fromDate(activityDate),
+                        grupoId: grupoRef.id,
+                        paqueteMuestreoId,
+                        activity,
+                        nota: '',
+                        status: 'pending',
+                        fincaId: req.fincaId,
+                    });
+                }
+                await muestreoBatch.commit();
             }
         }
 
@@ -2218,15 +2243,16 @@ app.put('/api/grupos/:id', authenticate, async (req, res) => {
 
         const hasDateChanged = originalData.fechaCreacion?.toMillis() !== grupoData.fechaCreacion?.toMillis();
         const hasPackageChanged = originalData.paqueteId !== grupoData.paqueteId;
+        const hasMuestreoPackageChanged = originalData.paqueteMuestreoId !== grupoData.paqueteMuestreoId;
 
-        if (hasDateChanged || hasPackageChanged) {
+        if (hasDateChanged || hasPackageChanged || hasMuestreoPackageChanged) {
             // Eliminar tareas anteriores del grupo
             const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
             const deleteBatch = db.batch();
             tasksSnapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
             await deleteBatch.commit();
 
-            // Crear nuevas tareas si hay paquete
+            // Crear nuevas tareas de aplicación si hay paquete técnico
             if (grupoData.paqueteId) {
                 const paqueteDoc = await db.collection('packages').doc(grupoData.paqueteId).get();
                 if (paqueteDoc.exists) {
@@ -2247,6 +2273,32 @@ app.put('/api/grupos/:id', authenticate, async (req, res) => {
                         tasksBatch.set(dueRef, { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), grupoId: id, activity, status: 'pending', fincaId: req.fincaId });
                     }
                     await tasksBatch.commit();
+                }
+            }
+
+            // Crear nuevas órdenes de muestreo si hay paquete de muestreo
+            if (grupoData.paqueteMuestreoId) {
+                const muestreoDoc = await db.collection('monitoreo_paquetes').doc(grupoData.paqueteMuestreoId).get();
+                if (muestreoDoc.exists) {
+                    const muestreoData = muestreoDoc.data();
+                    const grupoCreationDate = grupoData.fechaCreacion.toDate();
+                    const muestreoBatch = db.batch();
+                    for (const activity of muestreoData.activities || []) {
+                        const activityDate = new Date(grupoCreationDate);
+                        activityDate.setDate(grupoCreationDate.getDate() + parseInt(activity.day));
+                        const taskRef = db.collection('scheduled_tasks').doc();
+                        muestreoBatch.set(taskRef, {
+                            type: 'MUESTREO',
+                            executeAt: Timestamp.fromDate(activityDate),
+                            grupoId: id,
+                            paqueteMuestreoId: grupoData.paqueteMuestreoId,
+                            activity,
+                            nota: '',
+                            status: 'pending',
+                            fincaId: req.fincaId,
+                        });
+                    }
+                    await muestreoBatch.commit();
                 }
             }
         }
@@ -3995,6 +4047,116 @@ app.delete('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
     res.status(200).json({ message: 'Paquete de muestreo eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar paquete de muestreo.' });
+  }
+});
+
+// ── Órdenes de Muestreo ───────────────────────────────────────────────────────
+app.get('/api/muestreos/ordenes', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('scheduled_tasks')
+      .where('fincaId', '==', req.fincaId)
+      .where('type', '==', 'MUESTREO')
+      .get();
+
+    if (snap.empty) return res.status(200).json([]);
+
+    const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const grupoIds = [...new Set(tasks.map(t => t.grupoId).filter(Boolean))];
+    const responsableIds = [...new Set(tasks.map(t => t.activity?.responsableId).filter(Boolean))];
+
+    const [grupoDocs, userDocs] = await Promise.all([
+      grupoIds.length > 0 ? Promise.all(grupoIds.map(id => db.collection('grupos').doc(id).get())) : Promise.resolve([]),
+      responsableIds.length > 0 ? Promise.all(responsableIds.map(id => db.collection('users').doc(id).get())) : Promise.resolve([]),
+    ]);
+
+    const grupoMap = {};
+    grupoDocs.forEach(d => { if (d.exists) grupoMap[d.id] = d.data(); });
+    const userMap = {};
+    userDocs.forEach(d => { if (d.exists) userMap[d.id] = d.data(); });
+
+    // Recolectar bloqueIds de todos los grupos para resolver lotes
+    const allBloqueIds = [...new Set(Object.values(grupoMap).flatMap(g => g.bloques || []))];
+    const siembraMap = {};
+    if (allBloqueIds.length > 0) {
+      for (let i = 0; i < allBloqueIds.length; i += 10) {
+        const chunk = allBloqueIds.slice(i, i + 10);
+        const s = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
+        s.docs.forEach(d => { siembraMap[d.id] = d.data(); });
+      }
+    }
+
+    const loteIds = [...new Set(Object.values(siembraMap).map(s => s.loteId).filter(Boolean))];
+    const loteMap = {};
+    if (loteIds.length > 0) {
+      for (let i = 0; i < loteIds.length; i += 10) {
+        const chunk = loteIds.slice(i, i + 10);
+        const l = await db.collection('lotes').where(FieldPath.documentId(), 'in', chunk).get();
+        l.docs.forEach(d => { loteMap[d.id] = d.data(); });
+      }
+    }
+
+    const enriched = tasks.map(task => {
+      const grupo = grupoMap[task.grupoId];
+      const responsable = userMap[task.activity?.responsableId];
+      const bloques = grupo?.bloques || [];
+      const loteNombre = [...new Set(
+        bloques.map(bId => siembraMap[bId]?.loteId).filter(Boolean).map(lId => loteMap[lId]?.nombreLote).filter(Boolean)
+      )].join(', ') || '—';
+
+      return {
+        id: task.id,
+        fechaProgramada: task.executeAt?.toDate?.()?.toISOString() ?? null,
+        grupoId: task.grupoId,
+        grupoNombre: grupo?.nombreGrupo || '—',
+        loteNombre,
+        responsableNombre: responsable?.nombre || '—',
+        tipoMuestreo: task.activity?.name || '—',
+        nota: task.nota || '',
+        status: task.status,
+        paqueteMuestreoId: task.paqueteMuestreoId || '',
+      };
+    });
+
+    enriched.sort((a, b) => new Date(a.fechaProgramada) - new Date(b.fechaProgramada));
+    res.status(200).json(enriched);
+  } catch (error) {
+    console.error('Error fetching muestreo ordenes:', error);
+    res.status(500).json({ message: 'Error al obtener órdenes de muestreo.' });
+  }
+});
+
+app.delete('/api/muestreos/ordenes/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const task = ownership.doc.data();
+    if (task.type !== 'MUESTREO') {
+      return res.status(400).json({ message: 'Esta tarea no es una orden de muestreo.' });
+    }
+    await db.collection('scheduled_tasks').doc(id).delete();
+    res.status(200).json({ message: 'Orden de muestreo eliminada.' });
+  } catch (error) {
+    console.error('Error deleting muestreo orden:', error);
+    res.status(500).json({ message: 'Error al eliminar la orden de muestreo.' });
+  }
+});
+
+app.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const task = ownership.doc.data();
+    if (task.type !== 'MUESTREO') {
+      return res.status(400).json({ message: 'Esta tarea no es una orden de muestreo.' });
+    }
+    await db.collection('scheduled_tasks').doc(id).update({ status: 'completed_by_user' });
+    res.status(200).json({ message: 'Orden marcada como hecha.' });
+  } catch (error) {
+    console.error('Error completing muestreo orden:', error);
+    res.status(500).json({ message: 'Error al completar la orden de muestreo.' });
   }
 });
 
