@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import './PackageManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiCopy } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiCopy, FiPaperclip, FiFile } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 function MonitoreoPackages() {
   const apiFetch = useApiFetch();
@@ -24,6 +26,7 @@ function MonitoreoPackages() {
 
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
+  const [uploadingIdx, setUploadingIdx] = useState(null);
 
   useEffect(() => {
     apiFetch('/api/monitoreo/paquetes').then(r => r.json()).then(setPackages).catch(console.error);
@@ -45,18 +48,56 @@ function MonitoreoPackages() {
   const addActivity = () => {
     setFormData(prev => ({
       ...prev,
-      activities: [...prev.activities, { day: '', name: '', responsableId: '', formularios: [] }],
+      activities: [...prev.activities, { day: '', name: '', responsableId: '', formularios: [], archivoExcel: null }],
     }));
   };
 
   const duplicateActivity = (index) => {
     const copy = JSON.parse(JSON.stringify(formData.activities[index]));
     if (copy.name) copy.name = `Copia de ${copy.name}`;
+    copy.archivoExcel = null;
     const updated = [
       ...formData.activities.slice(0, index + 1),
       copy,
       ...formData.activities.slice(index + 1),
     ];
+    setFormData(prev => ({ ...prev, activities: updated }));
+  };
+
+  const handleExcelUpload = async (activityIndex, file) => {
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!['.xlsx', '.xls', '.csv'].includes(ext)) {
+      showToast('Solo se permiten archivos Excel (.xlsx, .xls, .csv)', 'error');
+      return;
+    }
+    setUploadingIdx(activityIndex);
+    try {
+      const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `formularios-muestreo/${Date.now()}_${sanitized}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      const updated = [...formData.activities];
+      updated[activityIndex] = { ...updated[activityIndex], archivoExcel: { nombre: file.name, url, storagePath: path } };
+      setFormData(prev => ({ ...prev, activities: updated }));
+    } catch {
+      showToast('Error al subir el archivo.', 'error');
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const removeExcelFromActivity = async (activityIndex) => {
+    const activity = formData.activities[activityIndex];
+    if (activity.archivoExcel?.storagePath) {
+      try {
+        await deleteObject(ref(storage, activity.archivoExcel.storagePath));
+      } catch {
+        // archivo ya no existe, continuar
+      }
+    }
+    const updated = [...formData.activities];
+    updated[activityIndex] = { ...updated[activityIndex], archivoExcel: null };
     setFormData(prev => ({ ...prev, activities: updated }));
   };
 
@@ -345,6 +386,38 @@ function MonitoreoPackages() {
                                       </select>
                                     )}
                                   </div>
+
+                                  <div className="products-subrow-header">
+                                    <span className="products-subrow-label">Archivo Excel:</span>
+                                  </div>
+                                  {activity.archivoExcel ? (
+                                    <div className="excel-file-row">
+                                      <FiFile size={14} className="excel-file-icon" />
+                                      <a href={activity.archivoExcel.url} className="excel-file-name" target="_blank" rel="noreferrer">
+                                        {activity.archivoExcel.nombre}
+                                      </a>
+                                      <button
+                                        type="button"
+                                        className="product-tag-remove"
+                                        onClick={() => removeExcelFromActivity(index)}
+                                        title="Quitar archivo"
+                                      >
+                                        <FiX size={13} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className={`excel-upload-btn${uploadingIdx === index ? ' excel-upload-btn--loading' : ''}`}>
+                                      <FiPaperclip size={13} />
+                                      {uploadingIdx === index ? 'Subiendo...' : 'Adjuntar Excel'}
+                                      <input
+                                        type="file"
+                                        accept=".xlsx,.xls,.csv"
+                                        style={{ display: 'none' }}
+                                        disabled={uploadingIdx === index}
+                                        onChange={e => { if (e.target.files[0]) handleExcelUpload(index, e.target.files[0]); e.target.value = ''; }}
+                                      />
+                                    </label>
+                                  )}
                                 </div>
                               </td>
                             </tr>

@@ -472,3 +472,47 @@
     color: var(--aurora-light);
     opacity: 0.6;
 }
+
+/* ── Adjunto Excel por actividad ──────────────────────────────────────────── */
+.excel-file-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: rgba(51, 255, 153, 0.07);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.excel-file-icon { color: var(--aurora-green); flex-shrink: 0; }
+
+.excel-file-name {
+  color: var(--aurora-green);
+  text-decoration: none;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.excel-file-name:hover { text-decoration: underline; }
+
+.excel-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: none;
+  border: 1px dashed rgba(51, 255, 153, 0.4);
+  border-radius: 6px;
+  color: var(--aurora-green);
+  font-size: 0.82rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.excel-upload-btn:hover { opacity: 1; border-color: var(--aurora-green); }
+.excel-upload-btn--loading { opacity: 0.45; cursor: not-allowed; }

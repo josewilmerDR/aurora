@@ -4013,6 +4013,17 @@ app.get('/api/monitoreo/paquetes', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    res.status(200).json({ id, ...ownership.doc.data() });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener el paquete de muestreo.' });
+  }
+});
+
 app.post('/api/monitoreo/paquetes', authenticate, async (req, res) => {
   try {
     const { nombrePaquete } = req.body;
@@ -4152,11 +4163,110 @@ app.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, res) 
     if (task.type !== 'MUESTREO') {
       return res.status(400).json({ message: 'Esta tarea no es una orden de muestreo.' });
     }
-    await db.collection('scheduled_tasks').doc(id).update({ status: 'completed_by_user' });
+    const update = {
+      status: 'completed_by_user',
+      completadoEn: FieldValue.serverTimestamp(),
+    };
+    if (req.body?.formularioData) {
+      const { sheetName, rows } = req.body.formularioData;
+      if (Array.isArray(rows) && rows.length > 0) {
+        const encabezados = (rows[0] || []).map(h => String(h ?? ''));
+        const filasDatos = rows.slice(1).filter(fila => fila.some(c => String(c ?? '') !== ''));
+        const registros = filasDatos.map(fila =>
+          Object.fromEntries(
+            encabezados
+              .map((h, i) => [h, String(fila[i] ?? '')])
+              .filter(([clave]) => clave !== '')
+          )
+        );
+        update.formularioData = { hoja: sheetName || '', encabezados, registros, rawRows: rows };
+      }
+    }
+    await db.collection('scheduled_tasks').doc(id).update(update);
     res.status(200).json({ message: 'Orden marcada como hecha.' });
   } catch (error) {
     console.error('Error completing muestreo orden:', error);
     res.status(500).json({ message: 'Error al completar la orden de muestreo.' });
+  }
+});
+
+app.post('/api/muestreos/escanear-formulario', authenticate, async (req, res) => {
+  try {
+    const { imageBase64, mediaType, plantilla } = req.body;
+    if (!imageBase64 || !mediaType) {
+      return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+    }
+    const MEDIA_TYPES_VALIDOS = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!MEDIA_TYPES_VALIDOS.includes(mediaType)) {
+      return res.status(400).json({ message: 'Tipo de imagen no soportado. Use jpeg, png, gif o webp.' });
+    }
+    if (!Array.isArray(plantilla) || plantilla.length === 0) {
+      return res.status(400).json({ message: 'Se requiere la plantilla del formulario.' });
+    }
+
+    if (!anthropicClient) {
+      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+    }
+
+    const numFilas = plantilla.length;
+    const numCols = plantilla[0]?.length || 0;
+
+    const prompt = `Eres un asistente de muestreo agrícola. Se te proporciona:
+1. La plantilla del formulario como JSON (array de arrays, ${numFilas} filas × ${numCols} columnas):
+${JSON.stringify(plantilla)}
+
+2. Una imagen del mismo formulario ya rellenado a mano por un técnico en campo.
+
+Tarea: extrae los valores que el técnico escribió en la imagen e insértalos en la plantilla.
+Reglas estrictas:
+- Devuelve EXACTAMENTE ${numFilas} filas y ${numCols} columnas (mismas dimensiones).
+- Las celdas que ya contienen texto en la plantilla son etiquetas o encabezados: cópialas tal cual, no las modifiques.
+- Rellena las celdas vacías ("") con el valor que aparece en la imagen en la posición equivalente.
+- Si no puedes leer un valor o la celda no tiene dato visible, deja la celda como "".
+- Devuelve SOLO el JSON resultante (array de arrays), sin texto adicional, sin markdown, sin bloques de código.`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            { type: 'text', text: prompt },
+          ],
+        },
+      ],
+    });
+
+    const rawText = response.content[0].text.trim();
+    const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+
+    let rows;
+    try {
+      rows = JSON.parse(jsonText);
+    } catch {
+      console.error('Claude devolvió texto no parseable:', rawText);
+      return res.status(422).json({ message: 'La IA no pudo interpretar el formulario. Intenta con una imagen más clara.', raw: rawText });
+    }
+
+    if (!Array.isArray(rows)) {
+      return res.status(422).json({ message: 'La respuesta de la IA no tiene el formato esperado.' });
+    }
+
+    // Normalizar dimensiones para que coincidan exactamente con la plantilla
+    const normalized = plantilla.map((plantillaRow, rIdx) => {
+      const aiRow = Array.isArray(rows[rIdx]) ? rows[rIdx] : [];
+      return plantillaRow.map((_, cIdx) => {
+        const val = aiRow[cIdx];
+        return (val === null || val === undefined) ? '' : String(val);
+      });
+    });
+
+    res.status(200).json({ rows: normalized });
+  } catch (error) {
+    console.error('Error escaneando formulario de muestreo:', error);
+    res.status(500).json({ message: 'Error al procesar la imagen con IA.' });
   }
 });
 
