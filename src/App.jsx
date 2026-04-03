@@ -37,6 +37,7 @@ import MonitoreoRegistro from './pages/MonitoreoRegistro';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
+import MuestreosOrdenes from './pages/MuestreosOrdenes';
 import ConfigCuenta from './pages/ConfigCuenta';
 import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
@@ -79,6 +80,7 @@ const ROUTE_MIN_ROLE = {
   '/hr/planilla/fijo': 'encargado',
   '/hr/planilla/horas': 'encargado',
   '/monitoreo/paquetes': 'supervisor',
+  '/monitoreo/muestreos': 'encargado',
 };
 
 // Mapeo de rutas a títulos
@@ -111,6 +113,7 @@ const routeTitles = {
   '/monitoreo/historial': 'Historial de Monitoreos',
   '/monitoreo/config': 'Tipos de Monitoreo',
   '/monitoreo/paquetes': 'Paquetes de Muestreos',
+  '/monitoreo/muestreos': 'Órdenes de Muestreo',
   '/config/cuenta': 'Configuración de Cuenta',
   '/admin/parametros': 'Parámetros y KPI',
   '/admin/config-inicial': 'Configuración Inicial',
@@ -456,6 +459,7 @@ function App() {
             <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPagos /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
             <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><MonitoreoPackages /></RoleRoute>} />
+            <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MuestreosOrdenes /></RoleRoute>} />
             <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><ConfiguracionInicial /></RoleRoute>} />
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />

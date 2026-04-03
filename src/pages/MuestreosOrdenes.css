@@ -1,0 +1,207 @@
+@import './LoteManagement.css';
+
+.mo-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.mo-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mo-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.mo-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--aurora-light);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.mo-search {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+.mo-search::placeholder { opacity: 0.45; }
+.mo-search:focus { outline: none; border-color: var(--aurora-green); }
+
+.mo-count {
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
+/* ── States ───────────────────────────────────────────────────────────────── */
+.mo-state {
+  padding: 32px;
+  text-align: center;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  font-size: 0.9rem;
+}
+
+.mo-state--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #ff6b6b;
+  opacity: 1;
+}
+
+.mo-state--empty { opacity: 0.45; }
+
+/* ── Table ────────────────────────────────────────────────────────────────── */
+.mo-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.mo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.mo-table thead tr {
+  background: var(--aurora-background);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.mo-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mo-table tbody tr {
+  border-bottom: 1px solid var(--aurora-border);
+  transition: background 0.12s;
+}
+
+.mo-table tbody tr:last-child { border-bottom: none; }
+.mo-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+
+.mo-table td {
+  padding: 10px 14px;
+  color: var(--aurora-light);
+  vertical-align: middle;
+}
+
+.mo-td-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mo-td-nota { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mo-empty-val { opacity: 0.35; }
+
+/* ── Badges ───────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-yellow { background: rgba(255, 200, 0, 0.15); color: #ffc800; }
+.badge-green  { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
+.badge-gray   { background: rgba(255, 255, 255, 0.08); color: var(--aurora-light); opacity: 0.6; }
+
+/* ── Actions ──────────────────────────────────────────────────────────────── */
+.mo-td-action { width: 1px; white-space: nowrap; text-align: right; }
+
+.mo-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.mo-complete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--aurora-green);
+  color: var(--aurora-green);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.mo-complete-btn:hover:not(:disabled) { opacity: 1; }
+.mo-complete-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+.mo-delete-btn {
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.35;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: opacity 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mo-delete-btn:hover { opacity: 1; color: #ff6b6b; }
+
+.mo-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+}
+
+.mo-confirm-yes {
+  background: #ff6b6b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.mo-confirm-no {
+  background: none;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
