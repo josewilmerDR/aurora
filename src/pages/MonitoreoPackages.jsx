@@ -10,7 +10,7 @@ function MonitoreoPackages() {
   const apiFetch = useApiFetch();
   const [packages, setPackages] = useState([]);
   const [users, setUsers] = useState([]);
-  const [tiposMonitoreo, setTiposMonitoreo] = useState([]);
+  const [plantillas, setPlantillas] = useState([]);
   const [formData, setFormData] = useState({
     id: null,
     nombrePaquete: '',
@@ -31,7 +31,7 @@ function MonitoreoPackages() {
   useEffect(() => {
     apiFetch('/api/monitoreo/paquetes').then(r => r.json()).then(setPackages).catch(console.error);
     apiFetch('/api/users').then(r => r.json()).then(setUsers).catch(console.error);
-    apiFetch('/api/monitoreo/tipos').then(r => r.json()).then(data => setTiposMonitoreo(data.filter(t => t.activo))).catch(console.error);
+    apiFetch('/api/monitoreo/tipos').then(r => r.json()).then(data => setPlantillas(data.filter(t => t.activo))).catch(console.error);
   }, []);
 
   const handleInputChange = (e) => {
@@ -55,7 +55,6 @@ function MonitoreoPackages() {
   const duplicateActivity = (index) => {
     const copy = JSON.parse(JSON.stringify(formData.activities[index]));
     if (copy.name) copy.name = `Copia de ${copy.name}`;
-    copy.archivoExcel = null;
     const updated = [
       ...formData.activities.slice(0, index + 1),
       copy,
@@ -119,25 +118,25 @@ function MonitoreoPackages() {
     });
   };
 
-  const addFormularioToActivity = (activityIndex, tipoId) => {
-    if (!tipoId) return;
-    const tipo = tiposMonitoreo.find(t => t.id === tipoId);
-    if (!tipo) return;
+  const addPlantillaToActivity = (activityIndex, plantillaId) => {
+    if (!plantillaId) return;
+    const plantilla = plantillas.find(t => t.id === plantillaId);
+    if (!plantilla) return;
     const updated = [...formData.activities];
     const existing = updated[activityIndex].formularios || [];
-    if (existing.find(f => f.tipoId === tipoId)) return;
+    if (existing.find(f => f.tipoId === plantillaId)) return;
     updated[activityIndex] = {
       ...updated[activityIndex],
-      formularios: [...existing, { tipoId: tipo.id, tipoNombre: tipo.nombre }],
+      formularios: [...existing, { tipoId: plantilla.id, tipoNombre: plantilla.nombre }],
     };
     setFormData(prev => ({ ...prev, activities: updated }));
   };
 
-  const removeFormularioFromActivity = (activityIndex, tipoId) => {
+  const removePlantillaFromActivity = (activityIndex, plantillaId) => {
     const updated = [...formData.activities];
     updated[activityIndex] = {
       ...updated[activityIndex],
-      formularios: updated[activityIndex].formularios.filter(f => f.tipoId !== tipoId),
+      formularios: updated[activityIndex].formularios.filter(f => f.tipoId !== plantillaId),
     };
     setFormData(prev => ({ ...prev, activities: updated }));
   };
@@ -356,7 +355,7 @@ function MonitoreoPackages() {
                               <td colSpan="4">
                                 <div className="products-subrow">
                                   <div className="products-subrow-header">
-                                    <span className="products-subrow-label">Formularios de muestreo:</span>
+                                    <span className="products-subrow-label">Plantillas de muestreo:</span>
                                   </div>
                                   <div className="products-tags">
                                     {(activity.formularios || []).map(f => (
@@ -365,21 +364,21 @@ function MonitoreoPackages() {
                                         <button
                                           type="button"
                                           className="product-tag-remove"
-                                          onClick={() => removeFormularioFromActivity(index, f.tipoId)}
-                                          title="Quitar formulario"
+                                          onClick={() => removePlantillaFromActivity(index, f.tipoId)}
+                                          title="Quitar plantilla"
                                         >
                                           <FiX size={12} />
                                         </button>
                                       </span>
                                     ))}
-                                    {tiposMonitoreo.filter(t => !(activity.formularios || []).find(f => f.tipoId === t.id)).length > 0 && (
+                                    {plantillas.filter(t => !(activity.formularios || []).find(f => f.tipoId === t.id)).length > 0 && (
                                       <select
                                         className="add-product-select"
                                         value=""
-                                        onChange={(e) => { if (e.target.value) addFormularioToActivity(index, e.target.value); }}
+                                        onChange={(e) => { if (e.target.value) addPlantillaToActivity(index, e.target.value); }}
                                       >
-                                        <option value="">+ Agregar formulario...</option>
-                                        {tiposMonitoreo
+                                        <option value="">+ Agregar plantilla...</option>
+                                        {plantillas
                                           .filter(t => !(activity.formularios || []).find(f => f.tipoId === t.id))
                                           .map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)
                                         }
@@ -388,7 +387,7 @@ function MonitoreoPackages() {
                                   </div>
 
                                   <div className="products-subrow-header">
-                                    <span className="products-subrow-label">Archivo Excel:</span>
+                                    <span className="products-subrow-label">Adjuntar formulario:</span>
                                   </div>
                                   {activity.archivoExcel ? (
                                     <div className="excel-file-row">

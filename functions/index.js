@@ -3881,91 +3881,12 @@ app.put('/api/config', authenticate, async (req, res) => {
 // API ENDPOINTS: MONITOREO
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TIPOS_MONITOREO_DEFAULT = [
-  {
-    id: 'plagas_foliares',
-    nombre: 'Plagas Foliares',
-    campos: [
-      { key: 'plaga', label: 'Plaga predominante', type: 'text' },
-      { key: 'infestacion', label: '% Infestación', type: 'percent' },
-      { key: 'severidad', label: 'Severidad', type: 'select', opciones: ['Leve', 'Moderada', 'Severa'] },
-    ],
-    activo: true,
-  },
-  {
-    id: 'plagas_radicales',
-    nombre: 'Plagas Radicales',
-    campos: [
-      { key: 'cochinilla', label: '% Cochinilla', type: 'percent' },
-      { key: 'fusarium', label: '% Fusarium', type: 'percent' },
-    ],
-    activo: true,
-  },
-  {
-    id: 'crecimiento',
-    nombre: 'Crecimiento / Meristemo',
-    campos: [
-      { key: 'plantas_muestreadas', label: '# Plantas muestreadas', type: 'number' },
-      { key: 'altura_promedio', label: 'Altura promedio (cm)', type: 'number' },
-      { key: 'largo_hoja_d', label: 'Largo hoja D (cm)', type: 'number' },
-    ],
-    activo: true,
-  },
-  {
-    id: 'floracion',
-    nombre: 'Floración',
-    campos: [
-      { key: 'porcentaje', label: '% Floración', type: 'percent' },
-      { key: 'fecha_estimada_cosecha', label: 'Fecha estimada cosecha', type: 'date' },
-    ],
-    activo: true,
-  },
-  {
-    id: 'peso_fruta',
-    nombre: 'Peso de Fruta',
-    campos: [
-      { key: 'peso_promedio', label: 'Peso promedio (g)', type: 'number' },
-      { key: 'muestra', label: '# Frutas muestreadas', type: 'number' },
-    ],
-    activo: true,
-  },
-  {
-    id: 'premaduracion',
-    nombre: 'Premaduración',
-    campos: [
-      { key: 'porcentaje_color', label: '% Color', type: 'percent' },
-      { key: 'brix', label: '° Brix', type: 'number' },
-      { key: 'dias_estimados', label: 'Días estimados a cosecha', type: 'number' },
-    ],
-    activo: true,
-  },
-  {
-    id: 'malezas',
-    nombre: 'Malezas',
-    campos: [
-      { key: 'cobertura', label: '% Cobertura', type: 'percent' },
-      { key: 'especies', label: 'Especies predominantes', type: 'text' },
-    ],
-    activo: true,
-  },
-];
 
 // ── Tipos de Monitoreo ────────────────────────────────────────────────────────
 app.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
-    if (!snap.empty) {
-      return res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }
-    // Seed defaults on first call
-    const batch = db.batch();
-    TIPOS_MONITOREO_DEFAULT.forEach(tipo => {
-      const ref = db.collection('tipos_monitoreo').doc();
-      batch.set(ref, { ...tipo, fincaId: req.fincaId });
-    });
-    await batch.commit();
-    const snap2 = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
-    res.status(200).json(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+    res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener tipos de monitoreo.' });
   }
@@ -3973,11 +3894,12 @@ app.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
 
 app.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
-    const { nombre, campos } = req.body;
-    if (!nombre || !Array.isArray(campos) || campos.length === 0)
-      return res.status(400).json({ message: 'Nombre y al menos un campo son obligatorios.' });
+    const { nombre, archivoFormulario } = req.body;
+    if (!nombre)
+      return res.status(400).json({ message: 'El nombre es obligatorio.' });
     const ref = await db.collection('tipos_monitoreo').add({
-      nombre, campos, activo: true, fincaId: req.fincaId,
+      nombre, activo: true, fincaId: req.fincaId,
+      ...(archivoFormulario ? { archivoFormulario } : {}),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
