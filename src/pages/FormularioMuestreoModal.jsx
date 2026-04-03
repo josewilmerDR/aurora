@@ -63,13 +63,37 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
         const pkg = await pkgRes.json();
 
         const activity = (pkg.activities || []).find(a => a.name === orden.tipoMuestreo);
-        if (!activity?.archivoExcel?.url) {
+        const formularios = activity?.formularios || [];
+        if (formularios.length === 0) {
           if (!cancelled) setState('no-formulario');
           return;
         }
 
-        const fileRes = await fetch(activity.archivoExcel.url);
-        if (!fileRes.ok) throw new Error('No se pudo descargar el formulario Excel');
+        // Buscar la primera plantilla que tenga archivoFormulario
+        let archivoUrl = null;
+        let archivoNombre = null;
+        for (const f of formularios) {
+          const tipRes = await apiFetch(`/api/monitoreo/tipos/${f.tipoId}`);
+          if (!tipRes.ok) continue;
+          const plantilla = await tipRes.json();
+          if (plantilla.archivoFormulario?.url) {
+            archivoUrl = plantilla.archivoFormulario.url;
+            archivoNombre = plantilla.archivoFormulario.nombre;
+            break;
+          }
+        }
+
+        if (!archivoUrl) {
+          if (!cancelled) setState('no-formulario');
+          return;
+        }
+
+        const fileRes = await fetch(archivoUrl);
+        if (fileRes.status === 404) {
+          if (!cancelled) setState('no-formulario');
+          return;
+        }
+        if (!fileRes.ok) throw new Error(`No se pudo descargar el formulario: ${archivoNombre}`);
         const buffer = await fileRes.arrayBuffer();
 
         const workbook = XLSX.read(buffer, { type: 'array' });
@@ -203,8 +227,11 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
           {state === 'no-formulario' && (
             <div className="fmm-state fmm-state--empty">
               <FiFileText size={20} />
-              <span>Esta actividad no tiene formulario adjunto.</span>
-              <span className="fmm-state-hint">Puedes marcar la orden como hecha directamente.</span>
+              <span>No hay formulario disponible para esta actividad.</span>
+              <span className="fmm-state-hint">
+                La plantilla no tiene archivo adjunto o el archivo fue actualizado recientemente.
+                Puedes marcar la orden como hecha directamente.
+              </span>
             </div>
           )}
 
