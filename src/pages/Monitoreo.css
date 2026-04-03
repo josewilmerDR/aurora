@@ -160,3 +160,40 @@
 .btn-success {
   color: var(--aurora-green);
 }
+
+/* ── Page-level loading spinner ─────────────────────────────────────────── */
+.mon-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.mon-loading::after {
+  content: '';
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(51, 255, 153, 0.2);
+  border-top-color: var(--aurora-green);
+  border-radius: 50%;
+  animation: app-loading-spin 0.75s linear infinite;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.mon-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 60vh;
+  padding: 48px 20px;
+  color: rgba(230, 242, 255, 0.3);
+  text-align: center;
+}
+
+.mon-empty-state p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.4);
+  margin: 0;
+}

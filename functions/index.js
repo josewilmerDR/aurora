@@ -3907,6 +3907,16 @@ app.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
+  try {
+    const doc = await db.collection('tipos_monitoreo').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Plantilla no encontrada.' });
+    res.status(200).json({ id: doc.id, ...doc.data() });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener la plantilla.' });
+  }
+});
+
 app.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('tipos_monitoreo').doc(req.params.id).update(req.body);
