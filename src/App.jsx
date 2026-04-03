@@ -111,7 +111,7 @@ const routeTitles = {
   '/hr/solicitud-empleo': 'Solicitud de Empleo',
   '/monitoreo': 'Registrar Monitoreo',
   '/monitoreo/historial': 'Historial de Monitoreos',
-  '/monitoreo/config': 'Tipos de Monitoreo',
+  '/monitoreo/config': 'Plantillas de Muestreo',
   '/monitoreo/paquetes': 'Paquetes de Muestreos',
   '/monitoreo/muestreos': 'Órdenes de Muestreo',
   '/config/cuenta': 'Configuración de Cuenta',
