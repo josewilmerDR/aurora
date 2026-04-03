@@ -75,6 +75,7 @@ export const MODULES = [
       { label: 'Registrar Monitoreo', to: '/monitoreo', icon: FiActivity, minRole: 'trabajador' },
       { label: 'Historial', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
       { label: 'Tipos de Monitoreo', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
+      { label: 'Paquetes de Muestreos', to: '/monitoreo/paquetes', icon: FiPackage, minRole: 'supervisor' },
     ],
   },
   {

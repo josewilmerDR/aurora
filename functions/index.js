@@ -3950,6 +3950,53 @@ app.delete('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   }
 });
 
+// ── Paquetes de Muestreos ─────────────────────────────────────────────────────
+app.get('/api/monitoreo/paquetes', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('monitoreo_paquetes').where('fincaId', '==', req.fincaId).get();
+    res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener paquetes de muestreo.' });
+  }
+});
+
+app.post('/api/monitoreo/paquetes', authenticate, async (req, res) => {
+  try {
+    const { nombrePaquete } = req.body;
+    if (!nombrePaquete) return res.status(400).json({ message: 'nombrePaquete es requerido.' });
+    const pkg = { ...pick(req.body, ['nombrePaquete', 'descripcion', 'tecnicoResponsable', 'activities']), fincaId: req.fincaId };
+    const docRef = await db.collection('monitoreo_paquetes').add(pkg);
+    res.status(201).json({ id: docRef.id, ...pkg });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear paquete de muestreo.' });
+  }
+});
+
+app.put('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const pkgData = pick(req.body, ['nombrePaquete', 'descripcion', 'tecnicoResponsable', 'activities']);
+    await db.collection('monitoreo_paquetes').doc(id).update(pkgData);
+    res.status(200).json({ id, ...pkgData });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar paquete de muestreo.' });
+  }
+});
+
+app.delete('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('monitoreo_paquetes').doc(id).delete();
+    res.status(200).json({ message: 'Paquete de muestreo eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar paquete de muestreo.' });
+  }
+});
+
 // ── Registros de Monitoreo ────────────────────────────────────────────────────
 app.get('/api/monitoreo', authenticate, async (req, res) => {
   try {
