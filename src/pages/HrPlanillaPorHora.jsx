@@ -495,8 +495,10 @@ function HrPlanillaPorHora() {
             const enriched = empleados.map(e => ({ ...e, precioHora: Number(fichaMap[e.id]?.precioHora) || 0 }));
             if (!isAdmin) {
               const selfId = currentUser.userId;
-              if (!enriched.some(e => e.id === selfId)) {
-                enriched.unshift({ id: selfId, nombre: currentUser.nombre, precioHora: Number(fichaMap[selfId]?.precioHora) || 0, esEncargadoActual: true });
+              const selfFicha = fichaMap[selfId];
+              const tieneSalarioMensual = Number(selfFicha?.salarioBase) > 0;
+              if (!tieneSalarioMensual && !enriched.some(e => e.id === selfId)) {
+                enriched.unshift({ id: selfId, nombre: currentUser.nombre, precioHora: Number(selfFicha?.precioHora) || 0, esEncargadoActual: true });
               }
             }
             return enriched;
