@@ -2125,7 +2125,7 @@ app.get('/api/grupos', authenticate, async (req, res) => {
 
 app.post('/api/grupos', authenticate, async (req, res) => {
     try {
-        const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId } = req.body;
+        const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = req.body;
         if (!nombreGrupo || !fechaCreacion) {
             return res.status(400).json({ message: 'Faltan datos para crear el grupo.' });
         }
@@ -2137,6 +2137,7 @@ app.post('/api/grupos', authenticate, async (req, res) => {
             fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
             bloques: Array.isArray(bloques) ? bloques : [],
             paqueteId: paqueteId || '',
+            paqueteMuestreoId: paqueteMuestreoId || '',
             fincaId: req.fincaId,
         });
 
@@ -2206,7 +2207,7 @@ app.put('/api/grupos/:id', authenticate, async (req, res) => {
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
-        const grupoData = pick(req.body, ['nombreGrupo', 'cosecha', 'etapa', 'fechaCreacion', 'bloques', 'paqueteId']);
+        const grupoData = pick(req.body, ['nombreGrupo', 'cosecha', 'etapa', 'fechaCreacion', 'bloques', 'paqueteId', 'paqueteMuestreoId']);
         const originalData = ownership.doc.data();
 
         if (grupoData.fechaCreacion && typeof grupoData.fechaCreacion === 'string') {

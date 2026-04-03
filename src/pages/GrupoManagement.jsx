@@ -107,9 +107,10 @@ function NuevoCatalogModal({ field, onConfirm, onCancel }) {
 function GrupoManagement() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [grupos,        setGrupos]        = useState([]);
-  const [siembras,      setSiembras]      = useState([]);
-  const [packages,      setPackages]      = useState([]);
+  const [grupos,            setGrupos]            = useState([]);
+  const [siembras,          setSiembras]          = useState([]);
+  const [packages,          setPackages]          = useState([]);
+  const [monitoreoPackages, setMonitoreoPackages] = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
   const [selectedGrupo, setSelectedGrupo] = useState(null);
   const [showForm,      setShowForm]      = useState(false);
@@ -134,13 +135,14 @@ function GrupoManagement() {
 
   const [formData, setFormData] = useState({
     id: null, nombreGrupo: '', cosecha: '', etapa: '',
-    fechaCreacion: '', bloques: [], paqueteId: '',
+    fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '',
   });
 
   const fetchAll = () => {
     const gruposP = apiFetch('/api/grupos').then(r => r.json()).then(data => { setGrupos(data); return data; }).catch(console.error);
     apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
+    apiFetch('/api/monitoreo/paquetes').then(r => r.json()).then(setMonitoreoPackages).catch(console.error);
     apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
     return gruposP;
   };
@@ -372,12 +374,12 @@ function GrupoManagement() {
     setIsEditing(false);
     setShowForm(false);
     setShowLibres(false);
-    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '' });
+    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
   };
 
   const handleNewGrupo = () => {
     setIsEditing(false);
-    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '' });
+    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
     setShowForm(true);
     setSelectedGrupo(null);
   };
@@ -418,7 +420,8 @@ function GrupoManagement() {
       etapa:         grupo.etapa        || '',
       fechaCreacion: grupo.fechaCreacion ? formatDateForInput(grupo.fechaCreacion) : '',
       bloques:       Array.isArray(grupo.bloques) ? grupo.bloques : [],
-      paqueteId:     grupo.paqueteId    || '',
+      paqueteId:         grupo.paqueteId         || '',
+      paqueteMuestreoId: grupo.paqueteMuestreoId || '',
     });
   };
 
@@ -544,6 +547,7 @@ function GrupoManagement() {
   const pvTotalKg      = pvTotalPlantas * 1.6;
 
   const getPackageName = (id) => packages.find(p => p.id === id)?.nombrePaquete || '—';
+  const getMonitoreoPackageName = (id) => monitoreoPackages.find(p => p.id === id)?.nombrePaquete || '—';
 
   // ── Panel principal (hub o formulario) ───────────────────────────────────
   const renderPanel = () => {
@@ -604,6 +608,13 @@ function GrupoManagement() {
                 <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} disabled={filteredPackages.length === 0}>
                   <option value="">{filteredPackages.length === 0 ? '-- Sin paquetes para esta cosecha/etapa --' : '-- Seleccionar Paquete --'}</option>
                   {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
+                </select>
+              </div>
+              <div className="form-control" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="paqueteMuestreoId">Paquete de Muestreos</label>
+                <select id="paqueteMuestreoId" name="paqueteMuestreoId" value={formData.paqueteMuestreoId} onChange={handleInputChange} disabled={monitoreoPackages.length === 0}>
+                  <option value="">{monitoreoPackages.length === 0 ? '-- Sin paquetes de muestreo --' : '-- Seleccionar Paquete --'}</option>
+                  {monitoreoPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
                 </select>
               </div>
             </div>
@@ -751,6 +762,12 @@ function GrupoManagement() {
             <span className="hub-pill">
               <FiPackage size={13} />
               {getPackageName(selectedGrupo.paqueteId)}
+            </span>
+          )}
+          {selectedGrupo.paqueteMuestreoId && (
+            <span className="hub-pill">
+              <FiPackage size={13} />
+              {getMonitoreoPackageName(selectedGrupo.paqueteMuestreoId)}
             </span>
           )}
           {selectedFechaCosecha && (
