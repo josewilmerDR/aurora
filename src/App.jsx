@@ -33,7 +33,6 @@ import HrHistorialPagos from './pages/HrHistorialPagos';
 import HrHistorialPlanillaHoras from './pages/HrHistorialPlanillaHoras';
 import HrHistorial from './pages/HrHistorial';
 import HrSolicitudEmpleo from './pages/HrSolicitudEmpleo';
-import MonitoreoRegistro from './pages/MonitoreoRegistro';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
@@ -109,7 +108,6 @@ const routeTitles = {
   '/hr/historial-pagos': 'Historial de Pagos',
   '/hr/historial': 'Historial del Empleado',
   '/hr/solicitud-empleo': 'Solicitud de Empleo',
-  '/monitoreo': 'Registrar Monitoreo',
   '/monitoreo/historial': 'Historial de Monitoreos',
   '/monitoreo/config': 'Plantillas de Muestreo',
   '/monitoreo/paquetes': 'Paquetes de Muestreos',
@@ -420,7 +418,6 @@ function App() {
           >
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<TaskTracking />} />
-            <Route path="/monitoreo" element={<MonitoreoRegistro />} />
             <Route path="/operaciones/horimetro" element={<Horimetro />} />
             <Route path="/config/cuenta" element={<ConfigCuenta />} />
             <Route path="/mi-perfil" element={<MiPerfil />} />

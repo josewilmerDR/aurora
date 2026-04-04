@@ -72,7 +72,6 @@ export const MODULES = [
     nombre: 'Monitoreo',
     icon: FiActivity,
     items: [
-      { label: 'Registrar Monitoreo', to: '/monitoreo', icon: FiActivity, minRole: 'trabajador' },
       { label: 'Historial', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
       { label: 'Muestreos', to: '/monitoreo/muestreos', icon: FiList, minRole: 'encargado' },
       { label: 'Plantillas de Muestreo', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
