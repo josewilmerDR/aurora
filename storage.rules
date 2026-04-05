@@ -13,6 +13,10 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null;
     }
+    match /muestreos/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }
