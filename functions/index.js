@@ -169,6 +169,33 @@ const enrichTask = async (taskDoc) => {
   };
 };
 
+// --- FEED HELPER ---
+
+async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType, title, loteNombre }) {
+  try {
+    const userSnap = await db.collection('users')
+      .where('email', '==', userEmail)
+      .where('fincaId', '==', fincaId)
+      .limit(1).get();
+    const userName = userSnap.empty ? userEmail : userSnap.docs[0].data().nombre;
+
+    await db.collection('feed').add({
+      fincaId,
+      uid,
+      userName,
+      eventType,          // 'task_completed' | 'lote_created'
+      activityType: activityType || null,  // 'aplicacion' | 'notificacion' | null
+      title,
+      loteNombre: loteNombre || null,
+      sensitive: false,
+      timestamp: Timestamp.now(),
+    });
+  } catch (err) {
+    console.error('[FEED] Error escribiendo evento:', err.message);
+    // No bloquear el flujo principal si el feed falla
+  }
+}
+
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
 // GET /api/auth/memberships — lista las fincas del usuario autenticado
@@ -325,6 +352,25 @@ app.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) => {
   }
 });
 
+// --- API ENDPOINTS: FEED ---
+app.get('/api/feed', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('feed')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('timestamp', 'desc')
+      .limit(40)
+      .get();
+    const events = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return { id: doc.id, ...data, timestamp: data.timestamp?.toMillis() ?? null };
+    });
+    res.json(events);
+  } catch (error) {
+    console.error('Error fetching feed:', error);
+    res.status(500).json({ message: 'Error al obtener el feed.' });
+  }
+});
+
 // --- API ENDPOINTS: TASKS ---
 app.get('/api/tasks', authenticate, async (req, res) => {
   try {
@@ -478,7 +524,15 @@ app.put('/api/tasks/:id', authenticate, async (req, res) => {
             });
           }
           await batch.commit();
+          writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'task_completed', activityType: 'aplicacion', title: taskData.activity.name, loteNombre });
           return res.status(200).json({ id, ...updateData });
+        }
+
+        // Tarea completada no-aplicacion: buscar lote para el feed
+        if (updateData.status === 'completed_by_user') {
+          const loteDoc = taskData.loteId ? await db.collection('lotes').doc(taskData.loteId).get() : null;
+          const loteNombre = loteDoc?.exists ? (loteDoc.data().nombreLote || '') : '';
+          writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'task_completed', activityType: taskData.activity?.type || 'notificacion', title: taskData.activity?.name || 'Tarea completada', loteNombre });
         }
       }
     }
@@ -1954,6 +2008,7 @@ app.post('/api/lotes', authenticate, async (req, res) => {
                 hectareas: parseFloat(hectareas) || 0,
                 fincaId: req.fincaId,
             });
+            writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'lote_created', title: nombreLote || codigoLote, loteNombre: nombreLote || codigoLote });
             return res.status(201).json({ id: loteRef.id, message: 'Lote creado sin paquete técnico.' });
         } catch (error) {
             console.error("[ERROR] Creando lote sin paquete:", error);
@@ -1997,6 +2052,7 @@ app.post('/api/lotes', authenticate, async (req, res) => {
             await sendNotificationWithLink(taskToNotify.ref, taskToNotify.data, nombreLote);
         }
 
+        writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'lote_created', title: nombreLote || codigoLote, loteNombre: nombreLote || codigoLote });
         res.status(201).json({ id: loteRef.id, message: 'Lote y tareas programadas con éxito. Se enviaron notificaciones inmediatas.' });
 
     } catch (error) {
@@ -6614,15 +6670,16 @@ app.delete('/api/calibraciones/:id', authenticate, async (req, res) => {
 });
 
 // Se exporta la app de Express, inyectando los secretos necesarios.
-exports.api = functions.runWith({
-  secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey, vapidPublicKey, vapidPrivateKey]
-}).https.onRequest(app);
+exports.api = functions.https.onRequest(
+  { secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey, vapidPublicKey, vapidPrivateKey] },
+  app
+);
 
 // --- FUNCIÓN PROGRAMADA: ENVIAR PUSH DE RECORDATORIOS VENCIDOS ---
 // Se ejecuta cada 5 minutos y envía notificaciones push a usuarios con recordatorios vencidos.
-exports.sendDuePushReminders = functions.runWith({
-  secrets: [vapidPublicKey, vapidPrivateKey]
-}).pubsub.schedule('every 5 minutes').onRun(async () => {
+exports.sendDuePushReminders = functions.scheduler.onSchedule(
+  { schedule: 'every 5 minutes', secrets: [vapidPublicKey, vapidPrivateKey] },
+  async () => {
   const VAPID_SUBJECT = 'mailto:aurora@finca.com';
   webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 
