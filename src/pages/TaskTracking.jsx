@@ -366,7 +366,10 @@ function TaskTracking() {
   return (
     <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="task-tracking-header">
+      <div className="task-tracking-header" style={{ position: 'relative' }}>
+        <button className="page-close-btn" onClick={() => navigate(-1)} title="Volver atrás">
+          <FiX size={16} />
+        </button>
         <div className="task-tracking-controls">
           <button
             className={`btn-nueva-aplicacion${showNewTask ? ' active' : ''}`}

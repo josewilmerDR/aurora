@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './ProductManagement.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../components/Toast';
@@ -51,6 +51,7 @@ function loadVisibleCols() {
 }
 
 function ProductManagement() {
+  const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
   const [productosLoaded, setProductosLoaded] = useState(false);
@@ -448,7 +449,10 @@ function ProductManagement() {
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="list-card" style={{ gridColumn: '1 / -1' }}>
+      <div className="list-card" style={{ gridColumn: '1 / -1', position: 'relative' }}>
+        <button className="page-close-btn" onClick={() => navigate(-1)} title="Volver atrás">
+          <FiX size={16} />
+        </button>
 
         {productos.length === 0 ? (
           <div className="pg-empty-state">

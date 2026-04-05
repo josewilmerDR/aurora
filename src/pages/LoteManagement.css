@@ -14,6 +14,29 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  position: relative;
+}
+
+.page-close-btn {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(204, 51, 255, 0.2);
+  border: none;
+  color: var(--aurora-magenta);
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 1;
+}
+.page-close-btn:hover {
+  opacity: 0.8;
+  background: rgba(230, 242, 255, 0.07);
 }
 
 @media (min-width: 769px) {
