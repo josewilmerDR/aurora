@@ -1,80 +1,124 @@
-import { useState, useEffect } from 'react';
-import { FiTrash2, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { useState, useEffect, useMemo } from 'react';
+import { FiTrash2, FiImage } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './Monitoreo.css';
 
 function MonitoreoHistorial() {
   const apiFetch = useApiFetch();
-  const [registros, setRegistros] = useState([]);
-  const [lotes, setLotes]         = useState([]);
-  const [tipos, setTipos]         = useState([]);
-  const [filtros, setFiltros]     = useState({ loteId: '', tipoId: '', desde: '', hasta: '' });
-  const [expanded, setExpanded]   = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [toast, setToast]         = useState(null);
+  const [allRegistros, setAllRegistros] = useState([]);
+  const [lotes, setLotes]               = useState([]);
+  const [tipos, setTipos]               = useState([]);
+  const [filtros, setFiltros]           = useState({ loteId: '', tipoId: '', desde: '', hasta: '' });
+  const [loading, setLoading]           = useState(false);
+  const [toast, setToast]               = useState(null);
+  const [tipoCampos, setTipoCampos]     = useState([]);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
     apiFetch('/api/monitoreo/tipos').then(r => r.json()).then(setTipos).catch(console.error);
-    cargar({});
   }, []);
 
-  const cargar = async (f = filtros) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (f.loteId) params.set('loteId', f.loteId);
-      if (f.tipoId) params.set('tipoId', f.tipoId);
-      if (f.desde)  params.set('desde',  f.desde);
-      if (f.hasta)  params.set('hasta',  f.hasta);
-      const data = await apiFetch(`/api/monitoreo?${params}`).then(r => r.json());
-      setRegistros(Array.isArray(data) ? data : []);
-    } catch {
-      showToast('Error al cargar registros.', 'error');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (filtros.loteId) params.set('loteId', filtros.loteId);
+        if (filtros.desde)  params.set('desde',  filtros.desde);
+        if (filtros.hasta)  params.set('hasta',  filtros.hasta);
+        const data = await apiFetch(`/api/monitoreo?${params}`).then(r => r.json());
+        setAllRegistros(Array.isArray(data) ? data : []);
+      } catch {
+        showToast('Error al cargar registros.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [filtros.loteId, filtros.desde, filtros.hasta]);
+
+  useEffect(() => {
+    if (!filtros.tipoId) { setTipoCampos([]); return; }
+    apiFetch(`/api/monitoreo/tipos/${filtros.tipoId}`)
+      .then(r => r.json())
+      .then(t => setTipoCampos(Array.isArray(t.campos) ? t.campos : []))
+      .catch(() => setTipoCampos([]));
+  }, [filtros.tipoId]);
+
+  const registros = filtros.tipoId
+    ? allRegistros.filter(r => (r.plantillaIds || []).includes(filtros.tipoId))
+    : allRegistros;
+
+  // When a tipo filter is active, expand each monitoreo into one row per registro.
+  // Common columns (dates, names) only shown on the first sub-row.
+  const displayRows = useMemo(() => {
+    if (!tipoCampos.length) {
+      return registros.map(r => ({ mon: r, reg: null, isFirst: true }));
     }
-  };
+    const rows = [];
+    for (const r of registros) {
+      const regs = r.formularioData?.registros;
+      if (Array.isArray(regs) && regs.length > 0) {
+        regs.forEach((reg, i) => rows.push({ mon: r, reg, isFirst: i === 0, regIdx: i, regTotal: regs.length }));
+      } else {
+        const reg = r.formularioData?.datos || null;
+        rows.push({ mon: r, reg, isFirst: true, regIdx: null, regTotal: 1 });
+      }
+    }
+    return rows;
+  }, [registros, tipoCampos]);
 
-  const handleFiltro = (e) => {
-    const next = { ...filtros, [e.target.name]: e.target.value };
-    setFiltros(next);
-  };
-
-  const handleBuscar = (e) => {
-    e.preventDefault();
-    cargar(filtros);
-  };
+  const handleFiltro = (e) => setFiltros(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este registro de monitoreo?')) return;
     try {
       await apiFetch(`/api/monitoreo/${id}`, { method: 'DELETE' });
-      setRegistros(prev => prev.filter(r => r.id !== id));
+      setAllRegistros(prev => prev.filter(r => r.id !== id));
       showToast('Registro eliminado.');
     } catch {
       showToast('Error al eliminar.', 'error');
     }
   };
 
-  const formatFecha = (iso) => new Date(iso).toLocaleDateString('es-CR', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+  const handleDeleteRegistro = async (monId, regIdx, regTotal) => {
+    const esTodo = regTotal <= 1 || regIdx === null;
+    const msg = esTodo ? '¿Eliminar este registro completo?' : '¿Eliminar esta línea?';
+    if (!confirm(msg)) return;
+    try {
+      if (esTodo) {
+        await apiFetch(`/api/monitoreo/${monId}`, { method: 'DELETE' });
+        setAllRegistros(prev => prev.filter(r => r.id !== monId));
+      } else {
+        const res = await apiFetch(`/api/monitoreo/${monId}/registros/${regIdx}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.deleted === 'monitoreo') {
+          setAllRegistros(prev => prev.filter(r => r.id !== monId));
+        } else {
+          setAllRegistros(prev => prev.map(r =>
+            r.id === monId
+              ? { ...r, formularioData: { ...r.formularioData, registros: data.registros } }
+              : r
+          ));
+        }
+      }
+      showToast('Eliminado correctamente.');
+    } catch {
+      showToast('Error al eliminar.', 'error');
+    }
+  };
 
-  const renderDatos = (datos) => {
-    if (!datos || Object.keys(datos).length === 0) return <span className="label-optional">Sin datos registrados</span>;
-    return (
-      <div className="monitoreo-datos-grid">
-        {Object.entries(datos).map(([k, v]) => (
-          <div key={k} className="monitoreo-dato-item">
-            <span className="monitoreo-dato-key">{k.replace(/_/g, ' ')}</span>
-            <span className="monitoreo-dato-val">{v}</span>
-          </div>
-        ))}
-      </div>
-    );
+  const fmt = (iso) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const getDynCell = (reg, campoNombre) => {
+    if (!reg) return '—';
+    const val = reg[campoNombre];
+    return (val !== undefined && val !== '') ? val : '—';
   };
 
   return (
@@ -83,7 +127,7 @@ function MonitoreoHistorial() {
 
       {/* Filtros */}
       <div className="form-card" style={{ marginBottom: '1rem' }}>
-        <form onSubmit={handleBuscar} className="monitoreo-filtros">
+        <div className="monitoreo-filtros">
           <div className="form-control">
             <label>Lote</label>
             <select name="loteId" value={filtros.loteId} onChange={handleFiltro}>
@@ -106,61 +150,81 @@ function MonitoreoHistorial() {
             <label>Hasta</label>
             <input type="date" name="hasta" value={filtros.hasta} onChange={handleFiltro} />
           </div>
-          <div className="form-control form-control-btn">
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Buscando...' : 'Buscar'}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
 
-      {/* Listado */}
-      <div className="items-list">
-        {registros.length === 0 && !loading && (
-          <p className="empty-state">No hay registros de monitoreo para los filtros seleccionados.</p>
-        )}
-
-        {registros.map(r => {
-          const isOpen = expanded === r.id;
-          return (
-            <div key={r.id} className="item-card">
-              <div
-                className="item-card-header monitoreo-row"
-                onClick={() => setExpanded(isOpen ? null : r.id)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className="monitoreo-row-main">
-                  <span className="monitoreo-tipo-badge">{r.tipoNombre || r.tipoId}</span>
-                  <span className="item-main-text">{r.loteNombre || r.loteId}</span>
-                  {r.bloque && <span className="label-optional">· {r.bloque}</span>}
-                </div>
-                <div className="monitoreo-row-meta">
-                  <span className="label-optional">{formatFecha(r.fecha)}</span>
-                  <span className="label-optional">{r.responsableNombre}</span>
-                  {isOpen ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                </div>
-              </div>
-
-              {isOpen && (
-                <div className="monitoreo-detalle">
-                  {renderDatos(r.datos)}
-                  {r.observaciones && (
-                    <p className="monitoreo-obs"><strong>Observaciones:</strong> {r.observaciones}</p>
-                  )}
-                  <div className="monitoreo-detalle-actions">
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDelete(r.id)}
-                    >
-                      <FiTrash2 size={14} /> Eliminar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {/* Tabla */}
+      {loading ? (
+        <div className="mon-loading" />
+      ) : displayRows.length === 0 ? (
+        <p className="empty-state">No hay registros de monitoreo para los filtros seleccionados.</p>
+      ) : (
+        <div className="mh-outer">
+          <table className="mh-historial-table">
+            <thead>
+              <tr>
+                <th>F. Programada</th>
+                <th>F. Carga</th>
+                <th>Muestreador</th>
+                <th>Supervisor</th>
+                <th>Lote</th>
+                <th>Grupo</th>
+                <th>Notas</th>
+                {tipoCampos.map(c => (
+                  <th key={c.nombre} className="mh-th-dyn">
+                    {c.nombre}{c.unidad ? ` (${c.unidad})` : ''}
+                  </th>
+                ))}
+                <th className="mh-th-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map((row, rowIdx) => {
+                const { mon: r, reg, isFirst, regIdx, regTotal } = row;
+                return (
+                  <tr
+                    key={`${r.id}-${rowIdx}`}
+                    className={`mh-data-row${isFirst ? '' : ' mh-data-row--sub'}`}
+                  >
+                    <td>{fmt(r.fecha)}</td>
+                    <td>{fmt(r.createdAt)}</td>
+                    <td>{r.responsableNombre || '—'}</td>
+                    <td>{r.supervisorNombre || '—'}</td>
+                    <td>{r.loteNombre || '—'}</td>
+                    <td>{r.bloque || '—'}</td>
+                    <td className="mh-td-notas" title={r.observaciones || undefined}>
+                      {r.observaciones || ''}
+                    </td>
+                    {tipoCampos.map(c => (
+                      <td key={c.nombre} className="mh-td-dyn">{getDynCell(reg, c.nombre)}</td>
+                    ))}
+                    <td className="mh-td-actions">
+                      {isFirst && r.scanImageUrl && (
+                        <a
+                          href={r.scanImageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mh-img-btn"
+                          title="Ver imagen de escaneo"
+                        >
+                          <FiImage size={13} />
+                        </a>
+                      )}
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteRegistro(r.id, regIdx, regTotal)}
+                        title={regTotal > 1 && regIdx !== null ? 'Eliminar esta línea' : 'Eliminar registro'}
+                      >
+                        <FiTrash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -43,10 +43,11 @@ export default function MuestreosOrdenes() {
     );
   }, [ordenes, search]);
 
-  const handleComplete = async (id, formularioData = null) => {
+  const handleComplete = async (id, formularioData = null, metadata = {}) => {
     await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
       method: 'PATCH',
-      ...(formularioData && { body: JSON.stringify({ formularioData }) }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ formularioData, ...metadata }),
     });
     setOrdenes(prev => prev.map(o => o.id === id ? { ...o, status: 'completed_by_user' } : o));
   };
@@ -91,8 +92,8 @@ export default function MuestreosOrdenes() {
         <FormularioMuestreoModal
           orden={modalOrden}
           onClose={() => setModalOrden(null)}
-          onComplete={async (id, formularioData) => {
-            await handleComplete(id, formularioData);
+          onComplete={async (id, formularioData, metadata) => {
+            await handleComplete(id, formularioData, metadata);
             setModalOrden(null);
           }}
         />

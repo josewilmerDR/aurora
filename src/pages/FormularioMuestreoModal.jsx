@@ -1,10 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import * as XLSX from 'xlsx';
-import { FiX, FiAlertCircle, FiFileText, FiCamera, FiZap } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { FiX, FiAlertCircle, FiFileText, FiCamera, FiZap, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { useUser } from '../contexts/UserContext';
 import './FormularioMuestreoModal.css';
 
-// STATE: 'loading' | 'no-formulario' | 'ready' | 'error'
+const todayIso = () => new Date().toISOString().split('T')[0];
+
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+};
 
 const MAX_IMAGE_PX = 1600;
 
@@ -37,21 +42,30 @@ function compressImage(file) {
 
 export default function FormularioMuestreoModal({ orden, onClose, onComplete }) {
   const apiFetch = useApiFetch();
+  const { currentUser } = useUser();
   const fileInputRef = useRef(null);
 
-  // Form loading state
+  // Plantilla state: 'loading' | 'no-formulario' | 'ready' | 'error'
   const [state, setState] = useState('loading');
-  const [sheetRows, setSheetRows] = useState([]);
-  const [sheetName, setSheetName] = useState('');
+  const [campos, setCampos] = useState([]);     // [{nombre, tipo, unidad}]
+  const [registros, setRegistros] = useState([{}]); // [{nombre: value}, ...]
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Image scan state
-  const [scanImage, setScanImage] = useState(null); // { base64, mediaType, previewUrl }
-  const [scanning, setScanning] = useState(false);
-  const [scanMsg, setScanMsg] = useState(null); // { type: 'success'|'error', text }
+  // Metadata
+  const [fechaCarga, setFechaCarga] = useState(todayIso());
+  const [observaciones, setObservaciones] = useState(orden.nota || '');
+  const [supervisorId, setSupervisorId] = useState('');
+  const [supervisorNombre, setSupervisorNombre] = useState('');
+  const [supervisorLoading, setSupervisorLoading] = useState(false);
 
-  // ── Load Excel template ──────────────────────────────────────────────────
+  // Scan state
+  const [scanImage, setScanImage] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null); // imagen que se adjuntará al guardar
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState(null);
+
+  // ── Load campos ──────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -64,60 +78,29 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
 
         const activity = (pkg.activities || []).find(a => a.name === orden.tipoMuestreo);
         const formularios = activity?.formularios || [];
-        if (formularios.length === 0) {
-          if (!cancelled) setState('no-formulario');
-          return;
-        }
+        if (formularios.length === 0) { if (!cancelled) setState('no-formulario'); return; }
 
-        // Buscar la primera plantilla que tenga archivoFormulario
-        let archivoUrl = null;
-        let archivoNombre = null;
+        let plantillaCampos = null;
         for (const f of formularios) {
           const tipRes = await apiFetch(`/api/monitoreo/tipos/${f.tipoId}`);
           if (!tipRes.ok) continue;
           const plantilla = await tipRes.json();
-          if (plantilla.archivoFormulario?.url) {
-            archivoUrl = plantilla.archivoFormulario.url;
-            archivoNombre = plantilla.archivoFormulario.nombre;
+          if (Array.isArray(plantilla.campos) && plantilla.campos.length > 0) {
+            plantillaCampos = plantilla.campos;
             break;
           }
         }
 
-        if (!archivoUrl) {
-          if (!cancelled) setState('no-formulario');
-          return;
-        }
-
-        const fileRes = await fetch(archivoUrl);
-        if (fileRes.status === 404) {
-          if (!cancelled) setState('no-formulario');
-          return;
-        }
-        if (!fileRes.ok) throw new Error(`No se pudo descargar el formulario: ${archivoNombre}`);
-        const buffer = await fileRes.arrayBuffer();
-
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const raw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-        const maxCols = Math.max(...raw.map(r => r.length), 1);
-        const normalized = raw.map(r => {
-          const arr = r.map(c => (c === null || c === undefined) ? '' : String(c));
-          while (arr.length < maxCols) arr.push('');
-          return arr;
-        });
+        if (!plantillaCampos) { if (!cancelled) setState('no-formulario'); return; }
 
         if (!cancelled) {
-          setSheetName(firstSheetName);
-          setSheetRows(normalized);
+          const emptyRow = Object.fromEntries(plantillaCampos.map(c => [c.nombre, '']));
+          setCampos(plantillaCampos);
+          setRegistros([{ ...emptyRow }]);
           setState('ready');
         }
       } catch (err) {
-        if (!cancelled) {
-          setErrorMsg(err.message || 'Error al cargar el formulario');
-          setState('error');
-        }
+        if (!cancelled) { setErrorMsg(err.message || 'Error al cargar la plantilla'); setState('error'); }
       }
     }
 
@@ -125,16 +108,34 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
     return () => { cancelled = true; };
   }, []);
 
-  // ── Cell editing ─────────────────────────────────────────────────────────
-  const handleCellChange = useCallback((rIdx, cIdx, value) => {
-    setSheetRows(prev =>
-      prev.map((row, ri) =>
-        ri === rIdx ? row.map((cell, ci) => (ci === cIdx ? value : cell)) : row
-      )
-    );
-  }, []);
+  // ── Fetch supervisor ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const userId = currentUser?.userId;
+    if (!userId) return;
+    setSupervisorLoading(true);
+    Promise.all([
+      apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json()).catch(() => ({})),
+      apiFetch('/api/users').then(r => r.json()).catch(() => []),
+    ]).then(([ficha, users]) => {
+      if (ficha.encargadoId) {
+        const sup = users.find(u => u.id === ficha.encargadoId);
+        if (sup) { setSupervisorId(ficha.encargadoId); setSupervisorNombre(sup.nombre); }
+      }
+    }).finally(() => setSupervisorLoading(false));
+  }, [currentUser?.userId]);
 
-  // ── Image scan ───────────────────────────────────────────────────────────
+  // ── Registro management ──────────────────────────────────────────────────
+  const emptyRow = () => Object.fromEntries(campos.map(c => [c.nombre, '']));
+
+  const addRegistro = () => setRegistros(prev => [...prev, emptyRow()]);
+
+  const removeRegistro = (idx) =>
+    setRegistros(prev => prev.filter((_, i) => i !== idx));
+
+  const updateRegistro = (rIdx, nombre, val) =>
+    setRegistros(prev => prev.map((r, i) => i === rIdx ? { ...r, [nombre]: val } : r));
+
+  // ── Scan ─────────────────────────────────────────────────────────────────
   const handleImagePick = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -155,18 +156,24 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
     try {
       const res = await apiFetch('/api/muestreos/escanear-formulario', {
         method: 'POST',
-        body: JSON.stringify({
-          imageBase64: scanImage.base64,
-          mediaType: scanImage.mediaType,
-          plantilla: sheetRows,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: scanImage.base64, mediaType: scanImage.mediaType, campos }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Error al procesar la imagen');
       }
-      const { rows } = await res.json();
-      setSheetRows(rows);
+      const { registros: extracted } = await res.json();
+      const emptyRowDef = Object.fromEntries(campos.map(c => [c.nombre, '']));
+      const normalizedRows = extracted.map(r => ({ ...emptyRowDef, ...r }));
+      // Replace last row if it's empty, otherwise append
+      setRegistros(prev => {
+        const last = prev[prev.length - 1];
+        const lastIsEmpty = campos.every(c => !last?.[c.nombre]);
+        const base = lastIsEmpty ? prev.slice(0, -1) : prev;
+        return [...base, ...normalizedRows];
+      });
+      setCapturedImage(scanImage);
       setScanImage(null);
       setScanMsg({ type: 'success', text: 'Datos extraídos. Revisa y corrige si es necesario.' });
     } catch (err) {
@@ -180,8 +187,20 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const formularioData = state === 'ready' ? { sheetName, rows: sheetRows } : null;
-      await onComplete(orden.id, formularioData);
+      const formularioData = state === 'ready' ? { registros } : null;
+      const metadata = {
+        fechaCarga,
+        muestreadorId: currentUser?.userId || '',
+        muestreadorNombre: currentUser?.nombre || '',
+        supervisorId,
+        supervisorNombre,
+        observaciones,
+        ...(capturedImage ? {
+          scanImageBase64: capturedImage.base64,
+          scanImageMediaType: capturedImage.mediaType,
+        } : {}),
+      };
+      await onComplete(orden.id, formularioData, metadata);
     } finally {
       setSubmitting(false);
     }
@@ -212,9 +231,59 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
 
         {/* Body */}
         <div className="fmm-body">
-          {state === 'loading' && (
-            <div className="fmm-state">Cargando formulario...</div>
-          )}
+
+          <div className="fmm-meta-divider"><span>Datos generales</span></div>
+
+          {/* Metadata */}
+          <div className="fmm-meta-grid">
+            <div className="fmm-meta-field">
+              <span className="fmm-meta-label">F. Programada</span>
+              <span className="fmm-meta-value">{fmtDate(orden.fechaProgramada)}</span>
+            </div>
+            <div className="fmm-meta-field">
+              <span className="fmm-meta-label">F. Muestreo</span>
+              <input
+                type="date"
+                className="fmm-meta-input"
+                value={fechaCarga}
+                onChange={e => setFechaCarga(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+            <div className="fmm-meta-field">
+              <span className="fmm-meta-label">Muestreador</span>
+              <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
+            </div>
+            <div className="fmm-meta-field">
+              <span className="fmm-meta-label">Supervisor</span>
+              <span className="fmm-meta-value">
+                {supervisorLoading ? '...' : (supervisorNombre || '—')}
+              </span>
+            </div>
+            <div className="fmm-meta-field">
+              <span className="fmm-meta-label">Lote</span>
+              <span className="fmm-meta-value">{orden.loteNombre || '—'}</span>
+            </div>
+            <div className="fmm-meta-field">
+              <span className="fmm-meta-label">Grupo</span>
+              <span className="fmm-meta-value">{orden.grupoNombre || '—'}</span>
+            </div>
+            <div className="fmm-meta-field fmm-meta-field--full">
+              <span className="fmm-meta-label">Notas</span>
+              <textarea
+                className="fmm-meta-textarea"
+                value={observaciones}
+                onChange={e => setObservaciones(e.target.value)}
+                disabled={submitting}
+                placeholder="Observaciones del muestreo..."
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <div className="fmm-meta-divider"><span>Datos del muestreo</span></div>
+
+          {state === 'loading' && <div className="fmm-state">Cargando plantilla...</div>}
 
           {state === 'error' && (
             <div className="fmm-state fmm-state--error">
@@ -227,17 +296,16 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
           {state === 'no-formulario' && (
             <div className="fmm-state fmm-state--empty">
               <FiFileText size={20} />
-              <span>No hay formulario disponible para esta actividad.</span>
+              <span>No hay campos definidos para esta plantilla.</span>
               <span className="fmm-state-hint">
-                La plantilla no tiene archivo adjunto o el archivo fue actualizado recientemente.
-                Puedes marcar la orden como hecha directamente.
+                Puedes marcar la orden como hecha directamente, o definir los campos en la configuración de Plantillas.
               </span>
             </div>
           )}
 
           {state === 'ready' && (
             <>
-              {/* ── Scan toolbar ── */}
+              {/* Scan toolbar */}
               <div className="fmm-scan-bar">
                 <div className="fmm-scan-bar-left">
                   <button
@@ -245,7 +313,7 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={scanning || submitting}
-                    title="Seleccionar imagen del formulario físico"
+                    title="Escanear imagen — agrega o rellena la última fila vacía"
                   >
                     <FiCamera size={14} />
                     {scanImage ? 'Cambiar imagen' : 'Escanear desde imagen'}
@@ -257,7 +325,6 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                     style={{ display: 'none' }}
                     onChange={handleImagePick}
                   />
-
                   {scanImage && (
                     <div className="fmm-scan-preview">
                       <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
@@ -282,7 +349,6 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                     </div>
                   )}
                 </div>
-
                 {scanMsg && (
                   <span className={`fmm-scan-msg fmm-scan-msg--${scanMsg.type}`}>
                     {scanMsg.text}
@@ -290,41 +356,87 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                 )}
               </div>
 
-              {/* ── Editable table ── */}
-              <div className="fmm-table-wrap">
-                {sheetName && <div className="fmm-sheet-label">{sheetName}</div>}
-                <table className="fmm-table">
+              {/* Imagen adjunta al registro */}
+              {capturedImage && (
+                <div className="fmm-captured-bar">
+                  <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
+                  <span className="fmm-captured-label">Imagen adjunta — se guardará con el registro</span>
+                  <button
+                    type="button"
+                    className="fmm-scan-clear-btn"
+                    onClick={() => setCapturedImage(null)}
+                    disabled={submitting}
+                    title="Quitar imagen adjunta"
+                  >
+                    <FiX size={13} />
+                  </button>
+                </div>
+              )}
+
+              {/* Multi-registro table */}
+              <div className="fmm-registros-wrap">
+                <table className="fmm-registros-table">
+                  <thead>
+                    <tr>
+                      <th className="fmm-reg-num">#</th>
+                      {campos.map(c => (
+                        <th key={c.nombre} className="fmm-reg-th">
+                          {c.nombre}
+                          {c.unidad && <span className="fmm-reg-th-unit"> ({c.unidad})</span>}
+                        </th>
+                      ))}
+                      <th className="fmm-reg-del-col" />
+                    </tr>
+                  </thead>
                   <tbody>
-                    {sheetRows.map((row, rIdx) => (
-                      <tr key={rIdx} className={rIdx === 0 ? 'fmm-row-header' : 'fmm-row-data'}>
-                        <td className="fmm-row-num">{rIdx + 1}</td>
-                        {row.map((cell, cIdx) => (
-                          <td key={cIdx} className="fmm-cell-td">
+                    {registros.map((reg, rIdx) => (
+                      <tr key={rIdx} className="fmm-reg-row">
+                        <td className="fmm-reg-num">{rIdx + 1}</td>
+                        {campos.map(c => (
+                          <td key={c.nombre} className="fmm-reg-td">
                             <input
-                              className="fmm-cell-input"
-                              value={cell}
-                              onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
-                              spellCheck={false}
+                              className="fmm-reg-input"
+                              type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
+                              value={reg[c.nombre] ?? ''}
+                              onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
+                              disabled={submitting}
                             />
                           </td>
                         ))}
+                        <td className="fmm-reg-del-col">
+                          {registros.length > 1 && (
+                            <button
+                              type="button"
+                              className="fmm-reg-del-btn"
+                              onClick={() => removeRegistro(rIdx)}
+                              disabled={submitting}
+                              title="Eliminar fila"
+                            >
+                              <FiTrash2 size={12} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              <button
+                type="button"
+                className="fmm-add-reg-btn"
+                onClick={addRegistro}
+                disabled={submitting}
+              >
+                <FiPlus size={13} /> Agregar registro
+              </button>
             </>
           )}
         </div>
 
         {/* Footer */}
         <div className="fmm-footer">
-          <button
-            className="fmm-btn fmm-btn--cancel"
-            onClick={onClose}
-            disabled={submitting}
-            type="button"
-          >
+          <button className="fmm-btn fmm-btn--cancel" onClick={onClose} disabled={submitting} type="button">
             Cancelar
           </button>
           <button
