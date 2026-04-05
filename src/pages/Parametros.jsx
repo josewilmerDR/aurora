@@ -12,7 +12,7 @@ const SECTIONS = [
     params: [
       { key: 'diasSiembraICosecha', label: 'Días desde siembra hasta I Cosecha', unit: 'días', default: 400, min: 1, step: 1 },
       { key: 'diasForzaICosecha',   label: 'Días desde forza hasta I Cosecha',   unit: 'días', default: 150, min: 1, step: 1 },
-      { key: 'diasChapeaIICosecha', label: 'Días desde chapea hasta II Cosecha', unit: 'días', default: 215, min: 1, step: 1 },
+      { key: 'diasChapeaIICosecha', label: 'Días desde chapea hasta II Cosecha', unit: 'días', default: 365, min: 1, step: 1 },
       { key: 'diasForzaIICosecha',  label: 'Días desde forza hasta II Cosecha',  unit: 'días', default: 150, min: 1, step: 1 },
     ],
   },
