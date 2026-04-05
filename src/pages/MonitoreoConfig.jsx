@@ -20,7 +20,7 @@ const DEFAULT_CAMPOS = [
   { nombre: 'Notas',         tipo: 'texto' },
 ];
 
-const emptyCampo = () => ({ nombre: '', tipo: 'numero', unidad: '' });
+const emptyCampo = () => ({ nombre: '', tipo: 'numero' });
 
 function CamposEditor({ campos, onChange, disabled }) {
   const dragIdx = useRef(null);
@@ -67,7 +67,6 @@ function CamposEditor({ campos, onChange, disabled }) {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <input className="campo-unidad-input" value="" placeholder="—" disabled readOnly />
             <span className="campo-lock-icon" title="Campo predeterminado del sistema">
               <FiLock size={12} />
             </span>
@@ -106,13 +105,6 @@ function CamposEditor({ campos, onChange, disabled }) {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <input
-            className="campo-unidad-input"
-            value={campo.unidad || ''}
-            onChange={e => updateCampo(i, 'unidad', e.target.value)}
-            placeholder="Unidad (opcional)"
-            disabled={disabled}
-          />
           <button
             type="button"
             className="icon-btn delete"
@@ -353,7 +345,7 @@ function MonitoreoConfig() {
                     ) : (
                       (selectedTipo.campos || []).map((c, i) => (
                         <span key={i} className="campo-chip">
-                          {c.nombre}{c.unidad ? ` (${c.unidad})` : ''}
+                          {c.nombre}
                         </span>
                       ))
                     )}

@@ -172,7 +172,7 @@ function MonitoreoHistorial() {
                 <th>Notas</th>
                 {tipoCampos.map(c => (
                   <th key={c.nombre} className="mh-th-dyn">
-                    {c.nombre}{c.unidad ? ` (${c.unidad})` : ''}
+                    {c.nombre}
                   </th>
                 ))}
                 <th className="mh-th-actions" />
