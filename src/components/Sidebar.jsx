@@ -6,7 +6,7 @@ import {
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
-  FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool,
+  FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -33,6 +33,12 @@ export const MODULES = [
           { label: 'Cédulas de Aplicación',   to: '/aplicaciones/cedulas',   icon: FiFileText, minRole: 'encargado' },
           { label: 'Historial de Aplicaciones', to: '/aplicaciones/historial', icon: FiList,     minRole: 'encargado' },
           { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
+        ]
+      },
+      {
+        label: 'Cosecha', icon: FiTrendingUp, minRole: 'encargado', children: [
+          { label: 'Proyección de Cosecha', to: '/cosecha/proyeccion', icon: FiBarChart2, minRole: 'encargado' },
+          { label: 'Historial de Cosecha',  to: '/cosecha/historial',  icon: FiList,     minRole: 'encargado' },
         ]
       },
       { label: 'Horímetros', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador', draftKey: 'horimetro-registro' },
