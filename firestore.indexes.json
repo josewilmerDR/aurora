@@ -47,7 +47,8 @@
     { "collectionGroup": "calibraciones",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
     { "collectionGroup": "bodegas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "orden",          "order": "ASCENDING"  }] },
     { "collectionGroup": "siembras",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "loteId",         "order": "ASCENDING"  }, { "fieldPath": "bloque", "order": "ASCENDING" }] },
-    { "collectionGroup": "scheduled_tasks",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "grupoId", "order": "ASCENDING" }, { "fieldPath": "status",         "order": "ASCENDING"  }] }
+    { "collectionGroup": "scheduled_tasks",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "grupoId", "order": "ASCENDING" }, { "fieldPath": "status",         "order": "ASCENDING"  }] },
+    { "collectionGroup": "feed",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "timestamp",      "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }
