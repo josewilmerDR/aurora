@@ -3881,7 +3881,9 @@ app.put('/api/config', authenticate, async (req, res) => {
     const { nombreEmpresa, identificacion, representanteLegal, administrador, direccion, whatsapp, correo, logoBase64, mediaType,
             diasIDesarrollo, diasIIDesarrollo, diasPostForza,
             diasSiembraICosecha, diasForzaICosecha, diasChapeaIICosecha, diasForzaIICosecha,
-            plantasPorHa, kgPorPlanta, kgPorHa, rechazoICosecha, rechazoIICosecha } = req.body;
+            diasChapeaIIICosecha, diasForzaIIICosecha,
+            plantasPorHa, kgPorCaja, kgPorPlanta, kgPorPlantaII, kgPorPlantaIII, rechazoICosecha, rechazoIICosecha,
+            rechazoIIICosecha, mortalidadICosecha, mortalidadIICosecha, mortalidadIIICosecha } = req.body;
 
     const data = { fincaId: req.fincaId, updatedAt: Timestamp.now() };
     if (nombreEmpresa      !== undefined) data.nombreEmpresa      = nombreEmpresa;
@@ -3897,12 +3899,21 @@ app.put('/api/config', authenticate, async (req, res) => {
     if (diasSiembraICosecha !== undefined) data.diasSiembraICosecha = Number(diasSiembraICosecha);
     if (diasForzaICosecha   !== undefined) data.diasForzaICosecha   = Number(diasForzaICosecha);
     if (diasChapeaIICosecha !== undefined) data.diasChapeaIICosecha = Number(diasChapeaIICosecha);
-    if (diasForzaIICosecha  !== undefined) data.diasForzaIICosecha  = Number(diasForzaIICosecha);
+    if (diasForzaIICosecha   !== undefined) data.diasForzaIICosecha   = Number(diasForzaIICosecha);
+    if (diasChapeaIIICosecha !== undefined) data.diasChapeaIIICosecha = Number(diasChapeaIIICosecha);
+    if (diasForzaIIICosecha  !== undefined) data.diasForzaIIICosecha  = Number(diasForzaIIICosecha);
     if (plantasPorHa        !== undefined) data.plantasPorHa        = Number(plantasPorHa);
+    if (kgPorCaja           !== undefined) data.kgPorCaja           = Number(kgPorCaja);
     if (kgPorPlanta         !== undefined) data.kgPorPlanta         = Number(kgPorPlanta);
-    if (kgPorHa             !== undefined) data.kgPorHa             = Number(kgPorHa);
-    if (rechazoICosecha     !== undefined) data.rechazoICosecha     = Number(rechazoICosecha);
-    if (rechazoIICosecha    !== undefined) data.rechazoIICosecha    = Number(rechazoIICosecha);
+    if (kgPorPlantaII       !== undefined) data.kgPorPlantaII       = Number(kgPorPlantaII);
+    if (kgPorPlantaIII      !== undefined) data.kgPorPlantaIII      = Number(kgPorPlantaIII);
+
+    if (rechazoICosecha      !== undefined) data.rechazoICosecha      = Number(rechazoICosecha);
+    if (rechazoIICosecha     !== undefined) data.rechazoIICosecha     = Number(rechazoIICosecha);
+    if (rechazoIIICosecha    !== undefined) data.rechazoIIICosecha    = Number(rechazoIIICosecha);
+    if (mortalidadICosecha   !== undefined) data.mortalidadICosecha   = Number(mortalidadICosecha);
+    if (mortalidadIICosecha  !== undefined) data.mortalidadIICosecha  = Number(mortalidadIICosecha);
+    if (mortalidadIIICosecha !== undefined) data.mortalidadIIICosecha = Number(mortalidadIIICosecha);
 
     if (logoBase64) {
       try {
