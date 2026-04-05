@@ -335,7 +335,7 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                         disabled={scanning || submitting}
                       >
                         <FiZap size={13} />
-                        {scanning ? 'Extrayendo...' : 'Extraer con IA'}
+                        {scanning ? 'Escaneando...' : 'Escanear'}
                       </button>
                       <button
                         className="fmm-scan-clear-btn"
@@ -382,7 +382,6 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                       {campos.map(c => (
                         <th key={c.nombre} className="fmm-reg-th">
                           {c.nombre}
-                          {c.unidad && <span className="fmm-reg-th-unit"> ({c.unidad})</span>}
                         </th>
                       ))}
                       <th className="fmm-reg-del-col" />
@@ -445,7 +444,7 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
             disabled={submitting || state === 'loading'}
             type="button"
           >
-            {submitting ? 'Guardando...' : 'Guardar y marcar como hecha'}
+            {submitting ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
 
