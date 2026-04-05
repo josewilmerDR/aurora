@@ -5,7 +5,7 @@ import {
   FiDroplet, FiFileText, FiTruck, FiLogOut, FiPlusCircle,
   FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
-  FiAlertTriangle, FiBook, FiPaperclip, FiList, FiUserPlus, FiUmbrella,
+  FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
@@ -63,8 +63,6 @@ export const MODULES = [
         { label: 'Historial de Planilla', to: '/hr/planilla/horas/historial', icon: FiList, minRole: 'encargado' },
       ]},
       { label: 'Historial de Pagos', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
-      { label: 'Historial del Empleado', to: '/hr/historial', icon: FiBook, minRole: 'encargado' },
-      { label: 'Solicitud de Empleo', to: '/hr/solicitud-empleo', icon: FiUserPlus, minRole: 'supervisor' },
     ],
   },
   {

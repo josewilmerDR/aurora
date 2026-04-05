@@ -31,8 +31,6 @@ import HrPlanillaReporte from './pages/HrPlanillaReporte';
 import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
 import HrHistorialPagos from './pages/HrHistorialPagos';
 import HrHistorialPlanillaHoras from './pages/HrHistorialPlanillaHoras';
-import HrHistorial from './pages/HrHistorial';
-import HrSolicitudEmpleo from './pages/HrSolicitudEmpleo';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
@@ -106,8 +104,6 @@ const routeTitles = {
   '/hr/planilla/fijo': 'Planilla — Salario Fijo',
   '/hr/planilla/horas': 'Planilla — Por Hora / Unidad',
   '/hr/historial-pagos': 'Historial de Pagos',
-  '/hr/historial': 'Historial del Empleado',
-  '/hr/solicitud-empleo': 'Solicitud de Empleo',
   '/monitoreo/historial': 'Historial de Monitoreos',
   '/monitoreo/config': 'Plantillas de Muestreo',
   '/monitoreo/paquetes': 'Paquetes de Muestreos',
@@ -440,7 +436,6 @@ function App() {
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
-            <Route path="/hr/historial" element={<RoleRoute path="/hr/historial"><HrHistorial /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
             <Route path="/aplicaciones/historial" element={<RoleRoute path="/aplicaciones/historial"><HistorialAplicaciones /></RoleRoute>} />
@@ -463,7 +458,6 @@ function App() {
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
             <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
             {/* administrador */}
-            <Route path="/hr/solicitud-empleo" element={<RoleRoute path="/hr/solicitud-empleo"><HrSolicitudEmpleo /></RoleRoute>} />
             <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parametros /></RoleRoute>} />
           </Route>
         </Routes>
