@@ -673,3 +673,135 @@
   color: var(--aurora-green);
   background: rgba(51, 255, 153, 0.08);
 }
+
+/* ── Package info hub ─────────────────────────────────────────────────────── */
+.pkg-hub-desc {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  line-height: 1.55;
+  margin: 4px 0 0;
+}
+
+.pkg-hub-section-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pkg-hub-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(230, 242, 255, 0.1);
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  opacity: 1;
+  color: var(--aurora-light);
+  letter-spacing: 0;
+}
+
+.pkg-hub-activities {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pkg-hub-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aurora-border);
+}
+
+.pkg-hub-activity-day {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  opacity: 0.8;
+  white-space: nowrap;
+  min-width: 42px;
+}
+
+.pkg-hub-activity-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pkg-hub-activity-name {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pkg-hub-activity-resp {
+  font-size: 0.76rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+.pkg-hub-activity-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64b5f6;
+  background: rgba(100, 181, 246, 0.1);
+  border: 1px solid rgba(100, 181, 246, 0.3);
+  border-radius: 10px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pkg-hub-activity-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--aurora-border);
+}
+
+.pkg-hub-detail-cal {
+  font-size: 0.76rem;
+  color: var(--aurora-green);
+  opacity: 0.75;
+}
+
+.pkg-hub-detail-prod {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.pkg-hub-detail-prod-name {
+  color: #64b5f6;
+  font-weight: 500;
+}
+
+.pkg-hub-detail-prod-dose {
+  color: var(--aurora-light);
+  opacity: 0.55;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
