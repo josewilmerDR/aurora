@@ -271,7 +271,9 @@
 }
 
 .add-activity-btn-container {
-    margin-top: 15px;
+  margin-top: 15px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* Tipo de actividad selector */
@@ -365,6 +367,13 @@
   border-radius: 4px;
   color: var(--aurora-light);
   text-align: center;
+  -moz-appearance: textfield;
+}
+
+.product-tag-qty::-webkit-outer-spin-button,
+.product-tag-qty::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .product-tag-unit {
@@ -476,25 +485,24 @@
 }
 
 .pkg-prod-dropdown {
-  position: fixed;
+  position: absolute;
   min-width: 260px;
   max-height: 220px;
   overflow-y: auto;
   background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
+  border: 1px solid var(--aurora-green);
   border-radius: 8px;
-  z-index: 100;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
 }
 
 .pkg-prod-option {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  text-align: left;
   padding: 8px 12px;
-  background: none;
-  border: none;
   border-bottom: 1px solid var(--aurora-border);
   cursor: pointer;
   gap: 2px;
@@ -502,7 +510,8 @@
 
 .pkg-prod-option:last-child { border-bottom: none; }
 
-.pkg-prod-option:hover { background-color: var(--aurora-background); }
+.pkg-prod-option:hover,
+.pkg-prod-option--active { background-color: rgba(51, 255, 153, 0.1); }
 
 .pkg-prod-name {
   font-size: 0.88rem;
@@ -899,4 +908,226 @@
   opacity: 0.85;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* ── Activities table → card layout on mobile ─────────────────────────────── */
+@media (max-width: 768px) {
+  .activities-table-wrapper {
+    overflow-x: visible;
+  }
+
+  /* Collapse table model */
+  .activities-table,
+  .activities-table tbody,
+  .activities-table tr,
+  .activities-table td,
+  .activities-table th {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .activities-table thead {
+    display: none;
+  }
+
+  /* Main activity rows → card grid */
+  .activities-table tbody tr:not(.products-subrow-tr) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "day     actions"
+      "name    name"
+      "cal     cal"
+      "user    user"
+      "cost    cost";
+    gap: 10px 12px;
+    align-items: start;
+    background: rgba(230, 242, 255, 0.02);
+    border: 1px solid var(--aurora-border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+
+  /* Remove per-cell border from original table */
+  .activities-table tbody tr:not(.products-subrow-tr) td {
+    padding: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Grid area assignments */
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(1) { grid-area: day; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(2) { grid-area: name; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(3) { grid-area: cal; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(4) { grid-area: user; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(5) { grid-area: cost; align-items: flex-end; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(6) {
+    grid-area: actions;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  /* Field labels via ::before */
+  .activities-table-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--aurora-light);
+    opacity: 0.45;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(1)::before { content: "Día"; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(2)::before { content: "Actividad"; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(3)::before { content: "Volumen / Calibración"; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(4)::before { content: "Responsable"; }
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(5)::before { content: "Costo total"; }
+
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(1)::before,
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(2)::before,
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(3)::before,
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(4)::before,
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(5)::before {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--aurora-light);
+    opacity: 0.45;
+  }
+
+  /* Inputs & selects fill their cell */
+  .activities-table tbody tr:not(.products-subrow-tr) td input,
+  .activities-table tbody tr:not(.products-subrow-tr) td select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Day input: keep compact */
+  .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(1) input {
+    width: 80px;
+  }
+
+  /* Costo: right-aligned text */
+  .activity-cost-cell {
+    text-align: right;
+  }
+
+  /* Form action buttons: same row, 50/50 */
+  .form-card .form-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form-card .form-actions .btn {
+    min-width: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Delete confirm: allow wrapping on small screens */
+  .activity-delete-confirm {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    white-space: normal;
+  }
+
+  /* Products sub-row: full-width card */
+  .products-subrow-tr {
+    margin-bottom: 10px;
+  }
+
+  .products-subrow-tr td {
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+  }
+
+  /* ── Product tags → 2×2 grid on mobile ─── */
+  /*
+     Col 1 (1fr)        Col 2 (auto)
+     ┌──────────────────┬────────────┐
+     │ nombre producto  │ [qty] unit │  row 1
+     ├──────────────────┼────────────┤
+     │ precio unitario  │ total      │  row 2 (only if price exists)
+     └──────────────────┴────────────┘
+     [×] pinned absolute top-right
+  */
+  .product-tag {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    row-gap: 4px;
+    column-gap: 8px;
+    padding: 8px 32px 8px 10px;
+    align-items: center;
+  }
+
+  /* Row 1, col 1: product name */
+  .product-tag strong {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* Row 1, col 2: qty input */
+  .product-tag-qty {
+    grid-column: 2;
+    grid-row: 1;
+    width: 72px;
+  }
+
+  /* Unit label hidden on mobile — not enough space in 2-col layout */
+  .product-tag-unit {
+    display: none;
+  }
+
+  /* Row 2, col 1: unit price */
+  .product-tag-price:not(.product-tag-price--total) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* Row 2, col 2: total */
+  .product-tag-price--total {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    text-align: right;
+  }
+
+  /* Remove button: pinned absolute top-right */
+  .product-tag-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+  }
+
+  /* Add-product combo: full width */
+  .pkg-prod-combo {
+    width: 100%;
+  }
+
+  .pkg-prod-input-wrap {
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  .pkg-prod-input-wrap input {
+    min-width: 0;
+  }
+
+  /* Dropdown: constrain to viewport width */
+  .pkg-prod-dropdown {
+    min-width: 260px;
+    max-width: calc(100vw - 32px);
+  }
 }
