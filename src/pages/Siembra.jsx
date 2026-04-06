@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiCpu, FiChevronRight, FiChevronDown, FiMoreVertical, FiCopy, FiX, FiEdit2, FiSettings, FiClipboard } from 'react-icons/fi';
+import { Link, useLocation } from 'react-router-dom';
+import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiCpu, FiChevronRight, FiMoreVertical, FiCopy, FiX, FiEdit2, FiSettings, FiClipboard } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -415,6 +415,7 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
 function Siembra() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
+  const location = useLocation();
   const [lotes, setLotes]           = useState([]);
   const [materiales, setMateriales] = useState([]);
   const [fecha, setFecha]           = useState(() => loadDraft()?.fecha || HOY);
@@ -442,8 +443,7 @@ function Siembra() {
   const updateSort = (idx, key, value) =>
     setSortConfig(prev => prev.map((s, i) => i === idx ? { ...s, [key]: value } : s));
 
-  const displayedRegistros = useMemo(() => applySort(registros, sortConfig).slice(0, 20), [registros, sortConfig]);
-  const fileInputRef                = useRef(null);
+const fileInputRef                = useRef(null);
   const swipeState                  = useRef({});
   const [rowMenu, setRowMenu]           = useState(null);
   const [histRowMenu, setHistRowMenu]   = useState(null);
@@ -469,6 +469,10 @@ function Siembra() {
     return () => document.removeEventListener('pointerdown', close);
   }, [histRowMenu]);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
+
+  useEffect(() => {
+    if (location.state?.openForm) setShowForm(true);
+  }, []);
 
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : [])).catch(console.error);
@@ -958,6 +962,14 @@ function Siembra() {
         />
       )}
 
+      {/* ── Barra superior ───────────────────────────────────────────── */}
+      <div className="siembra-top-bar">
+        <h2 className="siembra-page-title">Registro de siembra</h2>
+        <Link to="/siembra/historial" className="btn btn-secondary">
+          <FiClock size={14} /> Historial
+        </Link>
+      </div>
+
       {/* ── Spinner de carga inicial ──────────────────────────────────── */}
       {loading && <div className="siembra-page-loading" />}
 
@@ -1132,162 +1144,6 @@ function Siembra() {
           </Link>
         </div>
       </div>
-
-      {/* ── Historial reciente ─────────────────────────────────────────── */}
-      {registros.length > 0 && <div className="siembra-historial">
-        <div className="historial-top-row">
-          <h3 className="siembra-historial-title">Registros de Siembra</h3>
-          {/* Sort controls */}
-          <div className="historial-sort-row">
-            {sortConfig.map((s, idx) => (
-              <div key={idx} className="sort-group">
-                <span className="sort-label">{idx === 0 ? 'Ordenar por' : 'Luego por'}</span>
-                <select
-                  className="sort-select"
-                  value={s.field}
-                  onChange={e => updateSort(idx, 'field', e.target.value)}
-                >
-                  <option value="">—</option>
-                  {SORT_FIELDS.map(f => (
-                    <option key={f.value} value={f.value}>{f.label}</option>
-                  ))}
-                </select>
-                <button
-                  className={`sort-dir-btn${!s.field ? ' sort-dir-disabled' : ''}`}
-                  disabled={!s.field}
-                  onClick={() => updateSort(idx, 'dir', s.dir === 'asc' ? 'desc' : 'asc')}
-                  title={s.dir === 'asc' ? 'Ascendente' : 'Descendente'}
-                >
-                  {s.dir === 'asc' ? '↑' : '↓'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <table className="siembra-table siembra-table-historial">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Lote</th>
-                <th>Bloque</th>
-                <th>Plantas</th>
-                <th>Densidad</th>
-                <th>Área</th>
-                <th>Material</th>
-                <th>Variedad</th>
-                <th className="td-readonly">F. Cierre</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedRegistros.map(r => {
-                const isExpanded = expandedRows.has(r.id);
-                return (
-                  <React.Fragment key={r.id}>
-                    <tr
-                      className={r.cerrado ? 'row-cerrado' : ''}
-                      {...getHistSwipeHandlers(r)}
-                    >
-                      <td className="td-readonly" data-col="fecha" data-label="Fecha">{formatFecha(r.fecha)}</td>
-                      <td data-col="lote" data-label="Lote">{r.loteNombre}</td>
-                      <td data-col="bloque" data-label="Bloque">{r.bloque || '—'}</td>
-                      <td className="td-num" data-col="plantas" data-label="Plantas">{r.plantas?.toLocaleString()}</td>
-                      <td className="td-num" data-col="densidad" data-label="Densidad">{r.densidad?.toLocaleString()}</td>
-                      <td className="td-calc" data-col="area" data-label="Área">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>
-                      <td data-col="mat" data-label="Material">{r.materialNombre || '—'}</td>
-                      <td data-col="variedad" data-label="Variedad">{r.variedad || '—'}</td>
-                      <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>
-                      <td data-col="menu">
-                        <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
-                          <button className="hist-kebab-btn" onClick={() => setHistRowMenu(histRowMenu === r.id ? null : r.id)}>
-                            <FiMoreVertical size={16} />
-                          </button>
-                          {histRowMenu === r.id && (
-                            <div className="hist-kebab-dropdown">
-                              <button className="hist-kebab-item" onClick={() => { setHistRowMenu(null); setEditRecord(r); }}>
-                                <FiEdit2 size={13} />
-                                Editar
-                              </button>
-                              <button className="hist-kebab-item" onClick={() => { setHistRowMenu(null); toggleCerrado(r); }}>
-                                {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
-                                {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
-                              </button>
-                              <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setHistRowMenu(null); handleDelete(r.id); }}>
-                                <FiTrash2 size={13} />
-                                Eliminar
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr className="hist-expanded-row">
-                        <td colSpan="10" className="hist-expanded-cell">
-                          <div className="hist-expanded-card">
-                            <div className="hist-expanded-header">
-                              <span className="hist-expand-lote">{r.loteNombre}</span>
-                              <button className="hist-expand-close" onClick={() => toggleExpanded(r.id)}>
-                                <FiX size={15} />
-                              </button>
-                            </div>
-                            {[
-                              { label: 'Fecha',    value: formatFecha(r.fecha) },
-                              { label: 'Bloque',   value: r.bloque || '—' },
-                              { label: 'Plantas',  value: r.plantas?.toLocaleString() },
-                              { label: 'Densidad', value: r.densidad?.toLocaleString() },
-                              { label: 'Área',     value: r.areaCalculada ? r.areaCalculada + ' ha' : '—' },
-                              { label: 'Material',  value: r.materialNombre || '—' },
-                              { label: 'Variedad',  value: r.variedad || '—' },
-                              { label: 'F. Cierre', value: r.fechaCierre ? formatFecha(r.fechaCierre) : '—' },
-                            ].map(({ label, value }) => (
-                              <div key={label} className="hist-expanded-field">
-                                <span className="hist-expanded-label">{label}</span>
-                                <span className="hist-expanded-value">{value}</span>
-                              </div>
-                            ))}
-                            <div className="hist-expanded-actions">
-                              <button
-                                className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
-                                onClick={() => toggleCerrado(r)}
-                              >
-                                {r.cerrado ? <FiCircle size={15} /> : <FiCheckCircle size={15} />}
-                                {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
-                              </button>
-                              <button className="btn-icon" onClick={() => setEditRecord(r)}>
-                                <FiEdit2 size={14} />
-                              </button>
-                              <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
-                                <FiTrash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-
-        {registros.some(r => r.cerrado) && (
-          <p className="siembra-cerrado-hint">
-            <FiAlertCircle size={13} />
-            Los bloques cerrados están listos para iniciar aplicaciones.
-          </p>
-        )}
-
-        <div className="historial-footer">
-          <span className="historial-count">
-            Mostrando {Math.min(20, registros.length)} de {registros.length} registros
-          </span>
-          <Link to="/siembra/historial" className="ver-todos-link">
-            Ver todos los registros <FiChevronRight size={13} />
-          </Link>
-        </div>
-      </div>}
 
       </>}
     </div>

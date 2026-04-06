@@ -1236,6 +1236,19 @@
 .sm-btn-success            { color: var(--aurora-green); opacity: 0.9; }
 .sm-btn-success:hover      { opacity: 1; border-color: var(--aurora-border); }
 
+/* ── Top bar ── */
+.siembra-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.siembra-page-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
 /* ── Page loading spinner ── */
 .siembra-page-loading {
   display: flex;

@@ -216,13 +216,6 @@
 }
 
 
-.cedulas-historial-btn {
-  font-size: 0.8rem;
-  padding: 5px 14px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  text-decoration: none;
-}
 
 /* ── Consecutivo en la fila ───────────────────────────────────────────────── */
 .cedula-consecutivo {
@@ -1430,8 +1423,7 @@
     margin: 0;
   }
 
-  .cedulas-top-actions .cedulas-nueva-btn,
-  .cedulas-top-actions .cedulas-historial-btn {
+  .cedulas-top-actions .btn {
     flex: 1;
     justify-content: center;
     text-align: center;

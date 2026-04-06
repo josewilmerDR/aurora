@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
-  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2, FiEdit2,
+  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2, FiEdit2, FiPackage,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -623,6 +623,17 @@ function SiembraHistorial() {
         />
       )}
 
+      {loading ? (
+        <div className="siembra-page-loading" />
+      ) : registros.length === 0 ? (
+        <div className="siembra-empty-state">
+          <FiPackage size={36} />
+          <p>No hay registros aún. Crea el primero en Registro de Siembra.</p>
+          <Link to="/siembra" state={{ openForm: true }} className="btn btn-primary">Ir a Registro de Siembra</Link>
+        </div>
+      ) : (
+        <>
+
       {/* ── Toolbar ────────────────────────────────────────────────────────── */}
       <div className="sh-toolbar">
         <Link to="/siembra" className="sh-back-link">
@@ -753,9 +764,7 @@ function SiembraHistorial() {
           </div>
         </div>
 
-        {loading ? (
-          <p className="empty-state">Cargando…</p>
-        ) : displayData.length === 0 ? (
+        {displayData.length === 0 ? (
           <p className="empty-state">No hay registros con los filtros aplicados.</p>
         ) : (
           <div className="siembra-table-wrapper">
@@ -879,6 +888,8 @@ function SiembraHistorial() {
           </p>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
