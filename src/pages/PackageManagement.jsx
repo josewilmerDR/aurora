@@ -330,7 +330,7 @@ function PackageManagement() {
       {!loading && packages.length === 0 && !isFormOpen && (
         <div className="pkg-empty-state">
           <FiPackage size={36} />
-          <p>No hay paquetes técnicos creados aún.</p>
+          <p>No hay paquetes de aplicaciones creados aún.</p>
           <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
             <FiPlus size={15} /> Crear el primero
           </button>
@@ -338,7 +338,7 @@ function PackageManagement() {
       )}
 
       {!loading && (packages.length > 0 || isFormOpen) && <div className="pkg-page-header">
-        <h1 className="pkg-page-title">Paquetes de Tareas</h1>
+        <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
         {!isFormOpen && packages.length > 0 && (
           <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
             <FiPlus /> Nuevo Paquete
@@ -346,10 +346,9 @@ function PackageManagement() {
         )}
       </div>}
       {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
-      <div className="form-card">
-        {isFormOpen ? (
+      {isFormOpen && <div className="form-card">
           <>
-          <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Tareas'}</h2>
+          <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Aplicaciones'}</h2>
           <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
             <div className="form-control">
@@ -596,15 +595,9 @@ function PackageManagement() {
           </div>
         </form>
         </>
-        ) : (
-          <div className="pkg-form-placeholder">
-            <p>Selecciona un paquete de la lista para editarlo,<br />o crea uno nuevo con el botón de arriba.</p>
-          </div>
-        )}
-      </div>
+      </div>}
 
       {packages.length > 0 && <div className="list-card">
-        <h2>Paquetes Existentes</h2>
         <ul className="info-list">
           {packages.map(pkg => (
             <li key={pkg.id}>

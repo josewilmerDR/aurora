@@ -86,7 +86,7 @@ const ROUTE_MIN_ROLE = {
 const routeTitles = {
   '/': 'Panel de Control',
   '/users': 'Gestión de Usuarios',
-  '/packages': 'Paquetes Técnicos',
+  '/packages': 'Paquetes de Aplicaciones',
   '/lotes': 'Gestión de Lotes',
   '/tasks': 'Seguimiento de Actividades',
   '/productos': 'Inventario Agroquímicos',
