@@ -1,8 +1,110 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './PackageManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
+
+// ── Combobox de búsqueda de productos ─────────────────────────────────────────
+function ProdCombobox({ productos, excludeIds, onSelect }) {
+  const [text, setText]       = useState('');
+  const [open, setOpen]       = useState(false);
+  const [hi,   setHi]         = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const wrapRef               = useRef(null);
+  const listRef               = useRef(null);
+
+  const filtered = productos
+    .filter(p => !excludeIds.includes(p.id))
+    .filter(p => !text ||
+      p.nombreComercial?.toLowerCase().includes(text.toLowerCase()) ||
+      p.ingredienteActivo?.toLowerCase().includes(text.toLowerCase())
+    );
+
+  const openDropdown = useCallback(() => {
+    if (wrapRef.current) {
+      const r = wrapRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setHi(0);
+  }, []);
+
+  const selectOption = (producto) => {
+    setText('');
+    setOpen(false);
+    setHi(0);
+    onSelect(producto.id);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setText('');
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current?.contains(e.target) || listRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className="pkg-prod-combo" ref={wrapRef}>
+      <div className="pkg-prod-input-wrap">
+        <FiSearch size={13} />
+        <input
+          type="text"
+          placeholder="+ Agregar producto..."
+          value={text}
+          autoComplete="off"
+          onChange={e => { setText(e.target.value); openDropdown(); }}
+          onFocus={openDropdown}
+          onBlur={() => setTimeout(() => {
+            if (!listRef.current?.contains(document.activeElement)) setOpen(false);
+          }, 150)}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+      {open && filtered.length > 0 && createPortal(
+        <ul
+          ref={listRef}
+          className="pkg-prod-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width }}
+        >
+          {filtered.map((p, i) => (
+            <li
+              key={p.id}
+              className={`pkg-prod-option${i === hi ? ' pkg-prod-option--active' : ''}`}
+              onMouseDown={() => selectOption(p)}
+              onMouseEnter={() => setHi(i)}
+            >
+              <span className="pkg-prod-name">{p.nombreComercial}</span>
+              {p.ingredienteActivo && <span className="pkg-prod-ing">{p.ingredienteActivo}</span>}
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 function PackageManagement() {
   const apiFetch = useApiFetch();
@@ -34,31 +136,6 @@ function PackageManagement() {
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
-  const [prodOpenIdx, setProdOpenIdx] = useState(null);
-  const [prodSearch, setProdSearch] = useState('');
-  const [prodDropdownPos, setProdDropdownPos] = useState({ top: 0, left: 0 });
-
-  const openProdCombo = (index, wrapEl) => {
-    const rect = wrapEl.getBoundingClientRect();
-    setProdDropdownPos({ top: rect.bottom + 4, left: rect.left });
-    setProdOpenIdx(index);
-  };
-
-  useEffect(() => {
-    if (prodOpenIdx === null) return;
-    const close = () => { setProdOpenIdx(null); setProdSearch(''); };
-    const handler = (e) => {
-      if (!e.target.closest('.pkg-prod-input-wrap') && !e.target.closest('.pkg-prod-dropdown')) close();
-    };
-    document.addEventListener('mousedown', handler);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-    };
-  }, [prodOpenIdx]);
 
   // Centra la burbuja activa en el carousel cuando cambia el paquete seleccionado
   useEffect(() => {
@@ -614,54 +691,17 @@ function PackageManagement() {
                                   </span>
                                 );
                               })}
-                              <div className="pkg-prod-combo">
-                                <div
-                                  className="pkg-prod-input-wrap"
-                                  onClick={(e) => openProdCombo(index, e.currentTarget)}
-                                >
-                                  <FiSearch size={13} />
-                                  <input
-                                    type="text"
-                                    placeholder="+ Agregar producto..."
-                                    value={prodOpenIdx === index ? prodSearch : ''}
-                                    onChange={e => { setProdSearch(e.target.value); openProdCombo(index, e.currentTarget.closest('.pkg-prod-input-wrap')); }}
-                                    onFocus={e => openProdCombo(index, e.currentTarget.closest('.pkg-prod-input-wrap'))}
-                                  />
-                                </div>
-                                {prodOpenIdx === index && (
-                                  <div className="pkg-prod-dropdown" style={{ top: prodDropdownPos.top, left: prodDropdownPos.left }}>
-                                    {productos
-                                      .filter(p => !(activity.productos || []).find(ap => ap.productoId === p.id))
-                                      .filter(p => !prodSearch || p.nombreComercial?.toLowerCase().includes(prodSearch.toLowerCase()) || p.ingredienteActivo?.toLowerCase().includes(prodSearch.toLowerCase()))
-                                      .map(p => (
-                                        <button
-                                          type="button"
-                                          key={p.id}
-                                          className="pkg-prod-option"
-                                          onClick={() => {
-                                            addProductToActivity(index, p.id);
-                                            setProdSearch('');
-                                            setProdOpenIdx(null);
-                                            setTimeout(() => {
-                                              const el = document.querySelector(`[data-prod-qty="${index}-${p.id}"]`);
-                                              if (el) { el.focus(); el.select(); }
-                                            }, 0);
-                                          }}
-                                        >
-                                          <span className="pkg-prod-name">{p.nombreComercial}</span>
-                                          {p.ingredienteActivo && <span className="pkg-prod-ing">{p.ingredienteActivo}</span>}
-                                        </button>
-                                      ))
-                                    }
-                                    {productos
-                                      .filter(p => !(activity.productos || []).find(ap => ap.productoId === p.id))
-                                      .filter(p => !prodSearch || p.nombreComercial?.toLowerCase().includes(prodSearch.toLowerCase()) || p.ingredienteActivo?.toLowerCase().includes(prodSearch.toLowerCase()))
-                                      .length === 0 && (
-                                      <p className="pkg-prod-empty">Sin resultados</p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                              <ProdCombobox
+                                productos={productos}
+                                excludeIds={(activity.productos || []).map(p => p.productoId)}
+                                onSelect={(productoId) => {
+                                  addProductToActivity(index, productoId);
+                                  setTimeout(() => {
+                                    const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
+                                    if (el) { el.focus(); el.select(); }
+                                  }, 0);
+                                }}
+                              />
                             </div>
                           </div>
                         </td>
