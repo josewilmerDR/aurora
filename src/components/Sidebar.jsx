@@ -32,7 +32,7 @@ export const MODULES = [
         label: 'Aplicaciones', icon: FiPackage, minRole: 'encargado', children: [
           { label: 'Cédulas de Aplicación',   to: '/aplicaciones/cedulas',   icon: FiFileText, minRole: 'encargado' },
           { label: 'Historial de Aplicaciones', to: '/aplicaciones/historial', icon: FiList,     minRole: 'encargado' },
-          { label: 'Paquetes Técnicos', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
+          { label: 'Paquetes de Aplicaciones', to: '/packages', icon: FiPackage, minRole: 'supervisor' },
         ]
       },
       {
