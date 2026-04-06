@@ -691,6 +691,11 @@
   color: var(--aurora-light);
 }
 
+.btn-ia {
+  background-color: var(--aurora-magenta);
+  color: #fff;
+}
+
 .icon-btn {
   background: none;
   border: none;

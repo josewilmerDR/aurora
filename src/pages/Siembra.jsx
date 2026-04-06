@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiChevronRight, FiChevronDown, FiMoreVertical, FiCopy, FiX, FiEdit2, FiSettings } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiCpu, FiChevronRight, FiChevronDown, FiMoreVertical, FiCopy, FiX, FiEdit2, FiSettings, FiClipboard } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -424,7 +424,12 @@ function Siembra() {
     return !!(d && (d.fecha !== HOY || (d.rows || []).some(r => r.loteId || r.plantas)));
   });
   const [registros, setRegistros]   = useState([]);
-  const [loading, setLoading]       = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [showForm, setShowForm]     = useState(() => {
+    const d = loadDraft();
+    return !!(d && (d.fecha !== HOY || (d.rows || []).some(r => r.loteId || r.plantas)));
+  });
   const [scanning, setScanning]     = useState(false);
   const [toast, setToast]           = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
@@ -472,10 +477,13 @@ function Siembra() {
   }, []);
 
   const cargarRegistros = async () => {
+    setLoading(true);
     try {
       const data = await apiFetch('/api/siembras').then(r => r.json());
       setRegistros(Array.isArray(data) ? data : []);
-    } catch { /* silent */ }
+    } catch { /* silent */ } finally {
+      setLoading(false);
+    }
   };
 
   // ── Row helpers ──────────────────────────────────────────────────────────
@@ -706,7 +714,7 @@ function Siembra() {
       }
     }
 
-    setLoading(true);
+    setSaving(true);
     let errores = 0;
 
     // Mapas para evitar crear duplicados dentro del mismo guardado
@@ -791,7 +799,7 @@ function Siembra() {
       }
     }
 
-    setLoading(false);
+    setSaving(false);
     if (errores > 0) {
       showToast(`${errores} fila(s) no pudieron guardarse.`, 'error');
     } else {
@@ -950,6 +958,23 @@ function Siembra() {
         />
       )}
 
+      {/* ── Spinner de carga inicial ──────────────────────────────────── */}
+      {loading && <div className="siembra-page-loading" />}
+
+      {/* ── Estado vacío ─────────────────────────────────────────────── */}
+      {!loading && registros.length === 0 && !showForm && (
+        <div className="siembra-empty-state">
+          <FiClipboard size={36} />
+          <p>No hay registros aún</p>
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <FiPlus size={14} /> Crear el primero
+          </button>
+        </div>
+      )}
+
+      {/* ── Contenido principal ──────────────────────────────────────── */}
+      {!loading && (registros.length > 0 || showForm) && <>
+
       {draftRestored && (
         <div className="siembra-draft-banner">
           <FiClock size={13} />
@@ -965,8 +990,8 @@ function Siembra() {
             <label htmlFor="fecha">Fecha de siembra</label>
             <div className="siembra-fecha-controls">
               <input id="fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-              <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={scanning || loading}>
-                <FiCamera size={15} /> {scanning ? 'Analizando…' : 'Escanear'}
+              <button className="btn btn-ia" onClick={() => fileInputRef.current?.click()} disabled={scanning || saving}>
+                <FiCpu size={15} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
               </button>
             </div>
           </div>
@@ -1098,8 +1123,8 @@ function Siembra() {
           <button className="btn btn-secondary" onClick={addRow} disabled={scanning}>
             <FiPlus size={15} /> Agregar fila
           </button>
-          <button className="btn btn-primary" onClick={handleGuardar} disabled={loading || scanning}>
-            {loading ? 'Guardando...' : 'Guardar'}
+          <button className="btn btn-primary" onClick={handleGuardar} disabled={saving || scanning}>
+            {saving ? 'Guardando...' : 'Guardar'}
           </button>
           <Link to="/siembra/materiales" className="siembra-materiales-link" style={{ marginLeft: 'auto' }}>
             <FiSettings size={11} />
@@ -1109,7 +1134,7 @@ function Siembra() {
       </div>
 
       {/* ── Historial reciente ─────────────────────────────────────────── */}
-      <div className="siembra-historial">
+      {registros.length > 0 && <div className="siembra-historial">
         <div className="historial-top-row">
           <h3 className="siembra-historial-title">Registros de Siembra</h3>
           {/* Sort controls */}
@@ -1140,10 +1165,7 @@ function Siembra() {
           </div>
         </div>
 
-        {registros.length === 0 ? (
-          <p className="empty-state">No hay registros aún.</p>
-        ) : (
-          <table className="siembra-table siembra-table-historial">
+        <table className="siembra-table siembra-table-historial">
             <thead>
               <tr>
                 <th>Fecha</th>
@@ -1249,7 +1271,6 @@ function Siembra() {
               })}
             </tbody>
           </table>
-        )}
 
         {registros.some(r => r.cerrado) && (
           <p className="siembra-cerrado-hint">
@@ -1258,17 +1279,17 @@ function Siembra() {
           </p>
         )}
 
-        {registros.length > 0 && (
-          <div className="historial-footer">
-            <span className="historial-count">
-              Mostrando {Math.min(20, registros.length)} de {registros.length} registros
-            </span>
-            <Link to="/siembra/historial" className="ver-todos-link">
-              Ver todos los registros <FiChevronRight size={13} />
-            </Link>
-          </div>
-        )}
-      </div>
+        <div className="historial-footer">
+          <span className="historial-count">
+            Mostrando {Math.min(20, registros.length)} de {registros.length} registros
+          </span>
+          <Link to="/siembra/historial" className="ver-todos-link">
+            Ver todos los registros <FiChevronRight size={13} />
+          </Link>
+        </div>
+      </div>}
+
+      </>}
     </div>
   );
 }

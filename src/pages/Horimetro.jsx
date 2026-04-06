@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import {
   FiClock, FiPlus, FiX, FiCheck, FiEdit, FiTrash2, FiFilter, FiSliders,
-  FiCamera, FiUpload, FiZap, FiSearch,
+  FiCamera, FiUpload, FiCpu, FiSearch,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
@@ -1092,8 +1092,8 @@ function Horimetro() {
             {scanError && <p className="hor-scan-error">{scanError}</p>}
             <div className="hor-scan-actions">
               <button className="btn btn-secondary" onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); }}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleScan} disabled={!scanImage || scanning}>
-                <FiZap size={14} /> {scanning ? 'Escaneando…' : 'Escanear'}
+              <button className="btn btn-ia" onClick={handleScan} disabled={!scanImage || scanning}>
+                <FiCpu size={14} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
               </button>
             </div>
           </div>
