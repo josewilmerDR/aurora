@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiArrowLeft, FiFilter, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiFilter, FiX, FiPackage } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './HistorialAplicaciones.css';
 
@@ -178,10 +178,24 @@ function HistorialAplicaciones() {
 
   const clearFilters = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
 
-  if (loading) return <div className="empty-state">Cargando historial…</div>;
-
   return (
     <>
+      {/* ── Spinner de carga ── */}
+      {loading && <div className="historial-page-loading" />}
+
+      {/* ── Estado vacío ── */}
+      {!loading && cedulas.length === 0 && (
+        <div className="historial-empty-state">
+          <FiPackage size={36} />
+          <p>No hay cédulas aplicadas aún. Crea la primera en Cédulas de Aplicación.</p>
+          <Link to="/aplicaciones/cedulas" state={{ openModal: true }} className="btn btn-primary">
+            Ir a Cédulas de Aplicación
+          </Link>
+        </div>
+      )}
+
+      {/* ── Contenido principal ── */}
+      {!loading && cedulas.length > 0 && (
     <div className="historial-wrap">
 
       <button className="historial-back-btn" onClick={() => navigate(-1)}>
@@ -373,6 +387,7 @@ function HistorialAplicaciones() {
       )}
 
     </div>
+      )}
 
     {/* ── Popover filtro de columna ── */}
     {filterPopover && createPortal(

@@ -343,6 +343,11 @@ function CedulasAplicacion() {
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
+  // Open NuevaCedulaModal if navigated from HistorialAplicaciones empty state
+  useEffect(() => {
+    if (location.state?.openModal) setShowNuevaModal(true);
+  }, []);
+
   // Auto-open cedula from query param ?open=taskId
   useEffect(() => {
     if (!tasks.length) return;
@@ -874,62 +879,78 @@ function CedulasAplicacion() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  if (loading) return <div className="empty-state">Cargando cédulas...</div>;
-
   return (
     <div>
-      {/* ── Acciones principales ── */}
-      <div className="cedulas-top-actions">
-        <Link to="/aplicaciones/historial" className="btn btn-secondary">
-          <FiClock size={14} /> Historial
-        </Link>
-        {hasMinRole(currentUser?.rol, 'encargado') && (
-          <button
-            className="btn btn-primary cedulas-nueva-btn"
-            onClick={() => setShowNuevaModal(true)}
-          >
-            <FiPlusCircle size={14} /> Nueva Cédula
-          </button>
-        )}
-      </div>
+      {/* ── Spinner de carga ── */}
+      {loading && <div className="cedulas-page-loading" />}
 
-      {/* ── Barra de filtro ── */}
-      <div className="cedulas-filter-bar">
-        <div className="cedulas-date-range">
-          <label className="cedulas-date-label">
-            Fecha inicial
-            <input
-              type="date"
-              className="cedulas-date-input"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-            />
-          </label>
-          <label className="cedulas-date-label">
-            Fecha final
-            <input
-              type="date"
-              className="cedulas-date-input"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-            />
-          </label>
-        </div>
-        <span className="cedulas-filter-count">{visibleTasks.length} tarea(s)</span>
-      </div>
-
-      {visibleTasks.length === 0 ? (
-        <div className="empty-state">
-          {aplicacionTasks.length === 0
-            ? 'No hay tareas de aplicación pendientes.'
-            : 'No hay aplicaciones programadas para este período.'}
-        </div>
-      ) : (
-        <div className="cedulas-list">
-          {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
+      {/* ── Estado vacío ── */}
+      {!loading && aplicacionTasks.length === 0 && (
+        <div className="cedulas-empty-state">
+          <FiFileText size={36} />
+          <p>No hay cédulas de aplicación aún.</p>
+          {hasMinRole(currentUser?.rol, 'encargado') && (
+            <button className="btn btn-primary" onClick={() => setShowNuevaModal(true)}>
+              <FiPlusCircle size={14} /> Crear la primera
+            </button>
+          )}
         </div>
       )}
 
+      {/* ── Contenido principal ── */}
+      {!loading && aplicacionTasks.length > 0 && (
+        <>
+          {/* ── Acciones principales ── */}
+          <div className="cedulas-top-actions">
+            <Link to="/aplicaciones/historial" className="btn btn-secondary">
+              <FiClock size={14} /> Historial
+            </Link>
+            {hasMinRole(currentUser?.rol, 'encargado') && (
+              <button
+                className="btn btn-primary cedulas-nueva-btn"
+                onClick={() => setShowNuevaModal(true)}
+              >
+                <FiPlusCircle size={14} /> Nueva Cédula
+              </button>
+            )}
+          </div>
+
+          {/* ── Barra de filtro ── */}
+          <div className="cedulas-filter-bar">
+            <div className="cedulas-date-range">
+              <label className="cedulas-date-label">
+                Fecha inicial
+                <input
+                  type="date"
+                  className="cedulas-date-input"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                />
+              </label>
+              <label className="cedulas-date-label">
+                Fecha final
+                <input
+                  type="date"
+                  className="cedulas-date-input"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                />
+              </label>
+            </div>
+            <span className="cedulas-filter-count">{visibleTasks.length} tarea(s)</span>
+          </div>
+
+          {visibleTasks.length === 0 ? (
+            <div className="empty-state">
+              No hay aplicaciones programadas para este período.
+            </div>
+          ) : (
+            <div className="cedulas-list">
+              {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── PREVIEW MODAL ── */}
       {previewTask && createPortal(
