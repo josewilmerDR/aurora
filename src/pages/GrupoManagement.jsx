@@ -119,6 +119,7 @@ function GrupoManagement() {
   const [catalogModal,  setCatalogModal]  = useState(null);
   const [localCosechas, setLocalCosechas] = useState([]);
   const [localEtapas,   setLocalEtapas]   = useState([]);
+  const [loading,       setLoading]       = useState(true);
   const [toast,         setToast]         = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
@@ -139,7 +140,7 @@ function GrupoManagement() {
   });
 
   const fetchAll = () => {
-    const gruposP = apiFetch('/api/grupos').then(r => r.json()).then(data => { setGrupos(data); return data; }).catch(console.error);
+    const gruposP = apiFetch('/api/grupos').then(r => r.json()).then(data => { setGrupos(data); return data; }).catch(console.error).finally(() => setLoading(false));
     apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
     apiFetch('/api/monitoreo/paquetes').then(r => r.json()).then(setMonitoreoPackages).catch(console.error);
@@ -922,6 +923,20 @@ function GrupoManagement() {
         </div>
       )}
 
+      {/* ── Spinner de carga ── */}
+      {loading && <div className="grupo-page-loading" />}
+
+      {/* ── Estado vacío ── */}
+      {!loading && grupos.length === 0 && !showForm && (
+        <div className="grupo-empty-state">
+          <FiLayers size={36} />
+          <p>No hay grupos de producción creados aún.</p>
+          <button className="btn btn-primary" onClick={handleNewGrupo}>
+            <FiPlus size={15} /> Crear el primero
+          </button>
+        </div>
+      )}
+
       {/* ── Mobile sticky carousel ── */}
       {selectedGrupo && !showForm && (
         <div className="lote-carousel" ref={carouselRef}>
@@ -943,7 +958,7 @@ function GrupoManagement() {
       )}
 
       {/* ── Page header ── */}
-      {!showForm && (
+      {!loading && grupos.length > 0 && !showForm && (
         <div className="lote-page-header">
           <button className="btn btn-primary" onClick={handleNewGrupo}>
             <FiPlus size={15} /> Nuevo Grupo
@@ -951,7 +966,7 @@ function GrupoManagement() {
         </div>
       )}
 
-      <div className="lote-management-layout">
+      {!loading && (grupos.length > 0 || showForm) && <div className="lote-management-layout">
 
         {/* Hub o formulario */}
         {renderPanel()}
@@ -992,7 +1007,7 @@ function GrupoManagement() {
           )}
         </div>
 
-      </div>
+      </div>}
 
       {/* ── Preview modal (PDF / impresión) ── */}
       {previewGrupo && createPortal(

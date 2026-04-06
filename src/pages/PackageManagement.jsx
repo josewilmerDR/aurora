@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './PackageManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
@@ -20,6 +20,7 @@ function PackageManagement() {
     tecnicoResponsable: '',
     activities: []
   });
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
@@ -57,7 +58,7 @@ function PackageManagement() {
   }, [prodOpenIdx]);
 
   useEffect(() => {
-    apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
+    apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error).finally(() => setLoading(false));
     apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
     apiFetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
     apiFetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
@@ -322,15 +323,29 @@ function PackageManagement() {
         </div>
       )}
 
-      <div className="pkg-page-header">
+      {/* ── Spinner de carga ── */}
+      {loading && <div className="pkg-page-loading" />}
+
+      {/* ── Estado vacío ── */}
+      {!loading && packages.length === 0 && !isFormOpen && (
+        <div className="pkg-empty-state">
+          <FiPackage size={36} />
+          <p>No hay paquetes técnicos creados aún.</p>
+          <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
+            <FiPlus size={15} /> Crear el primero
+          </button>
+        </div>
+      )}
+
+      {!loading && (packages.length > 0 || isFormOpen) && <div className="pkg-page-header">
         <h1 className="pkg-page-title">Paquetes de Tareas</h1>
         {!isFormOpen && packages.length > 0 && (
           <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
             <FiPlus /> Nuevo Paquete
           </button>
         )}
-      </div>
-      <div className="lote-management-layout">
+      </div>}
+      {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
       <div className="form-card">
         {isFormOpen ? (
           <>
@@ -581,13 +596,6 @@ function PackageManagement() {
           </div>
         </form>
         </>
-        ) : packages.length === 0 ? (
-          <div className="pkg-form-placeholder">
-            <p>¡Aún no hay ningún paquete creado!<br />Empieza creando el primero.</p>
-            <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
-              <FiPlus /> Nuevo Paquete
-            </button>
-          </div>
         ) : (
           <div className="pkg-form-placeholder">
             <p>Selecciona un paquete de la lista para editarlo,<br />o crea uno nuevo con el botón de arriba.</p>
@@ -595,7 +603,7 @@ function PackageManagement() {
         )}
       </div>
 
-      <div className="list-card">
+      {packages.length > 0 && <div className="list-card">
         <h2>Paquetes Existentes</h2>
         <ul className="info-list">
           {packages.map(pkg => (
@@ -630,9 +638,8 @@ function PackageManagement() {
             </li>
           ))}
         </ul>
-        {packages.length === 0 && <p className="empty-state">No hay paquetes creados.</p>}
-      </div>
-      </div>
+      </div>}
+      </div>}
     </div>
   );
 }
