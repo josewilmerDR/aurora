@@ -94,8 +94,30 @@ export default function CosechaProyeccion() {
         const siembra = siembraMap.get(bloqueId);
         if (!siembra) continue;
 
+        const cosechaLower = (grupo.cosecha || '').toLowerCase();
+        const esIIICosecha = cosechaLower.includes('iii cosecha');
+        const esIICosecha  = !esIIICosecha && cosechaLower.includes('ii cosecha');
+        const esICosecha   = !esIIICosecha && !esIICosecha && cosechaLower.includes('i cosecha');
+        if (!esICosecha && !esIICosecha && !esIIICosecha) continue;
+
         const plantas  = siembra.plantas || 0;
-        const kgEst    = plantas * 1.6;
+
+        let mortalidad, kgXPlanta, rechazo;
+        if (esIIICosecha) {
+          mortalidad = (config.mortalidadIIICosecha ?? 20) / 100;
+          kgXPlanta  = config.kgPorPlantaIII ?? 1.5;
+          rechazo    = (config.rechazoIIICosecha ?? 20) / 100;
+        } else if (esIICosecha) {
+          mortalidad = (config.mortalidadIICosecha ?? 10) / 100;
+          kgXPlanta  = config.kgPorPlantaII ?? 1.6;
+          rechazo    = (config.rechazoIICosecha ?? 20) / 100;
+        } else {
+          mortalidad = (config.mortalidadICosecha ?? 2) / 100;
+          kgXPlanta  = config.kgPorPlanta ?? 1.8;
+          rechazo    = (config.rechazoICosecha ?? 10) / 100;
+        }
+        const totalKgEsperados = plantas * (1 - mortalidad) * kgXPlanta;
+        const kgPrimera        = totalKgEsperados * (1 - rechazo);
 
         result.push({
           _id:          `${grupo.id}-${bloqueId}`,
@@ -106,8 +128,11 @@ export default function CosechaProyeccion() {
           cosecha:      grupo.cosecha      || '—',  // Cosecha
           etapa:        grupo.etapa        || '—',  // Etapa
           plantas,                                  // Plantas
-          kgPrimera:    kgEst,                      // Kg Primera (plantas × 1.6)
-          // Kg Segunda, Cajas, Cost/Kg: sin fuente de datos aún
+          totalKgEsperados,                         // Plantas × (1-Mortalidad) × Kg/planta
+          kgPrimera,                                // totalKgEsperados × (1-Rechazo)
+          kgSegunda:        totalKgEsperados - kgPrimera, // totalKgEsperados × Rechazo
+          cajas:            (config.kgPorCaja ?? 12) > 0 ? kgPrimera / (config.kgPorCaja ?? 12) : null,
+          // Cost/Kg: sin fuente de datos aún
         });
       }
     }
@@ -263,9 +288,10 @@ export default function CosechaProyeccion() {
                     <SortTh field="cosecha">Cosecha</SortTh>
                     <SortTh field="etapa">Etapa</SortTh>
                     <SortTh field="plantas" align="right">Plantas</SortTh>
+                    <SortTh field="totalKgEsperados" align="right">Total Kg Esperados</SortTh>
                     <SortTh field="kgPrimera" align="right">Kg Primera</SortTh>
-                    <th className="proyeccion-th-na">Kg Segunda</th>
-                    <th className="proyeccion-th-na">Cajas</th>
+                    <SortTh field="kgSegunda" align="right">Kg Segunda</SortTh>
+                    <SortTh field="cajas" align="right">Cajas</SortTh>
                     <th className="proyeccion-th-na">Cost/Kg</th>
                   </tr>
                 </thead>
@@ -279,9 +305,10 @@ export default function CosechaProyeccion() {
                       <td className="historial-td-nowrap">{row.cosecha}</td>
                       <td>{row.etapa}</td>
                       <td className="proyeccion-td-num">{num(row.plantas)}</td>
+                      <td className="proyeccion-td-num">{num(row.totalKgEsperados, 0)}</td>
                       <td className="proyeccion-td-num">{num(row.kgPrimera, 0)}</td>
-                      <td className="proyeccion-td-na">—</td>
-                      <td className="proyeccion-td-na">—</td>
+                      <td className="proyeccion-td-num">{num(row.kgSegunda, 0)}</td>
+                      <td className="proyeccion-td-num">{num(row.cajas, 0)}</td>
                       <td className="proyeccion-td-na">—</td>
                     </tr>
                   ))}
