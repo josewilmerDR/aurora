@@ -41,6 +41,29 @@
   gap: 20px;
 }
 
+/* ── Desktop: grid layout when form + list are both visible ─────────────── */
+@media (min-width: 769px) {
+  .pkg-page--selected.pkg-page--has-packages .lote-management-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .pkg-page--selected.pkg-page--has-packages .lote-list-panel {
+    position: sticky;
+    top: 0;
+  }
+}
+
+/* ── List panel action icons (duplicate + delete per row) ────────────────── */
+.pkg-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .pkg-page-header {
   display: flex;
   align-items: center;
@@ -550,3 +573,103 @@
 
 .excel-upload-btn:hover { opacity: 1; border-color: var(--aurora-green); }
 .excel-upload-btn--loading { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Mobile carousel ─────────────────────────────────────────────────────── */
+.pkg-carousel {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .pkg-carousel {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--aurora-dark-blue);
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 16px;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--aurora-border);
+  }
+
+  .pkg-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pkg-page--selected .lote-list-panel {
+    display: none;
+  }
+
+  .pkg-page--selected .pkg-page-header .btn-primary {
+    display: none;
+  }
+}
+
+.pkg-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  scroll-snap-align: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 64px;
+}
+
+.pkg-bubble-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(230, 242, 255, 0.07);
+  border: 2px solid var(--aurora-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.pkg-bubble--active .pkg-bubble-avatar {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+.pkg-bubble-label {
+  font-size: 0.68rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 64px;
+  text-align: center;
+  transition: opacity 0.15s;
+}
+
+.pkg-bubble--active .pkg-bubble-label {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+.pkg-bubble-avatar--add {
+  font-size: 1.5rem;
+  font-weight: 300;
+  background: rgba(230, 242, 255, 0.04);
+  border-style: dashed;
+}
+
+.pkg-bubble--add:hover .pkg-bubble-avatar {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
+}
