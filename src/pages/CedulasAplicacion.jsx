@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft } from 'react-icons/fi';
+import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft, FiClock } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -880,8 +880,8 @@ function CedulasAplicacion() {
     <div>
       {/* ── Acciones principales ── */}
       <div className="cedulas-top-actions">
-        <Link to="/aplicaciones/historial" className="btn btn-secondary cedulas-historial-btn">
-          📋 Historial
+        <Link to="/aplicaciones/historial" className="btn btn-secondary">
+          <FiClock size={14} /> Historial
         </Link>
         {hasMinRole(currentUser?.rol, 'encargado') && (
           <button
