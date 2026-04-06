@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './PackageManagement.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
@@ -23,12 +23,14 @@ function PackageManagement() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedPkg, setSelectedPkg] = useState(null);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
   const [focusedActivity, setFocusedActivity] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const carouselRef = useRef(null);
 
+  const [hubExpandedActivities, setHubExpandedActivities] = useState(new Set());
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
@@ -60,10 +62,10 @@ function PackageManagement() {
 
   // Centra la burbuja activa en el carousel cuando cambia el paquete seleccionado
   useEffect(() => {
-    if (!isEditing || !carouselRef.current) return;
+    if (!isFormOpen || !carouselRef.current) return;
     const active = carouselRef.current.querySelector('.pkg-bubble--active');
     active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [formData.id, isEditing]);
+  }, [selectedPkg?.id, formData.id, isFormOpen]);
 
   useEffect(() => {
     apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error).finally(() => setLoading(false));
@@ -204,6 +206,7 @@ function PackageManagement() {
     setFormData({ ...pkg, activities: normalizedActivities });
     setIsEditing(true);
     setIsFormOpen(true);
+    setSelectedPkg(null);
     setExpandedActivities(new Set());
     window.scrollTo(0, 0);
   };
@@ -212,6 +215,7 @@ function PackageManagement() {
     setFormData({ id: null, nombrePaquete: '', descripcion: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
     setIsEditing(false);
     setIsFormOpen(false);
+    setSelectedPkg(null);
     setExpandedActivities(new Set());
   };
 
@@ -219,7 +223,17 @@ function PackageManagement() {
     setFormData({ id: null, nombrePaquete: '', descripcion: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
     setIsEditing(false);
     setIsFormOpen(true);
+    setSelectedPkg(null);
     setExpandedActivities(new Set());
+  };
+
+  const handleSelectPkg = (pkg) => {
+    setSelectedPkg(pkg);
+    setIsEditing(false);
+    setIsFormOpen(true);
+    setExpandedActivities(new Set());
+    setHubExpandedActivities(new Set());
+    window.scrollTo(0, 0);
   };
 
   const handleSubmit = async (e) => {
@@ -297,6 +311,7 @@ function PackageManagement() {
       if (!response.ok) throw new Error('Error al eliminar el paquete');
       setPackages(packages.filter(p => p.id !== id));
       setPendingDeletePkgId(null);
+      if (selectedPkg?.id === id) resetForm();
       showToast('Paquete eliminado correctamente');
     } catch (error) {
       showToast('Error al eliminar el paquete.', 'error');
@@ -354,7 +369,7 @@ function PackageManagement() {
 
       {!loading && (packages.length > 0 || isFormOpen) && <div className="pkg-page-header">
         <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
-        {(!isFormOpen || isEditing) && packages.length > 0 && (
+        {packages.length > 0 && !(isFormOpen && !selectedPkg && !isEditing) && (
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus /> Nuevo Paquete
           </button>
@@ -366,10 +381,10 @@ function PackageManagement() {
           {packages.map(pkg => (
             <button
               key={pkg.id}
-              className={`pkg-bubble${isEditing && formData.id === pkg.id ? ' pkg-bubble--active' : ''}`}
+              className={`pkg-bubble${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' pkg-bubble--active' : ''}`}
               onClick={() => {
-                if (isEditing && formData.id === pkg.id) resetForm();
-                else handleEdit(pkg);
+                if (selectedPkg?.id === pkg.id && !isEditing) resetForm();
+                else handleSelectPkg(pkg);
               }}
             >
               <span className="pkg-bubble-avatar">
@@ -379,8 +394,8 @@ function PackageManagement() {
             </button>
           ))}
           <button
-            className={`pkg-bubble pkg-bubble--add${isFormOpen && !isEditing ? ' pkg-bubble--active' : ''}`}
-            onClick={() => { if (isEditing) { resetForm(); setIsFormOpen(true); } }}
+            className={`pkg-bubble pkg-bubble--add${isFormOpen && !selectedPkg && !isEditing ? ' pkg-bubble--active' : ''}`}
+            onClick={handleNew}
           >
             <span className="pkg-bubble-avatar pkg-bubble-avatar--add">+</span>
             <span className="pkg-bubble-label">Nuevo</span>
@@ -389,7 +404,7 @@ function PackageManagement() {
       )}
 
       {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
-      {isFormOpen && <div className="form-card">
+      {isFormOpen && !selectedPkg && <div className="form-card">
           <>
           <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Aplicaciones'}</h2>
           <form onSubmit={handleSubmit} className="lote-form">
@@ -640,6 +655,97 @@ function PackageManagement() {
         </>
       </div>}
 
+      {isFormOpen && selectedPkg && (
+        <div className="lote-hub">
+          <button className="lote-hub-back" onClick={resetForm}>
+            <FiArrowLeft size={13} /> Todos los paquetes
+          </button>
+          <div className="hub-header">
+            <div className="hub-title-block">
+              <h2 className="hub-lote-code">{selectedPkg.nombrePaquete}</h2>
+            </div>
+            <div className="hub-header-actions">
+              <button onClick={() => handleEdit(selectedPkg)} className="icon-btn" title="Editar paquete">
+                <FiEdit size={16} />
+              </button>
+              <button onClick={() => handleDuplicate(selectedPkg)} className="icon-btn" title="Duplicar paquete">
+                <FiCopy size={16} />
+              </button>
+              <button onClick={() => handleDeleteClick(selectedPkg)} className="icon-btn delete" title="Eliminar paquete">
+                <FiTrash2 size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="hub-info-pills">
+            {selectedPkg.tipoCosecha && <span className="hub-pill">{selectedPkg.tipoCosecha}</span>}
+            {selectedPkg.etapaCultivo && selectedPkg.etapaCultivo !== 'N/A' && (
+              <span className="hub-pill">{selectedPkg.etapaCultivo}</span>
+            )}
+            {selectedPkg.tecnicoResponsable && (
+              <span className="hub-pill">{selectedPkg.tecnicoResponsable}</span>
+            )}
+          </div>
+
+          {selectedPkg.descripcion && (
+            <p className="pkg-hub-desc">{selectedPkg.descripcion}</p>
+          )}
+
+          <div className="pkg-hub-section-label">
+            Actividades <span className="pkg-hub-count">{selectedPkg.activities?.length || 0}</span>
+          </div>
+          {(!selectedPkg.activities || selectedPkg.activities.length === 0) ? (
+            <p className="empty-state">Sin actividades programadas.</p>
+          ) : (
+            <ul className="pkg-hub-activities">
+              {[...selectedPkg.activities]
+                .sort((a, b) => Number(a.day) - Number(b.day))
+                .map((act, i) => {
+                  const resp = users.find(u => u.id === act.responsableId);
+                  const cal = calibraciones.find(c => c.id === act.calibracionId);
+                  const hasDetails = (act.productos?.length > 0) || !!cal;
+                  const expanded = hubExpandedActivities.has(i);
+                  return (
+                    <li key={i} className="pkg-hub-activity-item">
+                      <span className="pkg-hub-activity-day">Día {act.day}</span>
+                      <div className="pkg-hub-activity-info">
+                        <span className="pkg-hub-activity-name">{act.name}</span>
+                        {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
+                        {expanded && (
+                          <div className="pkg-hub-activity-detail">
+                            {cal && (
+                              <span className="pkg-hub-detail-cal">Cal: {cal.nombre}</span>
+                            )}
+                            {act.productos?.map(p => (
+                              <span key={p.productoId} className="pkg-hub-detail-prod">
+                                <span className="pkg-hub-detail-prod-name">{p.nombreComercial}</span>
+                                <span className="pkg-hub-detail-prod-dose">{p.cantidadPorHa} {p.unidad}/Ha</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {hasDetails && (
+                        <button
+                          className={`icon-btn pkg-action-btn${expanded ? ' expanded' : ''}`}
+                          title={expanded ? 'Ocultar detalle' : 'Ver detalle'}
+                          onClick={() => setHubExpandedActivities(prev => {
+                            const next = new Set(prev);
+                            if (next.has(i)) next.delete(i); else next.add(i);
+                            return next;
+                          })}
+                        >
+                          <FiEye size={14} />
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+        </div>
+      )}
+
       {packages.length > 0 && (
         <div className="lote-list-panel">
           <h3 className="lote-list-title">Paquetes</h3>
@@ -647,36 +753,17 @@ function PackageManagement() {
             {packages.map(pkg => (
               <li
                 key={pkg.id}
-                className={`lote-list-item${isEditing && formData.id === pkg.id ? ' active' : ''}`}
+                className={`lote-list-item${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' active' : ''}`}
                 onClick={() => {
-                  if (pendingDeletePkgId === pkg.id) return;
-                  if (isEditing && formData.id === pkg.id) resetForm();
-                  else handleEdit(pkg);
+                  if (selectedPkg?.id === pkg.id && !isEditing) { resetForm(); return; }
+                  handleSelectPkg(pkg);
                 }}
               >
-                {pendingDeletePkgId === pkg.id ? (
-                  <div className="activity-delete-confirm" onClick={e => e.stopPropagation()}>
-                    <span>¿Eliminar?</span>
-                    <button className="btn-confirm-yes" onClick={() => handleDelete(pkg.id)}>Sí</button>
-                    <button className="btn-confirm-no" onClick={() => setPendingDeletePkgId(null)}>No</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="lote-list-info">
-                      <span className="lote-list-code">{pkg.nombrePaquete}</span>
-                      <span className="lote-list-name">{pkg.tipoCosecha} · {pkg.activities.length} act.</span>
-                    </div>
-                    <div className="pkg-list-actions" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => handleDuplicate(pkg)} className="icon-btn" title="Duplicar">
-                        <FiCopy size={14} />
-                      </button>
-                      <button onClick={() => handleDeleteClick(pkg)} className="icon-btn delete" title="Eliminar">
-                        <FiTrash2 size={14} />
-                      </button>
-                      <FiChevronRight size={14} className="lote-list-arrow" />
-                    </div>
-                  </>
-                )}
+                <div className="lote-list-info">
+                  <span className="lote-list-code">{pkg.nombrePaquete}</span>
+                  <span className="lote-list-name">{pkg.tipoCosecha} · {pkg.activities.length} act.</span>
+                </div>
+                <FiChevronRight size={14} className="lote-list-arrow" />
               </li>
             ))}
           </ul>
