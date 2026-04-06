@@ -188,7 +188,33 @@
 .activities-table .col-name { width: auto; }
 .activities-table .col-cal { width: 170px; }
 .activities-table .col-user { width: 140px; }
+.activities-table .col-cost { width: 120px; white-space: nowrap; }
 .activities-table .col-action { width: 1%; white-space: nowrap; text-align: right; }
+
+.activity-cost-cell {
+  text-align: right;
+  padding-right: 16px;
+}
+
+.activity-cost-value {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  white-space: nowrap;
+}
+
+.activity-cost-mon {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.activity-cost-empty {
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.25;
+}
 
 /* Celda de nombre de actividad — select de plantilla + input editable */
 .activity-name-cell {
@@ -344,6 +370,20 @@
 .product-tag-unit {
   font-size: 0.78rem;
   opacity: 0.7;
+}
+
+.product-tag-price {
+  font-size: 0.75rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  white-space: nowrap;
+  margin-left: 2px;
+}
+
+.product-tag-price--total {
+  color: var(--aurora-green);
+  opacity: 0.85;
+  font-weight: 600;
 }
 
 .product-tag-remove {
@@ -528,6 +568,13 @@
     font-size: 0.9em;
     color: var(--aurora-light);
     opacity: 0.6;
+}
+
+.pkg-list-total-cost {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  opacity: 0.8;
 }
 
 /* ── Adjunto Excel por actividad ──────────────────────────────────────────── */
@@ -787,9 +834,42 @@
   opacity: 0.75;
 }
 
+.pkg-hub-total-cost {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.pkg-hub-total-cost-mon {
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.pkg-hub-activity-cost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+}
+
+.pkg-hub-activity-cost-mon {
+  font-size: 0.68rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
 .pkg-hub-detail-prod {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 0.8rem;
 }
@@ -803,5 +883,20 @@
   color: var(--aurora-light);
   opacity: 0.55;
   font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.pkg-hub-detail-prod-price {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  white-space: nowrap;
+}
+
+.pkg-hub-detail-prod-total {
+  font-size: 0.72rem;
+  color: var(--aurora-green);
+  opacity: 0.85;
+  font-weight: 600;
   white-space: nowrap;
 }
