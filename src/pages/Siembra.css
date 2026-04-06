@@ -1236,6 +1236,40 @@
 .sm-btn-success            { color: var(--aurora-green); opacity: 0.9; }
 .sm-btn-success:hover      { opacity: 1; border-color: var(--aurora-border); }
 
+/* ── Page loading spinner ── */
+.siembra-page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+.siembra-page-loading::after {
+  content: '';
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(51, 255, 153, 0.2);
+  border-top-color: var(--aurora-green);
+  border-radius: 50%;
+  animation: app-loading-spin 0.75s linear infinite;
+}
+
+/* ── Page empty state ── */
+.siembra-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  color: rgba(230, 242, 255, 0.3);
+  text-align: center;
+}
+.siembra-empty-state p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.45);
+  margin: 0;
+}
+
 /* ── Empty state ── */
 .sm-empty {
   display: flex;

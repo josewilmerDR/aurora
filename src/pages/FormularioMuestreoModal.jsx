@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiX, FiAlertCircle, FiFileText, FiCamera, FiZap, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiAlertCircle, FiFileText, FiCamera, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 import './FormularioMuestreoModal.css';
@@ -334,8 +334,8 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                         onClick={handleScan}
                         disabled={scanning || submitting}
                       >
-                        <FiZap size={13} />
-                        {scanning ? 'Escaneando...' : 'Escanear'}
+                        <FiCpu size={13} />
+                        {scanning ? 'Leyendo…' : 'Leer con IA'}
                       </button>
                       <button
                         className="fmm-scan-clear-btn"

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import {
   FiCamera, FiX, FiCheck, FiAlertCircle,
-  FiZap, FiChevronLeft, FiChevronRight, FiPlus,
+  FiCpu, FiChevronLeft, FiChevronRight, FiPlus,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './InvoiceScan.css';
@@ -284,8 +284,8 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
           {scanError && <div className="scan-error"><FiAlertCircle size={16} />{scanError}</div>}
 
           <div className="scan-actions">
-            <button type="button" className="btn btn-primary btn-scan" onClick={handleScan} disabled={!imageData || scanning}>
-              <FiZap size={15} />{scanning ? 'Analizando…' : 'Escanear'}
+            <button type="button" className="btn btn-ia btn-scan" onClick={handleScan} disabled={!imageData || scanning}>
+              <FiCpu size={15} />{scanning ? 'Leyendo…' : 'Leer con IA'}
             </button>
           </div>
 
