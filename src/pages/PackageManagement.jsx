@@ -464,6 +464,7 @@ function PackageManagement() {
                   <th className="col-name">Actividad</th>
                   <th className="col-cal">Volumen/Calibración</th>
                   <th className="col-user">Responsable</th>
+                  <th className="col-cost">Costo total</th>
                   <th className="col-action"></th>
                 </tr>
               </thead>
@@ -521,6 +522,25 @@ function PackageManagement() {
                           {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
                         </select>
                       </td>
+                      <td className="activity-cost-cell">
+                        {(() => {
+                          const totals = {};
+                          (activity.productos || []).forEach(p => {
+                            const cat = productos.find(cp => cp.id === p.productoId);
+                            const precio = parseFloat(cat?.precioUnitario) || 0;
+                            if (precio <= 0) return;
+                            const mon = cat?.moneda || 'USD';
+                            totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
+                          });
+                          const entries = Object.entries(totals);
+                          if (entries.length === 0) return <span className="activity-cost-empty">—</span>;
+                          return entries.map(([mon, total]) => (
+                            <span key={mon} className="activity-cost-value">
+                              {total.toFixed(2)} <span className="activity-cost-mon">{mon}</span>
+                            </span>
+                          ));
+                        })()}
+                      </td>
                       <td>
                         <div className="activity-row-actions">
                           {pendingDeleteIdx === index ? (
@@ -552,36 +572,48 @@ function PackageManagement() {
                     </tr>
                     {expandedActivities.has(index) && (
                       <tr key={`products-${index}`} className="products-subrow-tr">
-                        <td colSpan="5">
+                        <td colSpan="6">
                           <div className="products-subrow">
                             <div className="products-subrow-header">
                               <span className="products-subrow-label">Productos de mezcla:</span>
                             </div>
                             <div className="products-tags">
-                              {(activity.productos || []).map(p => (
-                                <span key={p.productoId} className="product-tag">
-                                  <strong>{p.nombreComercial}</strong>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={p.cantidadPorHa}
-                                    onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
-                                    className="product-tag-qty"
-                                    title="Cantidad por Ha"
-                                    data-prod-qty={`${index}-${p.productoId}`}
-                                  />
-                                  <span className="product-tag-unit">{p.unidad}/Ha</span>
-                                  <button
-                                    type="button"
-                                    className="product-tag-remove"
-                                    onClick={() => removeProductFromActivity(index, p.productoId)}
-                                    title="Quitar producto"
-                                  >
-                                    <FiX size={12} />
-                                  </button>
-                                </span>
-                              ))}
+                              {(activity.productos || []).map(p => {
+                                const catProd = productos.find(cp => cp.id === p.productoId);
+                                const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
+                                const moneda = catProd?.moneda || '';
+                                const precioTotal = (p.cantidadPorHa || 0) * precioUnitario;
+                                return (
+                                  <span key={p.productoId} className="product-tag">
+                                    <strong>{p.nombreComercial}</strong>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={p.cantidadPorHa}
+                                      onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
+                                      className="product-tag-qty"
+                                      title="Cantidad por Ha"
+                                      data-prod-qty={`${index}-${p.productoId}`}
+                                    />
+                                    <span className="product-tag-unit">{p.unidad}/Ha</span>
+                                    {precioUnitario > 0 && (
+                                      <>
+                                        <span className="product-tag-price">P.U.: {precioUnitario.toFixed(2)} {moneda}</span>
+                                        <span className="product-tag-price product-tag-price--total">Total: {precioTotal.toFixed(2)} {moneda}</span>
+                                      </>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="product-tag-remove"
+                                      onClick={() => removeProductFromActivity(index, p.productoId)}
+                                      title="Quitar producto"
+                                    >
+                                      <FiX size={12} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
                               <div className="pkg-prod-combo">
                                 <div
                                   className="pkg-prod-input-wrap"
@@ -663,6 +695,27 @@ function PackageManagement() {
           <div className="hub-header">
             <div className="hub-title-block">
               <h2 className="hub-lote-code">{selectedPkg.nombrePaquete}</h2>
+              {(() => {
+                const totals = {};
+                (selectedPkg.activities || []).forEach(act => {
+                  (act.productos || []).forEach(p => {
+                    const cat = productos.find(cp => cp.id === p.productoId);
+                    const precio = parseFloat(cat?.precioUnitario) || 0;
+                    if (precio <= 0) return;
+                    const mon = cat?.moneda || 'USD';
+                    totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
+                  });
+                });
+                const entries = Object.entries(totals);
+                if (entries.length === 0) return null;
+                return (
+                  <span className="pkg-hub-total-cost">
+                    {entries.map(([mon, total]) => (
+                      <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-total-cost-mon">{mon}</span></span>
+                    ))}
+                  </span>
+                );
+              })()}
             </div>
             <div className="hub-header-actions">
               <button onClick={() => handleEdit(selectedPkg)} className="icon-btn" title="Editar paquete">
@@ -705,23 +758,53 @@ function PackageManagement() {
                   const cal = calibraciones.find(c => c.id === act.calibracionId);
                   const hasDetails = (act.productos?.length > 0) || !!cal;
                   const expanded = hubExpandedActivities.has(i);
+                  const actCostos = (() => {
+                    const totals = {};
+                    (act.productos || []).forEach(p => {
+                      const cat = productos.find(cp => cp.id === p.productoId);
+                      const precio = parseFloat(cat?.precioUnitario) || 0;
+                      if (precio <= 0) return;
+                      const mon = cat?.moneda || 'USD';
+                      totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
+                    });
+                    return Object.entries(totals);
+                  })();
                   return (
                     <li key={i} className="pkg-hub-activity-item">
                       <span className="pkg-hub-activity-day">Día {act.day}</span>
                       <div className="pkg-hub-activity-info">
                         <span className="pkg-hub-activity-name">{act.name}</span>
                         {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
+                        {actCostos.length > 0 && (
+                          <span className="pkg-hub-activity-cost">
+                            {actCostos.map(([mon, total]) => (
+                              <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-activity-cost-mon">{mon}</span></span>
+                            ))}
+                          </span>
+                        )}
                         {expanded && (
                           <div className="pkg-hub-activity-detail">
                             {cal && (
                               <span className="pkg-hub-detail-cal">Cal: {cal.nombre}</span>
                             )}
-                            {act.productos?.map(p => (
-                              <span key={p.productoId} className="pkg-hub-detail-prod">
-                                <span className="pkg-hub-detail-prod-name">{p.nombreComercial}</span>
-                                <span className="pkg-hub-detail-prod-dose">{p.cantidadPorHa} {p.unidad}/Ha</span>
-                              </span>
-                            ))}
+                            {act.productos?.map(p => {
+                              const cat = productos.find(cp => cp.id === p.productoId);
+                              const precioUnitario = parseFloat(cat?.precioUnitario) || 0;
+                              const moneda = cat?.moneda || '';
+                              const precioTotal = (p.cantidadPorHa || 0) * precioUnitario;
+                              return (
+                                <span key={p.productoId} className="pkg-hub-detail-prod">
+                                  <span className="pkg-hub-detail-prod-name">{p.nombreComercial}</span>
+                                  <span className="pkg-hub-detail-prod-dose">{p.cantidadPorHa} {p.unidad}/Ha</span>
+                                  {precioUnitario > 0 && (
+                                    <>
+                                      <span className="pkg-hub-detail-prod-price">P.U.: {precioUnitario.toFixed(2)} {moneda}</span>
+                                      <span className="pkg-hub-detail-prod-total">Total: {precioTotal.toFixed(2)} {moneda}</span>
+                                    </>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -762,6 +845,25 @@ function PackageManagement() {
                 <div className="lote-list-info">
                   <span className="lote-list-code">{pkg.nombrePaquete}</span>
                   <span className="lote-list-name">{pkg.tipoCosecha} · {pkg.activities.length} act.</span>
+                  {(() => {
+                    const totals = {};
+                    (pkg.activities || []).forEach(act => {
+                      (act.productos || []).forEach(p => {
+                        const cat = productos.find(cp => cp.id === p.productoId);
+                        const precio = parseFloat(cat?.precioUnitario) || 0;
+                        if (precio <= 0) return;
+                        const mon = cat?.moneda || 'USD';
+                        totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
+                      });
+                    });
+                    const entries = Object.entries(totals);
+                    if (entries.length === 0) return null;
+                    return (
+                      <span className="pkg-list-total-cost">
+                        {entries.map(([mon, total]) => `${total.toFixed(2)} ${mon}`).join(' + ')}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <FiChevronRight size={14} className="lote-list-arrow" />
               </li>
