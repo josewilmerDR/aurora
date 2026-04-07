@@ -275,12 +275,14 @@ function HrFicha() {
 
       {/* ── Formulario — segundo en DOM, aparece a la izquierda en escritorio vía CSS grid ── */}
       <div className="form-card">
-        <div className="ficha-action-bar">
+        <div className="ficha-page-header">
+          <h2 className="ficha-page-title">Ficha del Trabajador</h2>
           <button
-            className={`btn ${mode === 'new' ? 'btn-primary' : 'btn-secondary'}`}
+            className="btn btn-primary"
             onClick={handleNew}
+            title="Crear nuevo empleado"
           >
-            <FiUserPlus /> Nuevo Empleado
+            <FiUserPlus /> Crear Nuevo Empleado
           </button>
         </div>
 

@@ -906,6 +906,22 @@ button.collapsible-section-header:hover { opacity: 1; }
   }
 }
 
+/* ── Page header (title + action button) ────────────────────────────────── */
+.ficha-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.ficha-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
 /* ── Action bar (top of form) ────────────────────────────────────────────── */
 .ficha-action-bar {
   display: flex;
@@ -927,6 +943,21 @@ button.collapsible-section-header:hover { opacity: 1; }
 }
 
 @media (max-width: 768px) {
+  .ficha-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ficha-page-title {
+    font-size: 1.25rem;
+    margin-bottom: 12px;
+  }
+
+  .ficha-page-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .ficha-action-bar {
     display: none;
   }
