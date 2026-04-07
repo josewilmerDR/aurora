@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import './HR.css';
-import { FiSave, FiUserPlus, FiX } from 'react-icons/fi';
+import { FiSave, FiUserPlus, FiX, FiClipboard } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, ROLE_LABELS } from '../contexts/UserContext';
@@ -52,7 +52,7 @@ function HrFicha() {
   const [selectedId, setSelectedId] = useState(null);
   const [userForm, setUserForm] = useState(EMPTY_USER);
   const [fichaForm, setFichaForm] = useState(EMPTY_FICHA);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [laboralCollapsed, setLaboralCollapsed] = useState(true);
   const [contactoCollapsed, setContactoCollapsed] = useState(true);
@@ -69,7 +69,8 @@ function HrFicha() {
         setAllUsers(users);
         setPlanillaUsers(users.filter(u => u.empleadoPlanilla));
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoading(false));
   };
 
   const clearDraft = () => {
@@ -275,257 +276,277 @@ function HrFicha() {
 
       {/* ── Formulario — segundo en DOM, aparece a la izquierda en escritorio vía CSS grid ── */}
       <div className="form-card">
-        <div className="ficha-page-header">
-          <h2 className="ficha-page-title">Ficha del Trabajador</h2>
-          <button
-            className="btn btn-primary"
-            onClick={handleNew}
-            title="Crear nuevo empleado"
-          >
-            <FiUserPlus /> Crear Nuevo Empleado
-          </button>
-        </div>
+        {loading && (
+          <div className="ficha-loading-state">
+            <p className="ficha-loading">Cargando…</p>
+          </div>
+        )}
 
-        {mode === 'idle' && (
-          <div className="ficha-idle-state">
-            <p className="empty-state">
-              Selecciona un empleado de la lista o crea uno nuevo.
-            </p>
-            <button className="btn btn-primary ficha-idle-new-btn" onClick={handleNew}>
-              <FiUserPlus /> Crear Nuevo Empleado
+        {!loading && planillaUsers.length === 0 && (
+          <div className="ficha-empty-state">
+            <FiClipboard size={36} />
+            <p>No hay empleados registrados aún</p>
+            <button className="btn btn-primary" onClick={handleNew}>
+              <FiUserPlus /> Crear el primero
             </button>
           </div>
         )}
 
-        {mode !== 'idle' && (
-          <form onSubmit={handleSubmit} className="lote-form" style={{ marginTop: 20 }}>
+        {!loading && planillaUsers.length > 0 && (
+          <>
+            <div className="ficha-page-header">
+              <h2 className="ficha-page-title">Ficha del Trabajador</h2>
+              <button
+                className="btn btn-primary"
+                onClick={handleNew}
+                title="Crear nuevo empleado"
+              >
+                <FiUserPlus /> Crear Nuevo Empleado
+              </button>
+            </div>
 
-            {mode === 'edit' && selectedUser && (
-              <div className="ficha-header">
-                <div className="ficha-avatar">{selectedUser.nombre.charAt(0).toUpperCase()}</div>
-                <div>
-                  <div className="ficha-worker-name">{selectedUser.nombre}</div>
-                  <div className="ficha-worker-role">{selectedUser.email}</div>
-                </div>
+            {mode === 'idle' && (
+              <div className="ficha-idle-state">
+                <p className="empty-state">
+                  Selecciona un empleado de la lista o crea uno nuevo.
+                </p>
+                <button className="btn btn-primary ficha-idle-new-btn" onClick={handleNew}>
+                  <FiUserPlus /> Crear Nuevo Empleado
+                </button>
               </div>
             )}
 
-            <p className="form-section-title">
-              {mode === 'edit' ? 'Información Personal' : 'Nuevo Empleado en Planilla'}
-            </p>
+            {mode !== 'idle' && (
+              <form onSubmit={handleSubmit} className="lote-form" style={{ marginTop: 20 }}>
 
-            <div className="form-grid">
-              <div className="form-control">
-                <label>Nombre Completo</label>
-                <input name="nombre" value={userForm.nombre} onChange={handleUserChange} required placeholder="Nombre completo" />
-              </div>
-              <div className="form-control">
-                <label>Email</label>
-                <input name="email" type="email" value={userForm.email} onChange={handleUserChange} required placeholder="correo@ejemplo.com" />
-              </div>
-              <div className="form-control">
-                <label>Teléfono</label>
-                <input name="telefono" value={userForm.telefono} onChange={handleUserChange} placeholder="8888-8888" />
-              </div>
-              <div className="form-control">
-                <label>Rol en el sistema</label>
-                <select name="rol" value={userForm.rol} onChange={handleUserChange}>
-                  <option value="ninguno">Ninguno (sin acceso al sistema)</option>
-                  <option value="trabajador">Trabajador</option>
-                  <option value="encargado">Encargado</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="administrador">Administrador</option>
-                </select>
-              </div>
-              <div className="form-control">
-                <label>Cédula / Identificación</label>
-                <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
-              </div>
-            </div>
+                {mode === 'edit' && selectedUser && (
+                  <div className="ficha-header">
+                    <div className="ficha-avatar">{selectedUser.nombre.charAt(0).toUpperCase()}</div>
+                    <div>
+                      <div className="ficha-worker-name">{selectedUser.nombre}</div>
+                      <div className="ficha-worker-role">{selectedUser.email}</div>
+                    </div>
+                  </div>
+                )}
 
-            <button
-              type="button"
-              className="form-section-title collapsible-section-header"
-              onClick={() => setLaboralCollapsed(v => !v)}
-            >
-              <span>Información Laboral</span>
-              <span className={`collapsible-chevron${laboralCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
-            </button>
-            <div className={laboralCollapsed ? 'collapsible-content--hidden' : ''}>
-            <div className="form-grid">
-              <div className="form-control">
-                <label>Puesto</label>
-                <input name="puesto" value={fichaForm.puesto} onChange={handleFichaChange} placeholder="Ej: Operario de campo" />
-              </div>
-              <div className="form-control">
-                <label>Departamento</label>
-                <input name="departamento" value={fichaForm.departamento} onChange={handleFichaChange} placeholder="Ej: Producción" />
-              </div>
-              <div className="form-control">
-                <label>Fecha de Ingreso</label>
-                <input name="fechaIngreso" type="date" value={fichaForm.fechaIngreso} onChange={handleFichaChange} />
-              </div>
-              <div className="form-control">
-                <label>Tipo de Contrato</label>
-                <select name="tipoContrato" value={fichaForm.tipoContrato} onChange={handleFichaChange}>
-                  <option value="permanente">Permanente</option>
-                  <option value="temporal">Temporal</option>
-                  <option value="por_obra">Por obra</option>
-                </select>
-              </div>
-              <div className="form-control">
-                <label>Salario Base (₡)</label>
-                <input name="salarioBase" type="number" min="0" step="any" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
-              </div>
-              <div className="form-control">
-                <label>Precio por Hora (₡)</label>
-                <input name="precioHora" type="number" min="0" step="any" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" />
-              </div>
-              <div className="form-control">
-                <label>Encargado / Supervisor directo</label>
-                <select name="encargadoId" value={fichaForm.encargadoId} onChange={handleFichaChange}>
-                  <option value="">— Sin asignar —</option>
-                  {encargados.map(e => (
-                    <option key={e.id} value={e.id}>{e.nombre} ({ROLE_LABELS[e.rol] || e.rol})</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            </div>
+                <p className="form-section-title">
+                  {mode === 'edit' ? 'Información Personal' : 'Nuevo Empleado en Planilla'}
+                </p>
 
-            <button
-              type="button"
-              className="form-section-title collapsible-section-header"
-              onClick={() => setHorarioCollapsed(v => !v)}
-            >
-              <span>Horario Semanal</span>
-              <span className={`collapsible-chevron${horarioCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
-            </button>
-            <div className={`horario-grid${horarioCollapsed ? ' horario-grid--hidden' : ''}`}>
-              <div className="horario-quickfill">
-                <div className="horario-quickfill-inputs">
-                  <label>Entrada</label>
-                  <input
-                    type="time"
-                    value={horarioDefault.inicio}
-                    onChange={e => setHorarioDefault(p => ({ ...p, inicio: e.target.value }))}
-                    className="horario-time-input"
-                  />
-                  <label>Salida</label>
-                  <input
-                    type="time"
-                    value={horarioDefault.fin}
-                    onChange={e => setHorarioDefault(p => ({ ...p, fin: e.target.value }))}
-                    className="horario-time-input"
-                  />
+                <div className="form-grid">
+                  <div className="form-control">
+                    <label>Nombre Completo</label>
+                    <input name="nombre" value={userForm.nombre} onChange={handleUserChange} required placeholder="Nombre completo" />
+                  </div>
+                  <div className="form-control">
+                    <label>Email</label>
+                    <input name="email" type="email" value={userForm.email} onChange={handleUserChange} required placeholder="correo@ejemplo.com" />
+                  </div>
+                  <div className="form-control">
+                    <label>Teléfono</label>
+                    <input name="telefono" value={userForm.telefono} onChange={handleUserChange} placeholder="8888-8888" />
+                  </div>
+                  <div className="form-control">
+                    <label>Rol en el sistema</label>
+                    <select name="rol" value={userForm.rol} onChange={handleUserChange}>
+                      <option value="ninguno">Ninguno (sin acceso al sistema)</option>
+                      <option value="trabajador">Trabajador</option>
+                      <option value="encargado">Encargado</option>
+                      <option value="supervisor">Supervisor</option>
+                      <option value="administrador">Administrador</option>
+                    </select>
+                  </div>
+                  <div className="form-control">
+                    <label>Cédula / Identificación</label>
+                    <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
+                  </div>
                 </div>
-                <button type="button" className="btn-aplicar-lv" onClick={aplicarHorarioLV}>
-                  Aplicar L–S
+
+                <button
+                  type="button"
+                  className="form-section-title collapsible-section-header"
+                  onClick={() => setLaboralCollapsed(v => !v)}
+                >
+                  <span>Información Laboral</span>
+                  <span className={`collapsible-chevron${laboralCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
                 </button>
-              </div>
-              <div className="horario-grid-header">
-                <span>Labora</span>
-                <span>Entrada</span>
-                <span>Salida</span>
-              </div>
-              {DIAS_SEMANA.map(({ key, label, letra }) => {
-                const dia = fichaForm.horarioSemanal?.[key] || { activo: false, inicio: '', fin: '' };
-                const [h1, m1] = (dia.inicio || '').split(':').map(Number);
-                const [h2, m2] = (dia.fin    || '').split(':').map(Number);
-                const horasDia = dia.activo && dia.inicio && dia.fin
-                  ? Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60)
-                  : 0;
-                return (
-                  <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}`}>
-                    <label className="horario-toggle">
-                      <input
-                        type="checkbox"
-                        checked={dia.activo}
-                        onChange={e => handleHorarioChange(key, 'activo', e.target.checked)}
-                      />
-                      <span className="horario-toggle-track">
-                        <span className="horario-dia-letra">{letra}</span>
-                      </span>
-                    </label>
-                    <div className="horario-times">
+                <div className={laboralCollapsed ? 'collapsible-content--hidden' : ''}>
+                <div className="form-grid">
+                  <div className="form-control">
+                    <label>Puesto</label>
+                    <input name="puesto" value={fichaForm.puesto} onChange={handleFichaChange} placeholder="Ej: Operario de campo" />
+                  </div>
+                  <div className="form-control">
+                    <label>Departamento</label>
+                    <input name="departamento" value={fichaForm.departamento} onChange={handleFichaChange} placeholder="Ej: Producción" />
+                  </div>
+                  <div className="form-control">
+                    <label>Fecha de Ingreso</label>
+                    <input name="fechaIngreso" type="date" value={fichaForm.fechaIngreso} onChange={handleFichaChange} />
+                  </div>
+                  <div className="form-control">
+                    <label>Tipo de Contrato</label>
+                    <select name="tipoContrato" value={fichaForm.tipoContrato} onChange={handleFichaChange}>
+                      <option value="permanente">Permanente</option>
+                      <option value="temporal">Temporal</option>
+                      <option value="por_obra">Por obra</option>
+                    </select>
+                  </div>
+                  <div className="form-control">
+                    <label>Salario Base (₡)</label>
+                    <input name="salarioBase" type="number" min="0" step="any" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
+                  </div>
+                  <div className="form-control">
+                    <label>Precio por Hora (₡)</label>
+                    <input name="precioHora" type="number" min="0" step="any" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" />
+                  </div>
+                  <div className="form-control">
+                    <label>Encargado / Supervisor directo</label>
+                    <select name="encargadoId" value={fichaForm.encargadoId} onChange={handleFichaChange}>
+                      <option value="">— Sin asignar —</option>
+                      {encargados.map(e => (
+                        <option key={e.id} value={e.id}>{e.nombre} ({ROLE_LABELS[e.rol] || e.rol})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="form-section-title collapsible-section-header"
+                  onClick={() => setHorarioCollapsed(v => !v)}
+                >
+                  <span>Horario Semanal</span>
+                  <span className={`collapsible-chevron${horarioCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+                </button>
+                <div className={`horario-grid${horarioCollapsed ? ' horario-grid--hidden' : ''}`}>
+                  <div className="horario-quickfill">
+                    <div className="horario-quickfill-inputs">
+                      <label>Entrada</label>
                       <input
                         type="time"
-                        value={dia.inicio}
-                        disabled={!dia.activo}
-                        onChange={e => handleHorarioChange(key, 'inicio', e.target.value)}
+                        value={horarioDefault.inicio}
+                        onChange={e => setHorarioDefault(p => ({ ...p, inicio: e.target.value }))}
                         className="horario-time-input"
                       />
+                      <label>Salida</label>
                       <input
                         type="time"
-                        value={dia.fin}
-                        disabled={!dia.activo}
-                        onChange={e => handleHorarioChange(key, 'fin', e.target.value)}
+                        value={horarioDefault.fin}
+                        onChange={e => setHorarioDefault(p => ({ ...p, fin: e.target.value }))}
                         className="horario-time-input"
                       />
                     </div>
+                    <button type="button" className="btn-aplicar-lv" onClick={aplicarHorarioLV}>
+                      Aplicar L–S
+                    </button>
                   </div>
-                );
-              })}
-              <div className="horario-total-row">
-                <span>Total semanal</span>
-                <strong>
-                  {(() => {
-                    const t = calcHorasSemanales(fichaForm.horarioSemanal);
-                    return t > 0 ? `${t % 1 === 0 ? t : t.toFixed(1)} horas/semana` : '—';
-                  })()}
-                </strong>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="form-section-title collapsible-section-header"
-              onClick={() => setContactoCollapsed(v => !v)}
-            >
-              <span>Información de Contacto</span>
-              <span className={`collapsible-chevron${contactoCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
-            </button>
-            <div className={contactoCollapsed ? 'collapsible-content--hidden' : ''}>
-              <div className="form-grid">
-                <div className="form-control">
-                  <label>Dirección</label>
-                  <input name="direccion" value={fichaForm.direccion} onChange={handleFichaChange} placeholder="Dirección de residencia" />
+                  <div className="horario-grid-header">
+                    <span>Labora</span>
+                    <span>Entrada</span>
+                    <span>Salida</span>
+                  </div>
+                  {DIAS_SEMANA.map(({ key, label, letra }) => {
+                    const dia = fichaForm.horarioSemanal?.[key] || { activo: false, inicio: '', fin: '' };
+                    const [h1, m1] = (dia.inicio || '').split(':').map(Number);
+                    const [h2, m2] = (dia.fin    || '').split(':').map(Number);
+                    const horasDia = dia.activo && dia.inicio && dia.fin
+                      ? Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60)
+                      : 0;
+                    return (
+                      <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}`}>
+                        <label className="horario-toggle">
+                          <input
+                            type="checkbox"
+                            checked={dia.activo}
+                            onChange={e => handleHorarioChange(key, 'activo', e.target.checked)}
+                          />
+                          <span className="horario-toggle-track">
+                            <span className="horario-dia-letra">{letra}</span>
+                          </span>
+                        </label>
+                        <div className="horario-times">
+                          <input
+                            type="time"
+                            value={dia.inicio}
+                            disabled={!dia.activo}
+                            onChange={e => handleHorarioChange(key, 'inicio', e.target.value)}
+                            className="horario-time-input"
+                          />
+                          <input
+                            type="time"
+                            value={dia.fin}
+                            disabled={!dia.activo}
+                            onChange={e => handleHorarioChange(key, 'fin', e.target.value)}
+                            className="horario-time-input"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="horario-total-row">
+                    <span>Total semanal</span>
+                    <strong>
+                      {(() => {
+                        const t = calcHorasSemanales(fichaForm.horarioSemanal);
+                        return t > 0 ? `${t % 1 === 0 ? t : t.toFixed(1)} horas/semana` : '—';
+                      })()}
+                    </strong>
+                  </div>
                 </div>
-                <div className="form-control">
-                  <label>Contacto de Emergencia</label>
-                  <input name="contactoEmergencia" value={fichaForm.contactoEmergencia} onChange={handleFichaChange} placeholder="Nombre" />
-                </div>
-                <div className="form-control">
-                  <label>Teléfono Emergencia</label>
-                  <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} placeholder="8888-8888" />
-                </div>
-              </div>
-            </div>
 
-            <button
-              type="button"
-              className="form-section-title collapsible-section-header"
-              onClick={() => setNotasCollapsed(v => !v)}
-            >
-              <span>Notas</span>
-              <span className={`collapsible-chevron${notasCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
-            </button>
-            <div className={notasCollapsed ? 'collapsible-content--hidden' : ''}>
-              <div className="form-control">
-                <textarea name="notas" value={fichaForm.notas} onChange={handleFichaChange} placeholder="Observaciones generales del trabajador..." />
-              </div>
-            </div>
+                <button
+                  type="button"
+                  className="form-section-title collapsible-section-header"
+                  onClick={() => setContactoCollapsed(v => !v)}
+                >
+                  <span>Información de Contacto</span>
+                  <span className={`collapsible-chevron${contactoCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+                </button>
+                <div className={contactoCollapsed ? 'collapsible-content--hidden' : ''}>
+                  <div className="form-grid">
+                    <div className="form-control">
+                      <label>Dirección</label>
+                      <input name="direccion" value={fichaForm.direccion} onChange={handleFichaChange} placeholder="Dirección de residencia" />
+                    </div>
+                    <div className="form-control">
+                      <label>Contacto de Emergencia</label>
+                      <input name="contactoEmergencia" value={fichaForm.contactoEmergencia} onChange={handleFichaChange} placeholder="Nombre" />
+                    </div>
+                    <div className="form-control">
+                      <label>Teléfono Emergencia</label>
+                      <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} placeholder="8888-8888" />
+                    </div>
+                  </div>
+                </div>
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                <FiSave />
-                {loading ? 'Guardando...' : mode === 'edit' ? 'Guardar Cambios' : 'Crear Empleado'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={handleCancel}>
-                <FiX /> Cancelar
-              </button>
-            </div>
-          </form>
+                <button
+                  type="button"
+                  className="form-section-title collapsible-section-header"
+                  onClick={() => setNotasCollapsed(v => !v)}
+                >
+                  <span>Notas</span>
+                  <span className={`collapsible-chevron${notasCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
+                </button>
+                <div className={notasCollapsed ? 'collapsible-content--hidden' : ''}>
+                  <div className="form-control">
+                    <textarea name="notas" value={fichaForm.notas} onChange={handleFichaChange} placeholder="Observaciones generales del trabajador..." />
+                  </div>
+                </div>
+
+                <div className="form-actions">
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    <FiSave />
+                    {loading ? 'Guardando...' : mode === 'edit' ? 'Guardar Cambios' : 'Crear Empleado'}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={handleCancel}>
+                    <FiX /> Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
         )}
       </div>
 
