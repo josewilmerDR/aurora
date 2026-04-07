@@ -1,19 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import './HR.css';
-import { FiSave, FiUserPlus, FiX, FiClipboard } from 'react-icons/fi';
+import {
+  FiSave, FiUserPlus, FiX, FiClipboard,
+  FiEdit, FiTrash2, FiArrowLeft, FiMail, FiPhone, FiChevronRight,
+} from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, ROLE_LABELS } from '../contexts/UserContext';
 
 const DIAS_SEMANA = [
-  { key: 'lunes',     label: 'Lunes',      letra: 'L' },
-  { key: 'martes',    label: 'Martes',     letra: 'M' },
-  { key: 'miercoles', label: 'Miércoles',  letra: 'M' },
-  { key: 'jueves',    label: 'Jueves',     letra: 'J' },
-  { key: 'viernes',   label: 'Viernes',    letra: 'V' },
-  { key: 'sabado',    label: 'Sábado',     letra: 'S' },
-  { key: 'domingo',   label: 'Domingo',    letra: 'D' },
+  { key: 'lunes',     label: 'Lunes',     letra: 'L' },
+  { key: 'martes',    label: 'Martes',    letra: 'M' },
+  { key: 'miercoles', label: 'Miércoles', letra: 'M' },
+  { key: 'jueves',    label: 'Jueves',    letra: 'J' },
+  { key: 'viernes',   label: 'Viernes',   letra: 'V' },
+  { key: 'sabado',    label: 'Sábado',    letra: 'S' },
+  { key: 'domingo',   label: 'Domingo',   letra: 'D' },
 ];
 
 const EMPTY_HORARIO = Object.fromEntries(
@@ -22,7 +25,8 @@ const EMPTY_HORARIO = Object.fromEntries(
 
 const EMPTY_FICHA = {
   puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'permanente',
-  salarioBase: '', precioHora: '', cedula: '', encargadoId: '', direccion: '', contactoEmergencia: '', telefonoEmergencia: '',
+  salarioBase: '', precioHora: '', cedula: '', encargadoId: '',
+  direccion: '', contactoEmergencia: '', telefonoEmergencia: '',
   notas: '',
   horarioSemanal: EMPTY_HORARIO,
 };
@@ -33,36 +37,50 @@ function calcHorasSemanales(horario = {}) {
     if (!dia?.activo || !dia.inicio || !dia.fin) return sum;
     const [h1, m1] = dia.inicio.split(':').map(Number);
     const [h2, m2] = dia.fin.split(':').map(Number);
-    const mins = (h2 * 60 + m2) - (h1 * 60 + m1);
-    return sum + Math.max(0, mins / 60);
+    return sum + Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60);
   }, 0);
 }
 
-const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'trabajador' };
+const getInitials = (nombre) => {
+  if (!nombre) return '?';
+  const parts = nombre.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
 
+const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'trabajador' };
 const DRAFT_KEY = 'aurora_hr_ficha_draft';
 
-// mode: 'idle' | 'new' | 'edit'
+// view: 'hub' | 'form'
 function HrFicha() {
   const apiFetch = useApiFetch();
   const { currentUser, refreshCurrentUser } = useUser();
   const [allUsers, setAllUsers] = useState([]);
   const [planillaUsers, setPlanillaUsers] = useState([]);
-  const [mode, setMode] = useState('idle');
+  const [view, setView] = useState('hub');
+  const [isEditing, setIsEditing] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [userForm, setUserForm] = useState(EMPTY_USER);
   const [fichaForm, setFichaForm] = useState(EMPTY_FICHA);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [laboralCollapsed, setLaboralCollapsed] = useState(true);
   const [contactoCollapsed, setContactoCollapsed] = useState(true);
   const [notasCollapsed, setNotasCollapsed] = useState(true);
   const [horarioCollapsed, setHorarioCollapsed] = useState(true);
   const [horarioDefault, setHorarioDefault] = useState({ inicio: '06:00', fin: '14:00' });
-  const [busquedaEmpleado, setBusquedaEmpleado] = useState('');
-  const showToast = (message, type = 'success') => setToast({ message, type });
+  const carouselRef = useRef(null);
+  const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const fetchUsers = () => {
+  // Auto-scroll active bubble into view on mobile
+  useEffect(() => {
+    if (!selectedId || !carouselRef.current) return;
+    const active = carouselRef.current.querySelector('.lote-bubble--active');
+    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedId]);
+
+  const fetchUsers = () =>
     apiFetch('/api/users')
       .then(r => r.json())
       .then(users => {
@@ -71,7 +89,6 @@ function HrFicha() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  };
 
   const clearDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
@@ -85,53 +102,93 @@ function HrFicha() {
     if (!raw) return;
     try {
       const draft = JSON.parse(raw);
-      setMode(draft.mode);
-      setSelectedId(draft.selectedId);
       setUserForm(draft.userForm);
       setFichaForm({
         ...EMPTY_FICHA,
         ...draft.fichaForm,
         horarioSemanal: { ...EMPTY_HORARIO, ...(draft.fichaForm?.horarioSemanal || {}) },
       });
+      setView('form');
+      setIsEditing(false);
     } catch { clearDraft(); }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Guardar borrador mientras hay cambios sin guardar
+  // Guardar borrador solo al crear (no al editar)
   useEffect(() => {
-    if (mode === 'idle') return;
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, selectedId, userForm, fichaForm }));
-    markDraftActive('hr-ficha');
-  }, [fichaForm, userForm, mode, selectedId]);
+    if (view !== 'form' || isEditing) return;
+    const { nombre, email } = userForm;
+    if (nombre || email) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ userForm, fichaForm }));
+      markDraftActive('hr-ficha');
+    } else {
+      clearDraft();
+    }
+  }, [fichaForm, userForm, view, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectEmployee = async (user) => {
-    setSelectedId(user.id);
-    setUserForm({ nombre: user.nombre, email: user.email, telefono: user.telefono || '', rol: user.rol || 'trabajador' });
-    setFichaForm(EMPTY_FICHA);
-    setMode('edit');
+  const loadFicha = async (userId) => {
     try {
-      const data = await apiFetch(`/api/hr/fichas/${user.id}`).then(r => r.json());
+      const data = await apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json());
       setFichaForm({
         ...EMPTY_FICHA,
         ...data,
         horarioSemanal: { ...EMPTY_HORARIO, ...(data.horarioSemanal || {}) },
       });
-    } catch { /* sin ficha aún */ }
+    } catch { setFichaForm(EMPTY_FICHA); }
+  };
+
+  const handleSelectEmployee = async (user) => {
+    setSelectedId(user.id);
+    setUserForm({ nombre: user.nombre, email: user.email, telefono: user.telefono || '', rol: user.rol || 'trabajador' });
+    setFichaForm(EMPTY_FICHA);
+    setView('hub');
+    if (window.innerWidth <= 768)
+      document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
+    await loadFicha(user.id);
   };
 
   const handleNew = () => {
     setSelectedId(null);
     setUserForm(EMPTY_USER);
     setFichaForm(EMPTY_FICHA);
-    setMode('new');
-    document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
+    setView('form');
+    setIsEditing(false);
+    window.scrollTo(0, 0);
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setView('form');
+    window.scrollTo(0, 0);
+  };
+
+  const handleDelete = async (userId) => {
+    if (!window.confirm('¿Seguro que quieres eliminar a este empleado?')) return;
+    try {
+      const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setSelectedId(null);
+      setUserForm(EMPTY_USER);
+      setFichaForm(EMPTY_FICHA);
+      fetchUsers();
+      showToast('Empleado eliminado correctamente.');
+    } catch {
+      showToast('Error al eliminar.', 'error');
+    }
   };
 
   const handleCancel = () => {
     clearDraft();
-    setMode('idle');
-    setSelectedId(null);
-    setUserForm(EMPTY_USER);
-    setFichaForm(EMPTY_FICHA);
+    setView('hub');
+    setIsEditing(false);
+    if (!isEditing) {
+      setSelectedId(null);
+      setUserForm(EMPTY_USER);
+      setFichaForm(EMPTY_FICHA);
+    } else if (selectedId) {
+      const orig = allUsers.find(u => u.id === selectedId);
+      if (orig) setUserForm({ nombre: orig.nombre, email: orig.email, telefono: orig.telefono || '', rol: orig.rol || 'trabajador' });
+      loadFicha(selectedId);
+    }
   };
 
   const handleUserChange = (e) => {
@@ -170,9 +227,9 @@ function HrFicha() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     try {
-      if (mode === 'edit') {
+      if (isEditing) {
         await apiFetch(`/api/users/${selectedId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -183,10 +240,15 @@ function HrFicha() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(fichaForm),
         });
-        clearDraft();
         showToast('Ficha actualizada correctamente.');
         if (currentUser?.userId === selectedId) refreshCurrentUser();
-        fetchUsers();
+        const newUsers = await apiFetch('/api/users').then(r => r.json());
+        setAllUsers(newUsers);
+        setPlanillaUsers(newUsers.filter(u => u.empleadoPlanilla));
+        const found = newUsers.find(u => u.id === selectedId);
+        if (found) setUserForm({ nombre: found.nombre, email: found.email, telefono: found.telefono || '', rol: found.rol || 'trabajador' });
+        setView('hub');
+        setIsEditing(false);
       } else {
         const res = await apiFetch('/api/users', {
           method: 'POST',
@@ -201,138 +263,195 @@ function HrFicha() {
           body: JSON.stringify(fichaForm),
         });
         showToast('Empleado creado correctamente.');
-        fetchUsers();
-        handleCancel();
+        clearDraft();
+        const newUsers = await apiFetch('/api/users').then(r => r.json());
+        setAllUsers(newUsers);
+        const planilla = newUsers.filter(u => u.empleadoPlanilla);
+        setPlanillaUsers(planilla);
+        const found = planilla.find(u => u.id === id);
+        if (found) {
+          setSelectedId(id);
+          setUserForm({ nombre: found.nombre, email: found.email, telefono: found.telefono || '', rol: found.rol || 'trabajador' });
+          await loadFicha(id);
+        }
+        setView('hub');
+        setIsEditing(false);
       }
     } catch {
       showToast('Error al guardar. Verifica los datos.', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const encargados = allUsers.filter(u => ['encargado', 'supervisor', 'administrador'].includes(u.rol));
   const selectedUser = allUsers.find(u => u.id === selectedId);
 
-  return (
-    <div className="ficha-page-layout">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+  // ── Panel de detalle (solo lectura) ──────────────────────────────────────
+  const renderHubPanel = () => {
+    if (!selectedId || !selectedUser) return null;
 
-      {/* ── Panel de empleados — primero en DOM para que en móvil aparezca arriba sin trucos CSS ── */}
-      <div className="empleados-panel">
-        <div className="empleados-panel-header">
-          <span>Empleados en Planilla</span>
-          <div className="empleados-panel-header-right">
-            <span className="empleados-panel-count">{planillaUsers.length}</span>
-            <button className="empleados-panel-new-btn" onClick={handleNew} title="Crear nuevo empleado">
-              <FiUserPlus size={14} />
+    const encargado = allUsers.find(u => u.id === fichaForm.encargadoId);
+    const tieneLaboral = fichaForm.puesto || fichaForm.departamento || fichaForm.fechaIngreso
+      || fichaForm.salarioBase || fichaForm.precioHora || encargado;
+    const tieneHorario = DIAS_SEMANA.some(d => fichaForm.horarioSemanal?.[d.key]?.activo);
+    const tieneContacto = fichaForm.direccion || fichaForm.contactoEmergencia || fichaForm.telefonoEmergencia;
+
+    return (
+      <div className="lote-hub">
+        <button className="lote-hub-back" onClick={() => setSelectedId(null)}>
+          <FiArrowLeft size={13} /> Todos los empleados
+        </button>
+
+        <div className="hub-header">
+          <div className="ficha-hub-identity">
+            <div className="ficha-avatar">{getInitials(selectedUser.nombre)}</div>
+            <div>
+              <h2 className="hub-lote-code">{selectedUser.nombre}</h2>
+              <span className={`role-badge role-badge--${selectedUser.rol || 'trabajador'}`}>
+                {ROLE_LABELS[selectedUser.rol] || 'Trabajador'}
+              </span>
+            </div>
+          </div>
+          <div className="hub-header-actions">
+            <button onClick={handleEdit} className="icon-btn" title="Editar ficha">
+              <FiEdit size={16} />
+            </button>
+            <button onClick={() => handleDelete(selectedId)} className="icon-btn delete" title="Eliminar empleado">
+              <FiTrash2 size={16} />
             </button>
           </div>
         </div>
 
-        <div className="empleados-search-wrap">
-          <input
-            className="empleados-search"
-            type="text"
-            placeholder="Buscar empleado..."
-            value={busquedaEmpleado}
-            onChange={e => setBusquedaEmpleado(e.target.value)}
-          />
-          {busquedaEmpleado && (
-            <button className="empleados-search-clear" onClick={() => setBusquedaEmpleado('')}>✕</button>
-          )}
+        <div className="hub-info-pills">
+          {selectedUser.email    && <span className="hub-pill"><FiMail  size={13} />{selectedUser.email}</span>}
+          {selectedUser.telefono && <span className="hub-pill"><FiPhone size={13} />{selectedUser.telefono}</span>}
+          {fichaForm.cedula      && <span className="hub-pill hub-pill-muted">CI: {fichaForm.cedula}</span>}
         </div>
 
-        {planillaUsers.length === 0 ? (
-          <p style={{ padding: '20px 16px', fontSize: '0.83rem', color: 'var(--aurora-light)', opacity: 0.45, textAlign: 'center' }}>
-            Sin empleados registrados.
-          </p>
-        ) : (
-          <ul className="empleados-list">
-            {planillaUsers
-              .filter(u => u.nombre.toLowerCase().includes(busquedaEmpleado.toLowerCase()))
-              .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-              .map(u => (
-                <li
-                  key={u.id}
-                  className={`empleados-list-item${selectedId === u.id ? ' empleados-list-item--active' : ''}`}
-                  onClick={() => handleSelectEmployee(u)}
-                >
-                  <div className="empleados-list-avatar">{u.nombre.charAt(0).toUpperCase()}</div>
-                  <div className="empleados-list-info">
-                    <div className="empleados-list-name">{u.nombre}</div>
-                    <div className="empleados-list-sub">{u.email}</div>
+        {tieneLaboral && (
+          <div className="ficha-hub-section">
+            <p className="ficha-hub-section-title">Información Laboral</p>
+            <div className="ficha-hub-grid">
+              {fichaForm.puesto       && <div className="ficha-hub-item"><span className="ficha-hub-label">Puesto</span><span className="ficha-hub-value">{fichaForm.puesto}</span></div>}
+              {fichaForm.departamento && <div className="ficha-hub-item"><span className="ficha-hub-label">Departamento</span><span className="ficha-hub-value">{fichaForm.departamento}</span></div>}
+              {fichaForm.fechaIngreso && <div className="ficha-hub-item"><span className="ficha-hub-label">Ingreso</span><span className="ficha-hub-value">{fichaForm.fechaIngreso}</span></div>}
+              {fichaForm.tipoContrato && fichaForm.tipoContrato !== 'permanente' && (
+                <div className="ficha-hub-item"><span className="ficha-hub-label">Contrato</span><span className="ficha-hub-value">{fichaForm.tipoContrato}</span></div>
+              )}
+              {fichaForm.salarioBase  && <div className="ficha-hub-item"><span className="ficha-hub-label">Salario Base</span><span className="ficha-hub-value">₡{Number(fichaForm.salarioBase).toLocaleString('es-CR')}</span></div>}
+              {fichaForm.precioHora   && <div className="ficha-hub-item"><span className="ficha-hub-label">Precio/Hora</span><span className="ficha-hub-value">₡{Number(fichaForm.precioHora).toLocaleString('es-CR')}</span></div>}
+              {encargado              && <div className="ficha-hub-item"><span className="ficha-hub-label">Encargado</span><span className="ficha-hub-value">{encargado.nombre}</span></div>}
+            </div>
+          </div>
+        )}
+
+        {tieneHorario && (
+          <div className="ficha-hub-section">
+            <p className="ficha-hub-section-title">Horario Semanal</p>
+            <div className="ficha-hub-horario">
+              {DIAS_SEMANA.map(({ key, letra }) => {
+                const dia = fichaForm.horarioSemanal?.[key];
+                return (
+                  <div key={key} className={`ficha-hub-dia${dia?.activo ? ' ficha-hub-dia--activo' : ''}`}>
+                    <span className="ficha-hub-dia-letra">{letra}</span>
+                    {dia?.activo && <span className="ficha-hub-dia-horas">{dia.inicio}–{dia.fin}</span>}
                   </div>
-                </li>
-              ))}
-            {planillaUsers.filter(u => u.nombre.toLowerCase().includes(busquedaEmpleado.toLowerCase())).length === 0 && (
-              <p style={{ padding: '16px', fontSize: '0.83rem', color: 'var(--aurora-light)', opacity: 0.45, textAlign: 'center' }}>
-                Sin resultados.
-              </p>
-            )}
-          </ul>
+                );
+              })}
+            </div>
+            {(() => { const t = calcHorasSemanales(fichaForm.horarioSemanal); return t > 0 ? <p className="ficha-hub-total">{t % 1 === 0 ? t : t.toFixed(1)} h/semana</p> : null; })()}
+          </div>
+        )}
+
+        {tieneContacto && (
+          <div className="ficha-hub-section">
+            <p className="ficha-hub-section-title">Contacto de Emergencia</p>
+            <div className="ficha-hub-grid">
+              {fichaForm.direccion         && <div className="ficha-hub-item ficha-hub-item--full"><span className="ficha-hub-label">Dirección</span><span className="ficha-hub-value">{fichaForm.direccion}</span></div>}
+              {fichaForm.contactoEmergencia && <div className="ficha-hub-item"><span className="ficha-hub-label">Contacto</span><span className="ficha-hub-value">{fichaForm.contactoEmergencia}</span></div>}
+              {fichaForm.telefonoEmergencia && <div className="ficha-hub-item"><span className="ficha-hub-label">Teléfono</span><span className="ficha-hub-value">{fichaForm.telefonoEmergencia}</span></div>}
+            </div>
+          </div>
+        )}
+
+        {fichaForm.notas && (
+          <div className="ficha-hub-section">
+            <p className="ficha-hub-section-title">Notas</p>
+            <p className="ficha-hub-notas">{fichaForm.notas}</p>
+          </div>
         )}
       </div>
+    );
+  };
 
-      {/* ── Formulario — segundo en DOM, aparece a la izquierda en escritorio vía CSS grid ── */}
-      <div className="form-card">
-        {loading && (
-          <div className="ficha-loading-state">
-            <p className="ficha-loading">Cargando…</p>
-          </div>
-        )}
+  // ── Spinner de carga ──────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="ficha-page-loading">
+        <div className="ficha-spinner" />
+      </div>
+    );
+  }
 
-        {!loading && planillaUsers.length === 0 && (
-          <div className="ficha-empty-state">
-            <FiClipboard size={36} />
-            <p>No hay empleados registrados aún</p>
-            <button className="btn btn-primary" onClick={handleNew}>
-              <FiUserPlus /> Crear el primero
-            </button>
-          </div>
-        )}
+  return (
+    <div className={`lote-page${selectedId && view === 'hub' ? ' lote-page--selected' : ''}`}>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-        {!loading && planillaUsers.length > 0 && (
-          <>
-            <div className="ficha-page-header">
-              <h2 className="ficha-page-title">Ficha del Trabajador</h2>
+      {/* ── Estado vacío ── */}
+      {planillaUsers.length === 0 && view !== 'form' && (
+        <div className="ficha-empty-state">
+          <FiClipboard size={36} />
+          <p>No hay empleados registrados aún</p>
+          <button className="btn btn-primary" onClick={handleNew}>Crear el primero</button>
+        </div>
+      )}
+
+      {/* ── Carrusel móvil ── */}
+      {selectedId && view === 'hub' && (
+        <div className="lote-carousel" ref={carouselRef}>
+          {planillaUsers
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+            .map(u => (
               <button
-                className="btn btn-primary"
-                onClick={handleNew}
-                title="Crear nuevo empleado"
+                key={u.id}
+                className={`lote-bubble${selectedId === u.id ? ' lote-bubble--active' : ''}`}
+                onClick={() => selectedId === u.id ? setSelectedId(null) : handleSelectEmployee(u)}
               >
-                <FiUserPlus /> Crear Nuevo Empleado
+                <span className="lote-bubble-avatar">{getInitials(u.nombre)}</span>
+                <span className="lote-bubble-label">{u.nombre.split(' ')[0]}</span>
               </button>
-            </div>
+            ))}
+          <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
+            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+            <span className="lote-bubble-label">Nuevo</span>
+          </button>
+        </div>
+      )}
 
-            {mode === 'idle' && (
-              <div className="ficha-idle-state">
-                <p className="empty-state">
-                  Selecciona un empleado de la lista o crea uno nuevo.
-                </p>
-                <button className="btn btn-primary ficha-idle-new-btn" onClick={handleNew}>
-                  <FiUserPlus /> Crear Nuevo Empleado
-                </button>
-              </div>
-            )}
+      {/* ── Cabecera de página ── */}
+      {planillaUsers.length > 0 && view !== 'form' && (
+        <div className="ficha-page-header">
+          <h2 className="ficha-page-title">Ficha del Trabajador</h2>
+          <button className="btn btn-primary" onClick={handleNew}>
+            <FiUserPlus /> Nuevo Empleado
+          </button>
+        </div>
+      )}
 
-            {mode !== 'idle' && (
-              <form onSubmit={handleSubmit} className="lote-form" style={{ marginTop: 20 }}>
+      {/* ── Layout principal ── */}
+      {(planillaUsers.length > 0 || view === 'form') && (
+        <div className="lote-management-layout">
 
-                {mode === 'edit' && selectedUser && (
-                  <div className="ficha-header">
-                    <div className="ficha-avatar">{selectedUser.nombre.charAt(0).toUpperCase()}</div>
-                    <div>
-                      <div className="ficha-worker-name">{selectedUser.nombre}</div>
-                      <div className="ficha-worker-role">{selectedUser.email}</div>
-                    </div>
-                  </div>
-                )}
+          {/* Izquierda: detalle o formulario */}
+          {view === 'hub' && renderHubPanel()}
 
-                <p className="form-section-title">
-                  {mode === 'edit' ? 'Información Personal' : 'Nuevo Empleado en Planilla'}
-                </p>
+          {view === 'form' && (
+            <div className="form-card">
+              <h2>{isEditing ? `Editando: ${selectedUser?.nombre || ''}` : 'Nuevo Empleado'}</h2>
+              <form onSubmit={handleSubmit} className="lote-form" style={{ marginTop: 16 }}>
 
+                <p className="form-section-title">Información Personal</p>
                 <div className="form-grid">
                   <div className="form-control">
                     <label>Nombre Completo</label>
@@ -362,61 +481,53 @@ function HrFicha() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="form-section-title collapsible-section-header"
-                  onClick={() => setLaboralCollapsed(v => !v)}
-                >
+                <button type="button" className="form-section-title collapsible-section-header" onClick={() => setLaboralCollapsed(v => !v)}>
                   <span>Información Laboral</span>
                   <span className={`collapsible-chevron${laboralCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
                 </button>
                 <div className={laboralCollapsed ? 'collapsible-content--hidden' : ''}>
-                <div className="form-grid">
-                  <div className="form-control">
-                    <label>Puesto</label>
-                    <input name="puesto" value={fichaForm.puesto} onChange={handleFichaChange} placeholder="Ej: Operario de campo" />
+                  <div className="form-grid">
+                    <div className="form-control">
+                      <label>Puesto</label>
+                      <input name="puesto" value={fichaForm.puesto} onChange={handleFichaChange} placeholder="Ej: Operario de campo" />
+                    </div>
+                    <div className="form-control">
+                      <label>Departamento</label>
+                      <input name="departamento" value={fichaForm.departamento} onChange={handleFichaChange} placeholder="Ej: Producción" />
+                    </div>
+                    <div className="form-control">
+                      <label>Fecha de Ingreso</label>
+                      <input name="fechaIngreso" type="date" value={fichaForm.fechaIngreso} onChange={handleFichaChange} />
+                    </div>
+                    <div className="form-control">
+                      <label>Tipo de Contrato</label>
+                      <select name="tipoContrato" value={fichaForm.tipoContrato} onChange={handleFichaChange}>
+                        <option value="permanente">Permanente</option>
+                        <option value="temporal">Temporal</option>
+                        <option value="por_obra">Por obra</option>
+                      </select>
+                    </div>
+                    <div className="form-control">
+                      <label>Salario Base (₡)</label>
+                      <input name="salarioBase" type="number" min="0" step="any" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
+                    </div>
+                    <div className="form-control">
+                      <label>Precio por Hora (₡)</label>
+                      <input name="precioHora" type="number" min="0" step="any" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" />
+                    </div>
+                    <div className="form-control">
+                      <label>Encargado / Supervisor directo</label>
+                      <select name="encargadoId" value={fichaForm.encargadoId} onChange={handleFichaChange}>
+                        <option value="">— Sin asignar —</option>
+                        {encargados.map(e => (
+                          <option key={e.id} value={e.id}>{e.nombre} ({ROLE_LABELS[e.rol] || e.rol})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div className="form-control">
-                    <label>Departamento</label>
-                    <input name="departamento" value={fichaForm.departamento} onChange={handleFichaChange} placeholder="Ej: Producción" />
-                  </div>
-                  <div className="form-control">
-                    <label>Fecha de Ingreso</label>
-                    <input name="fechaIngreso" type="date" value={fichaForm.fechaIngreso} onChange={handleFichaChange} />
-                  </div>
-                  <div className="form-control">
-                    <label>Tipo de Contrato</label>
-                    <select name="tipoContrato" value={fichaForm.tipoContrato} onChange={handleFichaChange}>
-                      <option value="permanente">Permanente</option>
-                      <option value="temporal">Temporal</option>
-                      <option value="por_obra">Por obra</option>
-                    </select>
-                  </div>
-                  <div className="form-control">
-                    <label>Salario Base (₡)</label>
-                    <input name="salarioBase" type="number" min="0" step="any" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
-                  </div>
-                  <div className="form-control">
-                    <label>Precio por Hora (₡)</label>
-                    <input name="precioHora" type="number" min="0" step="any" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" />
-                  </div>
-                  <div className="form-control">
-                    <label>Encargado / Supervisor directo</label>
-                    <select name="encargadoId" value={fichaForm.encargadoId} onChange={handleFichaChange}>
-                      <option value="">— Sin asignar —</option>
-                      {encargados.map(e => (
-                        <option key={e.id} value={e.id}>{e.nombre} ({ROLE_LABELS[e.rol] || e.rol})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="form-section-title collapsible-section-header"
-                  onClick={() => setHorarioCollapsed(v => !v)}
-                >
+                <button type="button" className="form-section-title collapsible-section-header" onClick={() => setHorarioCollapsed(v => !v)}>
                   <span>Horario Semanal</span>
                   <span className={`collapsible-chevron${horarioCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
                 </button>
@@ -424,83 +535,37 @@ function HrFicha() {
                   <div className="horario-quickfill">
                     <div className="horario-quickfill-inputs">
                       <label>Entrada</label>
-                      <input
-                        type="time"
-                        value={horarioDefault.inicio}
-                        onChange={e => setHorarioDefault(p => ({ ...p, inicio: e.target.value }))}
-                        className="horario-time-input"
-                      />
+                      <input type="time" value={horarioDefault.inicio} onChange={e => setHorarioDefault(p => ({ ...p, inicio: e.target.value }))} className="horario-time-input" />
                       <label>Salida</label>
-                      <input
-                        type="time"
-                        value={horarioDefault.fin}
-                        onChange={e => setHorarioDefault(p => ({ ...p, fin: e.target.value }))}
-                        className="horario-time-input"
-                      />
+                      <input type="time" value={horarioDefault.fin} onChange={e => setHorarioDefault(p => ({ ...p, fin: e.target.value }))} className="horario-time-input" />
                     </div>
-                    <button type="button" className="btn-aplicar-lv" onClick={aplicarHorarioLV}>
-                      Aplicar L–S
-                    </button>
+                    <button type="button" className="btn-aplicar-lv" onClick={aplicarHorarioLV}>Aplicar L–S</button>
                   </div>
                   <div className="horario-grid-header">
-                    <span>Labora</span>
-                    <span>Entrada</span>
-                    <span>Salida</span>
+                    <span>Labora</span><span>Entrada</span><span>Salida</span>
                   </div>
-                  {DIAS_SEMANA.map(({ key, label, letra }) => {
+                  {DIAS_SEMANA.map(({ key, letra }) => {
                     const dia = fichaForm.horarioSemanal?.[key] || { activo: false, inicio: '', fin: '' };
-                    const [h1, m1] = (dia.inicio || '').split(':').map(Number);
-                    const [h2, m2] = (dia.fin    || '').split(':').map(Number);
-                    const horasDia = dia.activo && dia.inicio && dia.fin
-                      ? Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60)
-                      : 0;
                     return (
                       <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}`}>
                         <label className="horario-toggle">
-                          <input
-                            type="checkbox"
-                            checked={dia.activo}
-                            onChange={e => handleHorarioChange(key, 'activo', e.target.checked)}
-                          />
-                          <span className="horario-toggle-track">
-                            <span className="horario-dia-letra">{letra}</span>
-                          </span>
+                          <input type="checkbox" checked={dia.activo} onChange={e => handleHorarioChange(key, 'activo', e.target.checked)} />
+                          <span className="horario-toggle-track"><span className="horario-dia-letra">{letra}</span></span>
                         </label>
                         <div className="horario-times">
-                          <input
-                            type="time"
-                            value={dia.inicio}
-                            disabled={!dia.activo}
-                            onChange={e => handleHorarioChange(key, 'inicio', e.target.value)}
-                            className="horario-time-input"
-                          />
-                          <input
-                            type="time"
-                            value={dia.fin}
-                            disabled={!dia.activo}
-                            onChange={e => handleHorarioChange(key, 'fin', e.target.value)}
-                            className="horario-time-input"
-                          />
+                          <input type="time" value={dia.inicio} disabled={!dia.activo} onChange={e => handleHorarioChange(key, 'inicio', e.target.value)} className="horario-time-input" />
+                          <input type="time" value={dia.fin}    disabled={!dia.activo} onChange={e => handleHorarioChange(key, 'fin',   e.target.value)} className="horario-time-input" />
                         </div>
                       </div>
                     );
                   })}
                   <div className="horario-total-row">
                     <span>Total semanal</span>
-                    <strong>
-                      {(() => {
-                        const t = calcHorasSemanales(fichaForm.horarioSemanal);
-                        return t > 0 ? `${t % 1 === 0 ? t : t.toFixed(1)} horas/semana` : '—';
-                      })()}
-                    </strong>
+                    <strong>{(() => { const t = calcHorasSemanales(fichaForm.horarioSemanal); return t > 0 ? `${t % 1 === 0 ? t : t.toFixed(1)} horas/semana` : '—'; })()}</strong>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="form-section-title collapsible-section-header"
-                  onClick={() => setContactoCollapsed(v => !v)}
-                >
+                <button type="button" className="form-section-title collapsible-section-header" onClick={() => setContactoCollapsed(v => !v)}>
                   <span>Información de Contacto</span>
                   <span className={`collapsible-chevron${contactoCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
                 </button>
@@ -521,11 +586,7 @@ function HrFicha() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="form-section-title collapsible-section-header"
-                  onClick={() => setNotasCollapsed(v => !v)}
-                >
+                <button type="button" className="form-section-title collapsible-section-header" onClick={() => setNotasCollapsed(v => !v)}>
                   <span>Notas</span>
                   <span className={`collapsible-chevron${notasCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
                 </button>
@@ -536,20 +597,43 @@ function HrFicha() {
                 </div>
 
                 <div className="form-actions">
-                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                  <button type="submit" className="btn btn-primary" disabled={saving}>
                     <FiSave />
-                    {loading ? 'Guardando...' : mode === 'edit' ? 'Guardar Cambios' : 'Crear Empleado'}
+                    {saving ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Empleado'}
                   </button>
                   <button type="button" className="btn btn-secondary" onClick={handleCancel}>
                     <FiX /> Cancelar
                   </button>
                 </div>
               </form>
-            )}
-          </>
-        )}
-      </div>
+            </div>
+          )}
 
+          {/* Derecha: lista de empleados */}
+          {view !== 'form' && (
+            <div className="lote-list-panel">
+              <ul className="lote-list">
+                {planillaUsers
+                  .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+                  .map(u => (
+                    <li
+                      key={u.id}
+                      className={`lote-list-item${selectedId === u.id ? ' active' : ''}`}
+                      onClick={() => selectedId === u.id ? setSelectedId(null) : handleSelectEmployee(u)}
+                    >
+                      <div className="lote-list-info">
+                        <span className="lote-list-code">{u.nombre}</span>
+                        <span className="lote-list-name">{ROLE_LABELS[u.rol] || 'Trabajador'}</span>
+                      </div>
+                      <FiChevronRight size={14} className="lote-list-arrow" />
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+
+        </div>
+      )}
     </div>
   );
 }
