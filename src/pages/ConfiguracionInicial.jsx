@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
@@ -11,6 +11,13 @@ const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante',
 const normalizeTipo = (val) => {
   const s = String(val || '').trim();
   return TIPOS_PRODUCTO.find(t => t.toLowerCase() === s.toLowerCase()) ?? s;
+};
+
+// ── Normalización rol de usuario ─────────────────────────────────────────────
+const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
+const normalizeRol = (val) => {
+  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return ROLES_VALIDOS.find(r => r === s) ?? 'trabajador';
 };
 
 // ── Normalización proveedor ───────────────────────────────────────────────────
@@ -140,6 +147,25 @@ const ENTIDADES = [
       observacion: String(row['Observación'] || '').trim(),
     }),
     isValid: (r) => !!r.descripcion,
+  },
+  {
+    key: 'usuarios',
+    nombre: 'Usuarios del Sistema',
+    descripcion: 'Cuentas de acceso al sistema — nombre, email, teléfono y rol de cada usuario.',
+    icon: FiUsers,
+    endpoint: '/api/users',
+    adminPath: '/users',
+    excelHeaders: ['Nombre Completo', 'Email', 'Teléfono', 'Rol'],
+    sampleRow:    ['Juan Pérez', 'juan@finca.com', '+506 8888-0000', 'trabajador'],
+    fileName:     'plantilla_usuarios.xlsx',
+    sheetName:    'Usuarios',
+    parseRow: (row) => ({
+      nombre:   String(row['Nombre Completo'] || '').trim(),
+      email:    String(row['Email']           || '').trim(),
+      telefono: String(row['Teléfono']        || '').trim(),
+      rol:      normalizeRol(row['Rol']),
+    }),
+    isValid: (r) => !!(r.nombre && r.email),
   },
   {
     key: 'proveedores',
