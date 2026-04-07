@@ -1,6 +1,69 @@
 /* Reutilizamos el 100% de los estilos de LoteManagement. ¡Eficiencia! */
 @import url('./LoteManagement.css');
 
+/* ── Page loading spinner ─────────────────────────────────────────────────── */
+.usr-page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+.usr-page-loading::after {
+  content: '';
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(51, 255, 153, 0.2);
+  border-top-color: var(--aurora-green);
+  border-radius: 50%;
+  animation: app-loading-spin 0.75s linear infinite;
+}
+
+/* ── Page empty state ─────────────────────────────────────────────────────── */
+.usr-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  color: rgba(230, 242, 255, 0.3);
+  text-align: center;
+}
+.usr-empty-state p {
+  font-size: 0.9rem;
+  color: rgba(230, 242, 255, 0.45);
+  margin: 0;
+}
+
+/* ── Page header ──────────────────────────────────────────────────────────── */
+.usr-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.usr-page-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--aurora-light);
+}
+
+/* Ocultar cabecera en móvil cuando hay un usuario seleccionado */
+@media (max-width: 768px) {
+  .lote-page--selected .usr-page-header {
+    display: none;
+  }
+}
+
+/* ── User list item info (nombre encima, rol debajo) ──────────────────────── */
+.usr-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
 /* ── Role badges ──────────────────────────────────────────────────────────── */
 .item-main-text {
   display: flex;
@@ -25,61 +88,3 @@
 .role-badge--supervisor  { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
 .role-badge--administrador { background: rgba(51,153,255,0.2); color: #5599ff; }
 
-/* ── Planilla badge ───────────────────────────────────────────────────────── */
-.planilla-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-  background: rgba(51, 255, 153, 0.15);
-  color: var(--aurora-green);
-  border: 1px solid rgba(51, 255, 153, 0.3);
-}
-
-/* ── Empleado en planilla checkbox ───────────────────────────────────────── */
-.planilla-check-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 16px 0 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--aurora-light);
-  user-select: none;
-}
-
-.planilla-check-label input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--aurora-green);
-  cursor: pointer;
-}
-
-/* ── Textarea in ficha section ────────────────────────────────────────────── */
-.form-control textarea {
-  background-color: var(--aurora-dark-blue);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  padding: 12px;
-  border-radius: 5px;
-  font-size: 1rem;
-  resize: vertical;
-  min-height: 80px;
-  font-family: inherit;
-}
-
-/* ── Section title (reused from HR.css) ──────────────────────────────────── */
-.form-section-title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--aurora-green);
-  opacity: 0.75;
-  margin: 20px 0 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--aurora-border);
-}
