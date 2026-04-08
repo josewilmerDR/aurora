@@ -17,6 +17,10 @@ const COLUMNS = [
   { id: 'horas',            label: 'Horas',             plain: true           },
   { id: 'montoDepTractor',  label: 'Monto Dep. Tractor',  filterType: 'number' },
   { id: 'montoDepImplemento', label: 'Monto Dep. Implemento', filterType: 'number' },
+  { id: 'combTasaLH',        label: 'Tasa (L/H)',            plain: true           },
+  { id: 'combPrecio',        label: 'Precio Comb.',          plain: true           },
+  { id: 'combLitros',        label: 'Litros est.',           plain: true           },
+  { id: 'combCosto',         label: 'Costo est.',            plain: true           },
   { id: 'loteNombre',       label: 'Lote'                                     },
   { id: 'grupo',            label: 'Grupo'                                    },
   { id: 'bloque',           label: 'Bloque',            plain: true           },
@@ -122,7 +126,13 @@ function HistorialHorimetros() {
       const montoDepImplemento = hrsNum != null && costoImplemento != null
         ? parseFloat((hrsNum * costoImplemento).toFixed(2)) : null;
 
-      return { ...rec, montoDepTractor, montoDepImplemento };
+      const comb       = rec.combustible;
+      const combTasaLH = comb?.tasaLH         ?? null;
+      const combPrecio = comb?.precioUnitario  ?? null;
+      const combLitros = comb?.litrosEstimados ?? null;
+      const combCosto  = comb?.costoEstimado   ?? null;
+
+      return { ...rec, montoDepTractor, montoDepImplemento, combTasaLH, combPrecio, combLitros, combCosto };
     });
   }, [records, maquinaria]);
 
@@ -302,6 +312,10 @@ function HistorialHorimetros() {
                           {!hiddenCols.has('horas')            && <td className={`hor-td-horas${hrs ? '' : ' hor-td-empty'}`}>{hrs ?? '—'}</td>}
                           {!hiddenCols.has('montoDepTractor')  && <td className="hor-td-num">{rec.montoDepTractor != null ? rec.montoDepTractor.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('montoDepImplemento') && <td className="hor-td-num">{rec.montoDepImplemento != null ? rec.montoDepImplemento.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
+                          {!hiddenCols.has('combTasaLH')  && <td className="hor-td-num">{rec.combTasaLH  != null ? rec.combTasaLH.toFixed(2)  : <span className="hor-td-empty">—</span>}</td>}
+                          {!hiddenCols.has('combPrecio')  && <td className="hor-td-num">{rec.combPrecio  != null ? rec.combPrecio.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
+                          {!hiddenCols.has('combLitros')  && <td className="hor-td-num">{rec.combLitros  != null ? rec.combLitros.toFixed(2)  : <span className="hor-td-empty">—</span>}</td>}
+                          {!hiddenCols.has('combCosto')   && <td className="hor-td-num">{rec.combCosto   != null ? rec.combCosto.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('loteNombre')       && <td>{rec.loteNombre || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('grupo')            && <td>{rec.grupo      || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('bloque')           && <td>{rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || <span className="hor-td-empty">—</span>)}</td>}

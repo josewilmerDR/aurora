@@ -226,6 +226,10 @@ function RegistroHorimetro() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
+  // Tasas de combustible (cargadas una vez al montar, desde la bodega configurada)
+  const fuelBodegaId = localStorage.getItem('aurora_fuel_bodegaId') || '';
+  const [tasasCombustible, setTasasCombustible] = useState({});
+
   // Form — always open on mount (restore draft fields if present)
   const _draft = loadDraft();
   const [showForm, setShowForm]   = useState(true);
@@ -269,6 +273,15 @@ function RegistroHorimetro() {
       sessionStorage.setItem(DRAFT_ACTIVE_KEY, '1');
       window.dispatchEvent(new Event('aurora-draft-change'));
     }
+  }, []);
+
+  // Cargar tasas de combustible (bodega configurada en MaquinariaList)
+  useEffect(() => {
+    if (!fuelBodegaId) return;
+    apiFetch(`/api/maquinaria/tasas-combustible?bodegaId=${fuelBodegaId}`)
+      .then(r => r.json())
+      .then(data => setTasasCombustible(data.tasas || {}))
+      .catch(() => {});
   }, []);
 
   // Pre-fill from Aurora chat "Revisar en formulario" (passed via router state)
@@ -419,24 +432,44 @@ function RegistroHorimetro() {
     setPendingLines([]);
   };
 
+  // Construye el objeto `combustible` para una línea dada (form o pendingLine)
+  const buildCombustiblePayload = (line) => {
+    const tasa = fuelBodegaId ? (tasasCombustible[line.tractorId] ?? null) : null;
+    const ini  = parseFloat(line.horimetroInicial);
+    const fin  = parseFloat(line.horimetroFinal);
+    const horas = (!isNaN(ini) && !isNaN(fin) && fin > ini) ? parseFloat((fin - ini).toFixed(1)) : null;
+    if (!tasa?.tasaLH || !horas) return null;
+    return {
+      bodegaId:        fuelBodegaId,
+      tasaLH:          tasa.tasaLH,
+      precioUnitario:  tasa.precioUnitario,
+      litrosEstimados: parseFloat((tasa.tasaLH * horas).toFixed(2)),
+      costoEstimado:   parseFloat((tasa.tasaLH * horas * tasa.precioUnitario).toFixed(2)),
+    };
+  };
+
   const doSave = async () => {
     setSaving(true);
     try {
       if (isEditing) {
+        const combustible = buildCombustiblePayload(form);
+        const payload = { ...form, ...(combustible ? { combustible } : {}) };
         const res = await apiFetch(`/api/horimetro/${form.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error();
         showToast('Registro actualizado.');
       } else {
         const allLines = [...pendingLines, form];
         for (const line of allLines) {
+          const combustible = buildCombustiblePayload(line);
+          const payload = { ...line, ...(combustible ? { combustible } : {}) };
           const res = await apiFetch('/api/horimetro', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(line),
+            body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error();
         }
@@ -722,6 +755,17 @@ function RegistroHorimetro() {
   })();
   const errHora = !!(form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal && !form.diaSiguiente);
 
+  // ── Costo estimado de combustible ──────────────────────────────────────────
+  const tasaMaquina = form.tractorId ? (tasasCombustible[form.tractorId] ?? null) : null;
+  const horasForm   = (() => {
+    const ini = parseFloat(form.horimetroInicial);
+    const fin = parseFloat(form.horimetroFinal);
+    return (!isNaN(ini) && !isNaN(fin) && fin > ini) ? parseFloat((fin - ini).toFixed(1)) : null;
+  })();
+  const costoEstCombustible = (tasaMaquina?.tasaLH && horasForm)
+    ? parseFloat((tasaMaquina.tasaLH * horasForm * tasaMaquina.precioUnitario).toFixed(2))
+    : null;
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -861,6 +905,41 @@ function RegistroHorimetro() {
               </div>
 
             </div>
+
+            {/* Costo estimado de combustible */}
+            {fuelBodegaId && form.tractorId && (
+              <div className={`hor-fuel-strip${costoEstCombustible !== null ? ' hor-fuel-strip--ok' : ' hor-fuel-strip--na'}`}>
+                {costoEstCombustible !== null ? (
+                  <>
+                    <span className="hor-fuel-item">
+                      <span className="hor-fuel-label">Tasa</span>
+                      <span className="hor-fuel-val">{tasaMaquina.tasaLH.toFixed(2)} L/H</span>
+                    </span>
+                    <span className="hor-fuel-sep">·</span>
+                    <span className="hor-fuel-item">
+                      <span className="hor-fuel-label">Precio</span>
+                      <span className="hor-fuel-val">₡{tasaMaquina.precioUnitario.toLocaleString('es-CR', { maximumFractionDigits: 0 })}/L</span>
+                    </span>
+                    <span className="hor-fuel-sep">·</span>
+                    <span className="hor-fuel-item">
+                      <span className="hor-fuel-label">Litros est.</span>
+                      <span className="hor-fuel-val">{(tasaMaquina.tasaLH * horasForm).toFixed(1)} L</span>
+                    </span>
+                    <span className="hor-fuel-sep">·</span>
+                    <span className="hor-fuel-item hor-fuel-total">
+                      <span className="hor-fuel-label">Costo est.</span>
+                      <span className="hor-fuel-val">₡{costoEstCombustible.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</span>
+                    </span>
+                  </>
+                ) : (
+                  <span className="hor-fuel-na">
+                    {!tasaMaquina
+                      ? 'Sin datos de consumo en los últimos 30 días para este activo.'
+                      : 'Ingrese horímetro inicial y final para calcular costo de combustible.'}
+                  </span>
+                )}
+              </div>
+            )}
 
             <p className="hor-section-label">Ubicación y Labor</p>
             <div className="hor-form-grid hor-grid-2">

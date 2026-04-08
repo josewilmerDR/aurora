@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiFilter, FiSliders } from 'react-icons/fi';
+import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiFilter, FiSliders, FiDroplet } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './MaquinariaList.css';
@@ -33,9 +33,12 @@ const COLUMNS = [
   { id: 'vidaUtilHoras',         label: 'Vida Útil (h)',    filterType: 'number' },
   { id: 'horasAcumuladas',       label: 'Hrs. Acumuladas',  filterType: 'number' },
   { id: 'costoDepHora',          label: 'Costo Dep./h',     plain: true          },
+  { id: 'tasaLH',                label: 'L/H (30d)',        plain: true          },
   { id: 'fechaRevisionResidual', label: 'Rev. Residual',    filterType: 'date'   },
   { id: 'observacion',           label: 'Observación'       },
 ];
+
+const FUEL_BODEGA_KEY = 'aurora_fuel_bodegaId';
 
 function compare(a, b, field) {
   const av = a[field] ?? '';
@@ -110,6 +113,12 @@ function MaquinariaList() {
   const [toast, setToast] = useState(null);
   const [filter, setFilter] = useState('');
 
+  // ── Tasas de combustible ───────────────────────────────────────────────────
+  const [bodegas,       setBodegas]       = useState([]);
+  const [fuelBodegaId,  setFuelBodegaId]  = useState(() => localStorage.getItem(FUEL_BODEGA_KEY) || '');
+  const [tasas,         setTasas]         = useState({});       // { [maquinaId]: { tasaLH, ... } }
+  const [fuelPopover,   setFuelPopover]   = useState(false);    // selector de bodega
+
   const [colFilters,    setColFilters]    = useState({});
   const [filterPopover, setFilterPopover] = useState(null);
   const [hiddenCols,    setHiddenCols]    = useState(new Set());
@@ -126,6 +135,30 @@ function MaquinariaList() {
       .finally(() => setLoading(false));
 
   useEffect(() => { fetchItems(); }, []);
+
+  // Cargar bodegas (para el selector de bodega de combustible)
+  useEffect(() => {
+    apiFetch('/api/bodegas')
+      .then(r => r.json())
+      .then(data => setBodegas(Array.isArray(data) ? data.filter(b => b.tipo !== 'agroquimicos') : []))
+      .catch(() => {});
+  }, []);
+
+  // Cargar tasas de combustible cuando cambia la bodega seleccionada
+  useEffect(() => {
+    if (!fuelBodegaId) { setTasas({}); return; }
+    apiFetch(`/api/maquinaria/tasas-combustible?bodegaId=${fuelBodegaId}`)
+      .then(r => r.json())
+      .then(data => setTasas(data.tasas || {}))
+      .catch(() => {});
+  }, [fuelBodegaId]);
+
+  const handleFuelBodegaChange = (id) => {
+    setFuelBodegaId(id);
+    if (id) localStorage.setItem(FUEL_BODEGA_KEY, id);
+    else    localStorage.removeItem(FUEL_BODEGA_KEY);
+    setFuelPopover(false);
+  };
 
   // Restore sidebar draft badge if a cross-session draft exists
   useEffect(() => {
@@ -553,10 +586,36 @@ function MaquinariaList() {
             <table className="maq-table">
               <thead>
                 <tr onContextMenu={openColMenu}>
-                  {COLUMNS.map(col => hiddenCols.has(col.id) ? null : col.plain
-                    ? <th key={col.id}>{col.label}</th>
-                    : <SortTh key={col.id} field={col.id} filterType={col.filterType}>{col.label}</SortTh>
-                  )}
+                  {COLUMNS.map(col => {
+                    if (hiddenCols.has(col.id)) return null;
+                    if (col.id === 'tasaLH') return (
+                      <th key="tasaLH" className="maq-th-fuel">
+                        {fuelBodegaId ? (
+                          <>
+                            <span>L/H (30d)</span>
+                            <button
+                              className="maq-fuel-cfg-btn is-configured"
+                              onClick={e => { e.stopPropagation(); setFuelPopover(p => !p); }}
+                              title="Cambiar bodega de combustible"
+                            >
+                              <FiDroplet size={11} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="maq-fuel-cfg-prompt"
+                            onClick={e => { e.stopPropagation(); setFuelPopover(p => !p); }}
+                            title="Seleccionar bodega de combustible"
+                          >
+                            <FiDroplet size={12} />
+                            <span>L/H (30d)</span>
+                          </button>
+                        )}
+                      </th>
+                    );
+                    if (col.plain) return <th key={col.id}>{col.label}</th>;
+                    return <SortTh key={col.id} field={col.id} filterType={col.filterType}>{col.label}</SortTh>;
+                  })}
                   <th className="maq-th-settings">
                     <button
                       className={`maq-col-toggle-btn${hiddenCount > 0 ? ' maq-col-toggle-btn--active' : ''}`}
@@ -584,6 +643,19 @@ function MaquinariaList() {
                     {!hiddenCols.has('vidaUtilHoras')         && <td className="maq-td-num">{item.vidaUtilHoras ? `${Number(item.vidaUtilHoras).toLocaleString('es-CR')} h` : <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('horasAcumuladas')       && <td className="maq-td-num">{item.horasAcumuladas != null ? `${Number(item.horasAcumuladas).toFixed(1)} h` : <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('costoDepHora')          && <td className="maq-td-num">{calcCostoDepHora(item.valorAdquisicion, item.valorResidual, item.vidaUtilHoras) ?? <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('tasaLH') && (() => {
+                      const t = tasas[item.id];
+                      if (!fuelBodegaId) return <td key="fuel" className="maq-td-num"><span className="maq-td-empty" title="Sin bodega configurada">—</span></td>;
+                      if (!t)           return <td key="fuel" className="maq-td-num"><span className="maq-td-empty">sin mov.</span></td>;
+                      return (
+                        <td key="fuel" className="maq-td-num">
+                          {t.tasaLH !== null
+                            ? <span className="maq-fuel-badge" title={`${t.litros}L en ${t.horas}h`}>{t.tasaLH.toFixed(2)} L/H</span>
+                            : <span className="maq-td-empty" title={`${t.horas}h registradas, sin salidas de combustible`}>{t.horas}h / 0L</span>
+                          }
+                        </td>
+                      );
+                    })()}
                     {!hiddenCols.has('fechaRevisionResidual') && <td>{item.fechaRevisionResidual || <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('observacion')           && <td className="maq-td-obs">{item.observacion || <span className="maq-td-empty">—</span>}</td>}
                     <td className="maq-td-actions">
@@ -602,6 +674,39 @@ function MaquinariaList() {
         )}
       </section>
     </div>
+
+    {fuelPopover && createPortal(
+      <>
+        <div className="maq-filter-backdrop" onClick={() => setFuelPopover(false)} />
+        <div className="maq-fuel-popover">
+          <div className="maq-fuel-popover-title">
+            <FiDroplet size={13} /> Bodega de combustible
+          </div>
+          <div className="maq-fuel-popover-hint">
+            Usada para calcular L/H de los últimos 30 días.
+          </div>
+          {bodegas.length === 0 ? (
+            <p className="maq-fuel-popover-empty">No hay bodegas disponibles.</p>
+          ) : (
+            bodegas.map(b => (
+              <button
+                key={b.id}
+                className={`maq-fuel-option${fuelBodegaId === b.id ? ' is-selected' : ''}`}
+                onClick={() => handleFuelBodegaChange(b.id)}
+              >
+                {b.nombre}
+              </button>
+            ))
+          )}
+          {fuelBodegaId && (
+            <button className="maq-fuel-clear" onClick={() => handleFuelBodegaChange('')}>
+              <FiX size={11} /> Quitar bodega
+            </button>
+          )}
+        </div>
+      </>,
+      document.body
+    )}
 
     {filterPopover && createPortal(
       <>

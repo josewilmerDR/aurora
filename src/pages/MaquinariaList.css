@@ -597,3 +597,131 @@
 }
 .maq-import-ok    { color: var(--aurora-green); }
 .maq-import-error { color: var(--aurora-magenta); }
+
+/* ── Columna L/H y bodega de combustible ── */
+.maq-th-fuel {
+  white-space: nowrap;
+  position: relative;
+}
+.maq-th-fuel span {
+  vertical-align: middle;
+}
+.maq-fuel-cfg-btn {
+  margin-left: 4px;
+  background: none;
+  border: none;
+  color: rgba(230, 242, 255, 0.4);
+  cursor: pointer;
+  padding: 2px;
+  vertical-align: middle;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.maq-fuel-cfg-btn:hover,
+.maq-fuel-cfg-btn.is-configured {
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
+}
+/* Cuando no hay bodega configurada: todo el encabezado es un botón llamativo */
+.maq-fuel-cfg-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px dashed rgba(230, 242, 255, 0.25);
+  border-radius: 4px;
+  color: rgba(230, 242, 255, 0.45);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: inherit;
+  font-weight: inherit;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.maq-fuel-cfg-prompt:hover {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+.maq-fuel-badge {
+  display: inline-block;
+  background: rgba(51, 255, 153, 0.08);
+  color: var(--aurora-green);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Popover selector de bodega */
+.maq-fuel-popover {
+  position: fixed;
+  z-index: 1200;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 200px;
+  max-width: 280px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.maq-fuel-popover-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  margin-bottom: 4px;
+}
+.maq-fuel-popover-hint {
+  font-size: 0.73rem;
+  color: rgba(230, 242, 255, 0.45);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.maq-fuel-popover-empty {
+  font-size: 0.78rem;
+  color: rgba(230, 242, 255, 0.4);
+  margin: 4px 0;
+}
+.maq-fuel-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--aurora-light);
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.maq-fuel-option:hover {
+  background: rgba(255,255,255,0.05);
+}
+.maq-fuel-option.is-selected {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+}
+.maq-fuel-clear {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: rgba(230, 242, 255, 0.4);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.maq-fuel-clear:hover {
+  color: var(--aurora-magenta);
+}

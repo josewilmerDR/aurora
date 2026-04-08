@@ -5202,6 +5202,99 @@ app.delete('/api/maquinaria/:id', authenticate, async (req, res) => {
   }
 });
 
+// ── Tasas de combustible por máquina ─────────────────────────────────────────
+// GET /api/maquinaria/tasas-combustible?bodegaId=xxx&dias=30
+// Devuelve un objeto keyed por maquinaId con:
+//   { litros, horas, tasaLH, precioUnitario, costoEstimadoPorHora }
+// tasaLH = null si no hay horas registradas en el periodo.
+// precioUnitario = costo ponderado real del periodo (totalSalida/litros),
+//   o costo ponderado actual del ítem si no hubo movimientos.
+app.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) => {
+  try {
+    const { bodegaId } = req.query;
+    const dias = Math.min(Math.max(parseInt(req.query.dias) || 30, 1), 90);
+
+    const cutoff     = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
+    const cutoffDate = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const cutoffTs   = Timestamp.fromDate(cutoff);
+
+    // ── 1. Precio actual del combustible ──────────────────────────────────────
+    // costo ponderado = item.total / item.stockActual  (costo promedio móvil)
+    let precioActual = 0;
+    if (bodegaId) {
+      const bodegaCheck = await verifyOwnership('bodegas', bodegaId, req.fincaId);
+      if (!bodegaCheck.ok) return res.status(bodegaCheck.status).json({ message: bodegaCheck.message });
+
+      const itemsSnap = await db.collection('bodega_items')
+        .where('bodegaId', '==', bodegaId)
+        .get();
+      let totalCosto = 0, totalStock = 0;
+      itemsSnap.docs.forEach(d => {
+        const { stockActual = 0, total = 0 } = d.data();
+        if (stockActual > 0 && total > 0) { totalCosto += total; totalStock += stockActual; }
+      });
+      precioActual = totalStock > 0 ? totalCosto / totalStock : 0;
+    }
+
+    // ── 2. Salidas de combustible en el periodo, agrupadas por activoId ───────
+    const litrosPorActivo = {}; // { [activoId]: { litros, costo } }
+    if (bodegaId) {
+      const movsSnap = await db.collection('bodega_movimientos')
+        .where('bodegaId',  '==', bodegaId)
+        .where('tipo',      '==', 'salida')
+        .where('timestamp', '>=', cutoffTs)
+        .get();
+      movsSnap.docs.forEach(d => {
+        const { activoId, cantidad = 0, totalSalida = 0 } = d.data();
+        if (!activoId) return;
+        if (!litrosPorActivo[activoId]) litrosPorActivo[activoId] = { litros: 0, costo: 0 };
+        litrosPorActivo[activoId].litros += cantidad;
+        litrosPorActivo[activoId].costo  += totalSalida;
+      });
+    }
+
+    // ── 3. Horas de horímetro en el periodo, agrupadas por tractorId ──────────
+    const horasPorTractor = {}; // { [tractorId]: horas }
+    const horimSnap = await db.collection('horimetro')
+      .where('fincaId', '==', req.fincaId)
+      .where('fecha',   '>=', cutoffDate)
+      .get();
+    horimSnap.docs.forEach(d => {
+      const { tractorId, horimetroInicial, horimetroFinal } = d.data();
+      if (!tractorId) return;
+      const hi = parseFloat(horimetroInicial);
+      const hf = parseFloat(horimetroFinal);
+      if (!isNaN(hi) && !isNaN(hf) && hf > hi) {
+        horasPorTractor[tractorId] = (horasPorTractor[tractorId] || 0) + (hf - hi);
+      }
+    });
+
+    // ── 4. Combinar: una entrada por cada maquinaId con actividad ─────────────
+    const allIds = new Set([...Object.keys(litrosPorActivo), ...Object.keys(horasPorTractor)]);
+    const tasas = {};
+    allIds.forEach(id => {
+      const litros = litrosPorActivo[id]?.litros || 0;
+      const costo  = litrosPorActivo[id]?.costo  || 0;
+      const horas  = horasPorTractor[id] || 0;
+      const tasaLH = horas > 0 ? litros / horas : null;
+      // Precio: costo real del periodo si hubo movimientos, sino precio actual del ítem
+      const precio = litros > 0 && costo > 0 ? costo / litros : precioActual;
+      tasas[id] = {
+        litros:               parseFloat(litros.toFixed(2)),
+        horas:                parseFloat(horas.toFixed(1)),
+        tasaLH:               tasaLH !== null ? parseFloat(tasaLH.toFixed(3)) : null,
+        precioUnitario:       parseFloat(precio.toFixed(2)),
+        costoEstimadoPorHora: tasaLH !== null ? parseFloat((tasaLH * precio).toFixed(2)) : null,
+      };
+    });
+
+    res.json({ tasas, dias, bodegaId: bodegaId || null });
+  } catch (error) {
+    console.error('[tasas-combustible GET]', error);
+    res.status(500).json({ message: 'Error al calcular tasas de combustible.' });
+  }
+});
+
 // ── Aurora AI Chat ────────────────────────────────────────────────────────────
 
 // Tool: escanea imagen de siembra y extrae filas estructuradas
@@ -6569,10 +6662,27 @@ app.post('/api/horimetro', authenticate, async (req, res) => {
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
       'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+      'combustible',
     ];
     const data = pick(req.body, allowed);
     if (!data.fecha || !data.tractorId) {
       return res.status(400).json({ message: 'Fecha y tractor son obligatorios.' });
+    }
+    // Normalizar combustible: sólo guardar si tiene al menos costoEstimado
+    if (data.combustible && typeof data.combustible === 'object') {
+      const c = data.combustible;
+      data.combustible = {
+        bodegaId:        c.bodegaId        || null,
+        tasaLH:          c.tasaLH          ?? null,
+        precioUnitario:  c.precioUnitario  ?? null,
+        litrosEstimados: c.litrosEstimados ?? null,
+        costoEstimado:   c.costoEstimado   ?? null,
+        costoReal:       null,
+        ajuste:          null,
+        cierrePeriodo:   null,
+      };
+    } else {
+      delete data.combustible;
     }
     const ref = await db.collection('horimetro').add({
       ...data,
@@ -6596,8 +6706,26 @@ app.put('/api/horimetro/:id', authenticate, async (req, res) => {
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
       'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+      'combustible',
     ];
     const data = pick(req.body, allowed);
+    // En edición: actualizar sólo los campos estimados, preservar costoReal/ajuste/cierrePeriodo
+    if (data.combustible && typeof data.combustible === 'object') {
+      const existing = (await db.collection('horimetro').doc(id).get()).data()?.combustible || {};
+      const c = data.combustible;
+      data.combustible = {
+        bodegaId:        c.bodegaId        || existing.bodegaId        || null,
+        tasaLH:          c.tasaLH          ?? existing.tasaLH          ?? null,
+        precioUnitario:  c.precioUnitario  ?? existing.precioUnitario  ?? null,
+        litrosEstimados: c.litrosEstimados ?? existing.litrosEstimados ?? null,
+        costoEstimado:   c.costoEstimado   ?? existing.costoEstimado   ?? null,
+        costoReal:       existing.costoReal       ?? null,
+        ajuste:          existing.ajuste          ?? null,
+        cierrePeriodo:   existing.cierrePeriodo   ?? null,
+      };
+    } else {
+      delete data.combustible;
+    }
     await db.collection('horimetro').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
     res.status(200).json({ id, ...data });
   } catch (error) {
@@ -6616,6 +6744,190 @@ app.delete('/api/horimetro/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar horímetro:', error);
     res.status(500).json({ message: 'Error al eliminar el registro.' });
+  }
+});
+
+// ── Cierre mensual de combustible ─────────────────────────────────────────────
+// GET /api/cierres-combustible — lista los cierres de la finca
+app.get('/api/cierres-combustible', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('cierres_combustible')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('creadoEn', 'desc')
+      .limit(36)
+      .get();
+    res.json(snap.docs.map(d => ({
+      id: d.id, ...d.data(),
+      creadoEn: d.data().creadoEn?.toDate?.()?.toISOString(),
+    })));
+  } catch (err) {
+    console.error('[cierres-combustible GET]', err);
+    res.status(500).json({ message: 'Error al obtener cierres.' });
+  }
+});
+
+// POST /api/cierres-combustible
+// body: { periodo: "2026-03", bodegaId, preview?: true }
+// preview=true  → devuelve el cálculo sin guardar
+// preview=false → guarda el cierre y actualiza los horímetros afectados
+app.post('/api/cierres-combustible', authenticate, async (req, res) => {
+  try {
+    const { periodo, bodegaId, preview = false } = req.body;
+    if (!periodo || !/^\d{4}-\d{2}$/.test(periodo))
+      return res.status(400).json({ message: 'El periodo debe tener formato YYYY-MM.' });
+    if (!bodegaId)
+      return res.status(400).json({ message: 'bodegaId es requerido.' });
+
+    const bodegaCheck = await verifyOwnership('bodegas', bodegaId, req.fincaId);
+    if (!bodegaCheck.ok) return res.status(bodegaCheck.status).json({ message: bodegaCheck.message });
+
+    // Bloquear doble cierre para el mismo periodo + bodega
+    if (!preview) {
+      const dup = await db.collection('cierres_combustible')
+        .where('fincaId',  '==', req.fincaId)
+        .where('periodo',  '==', periodo)
+        .where('bodegaId', '==', bodegaId)
+        .where('estado',   '==', 'cerrado')
+        .limit(1).get();
+      if (!dup.empty)
+        return res.status(409).json({ message: `Ya existe un cierre para ${periodo}. Reabrirlo antes de volver a cerrar.` });
+    }
+
+    // Rango de fechas del periodo
+    const [year, month] = periodo.split('-').map(Number);
+    const periodoStart  = new Date(year, month - 1, 1);
+    const periodoEnd    = new Date(year, month, 1);          // primer día del mes siguiente
+    const fechaIni      = `${periodo}-01`;
+    const lastDay       = new Date(year, month, 0).getDate();
+    const fechaFin      = `${periodo}-${String(lastDay).padStart(2, '0')}`;
+
+    // ── 1. Horímetros del periodo ──────────────────────────────────────────
+    const horimSnap = await db.collection('horimetro')
+      .where('fincaId', '==', req.fincaId)
+      .where('fecha',   '>=', fechaIni)
+      .where('fecha',   '<=', fechaFin)
+      .get();
+    const horimetros = horimSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!horimetros.length)
+      return res.status(400).json({ message: `No hay registros de horímetro para ${periodo}.` });
+
+    // ── 2. Salidas de combustible del periodo, agrupadas por activoId ──────
+    const movsSnap = await db.collection('bodega_movimientos')
+      .where('bodegaId',  '==', bodegaId)
+      .where('tipo',      '==', 'salida')
+      .where('timestamp', '>=', Timestamp.fromDate(periodoStart))
+      .where('timestamp', '<',  Timestamp.fromDate(periodoEnd))
+      .get();
+    const salidasPorActivo = {};
+    movsSnap.docs.forEach(d => {
+      const { activoId, cantidad = 0, totalSalida = 0 } = d.data();
+      if (!activoId) return;
+      if (!salidasPorActivo[activoId]) salidasPorActivo[activoId] = { litros: 0, costo: 0 };
+      salidasPorActivo[activoId].litros += cantidad;
+      salidasPorActivo[activoId].costo  += totalSalida;
+    });
+
+    // ── 3. Agrupar horímetros por tractorId ────────────────────────────────
+    const horimPorTractor = {};
+    horimetros.forEach(h => {
+      if (!h.tractorId) return;
+      if (!horimPorTractor[h.tractorId]) horimPorTractor[h.tractorId] = [];
+      horimPorTractor[h.tractorId].push(h);
+    });
+
+    // ── 4. Calcular cierre por máquina ─────────────────────────────────────
+    const maquinas  = [];
+    const ajustes   = []; // { horimetroId, costoReal, ajuste }
+
+    const tractorIds = new Set([...Object.keys(salidasPorActivo), ...Object.keys(horimPorTractor)]);
+    for (const tractorId of tractorIds) {
+      const sal      = salidasPorActivo[tractorId] || { litros: 0, costo: 0 };
+      const registros = horimPorTractor[tractorId] || [];
+
+      let totalHoras = 0, totalEstimado = 0;
+      const detalles = [];
+      registros.forEach(h => {
+        const ini   = parseFloat(h.horimetroInicial);
+        const fin   = parseFloat(h.horimetroFinal);
+        const horas = (!isNaN(ini) && !isNaN(fin) && fin > ini) ? parseFloat((fin - ini).toFixed(1)) : 0;
+        const cEst  = h.combustible?.costoEstimado ?? 0;
+        totalHoras    += horas;
+        totalEstimado += cEst;
+        detalles.push({
+          horimetroId: h.id,
+          fecha:       h.fecha,
+          loteId:      h.loteId    || '',
+          loteNombre:  h.loteNombre || '',
+          labor:       h.labor      || '',
+          horas,
+          costoEstimado: parseFloat(cEst.toFixed(2)),
+        });
+      });
+
+      const costoReal  = parseFloat(sal.costo.toFixed(2));
+      const litros     = parseFloat(sal.litros.toFixed(2));
+      const variacion  = parseFloat((costoReal - totalEstimado).toFixed(2));
+      const tasaReal   = totalHoras > 0 ? parseFloat((litros / totalHoras).toFixed(3)) : null;
+      const precioMed  = litros > 0 ? parseFloat((costoReal / litros).toFixed(2)) : 0;
+
+      // Distribuir costoReal proporcional a horas
+      const detallesConReal = detalles.map(d => {
+        const real  = totalHoras > 0
+          ? parseFloat((costoReal * (d.horas / totalHoras)).toFixed(2))
+          : 0;
+        const ajuste = parseFloat((real - d.costoEstimado).toFixed(2));
+        const pct    = totalHoras > 0 ? parseFloat(((d.horas / totalHoras) * 100).toFixed(1)) : 0;
+        return { ...d, costoReal: real, ajuste, pct };
+      });
+
+      maquinas.push({
+        maquinaId:     tractorId,
+        maquinaNombre: registros[0]?.tractorNombre || tractorId,
+        litros,
+        totalHoras:    parseFloat(totalHoras.toFixed(1)),
+        tasaReal,
+        precioMedio:   precioMed,
+        costoReal,
+        costoEstimado: parseFloat(totalEstimado.toFixed(2)),
+        variacion,
+        detalles:      detallesConReal,
+      });
+      ajustes.push(...detallesConReal);
+    }
+
+    if (preview) return res.json({ preview: true, periodo, bodegaId, maquinas });
+
+    // ── 5. Guardar documento de cierre ────────────────────────────────────
+    const bodegaNombre = (await db.collection('bodegas').doc(bodegaId).get()).data()?.nombre || '';
+    const cierreData = {
+      fincaId: req.fincaId, periodo, bodegaId, bodegaNombre,
+      maquinas, estado: 'cerrado',
+      creadoEn: Timestamp.now(), creadoPor: req.uid,
+    };
+    const cierreRef = await db.collection('cierres_combustible').add(cierreData);
+
+    // ── 6. Actualizar horímetros con costoReal, ajuste, cierrePeriodo ─────
+    const BATCH = 500;
+    for (let i = 0; i < ajustes.length; i += BATCH) {
+      const batch = db.batch();
+      ajustes.slice(i, i + BATCH).forEach(a => {
+        batch.update(db.collection('horimetro').doc(a.horimetroId), {
+          'combustible.costoReal':     a.costoReal,
+          'combustible.ajuste':        a.ajuste,
+          'combustible.cierrePeriodo': periodo,
+          actualizadoEn: Timestamp.now(),
+        });
+      });
+      await batch.commit();
+    }
+
+    res.status(201).json({
+      id: cierreRef.id, ...cierreData,
+      creadoEn: cierreData.creadoEn.toDate().toISOString(),
+    });
+  } catch (err) {
+    console.error('[cierres-combustible POST]', err);
+    res.status(500).json({ message: 'Error al procesar el cierre.' });
   }
 });
 
