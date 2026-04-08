@@ -9,8 +9,16 @@
 
 .hor-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
+}
+
+.hor-page-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  margin: 0;
 }
 
 /* ── Form card ── */
@@ -135,6 +143,11 @@
 }
 .hor-field input:focus,
 .hor-field select:focus { border-color: var(--aurora-green); }
+
+.hor-field select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .hor-form-actions {
   display: flex;
@@ -1221,4 +1234,36 @@
 .hor-col-menu-reset:hover {
   opacity: 1;
   border-color: var(--aurora-magenta);
+}
+
+/* ── Combobox operario ───────────────────────────────────────────────────────── */
+.hor-combobox-dropdown {
+  position: absolute;
+  max-width: 320px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-green);
+  border-radius: 6px;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  z-index: 200;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.hor-combobox-item {
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hor-combobox-item:hover,
+.hor-combobox-item--active {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
 }
