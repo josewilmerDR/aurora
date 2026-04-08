@@ -1540,7 +1540,7 @@ app.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return res.status(check.status).json({ message: check.message });
-    const { nombre, unidad, stockActual, stockMinimo, descripcion } = req.body;
+    const { nombre, unidad, stockActual, stockMinimo, descripcion, total } = req.body;
     if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre del ítem es requerido.' });
     const item = {
       bodegaId: req.params.id,
@@ -1550,6 +1550,7 @@ app.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
       stockActual: parseFloat(stockActual) || 0,
       stockMinimo: parseFloat(stockMinimo) || 0,
       descripcion: descripcion?.trim() || '',
+      total: total !== undefined && total !== '' ? parseFloat(total) : null,
       activo: true,
       creadoEn: Timestamp.now(),
     };
@@ -1569,10 +1570,11 @@ app.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
     if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
       return res.status(404).json({ message: 'Ítem no encontrado.' });
     }
-    const allowed = ['nombre', 'unidad', 'stockMinimo', 'descripcion', 'activo'];
+    const allowed = ['nombre', 'unidad', 'stockMinimo', 'descripcion', 'activo', 'total'];
     const updates = pick(req.body, allowed);
     if (updates.nombre) updates.nombre = updates.nombre.trim();
     if (updates.stockMinimo !== undefined) updates.stockMinimo = parseFloat(updates.stockMinimo) || 0;
+    if (updates.total !== undefined) updates.total = updates.total !== '' && updates.total !== null ? parseFloat(updates.total) : null;
     await itemDoc.ref.update(updates);
     return res.json({ id: req.params.itemId, ...itemDoc.data(), ...updates });
   } catch (err) {
@@ -1627,7 +1629,11 @@ app.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return res.status(check.status).json({ message: check.message });
 
-    const { itemId, tipo, cantidad, nota } = req.body;
+    const { itemId, tipo, cantidad, nota,
+            loteId, loteNombre, laborId, laborNombre,
+            activoId, activoNombre, operarioId, operarioNombre,
+            factura, oc, total,
+            imageBase64, mediaType } = req.body;
     if (!itemId || !tipo || !cantidad) {
       return res.status(400).json({ message: 'itemId, tipo y cantidad son requeridos.' });
     }
@@ -1653,6 +1659,30 @@ app.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
 
     // Transacción atómica: actualizar stock + registrar movimiento
     const movRef = db.collection('bodega_movimientos').doc();
+    // ── Subir factura adjunta a Firebase Storage (si se proveyó) ────────────
+    let facturaUrl = null;
+    if (imageBase64) {
+      try {
+        const { randomUUID } = require('crypto');
+        const bucket = admin.storage().bucket();
+        const ext = (mediaType || '').includes('png') ? 'png' : (mediaType || '').includes('pdf') ? 'pdf' : 'jpg';
+        const fileName = `bodega_movimientos/${req.params.id}_${Date.now()}.${ext}`;
+        const file = bucket.file(fileName);
+        const token = randomUUID();
+        await file.save(Buffer.from(imageBase64, 'base64'), {
+          contentType: mediaType || 'image/jpeg',
+          metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+        });
+        const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+        const encodedPath = encodeURIComponent(fileName);
+        facturaUrl = isEmulator
+          ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
+          : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+      } catch (storageErr) {
+        console.error('Storage upload failed (bodega movimiento):', storageErr.message);
+      }
+    }
+
     const movData = {
       bodegaId: req.params.id,
       fincaId: req.fincaId,
@@ -1663,13 +1693,42 @@ app.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
       stockAntes,
       stockDespues,
       nota: nota?.trim() || '',
+      loteId: loteId || '',
+      loteNombre: loteNombre || '',
+      laborId: laborId || '',
+      laborNombre: laborNombre || '',
+      activoId: activoId || '',
+      activoNombre: activoNombre || '',
+      operarioId: operarioId || '',
+      operarioNombre: operarioNombre || '',
+      factura: factura?.trim() || '',
+      oc: oc?.trim() || '',
+      total: total !== undefined && total !== '' ? parseFloat(total) : null,
+      facturaUrl,
       usuarioId: req.uid,
       timestamp: Timestamp.now(),
     };
 
+    const itemUpdateData = { stockActual: FieldValue.increment(delta) };
+    let totalSalida = null;
+    if (tipo === 'entrada' && total !== undefined && total !== '') {
+      const totalNum = parseFloat(total);
+      if (!isNaN(totalNum) && totalNum > 0) {
+        itemUpdateData.total = FieldValue.increment(totalNum);
+      }
+    } else if (tipo === 'salida') {
+      const itemTotal = itemDoc.data().total;
+      if (itemTotal != null && itemTotal > 0 && stockAntes > 0) {
+        const valorSalida = (itemTotal / stockAntes) * cantNum;
+        totalSalida = valorSalida;
+        itemUpdateData.total = FieldValue.increment(-valorSalida);
+      }
+    }
+    movData.totalSalida = totalSalida;
+
     const batch = db.batch();
     batch.set(movRef, movData);
-    batch.update(itemDoc.ref, { stockActual: FieldValue.increment(delta) });
+    batch.update(itemDoc.ref, itemUpdateData);
     await batch.commit();
 
     return res.status(201).json({ id: movRef.id, ...movData, timestamp: movData.timestamp.toDate().toISOString() });
