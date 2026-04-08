@@ -6282,7 +6282,7 @@ app.get('/api/horimetro', authenticate, async (req, res) => {
 app.post('/api/horimetro', authenticate, async (req, res) => {
   try {
     const allowed = [
-      'fecha', 'tractorId', 'tractorNombre', 'implemento',
+      'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
       'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
@@ -6309,7 +6309,7 @@ app.put('/api/horimetro/:id', authenticate, async (req, res) => {
     const ownership = await verifyOwnership('horimetro', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const allowed = [
-      'fecha', 'tractorId', 'tractorNombre', 'implemento',
+      'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
       'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',

@@ -15,6 +15,8 @@ const COLUMNS = [
   { id: 'horimetroInicial', label: 'Horímetro Inicial', filterType: 'number' },
   { id: 'horimetroFinal',   label: 'Horímetro Final',   filterType: 'number' },
   { id: 'horas',            label: 'Horas',             plain: true           },
+  { id: 'montoDepTractor',  label: 'Monto Dep. Tractor',  filterType: 'number' },
+  { id: 'montoDepImplemento', label: 'Monto Dep. Implemento', filterType: 'number' },
   { id: 'loteNombre',       label: 'Lote'                                     },
   { id: 'grupo',            label: 'Grupo'                                    },
   { id: 'bloque',           label: 'Bloque',            plain: true           },
@@ -50,11 +52,21 @@ function horasUsadas(rec) {
   return null;
 }
 
+function costoDepHoraNum(asset) {
+  if (!asset) return null;
+  const a = parseFloat(asset.valorAdquisicion);
+  const r = parseFloat(asset.valorResidual);
+  const h = parseFloat(asset.vidaUtilHoras);
+  if (!isNaN(a) && !isNaN(r) && !isNaN(h) && h > 0) return (a - r) / h;
+  return null;
+}
+
 function HistorialHorimetros() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
 
-  const [records, setRecords] = useState([]);
+  const [records,    setRecords]    = useState([]);
+  const [maquinaria, setMaquinaria] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -66,9 +78,14 @@ function HistorialHorimetros() {
   const [sorts, setSorts] = useState([{ field: 'fecha', dir: 'desc' }]);
 
   const fetchRecords = () =>
-    apiFetch('/api/horimetro')
-      .then(r => r.json())
-      .then(data => setRecords(Array.isArray(data) ? data : []))
+    Promise.all([
+      apiFetch('/api/horimetro').then(r => r.json()),
+      apiFetch('/api/maquinaria').then(r => r.json()),
+    ])
+      .then(([horimetros, maq]) => {
+        setRecords(Array.isArray(horimetros) ? horimetros : []);
+        setMaquinaria(Array.isArray(maq) ? maq : []);
+      })
       .catch(() => showToast('Error al cargar los registros.', 'error'))
       .finally(() => setLoading(false));
 
@@ -90,6 +107,25 @@ function HistorialHorimetros() {
     }
   };
 
+  // ── Enrich records with computed depreciation ─────────────────────────────
+  const enrichedRecords = useMemo(() => {
+    const maqById = Object.fromEntries(maquinaria.map(m => [m.id, m]));
+    return records.map(rec => {
+      const hrs    = horasUsadas(rec);
+      const hrsNum = hrs != null ? parseFloat(hrs) : null;
+
+      const costoTractor     = costoDepHoraNum(maqById[rec.tractorId]);
+      const montoDepTractor  = hrsNum != null && costoTractor != null
+        ? parseFloat((hrsNum * costoTractor).toFixed(2)) : null;
+
+      const costoImplemento    = costoDepHoraNum(maqById[rec.implementoId]);
+      const montoDepImplemento = hrsNum != null && costoImplemento != null
+        ? parseFloat((hrsNum * costoImplemento).toFixed(2)) : null;
+
+      return { ...rec, montoDepTractor, montoDepImplemento };
+    });
+  }, [records, maquinaria]);
+
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const activeCol = Object.entries(colFilters).filter(([, f]) => {
@@ -97,7 +133,7 @@ function HistorialHorimetros() {
       if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
       return !!f.value?.trim();
     });
-    return records.filter(r => {
+    return enrichedRecords.filter(r => {
       for (const [field, filter] of activeCol) {
         const cell = r[field];
         if (filter.type === 'range') {
@@ -264,6 +300,8 @@ function HistorialHorimetros() {
                           {!hiddenCols.has('horimetroInicial') && <td className="hor-td-num">{rec.horimetroInicial !== '' && rec.horimetroInicial != null ? rec.horimetroInicial : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('horimetroFinal')   && <td className="hor-td-num">{rec.horimetroFinal   !== '' && rec.horimetroFinal   != null ? rec.horimetroFinal   : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('horas')            && <td className={`hor-td-horas${hrs ? '' : ' hor-td-empty'}`}>{hrs ?? '—'}</td>}
+                          {!hiddenCols.has('montoDepTractor')  && <td className="hor-td-num">{rec.montoDepTractor != null ? rec.montoDepTractor.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
+                          {!hiddenCols.has('montoDepImplemento') && <td className="hor-td-num">{rec.montoDepImplemento != null ? rec.montoDepImplemento.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('loteNombre')       && <td>{rec.loteNombre || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('grupo')            && <td>{rec.grupo      || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('bloque')           && <td>{rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || <span className="hor-td-empty">—</span>)}</td>}

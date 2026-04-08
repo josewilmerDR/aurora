@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   fecha: new Date().toISOString().slice(0, 10),
   tractorId: '',
   tractorNombre: '',
+  implementoId: '',
   implemento: '',
   horimetroInicial: '',
   horimetroFinal: '',
@@ -351,6 +352,10 @@ function RegistroHorimetro() {
           next.horimetroFinal   = String(autoLastFinal);
         }
       }
+      if (name === 'implementoId') {
+        const t = tractores.find(x => x.id === value);
+        next.implemento = t ? t.descripcion : '';
+      }
       if (name === 'horimetroInicial') {
         if (!prev.horimetroFinal || prev.horimetroFinal === prev.horimetroInicial) {
           next.horimetroFinal = value;
@@ -527,6 +532,7 @@ function RegistroHorimetro() {
       fecha:           prev.fecha,
       tractorId:       prev.tractorId,
       tractorNombre:   prev.tractorNombre,
+      implementoId:    prev.implementoId,
       implemento:      prev.implemento,
       operarioId:      prev.operarioId,
       operarioNombre:  prev.operarioNombre,
@@ -649,6 +655,10 @@ function RegistroHorimetro() {
       if (field === 'tractorId') {
         const t = tractoresLista.find(x => x.id === value);
         row.tractorNombre = t ? t.descripcion : '';
+      }
+      if (field === 'implementoId') {
+        const t = implementosLista.find(x => x.id === value);
+        row.implemento = t ? t.descripcion : '';
       }
       if (field === 'loteId') {
         const l = lotes.find(x => x.id === value);
@@ -823,9 +833,9 @@ function RegistroHorimetro() {
 
               <div className="hor-field">
                 <label>Implemento</label>
-                <select name="implemento" value={form.implemento} onChange={handleChange}>
+                <select name="implementoId" value={form.implementoId} onChange={handleChange}>
                   <option value="">— Sin implemento —</option>
-                  {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
+                  {implementosLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                 </select>
               </div>
 
@@ -1097,9 +1107,9 @@ function RegistroHorimetro() {
                         </select>
                       </td>
                       <td>
-                        <select className="hor-batch-select" value={row.implemento || ''} onChange={e => updateScanRow(idx, 'implemento', e.target.value)}>
+                        <select className="hor-batch-select" value={row.implementoId || ''} onChange={e => updateScanRow(idx, 'implementoId', e.target.value)}>
                           <option value="">—</option>
-                          {implementosLista.map(t => <option key={t.id} value={t.descripcion}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
+                          {implementosLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
                         </select>
                       </td>
                       <td>
