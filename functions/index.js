@@ -4843,7 +4843,8 @@ app.get('/api/maquinaria', authenticate, async (req, res) => {
 
 app.post('/api/maquinaria', authenticate, async (req, res) => {
   try {
-    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion, capacidad } = req.body;
+    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion,
+            capacidad, valorAdquisicion, valorResidual, vidaUtilHoras, fechaRevisionResidual } = req.body;
     if (!descripcion || !descripcion.trim()) {
       return res.status(400).json({ message: 'La descripción es obligatoria.' });
     }
@@ -4856,7 +4857,11 @@ app.post('/api/maquinaria', authenticate, async (req, res) => {
       observacion: observacion?.trim() || '',
       fincaId: req.fincaId,
     };
-    if (capacidad !== undefined && capacidad !== '') data.capacidad = Number(capacidad);
+    if (capacidad          !== undefined && capacidad          !== '') data.capacidad          = Number(capacidad);
+    if (valorAdquisicion   !== undefined && valorAdquisicion   !== '') data.valorAdquisicion   = Number(valorAdquisicion);
+    if (valorResidual      !== undefined && valorResidual      !== '') data.valorResidual      = Number(valorResidual);
+    if (vidaUtilHoras      !== undefined && vidaUtilHoras      !== '') data.vidaUtilHoras      = Number(vidaUtilHoras);
+    if (fechaRevisionResidual !== undefined && fechaRevisionResidual !== '') data.fechaRevisionResidual = fechaRevisionResidual.trim();
     // Upsert: if idMaquina is provided and already exists for this finca, update it
     if (data.idMaquina) {
       const existing = await db.collection('maquinaria')
@@ -4880,7 +4885,8 @@ app.post('/api/maquinaria', authenticate, async (req, res) => {
 
 app.put('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
-    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion, capacidad } = req.body;
+    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion,
+            capacidad, valorAdquisicion, valorResidual, vidaUtilHoras, fechaRevisionResidual } = req.body;
     if (!descripcion || !descripcion.trim()) {
       return res.status(400).json({ message: 'La descripción es obligatoria.' });
     }
@@ -4891,7 +4897,11 @@ app.put('/api/maquinaria/:id', authenticate, async (req, res) => {
       tipo: tipo?.trim() || '',
       ubicacion: ubicacion?.trim() || '',
       observacion: observacion?.trim() || '',
-      capacidad: (capacidad !== undefined && capacidad !== '') ? Number(capacidad) : null,
+      capacidad:          (capacidad          !== undefined && capacidad          !== '') ? Number(capacidad)        : null,
+      valorAdquisicion:   (valorAdquisicion   !== undefined && valorAdquisicion   !== '') ? Number(valorAdquisicion) : null,
+      valorResidual:      (valorResidual      !== undefined && valorResidual      !== '') ? Number(valorResidual)    : null,
+      vidaUtilHoras:      (vidaUtilHoras      !== undefined && vidaUtilHoras      !== '') ? Number(vidaUtilHoras)    : null,
+      fechaRevisionResidual: fechaRevisionResidual?.trim() || '',
     };
     await db.collection('maquinaria').doc(req.params.id).update(data);
     res.json({ message: 'Actualizado.' });
@@ -6272,7 +6282,7 @@ app.get('/api/horimetro', authenticate, async (req, res) => {
 app.post('/api/horimetro', authenticate, async (req, res) => {
   try {
     const allowed = [
-      'fecha', 'tractorId', 'tractorNombre', 'implemento',
+      'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
       'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
@@ -6299,7 +6309,7 @@ app.put('/api/horimetro/:id', authenticate, async (req, res) => {
     const ownership = await verifyOwnership('horimetro', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const allowed = [
-      'fecha', 'tractorId', 'tractorNombre', 'implemento',
+      'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
       'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
