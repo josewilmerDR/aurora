@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
+import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiFilter, FiSliders } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './MaquinariaList.css';
@@ -18,6 +19,42 @@ const TIPOS = [
 ];
 
 const TIPO_APLICACIONES = 'MAQUINARIA DE APLICACIONES';
+
+const COLUMNS = [
+  { id: 'idMaquina',             label: 'ID'                },
+  { id: 'codigo',                label: 'CC'                },
+  { id: 'descripcion',           label: 'Descripción'       },
+  { id: 'tipo',                  label: 'Tipo'              },
+  { id: 'ubicacion',             label: 'Ubicación'         },
+  { id: 'capacidad',             label: 'Cap. litros',      filterType: 'number' },
+  { id: 'valorAdquisicion',      label: 'Val. Adq.',        filterType: 'number' },
+  { id: 'valorResidual',         label: 'Val. Residual',    filterType: 'number' },
+  { id: 'residualPct',           label: 'Res. %',           plain: true          },
+  { id: 'vidaUtilHoras',         label: 'Vida Útil (h)',    filterType: 'number' },
+  { id: 'horasAcumuladas',       label: 'Hrs. Acumuladas',  filterType: 'number' },
+  { id: 'costoDepHora',          label: 'Costo Dep./h',     plain: true          },
+  { id: 'fechaRevisionResidual', label: 'Rev. Residual',    filterType: 'date'   },
+  { id: 'observacion',           label: 'Observación'       },
+];
+
+function compare(a, b, field) {
+  const av = a[field] ?? '';
+  const bv = b[field] ?? '';
+  if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+  return String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
+}
+
+function multiSort(records, sorts) {
+  const active = sorts.filter(s => s.field);
+  if (!active.length) return [...records];
+  return [...records].sort((a, b) => {
+    for (const s of active) {
+      const r = compare(a, b, s.field);
+      if (r !== 0) return s.dir === 'desc' ? -r : r;
+    }
+    return 0;
+  });
+}
 
 function calcResidualPct(adq, res) {
   const a = parseFloat(adq), r = parseFloat(res);
@@ -43,19 +80,41 @@ const EMPTY_FORM = {
   valorAdquisicion: '',
   valorResidual: '',
   vidaUtilHoras: '',
+  horasAcumuladas: '',
   fechaRevisionResidual: '',
 };
+
+const DRAFT_KEY        = 'aurora_maquinaria_draft';
+const DRAFT_ACTIVE_KEY = 'aurora_draftActive_maquinaria-activo';
+const _saveDraft  = (form, isEditing) => {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, isEditing }));
+  sessionStorage.setItem(DRAFT_ACTIVE_KEY, '1');
+  window.dispatchEvent(new Event('aurora-draft-change'));
+};
+const _clearDraft = () => {
+  localStorage.removeItem(DRAFT_KEY);
+  sessionStorage.removeItem(DRAFT_ACTIVE_KEY);
+  window.dispatchEvent(new Event('aurora-draft-change'));
+};
+const _loadDraft  = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch { return null; } };
 
 function MaquinariaList() {
   const apiFetch = useApiFetch();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const _draft = _loadDraft();
+  const [form, setForm]         = useState(_draft?.form      ?? EMPTY_FORM);
+  const [isEditing, setIsEditing] = useState(_draft?.isEditing ?? false);
+  const [showForm, setShowForm]   = useState(!!_draft);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [filter, setFilter] = useState('');
+
+  const [colFilters,    setColFilters]    = useState({});
+  const [filterPopover, setFilterPopover] = useState(null);
+  const [hiddenCols,    setHiddenCols]    = useState(new Set());
+  const [colMenu,       setColMenu]       = useState(null);
+  const [sorts, setSorts] = useState([{ field: 'descripcion', dir: 'asc' }]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -68,24 +127,36 @@ function MaquinariaList() {
 
   useEffect(() => { fetchItems(); }, []);
 
+  // Restore sidebar draft badge if a cross-session draft exists
+  useEffect(() => {
+    if (_loadDraft()) {
+      sessionStorage.setItem(DRAFT_ACTIVE_KEY, '1');
+      window.dispatchEvent(new Event('aurora-draft-change'));
+    }
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm(prev => {
+      const next = { ...prev, [name]: value };
+      _saveDraft(next, isEditing);
+      return next;
+    });
   };
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
     setIsEditing(false);
     setShowForm(false);
+    _clearDraft();
   };
 
   const handleEdit = (item) => {
-    setForm({ ...EMPTY_FORM, ...item });
+    const editForm = { ...EMPTY_FORM, ...item };
+    setForm(editForm);
     setIsEditing(true);
     setShowForm(true);
+    _saveDraft(editForm, true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -93,6 +164,7 @@ function MaquinariaList() {
     setForm(EMPTY_FORM);
     setIsEditing(false);
     setShowForm(true);
+    _clearDraft();
   };
 
   const handleDelete = async (id, descripcion) => {
@@ -133,16 +205,127 @@ function MaquinariaList() {
     }
   };
 
-  const q = filter.toLowerCase();
-  const filtered = items.filter(item =>
-    !q ||
-    item.descripcion?.toLowerCase().includes(q) ||
-    item.tipo?.toLowerCase().includes(q) ||
-    item.idMaquina?.toLowerCase().includes(q) ||
-    item.codigo?.toLowerCase().includes(q)
+  // ── Filtering ──────────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const q = filter.toLowerCase();
+    const activeCol = Object.entries(colFilters).filter(([, f]) => {
+      if (!f) return false;
+      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
+      return !!f.value?.trim();
+    });
+    return items.filter(item => {
+      // global search bar
+      if (q && !(
+        item.descripcion?.toLowerCase().includes(q) ||
+        item.tipo?.toLowerCase().includes(q) ||
+        item.idMaquina?.toLowerCase().includes(q) ||
+        item.codigo?.toLowerCase().includes(q)
+      )) return false;
+      // column filters
+      for (const [field, fil] of activeCol) {
+        const cell = item[field];
+        if (fil.type === 'range') {
+          if (cell == null || cell === '') return false;
+          const num = Number(cell);
+          if (!isNaN(num)) {
+            if (fil.from !== '' && fil.from != null && num < Number(fil.from)) return false;
+            if (fil.to   !== '' && fil.to   != null && num > Number(fil.to))   return false;
+          } else {
+            const str = String(cell);
+            if (fil.from && str < fil.from) return false;
+            if (fil.to   && str > fil.to)   return false;
+          }
+        } else {
+          if (cell == null) return false;
+          if (!String(cell).toLowerCase().includes(fil.value.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+  }, [items, filter, colFilters]);
+
+  const sorted = useMemo(() => multiSort(filtered, sorts), [filtered, sorts]);
+
+  const handleThSort = (field) => {
+    setSorts(prev => {
+      const next = [...prev];
+      next[0] = next[0].field === field
+        ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' }
+        : { field, dir: 'asc' };
+      return next;
+    });
+  };
+
+  const openFilter = (e, field, filterType = 'text') => {
+    e.stopPropagation();
+    if (filterPopover?.field === field) { setFilterPopover(null); return; }
+    const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+    const rect = th.getBoundingClientRect();
+    setFilterPopover({ field, x: rect.left, y: rect.bottom + 4, filterType });
+  };
+
+  const openColMenu = (e) => {
+    e.preventDefault();
+    setColMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const toggleCol = (id) => {
+    setHiddenCols(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleColBtnClick = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
+  };
+
+  const setColFilter = (field, filterObj) => {
+    const empty = !filterObj ||
+      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
+    setColFilters(prev => empty
+      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+      : { ...prev, [field]: filterObj }
+    );
+  };
+
+  const hiddenCount = hiddenCols.size;
+  const hasActiveColFilters = Object.values(colFilters).some(f =>
+    f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())
   );
 
+  // ── Sort+filter column header ──────────────────────────────────────────────
+  const SortTh = ({ field, children, filterType = 'text' }) => {
+    const active = sorts[0].field === field;
+    const dir    = active ? sorts[0].dir : null;
+    const f      = colFilters[field];
+    const hasFilter = f
+      ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim())
+      : false;
+    return (
+      <th
+        className={`maq-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        onClick={() => handleThSort(field)}
+      >
+        {children}
+        <span className="maq-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span
+          className={`maq-th-funnel${hasFilter ? ' is-active' : ''}`}
+          onClick={e => openFilter(e, field, filterType)}
+          title="Filtrar columna"
+        >
+          <FiFilter size={10} />
+        </span>
+      </th>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="maq-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -263,6 +446,17 @@ function MaquinariaList() {
               </div>
 
               <div className="maq-field maq-field--computed">
+                <label>Hrs. Acumuladas</label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={form.horasAcumuladas !== '' && form.horasAcumuladas != null
+                    ? `${Number(form.horasAcumuladas).toFixed(1)} h`
+                    : '—'}
+                />
+              </div>
+
+              <div className="maq-field maq-field--computed">
                 <label>Costo Dep. / Hora</label>
                 <input
                   readOnly
@@ -334,11 +528,17 @@ function MaquinariaList() {
               <FiPlus size={13} />
             </button>
           )}
+          {hasActiveColFilters && (
+            <button className="maq-clear-col-filters" onClick={() => setColFilters({})}>
+              <FiX size={11} />
+              Limpiar filtros de columna
+            </button>
+          )}
         </div>
 
         {loading ? (
           <p className="maq-empty">Cargando…</p>
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="maq-empty-state">
             <FiTool size={32} />
             <p>{items.length === 0 ? 'No hay activos registrados.' : 'Sin resultados para la búsqueda.'}</p>
@@ -352,45 +552,40 @@ function MaquinariaList() {
           <div className="maq-table-wrap">
             <table className="maq-table">
               <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>CC</th>
-                  <th>Descripción</th>
-                  <th>Tipo</th>
-                  <th>Ubicación</th>
-                  <th>Cap. litros</th>
-                  <th>Val. Adq.</th>
-                  <th>Val. Residual</th>
-                  <th>Res. %</th>
-                  <th>Vida Útil (h)</th>
-                  <th>Hrs. Acumuladas</th>
-                  <th>Costo Dep./h</th>
-                  <th>Rev. Residual</th>
-                  <th>Observación</th>
-                  <th></th>
+                <tr onContextMenu={openColMenu}>
+                  {COLUMNS.map(col => hiddenCols.has(col.id) ? null : col.plain
+                    ? <th key={col.id}>{col.label}</th>
+                    : <SortTh key={col.id} field={col.id} filterType={col.filterType}>{col.label}</SortTh>
+                  )}
+                  <th className="maq-th-settings">
+                    <button
+                      className={`maq-col-toggle-btn${hiddenCount > 0 ? ' maq-col-toggle-btn--active' : ''}`}
+                      onClick={handleColBtnClick}
+                      title="Personalizar columnas visibles"
+                    >
+                      <FiSliders size={12} />
+                      {hiddenCount > 0 && <span className="maq-col-hidden-badge">{hiddenCount}</span>}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(item => (
+                {sorted.map(item => (
                   <tr key={item.id}>
-                    <td className="maq-td-code">{item.idMaquina || '—'}</td>
-                    <td className="maq-td-code">{item.codigo || '—'}</td>
-                    <td className="maq-td-desc">{item.descripcion}</td>
-                    <td>
-                      {item.tipo
-                        ? <span className="maq-tipo-badge">{item.tipo}</span>
-                        : <span className="maq-td-empty">—</span>}
-                    </td>
-                    <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>
-                    <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-num">{item.valorAdquisicion ? `$${Number(item.valorAdquisicion).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-num">{item.valorResidual ? `$${Number(item.valorResidual).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-num">{calcResidualPct(item.valorAdquisicion, item.valorResidual) ?? <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-num">{item.vidaUtilHoras ? `${Number(item.vidaUtilHoras).toLocaleString('es-CR')} h` : <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-num">{item.horasAcumuladas != null ? `${Number(item.horasAcumuladas).toFixed(1)} h` : <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-num">{calcCostoDepHora(item.valorAdquisicion, item.valorResidual, item.vidaUtilHoras) ?? <span className="maq-td-empty">—</span>}</td>
-                    <td>{item.fechaRevisionResidual || <span className="maq-td-empty">—</span>}</td>
-                    <td className="maq-td-obs">{item.observacion || <span className="maq-td-empty">—</span>}</td>
+                    {!hiddenCols.has('idMaquina')             && <td className="maq-td-code">{item.idMaquina || '—'}</td>}
+                    {!hiddenCols.has('codigo')                && <td className="maq-td-code">{item.codigo || '—'}</td>}
+                    {!hiddenCols.has('descripcion')           && <td className="maq-td-desc">{item.descripcion}</td>}
+                    {!hiddenCols.has('tipo')                  && <td>{item.tipo ? <span className="maq-tipo-badge">{item.tipo}</span> : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('ubicacion')             && <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('capacidad')             && <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('valorAdquisicion')      && <td className="maq-td-num">{item.valorAdquisicion ? `$${Number(item.valorAdquisicion).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('valorResidual')         && <td className="maq-td-num">{item.valorResidual ? `$${Number(item.valorResidual).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('residualPct')           && <td className="maq-td-num">{calcResidualPct(item.valorAdquisicion, item.valorResidual) ?? <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('vidaUtilHoras')         && <td className="maq-td-num">{item.vidaUtilHoras ? `${Number(item.vidaUtilHoras).toLocaleString('es-CR')} h` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('horasAcumuladas')       && <td className="maq-td-num">{item.horasAcumuladas != null ? `${Number(item.horasAcumuladas).toFixed(1)} h` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('costoDepHora')          && <td className="maq-td-num">{calcCostoDepHora(item.valorAdquisicion, item.valorResidual, item.vidaUtilHoras) ?? <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('fechaRevisionResidual') && <td>{item.fechaRevisionResidual || <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('observacion')           && <td className="maq-td-obs">{item.observacion || <span className="maq-td-empty">—</span>}</td>}
                     <td className="maq-td-actions">
                       <button className="maq-btn-icon" onClick={() => handleEdit(item)} title="Editar">
                         <FiEdit size={13} />
@@ -407,6 +602,101 @@ function MaquinariaList() {
         )}
       </section>
     </div>
+
+    {filterPopover && createPortal(
+      <>
+        <div className="maq-filter-backdrop" onClick={() => setFilterPopover(null)} />
+        <div
+          className={`maq-filter-popover${filterPopover.filterType !== 'text' ? ' maq-filter-popover--range' : ''}`}
+          style={{ left: filterPopover.x, top: filterPopover.y }}
+        >
+          <FiFilter size={13} className="maq-filter-popover-icon" />
+          {filterPopover.filterType !== 'text' ? (
+            <>
+              <div className="maq-filter-range">
+                <div className="maq-filter-range-row">
+                  <span className="maq-filter-range-label">De</span>
+                  <input
+                    autoFocus
+                    type={filterPopover.filterType}
+                    className="maq-filter-input"
+                    value={colFilters[filterPopover.field]?.from || ''}
+                    onChange={e => setColFilter(filterPopover.field, {
+                      type: 'range',
+                      from: e.target.value,
+                      to: colFilters[filterPopover.field]?.to || '',
+                    })}
+                    onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
+                  />
+                </div>
+                <div className="maq-filter-range-row">
+                  <span className="maq-filter-range-label">A</span>
+                  <input
+                    type={filterPopover.filterType}
+                    className="maq-filter-input"
+                    value={colFilters[filterPopover.field]?.to || ''}
+                    onChange={e => setColFilter(filterPopover.field, {
+                      type: 'range',
+                      from: colFilters[filterPopover.field]?.from || '',
+                      to: e.target.value,
+                    })}
+                    onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
+                  />
+                </div>
+              </div>
+              {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
+                <button className="maq-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, null); setFilterPopover(null); }}>
+                  <FiX size={13} />
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <input
+                autoFocus
+                className="maq-filter-input"
+                placeholder="Filtrar…"
+                value={colFilters[filterPopover.field]?.value || ''}
+                onChange={e => setColFilter(filterPopover.field, { type: 'text', value: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
+              />
+              {colFilters[filterPopover.field]?.value && (
+                <button className="maq-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, null); setFilterPopover(null); }}>
+                  <FiX size={13} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </>,
+      document.body
+    )}
+
+    {colMenu && createPortal(
+      <>
+        <div className="maq-col-menu-backdrop" onClick={() => setColMenu(null)} />
+        <div className="maq-col-menu" style={{ left: colMenu.x, top: colMenu.y }}>
+          <div className="maq-col-menu-title">Columnas visibles</div>
+          {COLUMNS.map(col => (
+            <button
+              key={col.id}
+              className={`maq-col-menu-item${hiddenCols.has(col.id) ? ' is-hidden' : ''}`}
+              onClick={() => toggleCol(col.id)}
+            >
+              <span className="maq-col-menu-check" />
+              {col.label}
+            </button>
+          ))}
+          {hiddenCols.size > 0 && (
+            <button className="maq-col-menu-reset" onClick={() => { setHiddenCols(new Set()); setColMenu(null); }}>
+              Mostrar todas
+            </button>
+          )}
+        </div>
+      </>,
+      document.body
+    )}
+    </>
   );
 }
 

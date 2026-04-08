@@ -103,7 +103,7 @@ export const MODULES = [
     items: [
       { label: 'Configuración Inicial', to: '/admin/config-inicial', icon: FiSettings, minRole: 'administrador' },
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador', draftKey: 'user-mgmt' },
-      { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor' },
+      { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor', draftKey: 'maquinaria-activo' },
       { label: 'Lista de Labores', to: '/admin/labores', icon: FiList, minRole: 'supervisor' },
       { label: 'Unidades de Medida', to: '/admin/unidades-medida', icon: FiPackage, minRole: 'supervisor' },
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
