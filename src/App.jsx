@@ -43,6 +43,8 @@ import Calibraciones from './pages/Calibraciones';
 import LaborList from './pages/LaborList';
 import UnidadesMedida from './pages/UnidadesMedida';
 import Horimetro from './pages/Horimetro';
+import RegistroHorimetro from './pages/RegistroHorimetro';
+import HistorialHorimetros from './pages/HistorialHorimetros';
 import GrupoManagement from './pages/GrupoManagement';
 import CedulasAplicacion from './pages/CedulasAplicacion';
 import HistorialAplicaciones from './pages/HistorialAplicaciones';
@@ -126,6 +128,8 @@ const routeTitles = {
   '/cosecha/proyeccion': 'Proyección de Cosecha',
   '/cosecha/historial': 'Historial de Cosecha',
   '/operaciones/horimetro': 'Horímetros',
+  '/operaciones/horimetro/registro': 'Registro de Horímetro',
+  '/operaciones/horimetro/historial': 'Historial de Horímetros',
 };
 
 // --- Route guards ---
@@ -419,6 +423,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<TaskTracking />} />
             <Route path="/operaciones/horimetro" element={<Horimetro />} />
+            <Route path="/operaciones/horimetro/registro" element={<RegistroHorimetro />} />
+            <Route path="/operaciones/horimetro/historial" element={<HistorialHorimetros />} />
             <Route path="/config/cuenta" element={<ConfigCuenta />} />
             <Route path="/mi-perfil" element={<MiPerfil />} />
             {/* encargado+ */}

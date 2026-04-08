@@ -41,7 +41,12 @@ export const MODULES = [
           { label: 'Historial de Cosecha',  to: '/cosecha/historial',  icon: FiList,     minRole: 'encargado' },
         ]
       },
-      { label: 'Horímetros', to: '/operaciones/horimetro', icon: FiClock, minRole: 'trabajador', draftKey: 'horimetro-registro' },
+      {
+        label: 'Horímetros', icon: FiClock, minRole: 'trabajador', children: [
+          { label: 'Registro de Horímetro',   to: '/operaciones/horimetro/registro',  icon: FiClock,  minRole: 'trabajador', draftKey: 'horimetro-registro' },
+          { label: 'Historial de Horímetros', to: '/operaciones/horimetro/historial', icon: FiList,   minRole: 'trabajador' },
+        ]
+      },
       { label: 'Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado', draftKey: 'lote-nuevo' },
       { label: 'Grupos', to: '/grupos', icon: FiLayers, minRole: 'encargado' },
     ],
