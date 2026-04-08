@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import {
@@ -116,6 +116,123 @@ const COLUMNS = [
   { id: 'operarioNombre',   label: 'Operario'                                 },
 ];
 
+// ── Combobox operario ─────────────────────────────────────────────────────────
+function OperarioCombobox({ value, onChange, usuarios }) {
+  const nameFor = useCallback((id) => usuarios.find(u => u.id === id)?.nombre || '', [usuarios]);
+
+  const [text, setText]       = useState(() => nameFor(value));
+  const [open, setOpen]       = useState(false);
+  const [hi,   setHi]         = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef              = useRef(null);
+  const listRef               = useRef(null);
+  const userTyping            = useRef(false);
+
+  useEffect(() => {
+    if (userTyping.current) { userTyping.current = false; return; }
+    setText(nameFor(value));
+  }, [value, nameFor]);
+
+  const filtered = usuarios.filter(u =>
+    !text || u.nombre.toLowerCase().includes(text.toLowerCase())
+  );
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setHi(0);
+  };
+
+  const selectOption = (u) => {
+    setText(u.nombre);
+    setOpen(false);
+    setHi(0);
+    onChange(u.id);
+  };
+
+  const handleTextChange = (e) => {
+    userTyping.current = true;
+    setText(e.target.value);
+    openDropdown();
+    if (value) onChange('');
+  };
+
+  const handleBlur = () => {
+    setTimeout(() => {
+      if (document.activeElement !== inputRef.current) {
+        setOpen(false);
+        setText(nameFor(value));
+      }
+    }, 150);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        value={text}
+        autoComplete="off"
+        placeholder="— Seleccionar —"
+        onChange={handleTextChange}
+        onFocus={openDropdown}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+      />
+      {open && filtered.length > 0 && createPortal(
+        <ul
+          ref={listRef}
+          className="hor-combobox-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          {filtered.map((u, i) => (
+            <li
+              key={u.id}
+              className={`hor-combobox-item${i === hi ? ' hor-combobox-item--active' : ''}`}
+              onMouseDown={() => selectOption(u)}
+              onMouseEnter={() => setHi(i)}
+            >
+              {u.nombre}
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </>
+  );
+}
+
 function Horimetro() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -186,7 +303,7 @@ function Horimetro() {
     ]).then(([maq, lotesData, usersData, gruposData, siembrasData, laboresData]) => {
       setTractores(Array.isArray(maq) ? maq : []);
       setLotes(Array.isArray(lotesData) ? lotesData : []);
-      setUsuarios(Array.isArray(usersData) ? usersData : []);
+      setUsuarios(Array.isArray(usersData) ? usersData.filter(u => u.empleadoPlanilla) : []);
       setGrupos(Array.isArray(gruposData) ? gruposData : []);
       setSiembras(Array.isArray(siembrasData) ? siembrasData : []);
       setLabores(Array.isArray(laboresData) ? laboresData : []);
@@ -305,6 +422,15 @@ function Horimetro() {
         const u = usuarios.find(x => x.id === value);
         next.operarioNombre = u ? u.nombre : '';
       }
+      saveDraft(next, isEditing);
+      return next;
+    });
+  };
+
+  const handleOperarioChange = (id) => {
+    setForm(prev => {
+      const u = usuarios.find(x => x.id === id);
+      const next = { ...prev, operarioId: id, operarioNombre: u ? u.nombre : '' };
       saveDraft(next, isEditing);
       return next;
     });
@@ -795,10 +921,10 @@ function Horimetro() {
               {!isEditing && (
                 <button
                   type="button"
-                  className="btn btn-secondary hor-scan-header-btn"
+                  className="btn btn-ia hor-scan-header-btn"
                   onClick={() => { resetForm(); setScanStep('upload'); setScanImage(null); setScanError(null); }}
                 >
-                  <FiCamera size={14} /> Escanear Formulario
+                  <FiCpu size={14} /> Leer con IA
                 </button>
               )}
               <button className="hor-close-btn" onClick={resetForm} title="Cancelar">
@@ -817,10 +943,11 @@ function Horimetro() {
                 </div>
                 <div className="hor-field">
                   <label>Operario</label>
-                  <select name="operarioId" value={form.operarioId} onChange={handleChange}>
-                    <option value="">— Seleccionar —</option>
-                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                  </select>
+                  <OperarioCombobox
+                    value={form.operarioId}
+                    onChange={handleOperarioChange}
+                    usuarios={usuarios}
+                  />
                 </div>
               </div>
             </div>
@@ -905,8 +1032,8 @@ function Horimetro() {
 
               <div className="hor-field">
                 <label>Grupo</label>
-                <select name="grupo" value={form.grupo} onChange={handleChange}>
-                  <option value="">— Sin grupo —</option>
+                <select name="grupo" value={form.grupo} onChange={handleChange} disabled={!form.loteId}>
+                  <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
                   {gruposDelLote.map(g => (
                     <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
                   ))}
@@ -1201,8 +1328,9 @@ function Horimetro() {
         </div>
       ) : records.length > 0 ? (
         <div className="hor-toolbar">
+          <h1 className="hor-page-title">Horímetros</h1>
           <button className="btn btn-primary" onClick={handleNew}>
-            <FiPlus size={15} /> Nuevo
+            <FiPlus size={15} /> Nuevo Horímetro
           </button>
         </div>
       ) : null}
@@ -1210,9 +1338,6 @@ function Horimetro() {
       {/* ── Historical table ── */}
       <section className="hor-section">
         {records.length > 0 && <div className="hor-section-header">
-          <FiClock size={14} />
-          <span>Historial de Registros</span>
-          {sorted.length > 0 && <span className="hor-count">{sorted.length}</span>}
           {Object.values(colFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
             <button className="historial-clear-col-filters" onClick={() => setColFilters({})}>
               <FiX size={11} />

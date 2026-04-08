@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
@@ -683,6 +683,172 @@ function LotesGruposCard() {
   );
 }
 
+// ── Plantilla Empleados (carga masiva) ───────────────────────────────────────
+const EMP_HEADERS = [
+  'Nombre Completo', 'Email', 'Teléfono', 'Rol',
+  'Cédula', 'Puesto', 'Departamento', 'Fecha de Ingreso', 'Tipo de Contrato',
+  'Salario Base', 'Precio/Hora', 'Dirección', 'Contacto Emergencia', 'Teléfono Emergencia', 'Notas',
+];
+const EMP_SAMPLE = [
+  'Juan Pérez', 'juan@finca.com', '+506 8888-0000', 'trabajador',
+  '1-1234-5678', 'Operario de campo', 'Producción', '2024-01-15', 'permanente',
+  '500000', '3000', 'San José, Costa Rica', 'María Pérez', '+506 7777-8888', 'Muy puntual',
+];
+
+function EmpleadosCard() {
+  const apiFetch = useApiFetch();
+  const navigate = useNavigate();
+  const [count, setCount] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [showNavPrompt, setShowNavPrompt] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const refreshCount = () =>
+    apiFetch('/api/users')
+      .then(r => r.json())
+      .then(data => setCount(Array.isArray(data) ? data.filter(u => u.empleadoPlanilla).length : null))
+      .catch(() => {});
+
+  useEffect(() => { refreshCount(); }, []);
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([EMP_HEADERS, EMP_SAMPLE]);
+    ws['!cols'] = EMP_HEADERS.map(() => ({ wch: 22 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Empleados');
+    XLSX.writeFile(wb, 'plantilla_empleados.xlsx');
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer());
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+      const parsed = rows
+        .map(row => ({
+          nombre:              String(row['Nombre Completo']       || '').trim(),
+          email:               String(row['Email']                 || '').trim(),
+          telefono:            String(row['Teléfono']              || '').trim(),
+          rol:                 normalizeRol(row['Rol']),
+          cedula:              String(row['Cédula']                || '').trim(),
+          puesto:              String(row['Puesto']                || '').trim(),
+          departamento:        String(row['Departamento']          || '').trim(),
+          fechaIngreso:        toDateStr(row['Fecha de Ingreso'])  || '',
+          tipoContrato:        String(row['Tipo de Contrato']      || 'permanente').trim().toLowerCase() || 'permanente',
+          salarioBase:         row['Salario Base']                 || '',
+          precioHora:          row['Precio/Hora']                  || '',
+          direccion:           String(row['Dirección']             || '').trim(),
+          contactoEmergencia:  String(row['Contacto Emergencia']   || '').trim(),
+          telefonoEmergencia:  String(row['Teléfono Emergencia']   || '').trim(),
+          notas:               String(row['Notas']                 || '').trim(),
+        }))
+        .filter(r => r.nombre && r.email);
+
+      if (!parsed.length) {
+        setImportResult({ error: true });
+        return;
+      }
+
+      let creados = 0, actualizados = 0, errores = 0;
+      for (const item of parsed) {
+        const { cedula, puesto, departamento, fechaIngreso, tipoContrato, salarioBase,
+                precioHora, direccion, contactoEmergencia, telefonoEmergencia, notas, ...userData } = item;
+        try {
+          const res = await apiFetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...userData, empleadoPlanilla: true }),
+          });
+          if (!res.ok) { errores++; continue; }
+          const { id, merged } = await res.json();
+          merged ? actualizados++ : creados++;
+          await apiFetch(`/api/hr/fichas/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedula, puesto, departamento, fechaIngreso, tipoContrato,
+                                   salarioBase, precioHora, direccion, contactoEmergencia,
+                                   telefonoEmergencia, notas }),
+          }).catch(() => {});
+        } catch { errores++; }
+      }
+
+      const parts = [
+        creados      > 0 && `${creados} creado(s)`,
+        actualizados > 0 && `${actualizados} actualizado(s)`,
+        errores      > 0 && `${errores} con error`,
+      ].filter(Boolean).join(' · ');
+      setImportResult({ ok: true, msg: parts });
+      setShowNavPrompt(creados + actualizados > 0);
+      refreshCount();
+    } catch {
+      setImportResult({ error: true });
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="ci-card">
+      <div className="ci-card-header">
+        <span className="ci-card-icon"><FiUserPlus size={18} /></span>
+        <span className="ci-card-nombre">Empleados (Planilla)</span>
+        {count !== null && <span className="ci-card-count">{count}</span>}
+        <Link to="/hr/ficha" className="ci-card-link" title="Ir a Ficha del Trabajador">
+          <FiExternalLink size={13} />
+        </Link>
+      </div>
+      <p className="ci-card-desc">
+        Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso.
+      </p>
+      <div className="ci-import-row">
+        <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
+          <FiDownload size={13} /> Plantilla
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+        >
+          <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          onChange={handleImport}
+        />
+      </div>
+      {importResult && (
+        <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
+          {importResult.error
+            ? '⚠ No se pudo leer el archivo. Usa la plantilla.'
+            : `✓ ${importResult.msg}`}
+        </p>
+      )}
+      {showNavPrompt && (
+        <div className="ci-nav-prompt">
+          <span>¿Ir a <strong>Ficha del Trabajador</strong> para revisar los datos?</span>
+          <div className="ci-nav-prompt-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/hr/ficha')}>
+              <FiArrowRight size={13} /> Ir ahora
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowNavPrompt(false)}>
+              <FiX size={13} /> No, continuar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 function ConfiguracionInicial() {
   const [toast, setToast] = useState(null);
@@ -705,6 +871,7 @@ function ConfiguracionInicial() {
           <EntidadCard key={entidad.key} entidad={entidad} />
         ))}
         <LotesGruposCard />
+        <EmpleadosCard />
       </div>
     </div>
   );
