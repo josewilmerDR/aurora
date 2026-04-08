@@ -1284,3 +1284,52 @@
   background: rgba(51, 255, 153, 0.12);
   color: var(--aurora-green);
 }
+
+/* ── Strip de costo estimado de combustible ── */
+.hor-fuel-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+.hor-fuel-strip--ok {
+  background: rgba(51, 255, 153, 0.06);
+  border: 1px solid rgba(51, 255, 153, 0.18);
+}
+.hor-fuel-strip--na {
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed rgba(230, 242, 255, 0.12);
+}
+.hor-fuel-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.hor-fuel-label {
+  font-size: 0.68rem;
+  color: rgba(230, 242, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.hor-fuel-val {
+  color: var(--aurora-light);
+  font-variant-numeric: tabular-nums;
+}
+.hor-fuel-total .hor-fuel-val {
+  color: var(--aurora-green);
+  font-weight: 600;
+}
+.hor-fuel-sep {
+  color: rgba(230, 242, 255, 0.2);
+  align-self: center;
+  margin-top: 8px;
+}
+.hor-fuel-na {
+  color: rgba(230, 242, 255, 0.35);
+  font-size: 0.76rem;
+  font-style: italic;
+}

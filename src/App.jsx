@@ -50,6 +50,7 @@ import CedulasAplicacion from './pages/CedulasAplicacion';
 import HistorialAplicaciones from './pages/HistorialAplicaciones';
 import CedulaViewer from './pages/CedulaViewer';
 import BodegasAdmin from './pages/BodegasAdmin';
+import CierreCombustible from './pages/CierreCombustible';
 import BodegaGenerica from './pages/BodegaGenerica';
 import Siembra from './pages/Siembra';
 import SiembraMateriales from './pages/SiembraMateriales';
@@ -478,6 +479,7 @@ function App() {
             <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
+            <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />
             <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parametros /></RoleRoute>} />
           </Route>
         </Routes>

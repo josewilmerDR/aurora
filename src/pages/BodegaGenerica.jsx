@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   FiBox, FiTool, FiTruck, FiDroplet, FiPackage,
   FiPlus, FiEdit2, FiTrash2, FiArrowUp, FiArrowDown,
-  FiX, FiAlertTriangle, FiList, FiArchive,
+  FiX, FiAlertTriangle, FiList, FiArchive, FiPaperclip,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
@@ -27,8 +27,19 @@ const fmtDate = (iso) => {
   });
 };
 
-const EMPTY_ITEM = { nombre: '', unidad: '', stockActual: '', stockMinimo: '', descripcion: '' };
-const EMPTY_MOV  = { itemId: '', tipo: 'entrada', cantidad: '', nota: '' };
+const EMPTY_ITEM     = { nombre: '', unidad: '', stockActual: '', stockMinimo: '', descripcion: '', total: '' };
+const EMPTY_MOV      = { itemId: '', tipo: 'salida',  cantidad: '', nota: '', loteId: '', laborId: '', activoId: '', operarioId: '' };
+const EMPTY_ENTRADA  = { itemId: '', tipo: 'entrada', cantidad: '', factura: '', oc: '', total: '' };
+
+const readFileAsBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    resolve({ base64: dataUrl.split(',')[1], mediaType: file.type });
+  };
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
 
 function BodegaGenerica() {
   const { bodegaId } = useParams();
@@ -40,6 +51,13 @@ function BodegaGenerica() {
   const [movs,     setMovs]     = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [tab,      setTab]      = useState('existencias');
+
+  // Datos para selects del formulario de movimientos
+  const [lotes,      setLotes]      = useState([]);
+  const [usuarios,   setUsuarios]   = useState([]);
+  const [fichas,     setFichas]     = useState([]);
+  const [maquinaria, setMaquinaria] = useState([]);
+  const [labores,    setLabores]    = useState([]);
 
   // Modals
   const [itemModal,  setItemModal]  = useState(null);  // null | {mode:'create'|'edit', data}
@@ -56,12 +74,22 @@ function BodegaGenerica() {
     Promise.all([
       apiFetch('/api/bodegas').then(r => r.json()),
       apiFetch(`/api/bodegas/${bodegaId}/items`).then(r => r.json()),
+      apiFetch('/api/lotes').then(r => r.json()),
+      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/hr/fichas').then(r => r.json()),
+      apiFetch('/api/maquinaria').then(r => r.json()),
+      apiFetch('/api/labores').then(r => r.json()),
     ])
-      .then(([bodegas, itemsData]) => {
+      .then(([bodegas, itemsData, lotesData, usuariosData, fichasData, maquinariaData, laboresData]) => {
         const b = bodegas.find(x => x.id === bodegaId);
         if (!b || b.tipo === 'agroquimicos') { navigate('/'); return; }
         setBodega(b);
         setItems(itemsData);
+        setLotes(Array.isArray(lotesData) ? lotesData : []);
+        setUsuarios(Array.isArray(usuariosData) ? usuariosData : []);
+        setFichas(Array.isArray(fichasData) ? fichasData : []);
+        setMaquinaria(Array.isArray(maquinariaData) ? maquinariaData : []);
+        setLabores(Array.isArray(laboresData) ? laboresData : []);
       })
       .catch(() => showToast('Error al cargar datos.', 'error'))
       .finally(() => setLoading(false));
@@ -119,11 +147,51 @@ function BodegaGenerica() {
   };
 
   // ── Movimientos ───────────────────────────────────────────────────────────
-  const [movForm, setMovForm] = useState(EMPTY_MOV);
+  const [movForm,     setMovForm]     = useState(EMPTY_MOV);
+  const [entradaForm, setEntradaForm] = useState(EMPTY_ENTRADA);
+  const [facturaFile, setFacturaFile] = useState(null);
 
   const openMovModal = (itemId, tipo) => {
-    setMovForm({ ...EMPTY_MOV, itemId, tipo });
+    if (tipo === 'entrada') {
+      setEntradaForm({ ...EMPTY_ENTRADA, itemId });
+      setFacturaFile(null);
+    } else {
+      setMovForm({ ...EMPTY_MOV, itemId });
+    }
     setMovModal({ itemId, tipo });
+  };
+
+  const handleSaveEntrada = async () => {
+    if (!entradaForm.cantidad || parseFloat(entradaForm.cantidad) <= 0) {
+      showToast('La cantidad debe ser mayor a cero.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = { ...entradaForm };
+      if (facturaFile) {
+        const { base64, mediaType } = await readFileAsBase64(facturaFile);
+        payload.imageBase64 = base64;
+        payload.mediaType   = mediaType;
+      }
+      const res = await apiFetch(`/api/bodegas/${bodegaId}/movimientos`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(err.message, 'error');
+        return;
+      }
+      showToast('Entrada registrada.');
+      setMovModal(null);
+      fetchAll();
+      if (tab === 'movimientos') fetchMovs();
+    } catch {
+      showToast('Error de conexión.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveMov = async () => {
@@ -131,11 +199,31 @@ function BodegaGenerica() {
       showToast('La cantidad debe ser mayor a cero.', 'error');
       return;
     }
+    if (!movForm.activoId) {
+      showToast('El campo Activo es obligatorio.', 'error');
+      return;
+    }
+    if (!movForm.operarioId) {
+      showToast('El campo Operario es obligatorio.', 'error');
+      return;
+    }
+    // Resolver nombres para guardar junto con los IDs
+    const loteSeleccionado    = lotes.find(l => l.id === movForm.loteId);
+    const laborSeleccionada   = labores.find(l => l.id === movForm.laborId);
+    const activoSeleccionado  = maquinaria.find(m => m.id === movForm.activoId);
+    const operarioSeleccionado = usuarios.find(u => u.id === movForm.operarioId);
+    const payload = {
+      ...movForm,
+      loteNombre:    loteSeleccionado?.nombreLote || '',
+      laborNombre:   laborSeleccionada ? `${laborSeleccionada.codigo ? laborSeleccionada.codigo + ' - ' : ''}${laborSeleccionada.descripcion}` : '',
+      activoNombre:  activoSeleccionado?.descripcion || '',
+      operarioNombre: operarioSeleccionado?.nombre || '',
+    };
     setSaving(true);
     try {
       const res = await apiFetch(`/api/bodegas/${bodegaId}/movimientos`, {
         method: 'POST',
-        body: JSON.stringify(movForm),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -156,6 +244,14 @@ function BodegaGenerica() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const activeItems = useMemo(() => items.filter(i => i.activo !== false), [items]);
   const lowStock    = useMemo(() => activeItems.filter(i => i.stockActual <= i.stockMinimo && i.stockMinimo > 0), [activeItems]);
+
+  // Empleados = usuarios que tienen ficha registrada, ordenados por nombre
+  const empleados = useMemo(() => {
+    const fichaIds = new Set(fichas.map(f => f.userId));
+    return usuarios
+      .filter(u => fichaIds.has(u.id))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [fichas, usuarios]);
 
   if (loading) return <div className="lm-loading">Cargando bodega...</div>;
   if (!bodega) return null;
@@ -215,6 +311,8 @@ function BodegaGenerica() {
                   <th>Unidad</th>
                   <th className="text-right">Stock actual</th>
                   <th className="text-right">Stock mínimo</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Precio unitario</th>
                   <th></th>
                 </tr>
               </thead>
@@ -233,6 +331,12 @@ function BodegaGenerica() {
                         {low && <FiAlertTriangle size={12} className="bg-warn-icon" />}
                       </td>
                       <td className="text-right">{fmt(item.stockMinimo)}</td>
+                      <td className="text-right">{item.total != null && item.total !== '' ? fmt(item.total) : '—'}</td>
+                      <td className="text-right">
+                        {item.total != null && item.total !== '' && item.stockActual > 0
+                          ? fmt(item.total / item.stockActual)
+                          : '—'}
+                      </td>
                       <td>
                         <div className="bg-row-actions">
                           <button className="bg-btn-mov entrada" onClick={() => openMovModal(item.id, 'entrada')} title="Registrar entrada">
@@ -276,6 +380,14 @@ function BodegaGenerica() {
                   <th className="text-right">Cantidad</th>
                   <th className="text-right">Stock anterior</th>
                   <th className="text-right">Stock resultante</th>
+                  <th>Factura</th>
+                  <th>OC</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Total salida</th>
+                  <th>Activo</th>
+                  <th>Operario</th>
+                  <th>Lote</th>
+                  <th>Labor</th>
                   <th>Nota</th>
                 </tr>
               </thead>
@@ -293,6 +405,18 @@ function BodegaGenerica() {
                     <td className="text-right">{fmt(m.cantidad)}</td>
                     <td className="text-right">{fmt(m.stockAntes)}</td>
                     <td className="text-right">{fmt(m.stockDespues)}</td>
+                    <td className="bg-nota">
+                      {m.facturaUrl
+                        ? <a href={m.facturaUrl} target="_blank" rel="noopener noreferrer" className="bg-link">{m.factura || 'Ver'}</a>
+                        : (m.factura || '—')}
+                    </td>
+                    <td className="bg-nota">{m.oc || '—'}</td>
+                    <td className="text-right bg-nota">{m.total != null && m.total !== '' ? fmt(m.total) : '—'}</td>
+                    <td className="text-right bg-nota">{m.totalSalida != null ? fmt(m.totalSalida) : '—'}</td>
+                    <td className="bg-nota">{m.activoNombre || '—'}</td>
+                    <td className="bg-nota">{m.operarioNombre || '—'}</td>
+                    <td className="bg-nota">{m.loteNombre || '—'}</td>
+                    <td className="bg-nota">{m.laborNombre || '—'}</td>
                     <td className="bg-nota">{m.nota || '—'}</td>
                   </tr>
                 ))}
@@ -354,6 +478,16 @@ function BodegaGenerica() {
                   />
                 </>
               )}
+              <label className="lm-label">Total (valor inventario)</label>
+              <input
+                className="lm-input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={itemModal.data.total}
+                onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, total: e.target.value } }))}
+                placeholder="0.00"
+              />
               <label className="lm-label">Descripción (opcional)</label>
               <input
                 className="lm-input"
@@ -372,34 +506,115 @@ function BodegaGenerica() {
         </div>
       )}
 
-      {/* ── Modal Movimiento ── */}
-      {movModal && (
+      {/* ── Modal Entrada ── */}
+      {movModal?.tipo === 'entrada' && (
         <div className="lm-modal-backdrop" onClick={() => setMovModal(null)}>
           <div className="lm-modal lm-modal--sm" onClick={e => e.stopPropagation()}>
             <div className="lm-modal-header">
               <h3>
-                {movForm.tipo === 'entrada' ? 'Registrar Entrada' : 'Registrar Salida'}
+                <FiArrowDown size={16} /> Registrar Entrada
                 {itemForMov && <span className="bg-modal-item"> — {itemForMov.nombre}</span>}
               </h3>
               <button className="lm-modal-close" onClick={() => setMovModal(null)}><FiX size={18} /></button>
             </div>
             <div className="lm-modal-body">
-              <div className="bg-tipo-toggle">
-                <button
-                  className={`bg-tipo-btn${movForm.tipo === 'entrada' ? ' active entrada' : ''}`}
-                  onClick={() => setMovForm(f => ({ ...f, tipo: 'entrada' }))}
-                  type="button"
-                >
-                  <FiArrowDown size={15} /> Entrada
-                </button>
-                <button
-                  className={`bg-tipo-btn${movForm.tipo === 'salida' ? ' active salida' : ''}`}
-                  onClick={() => setMovForm(f => ({ ...f, tipo: 'salida' }))}
-                  type="button"
-                >
-                  <FiArrowUp size={15} /> Salida
-                </button>
+              <div className="bg-form-row">
+                <div>
+                  <label className="lm-label">Factura</label>
+                  <input
+                    className="lm-input"
+                    value={entradaForm.factura}
+                    onChange={e => setEntradaForm(f => ({ ...f, factura: e.target.value }))}
+                    placeholder="Nº de factura"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="lm-label">OC</label>
+                  <input
+                    className="lm-input"
+                    value={entradaForm.oc}
+                    onChange={e => setEntradaForm(f => ({ ...f, oc: e.target.value }))}
+                    placeholder="Orden de compra"
+                  />
+                </div>
               </div>
+              <div className="bg-form-row">
+                <div>
+                  <label className="lm-label">
+                    Cantidad{itemForMov?.unidad ? ` (${itemForMov.unidad})` : ''} *
+                  </label>
+                  <input
+                    className="lm-input"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={entradaForm.cantidad}
+                    onChange={e => setEntradaForm(f => ({ ...f, cantidad: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="lm-label">Total</label>
+                  <input
+                    className="lm-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={entradaForm.total}
+                    onChange={e => setEntradaForm(f => ({ ...f, total: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              {itemForMov && (
+                <p className="bg-stock-hint">
+                  Stock actual: <strong>{fmt(itemForMov.stockActual)} {itemForMov.unidad}</strong>
+                </p>
+              )}
+              <label className="lm-label">Adjuntar factura</label>
+              <label className="bg-file-label">
+                <FiPaperclip size={15} />
+                {facturaFile ? facturaFile.name : 'Seleccionar archivo…'}
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={e => setFacturaFile(e.target.files[0] || null)}
+                />
+              </label>
+              {facturaFile && (
+                <button
+                  className="bg-file-clear"
+                  type="button"
+                  onClick={() => setFacturaFile(null)}
+                >
+                  <FiX size={13} /> Quitar archivo
+                </button>
+              )}
+            </div>
+            <div className="lm-modal-footer">
+              <button className="lm-btn-secondary" onClick={() => setMovModal(null)} disabled={saving}>Cancelar</button>
+              <button className="lm-btn-primary" onClick={handleSaveEntrada} disabled={saving}>
+                {saving ? 'Guardando...' : 'Registrar entrada'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Salida ── */}
+      {movModal?.tipo === 'salida' && (
+        <div className="lm-modal-backdrop" onClick={() => setMovModal(null)}>
+          <div className="lm-modal lm-modal--sm" onClick={e => e.stopPropagation()}>
+            <div className="lm-modal-header">
+              <h3>
+                <FiArrowUp size={16} /> Registrar Salida
+                {itemForMov && <span className="bg-modal-item"> — {itemForMov.nombre}</span>}
+              </h3>
+              <button className="lm-modal-close" onClick={() => setMovModal(null)}><FiX size={18} /></button>
+            </div>
+            <div className="lm-modal-body">
               <label className="lm-label">
                 Cantidad{itemForMov?.unidad ? ` (${itemForMov.unidad})` : ''} *
               </label>
@@ -418,19 +633,83 @@ function BodegaGenerica() {
                   Stock actual: <strong>{fmt(itemForMov.stockActual)} {itemForMov.unidad}</strong>
                 </p>
               )}
+
+              <div className="bg-form-row">
+                <div>
+                  <label className="lm-label">Activo *</label>
+                  <select
+                    className="lm-input"
+                    value={movForm.activoId}
+                    onChange={e => setMovForm(f => ({ ...f, activoId: e.target.value }))}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {maquinaria
+                      .filter(m => m.tipo?.toUpperCase() !== 'IMPLEMENTO')
+                      .map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.codigo ? `${m.codigo} - ` : ''}{m.descripcion}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="lm-label">Operario *</label>
+                  <select
+                    className="lm-input"
+                    value={movForm.operarioId}
+                    onChange={e => setMovForm(f => ({ ...f, operarioId: e.target.value }))}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {empleados.map(u => (
+                      <option key={u.id} value={u.id}>{u.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-form-row">
+                <div>
+                  <label className="lm-label">Lote</label>
+                  <select
+                    className="lm-input"
+                    value={movForm.loteId}
+                    onChange={e => setMovForm(f => ({ ...f, loteId: e.target.value }))}
+                  >
+                    <option value="">— Ninguno —</option>
+                    {lotes.map(l => (
+                      <option key={l.id} value={l.id}>{l.nombreLote}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="lm-label">Labor</label>
+                  <select
+                    className="lm-input"
+                    value={movForm.laborId}
+                    onChange={e => setMovForm(f => ({ ...f, laborId: e.target.value }))}
+                  >
+                    <option value="">— Ninguna —</option>
+                    {labores.map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.codigo ? `${l.codigo} - ` : ''}{l.descripcion}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <label className="lm-label">Nota (opcional)</label>
               <input
                 className="lm-input"
                 value={movForm.nota}
                 onChange={e => setMovForm(f => ({ ...f, nota: e.target.value }))}
                 placeholder="Motivo, proveedor, etc."
-                onKeyDown={e => e.key === 'Enter' && handleSaveMov()}
               />
             </div>
             <div className="lm-modal-footer">
               <button className="lm-btn-secondary" onClick={() => setMovModal(null)} disabled={saving}>Cancelar</button>
               <button className="lm-btn-primary" onClick={handleSaveMov} disabled={saving}>
-                {saving ? 'Guardando...' : 'Registrar'}
+                {saving ? 'Guardando...' : 'Registrar salida'}
               </button>
             </div>
           </div>

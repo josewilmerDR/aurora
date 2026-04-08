@@ -1,0 +1,282 @@
+@import './LoteManagement.css';
+
+.cc-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Toolbar ── */
+.cc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
+/* ── Selector ── */
+.cc-selector-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.cc-selector-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.cc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cc-field label {
+  font-size: 0.75rem;
+  color: rgba(230, 242, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cc-field select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  min-width: 100px;
+}
+.cc-field--wide { flex: 1; min-width: 180px; }
+.cc-btn-preview { align-self: flex-end; }
+
+/* ── Preview section ── */
+.cc-preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cc-preview-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cc-preview-periodo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 3px 10px;
+}
+.cc-preview-summary {
+  font-size: 0.85rem;
+  color: rgba(230, 242, 255, 0.65);
+}
+.cc-preview-cero {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--aurora-green);
+}
+
+/* ── Variación colors ── */
+.cc-var-pos { color: var(--aurora-magenta); }
+.cc-var-neg { color: var(--aurora-green); }
+
+/* ── Tarjeta por máquina ── */
+.cc-maquina-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cc-maquina-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.cc-maquina-header:hover { background: rgba(255,255,255,0.03); }
+.cc-maquina-nombre {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+.cc-maquina-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cc-badge {
+  font-size: 0.73rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  color: rgba(230, 242, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cc-badge-rate {
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.07);
+}
+.cc-badge-var {
+  font-weight: 600;
+}
+.cc-badge-var.cc-var-pos { background: rgba(204, 51, 255, 0.08); }
+.cc-badge-var.cc-var-neg { background: rgba(51, 255, 153, 0.08); }
+
+/* Resumen de máquina */
+.cc-maquina-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-top: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aurora-border);
+}
+.cc-resumen-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px;
+  border-right: 1px solid var(--aurora-border);
+}
+.cc-resumen-item:last-child { border-right: none; }
+.cc-resumen-label {
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(230, 242, 255, 0.35);
+}
+.cc-resumen-val {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--aurora-light);
+}
+
+/* ── Tabla de detalles ── */
+.cc-detalles-wrap {
+  overflow-x: auto;
+}
+.cc-detalles-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.cc-detalles-table th {
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(230, 242, 255, 0.4);
+  border-bottom: 1px solid var(--aurora-border);
+  white-space: nowrap;
+}
+.cc-detalles-table td {
+  padding: 7px 10px;
+  color: rgba(230, 242, 255, 0.8);
+  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+  white-space: nowrap;
+}
+.cc-detalles-table tbody tr:last-child td { border-bottom: none; }
+.cc-detalles-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.cc-td-num { text-align: right; font-variant-numeric: tabular-nums; }
+.cc-td-pct { color: rgba(230, 242, 255, 0.4); }
+.cc-td-real { color: var(--aurora-light); font-weight: 500; }
+.cc-td-empty { color: rgba(230, 242, 255, 0.25); }
+
+/* ── Barra ejecutar ── */
+.cc-execute-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 14px 20px;
+}
+.cc-execute-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: rgba(230, 242, 255, 0.45);
+  font-size: 0.78rem;
+  max-width: 480px;
+  line-height: 1.5;
+}
+.cc-execute-warning svg { color: #f0a030; flex-shrink: 0; margin-top: 2px; }
+.cc-btn-execute { white-space: nowrap; }
+
+/* ── Historial ── */
+.cc-historial-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cc-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(230, 242, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+.cc-hist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cc-hist-table th {
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(230, 242, 255, 0.4);
+  border-bottom: 1px solid var(--aurora-border);
+}
+.cc-hist-table td {
+  padding: 10px 14px;
+  color: rgba(230, 242, 255, 0.8);
+  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+}
+.cc-hist-table tbody tr:last-child td { border-bottom: none; }
+.cc-hist-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.cc-hist-periodo {
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+.cc-hist-fecha { color: rgba(230, 242, 255, 0.45); font-size: 0.78rem; }
+.cc-empty {
+  color: rgba(230, 242, 255, 0.35);
+  font-size: 0.82rem;
+  font-style: italic;
+  margin: 0;
+}

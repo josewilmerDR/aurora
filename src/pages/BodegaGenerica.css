@@ -189,3 +189,46 @@
   gap: 0.8rem;
   margin-top: 0.8rem;
 }
+
+/* ── File picker ── */
+.bg-file-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px dashed var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  margin-top: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bg-file-label:hover {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+.bg-file-clear {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: none;
+  color: #e05a5a;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0.2rem 0;
+  margin-top: 0.25rem;
+}
+.bg-file-clear:hover { text-decoration: underline; }
+
+/* ── Table link ── */
+.bg-link {
+  color: var(--aurora-green);
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+.bg-link:hover { text-decoration: underline; }
