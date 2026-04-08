@@ -8,6 +8,10 @@ import {
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
 } from 'react-icons/fi';
+
+// Mapa de iconos para bodegas genéricas (clave string → componente)
+const BODEGA_ICON_MAP = { FiBox, FiTool, FiTruck, FiDroplet, FiPackage };
+const getBodegaIcon = (key) => BODEGA_ICON_MAP[key] || FiBox;
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './Sidebar.css';
@@ -56,9 +60,14 @@ export const MODULES = [
     nombre: 'Bodega',
     icon: FiBox,
     items: [
-      { label: 'Existencias', to: '/bodega/agroquimicos/existencias', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
-      { label: 'Recepción de Mercancía', to: '/bodega/agroquimicos/recepcion', icon: FiPlusCircle, minRole: 'encargado' },
-      { label: 'Historial de Movimientos', to: '/bodega/agroquimicos/movimientos', icon: FiList, minRole: 'encargado' },
+      {
+        label: 'Agroquímicos', icon: FiDroplet, minRole: 'encargado',
+        children: [
+          { label: 'Existencias', to: '/bodega/agroquimicos/existencias', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
+          { label: 'Recepción de Mercancía', to: '/bodega/agroquimicos/recepcion', icon: FiPlusCircle, minRole: 'encargado' },
+          { label: 'Historial de Movimientos', to: '/bodega/agroquimicos/movimientos', icon: FiList, minRole: 'encargado' },
+        ],
+      },
     ],
   },
   {
@@ -140,6 +149,14 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [recentRoutes, setRecentRoutes] = useState(() => getRecents(uid));
   const [stockBajoCount, setStockBajoCount] = useState(0);
   const [tareasVencidasCount, setTareasVencidasCount] = useState(0);
+  const [genericBodegas, setGenericBodegas] = useState([]);
+
+  const fetchGenericBodegas = useCallback(() => {
+    apiFetch('/api/bodegas')
+      .then(r => r.json())
+      .then(data => setGenericBodegas(data.filter(b => b.tipo !== 'agroquimicos')))
+      .catch(() => {});
+  }, [apiFetch]);
   const readActiveDrafts = () => {
     try {
       return new Set(
@@ -201,7 +218,13 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
       .then((data) => setStockBajoCount(data.filter((p) => p.stockActual <= p.stockMinimo).length))
       .catch(() => { });
     refreshOverdueCount();
+    fetchGenericBodegas();
   }, []);
+
+  useEffect(() => {
+    window.addEventListener('aurora-bodegas-changed', fetchGenericBodegas);
+    return () => window.removeEventListener('aurora-bodegas-changed', fetchGenericBodegas);
+  }, [fetchGenericBodegas]);
 
   useEffect(() => {
     window.addEventListener('aurora-tasks-changed', refreshOverdueCount);
@@ -378,6 +401,19 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
                   item.children
                     ? <GroupItem key={item.label} item={item} />
                     : <NavItem key={item.to} item={item} showPinBtn />
+                )}
+                {/* Bodegas genéricas dinámicas (solo en módulo bodega) */}
+                {mod.id === 'bodega' && genericBodegas.map((b) => {
+                  const Icon = getBodegaIcon(b.icono);
+                  const syntheticItem = { label: b.nombre, to: `/bodega/${b.id}`, icon: Icon, minRole: 'encargado' };
+                  return <NavItem key={b.id} item={syntheticItem} showPinBtn />;
+                })}
+                {/* Administrar bodegas (solo administrador) */}
+                {mod.id === 'bodega' && hasMinRole(userRole, 'administrador') && (
+                  <NavItem
+                    item={{ label: 'Administrar Bodegas', to: '/admin/bodegas', icon: FiSettings, minRole: 'administrador' }}
+                    showPinBtn
+                  />
                 )}
               </div>
             )}

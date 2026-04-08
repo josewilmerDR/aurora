@@ -1455,6 +1455,230 @@ app.get('/api/bodegas', authenticate, async (req, res) => {
   }
 });
 
+app.post('/api/bodegas', authenticate, async (req, res) => {
+  try {
+    const { nombre, icono } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
+
+    // Calcular orden: max + 1
+    const snap = await db.collection('bodegas').where('fincaId', '==', req.fincaId).get();
+    const maxOrden = snap.empty ? 1 : Math.max(...snap.docs.map(d => d.data().orden || 0));
+    const bodega = {
+      nombre: nombre.trim(),
+      tipo: 'generica',
+      icono: icono || 'FiBox',
+      orden: maxOrden + 1,
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    };
+    const docRef = await db.collection('bodegas').add(bodega);
+    return res.status(201).json({ id: docRef.id, ...bodega });
+  } catch (err) {
+    console.error('[bodegas POST]', err);
+    return res.status(500).json({ message: 'Error al crear bodega.' });
+  }
+});
+
+app.put('/api/bodegas/:id', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (check.doc.data().tipo === 'agroquimicos') {
+      return res.status(403).json({ message: 'La bodega de agroquímicos no se puede editar.' });
+    }
+    const { nombre, icono } = req.body;
+    const updates = {};
+    if (nombre?.trim()) updates.nombre = nombre.trim();
+    if (icono) updates.icono = icono;
+    await check.doc.ref.update(updates);
+    return res.json({ id: req.params.id, ...check.doc.data(), ...updates });
+  } catch (err) {
+    console.error('[bodegas PUT]', err);
+    return res.status(500).json({ message: 'Error al actualizar bodega.' });
+  }
+});
+
+app.delete('/api/bodegas/:id', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (check.doc.data().tipo === 'agroquimicos') {
+      return res.status(403).json({ message: 'La bodega de agroquímicos no se puede eliminar.' });
+    }
+    // Solo eliminar si no tiene items
+    const itemsSnap = await db.collection('bodega_items')
+      .where('bodegaId', '==', req.params.id).limit(1).get();
+    if (!itemsSnap.empty) {
+      return res.status(400).json({ message: 'No se puede eliminar una bodega con productos. Elimine primero todos los productos.' });
+    }
+    await check.doc.ref.delete();
+    return res.json({ message: 'Bodega eliminada.' });
+  } catch (err) {
+    console.error('[bodegas DELETE]', err);
+    return res.status(500).json({ message: 'Error al eliminar bodega.' });
+  }
+});
+
+// --- API ENDPOINTS: BODEGA ITEMS (inventario de bodegas genéricas) ---
+
+app.get('/api/bodegas/:id/items', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    const snap = await db.collection('bodega_items')
+      .where('bodegaId', '==', req.params.id)
+      .where('fincaId', '==', req.fincaId)
+      .get();
+    return res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (err) {
+    console.error('[bodega_items GET]', err);
+    return res.status(500).json({ message: 'Error al obtener items.' });
+  }
+});
+
+app.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    const { nombre, unidad, stockActual, stockMinimo, descripcion } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre del ítem es requerido.' });
+    const item = {
+      bodegaId: req.params.id,
+      fincaId: req.fincaId,
+      nombre: nombre.trim(),
+      unidad: unidad?.trim() || 'unidad',
+      stockActual: parseFloat(stockActual) || 0,
+      stockMinimo: parseFloat(stockMinimo) || 0,
+      descripcion: descripcion?.trim() || '',
+      activo: true,
+      creadoEn: Timestamp.now(),
+    };
+    const docRef = await db.collection('bodega_items').add(item);
+    return res.status(201).json({ id: docRef.id, ...item });
+  } catch (err) {
+    console.error('[bodega_items POST]', err);
+    return res.status(500).json({ message: 'Error al crear ítem.' });
+  }
+});
+
+app.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    const itemDoc = await db.collection('bodega_items').doc(req.params.itemId).get();
+    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
+      return res.status(404).json({ message: 'Ítem no encontrado.' });
+    }
+    const allowed = ['nombre', 'unidad', 'stockMinimo', 'descripcion', 'activo'];
+    const updates = pick(req.body, allowed);
+    if (updates.nombre) updates.nombre = updates.nombre.trim();
+    if (updates.stockMinimo !== undefined) updates.stockMinimo = parseFloat(updates.stockMinimo) || 0;
+    await itemDoc.ref.update(updates);
+    return res.json({ id: req.params.itemId, ...itemDoc.data(), ...updates });
+  } catch (err) {
+    console.error('[bodega_items PUT]', err);
+    return res.status(500).json({ message: 'Error al actualizar ítem.' });
+  }
+});
+
+app.delete('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    const itemDoc = await db.collection('bodega_items').doc(req.params.itemId).get();
+    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
+      return res.status(404).json({ message: 'Ítem no encontrado.' });
+    }
+    // Solo eliminar si no tiene movimientos
+    const movsSnap = await db.collection('bodega_movimientos')
+      .where('itemId', '==', req.params.itemId).limit(1).get();
+    if (!movsSnap.empty) {
+      return res.status(400).json({ message: 'No se puede eliminar un ítem con movimientos registrados.' });
+    }
+    await itemDoc.ref.delete();
+    return res.json({ message: 'Ítem eliminado.' });
+  } catch (err) {
+    console.error('[bodega_items DELETE]', err);
+    return res.status(500).json({ message: 'Error al eliminar ítem.' });
+  }
+});
+
+// --- API ENDPOINTS: BODEGA MOVIMIENTOS ---
+
+app.get('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    const snap = await db.collection('bodega_movimientos')
+      .where('bodegaId', '==', req.params.id)
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('timestamp', 'desc')
+      .limit(500)
+      .get();
+    return res.json(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate().toISOString() })));
+  } catch (err) {
+    console.error('[bodega_movimientos GET]', err);
+    return res.status(500).json({ message: 'Error al obtener movimientos.' });
+  }
+});
+
+app.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return res.status(check.status).json({ message: check.message });
+
+    const { itemId, tipo, cantidad, nota } = req.body;
+    if (!itemId || !tipo || !cantidad) {
+      return res.status(400).json({ message: 'itemId, tipo y cantidad son requeridos.' });
+    }
+    if (!['entrada', 'salida'].includes(tipo)) {
+      return res.status(400).json({ message: 'tipo debe ser "entrada" o "salida".' });
+    }
+    const cantNum = parseFloat(cantidad);
+    if (isNaN(cantNum) || cantNum <= 0) {
+      return res.status(400).json({ message: 'La cantidad debe ser un número positivo.' });
+    }
+
+    const itemDoc = await db.collection('bodega_items').doc(itemId).get();
+    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
+      return res.status(404).json({ message: 'Ítem no encontrado.' });
+    }
+    const stockAntes = itemDoc.data().stockActual || 0;
+    if (tipo === 'salida' && stockAntes < cantNum) {
+      return res.status(400).json({ message: `Stock insuficiente. Disponible: ${stockAntes} ${itemDoc.data().unidad}.` });
+    }
+
+    const delta = tipo === 'entrada' ? cantNum : -cantNum;
+    const stockDespues = stockAntes + delta;
+
+    // Transacción atómica: actualizar stock + registrar movimiento
+    const movRef = db.collection('bodega_movimientos').doc();
+    const movData = {
+      bodegaId: req.params.id,
+      fincaId: req.fincaId,
+      itemId,
+      itemNombre: itemDoc.data().nombre,
+      tipo,
+      cantidad: cantNum,
+      stockAntes,
+      stockDespues,
+      nota: nota?.trim() || '',
+      usuarioId: req.uid,
+      timestamp: Timestamp.now(),
+    };
+
+    const batch = db.batch();
+    batch.set(movRef, movData);
+    batch.update(itemDoc.ref, { stockActual: FieldValue.increment(delta) });
+    await batch.commit();
+
+    return res.status(201).json({ id: movRef.id, ...movData, timestamp: movData.timestamp.toDate().toISOString() });
+  } catch (err) {
+    console.error('[bodega_movimientos POST]', err);
+    return res.status(500).json({ message: 'Error al registrar movimiento.' });
+  }
+});
+
 // --- API ENDPOINTS: PRODUCTOS ---
 app.get('/api/productos', authenticate, async (req, res) => {
   try {
