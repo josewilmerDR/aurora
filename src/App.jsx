@@ -49,6 +49,8 @@ import GrupoManagement from './pages/GrupoManagement';
 import CedulasAplicacion from './pages/CedulasAplicacion';
 import HistorialAplicaciones from './pages/HistorialAplicaciones';
 import CedulaViewer from './pages/CedulaViewer';
+import BodegasAdmin from './pages/BodegasAdmin';
+import BodegaGenerica from './pages/BodegaGenerica';
 import Siembra from './pages/Siembra';
 import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
@@ -76,6 +78,7 @@ const ROUTE_MIN_ROLE = {
   '/bodega/agroquimicos/existencias': 'encargado',
   '/bodega/agroquimicos/recepcion': 'encargado',
   '/bodega/agroquimicos/movimientos': 'encargado',
+  '/admin/bodegas': 'administrador',
   '/siembra/materiales': 'encargado',
   '/ordenes-compra/historial': 'encargado',
   '/hr/planilla/fijo': 'encargado',
@@ -99,6 +102,7 @@ const routeTitles = {
   '/bodega/agroquimicos/existencias': 'Existencias — Agroquímicos',
   '/bodega/agroquimicos/recepcion': 'Recepción de Mercancía',
   '/bodega/agroquimicos/movimientos': 'Historial de Movimientos',
+  '/admin/bodegas': 'Administrar Bodegas',
   '/ordenes-compra': 'Órdenes de Compra',
   '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
   '/proveedores': 'Proveedores',
@@ -186,7 +190,9 @@ const MainLayout = () => {
     setPushPromptDismissed(true);
   };
   const title = routeTitles[location.pathname]
-    || (location.pathname.startsWith('/aplicaciones/cedula/') ? 'Cédula de Aplicación' : 'Aurora');
+    || (location.pathname.startsWith('/aplicaciones/cedula/') ? 'Cédula de Aplicación'
+    : location.pathname.startsWith('/bodega/') && !location.pathname.includes('/agroquimicos') ? 'Bodega'
+    : 'Aurora');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchActiveIdx, setSearchActiveIdx] = useState(-1);
@@ -435,6 +441,7 @@ function App() {
             <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><ProductManagement /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><ProductIngreso /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
+            <Route path="/bodega/:bodegaId" element={<RoleRoute path="/bodega/agroquimicos/existencias"><BodegaGenerica /></RoleRoute>} />
             {/* Redirects de rutas legacy → canónicas */}
             <Route path="/productos" element={<Navigate to="/bodega/agroquimicos/existencias" replace />} />
             <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
@@ -470,6 +477,7 @@ function App() {
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
             <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
             {/* administrador */}
+            <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parametros /></RoleRoute>} />
           </Route>
         </Routes>

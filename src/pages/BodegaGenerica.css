@@ -1,0 +1,191 @@
+@import './BodegasAdmin.css';
+
+/* ── Tabs ── */
+.bg-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px solid var(--aurora-border);
+  padding-bottom: 0;
+}
+
+.bg-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #7a9bbf;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.bg-tab:hover { color: var(--aurora-light); }
+.bg-tab.active {
+  color: var(--aurora-green);
+  border-bottom-color: var(--aurora-green);
+}
+
+/* ── Header ── */
+.bg-header-icon {
+  color: var(--aurora-green);
+  display: flex;
+  align-items: center;
+  margin-right: 0.2rem;
+}
+
+.bg-low-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #f0c040;
+  margin-top: 0.2rem;
+}
+
+/* ── Table ── */
+.bg-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.bg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+.bg-table th {
+  background: var(--aurora-dark-blue);
+  color: #7a9bbf;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid var(--aurora-border);
+}
+.bg-table td {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid rgba(42, 74, 106, 0.5);
+  vertical-align: middle;
+}
+.bg-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+.bg-table .text-right { text-align: right; }
+
+.bg-row-low td { background: rgba(240, 192, 64, 0.04); }
+
+.bg-item-name { font-weight: 500; display: block; }
+.bg-item-desc { font-size: 0.78rem; color: #7a9bbf; display: block; }
+
+.bg-stock { font-weight: 600; }
+.bg-stock.low { color: #f0c040; }
+.bg-warn-icon { color: #f0c040; margin-left: 0.3rem; vertical-align: middle; }
+
+.bg-date { font-size: 0.8rem; color: #7a9bbf; white-space: nowrap; }
+.bg-nota { font-size: 0.82rem; color: #7a9bbf; }
+
+/* ── Type badge ── */
+.bg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+}
+.bg-badge.entrada { background: rgba(51,255,153,0.12); color: var(--aurora-green); }
+.bg-badge.salida  { background: rgba(255,107,107,0.12); color: #ff6b6b; }
+
+/* ── Row actions ── */
+.bg-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.bg-btn-mov {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: background 0.15s;
+}
+.bg-btn-mov.entrada {
+  background: rgba(51,255,153,0.08);
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+.bg-btn-mov.entrada:hover { background: rgba(51,255,153,0.18); }
+.bg-btn-mov.salida {
+  background: rgba(255,107,107,0.08);
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+.bg-btn-mov.salida:hover { background: rgba(255,107,107,0.18); }
+
+/* ── Movimiento modal ── */
+.lm-modal--sm { max-width: 420px; }
+
+.bg-tipo-toggle {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+.bg-tipo-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--aurora-border);
+  background: var(--aurora-dark-blue);
+  color: #7a9bbf;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.bg-tipo-btn.active.entrada {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+  background: rgba(51,255,153,0.08);
+}
+.bg-tipo-btn.active.salida {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  background: rgba(255,107,107,0.08);
+}
+
+.bg-stock-hint {
+  font-size: 0.82rem;
+  color: #7a9bbf;
+  margin: 0.4rem 0 1rem;
+}
+
+.bg-modal-item {
+  font-size: 0.85rem;
+  color: #7a9bbf;
+  font-weight: 400;
+}
+
+/* ── Form row (2 cols) ── */
+.bg-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
