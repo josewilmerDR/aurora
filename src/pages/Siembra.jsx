@@ -490,6 +490,11 @@ const fileInputRef                = useRef(null);
     }
   };
 
+  // Abrir formulario automáticamente cuando no hay registros
+  useEffect(() => {
+    if (!loading && registros.length === 0) setShowForm(true);
+  }, [loading, registros.length]);
+
   // ── Row helpers ──────────────────────────────────────────────────────────
   const updateRow = (idx, field, value) => {
     setRows(prev => {
@@ -973,16 +978,6 @@ const fileInputRef                = useRef(null);
       {/* ── Spinner de carga inicial ──────────────────────────────────── */}
       {loading && <div className="siembra-page-loading" />}
 
-      {/* ── Estado vacío ─────────────────────────────────────────────── */}
-      {!loading && registros.length === 0 && !showForm && (
-        <div className="siembra-empty-state">
-          <FiClipboard size={36} />
-          <p>No hay registros aún</p>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <FiPlus size={14} /> Crear el primero
-          </button>
-        </div>
-      )}
 
       {/* ── Contenido principal ──────────────────────────────────────── */}
       {!loading && (registros.length > 0 || showForm) && <>
