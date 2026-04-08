@@ -251,6 +251,19 @@
   color: rgba(230, 242, 255, 0.25);
 }
 
+.maq-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgba(230, 242, 255, 0.85);
+}
+
+.maq-field--computed input {
+  opacity: 0.6;
+  cursor: default;
+  border-style: dashed;
+}
+
 .maq-td-actions {
   white-space: nowrap;
   text-align: right;

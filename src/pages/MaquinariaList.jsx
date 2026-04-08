@@ -19,6 +19,18 @@ const TIPOS = [
 
 const TIPO_APLICACIONES = 'MAQUINARIA DE APLICACIONES';
 
+function calcResidualPct(adq, res) {
+  const a = parseFloat(adq), r = parseFloat(res);
+  if (!isNaN(a) && !isNaN(r) && a > 0) return `${((r / a) * 100).toFixed(1)}%`;
+  return null;
+}
+
+function calcCostoDepHora(adq, res, hrs) {
+  const a = parseFloat(adq), r = parseFloat(res), h = parseFloat(hrs);
+  if (!isNaN(a) && !isNaN(r) && !isNaN(h) && h > 0) return `$${((a - r) / h).toFixed(2)}`;
+  return null;
+}
+
 const EMPTY_FORM = {
   id: null,
   idMaquina: '',
@@ -28,6 +40,10 @@ const EMPTY_FORM = {
   ubicacion: '',
   observacion: '',
   capacidad: '',
+  valorAdquisicion: '',
+  valorResidual: '',
+  vidaUtilHoras: '',
+  fechaRevisionResidual: '',
 };
 
 function MaquinariaList() {
@@ -199,6 +215,73 @@ function MaquinariaList() {
               </div>
 
               <div className="maq-field">
+                <label>Valor Adquisición</label>
+                <input
+                  name="valorAdquisicion"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.valorAdquisicion}
+                  onChange={handleChange}
+                  placeholder="Ej. 60000"
+                />
+              </div>
+
+              <div className="maq-field">
+                <label>Valor Residual</label>
+                <input
+                  name="valorResidual"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.valorResidual}
+                  onChange={handleChange}
+                  placeholder="Ej. 6000"
+                />
+              </div>
+
+              <div className="maq-field maq-field--computed">
+                <label>Valor Residual %</label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={calcResidualPct(form.valorAdquisicion, form.valorResidual) ?? '—'}
+                />
+              </div>
+
+              <div className="maq-field">
+                <label>Vida Útil (horas)</label>
+                <input
+                  name="vidaUtilHoras"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.vidaUtilHoras}
+                  onChange={handleChange}
+                  placeholder="Ej. 10000"
+                />
+              </div>
+
+              <div className="maq-field maq-field--computed">
+                <label>Costo Dep. / Hora</label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={calcCostoDepHora(form.valorAdquisicion, form.valorResidual, form.vidaUtilHoras) ?? '—'}
+                />
+              </div>
+
+              <div className="maq-field">
+                <label>Fecha Rev. Residual</label>
+                <input
+                  name="fechaRevisionResidual"
+                  type="date"
+                  value={form.fechaRevisionResidual}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="maq-field">
                 <label>Tipo</label>
                 <select name="tipo" value={form.tipo} onChange={handleChange}>
                   <option value="">— Seleccionar —</option>
@@ -276,6 +359,13 @@ function MaquinariaList() {
                   <th>Tipo</th>
                   <th>Ubicación</th>
                   <th>Cap. litros</th>
+                  <th>Val. Adq.</th>
+                  <th>Val. Residual</th>
+                  <th>Res. %</th>
+                  <th>Vida Útil (h)</th>
+                  <th>Hrs. Acumuladas</th>
+                  <th>Costo Dep./h</th>
+                  <th>Rev. Residual</th>
                   <th>Observación</th>
                   <th></th>
                 </tr>
@@ -293,6 +383,13 @@ function MaquinariaList() {
                     </td>
                     <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>
                     <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>
+                    <td className="maq-td-num">{item.valorAdquisicion ? `$${Number(item.valorAdquisicion).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>
+                    <td className="maq-td-num">{item.valorResidual ? `$${Number(item.valorResidual).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>
+                    <td className="maq-td-num">{calcResidualPct(item.valorAdquisicion, item.valorResidual) ?? <span className="maq-td-empty">—</span>}</td>
+                    <td className="maq-td-num">{item.vidaUtilHoras ? `${Number(item.vidaUtilHoras).toLocaleString('es-CR')} h` : <span className="maq-td-empty">—</span>}</td>
+                    <td className="maq-td-num">{item.horasAcumuladas != null ? `${Number(item.horasAcumuladas).toFixed(1)} h` : <span className="maq-td-empty">—</span>}</td>
+                    <td className="maq-td-num">{calcCostoDepHora(item.valorAdquisicion, item.valorResidual, item.vidaUtilHoras) ?? <span className="maq-td-empty">—</span>}</td>
+                    <td>{item.fechaRevisionResidual || <span className="maq-td-empty">—</span>}</td>
                     <td className="maq-td-obs">{item.observacion || <span className="maq-td-empty">—</span>}</td>
                     <td className="maq-td-actions">
                       <button className="maq-btn-icon" onClick={() => handleEdit(item)} title="Editar">
