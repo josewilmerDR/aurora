@@ -57,6 +57,8 @@ import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
 import CosechaProyeccion from './pages/CosechaProyeccion';
 import CosechaHistorial from './pages/CosechaHistorial';
+import AutopilotDashboard from './pages/AutopilotDashboard';
+import AutopilotConfig from './pages/AutopilotConfig';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
@@ -135,6 +137,8 @@ const routeTitles = {
   '/operaciones/horimetro': 'Horímetros',
   '/operaciones/horimetro/registro': 'Registro de Horímetro',
   '/operaciones/horimetro/historial': 'Historial de Horímetros',
+  '/autopilot': 'Piloto Automático',
+  '/autopilot/configuracion': 'Configuración — Piloto Automático',
 };
 
 // --- Route guards ---
@@ -477,6 +481,9 @@ function App() {
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
             <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
+            {/* Piloto Automático */}
+            <Route path="/autopilot" element={<RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute>} />
+            <Route path="/autopilot/configuracion" element={<RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />

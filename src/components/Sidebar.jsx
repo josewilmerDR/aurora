@@ -7,6 +7,7 @@ import {
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
+  FiCpu,
 } from 'react-icons/fi';
 
 // Mapa de iconos para bodegas genéricas (clave string → componente)
@@ -118,6 +119,15 @@ export const MODULES = [
       { label: 'Unidades de Medida', to: '/admin/unidades-medida', icon: FiPackage, minRole: 'supervisor' },
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
       { label: 'Calibraciones', to: '/admin/calibraciones', icon: FiDroplet, minRole: 'supervisor', draftKey: 'calibraciones' },
+    ],
+  },
+  {
+    id: 'autopilot',
+    nombre: 'Piloto Automático',
+    icon: FiCpu,
+    items: [
+      { label: 'Panel', to: '/autopilot', icon: FiCpu, minRole: 'encargado' },
+      { label: 'Configuración', to: '/autopilot/configuracion', icon: FiSettings, minRole: 'supervisor' },
     ],
   },
 ];
