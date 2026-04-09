@@ -105,49 +105,56 @@ function BodegasAdmin() {
 
   return (
     <div className="lm-container">
-      <div className="lm-header">
-        <div className="lm-header-left">
-          <h2 className="lm-title">Bodegas Adicionales</h2>
-          <p className="lm-subtitle">
-            Gestiona almacenes secundarios de la finca. La bodega de Agroquímicos es fija del sistema.
-          </p>
-        </div>
-        <button className="lm-btn-primary" onClick={openCreate}>
-          <FiPlus size={16} /> Nueva Bodega
-        </button>
-      </div>
-
       {loading ? (
-        <div className="lm-loading">Cargando...</div>
+        <div className="lm-loading" />
       ) : bodegas.length === 0 ? (
-        <div className="empty-state">
+        <div className="ba-empty-state">
           <FiBox size={36} />
           <p>No hay bodegas adicionales configuradas.</p>
           <button className="lm-btn-primary" onClick={openCreate}>
-            <FiPlus size={14} /> Crear primera bodega
+            <FiPlus size={14} /> Crear bodega adicional
           </button>
         </div>
       ) : (
-        <div className="ba-grid">
-          {bodegas.map(b => (
-            <div key={b.id} className="ba-card">
-              <div className="ba-card-icon">
-                <IconComp iconKey={b.icono} size={28} />
-              </div>
-              <div className="ba-card-body">
-                <span className="ba-card-name">{b.nombre}</span>
-              </div>
-              <div className="ba-card-actions">
-                <button className="ba-btn-icon" onClick={() => openEdit(b)} title="Editar">
-                  <FiEdit2 size={15} />
-                </button>
-                <button className="ba-btn-icon ba-btn-danger" onClick={() => setConfirmDelete(b)} title="Eliminar">
-                  <FiTrash2 size={15} />
-                </button>
-              </div>
+        <>
+          <div className="lm-header">
+            <div className="lm-header-left">
+              <h2 className="lm-title">Bodegas Adicionales</h2>
+              <p className="lm-subtitle">
+                Gestiona almacenes secundarios de la finca. La bodega de Agroquímicos es fija del sistema.
+              </p>
             </div>
-          ))}
-        </div>
+            <button className="lm-btn-primary" onClick={openCreate}>
+              <FiPlus size={16} /> Nueva Bodega
+            </button>
+          </div>
+          <div className="ba-grid">
+            {bodegas.map(b => {
+              const esSistema = b.tipo === 'combustibles';
+              return (
+                <div key={b.id} className={`ba-card${esSistema ? ' ba-card--sistema' : ''}`}>
+                  <div className="ba-card-icon">
+                    <IconComp iconKey={b.icono} size={28} />
+                  </div>
+                  <div className="ba-card-body">
+                    <span className="ba-card-name">{b.nombre}</span>
+                    {esSistema && <span className="ba-card-sistema-badge">Sistema</span>}
+                  </div>
+                  {!esSistema && (
+                    <div className="ba-card-actions">
+                      <button className="ba-btn-icon" onClick={() => openEdit(b)} title="Editar">
+                        <FiEdit2 size={15} />
+                      </button>
+                      <button className="ba-btn-icon ba-btn-danger" onClick={() => setConfirmDelete(b)} title="Eliminar">
+                        <FiTrash2 size={15} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Modal crear/editar */}

@@ -215,11 +215,16 @@
   margin-bottom: 2px;
 }
 
+.module-header-row {
+  display: flex;
+  align-items: center;
+}
+
 .module-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  flex: 1;
   padding: 10px 18px;
   background: none;
   border: none;
@@ -239,6 +244,24 @@
 
 .module-header svg:last-child {
   margin-left: auto;
+}
+
+.module-add-btn {
+  flex-shrink: 0;
+  padding: 6px 10px 6px 4px;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.module-add-btn:hover {
+  opacity: 1;
+  color: var(--aurora-green);
 }
 
 .module-items {
