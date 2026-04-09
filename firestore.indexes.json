@@ -52,7 +52,8 @@
     { "collectionGroup": "bodega_movimientos",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "bodegaId", "order": "ASCENDING" }, { "fieldPath": "tipo",           "order": "ASCENDING"  }, { "fieldPath": "timestamp", "order": "ASCENDING" }] },
     { "collectionGroup": "horimetro",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "ASCENDING"  }] },
     { "collectionGroup": "cierres_combustible",  "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "creadoEn",       "order": "DESCENDING" }] },
-    { "collectionGroup": "cierres_combustible",  "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "periodo",        "order": "ASCENDING"  }, { "fieldPath": "bodegaId", "order": "ASCENDING" }, { "fieldPath": "estado", "order": "ASCENDING" }] }
+    { "collectionGroup": "cierres_combustible",  "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "periodo",        "order": "ASCENDING"  }, { "fieldPath": "bodegaId", "order": "ASCENDING" }, { "fieldPath": "estado", "order": "ASCENDING" }] },
+    { "collectionGroup": "autopilot_sessions",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "timestamp",      "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }

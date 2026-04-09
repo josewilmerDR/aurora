@@ -196,6 +196,11 @@ async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType
   }
 }
 
+// --- ROLE HELPER (backend mirror of frontend ROLE_LEVELS) ---
+const ROLE_LEVELS_BE = { trabajador: 1, encargado: 2, supervisor: 3, rrhh: 3, administrador: 4 };
+const hasMinRoleBE = (userRole, minRole) =>
+  (ROLE_LEVELS_BE[userRole] || 0) >= (ROLE_LEVELS_BE[minRole] || 0);
+
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
 // GET /api/auth/memberships — lista las fincas del usuario autenticado
@@ -7282,6 +7287,313 @@ app.delete('/api/calibraciones/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Error al eliminar calibración:', err);
     res.status(500).json({ message: 'Error al eliminar la calibración.' });
+  }
+});
+
+// ─── PILOTO AUTOMÁTICO ────────────────────────────────────────────────────────
+
+// GET /api/autopilot/config
+app.get('/api/autopilot/config', authenticate, async (req, res) => {
+  try {
+    const doc = await db.collection('autopilot_config').doc(req.fincaId).get();
+    if (!doc.exists) {
+      return res.json({ fincaId: req.fincaId, mode: 'off', objectives: '' });
+    }
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al obtener config:', err);
+    res.status(500).json({ message: 'Error al obtener configuración del Piloto Automático.' });
+  }
+});
+
+// PUT /api/autopilot/config  (minRole: supervisor)
+app.put('/api/autopilot/config', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+    return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
+  }
+  try {
+    const { mode, objectives } = req.body;
+    const VALID_MODES = ['off', 'nivel1', 'nivel2', 'nivel3'];
+    if (mode !== undefined && !VALID_MODES.includes(mode)) {
+      return res.status(400).json({ message: 'Modo inválido.' });
+    }
+    const ref = db.collection('autopilot_config').doc(req.fincaId);
+    const existing = await ref.get();
+    const now = Timestamp.now();
+    const payload = {
+      fincaId: req.fincaId,
+      ...(mode !== undefined && { mode }),
+      ...(objectives !== undefined && { objectives }),
+      updatedAt: now,
+    };
+    if (!existing.exists) payload.createdAt = now;
+    await ref.set(payload, { merge: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al guardar config:', err);
+    res.status(500).json({ message: 'Error al guardar la configuración.' });
+  }
+});
+
+// POST /api/autopilot/analyze  (minRole: encargado)
+app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'encargado')) {
+    return res.status(403).json({ message: 'Se requiere rol de Encargado o superior.' });
+  }
+  try {
+    // 1. Leer configuración
+    const configDoc = await db.collection('autopilot_config').doc(req.fincaId).get();
+    const config = configDoc.exists ? configDoc.data() : { mode: 'off', objectives: '' };
+    if (config.mode === 'off') {
+      return res.status(400).json({ message: 'El Piloto Automático está desactivado. Actívalo en Configuración.' });
+    }
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    // 2. Consultas paralelas al estado de la finca
+    const [tasksSnap, productosSnap, monitoreosSnap, lotesSnap] = await Promise.all([
+      db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get(),
+      db.collection('productos').where('fincaId', '==', req.fincaId).get(),
+      db.collection('monitoreos')
+        .where('fincaId', '==', req.fincaId)
+        .where('fecha', '>=', Timestamp.fromDate(thirtyDaysAgo))
+        .orderBy('fecha', 'desc')
+        .limit(50)
+        .get(),
+      db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
+    ]);
+
+    // 3. Procesar snapshot
+    const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const overdueTasks = [];
+    const upcomingTasks = [];
+    tasksSnap.docs.forEach(doc => {
+      const t = doc.data();
+      if (['completed_by_user', 'skipped'].includes(t.status)) return;
+      if (t.type === 'REMINDER_3_DAY') return;
+      const due = t.executeAt?.toDate?.() || null;
+      if (!due) return;
+      const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+      if (dueDay < todayDay) {
+        overdueTasks.push({ nombre: t.activity?.name || '—', dueDate: due.toISOString().split('T')[0] });
+      } else if (due <= fourteenDaysAhead) {
+        upcomingTasks.push({ nombre: t.activity?.name || '—', dueDate: due.toISOString().split('T')[0] });
+      }
+    });
+
+    const lowStockProductos = productosSnap.docs
+      .filter(doc => {
+        const d = doc.data();
+        return (d.stockActual ?? 0) <= (d.stockMinimo ?? 0);
+      })
+      .map(doc => {
+        const d = doc.data();
+        return { nombre: d.nombreComercial || '—', stockActual: d.stockActual ?? 0, stockMinimo: d.stockMinimo ?? 0, unidad: d.unidad || '' };
+      });
+
+    const recentMonitoreos = monitoreosSnap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        loteNombre: d.loteNombre || '—',
+        tipoNombre: d.tipoNombre || '—',
+        fecha: d.fecha?.toDate?.()?.toISOString().split('T')[0] || '—',
+      };
+    });
+
+    const activeLotes = lotesSnap.docs.map(doc => {
+      const d = doc.data();
+      return { codigo: d.codigoLote || '', nombre: d.nombreLote || '', hectareas: d.hectareas || null };
+    });
+
+    const snapshot = {
+      overdueTasksCount: overdueTasks.length,
+      upcomingTasksCount: upcomingTasks.length,
+      lowStockCount: lowStockProductos.length,
+      recentMonitoreosCount: recentMonitoreos.length,
+      activeLotesCount: activeLotes.length,
+    };
+
+    // 4. Construir contexto para Claude
+    const snapshotText = `
+## Estado actual de la finca (fecha: ${now.toISOString().split('T')[0]})
+
+**Lotes activos (${activeLotes.length}):**
+${activeLotes.length ? activeLotes.map(l => `  - ${l.codigo ? l.codigo + ' ' : ''}"${l.nombre}"${l.hectareas ? ` | ${l.hectareas} ha` : ''}`).join('\n') : '  (sin lotes registrados)'}
+
+**Tareas vencidas (${overdueTasks.length}):**
+${overdueTasks.length ? overdueTasks.slice(0, 15).map(t => `  - "${t.nombre}" — vencida el ${t.dueDate}`).join('\n') : '  (sin tareas vencidas)'}
+
+**Tareas próximas — próximos 14 días (${upcomingTasks.length}):**
+${upcomingTasks.length ? upcomingTasks.slice(0, 15).map(t => `  - "${t.nombre}" — programada para ${t.dueDate}`).join('\n') : '  (sin tareas próximas)'}
+
+**Productos con stock bajo o agotado (${lowStockProductos.length}):**
+${lowStockProductos.length ? lowStockProductos.map(p => `  - ${p.nombre} | Stock actual: ${p.stockActual} ${p.unidad} | Mínimo: ${p.stockMinimo} ${p.unidad}`).join('\n') : '  (todos los productos tienen stock suficiente)'}
+
+**Monitoreos recientes — últimos 30 días (${recentMonitoreos.length}):**
+${recentMonitoreos.length ? recentMonitoreos.slice(0, 10).map(m => `  - ${m.tipoNombre} en ${m.loteNombre} el ${m.fecha}`).join('\n') : '  (sin monitoreos recientes)'}
+`.trim();
+
+    const systemPrompt = `Eres el analizador estratégico de Aurora, una plataforma de gestión agrícola inteligente.
+Tu tarea es analizar el estado actual de la finca y los objetivos del productor, y generar un conjunto de recomendaciones priorizadas, concretas y accionables.
+
+Reglas de respuesta:
+- Responde ÚNICAMENTE con un array JSON válido (sin texto adicional, sin markdown, sin bloques de código).
+- El array puede contener de 3 a 10 recomendaciones.
+- Ordena las recomendaciones de mayor a menor prioridad.
+- Sé específico: menciona los nombres de productos, tareas o lotes relevantes del contexto.
+- Evita recomendaciones genéricas; todas deben basarse en los datos reales proporcionados.
+- Si el estado es bueno en un área, puedes omitirla o generar una recomendación de baja prioridad.
+
+Esquema de cada recomendación (JSON estricto):
+{
+  "id": "rec_1",
+  "categoria": "inventario | tareas | aplicaciones | monitoreo | general",
+  "prioridad": "alta | media | baja",
+  "titulo": "máx 60 caracteres, imperativo (ej: Reponer stock de Mancozeb)",
+  "descripcion": "1-2 oraciones explicando el problema detectado",
+  "contexto": "dato específico del snapshot que motivó esta recomendación",
+  "accionSugerida": "paso concreto a tomar, comenzando con un verbo"
+}`;
+
+    const userMessage = `**Objetivos del productor para este ciclo:**
+${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
+
+${snapshotText}
+
+Genera las recomendaciones en formato JSON array.`;
+
+    // 5. Llamar a Claude
+    if (!anthropicClient) {
+      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+    }
+    const claudeResponse = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+
+    const rawText = claudeResponse.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    // 6. Parsear y validar recomendaciones
+    const VALID_CATS = ['inventario', 'tareas', 'aplicaciones', 'monitoreo', 'general'];
+    const VALID_PRIS = ['alta', 'media', 'baja'];
+    let recommendations = [];
+    try {
+      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      recommendations = (Array.isArray(parsed) ? parsed : [])
+        .filter(r => r && typeof r === 'object')
+        .map((r, i) => ({
+          id: `rec_${i + 1}`,
+          categoria: VALID_CATS.includes(r.categoria) ? r.categoria : 'general',
+          prioridad: VALID_PRIS.includes(r.prioridad) ? r.prioridad : 'baja',
+          titulo: String(r.titulo || '').slice(0, 120),
+          descripcion: String(r.descripcion || ''),
+          contexto: String(r.contexto || ''),
+          accionSugerida: String(r.accionSugerida || ''),
+        }))
+        .slice(0, 10);
+    } catch (parseErr) {
+      console.error('[AUTOPILOT] Error al parsear respuesta de Claude:', parseErr.message, rawText.slice(0, 200));
+      await db.collection('autopilot_sessions').add({
+        fincaId: req.fincaId,
+        timestamp: Timestamp.now(),
+        triggeredBy: req.uid,
+        triggeredByName: req.userEmail,
+        snapshot,
+        recommendations: [],
+        status: 'error',
+        errorMessage: 'No se pudo interpretar la respuesta del modelo.',
+      });
+      return res.status(500).json({ message: 'Error al procesar las recomendaciones. Por favor intenta de nuevo.' });
+    }
+
+    // 7. Guardar sesión
+    const sessionRef = await db.collection('autopilot_sessions').add({
+      fincaId: req.fincaId,
+      timestamp: Timestamp.now(),
+      triggeredBy: req.uid,
+      triggeredByName: req.userEmail,
+      snapshot,
+      recommendations,
+      status: 'completed',
+      errorMessage: null,
+    });
+
+    // 8. Escribir al feed (fire-and-forget)
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      uid: req.uid,
+      userEmail: req.userEmail,
+      eventType: 'autopilot_analysis',
+      title: `Piloto Automático generó ${recommendations.length} recomendaciones`,
+    });
+
+    res.json({
+      sessionId: sessionRef.id,
+      recommendations,
+      snapshot,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (err) {
+    console.error('[AUTOPILOT] Error en analyze:', err);
+    res.status(500).json({ message: 'Error interno al ejecutar el análisis.' });
+  }
+});
+
+// GET /api/autopilot/sessions
+app.get('/api/autopilot/sessions', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('autopilot_sessions')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('timestamp', 'desc')
+      .limit(20)
+      .get();
+    const sessions = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        timestamp: d.timestamp?.toDate?.()?.toISOString() ?? null,
+        triggeredByName: d.triggeredByName || '',
+        snapshot: d.snapshot || {},
+        recommendationsCount: (d.recommendations || []).length,
+        status: d.status || 'completed',
+      };
+    });
+    res.json(sessions);
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al listar sesiones:', err);
+    res.status(500).json({ message: 'Error al obtener sesiones.' });
+  }
+});
+
+// GET /api/autopilot/sessions/:id
+app.get('/api/autopilot/sessions/:id', authenticate, async (req, res) => {
+  try {
+    const doc = await db.collection('autopilot_sessions').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Sesión no encontrada.' });
+    const d = doc.data();
+    if (d.fincaId !== req.fincaId) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    res.json({
+      id: doc.id,
+      timestamp: d.timestamp?.toDate?.()?.toISOString() ?? null,
+      triggeredByName: d.triggeredByName || '',
+      snapshot: d.snapshot || {},
+      recommendations: d.recommendations || [],
+      status: d.status || 'completed',
+      errorMessage: d.errorMessage || null,
+    });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al obtener sesión:', err);
+    res.status(500).json({ message: 'Error al obtener la sesión.' });
   }
 });
 
