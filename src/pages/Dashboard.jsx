@@ -8,6 +8,9 @@ const EVENT_LABELS = {
   aplicacion: { text: 'completó una aplicación', icon: '🧪' },
   notificacion: { text: 'completó una tarea', icon: '✓' },
   lote_created: { text: 'creó un lote', icon: '🌱' },
+  autopilot_analysis: { text: 'completó un análisis', icon: '🤖' },
+  autopilot_action_executed: { text: 'ejecutó una acción', icon: '⚡' },
+  autopilot_action_escalated: { text: 'escaló una acción', icon: '⚠️' },
 };
 
 function timeAgo(ms) {
@@ -22,15 +25,16 @@ function timeAgo(ms) {
 }
 
 function FeedEvent({ event }) {
-  const key = event.eventType === 'lote_created' ? 'lote_created' : (event.activityType || 'notificacion');
+  const isAutopilot = event.eventType?.startsWith('autopilot_');
+  const key = isAutopilot ? event.eventType : (event.eventType === 'lote_created' ? 'lote_created' : (event.activityType || 'notificacion'));
   const { text, icon } = EVENT_LABELS[key] || EVENT_LABELS.notificacion;
-  const initial = (event.userName || '?')[0].toUpperCase();
+  const initial = isAutopilot ? '⚙' : (event.userName || '?')[0].toUpperCase();
 
   return (
-    <div className="feed-event">
-      <div className="feed-avatar">{initial}</div>
+    <div className={`feed-event${isAutopilot ? ' feed-event--autopilot' : ''}`}>
+      <div className={`feed-avatar${isAutopilot ? ' feed-avatar--autopilot' : ''}`}>{initial}</div>
       <div className="feed-body">
-        <span className="feed-username">{event.userName}</span>
+        <span className={`feed-username${isAutopilot ? ' feed-username--autopilot' : ''}`}>{event.userName}</span>
         {' '}<span className="feed-action">{text}</span>
         {event.title && <span className="feed-title"> — {event.title}</span>}
         {event.loteNombre && event.eventType !== 'lote_created' && (

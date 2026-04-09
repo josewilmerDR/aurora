@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   FiZap, FiRefreshCw, FiAlertTriangle, FiAlertCircle, FiInfo,
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
+  FiCheck, FiX, FiSend,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -37,6 +38,30 @@ const PRIORIDAD_ICONS = {
   alta:  FiAlertTriangle,
   media: FiAlertCircle,
   baja:  FiInfo,
+};
+
+const ACTION_TYPE_LABELS = {
+  crear_tarea:        'Crear tarea',
+  reprogramar_tarea:  'Reprogramar tarea',
+  reasignar_tarea:    'Reasignar tarea',
+  ajustar_inventario: 'Ajustar inventario',
+  enviar_notificacion:'Enviar notificación',
+};
+
+const ACTION_TYPE_ICONS = {
+  crear_tarea:        FiCalendar,
+  reprogramar_tarea:  FiClock,
+  reasignar_tarea:    FiCalendar,
+  ajustar_inventario: FiPackage,
+  enviar_notificacion:FiSend,
+};
+
+const STATUS_LABELS = {
+  proposed: 'Pendiente',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+  executed: 'Ejecutada',
+  failed:   'Fallida',
 };
 
 function formatTimestamp(iso) {
@@ -91,6 +116,152 @@ function RecommendationCard({ rec }) {
   );
 }
 
+function ActionParamsSummary({ type, params }) {
+  if (!params) return null;
+  const items = [];
+  switch (type) {
+    case 'crear_tarea':
+      items.push(`Tarea: "${params.nombre}"`);
+      if (params.loteNombre) items.push(`Lote: ${params.loteNombre}`);
+      if (params.responsableNombre) items.push(`Responsable: ${params.responsableNombre}`);
+      if (params.fecha) items.push(`Fecha: ${params.fecha}`);
+      break;
+    case 'reprogramar_tarea':
+      items.push(`Tarea: "${params.taskName}"`);
+      if (params.oldDate) items.push(`Fecha actual: ${params.oldDate}`);
+      items.push(`Nueva fecha: ${params.newDate}`);
+      break;
+    case 'reasignar_tarea':
+      items.push(`Tarea: "${params.taskName}"`);
+      if (params.oldUserName) items.push(`De: ${params.oldUserName}`);
+      items.push(`A: ${params.newUserName}`);
+      break;
+    case 'ajustar_inventario':
+      items.push(`Producto: ${params.productoNombre}`);
+      items.push(`Stock: ${params.stockActual ?? '?'} → ${params.stockNuevo} ${params.unidad || ''}`);
+      break;
+    case 'enviar_notificacion':
+      items.push(`A: ${params.userName}`);
+      items.push(`Mensaje: "${params.mensaje}"`);
+      break;
+  }
+  if (!items.length) return null;
+  return (
+    <ul className="ap-action-params">
+      {items.map((item, i) => <li key={i}>{item}</li>)}
+    </ul>
+  );
+}
+
+function ActionCard({ action, onApprove, onReject, canApprove }) {
+  const [confirming, setConfirming] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const TypeIcon = ACTION_TYPE_ICONS[action.type] || FiGrid;
+
+  const handleApprove = async () => {
+    setProcessing(true);
+    await onApprove(action.id);
+    setProcessing(false);
+    setConfirming(null);
+  };
+
+  const handleReject = async () => {
+    setProcessing(true);
+    await onReject(action.id, rejectReason);
+    setProcessing(false);
+    setConfirming(null);
+  };
+
+  const isActionable = action.status === 'proposed' && canApprove;
+
+  return (
+    <div className={`ap-action-card ap-action-card--${action.status} ap-action-card--pri-${action.prioridad}`}>
+      <div className="ap-action-card-header">
+        <TypeIcon size={14} className="ap-action-type-icon" />
+        <span className="ap-action-type-label">{ACTION_TYPE_LABELS[action.type] || action.type}</span>
+        {action.autonomous && (
+          <span className="ap-action-badge-auto"><FiCpu size={10} /> Auto</span>
+        )}
+        <span className={`ap-action-status ap-action-status--${action.status}`}>
+          {STATUS_LABELS[action.status]}
+        </span>
+      </div>
+      <div className="ap-action-card-body">
+        <p className="ap-action-titulo">{action.titulo}</p>
+        {action.descripcion && action.descripcion !== action.titulo && (
+          <p className="ap-action-descripcion">{action.descripcion}</p>
+        )}
+        <ActionParamsSummary type={action.type} params={action.params} />
+      </div>
+
+      {/* Info de barandilla violada (nivel3 escaladas) */}
+      {action.escalated && action.guardrailViolations?.length > 0 && (
+        <div className="ap-action-guardrail-info">
+          <FiAlertTriangle size={12} />
+          <span>Escalada: {action.guardrailViolations.join('; ')}</span>
+        </div>
+      )}
+
+      {/* Botones aprobar/rechazar */}
+      {isActionable && !confirming && (
+        <div className="ap-action-buttons">
+          <button className="ap-action-btn ap-action-btn--approve" onClick={() => setConfirming('approve')}>
+            <FiCheck size={13} /> Aprobar y Ejecutar
+          </button>
+          <button className="ap-action-btn ap-action-btn--reject" onClick={() => setConfirming('reject')}>
+            <FiX size={13} /> Rechazar
+          </button>
+        </div>
+      )}
+
+      {/* Confirmación de aprobación */}
+      {confirming === 'approve' && (
+        <div className="ap-action-confirm">
+          <p>Esta acción se ejecutará inmediatamente. ¿Continuar?</p>
+          <div className="ap-action-confirm-buttons">
+            <button className="ap-action-btn ap-action-btn--approve" onClick={handleApprove} disabled={processing}>
+              {processing ? 'Ejecutando...' : 'Confirmar'}
+            </button>
+            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmación de rechazo */}
+      {confirming === 'reject' && (
+        <div className="ap-action-confirm">
+          <input
+            type="text"
+            placeholder="Razón del rechazo (opcional)"
+            value={rejectReason}
+            onChange={e => setRejectReason(e.target.value)}
+            className="ap-action-reject-input"
+          />
+          <div className="ap-action-confirm-buttons">
+            <button className="ap-action-btn ap-action-btn--reject" onClick={handleReject} disabled={processing}>
+              {processing ? 'Rechazando...' : 'Confirmar Rechazo'}
+            </button>
+            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Resultado de ejecución */}
+      {action.status === 'executed' && (
+        <div className="ap-action-result ap-action-result--ok">Ejecutada correctamente</div>
+      )}
+      {action.status === 'failed' && action.executionResult?.error && (
+        <div className="ap-action-result ap-action-result--error">Error: {action.executionResult.error}</div>
+      )}
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function AutopilotDashboard() {
@@ -99,10 +270,13 @@ export default function AutopilotDashboard() {
 
   const [config, setConfig] = useState(null);
   const [latestSession, setLatestSession] = useState(null);
+  const [proposedActions, setProposedActions] = useState([]);
+  const [executedActions, setExecutedActions] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Carga inicial: config + última sesión
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -118,7 +292,6 @@ export default function AutopilotDashboard() {
         ]);
         setConfig(configData);
         if (Array.isArray(sessionsData) && sessionsData.length > 0) {
-          // La sesión ligera no tiene recommendations[]; cargar la primera completa
           const firstId = sessionsData[0].id;
           const sessionRes = await apiFetch(`/api/autopilot/sessions/${firstId}`);
           if (!cancelled) {
@@ -136,6 +309,23 @@ export default function AutopilotDashboard() {
     return () => { cancelled = true; };
   }, []);
 
+  // Cargar acciones propuestas cuando el modo es nivel2
+  useEffect(() => {
+    if (!config || (config.mode !== 'nivel2' && config.mode !== 'nivel3')) return;
+    let cancelled = false;
+    async function loadActions() {
+      try {
+        const res = await apiFetch('/api/autopilot/actions');
+        if (!cancelled) {
+          const data = await res.json();
+          setProposedActions(Array.isArray(data) ? data : []);
+        }
+      } catch (_) { /* silent */ }
+    }
+    loadActions();
+    return () => { cancelled = true; };
+  }, [config?.mode]);
+
   const handleAnalyze = async () => {
     setAnalyzing(true);
     setError(null);
@@ -148,12 +338,49 @@ export default function AutopilotDashboard() {
         timestamp: data.timestamp,
         recommendations: data.recommendations,
         snapshot: data.snapshot,
+        summaryText: data.summaryText || '',
         status: 'completed',
       });
+      if (Array.isArray(data.proposedActions)) {
+        setProposedActions(data.proposedActions);
+      }
+      if (Array.isArray(data.executedActions) || Array.isArray(data.failedActions)) {
+        setExecutedActions([...(data.executedActions || []), ...(data.failedActions || [])]);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleApprove = async (actionId) => {
+    try {
+      const res = await apiFetch(`/api/autopilot/actions/${actionId}/approve`, { method: 'PUT' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setProposedActions(prev =>
+        prev.map(a => a.id === actionId ? { ...a, status: data.status, executionResult: data.executionResult } : a)
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleReject = async (actionId, reason) => {
+    try {
+      const res = await apiFetch(`/api/autopilot/actions/${actionId}/reject`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setProposedActions(prev =>
+        prev.map(a => a.id === actionId ? { ...a, status: 'rejected' } : a)
+      );
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -162,6 +389,8 @@ export default function AutopilotDashboard() {
 
   const recommendations = latestSession?.recommendations || [];
   const byPriority = (p) => recommendations.filter(r => r.prioridad === p);
+  const actionsByPriority = (p) => proposedActions.filter(a => a.prioridad === p);
+  const pendingCount = proposedActions.filter(a => a.status === 'proposed').length;
 
   return (
     <div className="ap-page">
@@ -258,7 +487,15 @@ export default function AutopilotDashboard() {
         </div>
       )}
 
-      {/* ── Recomendaciones agrupadas por prioridad ── */}
+      {/* ── Resumen IA (nivel2/nivel3) ── */}
+      {(mode === 'nivel2' || mode === 'nivel3') && latestSession?.summaryText && (
+        <div className="ap-summary-box">
+          <FiCpu size={13} className="ap-summary-icon" />
+          <p>{latestSession.summaryText}</p>
+        </div>
+      )}
+
+      {/* ── Recomendaciones agrupadas por prioridad (nivel1) ── */}
       {recommendations.length > 0 && (
         <div className="ap-recs">
           {['alta', 'media', 'baja'].map(prioridad => {
@@ -275,6 +512,82 @@ export default function AutopilotDashboard() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Acciones Propuestas (nivel2) ── */}
+      {mode === 'nivel2' && proposedActions.length > 0 && (
+        <div className="ap-actions-section">
+          <h2 className="ap-actions-title">
+            <FiZap size={14} /> Acciones Propuestas
+            {pendingCount > 0 && (
+              <span className="ap-actions-count">{pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}</span>
+            )}
+          </h2>
+          {['alta', 'media', 'baja'].map(prioridad => {
+            const group = actionsByPriority(prioridad);
+            if (!group.length) return null;
+            const PrioIcon = PRIORIDAD_ICONS[prioridad];
+            return (
+              <div key={prioridad} className="ap-action-group">
+                <h3 className={`ap-rec-group-title ap-rec-group-title--${prioridad}`}>
+                  <PrioIcon size={13} />
+                  Prioridad {prioridad.charAt(0).toUpperCase() + prioridad.slice(1)}
+                </h3>
+                {group.map(action => (
+                  <ActionCard
+                    key={action.id}
+                    action={action}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    canApprove={canConfig}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Nivel 3: Acciones Ejecutadas ── */}
+      {mode === 'nivel3' && executedActions.length > 0 && (
+        <div className="ap-actions-section">
+          <h2 className="ap-actions-title ap-actions-title--n3">
+            <FiZap size={14} /> Acciones Ejecutadas
+            <span className="ap-actions-count ap-actions-count--executed">
+              {executedActions.filter(a => a.status === 'executed').length} ejecutada{executedActions.filter(a => a.status === 'executed').length !== 1 ? 's' : ''}
+            </span>
+          </h2>
+          {executedActions.map(action => (
+            <ActionCard
+              key={action.id}
+              action={action}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              canApprove={false}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Nivel 3: Acciones Escaladas ── */}
+      {mode === 'nivel3' && proposedActions.length > 0 && (
+        <div className="ap-actions-section">
+          <h2 className="ap-actions-title ap-actions-title--escalated">
+            <FiAlertTriangle size={14} /> Acciones Escaladas
+            <span className="ap-actions-count">
+              {proposedActions.filter(a => a.status === 'proposed').length} pendiente{proposedActions.filter(a => a.status === 'proposed').length !== 1 ? 's' : ''}
+            </span>
+          </h2>
+          {proposedActions.map(action => (
+            <ActionCard
+              key={action.id}
+              action={action}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              canApprove={canConfig}
+            />
+          ))}
         </div>
       )}
 

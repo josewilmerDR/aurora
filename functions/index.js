@@ -171,20 +171,24 @@ const enrichTask = async (taskDoc) => {
 
 // --- FEED HELPER ---
 
-async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType, title, loteNombre }) {
+async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType, title, loteNombre, userName: userNameOverride }) {
   try {
-    const userSnap = await db.collection('users')
-      .where('email', '==', userEmail)
-      .where('fincaId', '==', fincaId)
-      .limit(1).get();
-    const userName = userSnap.empty ? userEmail : userSnap.docs[0].data().nombre;
+    let userName = userNameOverride || null;
+    if (!userName && userEmail) {
+      const userSnap = await db.collection('users')
+        .where('email', '==', userEmail)
+        .where('fincaId', '==', fincaId)
+        .limit(1).get();
+      userName = userSnap.empty ? userEmail : userSnap.docs[0].data().nombre;
+    }
+    if (!userName) userName = 'Sistema';
 
     await db.collection('feed').add({
       fincaId,
-      uid,
+      uid: uid || 'system',
       userName,
-      eventType,          // 'task_completed' | 'lote_created'
-      activityType: activityType || null,  // 'aplicacion' | 'notificacion' | null
+      eventType,
+      activityType: activityType || null,
       title,
       loteNombre: loteNombre || null,
       sensitive: false,
@@ -196,10 +200,218 @@ async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType
   }
 }
 
+// --- PUSH NOTIFICATION HELPER: enviar push inmediato a roles de la finca ---
+
+async function sendPushToFincaRoles(fincaId, roles, { title, body, url }) {
+  try {
+    // Buscar usuarios con los roles indicados en la finca
+    const usersSnap = await db.collection('users')
+      .where('fincaId', '==', fincaId)
+      .get();
+    const targetUids = usersSnap.docs
+      .filter(d => roles.includes(d.data().rol))
+      .map(d => d.id);
+    if (!targetUids.length) return;
+
+    // Configurar VAPID
+    const VAPID_SUBJECT = 'mailto:aurora@finca.com';
+    webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+
+    const payload = JSON.stringify({
+      title: title || 'Aurora — Piloto Automático',
+      body: body || '',
+      icon: '/aurora-logo.png',
+      badge: '/aurora-logo.png',
+      data: { url: url || '/autopilot' },
+    });
+
+    // Enviar a todas las suscripciones de los usuarios objetivo
+    for (const uid of targetUids) {
+      const subSnap = await db.collection('push_subscriptions')
+        .where('uid', '==', uid)
+        .where('fincaId', '==', fincaId)
+        .get();
+      for (const subDoc of subSnap.docs) {
+        try {
+          await webpush.sendNotification(subDoc.data().subscription, payload);
+        } catch (err) {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            await subDoc.ref.delete();
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[PUSH] Error enviando push a roles:', err.message);
+  }
+}
+
+// --- WHATSAPP NOTIFICATION HELPER: enviar WhatsApp a roles de la finca ---
+
+async function sendWhatsAppToFincaRoles(fincaId, roles, mensaje) {
+  try {
+    const usersSnap = await db.collection('users')
+      .where('fincaId', '==', fincaId)
+      .get();
+    const targets = usersSnap.docs
+      .filter(d => roles.includes(d.data().rol) && d.data().telefono)
+      .map(d => d.data().telefono);
+    if (!targets.length) return;
+
+    if (!twilioClient) {
+      twilioClient = twilio(twilioAccountSid.value(), twilioAuthToken.value());
+    }
+    const from = `whatsapp:${twilioWhatsappFrom.value()}`;
+
+    for (const phone of targets) {
+      try {
+        const to = `whatsapp:${phone.replace(/\s+/g, '')}`;
+        await twilioClient.messages.create({ body: mensaje, from, to });
+      } catch (err) {
+        console.error(`[WHATSAPP] Error enviando a ${phone}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[WHATSAPP] Error enviando WhatsApp a roles:', err.message);
+  }
+}
+
 // --- ROLE HELPER (backend mirror of frontend ROLE_LEVELS) ---
 const ROLE_LEVELS_BE = { trabajador: 1, encargado: 2, supervisor: 3, rrhh: 3, administrador: 4 };
 const hasMinRoleBE = (userRole, minRole) =>
   (ROLE_LEVELS_BE[userRole] || 0) >= (ROLE_LEVELS_BE[minRole] || 0);
+
+// --- AUTOPILOT: ejecutar acción aprobada ---
+async function executeAutopilotAction(type, params, fincaId, options = {}) {
+  switch (type) {
+    case 'crear_tarea': {
+      const { nombre, loteId, responsableId, fecha, productos } = params;
+      const prodList = Array.isArray(productos) ? productos : [];
+      const newTask = {
+        type: prodList.length > 0 ? 'MANUAL_APLICACION' : 'MANUAL_NOTIFICACION',
+        executeAt: Timestamp.fromDate(new Date(fecha + 'T08:00:00')),
+        status: 'pending',
+        loteId: loteId || null,
+        fincaId,
+        activity: {
+          name: nombre,
+          type: prodList.length > 0 ? 'aplicacion' : 'notificacion',
+          responsableId: responsableId || null,
+          productos: prodList.map(p => ({
+            productoId: p.productoId,
+            nombreComercial: p.nombreComercial || '',
+            cantidad: parseFloat(p.cantidad) || 0,
+            unidad: p.unidad || '',
+          })),
+        },
+        createdByAutopilot: true,
+      };
+      const docRef = await db.collection('scheduled_tasks').add(newTask);
+      return { ok: true, taskId: docRef.id, nombre };
+    }
+
+    case 'reprogramar_tarea': {
+      const { taskId, newDate } = params;
+      const ownership = await verifyOwnership('scheduled_tasks', taskId, fincaId);
+      if (!ownership.ok) throw new Error(ownership.message);
+      await db.collection('scheduled_tasks').doc(taskId).update({
+        executeAt: Timestamp.fromDate(new Date(newDate + 'T08:00:00')),
+      });
+      return { ok: true, taskId, newDate };
+    }
+
+    case 'reasignar_tarea': {
+      const { taskId, newUserId } = params;
+      const ownership = await verifyOwnership('scheduled_tasks', taskId, fincaId);
+      if (!ownership.ok) throw new Error(ownership.message);
+      const taskData = ownership.doc.data();
+      const updatedActivity = { ...taskData.activity, responsableId: newUserId };
+      await db.collection('scheduled_tasks').doc(taskId).update({
+        activity: updatedActivity,
+        status: 'pending',
+      });
+      return { ok: true, taskId, newUserId };
+    }
+
+    case 'ajustar_inventario': {
+      const { productoId, stockNuevo, nota } = params;
+      const ownership = await verifyOwnership('productos', productoId, fincaId);
+      if (!ownership.ok) throw new Error(ownership.message);
+      const stockAnterior = ownership.doc.data().stockActual ?? 0;
+      const batch = db.batch();
+      batch.update(db.collection('productos').doc(productoId), { stockActual: stockNuevo });
+      batch.set(db.collection('movimientos').doc(), {
+        fincaId,
+        productoId,
+        tipo: 'ajuste_autopilot',
+        cantidad: stockNuevo - stockAnterior,
+        stockAnterior,
+        stockNuevo,
+        nota: nota || `Ajuste automático — Piloto Automático ${options.level || 'Nivel 2'}`,
+        fecha: new Date(),
+      });
+      await batch.commit();
+      return { ok: true, productoId, stockAnterior, stockNuevo };
+    }
+
+    case 'enviar_notificacion': {
+      const { userId, mensaje, telefono } = params;
+      let phone = telefono;
+      if (!phone) {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) throw new Error('Usuario no encontrado.');
+        phone = userDoc.data().telefono;
+      }
+      if (!phone) throw new Error('El usuario no tiene teléfono registrado.');
+      if (!twilioClient) {
+        twilioClient = twilio(twilioAccountSid.value(), twilioAuthToken.value());
+      }
+      const to = `whatsapp:${phone.replace(/\s+/g, '')}`;
+      const from = `whatsapp:${twilioWhatsappFrom.value()}`;
+      await twilioClient.messages.create({ body: mensaje, from, to });
+      return { ok: true, userId, enviado: true };
+    }
+
+    default:
+      throw new Error(`Tipo de acción desconocido: ${type}`);
+  }
+}
+
+// --- AUTOPILOT: validación de barandillas de seguridad (Nivel 3) ---
+function validateGuardrails(actionType, params, guardrails, sessionExecutedCount) {
+  const violations = [];
+
+  const maxActions = guardrails.maxActionsPerSession ?? 5;
+  if (sessionExecutedCount >= maxActions) {
+    violations.push(`Límite de ${maxActions} acciones autónomas por sesión alcanzado.`);
+  }
+
+  const allowed = guardrails.allowedActionTypes ??
+    ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion'];
+  if (!allowed.includes(actionType)) {
+    violations.push(`Tipo de acción "${actionType}" no está habilitado para ejecución autónoma.`);
+  }
+
+  const blocked = guardrails.blockedLotes ?? [];
+  const loteId = params.loteId || null;
+  if (loteId && blocked.includes(loteId)) {
+    violations.push(`El lote está bloqueado para acciones autónomas.`);
+  }
+
+  if (actionType === 'ajustar_inventario') {
+    const maxPct = guardrails.maxStockAdjustPercent ?? 30;
+    const current = params.stockActual ?? 0;
+    const next = params.stockNuevo ?? 0;
+    if (current > 0) {
+      const pctChange = Math.abs(next - current) / current * 100;
+      if (pctChange > maxPct) {
+        violations.push(`Cambio de stock de ${pctChange.toFixed(0)}% excede el límite de ${maxPct}%.`);
+      }
+    }
+  }
+
+  return { allowed: violations.length === 0, violations };
+}
 
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
@@ -7298,7 +7510,7 @@ app.get('/api/autopilot/config', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('autopilot_config').doc(req.fincaId).get();
     if (!doc.exists) {
-      return res.json({ fincaId: req.fincaId, mode: 'off', objectives: '' });
+      return res.json({ fincaId: req.fincaId, mode: 'off', objectives: '', guardrails: {} });
     }
     res.json({ id: doc.id, ...doc.data() });
   } catch (err) {
@@ -7313,7 +7525,7 @@ app.put('/api/autopilot/config', authenticate, async (req, res) => {
     return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
   }
   try {
-    const { mode, objectives } = req.body;
+    const { mode, objectives, guardrails } = req.body;
     const VALID_MODES = ['off', 'nivel1', 'nivel2', 'nivel3'];
     if (mode !== undefined && !VALID_MODES.includes(mode)) {
       return res.status(400).json({ message: 'Modo inválido.' });
@@ -7327,6 +7539,23 @@ app.put('/api/autopilot/config', authenticate, async (req, res) => {
       ...(objectives !== undefined && { objectives }),
       updatedAt: now,
     };
+    if (guardrails !== undefined && typeof guardrails === 'object') {
+      const VALID_ACTION_TYPES = ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion'];
+      const g = {};
+      if (typeof guardrails.maxActionsPerSession === 'number') {
+        g.maxActionsPerSession = Math.max(1, Math.min(20, Math.round(guardrails.maxActionsPerSession)));
+      }
+      if (typeof guardrails.maxStockAdjustPercent === 'number') {
+        g.maxStockAdjustPercent = Math.max(1, Math.min(100, Math.round(guardrails.maxStockAdjustPercent)));
+      }
+      if (Array.isArray(guardrails.allowedActionTypes)) {
+        g.allowedActionTypes = guardrails.allowedActionTypes.filter(t => VALID_ACTION_TYPES.includes(t));
+      }
+      if (Array.isArray(guardrails.blockedLotes)) {
+        g.blockedLotes = guardrails.blockedLotes.filter(id => typeof id === 'string' && id.length > 0);
+      }
+      payload.guardrails = g;
+    }
     if (!existing.exists) payload.createdAt = now;
     await ref.set(payload, { merge: true });
     res.json({ ok: true });
@@ -7353,8 +7582,8 @@ app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-    // 2. Consultas paralelas al estado de la finca
-    const [tasksSnap, productosSnap, monitoreosSnap, lotesSnap] = await Promise.all([
+    // 2. Consultas paralelas al estado de la finca (users incluido para nivel2)
+    const [tasksSnap, productosSnap, monitoreosSnap, lotesSnap, usersSnap] = await Promise.all([
       db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get(),
       db.collection('productos').where('fincaId', '==', req.fincaId).get(),
       db.collection('monitoreos')
@@ -7364,9 +7593,10 @@ app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
         .limit(50)
         .get(),
       db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
+      db.collection('users').where('fincaId', '==', req.fincaId).get(),
     ]);
 
-    // 3. Procesar snapshot
+    // 3. Procesar snapshot (enriched con IDs para nivel2)
     const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const overdueTasks = [];
@@ -7378,10 +7608,17 @@ app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
       const due = t.executeAt?.toDate?.() || null;
       if (!due) return;
       const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+      const taskInfo = {
+        id: doc.id,
+        nombre: t.activity?.name || '—',
+        dueDate: due.toISOString().split('T')[0],
+        responsableId: t.activity?.responsableId || null,
+        loteId: t.loteId || null,
+      };
       if (dueDay < todayDay) {
-        overdueTasks.push({ nombre: t.activity?.name || '—', dueDate: due.toISOString().split('T')[0] });
+        overdueTasks.push(taskInfo);
       } else if (due <= fourteenDaysAhead) {
-        upcomingTasks.push({ nombre: t.activity?.name || '—', dueDate: due.toISOString().split('T')[0] });
+        upcomingTasks.push(taskInfo);
       }
     });
 
@@ -7392,7 +7629,7 @@ app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
       })
       .map(doc => {
         const d = doc.data();
-        return { nombre: d.nombreComercial || '—', stockActual: d.stockActual ?? 0, stockMinimo: d.stockMinimo ?? 0, unidad: d.unidad || '' };
+        return { id: doc.id, nombre: d.nombreComercial || '—', stockActual: d.stockActual ?? 0, stockMinimo: d.stockMinimo ?? 0, unidad: d.unidad || '' };
       });
 
     const recentMonitoreos = monitoreosSnap.docs.map(doc => {
@@ -7406,7 +7643,12 @@ app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
 
     const activeLotes = lotesSnap.docs.map(doc => {
       const d = doc.data();
-      return { codigo: d.codigoLote || '', nombre: d.nombreLote || '', hectareas: d.hectareas || null };
+      return { id: doc.id, codigo: d.codigoLote || '', nombre: d.nombreLote || '', hectareas: d.hectareas || null };
+    });
+
+    const catalogoUsers = usersSnap.docs.map(doc => {
+      const d = doc.data();
+      return { id: doc.id, nombre: d.nombre || '', rol: d.rol || '', telefono: d.telefono || '' };
     });
 
     const snapshot = {
@@ -7417,8 +7659,38 @@ app.post('/api/autopilot/analyze', authenticate, async (req, res) => {
       activeLotesCount: activeLotes.length,
     };
 
-    // 4. Construir contexto para Claude
-    const snapshotText = `
+    if (!anthropicClient) {
+      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
+    }
+
+    // Snapshot enriquecido con IDs (compartido por nivel2 y nivel3)
+    const snapshotTextEnriched = `
+## Estado actual de la finca (fecha: ${now.toISOString().split('T')[0]})
+
+**Lotes activos (${activeLotes.length}):**
+${activeLotes.length ? activeLotes.map(l => `  - [ID: ${l.id}] ${l.codigo ? l.codigo + ' ' : ''}"${l.nombre}"${l.hectareas ? ` | ${l.hectareas} ha` : ''}`).join('\n') : '  (sin lotes registrados)'}
+
+**Tareas vencidas (${overdueTasks.length}):**
+${overdueTasks.length ? overdueTasks.slice(0, 15).map(t => `  - [ID: ${t.id}] "${t.nombre}" — vencida el ${t.dueDate}${t.responsableId ? ` (responsable: ${t.responsableId})` : ''}`).join('\n') : '  (sin tareas vencidas)'}
+
+**Tareas próximas — próximos 14 días (${upcomingTasks.length}):**
+${upcomingTasks.length ? upcomingTasks.slice(0, 15).map(t => `  - [ID: ${t.id}] "${t.nombre}" — programada para ${t.dueDate}${t.responsableId ? ` (responsable: ${t.responsableId})` : ''}`).join('\n') : '  (sin tareas próximas)'}
+
+**Productos con stock bajo o agotado (${lowStockProductos.length}):**
+${lowStockProductos.length ? lowStockProductos.map(p => `  - [ID: ${p.id}] ${p.nombre} | Stock actual: ${p.stockActual} ${p.unidad} | Mínimo: ${p.stockMinimo} ${p.unidad}`).join('\n') : '  (todos los productos tienen stock suficiente)'}
+
+**Monitoreos recientes — últimos 30 días (${recentMonitoreos.length}):**
+${recentMonitoreos.length ? recentMonitoreos.slice(0, 10).map(m => `  - ${m.tipoNombre} en ${m.loteNombre} el ${m.fecha}`).join('\n') : '  (sin monitoreos recientes)'}
+
+**Usuarios / trabajadores disponibles (${catalogoUsers.length}):**
+${catalogoUsers.length ? catalogoUsers.map(u => `  - [ID: ${u.id}] ${u.nombre} | Rol: ${u.rol}${u.telefono ? ` | Tel: ${u.telefono}` : ''}`).join('\n') : '  (sin usuarios registrados)'}
+`.trim();
+
+    // ════════════════════════════════════════════════════════════════
+    //  NIVEL 1 — Recomendaciones (texto)
+    // ════════════════════════════════════════════════════════════════
+    if (config.mode === 'nivel1') {
+      const snapshotText = `
 ## Estado actual de la finca (fecha: ${now.toISOString().split('T')[0]})
 
 **Lotes activos (${activeLotes.length}):**
@@ -7437,7 +7709,7 @@ ${lowStockProductos.length ? lowStockProductos.map(p => `  - ${p.nombre} | Stock
 ${recentMonitoreos.length ? recentMonitoreos.slice(0, 10).map(m => `  - ${m.tipoNombre} en ${m.loteNombre} el ${m.fecha}`).join('\n') : '  (sin monitoreos recientes)'}
 `.trim();
 
-    const systemPrompt = `Eres el analizador estratégico de Aurora, una plataforma de gestión agrícola inteligente.
+      const systemPrompt = `Eres el analizador estratégico de Aurora, una plataforma de gestión agrícola inteligente.
 Tu tarea es analizar el estado actual de la finca y los objetivos del productor, y generar un conjunto de recomendaciones priorizadas, concretas y accionables.
 
 Reglas de respuesta:
@@ -7459,90 +7731,676 @@ Esquema de cada recomendación (JSON estricto):
   "accionSugerida": "paso concreto a tomar, comenzando con un verbo"
 }`;
 
-    const userMessage = `**Objetivos del productor para este ciclo:**
+      const userMessage = `**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
 
 ${snapshotText}
 
 Genera las recomendaciones en formato JSON array.`;
 
-    // 5. Llamar a Claude
-    if (!anthropicClient) {
-      anthropicClient = new Anthropic({ apiKey: anthropicApiKey.value() });
-    }
-    const claudeResponse = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-
-    const rawText = claudeResponse.content
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('');
-
-    // 6. Parsear y validar recomendaciones
-    const VALID_CATS = ['inventario', 'tareas', 'aplicaciones', 'monitoreo', 'general'];
-    const VALID_PRIS = ['alta', 'media', 'baja'];
-    let recommendations = [];
-    try {
-      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      recommendations = (Array.isArray(parsed) ? parsed : [])
-        .filter(r => r && typeof r === 'object')
-        .map((r, i) => ({
-          id: `rec_${i + 1}`,
-          categoria: VALID_CATS.includes(r.categoria) ? r.categoria : 'general',
-          prioridad: VALID_PRIS.includes(r.prioridad) ? r.prioridad : 'baja',
-          titulo: String(r.titulo || '').slice(0, 120),
-          descripcion: String(r.descripcion || ''),
-          contexto: String(r.contexto || ''),
-          accionSugerida: String(r.accionSugerida || ''),
-        }))
-        .slice(0, 10);
-    } catch (parseErr) {
-      console.error('[AUTOPILOT] Error al parsear respuesta de Claude:', parseErr.message, rawText.slice(0, 200));
-      await db.collection('autopilot_sessions').add({
-        fincaId: req.fincaId,
-        timestamp: Timestamp.now(),
-        triggeredBy: req.uid,
-        triggeredByName: req.userEmail,
-        snapshot,
-        recommendations: [],
-        status: 'error',
-        errorMessage: 'No se pudo interpretar la respuesta del modelo.',
+      const claudeResponse = await anthropicClient.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
       });
-      return res.status(500).json({ message: 'Error al procesar las recomendaciones. Por favor intenta de nuevo.' });
+
+      const rawText = claudeResponse.content
+        .filter(b => b.type === 'text')
+        .map(b => b.text)
+        .join('');
+
+      const VALID_CATS = ['inventario', 'tareas', 'aplicaciones', 'monitoreo', 'general'];
+      const VALID_PRIS = ['alta', 'media', 'baja'];
+      let recommendations = [];
+      try {
+        const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        recommendations = (Array.isArray(parsed) ? parsed : [])
+          .filter(r => r && typeof r === 'object')
+          .map((r, i) => ({
+            id: `rec_${i + 1}`,
+            categoria: VALID_CATS.includes(r.categoria) ? r.categoria : 'general',
+            prioridad: VALID_PRIS.includes(r.prioridad) ? r.prioridad : 'baja',
+            titulo: String(r.titulo || '').slice(0, 120),
+            descripcion: String(r.descripcion || ''),
+            contexto: String(r.contexto || ''),
+            accionSugerida: String(r.accionSugerida || ''),
+          }))
+          .slice(0, 10);
+      } catch (parseErr) {
+        console.error('[AUTOPILOT] Error al parsear respuesta de Claude:', parseErr.message, rawText.slice(0, 200));
+        await db.collection('autopilot_sessions').add({
+          fincaId: req.fincaId, timestamp: Timestamp.now(),
+          triggeredBy: req.uid, triggeredByName: req.userEmail,
+          snapshot, recommendations: [], status: 'error',
+          errorMessage: 'No se pudo interpretar la respuesta del modelo.',
+        });
+        return res.status(500).json({ message: 'Error al procesar las recomendaciones. Por favor intenta de nuevo.' });
+      }
+
+      const sessionRef = await db.collection('autopilot_sessions').add({
+        fincaId: req.fincaId, timestamp: Timestamp.now(),
+        triggeredBy: req.uid, triggeredByName: req.userEmail,
+        snapshot, recommendations, status: 'completed', errorMessage: null,
+      });
+
+      writeFeedEvent({
+        fincaId: req.fincaId, userName: 'Aurora Copiloto',
+        eventType: 'autopilot_analysis',
+        title: `Análisis N1: ${recommendations.length} recomendaciones generadas`,
+      });
+
+      return res.json({
+        sessionId: sessionRef.id, recommendations, snapshot,
+        timestamp: new Date().toISOString(),
+      });
     }
 
-    // 7. Guardar sesión
-    const sessionRef = await db.collection('autopilot_sessions').add({
-      fincaId: req.fincaId,
-      timestamp: Timestamp.now(),
-      triggeredBy: req.uid,
-      triggeredByName: req.userEmail,
-      snapshot,
-      recommendations,
-      status: 'completed',
-      errorMessage: null,
-    });
+    // ════════════════════════════════════════════════════════════════
+    //  NIVEL 2 — Agencia Supervisada (tool_use → cola de aprobación)
+    // ════════════════════════════════════════════════════════════════
+    if (config.mode === 'nivel2') {
+      const nivel2Tools = [
+        {
+          name: 'proponer_crear_tarea',
+          description: 'Propone la creación de una nueva tarea programada. Se guardará como propuesta para aprobación del supervisor.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              nombre:            { type: 'string', description: 'Nombre descriptivo de la tarea/actividad.' },
+              loteId:            { type: 'string', description: 'ID del lote (del catálogo).' },
+              loteNombre:        { type: 'string', description: 'Nombre del lote (para visualización).' },
+              responsableId:     { type: 'string', description: 'ID del usuario responsable (del catálogo).' },
+              responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
+              fecha:             { type: 'string', description: 'Fecha de ejecución YYYY-MM-DD.' },
+              productos:         { type: 'array', items: { type: 'object', properties: { productoId: { type: 'string' }, nombreComercial: { type: 'string' }, cantidad: { type: 'number' }, unidad: { type: 'string' } } }, description: 'Productos a aplicar (opcional, solo para tareas de tipo aplicación).' },
+              razon:             { type: 'string', description: 'Razón clara por la cual se propone esta tarea, basada en los datos.' },
+              prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['nombre', 'loteId', 'responsableId', 'fecha', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'proponer_reprogramar_tarea',
+          description: 'Propone reprogramar una tarea existente a una nueva fecha.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              taskId:    { type: 'string', description: 'ID de la tarea existente (del snapshot).' },
+              taskName:  { type: 'string', description: 'Nombre de la tarea (para visualización).' },
+              oldDate:   { type: 'string', description: 'Fecha actual de la tarea YYYY-MM-DD.' },
+              newDate:   { type: 'string', description: 'Nueva fecha propuesta YYYY-MM-DD.' },
+              razon:     { type: 'string', description: 'Razón de la reprogramación.' },
+              prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['taskId', 'taskName', 'newDate', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'proponer_reasignar_tarea',
+          description: 'Propone reasignar una tarea a un usuario diferente.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              taskId:      { type: 'string', description: 'ID de la tarea existente.' },
+              taskName:    { type: 'string', description: 'Nombre de la tarea.' },
+              oldUserId:   { type: 'string', description: 'ID del responsable actual.' },
+              oldUserName: { type: 'string', description: 'Nombre del responsable actual.' },
+              newUserId:   { type: 'string', description: 'ID del nuevo responsable (del catálogo).' },
+              newUserName: { type: 'string', description: 'Nombre del nuevo responsable.' },
+              razon:       { type: 'string', description: 'Razón de la reasignación.' },
+              prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['taskId', 'taskName', 'newUserId', 'newUserName', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'proponer_ajustar_inventario',
+          description: 'Propone ajustar el stock de un producto del inventario.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              productoId:     { type: 'string', description: 'ID del producto (del catálogo).' },
+              productoNombre: { type: 'string', description: 'Nombre del producto.' },
+              stockActual:    { type: 'number', description: 'Stock actual registrado.' },
+              stockNuevo:     { type: 'number', description: 'Nuevo valor de stock propuesto.' },
+              unidad:         { type: 'string', description: 'Unidad de medida.' },
+              nota:           { type: 'string', description: 'Nota/razón del ajuste.' },
+              prioridad:      { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['productoId', 'productoNombre', 'stockNuevo', 'nota', 'prioridad'],
+          },
+        },
+        {
+          name: 'proponer_notificacion',
+          description: 'Propone enviar una notificación WhatsApp a un trabajador.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              userId:   { type: 'string', description: 'ID del usuario destinatario (del catálogo).' },
+              userName: { type: 'string', description: 'Nombre del usuario.' },
+              telefono: { type: 'string', description: 'Teléfono del usuario.' },
+              mensaje:  { type: 'string', description: 'Contenido del mensaje WhatsApp.' },
+              razon:    { type: 'string', description: 'Razón de la notificación.' },
+              prioridad:{ type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['userId', 'userName', 'mensaje', 'razon', 'prioridad'],
+          },
+        },
+      ];
 
-    // 8. Escribir al feed (fire-and-forget)
-    writeFeedEvent({
-      fincaId: req.fincaId,
-      uid: req.uid,
-      userEmail: req.userEmail,
-      eventType: 'autopilot_analysis',
-      title: `Piloto Automático generó ${recommendations.length} recomendaciones`,
-    });
+      const nivel2SystemPrompt = `Eres el piloto automático de Aurora (Nivel 2: Agencia Supervisada), una plataforma de gestión agrícola.
+Tu tarea es analizar el estado actual de la finca y proponer acciones concretas usando las herramientas disponibles.
 
-    res.json({
-      sessionId: sessionRef.id,
-      recommendations,
-      snapshot,
-      timestamp: new Date().toISOString(),
-    });
+Cada herramienta "proponer_*" registra una propuesta que será revisada por un supervisor antes de ejecutarse.
+
+Reglas:
+- Propón entre 1 y 8 acciones, priorizando las más urgentes e impactantes.
+- Solo propón acciones que tengan sustento claro en los datos proporcionados.
+- Usa los IDs exactos del catálogo (lotes, usuarios, productos) — no inventes IDs.
+- Para cada propuesta, incluye una razón clara que el supervisor pueda evaluar rápidamente.
+- Después de llamar a todas las herramientas necesarias, escribe un resumen breve (2-3 oraciones) de lo que propusiste y por qué.
+- Si no hay acciones claras que proponer, escribe solo el resumen explicando que la finca está en buen estado.`;
+
+      const userMessageN2 = `**Objetivos del productor para este ciclo:**
+${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
+
+${snapshotTextEnriched}
+
+Analiza el estado y propón acciones concretas usando las herramientas disponibles.`;
+
+      // Agentic loop
+      const proposedActions = [];
+      const messages = [{ role: 'user', content: userMessageN2 }];
+      let summaryText = '';
+      let iterations = 0;
+
+      while (iterations < 4) {
+        iterations++;
+        const response = await anthropicClient.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 4096,
+          system: nivel2SystemPrompt,
+          tools: nivel2Tools,
+          messages,
+        });
+
+        // Extraer texto de resumen de esta iteración
+        const textBlocks = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+        if (textBlocks) summaryText += (summaryText ? '\n' : '') + textBlocks;
+
+        if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+          break;
+        }
+
+        // Procesar tool_use blocks
+        messages.push({ role: 'assistant', content: response.content });
+        const toolResults = [];
+
+        const ACTION_TYPE_MAP = {
+          proponer_crear_tarea: 'crear_tarea',
+          proponer_reprogramar_tarea: 'reprogramar_tarea',
+          proponer_reasignar_tarea: 'reasignar_tarea',
+          proponer_ajustar_inventario: 'ajustar_inventario',
+          proponer_notificacion: 'enviar_notificacion',
+        };
+
+        for (const block of response.content) {
+          if (block.type !== 'tool_use') continue;
+          const actionType = ACTION_TYPE_MAP[block.name];
+          if (!actionType) {
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: 'Herramienta desconocida' }) });
+            continue;
+          }
+
+          const { prioridad, razon, ...params } = block.input;
+          const catMap = { crear_tarea: 'tareas', reprogramar_tarea: 'tareas', reasignar_tarea: 'tareas', ajustar_inventario: 'inventario', enviar_notificacion: 'general' };
+
+          proposedActions.push({
+            type: actionType,
+            params,
+            titulo: String(razon || '').slice(0, 120),
+            descripcion: String(razon || ''),
+            prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
+            categoria: catMap[actionType] || 'general',
+          });
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({ ok: true, mensaje: `Propuesta de ${actionType} registrada para revisión del supervisor.` }),
+          });
+        }
+
+        messages.push({ role: 'user', content: toolResults });
+      }
+
+      // Guardar sesión
+      const sessionRef = await db.collection('autopilot_sessions').add({
+        fincaId: req.fincaId, timestamp: Timestamp.now(),
+        triggeredBy: req.uid, triggeredByName: req.userEmail,
+        snapshot, recommendations: [], summaryText,
+        proposedActionsCount: proposedActions.length,
+        status: 'completed', errorMessage: null,
+      });
+
+      // Guardar cada acción propuesta
+      const nowTs = Timestamp.now();
+      const actionRefs = [];
+      for (const action of proposedActions) {
+        const ref = await db.collection('autopilot_actions').add({
+          fincaId: req.fincaId,
+          sessionId: sessionRef.id,
+          type: action.type,
+          params: action.params,
+          titulo: action.titulo,
+          descripcion: action.descripcion,
+          prioridad: action.prioridad,
+          categoria: action.categoria,
+          status: 'proposed',
+          proposedBy: req.uid,
+          proposedByName: req.userEmail,
+          createdAt: nowTs,
+          reviewedBy: null,
+          reviewedByName: null,
+          reviewedAt: null,
+          rejectionReason: null,
+          executedAt: null,
+          executionResult: null,
+        });
+        actionRefs.push({ id: ref.id, ...action, status: 'proposed' });
+      }
+
+      writeFeedEvent({
+        fincaId: req.fincaId, userName: 'Aurora Copiloto',
+        eventType: 'autopilot_analysis',
+        title: `Análisis N2: ${proposedActions.length} acciones propuestas esperan aprobación`,
+      });
+
+      // Push + WhatsApp — notificar a supervisores que hay acciones pendientes
+      if (proposedActions.length > 0) {
+        const notifRoles = ['supervisor', 'administrador'];
+        const actionsList = proposedActions.map(a => `• ${a.titulo}`).join('\n');
+
+        sendPushToFincaRoles(req.fincaId, notifRoles, {
+          title: '🤖 Aurora Copiloto — Nivel 2',
+          body: `${proposedActions.length} acción(es) propuestas esperan tu aprobación.`,
+          url: '/autopilot',
+        });
+
+        sendWhatsAppToFincaRoles(req.fincaId, notifRoles, [
+          '🤖 *Aurora Copiloto — Nivel 2*',
+          '',
+          `*${proposedActions.length} acciones propuestas:*`,
+          actionsList,
+          '',
+          '_Ingresa a Aurora para aprobar o rechazar._',
+        ].join('\n'));
+      }
+
+      return res.json({
+        sessionId: sessionRef.id,
+        recommendations: [],
+        proposedActions: actionRefs,
+        summaryText,
+        snapshot,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  NIVEL 3 — Agencia Total (ejecución directa con barandillas)
+    // ════════════════════════════════════════════════════════════════
+    if (config.mode === 'nivel3') {
+      const guardrails = config.guardrails || {};
+
+      // Lookup maps para validación de barandillas
+      const taskLoteMap = {};
+      tasksSnap.docs.forEach(doc => { taskLoteMap[doc.id] = doc.data().loteId || null; });
+      const productStockMap = {};
+      productosSnap.docs.forEach(doc => { productStockMap[doc.id] = doc.data().stockActual ?? 0; });
+
+      const nivel3Tools = [
+        {
+          name: 'ejecutar_crear_tarea',
+          description: 'Crea una nueva tarea programada directamente. Se ejecuta de inmediato si cumple las barandillas de seguridad.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              nombre:            { type: 'string', description: 'Nombre descriptivo de la tarea/actividad.' },
+              loteId:            { type: 'string', description: 'ID del lote (del catálogo).' },
+              loteNombre:        { type: 'string', description: 'Nombre del lote (para visualización).' },
+              responsableId:     { type: 'string', description: 'ID del usuario responsable (del catálogo).' },
+              responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
+              fecha:             { type: 'string', description: 'Fecha de ejecución YYYY-MM-DD.' },
+              productos:         { type: 'array', items: { type: 'object', properties: { productoId: { type: 'string' }, nombreComercial: { type: 'string' }, cantidad: { type: 'number' }, unidad: { type: 'string' } } }, description: 'Productos a aplicar (opcional, solo para tareas de tipo aplicación).' },
+              razon:             { type: 'string', description: 'Razón clara por la cual se ejecuta esta tarea, basada en los datos.' },
+              prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['nombre', 'loteId', 'responsableId', 'fecha', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'ejecutar_reprogramar_tarea',
+          description: 'Reprograma una tarea existente a una nueva fecha directamente.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              taskId:    { type: 'string', description: 'ID de la tarea existente (del snapshot).' },
+              taskName:  { type: 'string', description: 'Nombre de la tarea (para visualización).' },
+              oldDate:   { type: 'string', description: 'Fecha actual de la tarea YYYY-MM-DD.' },
+              newDate:   { type: 'string', description: 'Nueva fecha YYYY-MM-DD.' },
+              razon:     { type: 'string', description: 'Razón de la reprogramación.' },
+              prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['taskId', 'taskName', 'newDate', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'ejecutar_reasignar_tarea',
+          description: 'Reasigna una tarea a un usuario diferente directamente.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              taskId:      { type: 'string', description: 'ID de la tarea existente.' },
+              taskName:    { type: 'string', description: 'Nombre de la tarea.' },
+              oldUserId:   { type: 'string', description: 'ID del responsable actual.' },
+              oldUserName: { type: 'string', description: 'Nombre del responsable actual.' },
+              newUserId:   { type: 'string', description: 'ID del nuevo responsable (del catálogo).' },
+              newUserName: { type: 'string', description: 'Nombre del nuevo responsable.' },
+              razon:       { type: 'string', description: 'Razón de la reasignación.' },
+              prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['taskId', 'taskName', 'newUserId', 'newUserName', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'ejecutar_ajustar_inventario',
+          description: 'Ajusta el stock de un producto del inventario directamente.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              productoId:     { type: 'string', description: 'ID del producto (del catálogo).' },
+              productoNombre: { type: 'string', description: 'Nombre del producto.' },
+              stockActual:    { type: 'number', description: 'Stock actual registrado.' },
+              stockNuevo:     { type: 'number', description: 'Nuevo valor de stock.' },
+              unidad:         { type: 'string', description: 'Unidad de medida.' },
+              nota:           { type: 'string', description: 'Nota/razón del ajuste.' },
+              prioridad:      { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['productoId', 'productoNombre', 'stockNuevo', 'nota', 'prioridad'],
+          },
+        },
+        {
+          name: 'ejecutar_notificacion',
+          description: 'Envía una notificación WhatsApp a un trabajador directamente.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              userId:   { type: 'string', description: 'ID del usuario destinatario (del catálogo).' },
+              userName: { type: 'string', description: 'Nombre del usuario.' },
+              telefono: { type: 'string', description: 'Teléfono del usuario.' },
+              mensaje:  { type: 'string', description: 'Contenido del mensaje WhatsApp.' },
+              razon:    { type: 'string', description: 'Razón de la notificación.' },
+              prioridad:{ type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['userId', 'userName', 'mensaje', 'razon', 'prioridad'],
+          },
+        },
+      ];
+
+      const nivel3SystemPrompt = `Eres el piloto automático de Aurora (Nivel 3: Agencia Total), una plataforma de gestión agrícola.
+Tu tarea es analizar el estado actual de la finca y ejecutar acciones concretas usando las herramientas disponibles.
+
+Cada herramienta "ejecutar_*" realiza la acción directamente. Si una acción excede las barandillas de seguridad configuradas por el productor, será escalada automáticamente a un supervisor para aprobación manual.
+
+Reglas:
+- Ejecuta entre 1 y 8 acciones, priorizando las más urgentes e impactantes.
+- Solo ejecuta acciones que tengan sustento claro en los datos proporcionados.
+- Usa los IDs exactos del catálogo (lotes, usuarios, productos) — no inventes IDs.
+- Para cada acción, incluye una razón clara que justifique la decisión.
+- Después de llamar a todas las herramientas necesarias, escribe un resumen breve (2-3 oraciones) de las acciones ejecutadas y su impacto.
+- Si una acción fue escalada (no ejecutada por barandilla), menciónalo en el resumen.
+- Si no hay acciones claras que ejecutar, escribe solo el resumen explicando que la finca está en buen estado.`;
+
+      const userMessageN3 = `**Objetivos del productor para este ciclo:**
+${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
+
+${snapshotTextEnriched}
+
+Analiza el estado y ejecuta las acciones necesarias usando las herramientas disponibles.`;
+
+      // Agentic loop con ejecución gated por barandillas
+      const allActions = [];
+      let executedCount = 0;
+      const messages = [{ role: 'user', content: userMessageN3 }];
+      let summaryText = '';
+      let iterations = 0;
+
+      const ACTION_TYPE_MAP_N3 = {
+        ejecutar_crear_tarea: 'crear_tarea',
+        ejecutar_reprogramar_tarea: 'reprogramar_tarea',
+        ejecutar_reasignar_tarea: 'reasignar_tarea',
+        ejecutar_ajustar_inventario: 'ajustar_inventario',
+        ejecutar_notificacion: 'enviar_notificacion',
+      };
+      const catMap = {
+        crear_tarea: 'tareas', reprogramar_tarea: 'tareas', reasignar_tarea: 'tareas',
+        ajustar_inventario: 'inventario', enviar_notificacion: 'general',
+      };
+
+      while (iterations < 4) {
+        iterations++;
+        const response = await anthropicClient.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 4096,
+          system: nivel3SystemPrompt,
+          tools: nivel3Tools,
+          messages,
+        });
+
+        const textBlocks = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+        if (textBlocks) summaryText += (summaryText ? '\n' : '') + textBlocks;
+
+        if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+          break;
+        }
+
+        messages.push({ role: 'assistant', content: response.content });
+        const toolResults = [];
+
+        for (const block of response.content) {
+          if (block.type !== 'tool_use') continue;
+          const actionType = ACTION_TYPE_MAP_N3[block.name];
+          if (!actionType) {
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: 'Herramienta desconocida' }) });
+            continue;
+          }
+
+          const { prioridad, razon, ...params } = block.input;
+
+          // Resolver loteId para barandilla de lotes bloqueados
+          let resolvedLoteId = params.loteId || null;
+          if (!resolvedLoteId && (actionType === 'reprogramar_tarea' || actionType === 'reasignar_tarea')) {
+            resolvedLoteId = taskLoteMap[params.taskId] || null;
+          }
+
+          // Enriquecer stockActual para barandilla de inventario
+          const enrichedParams = { ...params, loteId: resolvedLoteId };
+          if (actionType === 'ajustar_inventario' && params.productoId) {
+            enrichedParams.stockActual = productStockMap[params.productoId] ?? params.stockActual ?? 0;
+          }
+
+          // Validar barandillas
+          const guardrailResult = validateGuardrails(actionType, enrichedParams, guardrails, executedCount);
+
+          const actionRecord = {
+            type: actionType,
+            params,
+            titulo: String(razon || '').slice(0, 120),
+            descripcion: String(razon || ''),
+            prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
+            categoria: catMap[actionType] || 'general',
+            autonomous: true,
+          };
+
+          if (guardrailResult.allowed) {
+            // EJECUTAR DIRECTAMENTE
+            try {
+              const execResult = await executeAutopilotAction(actionType, params, req.fincaId, { level: 'Nivel 3' });
+              actionRecord.status = 'executed';
+              actionRecord.executionResult = execResult;
+              actionRecord.executedAt = Timestamp.now();
+              executedCount++;
+              toolResults.push({
+                type: 'tool_result', tool_use_id: block.id,
+                content: JSON.stringify({ ok: true, mensaje: 'Acción ejecutada exitosamente.', resultado: execResult }),
+              });
+            } catch (execErr) {
+              actionRecord.status = 'failed';
+              actionRecord.executionResult = { error: execErr.message };
+              actionRecord.executedAt = Timestamp.now();
+              toolResults.push({
+                type: 'tool_result', tool_use_id: block.id,
+                content: JSON.stringify({ ok: false, error: execErr.message }),
+              });
+            }
+          } else {
+            // ESCALAR — guardar como propuesta para supervisor
+            actionRecord.status = 'proposed';
+            actionRecord.escalated = true;
+            actionRecord.guardrailViolations = guardrailResult.violations;
+            toolResults.push({
+              type: 'tool_result', tool_use_id: block.id,
+              content: JSON.stringify({
+                ok: false, escalada: true,
+                mensaje: `Acción escalada a supervisor: ${guardrailResult.violations.join('; ')}`,
+              }),
+            });
+          }
+
+          allActions.push(actionRecord);
+        }
+
+        messages.push({ role: 'user', content: toolResults });
+      }
+
+      // Guardar sesión
+      const executedActions = allActions.filter(a => a.status === 'executed');
+      const escalatedActions = allActions.filter(a => a.escalated);
+      const failedActions = allActions.filter(a => a.status === 'failed');
+
+      const sessionRef = await db.collection('autopilot_sessions').add({
+        fincaId: req.fincaId, timestamp: Timestamp.now(),
+        triggeredBy: req.uid, triggeredByName: req.userEmail,
+        snapshot, recommendations: [], summaryText,
+        executedActionsCount: executedActions.length,
+        escalatedActionsCount: escalatedActions.length,
+        totalActionsCount: allActions.length,
+        mode: 'nivel3',
+        status: 'completed', errorMessage: null,
+      });
+
+      // Guardar cada acción
+      const nowTs = Timestamp.now();
+      const actionRefs = [];
+      for (const action of allActions) {
+        const ref = await db.collection('autopilot_actions').add({
+          fincaId: req.fincaId,
+          sessionId: sessionRef.id,
+          type: action.type,
+          params: action.params,
+          titulo: action.titulo,
+          descripcion: action.descripcion,
+          prioridad: action.prioridad,
+          categoria: action.categoria,
+          status: action.status,
+          autonomous: true,
+          escalated: action.escalated || false,
+          guardrailViolations: action.guardrailViolations || null,
+          proposedBy: req.uid,
+          proposedByName: req.userEmail,
+          createdAt: nowTs,
+          reviewedBy: null,
+          reviewedByName: null,
+          reviewedAt: null,
+          rejectionReason: null,
+          executedAt: action.executedAt || null,
+          executionResult: action.executionResult || null,
+        });
+        actionRefs.push({ id: ref.id, ...action });
+      }
+
+      // Feed events — cada acción ejecutada + resumen de sesión
+      for (const action of executedActions) {
+        writeFeedEvent({
+          fincaId: req.fincaId, userName: 'Aurora Copiloto',
+          eventType: 'autopilot_action_executed',
+          title: action.titulo,
+        });
+      }
+      for (const action of escalatedActions) {
+        writeFeedEvent({
+          fincaId: req.fincaId, userName: 'Aurora Copiloto',
+          eventType: 'autopilot_action_escalated',
+          title: `Escalada: ${action.titulo}`,
+        });
+      }
+      writeFeedEvent({
+        fincaId: req.fincaId, userName: 'Aurora Copiloto',
+        eventType: 'autopilot_analysis',
+        title: `Análisis N3 completado: ${executedActions.length} ejecutadas, ${escalatedActions.length} escaladas`,
+      });
+
+      // Push + WhatsApp — notificar a supervisores y administradores
+      const notifRoles = ['supervisor', 'administrador'];
+
+      if (executedActions.length > 0 || escalatedActions.length > 0) {
+        const actionsList = executedActions.map(a => `✅ ${a.titulo}`).join('\n');
+        const escalatedList = escalatedActions.map(a => `⚠️ ${a.titulo}`).join('\n');
+        const pushBody = executedActions.length > 0
+          ? `${executedActions.length} acción(es) ejecutadas autónomamente.${escalatedActions.length > 0 ? ` ${escalatedActions.length} escalada(s).` : ''}`
+          : `${escalatedActions.length} acción(es) escaladas requieren aprobación.`;
+
+        // Push inmediato
+        sendPushToFincaRoles(req.fincaId, notifRoles, {
+          title: '🤖 Aurora Copiloto — Nivel 3',
+          body: pushBody,
+          url: '/autopilot',
+        });
+
+        // WhatsApp resumen
+        const whatsMsg = [
+          '🤖 *Aurora Copiloto — Nivel 3*',
+          '',
+          executedActions.length > 0 ? `*Acciones ejecutadas (${executedActions.length}):*` : null,
+          executedActions.length > 0 ? actionsList : null,
+          escalatedActions.length > 0 ? '' : null,
+          escalatedActions.length > 0 ? `*Acciones escaladas (${escalatedActions.length}):*` : null,
+          escalatedActions.length > 0 ? escalatedList : null,
+          escalatedActions.length > 0 ? '\n_Ingresa a Aurora para aprobar o rechazar las acciones escaladas._' : null,
+          '',
+          `Sesión: ${sessionRef.id}`,
+        ].filter(Boolean).join('\n');
+
+        sendWhatsAppToFincaRoles(req.fincaId, notifRoles, whatsMsg);
+      }
+
+      return res.json({
+        sessionId: sessionRef.id,
+        recommendations: [],
+        proposedActions: actionRefs.filter(a => a.status === 'proposed'),
+        executedActions: actionRefs.filter(a => a.status === 'executed'),
+        failedActions: actionRefs.filter(a => a.status === 'failed'),
+        summaryText,
+        snapshot,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Modo no reconocido
+    return res.status(400).json({ message: 'Modo del Piloto Automático no soportado.' });
 
   } catch (err) {
     console.error('[AUTOPILOT] Error en analyze:', err);
@@ -7595,6 +8453,131 @@ app.get('/api/autopilot/sessions/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('[AUTOPILOT] Error al obtener sesión:', err);
     res.status(500).json({ message: 'Error al obtener la sesión.' });
+  }
+});
+
+// GET /api/autopilot/actions — lista acciones propuestas/ejecutadas
+app.get('/api/autopilot/actions', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('autopilot_actions')
+      .where('fincaId', '==', req.fincaId)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+    let actions = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        type: d.type,
+        params: d.params,
+        titulo: d.titulo,
+        descripcion: d.descripcion,
+        prioridad: d.prioridad,
+        categoria: d.categoria,
+        status: d.status,
+        sessionId: d.sessionId,
+        createdAt: d.createdAt?.toDate?.()?.toISOString() ?? null,
+        reviewedByName: d.reviewedByName || null,
+        reviewedAt: d.reviewedAt?.toDate?.()?.toISOString() ?? null,
+        rejectionReason: d.rejectionReason || null,
+        executedAt: d.executedAt?.toDate?.()?.toISOString() ?? null,
+        executionResult: d.executionResult || null,
+        autonomous: d.autonomous || false,
+        escalated: d.escalated || false,
+        guardrailViolations: d.guardrailViolations || null,
+      };
+    });
+    const { status, sessionId } = req.query;
+    if (status) actions = actions.filter(a => a.status === status);
+    if (sessionId) actions = actions.filter(a => a.sessionId === sessionId);
+    res.json(actions);
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al listar acciones:', err);
+    res.status(500).json({ message: 'Error al obtener acciones.' });
+  }
+});
+
+// PUT /api/autopilot/actions/:id/approve — aprueba y ejecuta una acción (supervisor+)
+app.put('/api/autopilot/actions/:id/approve', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+    return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
+  }
+  try {
+    const docRef = db.collection('autopilot_actions').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ message: 'Acción no encontrada.' });
+    const action = doc.data();
+    if (action.fincaId !== req.fincaId) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    if (action.status !== 'proposed') {
+      return res.status(400).json({ message: `La acción ya fue procesada (${action.status}).` });
+    }
+
+    await docRef.update({
+      status: 'approved',
+      reviewedBy: req.uid,
+      reviewedByName: req.userEmail,
+      reviewedAt: Timestamp.now(),
+    });
+
+    let executionResult;
+    try {
+      executionResult = await executeAutopilotAction(action.type, action.params, req.fincaId);
+      await docRef.update({
+        status: 'executed',
+        executedAt: Timestamp.now(),
+        executionResult,
+      });
+    } catch (execErr) {
+      console.error('[AUTOPILOT] Error al ejecutar acción:', execErr);
+      await docRef.update({
+        status: 'failed',
+        executedAt: Timestamp.now(),
+        executionResult: { error: execErr.message },
+      });
+      return res.json({ ok: true, status: 'failed', error: execErr.message });
+    }
+
+    writeFeedEvent({
+      fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail,
+      eventType: 'autopilot_action_executed',
+      title: `Acción aprobada y ejecutada: ${action.titulo}`,
+    });
+
+    res.json({ ok: true, status: 'executed', executionResult });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al aprobar acción:', err);
+    res.status(500).json({ message: 'Error al aprobar la acción.' });
+  }
+});
+
+// PUT /api/autopilot/actions/:id/reject — rechaza una acción propuesta (supervisor+)
+app.put('/api/autopilot/actions/:id/reject', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+    return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
+  }
+  try {
+    const docRef = db.collection('autopilot_actions').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ message: 'Acción no encontrada.' });
+    const action = doc.data();
+    if (action.fincaId !== req.fincaId) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    if (action.status !== 'proposed') {
+      return res.status(400).json({ message: `La acción ya fue procesada (${action.status}).` });
+    }
+
+    const { reason } = req.body || {};
+    await docRef.update({
+      status: 'rejected',
+      reviewedBy: req.uid,
+      reviewedByName: req.userEmail,
+      reviewedAt: Timestamp.now(),
+      rejectionReason: reason || null,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al rechazar acción:', err);
+    res.status(500).json({ message: 'Error al rechazar la acción.' });
   }
 });
 
