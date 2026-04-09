@@ -1444,16 +1444,17 @@ app.get('/api/bodegas', authenticate, async (req, res) => {
     }
 
     // Auto-seed: primera ejecución por finca
-    const defaultBodega = {
-      nombre: 'Agroquímicos',
-      tipo: 'agroquimicos',
-      icono: 'FiDroplet',
-      orden: 1,
-      fincaId: req.fincaId,
-      creadoEn: Timestamp.now(),
-    };
-    const docRef = await db.collection('bodegas').add(defaultBodega);
-    return res.json([{ id: docRef.id, ...defaultBodega }]);
+    const now = Timestamp.now();
+    const agroquimicos = { nombre: 'Agroquímicos', tipo: 'agroquimicos', icono: 'FiDroplet', orden: 1, fincaId: req.fincaId, creadoEn: now };
+    const combustibles = { nombre: 'Combustibles',  tipo: 'combustibles',  icono: 'FiDroplet', orden: 2, fincaId: req.fincaId, creadoEn: now };
+    const [refAgroq, refComb] = await Promise.all([
+      db.collection('bodegas').add(agroquimicos),
+      db.collection('bodegas').add(combustibles),
+    ]);
+    return res.json([
+      { id: refAgroq.id, ...agroquimicos },
+      { id: refComb.id,  ...combustibles },
+    ]);
   } catch (err) {
     console.error('[bodegas GET]', err);
     return res.status(500).json({ message: 'Error al obtener bodegas.' });
@@ -1488,8 +1489,8 @@ app.put('/api/bodegas/:id', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return res.status(check.status).json({ message: check.message });
-    if (check.doc.data().tipo === 'agroquimicos') {
-      return res.status(403).json({ message: 'La bodega de agroquímicos no se puede editar.' });
+    if (['agroquimicos', 'combustibles'].includes(check.doc.data().tipo)) {
+      return res.status(403).json({ message: 'Esta bodega es del sistema y no se puede editar.' });
     }
     const { nombre, icono } = req.body;
     const updates = {};
@@ -1507,8 +1508,8 @@ app.delete('/api/bodegas/:id', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return res.status(check.status).json({ message: check.message });
-    if (check.doc.data().tipo === 'agroquimicos') {
-      return res.status(403).json({ message: 'La bodega de agroquímicos no se puede eliminar.' });
+    if (['agroquimicos', 'combustibles'].includes(check.doc.data().tipo)) {
+      return res.status(403).json({ message: 'Esta bodega es del sistema y no se puede eliminar.' });
     }
     // Solo eliminar si no tiene items
     const itemsSnap = await db.collection('bodega_items')

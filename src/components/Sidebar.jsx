@@ -398,14 +398,25 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
         return (
           <div key={mod.id} className="sidebar-module">
-            <button className="module-header" onClick={() => toggleModule(mod.id)}>
-              <span className="icon-wrap">
-                <ModIcon size={15} />
-                {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
-              </span>
-              <span>{mod.nombre}</span>
-              {expanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
-            </button>
+            <div className="module-header-row">
+              <button className="module-header" onClick={() => toggleModule(mod.id)}>
+                <span className="icon-wrap">
+                  <ModIcon size={15} />
+                  {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
+                </span>
+                <span>{mod.nombre}</span>
+                {expanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
+              </button>
+              {mod.id === 'bodega' && hasMinRole(userRole, 'administrador') && (
+                <button
+                  className="module-add-btn"
+                  onClick={() => navigate('/admin/bodegas')}
+                  title="Administrar bodegas"
+                >
+                  <FiPlusCircle size={14} />
+                </button>
+              )}
+            </div>
             {expanded && (
               <div className="module-items">
                 {visibleItems.map((item) =>
@@ -419,13 +430,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
                   const syntheticItem = { label: b.nombre, to: `/bodega/${b.id}`, icon: Icon, minRole: 'encargado' };
                   return <NavItem key={b.id} item={syntheticItem} showPinBtn />;
                 })}
-                {/* Administrar bodegas (solo administrador) */}
-                {mod.id === 'bodega' && hasMinRole(userRole, 'administrador') && (
-                  <NavItem
-                    item={{ label: 'Administrar Bodegas', to: '/admin/bodegas', icon: FiSettings, minRole: 'administrador' }}
-                    showPinBtn
-                  />
-                )}
               </div>
             )}
           </div>

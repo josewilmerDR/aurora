@@ -140,7 +140,18 @@ function MaquinariaList() {
   useEffect(() => {
     apiFetch('/api/bodegas')
       .then(r => r.json())
-      .then(data => setBodegas(Array.isArray(data) ? data.filter(b => b.tipo !== 'agroquimicos') : []))
+      .then(data => {
+        const lista = Array.isArray(data) ? data.filter(b => b.tipo !== 'agroquimicos') : [];
+        setBodegas(lista);
+        // Auto-seleccionar bodega de combustibles si no hay ninguna guardada
+        if (!localStorage.getItem(FUEL_BODEGA_KEY)) {
+          const defComb = lista.find(b => b.tipo === 'combustibles');
+          if (defComb) {
+            setFuelBodegaId(defComb.id);
+            localStorage.setItem(FUEL_BODEGA_KEY, defComb.id);
+          }
+        }
+      })
       .catch(() => {});
   }, []);
 
