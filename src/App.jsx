@@ -57,6 +57,7 @@ import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
 import CosechaProyeccion from './pages/CosechaProyeccion';
 import CosechaHistorial from './pages/CosechaHistorial';
+import RegistroCosecha from './pages/RegistroCosecha';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
 import Sidebar from './components/Sidebar';
@@ -132,6 +133,7 @@ const routeTitles = {
   '/siembra': 'Registro de Siembra',
   '/siembra/materiales': 'Materiales de Siembra',
   '/siembra/historial': 'Historial de Siembra',
+  '/cosecha/registro': 'Registro de Cosecha',
   '/cosecha/proyeccion': 'Proyección de Cosecha',
   '/cosecha/historial': 'Historial de Cosecha',
   '/operaciones/horimetro': 'Horímetros',
@@ -465,6 +467,7 @@ function App() {
             <Route path="/siembra" element={<RoleRoute path="/siembra"><Siembra /></RoleRoute>} />
             <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
+            <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><RegistroCosecha /></RoleRoute>} />
             <Route path="/cosecha/proyeccion" element={<RoleRoute path="/cosecha/proyeccion"><CosechaProyeccion /></RoleRoute>} />
             <Route path="/cosecha/historial" element={<RoleRoute path="/cosecha/historial"><CosechaHistorial /></RoleRoute>} />
             {/* supervisor+ */}

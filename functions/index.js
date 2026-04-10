@@ -8581,6 +8581,92 @@ app.put('/api/autopilot/actions/:id/reject', authenticate, async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Registro de Cosecha
+// ══════════════════════════════════════════════════════════════════════════════
+app.get('/api/cosecha/registros', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('cosecha_registros')
+      .where('fincaId', '==', req.fincaId)
+      .get();
+    const records = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    res.status(200).json(records);
+  } catch (error) {
+    console.error('Error al obtener registros de cosecha:', error);
+    res.status(500).json({ message: 'Error al obtener los registros.' });
+  }
+});
+
+app.post('/api/cosecha/registros', authenticate, async (req, res) => {
+  try {
+    const allowed = [
+      'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
+      'cantidad', 'unidad', 'operarioId', 'operarioNombre',
+      'activoId', 'activoNombre', 'implementoId', 'implementoNombre',
+      'nota',
+    ];
+    const data = pick(req.body, allowed);
+    if (!data.fecha || !data.loteId || data.cantidad == null) {
+      return res.status(400).json({ message: 'Fecha, lote y cantidad son obligatorios.' });
+    }
+    data.cantidad = parseFloat(data.cantidad) || 0;
+    const counterRef = db.collection('counters').doc(`cosecha_${req.fincaId}`);
+    let seq;
+    await db.runTransaction(async (t) => {
+      const counterDoc = await t.get(counterRef);
+      seq = (counterDoc.exists ? (counterDoc.data().value || 0) : 0) + 1;
+      t.set(counterRef, { value: seq }, { merge: true });
+    });
+    const consecutivo = `RC-${String(seq).padStart(6, '0')}`;
+    const ref = await db.collection('cosecha_registros').add({
+      ...data,
+      consecutivo,
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    });
+    res.status(201).json({ id: ref.id, consecutivo, ...data });
+  } catch (error) {
+    console.error('Error al crear registro de cosecha:', error);
+    res.status(500).json({ message: 'Error al guardar el registro.' });
+  }
+});
+
+app.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const allowed = [
+      'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
+      'cantidad', 'unidad', 'operarioId', 'operarioNombre',
+      'activoId', 'activoNombre', 'implementoId', 'implementoNombre',
+      'nota',
+    ];
+    const data = pick(req.body, allowed);
+    if (data.cantidad != null) data.cantidad = parseFloat(data.cantidad) || 0;
+    await db.collection('cosecha_registros').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
+    res.status(200).json({ id, ...data });
+  } catch (error) {
+    console.error('Error al actualizar registro de cosecha:', error);
+    res.status(500).json({ message: 'Error al actualizar el registro.' });
+  }
+});
+
+app.delete('/api/cosecha/registros/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    await db.collection('cosecha_registros').doc(id).delete();
+    res.status(200).json({ message: 'Registro eliminado.' });
+  } catch (error) {
+    console.error('Error al eliminar registro de cosecha:', error);
+    res.status(500).json({ message: 'Error al eliminar el registro.' });
+  }
+});
+
 // Se exporta la app de Express, inyectando los secretos necesarios.
 exports.api = functions.https.onRequest(
   { secrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey, vapidPublicKey, vapidPrivateKey] },
