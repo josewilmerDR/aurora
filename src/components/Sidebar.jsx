@@ -104,6 +104,7 @@ export const MODULES = [
     nombre: 'Contabilidad y Finanzas',
     icon: FiDollarSign,
     items: [
+      { label: 'Centro de Costos', to: '/costos', icon: FiBarChart2, minRole: 'encargado' },
       { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
       { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
     ],
