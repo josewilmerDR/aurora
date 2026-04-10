@@ -113,34 +113,9 @@
   background: rgba(51, 255, 153, 0.04);
 }
 
-.siembra-table-entrada tbody tr,
-.siembra-table-historial tbody tr {
+.siembra-table-entrada tbody tr {
   touch-action: pan-y;
   position: relative;
-}
-
-.swipe-hint {
-  position: absolute !important;
-  top: 0;
-  bottom: 0;
-  display: flex !important;
-  align-items: center;
-  padding: 0 18px;
-  pointer-events: none;
-  opacity: 0;
-  border: none !important;
-  width: auto !important;
-  min-width: 0 !important;
-}
-
-.swipe-hint-left {
-  right: 6px;
-  color: #e05555;
-}
-
-.swipe-hint-right {
-  left: 6px;
-  color: var(--aurora-green);
 }
 
 /* ── Inputs dentro de tabla ────────────────────────────────────────────────── */
@@ -247,11 +222,6 @@
 
 .siembra-table-historial {
   min-width: 860px;
-}
-
-/* Swipe hints solo visibles en mobile; en desktop ocupan una columna fantasma */
-.siembra-table-historial .swipe-hint {
-  display: none !important;
 }
 
 /* Fila cerrada */
@@ -673,31 +643,25 @@
     overflow-x: visible;
   }
 
-  /* Historial: horizontal scroll — override form-card rules */
+  /* Historial: scroll horizontal sin ninguna transformación de display */
   .siembra-historial {
     overflow-x: auto;
   }
   .siembra-historial .siembra-table-wrapper {
     overflow-x: auto;
   }
-  .siembra-table-historial,
-  .siembra-table-historial thead,
-  .siembra-table-historial tbody,
-  .siembra-table-historial tbody tr,
-  .siembra-table-historial td {
-    display: revert;
-  }
 
-  .siembra-table {
+  /* Formulario de entrada: vista de tarjetas */
+  .siembra-table-entrada {
     display: block;
     min-width: 0;
   }
 
-  .siembra-table:not(.siembra-table-historial) thead {
+  .siembra-table-entrada thead {
     display: none;
   }
 
-  .siembra-table tbody {
+  .siembra-table-entrada tbody {
     display: block;
   }
 
