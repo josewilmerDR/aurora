@@ -37,7 +37,11 @@ router.post('/api/materiales-siembra', authenticate, async (req, res) => {
 router.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
-    await db.collection('materiales_siembra').doc(req.params.id).update({ nombre, rangoPesos, variedad });
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return res.status(400).json({ message: 'El nombre es obligatorio.' });
+    if (nombre.length > 32) return res.status(400).json({ message: 'Nombre demasiado largo.' });
+    const doc = await db.collection('materiales_siembra').doc(req.params.id).get();
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Material no encontrado.' });
+    await doc.ref.update({ nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32) });
     res.status(200).json({ message: 'Material actualizado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar material.' });
@@ -46,7 +50,9 @@ router.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
 
 router.delete('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
-    await db.collection('materiales_siembra').doc(req.params.id).delete();
+    const doc = await db.collection('materiales_siembra').doc(req.params.id).get();
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Material no encontrado.' });
+    await doc.ref.delete();
     res.status(200).json({ message: 'Material eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar material.' });
@@ -222,16 +228,27 @@ router.post('/api/siembras', authenticate, async (req, res) => {
 
 router.put('/api/siembras/:id', authenticate, async (req, res) => {
   try {
-    const ALLOWED = ['fecha', 'loteId', 'loteNombre', 'bloque', 'plantas', 'densidad', 'materialId', 'materialNombre', 'rangoPesos', 'variedad', 'cerrado', 'areaCalculada'];
+    const ALLOWED = ['fecha', 'loteId', 'loteNombre', 'bloque', 'plantas', 'densidad', 'materialId', 'materialNombre', 'rangoPesos', 'variedad', 'cerrado'];
     const updates = {};
     for (const key of ALLOWED) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
+    if (updates.plantas !== undefined) {
+      updates.plantas = parseInt(updates.plantas) || 0;
+      if (updates.plantas < 0 || updates.plantas > 199999) return res.status(400).json({ message: 'Plantas fuera de rango válido.' });
+    }
+    if (updates.densidad !== undefined) {
+      updates.densidad = parseFloat(updates.densidad) || 0;
+      if (updates.densidad < 0 || updates.densidad > 199999) return res.status(400).json({ message: 'Densidad fuera de rango válido.' });
+    }
+    if (typeof updates.bloque === 'string' && updates.bloque.length > 4) return res.status(400).json({ message: 'Bloque demasiado largo.' });
+    if (typeof updates.loteNombre === 'string' && updates.loteNombre.length > 200) return res.status(400).json({ message: 'Nombre de lote demasiado largo.' });
     if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
 
-    const needsDoc = updates.plantas !== undefined || updates.densidad !== undefined || updates.cerrado === true;
+    const needsDoc = updates.plantas !== undefined || updates.densidad !== undefined || updates.cerrado !== undefined;
+    const doc = await db.collection('siembras').doc(req.params.id).get();
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Registro no encontrado.' });
     if (needsDoc) {
-      const doc = await db.collection('siembras').doc(req.params.id).get();
       const current = doc.data();
 
       if (updates.plantas !== undefined || updates.densidad !== undefined) {
@@ -269,7 +286,9 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
 
 router.delete('/api/siembras/:id', authenticate, async (req, res) => {
   try {
-    await db.collection('siembras').doc(req.params.id).delete();
+    const doc = await db.collection('siembras').doc(req.params.id).get();
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Registro no encontrado.' });
+    await doc.ref.delete();
     res.status(200).json({ message: 'Registro eliminado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar siembra.' });

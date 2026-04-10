@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
-  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2, FiEdit2, FiPackage,
+  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2, FiEdit2, FiPackage, FiSliders,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -52,28 +52,51 @@ function applySort(data, sortConfig) {
   });
 }
 
-const EMPTY_FILTERS = {
-  fechaDesde: '', fechaHasta: '',
-  lote: '', bloque: '', material: '', variedad: '',
-  cerrado: 'todos',
-};
+const COLUMNS = [
+  { key: 'fecha',       label: 'Fecha',      type: 'date'   },
+  { key: 'lote',        label: 'Lote',        type: 'text'   },
+  { key: 'bloque',      label: 'Bloque',      type: 'text'   },
+  { key: 'plantas',     label: 'Plantas',     type: 'number' },
+  { key: 'densidad',    label: 'Densidad',    type: 'number' },
+  { key: 'area',        label: 'Área',        type: 'number' },
+  { key: 'material',    label: 'Material',    type: 'text'   },
+  { key: 'variedad',    label: 'Variedad',    type: 'text'   },
+  { key: 'responsable', label: 'Responsable', type: 'text'   },
+  { key: 'fcierre',     label: 'F. Cierre',   type: 'date'   },
+];
 
-function applyFilters(data, f) {
-  return data.filter(r => {
-    if (f.fechaDesde && r.fecha < f.fechaDesde) return false;
-    if (f.fechaHasta && r.fecha > f.fechaHasta) return false;
-    if (f.lote     && !r.loteNombre?.toLowerCase().includes(f.lote.toLowerCase()))     return false;
-    if (f.bloque   && !r.bloque?.toLowerCase().includes(f.bloque.toLowerCase()))       return false;
-    if (f.material && !r.materialNombre?.toLowerCase().includes(f.material.toLowerCase())) return false;
-    if (f.variedad && !r.variedad?.toLowerCase().includes(f.variedad.toLowerCase()))   return false;
-    if (f.cerrado === 'cerrado' && !r.cerrado)  return false;
-    if (f.cerrado === 'abierto' &&  r.cerrado)  return false;
-    return true;
-  });
-}
+const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
 
 const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
+
+function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
+    const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown',   onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+  return createPortal(
+    <div ref={menuRef} className="sh-col-menu" style={{ position: 'fixed', top: y, left: x }}>
+      <div className="sh-col-menu-title">Columnas visibles</div>
+      {COLUMNS.map(col => {
+        const checked = visibleCols[col.key];
+        const isLast  = checked && Object.values(visibleCols).filter(Boolean).length === 1;
+        return (
+          <label key={col.key} className={`sh-col-menu-item${isLast ? ' sh-col-menu-item--disabled' : ''}`}>
+            <input type="checkbox" checked={checked} disabled={isLast}
+              onChange={() => !isLast && onToggle(col.key)} />
+            <span>{col.label}</span>
+          </label>
+        );
+      })}
+    </div>,
+    document.body
+  );
+}
 
 function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
   const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -253,10 +276,16 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
   const [densidad, setDensidad]     = useState(String(record.densidad || '65000'));
   const [materialId, setMaterialId] = useState(record.materialId || '');
 
-  const area = plantas && densidad && Number(densidad) > 0
-    ? (Number(plantas) / Number(densidad)).toFixed(4) : '';
+  const plantasNum  = Number(plantas)  || 0;
+  const densidadNum = Number(densidad) || 0;
+  const plantasInvalid  = plantasNum < 0 || plantasNum > 199999;
+  const densidadInvalid = densidadNum < 0 || densidadNum > 199999;
+
+  const area = plantas && densidad && densidadNum > 0
+    ? (plantasNum / densidadNum).toFixed(4) : '';
 
   const handleSave = () => {
+    if (plantasInvalid || densidadInvalid) return;
     const lote = lotes.find(l => l.id === loteId);
     const mat  = materiales.find(m => m.id === materialId);
     onSave({
@@ -264,8 +293,8 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
       loteId,
       loteNombre:     lote?.nombreLote   || record.loteNombre || '',
       bloque,
-      plantas:        Number(plantas)    || 0,
-      densidad:       Number(densidad)   || 65000,
+      plantas:        plantasNum,
+      densidad:       densidadNum || 65000,
       areaCalculada:  area ? parseFloat(area) : null,
       materialId:     mat?.id            || '',
       materialNombre: mat?.nombre        || '',
@@ -298,17 +327,20 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
           <label className="mat-modal-label">
             Bloque
             <input className="mat-modal-input" placeholder="Ej: A" value={bloque}
+              maxLength={4}
               onChange={e => setBloque(e.target.value)} disabled={saving} />
           </label>
           <label className="mat-modal-label">
             Plantas
-            <input className="mat-modal-input" type="number" min="0" value={plantas}
+            <input className={`mat-modal-input${plantasInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={plantas}
               onChange={e => setPlantas(e.target.value)} disabled={saving} />
+            {plantasInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
           </label>
           <label className="mat-modal-label">
             Densidad <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>(pl/ha)</span>
-            <input className="mat-modal-input" type="number" min="1" value={densidad}
+            <input className={`mat-modal-input${densidadInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={densidad}
               onChange={e => setDensidad(e.target.value)} disabled={saving} />
+            {densidadInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
           </label>
           <label className="mat-modal-label">
             Área calculada
@@ -330,7 +362,7 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
         </div>
         <div className="param-modal-actions">
           <button className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!fecha || !loteId || saving} onClick={handleSave}>
+          <button className="btn btn-primary" disabled={!fecha || !loteId || saving || plantasInvalid || densidadInvalid} onClick={handleSave}>
             {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -346,22 +378,23 @@ function SiembraHistorial() {
   const [registros, setRegistros] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters,   setFilters]   = useState(EMPTY_FILTERS);
   const [confirmModal, setConfirmModal] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [fincaConfig, setFincaConfig] = useState({ nombreEmpresa: 'Finca Aurora', identificacion: '', direccion: '', whatsapp: '', logoUrl: '' });
-  const [sortConfig, setSortConfig] = useState([
-    { field: 'fecha', dir: 'desc' },
-    { field: '',      dir: 'asc'  },
-  ]);
+  const [sortField, setSortField] = useState('fecha');
+  const [sortDir, setSortDir] = useState('desc');
+  const [colFilters, setColFilters] = useState({});
+  const [filterPopover, setFilterPopover] = useState(null);
+  const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
+  const [colMenu, setColMenu] = useState(null);
 
   const [lotes, setLotes]           = useState([]);
   const [materiales, setMateriales] = useState([]);
   const [editRecord, setEditRecord] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
 
-  const [rowMenu, setRowMenu] = useState(null);
+  const [rowMenu, setRowMenu]     = useState(null);
+  const [rowMenuPos, setRowMenuPos] = useState({ top: 0, right: 0 });
   useEffect(() => {
     if (rowMenu === null) return;
     const close = () => setRowMenu(null);
@@ -369,78 +402,60 @@ function SiembraHistorial() {
     return () => document.removeEventListener('pointerdown', close);
   }, [rowMenu]);
 
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const toggleExpanded = (id) => setExpandedRows(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-
-  const swipeState = useRef({});
-  const SWIPE_THRESHOLD = 80;
-  const getHistSwipeHandlers = (r) => ({
-    onPointerDown(e) {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      if (e.target.closest('button')) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
-      swipeState.current['h-' + r.id] = {
-        startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,
-        hintLeft:  e.currentTarget.querySelector('.swipe-hint-left'),
-        hintRight: null,
-      };
-    },
-    onPointerMove(e) {
-      const s = swipeState.current['h-' + r.id];
-      if (!s || s.cancelled) return;
-      const dx = e.clientX - s.startX;
-      const dy = e.clientY - s.startY;
-      if (!s.locked && Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 8) { s.cancelled = true; return; }
-      if (!s.locked && Math.abs(dx) > 8) s.locked = true;
-      if (!s.locked) return;
-      s.dx = dx;
-      s.el.style.transform = `translateX(${dx}px)`;
-      s.el.style.transition = 'none';
-      s.el.style.userSelect = 'none';
-      const ratio = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1);
-      if (dx < 0) {
-        s.el.style.background = `rgba(220, 60, 60, ${ratio * 0.3})`;
-      } else {
-        s.el.style.background = `rgba(51, 255, 153, ${ratio * 0.18})`;
-      }
-    },
-    onPointerUp(e) {
-      const s = swipeState.current['h-' + r.id];
-      if (!s) return;
-      delete swipeState.current['h-' + r.id];
-      s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
-      s.el.style.transform = 'translateX(0)';
-      s.el.style.background = '';
-      s.el.style.userSelect = '';
-      if (s.cancelled || !s.locked) return;
-      if (s.dx < -SWIPE_THRESHOLD) handleDelete(r.id);
-      else if (s.dx > SWIPE_THRESHOLD) toggleExpanded(r.id);
-    },
-    onPointerCancel(e) {
-      const s = swipeState.current['h-' + r.id];
-      if (!s) return;
-      delete swipeState.current['h-' + r.id];
-      s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
-      s.el.style.transform = 'translateX(0)';
-      s.el.style.background = '';
-      s.el.style.userSelect = '';
-    },
-  });
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const updateFilter = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
-  const clearFilters = () => setFilters(EMPTY_FILTERS);
-  const updateSort   = (idx, key, value) =>
-    setSortConfig(prev => prev.map((s, i) => i === idx ? { ...s, [key]: value } : s));
+  const handleThSort = (field) => {
+    if (sortField !== field) { setSortField(field); setSortDir('desc'); }
+    else if (sortDir === 'desc') { setSortDir('asc'); }
+    else { setSortField(null); setSortDir(null); }
+  };
 
-  const activeFilterCount = useMemo(() =>
-    Object.entries(filters).filter(([k, v]) => k === 'cerrado' ? v !== 'todos' : v !== '').length,
-  [filters]);
+  const getColVal = (r, key) => {
+    switch(key) {
+      case 'fecha':       return r.fecha?.slice(0,10) || '';
+      case 'lote':        return (r.loteNombre || '').toLowerCase();
+      case 'bloque':      return (r.bloque || '').toLowerCase();
+      case 'plantas':     return r.plantas || 0;
+      case 'densidad':    return r.densidad || 0;
+      case 'area':        return r.areaCalculada || 0;
+      case 'material':    return (r.materialNombre || '').toLowerCase();
+      case 'variedad':    return (r.variedad || '').toLowerCase();
+      case 'responsable': return (r.responsableNombre || '').toLowerCase();
+      case 'fcierre':     return r.fechaCierre?.slice(0,10) || '';
+      default:            return '';
+    }
+  };
+
+  const openColFilter = (e, field, type) => {
+    e.stopPropagation();
+    if (filterPopover?.field === field) { setFilterPopover(null); return; }
+    const th = e.currentTarget.closest('th') ?? e.currentTarget;
+    const rect = th.getBoundingClientRect();
+    setFilterPopover({ field, type, x: rect.left, y: rect.bottom + 4 });
+  };
+
+  const setColFilter = (field, type, key, val) => {
+    setColFilters(prev => {
+      const cur = prev[field] || (type === 'text' ? { text: '' } : { from: '', to: '' });
+      const updated = { ...cur, [key]: val };
+      const isEmpty = type === 'text' ? !updated.text : !updated.from && !updated.to;
+      if (isEmpty) {
+        const { [field]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [field]: updated };
+    });
+  };
+
+  const toggleCol = (key) => {
+    setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+  const handleColBtnClick = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setColMenu({ x: r.right - 185, y: r.bottom + 4 });
+  };
 
   useEffect(() => {
     if (!showPreview) return;
@@ -466,10 +481,35 @@ function SiembraHistorial() {
     apiFetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
-  const displayData = useMemo(
-    () => applySort(applyFilters(registros, filters), sortConfig),
-    [registros, filters, sortConfig],
-  );
+  const displayData = useMemo(() => {
+    let data = [...registros];
+    const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
+      if (fv.text !== undefined) return fv.text.trim();
+      return fv.from || fv.to;
+    });
+    if (activeColFilters.length > 0) {
+      data = data.filter(r => {
+        for (const [key, fv] of activeColFilters) {
+          const col = COLUMNS.find(c => c.key === key);
+          if (!col) continue;
+          const val = getColVal(r, key);
+          if (col.type === 'text') {
+            if (fv.text && !val.includes(fv.text.toLowerCase())) return false;
+          } else if (col.type === 'date') {
+            if (!val) return false;
+            if (fv.from && val < fv.from) return false;
+            if (fv.to   && val > fv.to)   return false;
+          } else if (col.type === 'number') {
+            if (fv.from !== '' && val < Number(fv.from)) return false;
+            if (fv.to   !== '' && val > Number(fv.to))   return false;
+          }
+        }
+        return true;
+      });
+    }
+    data = applySort(data, sortField && sortDir ? [{ field: sortField, dir: sortDir }] : []);
+    return data;
+  }, [registros, colFilters, sortField, sortDir]);
 
   // ── Stats ────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -555,21 +595,22 @@ function SiembraHistorial() {
     }
   };
 
-  // ── Export CSV ───────────────────────────────────────────────────────────
+  // ── Export helpers ────────────────────────────────────────────────────────
+  const EXPORT_HEADERS = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
+  const buildExportRows = () => displayData.map(r => [
+    r.fecha, r.loteNombre || '', r.bloque || '',
+    r.plantas, r.densidad,
+    r.areaCalculada || '',
+    r.materialNombre || '', r.variedad || '',
+    r.cerrado ? 'Sí' : 'No',
+    r.fechaCierre ? formatFecha(r.fechaCierre) : '',
+    r.responsableNombre || '',
+  ]);
+
   const exportXLSX = () => {
-    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
-    const rows = displayData.map(r => [
-      r.fecha, r.loteNombre || '', r.bloque || '',
-      r.plantas, r.densidad,
-      r.areaCalculada || '',
-      r.materialNombre || '', r.variedad || '',
-      r.cerrado ? 'Sí' : 'No',
-      r.fechaCierre ? formatFecha(r.fechaCierre) : '',
-      r.responsableNombre || '',
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    // Ajustar ancho de columnas automáticamente
-    ws['!cols'] = headers.map((h, i) => ({
+    const rows = buildExportRows();
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
+    ws['!cols'] = EXPORT_HEADERS.map((h, i) => ({
       wch: Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2,
     }));
     const wb = XLSX.utils.book_new();
@@ -577,18 +618,34 @@ function SiembraHistorial() {
     XLSX.writeFile(wb, `siembras_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const SortTh = ({ col, children }) => {
+    const isSort   = sortField === col.key;
+    const hasFilt  = !!colFilters[col.key];
+    const isHidden = !visibleCols[col.key];
+    if (isHidden) return null;
+    return (
+      <th
+        className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
+        onClick={() => handleThSort(col.key)}
+      >
+        <span className="sh-th-content">
+          {children}
+          <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+          <span
+            className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
+            onClick={e => openColFilter(e, col.key, col.type)}
+            title="Filtrar columna"
+          >
+            <FiFilter size={10} />
+          </span>
+        </span>
+      </th>
+    );
+  };
+
   const exportCSV = () => {
-    const headers = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
-    const rows = displayData.map(r => [
-      r.fecha, r.loteNombre || '', r.bloque || '',
-      r.plantas, r.densidad,
-      r.areaCalculada || '',
-      r.materialNombre || '', r.variedad || '',
-      r.cerrado ? 'Sí' : 'No',
-      r.fechaCierre ? formatFecha(r.fechaCierre) : '',
-      r.responsableNombre || '',
-    ]);
-    const csv = [headers, ...rows]
+    const rows = buildExportRows();
+    const csv = [EXPORT_HEADERS, ...rows]
       .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
       .join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -597,7 +654,7 @@ function SiembraHistorial() {
     a.href = url;
     a.download = `siembras_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -641,14 +698,6 @@ function SiembraHistorial() {
         </Link>
 
         <div className="sh-toolbar-actions">
-          <button
-            className={`btn btn-secondary sh-filter-btn${activeFilterCount ? ' sh-filter-active' : ''}`}
-            onClick={() => setShowFilters(v => !v)}
-          >
-            <FiFilter size={14} />
-            Filtros
-            {activeFilterCount > 0 && <span className="sh-filter-badge">{activeFilterCount}</span>}
-          </button>
           <button className="btn btn-secondary sh-export-btn" onClick={exportXLSX} title="Exportar a Excel">
             <FiDownload size={14} /> Exportar Excel
           </button>
@@ -660,51 +709,6 @@ function SiembraHistorial() {
           </button>
         </div>
       </div>
-
-      {/* ── Filter panel ───────────────────────────────────────────────────── */}
-      {showFilters && (
-        <div className="sh-filter-panel">
-          <div className="sh-filter-grid">
-            <div className="form-control">
-              <label>Fecha desde</label>
-              <input type="date" value={filters.fechaDesde} onChange={e => updateFilter('fechaDesde', e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label>Fecha hasta</label>
-              <input type="date" value={filters.fechaHasta} onChange={e => updateFilter('fechaHasta', e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label>Lote</label>
-              <input placeholder="Ej: L2610" value={filters.lote} onChange={e => updateFilter('lote', e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label>Bloque</label>
-              <input placeholder="Ej: 2A" value={filters.bloque} onChange={e => updateFilter('bloque', e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label>Material</label>
-              <input placeholder="Ej: CP" value={filters.material} onChange={e => updateFilter('material', e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label>Variedad</label>
-              <input placeholder="Ej: MD2" value={filters.variedad} onChange={e => updateFilter('variedad', e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label>Estado</label>
-              <select value={filters.cerrado} onChange={e => updateFilter('cerrado', e.target.value)}>
-                <option value="todos">Todos</option>
-                <option value="abierto">Abiertos</option>
-                <option value="cerrado">Cerrados</option>
-              </select>
-            </div>
-          </div>
-          {activeFilterCount > 0 && (
-            <button className="sh-clear-filters" onClick={clearFilters}>
-              <FiX size={13} /> Limpiar filtros
-            </button>
-          )}
-        </div>
-      )}
 
       {/* ── Stats bar ──────────────────────────────────────────────────────── */}
       <div className="sh-stats-bar">
@@ -729,7 +733,7 @@ function SiembraHistorial() {
         </div>
       </div>
 
-      {/* ── Sort controls ──────────────────────────────────────────────────── */}
+      {/* ── Table card ─────────────────────────────────────────────────────── */}
       <div className="siembra-historial sh-table-card">
         <div className="historial-top-row">
           <span className="sh-result-count print-hide">
@@ -737,31 +741,11 @@ function SiembraHistorial() {
               ? `${registros.length} registros`
               : `${displayData.length} de ${registros.length} registros`}
           </span>
-          <div className="historial-sort-row print-hide">
-            {sortConfig.map((s, idx) => (
-              <div key={idx} className="sort-group">
-                <span className="sort-label">{idx === 0 ? 'Ordenar por' : 'Luego por'}</span>
-                <select
-                  className="sort-select"
-                  value={s.field}
-                  onChange={e => updateSort(idx, 'field', e.target.value)}
-                >
-                  <option value="">—</option>
-                  {SORT_FIELDS.map(f => (
-                    <option key={f.value} value={f.value}>{f.label}</option>
-                  ))}
-                </select>
-                <button
-                  className={`sort-dir-btn${!s.field ? ' sort-dir-disabled' : ''}`}
-                  disabled={!s.field}
-                  onClick={() => updateSort(idx, 'dir', s.dir === 'asc' ? 'desc' : 'asc')}
-                  title={s.dir === 'asc' ? 'Ascendente' : 'Descendente'}
-                >
-                  {s.dir === 'asc' ? '↑' : '↓'}
-                </button>
-              </div>
-            ))}
-          </div>
+          {Object.keys(colFilters).length > 0 && (
+            <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
+              <FiX size={11} /> Limpiar filtros de columna
+            </button>
+          )}
         </div>
 
         {displayData.length === 0 ? (
@@ -771,111 +755,60 @@ function SiembraHistorial() {
             <table className="siembra-table siembra-table-historial">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Lote</th>
-                  <th>Bloque</th>
-                  <th>Plantas</th>
-                  <th>Densidad</th>
-                  <th>Área</th>
-                  <th>Material</th>
-                  <th>Variedad</th>
-                  <th>Responsable</th>
-                  <th className="td-readonly">F. Cierre</th>
-                  <th className="print-hide"></th>
+                  {COLUMNS.map(col => visibleCols[col.key] && (
+                    <SortTh key={col.key} col={col}>
+                      {col.label}{col.key === 'densidad' ? <span style={{opacity:0.55, fontSize:'0.78rem'}}> pl/ha</span> : ''}
+                    </SortTh>
+                  ))}
+                  <th className="sh-th-settings print-hide">
+                    <button
+                      className={`sh-col-toggle-btn${Object.values(visibleCols).some(v=>!v) ? ' sh-col-toggle-btn--active' : ''}`}
+                      onClick={handleColBtnClick}
+                      title="Personalizar columnas"
+                    >
+                      <FiSliders size={12} />
+                      {Object.values(visibleCols).filter(v=>!v).length > 0 && (
+                        <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v=>!v).length}</span>
+                      )}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {displayData.map(r => {
-                  const isExpanded = expandedRows.has(r.id);
-                  return (
-                    <React.Fragment key={r.id}>
-                      <tr
+                {displayData.map(r => (
+                    <tr key={r.id}
                         className={r.cerrado ? 'row-cerrado' : ''}
-                        {...getHistSwipeHandlers(r)}
                       >
-                        <td className="swipe-hint swipe-hint-left" aria-hidden="true"><FiTrash2 size={18} /></td>
-                        <td className="td-readonly" data-col="fecha">{formatFecha(r.fecha)}</td>
-                        <td data-col="lote">{r.loteNombre}</td>
-                        <td data-col="bloque">{r.bloque || '—'}</td>
-                        <td className="td-num" data-col="plantas">{r.plantas?.toLocaleString()}</td>
-                        <td className="td-num" data-col="densidad">{r.densidad?.toLocaleString()}</td>
-                        <td className="td-calc" data-col="area">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>
-                        <td data-col="mat">{r.materialNombre || '—'}</td>
-                        <td data-col="variedad">{r.variedad || '—'}</td>
-                        <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>
-                        <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>
+                        {visibleCols.fecha       && <td className="td-readonly" data-col="fecha">{formatFecha(r.fecha)}</td>}
+                        {visibleCols.lote        && <td data-col="lote">{r.loteNombre}</td>}
+                        {visibleCols.bloque      && <td data-col="bloque">{r.bloque || '—'}</td>}
+                        {visibleCols.plantas     && <td className="td-num" data-col="plantas">{r.plantas?.toLocaleString()}</td>}
+                        {visibleCols.densidad    && <td className="td-num" data-col="densidad">{r.densidad?.toLocaleString()}</td>}
+                        {visibleCols.area        && <td className="td-calc" data-col="area">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>}
+                        {visibleCols.material    && <td data-col="mat">{r.materialNombre || '—'}</td>}
+                        {visibleCols.variedad    && <td data-col="variedad">{r.variedad || '—'}</td>}
+                        {visibleCols.responsable && <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>}
+                        {visibleCols.fcierre     && <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>}
                         <td className="print-hide" data-col="menu">
                           <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
-                            <button className="hist-kebab-btn" onClick={() => setRowMenu(rowMenu === r.id ? null : r.id)}>
+                            <button
+                              className="hist-kebab-btn"
+                              onClick={e => {
+                                if (rowMenu === r.id) { setRowMenu(null); return; }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setRowMenuPos({
+                                  top: rect.bottom + 4,
+                                  right: window.innerWidth - rect.right,
+                                });
+                                setRowMenu(r.id);
+                              }}
+                            >
                               <FiMoreVertical size={16} />
                             </button>
-                            {rowMenu === r.id && (
-                              <div className="hist-kebab-dropdown">
-                                <button className="hist-kebab-item" onClick={() => { setRowMenu(null); setEditRecord(r); }}>
-                                  <FiEdit2 size={13} />
-                                  Editar
-                                </button>
-                                <button className="hist-kebab-item" onClick={() => { setRowMenu(null); toggleCerrado(r); }}>
-                                  {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
-                                  {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
-                                </button>
-                                <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setRowMenu(null); handleDelete(r.id); }}>
-                                  <FiTrash2 size={13} />
-                                  Eliminar
-                                </button>
-                              </div>
-                            )}
                           </div>
                         </td>
                       </tr>
-                      {isExpanded && (
-                        <tr className="hist-expanded-row">
-                          <td colSpan="11" className="hist-expanded-cell">
-                            <div className="hist-expanded-card">
-                              <div className="hist-expanded-header">
-                                <span className="hist-expand-lote">{r.loteNombre}</span>
-                                <button className="hist-expand-close" onClick={() => toggleExpanded(r.id)}>
-                                  <FiX size={15} />
-                                </button>
-                              </div>
-                              {[
-                                { label: 'Fecha',        value: formatFecha(r.fecha) },
-                                { label: 'Bloque',       value: r.bloque || '—' },
-                                { label: 'Plantas',      value: r.plantas?.toLocaleString() },
-                                { label: 'Densidad',     value: r.densidad?.toLocaleString() },
-                                { label: 'Área',         value: r.areaCalculada ? r.areaCalculada + ' ha' : '—' },
-                                { label: 'Material',     value: r.materialNombre || '—' },
-                                { label: 'Variedad',     value: r.variedad || '—' },
-                                { label: 'Responsable',  value: r.responsableNombre || '—' },
-                                { label: 'F. Cierre',    value: r.fechaCierre ? formatFecha(r.fechaCierre) : '—' },
-                              ].map(({ label, value }) => (
-                                <div key={label} className="hist-expanded-field">
-                                  <span className="hist-expanded-label">{label}</span>
-                                  <span className="hist-expanded-value">{value}</span>
-                                </div>
-                              ))}
-                              <div className="hist-expanded-actions">
-                                <button
-                                  className={`siembra-cerrado-btn${r.cerrado ? ' is-cerrado' : ''}`}
-                                  onClick={() => toggleCerrado(r)}
-                                >
-                                  {r.cerrado ? <FiCircle size={15} /> : <FiCheckCircle size={15} />}
-                                  {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
-                                </button>
-                                <button className="btn-icon" onClick={() => setEditRecord(r)}>
-                                  <FiEdit2 size={14} />
-                                </button>
-                                <button className="btn-icon btn-danger" onClick={() => handleDelete(r.id)}>
-                                  <FiTrash2 size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>
@@ -890,6 +823,85 @@ function SiembraHistorial() {
       </div>
         </>
       )}
+
+      {/* ── Column visibility menu portal ─────────────────────────────────── */}
+      {colMenu && (
+        <ColMenu x={colMenu.x} y={colMenu.y} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
+      )}
+
+      {/* ── Column filter popover portal ──────────────────────────────────── */}
+      {filterPopover && createPortal(
+        <>
+          <div className="sh-filter-backdrop" onClick={() => setFilterPopover(null)} />
+          <div className="sh-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
+            {filterPopover.type === 'text' ? (
+              <>
+                <FiFilter size={13} className="sh-filter-icon" />
+                <input autoFocus className="sh-filter-input" placeholder="Filtrar…"
+                  value={colFilters[filterPopover.field]?.text || ''}
+                  onChange={e => setColFilter(filterPopover.field, 'text', 'text', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setFilterPopover(null); }}
+                />
+                {colFilters[filterPopover.field]?.text && (
+                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, 'text', 'text', ''); setFilterPopover(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="sh-filter-range">
+                <span className="sh-filter-range-label">De</span>
+                <input className="sh-filter-input sh-filter-input-range"
+                  type={filterPopover.type === 'date' ? 'date' : 'number'}
+                  value={colFilters[filterPopover.field]?.from || ''}
+                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'from', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
+                />
+                <span className="sh-filter-range-label">A</span>
+                <input className="sh-filter-input sh-filter-input-range"
+                  type={filterPopover.type === 'date' ? 'date' : 'number'}
+                  value={colFilters[filterPopover.field]?.to || ''}
+                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'to', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
+                />
+                {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
+                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); setFilterPopover(null); }}>
+                    <FiX size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* ── Kebab dropdown portal: renders above all overflow/z-index containers ── */}
+      {rowMenu !== null && (() => {
+        const r = registros.find(x => x.id === rowMenu);
+        if (!r) return null;
+        return createPortal(
+          <div
+            className="hist-kebab-dropdown hist-kebab-dropdown-fixed"
+            style={{ top: rowMenuPos.top, right: rowMenuPos.right }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <button className="hist-kebab-item" onClick={() => { setRowMenu(null); setEditRecord(r); }}>
+              <FiEdit2 size={13} />
+              Editar
+            </button>
+            <button className="hist-kebab-item" onClick={() => { setRowMenu(null); toggleCerrado(r); }}>
+              {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
+              {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
+            </button>
+            <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setRowMenu(null); handleDelete(r.id); }}>
+              <FiTrash2 size={13} />
+              Eliminar
+            </button>
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 }
