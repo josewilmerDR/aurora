@@ -1095,6 +1095,7 @@ const fileInputRef                = useRef(null);
                     {/* Cerrado */}
                     <td className="td-center" data-col="cerrado" data-label="Cerrado">
                       <input type="checkbox" checked={row.cerrado}
+                        disabled={!Number(row.plantas)}
                         onChange={e => handleCerradoChange(idx, e.target.checked)} />
                     </td>
 
