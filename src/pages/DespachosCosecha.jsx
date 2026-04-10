@@ -142,13 +142,13 @@ function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeh
 }
 
 // ── Selector de boletas de cosecha ────────────────────────────────────────────
-function BoletasSelect({ registros, selected, onChange, loteId }) {
+function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return registros
-      .filter(r => !loteId || r.loteId === loteId)
+      .filter(r => !usedIds.has(r.id))
       .filter(r =>
         !q ||
         (r.consecutivo  || '').toLowerCase().includes(q) ||
@@ -156,14 +156,19 @@ function BoletasSelect({ registros, selected, onChange, loteId }) {
         (r.grupo        || '').toLowerCase().includes(q) ||
         (r.bloque       || '').toLowerCase().includes(q),
       );
-  }, [registros, loteId, search]);
+  }, [registros, usedIds, search]);
 
   const toggle = (reg) => {
     const already = selected.find(s => s.id === reg.id);
     if (already) {
       onChange(selected.filter(s => s.id !== reg.id));
     } else {
-      onChange([...selected, { id: reg.id, consecutivo: reg.consecutivo }]);
+      onChange([...selected, {
+        id: reg.id,
+        consecutivo: reg.consecutivo,
+        cantidad: reg.cantidad ?? null,
+        unidad: reg.unidad ?? '',
+      }]);
     }
   };
 
@@ -174,6 +179,11 @@ function BoletasSelect({ registros, selected, onChange, loteId }) {
           {selected.map(s => (
             <span key={s.id} className="dsp-boleta-chip">
               {s.consecutivo}
+              {s.cantidad != null && (
+                <span style={{ opacity: 0.75, marginLeft: 3 }}>
+                  {Number(s.cantidad).toLocaleString('es-ES')} {s.unidad}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => onChange(selected.filter(x => x.id !== s.id))}
@@ -187,42 +197,53 @@ function BoletasSelect({ registros, selected, onChange, loteId }) {
       )}
       <input
         className="dsp-boletas-search"
-        placeholder={loteId ? 'Buscar boleta por consecutivo, lote…' : '— Seleccione un lote primero —'}
+        placeholder="Buscar boleta por consecutivo, lote…"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        disabled={!loteId}
       />
-      {loteId && (
-        <div className="dsp-boletas-list">
+      <div className="dsp-boletas-list">
           {filtered.length === 0 ? (
-            <span className="dsp-boletas-empty">Sin boletas para este lote</span>
+            <span className="dsp-boletas-empty">Sin boletas de cosecha disponibles</span>
           ) : (
             filtered.map(reg => {
               const checked = !!selected.find(s => s.id === reg.id);
               return (
-                <label
+                <div
                   key={reg.id}
-                  className={`dsp-boleta-item${checked ? ' dsp-boleta-item--checked' : ''}`}
+                  onClick={() => toggle(reg)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '6px 10px',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid #1e3348',
+                    background: checked ? 'rgba(51,255,153,0.06)' : 'transparent',
+                  }}
                 >
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggle(reg)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ accentColor: '#33ff99', flexShrink: 0, margin: 0, width: 'auto' }}
                   />
-                  <span className="dsp-boleta-consec">{reg.consecutivo}</span>
-                  <span className="dsp-boleta-info">
-                    {reg.fecha}
-                    {reg.loteNombre ? ` · ${reg.loteNombre}` : ''}
-                    {reg.grupo ? ` / ${reg.grupo}` : ''}
-                    {reg.bloque ? ` / Bloque ${reg.bloque}` : ''}
-                    {reg.cantidad != null ? ` · ${reg.cantidad} ${reg.unidad || ''}` : ''}
+                  <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: '#33ff99', whiteSpace: 'nowrap' }}>
+                    {reg.consecutivo}
                   </span>
-                </label>
+                  {reg.cantidad != null && (
+                    <span style={{ fontSize: '0.82rem', color: '#e6f2ff', whiteSpace: 'nowrap' }}>
+                      {Number(reg.cantidad).toLocaleString('es-ES')} {reg.unidad || ''}
+                    </span>
+                  )}
+                </div>
               );
             })
           )}
         </div>
-      )}
     </div>
   );
 }
@@ -468,6 +489,29 @@ export default function DespachosCosecha() {
               </div>
             </div>
 
+            <p className="hor-section-label">Boletas de cosecha</p>
+            <div className="hor-form-grid">
+              <div className="hor-field hor-field--full">
+                <BoletasSelect
+                  registros={registrosCosecha}
+                  usedIds={new Set(
+                    despachos
+                      .filter(d => d.estado !== 'anulado')
+                      .flatMap(d => (d.boletas || []).map(b => b.id))
+                  )}
+                  selected={form.boletas}
+                  onChange={(boletas) => {
+                    const suma = boletas.reduce((acc, b) => acc + (parseFloat(b.cantidad) || 0), 0);
+                    setForm(prev => ({
+                      ...prev,
+                      boletas,
+                      cantidad: suma > 0 ? String(suma) : '',
+                    }));
+                  }}
+                />
+              </div>
+            </div>
+
             <p className="hor-section-label">Carga</p>
             <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
@@ -491,22 +535,6 @@ export default function DespachosCosecha() {
                   items={unidades}
                   labelFn={unidadLabel}
                   placeholder="Buscar unidad…"
-                />
-              </div>
-            </div>
-
-            <p className="hor-section-label">
-              Boletas de cosecha
-              {!form.loteId && <span className="dsp-section-hint"> — seleccione un lote primero</span>}
-            </p>
-            <div className="hor-form-grid">
-              <div className="hor-field hor-field--full">
-                <label>Boletas de cosecha</label>
-                <BoletasSelect
-                  registros={registrosCosecha}
-                  selected={form.boletas}
-                  onChange={(boletas) => setForm(prev => ({ ...prev, boletas }))}
-                  loteId={form.loteId}
                 />
               </div>
             </div>
