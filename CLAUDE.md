@@ -26,19 +26,42 @@ There are no unit tests configured in this project.
 
 ## Architecture Overview
 
-**Full-stack Firebase app** — React 18 + Vite frontend with Firebase Cloud Functions (Gen 1, Express) as the backend. Firestore named database `auroradatabase`. Fixed tenant: `ID_FINCA_ACTUAL = 'finca_aurora_test'`.
+**Full-stack Firebase app** — React 18 + Vite frontend with Firebase Cloud Functions (Gen 2, Express) as the backend. Firestore named database `auroradatabase`.
 
-### Backend: `functions/index.js`
+### Backend: `functions/`
 
-Single-file Express app (746 LOC). All routes share one Express instance exported as a Cloud Function named `api`.
+Modular Express app split into domain-specific route files. All routes share one Express instance exported as a Cloud Function named `api`.
 
-**Key patterns:**
+**Structure:**
+```
+functions/
+  index.js              — Entry point (~53 LOC): mounts routers, exports Cloud Functions
+  lib/
+    firebase.js         — admin.initializeApp, db, Timestamp, FieldValue, secrets, constants
+    clients.js          — getTwilioClient(), getAnthropicClient() (lazy singletons)
+    middleware.js        — authenticate, authenticateOnly
+    helpers.js          — enrichTask, writeFeedEvent, sendPush*, sendWhatsApp*, pick, verifyOwnership, hasMinRoleBE, sendNotificationWithLink, executeAutopilotAction, validateGuardrails
+  routes/               — 28 Express Router modules (one per domain)
+    auth.js, feed.js, tasks.js, cedulas.js, templates.js, users.js,
+    bodegas.js, productos.js, packages.js, lotes.js, grupos.js,
+    compras.js, hr.js, config.js, monitoreo.js, siembra.js,
+    proveedores.js, maquinaria.js, chat.js, reminders.js,
+    horimetro.js, combustible.js, unidades.js, labores.js,
+    webpush.js, calibraciones.js, autopilot.js, cosecha.js, costos.js
+  scheduled/
+    reminders-cron.js   — sendDuePushReminders (every 5 min)
+```
+
+**Patterns:**
+- Each route file exports an `express.Router()` with full paths (e.g., `/api/tasks`)
+- `index.js` mounts routers with `app.use(require('./routes/...'))` — no path prefixes
+- Shared state via singleton modules: `lib/firebase.js` (db, secrets), `lib/clients.js` (lazy Twilio/Anthropic)
 - `enrichTask(taskDoc)` — augments scheduled task docs with lote name, hectares, responsible user name/phone, and a computed `dueDate`
-- Creating a lote triggers automatic task generation from the linked package's `activities[]`, scheduling both a 3-day reminder and a due-date task per activity
-- Completing a task where `activity.type === 'aplicacion'` deducts stock using `FieldValue.increment()` for each product in the recipe
+- Creating a lote triggers automatic task generation from the linked package's `activities[]`
+- Completing a task where `activity.type === 'aplicacion'` deducts stock using `FieldValue.increment()`
 - WhatsApp notifications via Twilio sent at task creation if the task is due within 3 days
-- Invoice scanning (`POST /api/compras/escanear`) uses Claude claude-sonnet-4-6 vision to extract line items from an image, then fuzzy-matches against the productos catalog
-- Secrets loaded with Firebase `defineSecret()`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `ANTHROPIC_API_KEY`
+- Invoice scanning (`POST /api/compras/escanear`) uses Claude vision to extract line items
+- Secrets loaded with Firebase `defineSecret()`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `ANTHROPIC_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
 - Local emulator secrets go in `functions/.env.local`
 
 ### Frontend: `src/`
