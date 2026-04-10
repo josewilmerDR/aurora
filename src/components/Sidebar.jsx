@@ -43,8 +43,9 @@ export const MODULES = [
       {
         label: 'Cosecha', icon: FiTrendingUp, minRole: 'encargado', children: [
           { label: 'Registro de Cosecha',   to: '/cosecha/registro',   icon: FiPlusCircle, minRole: 'encargado' },
-          { label: 'Proyección de Cosecha', to: '/cosecha/proyeccion', icon: FiBarChart2, minRole: 'encargado' },
-          { label: 'Historial de Cosecha',  to: '/cosecha/historial',  icon: FiList,     minRole: 'encargado' },
+          { label: 'Despacho de Cosecha',   to: '/cosecha/despacho',   icon: FiTruck,      minRole: 'encargado' },
+          { label: 'Proyección de Cosecha', to: '/cosecha/proyeccion', icon: FiBarChart2,  minRole: 'encargado' },
+          { label: 'Historial de Cosecha',  to: '/cosecha/historial',  icon: FiList,       minRole: 'encargado' },
         ]
       },
       {
