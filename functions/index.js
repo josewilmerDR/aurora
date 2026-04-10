@@ -4985,9 +4985,10 @@ app.get('/api/materiales-siembra', authenticate, async (req, res) => {
 app.post('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
-    if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio.' });
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return res.status(400).json({ message: 'El nombre es obligatorio.' });
+    if (nombre.length > 32) return res.status(400).json({ message: 'Nombre demasiado largo.' });
     const ref = await db.collection('materiales_siembra').add({
-      nombre, rangoPesos: rangoPesos || '', variedad: variedad || '',
+      nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32),
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -5133,6 +5134,10 @@ app.post('/api/siembras', authenticate, async (req, res) => {
 
     const plantas_ = parseInt(plantas) || 0;
     const densidad_ = parseFloat(densidad) || 0;
+    if (plantas_ < 0 || plantas_ > 199999) return res.status(400).json({ message: 'Plantas fuera de rango válido.' });
+    if (densidad_ < 0 || densidad_ > 199999) return res.status(400).json({ message: 'Densidad fuera de rango válido.' });
+    if (typeof bloque === 'string' && bloque.length > 4) return res.status(400).json({ message: 'Bloque demasiado largo.' });
+    if (typeof loteNombre === 'string' && loteNombre.length > 200) return res.status(400).json({ message: 'Nombre de lote demasiado largo.' });
     const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
     const esCerrado = cerrado === true || cerrado === 'true';
     const inputFechaCierre = req.body.fechaCierre;
@@ -5142,7 +5147,7 @@ app.post('/api/siembras', authenticate, async (req, res) => {
           : Timestamp.now())
       : null;
 
-    const bloqueNorm = bloque || '';
+    const bloqueNorm = (bloque || '').slice(0, 4);
     const ref = await db.collection('siembras').add({
       fincaId: req.fincaId,
       loteId, loteNombre: loteNombre || '',
@@ -5182,7 +5187,11 @@ app.post('/api/siembras', authenticate, async (req, res) => {
 
 app.put('/api/siembras/:id', authenticate, async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const ALLOWED = ['fecha', 'loteId', 'loteNombre', 'bloque', 'plantas', 'densidad', 'materialId', 'materialNombre', 'rangoPesos', 'variedad', 'cerrado', 'areaCalculada'];
+    const updates = {};
+    for (const key of ALLOWED) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
     if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
 
     const needsDoc = updates.plantas !== undefined || updates.densidad !== undefined || updates.cerrado === true;

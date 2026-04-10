@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiCamera, FiCpu, FiChevronRight, FiMoreVertical, FiCopy, FiX, FiEdit2, FiSettings, FiClipboard } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiAlertTriangle, FiClock, FiCpu, FiMoreVertical, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -252,6 +252,7 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
               className="mat-modal-input"
               placeholder="Ej: Semilla híbrida X"
               value={nombre}
+              maxLength={32}
               onChange={e => setNombre(e.target.value)}
               autoFocus
               disabled={saving}
@@ -263,6 +264,7 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
               className="mat-modal-input"
               placeholder="Ej: 200g–300g"
               value={rango}
+              maxLength={32}
               onChange={e => setRango(e.target.value)}
               disabled={saving}
             />
@@ -273,6 +275,7 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
               className="mat-modal-input"
               placeholder="Ej: MD2"
               value={variedad}
+              maxLength={32}
               onChange={e => setVariedad(e.target.value)}
               disabled={saving}
             />
@@ -370,16 +373,17 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
           <label className="mat-modal-label">
             Bloque
             <input className="mat-modal-input" placeholder="Ej: A" value={bloque}
+              maxLength={4}
               onChange={e => setBloque(e.target.value)} disabled={saving} />
           </label>
           <label className="mat-modal-label">
             Plantas
-            <input className="mat-modal-input" type="number" min="0" value={plantas}
+            <input className="mat-modal-input" type="number" min="0" max="199999" value={plantas}
               onChange={e => setPlantas(e.target.value)} disabled={saving} />
           </label>
           <label className="mat-modal-label">
             Densidad <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>(pl/ha)</span>
-            <input className="mat-modal-input" type="number" min="1" value={densidad}
+            <input className="mat-modal-input" type="number" min="1" max="199999" value={densidad}
               onChange={e => setDensidad(e.target.value)} disabled={saving} />
           </label>
           <label className="mat-modal-label">
@@ -903,6 +907,7 @@ const fileInputRef                = useRef(null);
   };
 
   const formatFecha = (iso) => {
+    if (!iso) return '—';
     const d = new Date(iso.slice(0, 10) + 'T12:00:00');
     const day   = d.getDate().toString().padStart(2, '0');
     const month = d.toLocaleDateString('es-CR', { month: 'short' });
@@ -1046,18 +1051,19 @@ const fileInputRef                = useRef(null);
                     {/* Bloque */}
                     <td data-col="bloque" data-label="Bloque">
                       <input className="td-input" placeholder="Ej: A" value={row.bloque}
+                        maxLength={4}
                         onChange={e => updateRow(idx, 'bloque', e.target.value)} />
                     </td>
 
                     {/* Plantas */}
                     <td data-col="plantas" data-label="Plantas">
-                      <input className="td-input td-num" type="number" min="0" placeholder="0"
+                      <input className="td-input td-num" type="number" min="0" max="199999" placeholder="0"
                         value={row.plantas} onChange={e => updateRow(idx, 'plantas', e.target.value)} />
                     </td>
 
                     {/* Densidad */}
                     <td data-col="densidad" data-label="Densidad">
-                      <input className="td-input td-num" type="number" min="0" placeholder="65000"
+                      <input className="td-input td-num" type="number" min="1" max="199999" placeholder="65000"
                         value={row.densidad} onChange={e => updateRow(idx, 'densidad', e.target.value)} />
                     </td>
 
