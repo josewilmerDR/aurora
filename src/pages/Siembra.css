@@ -604,6 +604,27 @@
   opacity: 0.4;
 }
 
+.mat-modal-input-error {
+  border-color: #e05555 !important;
+}
+
+.mat-modal-error {
+  color: #e05555;
+  font-size: 0.72rem;
+  margin-top: 3px;
+}
+
+.td-input-error {
+  border-color: #e05555 !important;
+}
+
+.td-error-hint {
+  color: #e05555;
+  font-size: 0.68rem;
+  margin-top: 2px;
+  display: block;
+}
+
 /* ── Edit siembra modal: grid de campos ─────────────────────────────────────── */
 .edit-siembra-grid {
   display: grid;
@@ -644,8 +665,7 @@
 
 /* ── Responsive mobile ──────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .siembra-form-card,
-  .siembra-historial {
+  .siembra-form-card {
     overflow-x: visible;
   }
 
@@ -653,12 +673,27 @@
     overflow-x: visible;
   }
 
+  /* Historial: horizontal scroll — override form-card rules */
+  .siembra-historial {
+    overflow-x: auto;
+  }
+  .siembra-historial .siembra-table-wrapper {
+    overflow-x: auto;
+  }
+  .siembra-table-historial,
+  .siembra-table-historial thead,
+  .siembra-table-historial tbody,
+  .siembra-table-historial tbody tr,
+  .siembra-table-historial td {
+    display: revert;
+  }
+
   .siembra-table {
     display: block;
     min-width: 0;
   }
 
-  .siembra-table thead {
+  .siembra-table:not(.siembra-table-historial) thead {
     display: none;
   }
 
@@ -730,170 +765,7 @@
     text-align: left;
   }
 
-  /* expand-toggle: always hidden in compact mode */
-  .siembra-table-historial td[data-col="expand-toggle"] {
-    display: none;
-  }
-
-  /* ── Historial: compact 4-column list ── */
-  .siembra-table-historial thead {
-    display: block;
-  }
-
-  .siembra-table-historial thead tr {
-    display: flex;
-    align-items: center;
-    padding: 5px 12px;
-    border-bottom: 1px solid var(--aurora-border);
-  }
-
-  .siembra-table-historial th {
-    display: none;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    opacity: 0.45;
-    padding: 0;
-    border: none;
-  }
-
-  .siembra-table-historial th:nth-child(1) { display: block; width: 68px; flex-shrink: 0; }
-  .siembra-table-historial th:nth-child(2) { display: block; flex: 1; }
-  .siembra-table-historial th:nth-child(3) { display: block; width: 72px; flex-shrink: 0; }
-  .siembra-table-historial th:nth-child(4) { display: block; width: 64px; flex-shrink: 0; text-align: right; }
-
-  .siembra-table-historial tbody tr {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 9px 12px;
-    margin-bottom: 0;
-    border: none;
-    border-bottom: 1px solid rgba(42, 74, 106, 0.4);
-    border-radius: 0;
-    background: none;
-  }
-
-  .siembra-table-historial td {
-    display: none;
-    border: none;
-    padding: 0;
-    vertical-align: unset;
-  }
-
-  .siembra-table-historial td[data-col="fecha"]   { display: block; width: 68px; flex-shrink: 0; font-size: 0.80rem; }
-  .siembra-table-historial td[data-col="lote"]    { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 0.88rem; }
-  .siembra-table-historial td[data-col="bloque"]  { display: block; width: 72px; flex-shrink: 0; font-size: 0.80rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .siembra-table-historial td[data-col="plantas"] { display: block; width: 64px; flex-shrink: 0; font-size: 0.80rem; text-align: right; }
-
-  .siembra-table-historial .row-cerrado td:not(.swipe-hint) {
-    color: var(--aurora-green);
-    opacity: 0.75;
-  }
-
-  /* ── Historial: expanded detail row ── */
-  .siembra-table-historial tbody .hist-expanded-row {
-    display: block;
-  }
-
-  .siembra-table-historial tbody .hist-expanded-row .hist-expanded-cell {
-    display: block;
-    padding: 0 0 10px 0 !important;
-    border: none !important;
-  }
-
-  .hist-expanded-card {
-    border: 1px solid var(--aurora-border);
-    border-radius: 8px;
-    overflow: hidden;
-    background: rgba(0, 0, 0, 0.12);
-  }
-
-  .hist-expanded-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 11px 14px;
-    background: rgba(51, 255, 153, 0.07);
-    border-bottom: 1px solid var(--aurora-border);
-  }
-
-  .hist-expand-lote {
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: var(--aurora-green);
-  }
-
-  .hist-expand-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--aurora-light);
-    opacity: 0.5;
-    padding: 2px;
-    display: flex;
-    align-items: center;
-    border-radius: 4px;
-    transition: opacity 0.15s;
-  }
-
-  .hist-expand-close:hover {
-    opacity: 1;
-  }
-
-  .hist-expanded-field {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 14px;
-    border-bottom: 1px solid rgba(42, 74, 106, 0.35);
-    font-size: 0.85rem;
-  }
-
-  .hist-expanded-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--aurora-light);
-    opacity: 0.45;
-    min-width: 76px;
-    flex-shrink: 0;
-  }
-
-  .hist-expanded-value {
-    color: var(--aurora-light);
-  }
-
-  .hist-expanded-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    gap: 8px;
-  }
-
-  .hist-expanded-actions .siembra-cerrado-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.83rem;
-    color: var(--aurora-light);
-    opacity: 0.7;
-  }
-
-  .hist-expanded-actions .siembra-cerrado-btn.is-cerrado {
-    color: var(--aurora-green);
-    opacity: 1;
-  }
-
-  /* Sort controls en mobile */
-  .historial-sort-row {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
+  /* ── (removed: historial compact 4-column card layout, now uses horizontal scroll) ── */
   .siembra-form-actions {
     flex-wrap: nowrap;
   }

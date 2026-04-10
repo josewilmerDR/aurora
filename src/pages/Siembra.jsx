@@ -328,10 +328,16 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
   const [densidad, setDensidad]     = useState(String(record.densidad || '65000'));
   const [materialId, setMaterialId] = useState(record.materialId || '');
 
-  const area = plantas && densidad && Number(densidad) > 0
-    ? (Number(plantas) / Number(densidad)).toFixed(4) : '';
+  const plantasNum  = Number(plantas)  || 0;
+  const densidadNum = Number(densidad) || 0;
+  const plantasInvalid  = plantasNum < 0 || plantasNum > 199999;
+  const densidadInvalid = densidadNum < 0 || densidadNum > 199999;
+
+  const area = plantas && densidad && densidadNum > 0
+    ? (plantasNum / densidadNum).toFixed(4) : '';
 
   const handleSave = () => {
+    if (plantasInvalid || densidadInvalid) return;
     const lote = lotes.find(l => l.id === loteId);
     const mat  = materiales.find(m => m.id === materialId);
     onSave({
@@ -378,13 +384,15 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
           </label>
           <label className="mat-modal-label">
             Plantas
-            <input className="mat-modal-input" type="number" min="0" max="199999" value={plantas}
+            <input className={`mat-modal-input${plantasInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={plantas}
               onChange={e => setPlantas(e.target.value)} disabled={saving} />
+            {plantasInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
           </label>
           <label className="mat-modal-label">
             Densidad <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>(pl/ha)</span>
-            <input className="mat-modal-input" type="number" min="1" max="199999" value={densidad}
+            <input className={`mat-modal-input${densidadInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={densidad}
               onChange={e => setDensidad(e.target.value)} disabled={saving} />
+            {densidadInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
           </label>
           <label className="mat-modal-label">
             Área calculada
@@ -406,7 +414,7 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
         </div>
         <div className="param-modal-actions">
           <button className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!fecha || !loteId || saving} onClick={handleSave}>
+          <button className="btn btn-primary" disabled={!fecha || !loteId || saving || plantasInvalid || densidadInvalid} onClick={handleSave}>
             {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -658,6 +666,9 @@ const fileInputRef                = useRef(null);
 
   const materialFor = (id) => materiales.find(m => m.id === id);
 
+  const rowPlantasInvalid  = (row) => { const v = Number(row.plantas) || 0; return v < 0 || v > 199999; };
+  const rowDensidadInvalid = (row) => { const v = Number(row.densidad) || 0; return v < 0 || v > 199999; };
+
   const areaCalc = (row) => {
     const p = parseInt(row.plantas);
     const d = parseFloat(row.densidad);
@@ -712,6 +723,13 @@ const fileInputRef                = useRef(null);
     const validos = rows.filter(r => (r.loteId || r.loteNuevoNombre.trim()) && r.plantas && r.densidad);
     if (!validos.length) {
       showToast('Completa al menos una fila con lote, plantas y densidad.', 'error');
+      return;
+    }
+
+    // Validar rango de plantas y densidad
+    const fueraDeRango = validos.some(r => rowPlantasInvalid(r) || rowDensidadInvalid(r));
+    if (fueraDeRango) {
+      showToast('Plantas y densidad deben estar entre 0 y 199 999.', 'error');
       return;
     }
 
@@ -1057,14 +1075,16 @@ const fileInputRef                = useRef(null);
 
                     {/* Plantas */}
                     <td data-col="plantas" data-label="Plantas">
-                      <input className="td-input td-num" type="number" min="0" max="199999" placeholder="0"
+                      <input className={`td-input td-num${rowPlantasInvalid(row) ? ' td-input-error' : ''}`} type="number" min="0" max="199999" placeholder="0"
                         value={row.plantas} onChange={e => updateRow(idx, 'plantas', e.target.value)} />
+                      {rowPlantasInvalid(row) && <span className="td-error-hint">0 – 199 999</span>}
                     </td>
 
                     {/* Densidad */}
                     <td data-col="densidad" data-label="Densidad">
-                      <input className="td-input td-num" type="number" min="1" max="199999" placeholder="65000"
+                      <input className={`td-input td-num${rowDensidadInvalid(row) ? ' td-input-error' : ''}`} type="number" min="0" max="199999" placeholder="65000"
                         value={row.densidad} onChange={e => updateRow(idx, 'densidad', e.target.value)} />
+                      {rowDensidadInvalid(row) && <span className="td-error-hint">0 – 199 999</span>}
                     </td>
 
                     {/* Área calculada */}
