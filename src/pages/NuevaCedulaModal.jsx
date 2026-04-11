@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FiX, FiPlusCircle, FiTrash2, FiSearch } from 'react-icons/fi';
+import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye } from 'react-icons/fi';
 
-function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose }) {
+function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose, onPreviewDraft }) {
   const [form, setForm] = useState({
     activityName: '',
     fecha: new Date().toISOString().split('T')[0],
@@ -282,6 +282,17 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
         <div className="ca-preview-toolbar">
           <span className="ca-preview-toolbar-title">Nueva Cédula de Aplicación</span>
           <div className="ca-preview-toolbar-actions">
+            {onPreviewDraft && (
+              <button
+                type="button"
+                className="btn btn-secondary ca-toolbar-icon-btn"
+                onClick={() => onPreviewDraft({ ...form })}
+                disabled={submitting}
+                title="Ver borrador de la cédula"
+              >
+                <FiEye size={15} /> <span className="ca-toolbar-btn-text">Vista previa</span>
+              </button>
+            )}
             <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
               <FiPlusCircle size={14} />
               {submitting ? 'Generando…' : 'Generar Cédula'}

@@ -330,6 +330,27 @@
   letter-spacing: 0.05em;
 }
 
+.ca-doc-consecutivo--draft {
+  color: #b45309;
+  border: 1.5px dashed #b45309;
+  border-radius: 4px;
+  padding: 1px 8px;
+  display: inline-block;
+}
+
+.ca-toolbar-draft-badge {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #b45309;
+  border: 1.5px dashed #b45309;
+  border-radius: 4px;
+  padding: 1px 7px;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
+
 /* ── Preview modal ────────────────────────────────────────────────────────── */
 .ca-preview-backdrop {
   position: fixed;
