@@ -14,6 +14,11 @@ const MAX_PRODUCTOS = 50;
 const MAX_BLOQUES = 500;
 const MAX_CANTIDAD_POR_HA = 100000;
 const MAX_OBS_LEN = 500;
+// Límites específicos del modal de Editar / Mezcla Lista — alineados con el
+// frontend (MezclaListaModal.jsx). No reutilizamos MAX_OBS_LEN porque otros
+// endpoints (ej. aplicada) mantienen el límite histórico.
+const MAX_OBS_MEZCLA_LEN = 288;
+const MAX_NOMBRE_MEZCLA_LEN = 48;
 const MAX_FUTURE_DAYS = 1825; // tope duro: ~5 años
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -367,12 +372,15 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       throw e;
     }
 
-    // Validación de observacionesMezcla (texto libre, máx MAX_OBS_LEN chars)
+    // Validación de observacionesMezcla (texto libre, máx MAX_OBS_MEZCLA_LEN chars)
     let observacionesMezcla = null;
     if (req.body?.observacionesMezcla != null && req.body.observacionesMezcla !== '') {
-      observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_LEN);
+      if (typeof req.body.observacionesMezcla !== 'string') {
+        return res.status(400).json({ message: 'observacionesMezcla debe ser texto.' });
+      }
+      observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_MEZCLA_LEN);
       if (observacionesMezcla == null) {
-        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.` });
+        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_MEZCLA_LEN} caracteres.` });
       }
     }
 
@@ -453,7 +461,16 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       }
     }
 
-    const mezclaListaNombre = sanitizeStr(req.body?.nombre);
+    // Nombre de quien prepara la mezcla: tipo string, máx MAX_NOMBRE_MEZCLA_LEN.
+    // Rechazamos con 400 si excede (no truncamos silenciosamente) para que el
+    // frontend muestre un error consistente con su validación.
+    if (req.body?.nombre != null && typeof req.body.nombre !== 'string') {
+      return res.status(400).json({ message: 'nombre debe ser texto.' });
+    }
+    const mezclaListaNombre = sanitizeStrStrict(req.body?.nombre, MAX_NOMBRE_MEZCLA_LEN);
+    if (req.body?.nombre != null && req.body.nombre !== '' && mezclaListaNombre == null) {
+      return res.status(400).json({ message: `El nombre no puede exceder ${MAX_NOMBRE_MEZCLA_LEN} caracteres.` });
+    }
 
     // Computar huboCambios comparando productos aplicados vs originales de la cédula
     let huboCambios = false;
@@ -548,13 +565,23 @@ router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) =
 
     let observacionesMezcla = null;
     if (req.body?.observacionesMezcla != null && req.body.observacionesMezcla !== '') {
-      observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_LEN);
+      if (typeof req.body.observacionesMezcla !== 'string') {
+        return res.status(400).json({ message: 'observacionesMezcla debe ser texto.' });
+      }
+      observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_MEZCLA_LEN);
       if (observacionesMezcla == null) {
-        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.` });
+        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_MEZCLA_LEN} caracteres.` });
       }
     }
 
-    const editadaPorNombre = sanitizeStr(req.body?.nombre);
+    // Nombre de quien edita: string, máx MAX_NOMBRE_MEZCLA_LEN, rechazar si excede.
+    if (req.body?.nombre != null && typeof req.body.nombre !== 'string') {
+      return res.status(400).json({ message: 'nombre debe ser texto.' });
+    }
+    const editadaPorNombre = sanitizeStrStrict(req.body?.nombre, MAX_NOMBRE_MEZCLA_LEN);
+    if (req.body?.nombre != null && req.body.nombre !== '' && editadaPorNombre == null) {
+      return res.status(400).json({ message: `El nombre no puede exceder ${MAX_NOMBRE_MEZCLA_LEN} caracteres.` });
+    }
 
     // huboCambios se recomputa contra el snapshot inmutable productosOriginales,
     // para que el audit trail canónico sobreviva ediciones sucesivas.
