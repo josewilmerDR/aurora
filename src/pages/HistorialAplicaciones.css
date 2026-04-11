@@ -234,6 +234,16 @@
   color: var(--aurora-green);
 }
 
+.badge-violet {
+  background: rgba(204, 51, 255, 0.15);
+  color: var(--aurora-magenta);
+}
+
+.badge-gray {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(230, 242, 255, 0.6);
+}
+
 /* ── Columnas especiales ──────────────────────────────────────────────────── */
 .historial-th-group {
   position: sticky;
@@ -245,16 +255,72 @@
   white-space: nowrap;
 }
 
+/* Por defecto todas las filas miden una línea: los campos que antes permitían
+   wrap ahora truncan con ellipsis. El texto completo queda accesible por
+   tooltip nativo (title) o, en el caso de observaciones, por "ver más". */
 .historial-td-bloques {
   max-width: 200px;
-  white-space: normal;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .historial-td-producto {
   max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historial-td-obs {
+  max-width: 480px;
+  font-size: 0.78rem;
+  opacity: 0.85;
+  vertical-align: top;
+}
+
+/* Contenedor flex con el texto clampado a una línea + botón ver más/menos. */
+.historial-obs-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 480px;
+  min-width: 0;
+}
+
+.historial-obs-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historial-obs-cell.is-expanded .historial-obs-text {
   white-space: normal;
+  overflow: visible;
   word-break: break-word;
+}
+
+.historial-obs-toggle {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--aurora-green);
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.historial-obs-toggle:hover {
+  opacity: 0.75;
+}
+
+.historial-row-changed td {
+  box-shadow: inset 2px 0 0 var(--aurora-magenta);
 }
 
 /* ── Ícono embudo en encabezado ──────────────────────────────────────────── */

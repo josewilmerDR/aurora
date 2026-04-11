@@ -39,6 +39,23 @@ const n = (v, decimals) => {
   return decimals != null ? Number(v).toFixed(decimals) : String(v);
 };
 
+const CAMBIO_BADGE_CLASS = {
+  'Sustitución':     'badge-blue',
+  'Ajuste de dosis': 'badge-yellow',
+  'Añadido':         'badge-green',
+  'Retirado':        'badge-gray',
+  'Otro':            'badge-violet',
+};
+
+// Umbral de caracteres: si el texto es más largo, el botón "ver más" aparece.
+// El alto de fila es 1 línea por defecto (ver CSS), así que a ~480px de ancho
+// con font 0.78rem caben aproximadamente 70-80 caracteres antes de truncar.
+const OBS_TRUNCATE_AT = 70;
+
+const prodLabel = (p) => p
+  ? [p.nombreComercial, p.ingredienteActivo].filter(Boolean).join(' — ')
+  : '';
+
 // ─────────────────────────────────────────────────────────────────────────────
 function HistorialAplicaciones() {
   const navigate = useNavigate();
@@ -55,6 +72,41 @@ function HistorialAplicaciones() {
 
   const [colFilters,    setColFilters]    = useState({});  // { field: string }
   const [filterPopover, setFilterPopover] = useState(null); // { field, x, y }
+  const [expandedObs,   setExpandedObs]   = useState(() => new Set()); // keys "rowId-idx-m|a"
+
+  const toggleObs = (key) => {
+    setExpandedObs(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const renderObs = (text, key) => {
+    if (!text) return '—';
+    const hasToggle  = text.length > OBS_TRUNCATE_AT;
+    const isExpanded = hasToggle && expandedObs.has(key);
+    return (
+      <div className={`historial-obs-cell${isExpanded ? ' is-expanded' : ''}`}>
+        <span
+          className="historial-obs-text"
+          title={hasToggle && !isExpanded ? text : undefined}
+        >
+          {text}
+        </span>
+        {hasToggle && (
+          <button
+            type="button"
+            className="historial-obs-toggle"
+            onClick={() => toggleObs(key)}
+          >
+            {isExpanded ? 'ver menos' : 'ver más'}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     apiFetch('/api/cedulas').then(r => r.json())
@@ -63,29 +115,100 @@ function HistorialAplicaciones() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Aplanar: una fila por (cédula × producto). Cédulas sin productos → 1 fila con prod null.
+  // Aplanar: una fila por (cédula × producto). Cada fila se enriquece con el
+  // producto originalmente recetado por el sistema (cuando hubo sustitución /
+  // ajuste de dosis) y con una marca de cambio (`_prodCambio`). Los productos
+  // que estaban en el plan original pero no fueron aplicados generan filas
+  // fantasma marcadas como "Retirado" para preservar el audit trail.
   const flattened = useMemo(() => {
     return cedulas.flatMap(c => {
-      const prods = Array.isArray(c.snap_productos) && c.snap_productos.length > 0
-        ? c.snap_productos
-        : [null];
+      const originales = Array.isArray(c.productosOriginales) ? c.productosOriginales : [];
+      const origById = {};
+      originales.forEach(o => { if (o?.productoId) origById[o.productoId] = o; });
+
+      const aplicados = Array.isArray(c.snap_productos) ? c.snap_productos : [];
+
       const bloquesArr = Array.isArray(c.snap_bloques) ? c.snap_bloques : [];
       const _lotesStr  = [...new Set(bloquesArr.map(b => b.loteNombre).filter(Boolean))].sort().join(', ');
       const _bloquesStr = bloquesArr.map(b => b.bloque).filter(Boolean)
         .sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(', ');
       const _etapaStr  = [c.snap_cosecha, c.snap_etapa].filter(Boolean).join(' / ');
-      return prods.map(prod => ({
-        ...c,
-        _prod:           prod,
-        _lotesStr,
-        _bloquesStr,
-        _etapaStr,
-        _prodIdProducto: prod?.idProducto        ?? '',
-        _prodNombre:     prod ? [prod.nombreComercial, prod.ingredienteActivo].filter(Boolean).join(' — ') : '',
-        _prodCantidad:   prod?.cantidadPorHa      ?? null,
-        _prodUnidad:     prod?.unidad             ?? '',
-        _prodTotal:      prod?.total              ?? null,
-      }));
+      const base = { _lotesStr, _bloquesStr, _etapaStr };
+
+      const rows = [];
+      const touchedOriginalIds = new Set();
+
+      if (aplicados.length === 0) {
+        // Cédula sin productos aplicados: conserva la fila placeholder actual.
+        rows.push({
+          ...c, ...base,
+          _prod: null,
+          _prodIdProducto: '',
+          _prodNombre:     '',
+          _prodCantidad:   null,
+          _prodUnidad:     '',
+          _prodTotal:      null,
+          _prodCambio:          '',
+          _prodOrigIdProducto:  '',
+          _prodOrigNombre:      '',
+          _prodOrigCantidad:    null,
+          _prodOrigUnidad:      '',
+        });
+      } else {
+        aplicados.forEach(prod => {
+          const origRef = prod?.productoOriginalId
+            ? origById[prod.productoOriginalId]
+            : origById[prod?.productoId];
+          if (origRef) touchedOriginalIds.add(origRef.productoId);
+
+          let _prodCambio = '';
+          if (prod?.motivoCambio === 'sustitucion')       _prodCambio = 'Sustitución';
+          else if (prod?.motivoCambio === 'ajuste_dosis') _prodCambio = 'Ajuste de dosis';
+          else if (prod?.motivoCambio === 'otro')         _prodCambio = 'Otro';
+          else if (originales.length > 0 && !origRef)     _prodCambio = 'Añadido';
+          else if (origRef && Number.isFinite(parseFloat(origRef.cantidadPorHa))
+                   && Number.isFinite(parseFloat(prod?.cantidadPorHa))
+                   && parseFloat(origRef.cantidadPorHa) !== parseFloat(prod?.cantidadPorHa)) {
+            _prodCambio = 'Ajuste de dosis';
+          }
+
+          rows.push({
+            ...c, ...base,
+            _prod: prod,
+            _prodIdProducto: prod?.idProducto ?? prod?.productoId ?? '',
+            _prodNombre:     prodLabel(prod),
+            _prodCantidad:   prod?.cantidadPorHa ?? null,
+            _prodUnidad:     prod?.unidad ?? '',
+            _prodTotal:      prod?.total ?? null,
+            _prodCambio,
+            _prodOrigIdProducto: origRef?.idProducto ?? origRef?.productoId ?? '',
+            _prodOrigNombre:     prodLabel(origRef),
+            _prodOrigCantidad:   origRef?.cantidadPorHa ?? null,
+            _prodOrigUnidad:     origRef?.unidad ?? '',
+          });
+        });
+      }
+
+      // Filas fantasma por productos del plan original que no fueron aplicados.
+      originales.forEach(o => {
+        if (!o?.productoId || touchedOriginalIds.has(o.productoId)) return;
+        rows.push({
+          ...c, ...base,
+          _prod: null,
+          _prodIdProducto: o.idProducto ?? o.productoId ?? '',
+          _prodNombre:     prodLabel(o),
+          _prodCantidad:   o.cantidadPorHa ?? null,
+          _prodUnidad:     o.unidad ?? '',
+          _prodTotal:      null,
+          _prodCambio:          'Retirado',
+          _prodOrigIdProducto:  o.idProducto ?? o.productoId ?? '',
+          _prodOrigNombre:      prodLabel(o),
+          _prodOrigCantidad:    o.cantidadPorHa ?? null,
+          _prodOrigUnidad:      o.unidad ?? '',
+        });
+      });
+
+      return rows;
     });
   }, [cedulas]);
 
@@ -294,6 +417,12 @@ function HistorialAplicaciones() {
                   <SortTh field="_prodCantidad">Cant./Ha</SortTh>
                   <SortTh field="_prodUnidad">Unidad</SortTh>
                   <SortTh field="_prodTotal">Total Prod.</SortTh>
+                  {/* Cambios respecto al plan original */}
+                  <SortTh field="_prodCambio">Cambio</SortTh>
+                  <SortTh field="_prodOrigIdProducto">Id Prod. Original</SortTh>
+                  <SortTh field="_prodOrigNombre">Prod. Original</SortTh>
+                  <SortTh field="_prodOrigCantidad">Cant. Orig./Ha</SortTh>
+                  <SortTh field="_prodOrigUnidad">Unid. Orig.</SortTh>
                   {/* Campo */}
                   <SortTh field="sobrante">Sobrante</SortTh>
                   <SortTh field="sobranteLoteNombre">Depositado en</SortTh>
@@ -308,13 +437,20 @@ function HistorialAplicaciones() {
                   <SortTh field="encargadoFinca">Enc. de Finca</SortTh>
                   <SortTh field="encargadoBodega">Enc. de Bodega</SortTh>
                   <SortTh field="supAplicaciones">Sup. Aplicaciones / Regente</SortTh>
+                  {/* Observaciones libres */}
+                  <SortTh field="observacionesMezcla">Obs. Mezcla</SortTh>
+                  <SortTh field="observacionesAplicacion">Obs. Aplicación</SortTh>
                 </tr>
               </thead>
               <tbody>
                 {visible.map((row, idx) => {
                   const prod = row._prod;
+                  const cambioClass = row._prodCambio ? CAMBIO_BADGE_CLASS[row._prodCambio] : '';
                   return (
-                    <tr key={`${row.id}-${idx}`}>
+                    <tr
+                      key={`${row.id}-${idx}`}
+                      className={row._prodCambio ? 'historial-row-changed' : ''}
+                    >
                       {/* Identificación */}
                       <td className="historial-consecutivo">
                         {row.status === 'aplicada_en_campo'
@@ -345,13 +481,29 @@ function HistorialAplicaciones() {
                       <td className="historial-td-nowrap">{row.snap_calibracionNombre || '—'}</td>
                       {/* Bloques */}
                       <td className="historial-td-nowrap">{row._lotesStr || '—'}</td>
-                      <td className="historial-td-bloques">{row._bloquesStr || '—'}</td>
+                      <td className="historial-td-bloques" title={row._bloquesStr || undefined}>
+                        {row._bloquesStr || '—'}
+                      </td>
                       {/* Producto */}
                       <td>{row._prodIdProducto || '—'}</td>
-                      <td className="historial-td-producto">{row._prodNombre || '—'}</td>
+                      <td className="historial-td-producto" title={row._prodNombre || undefined}>
+                        {row._prodNombre || '—'}
+                      </td>
                       <td>{row._prodCantidad != null ? n(row._prodCantidad) : '—'}</td>
                       <td>{row._prodUnidad || '—'}</td>
                       <td>{row._prodTotal != null ? n(row._prodTotal, 3) : '—'}</td>
+                      {/* Cambios respecto al plan original */}
+                      <td>
+                        {row._prodCambio
+                          ? <span className={`historial-badge ${cambioClass}`}>{row._prodCambio}</span>
+                          : '—'}
+                      </td>
+                      <td>{row._prodOrigIdProducto || '—'}</td>
+                      <td className="historial-td-producto" title={row._prodOrigNombre || undefined}>
+                        {row._prodOrigNombre || '—'}
+                      </td>
+                      <td>{row._prodOrigCantidad != null ? n(row._prodOrigCantidad) : '—'}</td>
+                      <td>{row._prodOrigUnidad || '—'}</td>
                       {/* Campo */}
                       <td>{row.sobrante === true ? 'Sí' : row.sobrante === false ? 'No' : '—'}</td>
                       <td className="historial-td-nowrap">{row.sobranteLoteNombre || '—'}</td>
@@ -366,6 +518,13 @@ function HistorialAplicaciones() {
                       <td className="historial-td-nowrap">{row.encargadoFinca  || '—'}</td>
                       <td className="historial-td-nowrap">{row.encargadoBodega || '—'}</td>
                       <td className="historial-td-nowrap">{row.supAplicaciones || '—'}</td>
+                      {/* Observaciones libres */}
+                      <td className="historial-td-obs">
+                        {renderObs(row.observacionesMezcla, `${row.id}-${idx}-m`)}
+                      </td>
+                      <td className="historial-td-obs">
+                        {renderObs(row.observacionesAplicacion, `${row.id}-${idx}-a`)}
+                      </td>
                     </tr>
                   );
                 })}
