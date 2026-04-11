@@ -1597,7 +1597,8 @@
     max-height: 100svh;
   }
   .nca-form {
-    padding: 14px 14px 20px;
+    padding: 12px 12px 20px;
+    max-height: calc(100svh - 96px);
   }
   .nca-fields-row {
     flex-direction: column;
@@ -1609,23 +1610,158 @@
   .nca-bloques-list {
     grid-template-columns: 1fr;
   }
+
+  /* Plantillas: más compactas */
+  .nca-plantillas-section {
+    padding: 8px 10px 10px;
+    gap: 6px;
+  }
+
+  /* Fila principal: apilar en lugar de scrollear horizontalmente */
+  .nca-activity-table,
+  .nca-activity-table tbody,
+  .nca-activity-table tr {
+    display: block;
+    width: 100%;
+  }
+  .nca-activity-table thead,
+  .nca-activity-table colgroup {
+    display: none;
+  }
+  .nca-activity-table tbody td {
+    display: block;
+    width: 100%;
+    padding: 6px 0 10px;
+    border: none;
+  }
+  /* Label generado a partir de data-label */
+  .nca-activity-table tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--aurora-light);
+    opacity: 0.65;
+    margin-bottom: 5px;
+  }
+  /* Inputs/selects al 100% y 16px para evitar zoom en iOS */
+  .nca-activity-table .nca-input,
+  .nca-activity-table .nca-select {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+    padding: 10px 12px;
+    margin-top: 0;
+  }
+  /* La sub-fila (productos + bloques) no necesita label */
+  .nca-sub-row > td[colspan] {
+    padding: 8px 0 4px;
+    border-top: 1px solid var(--aurora-border);
+  }
+  .nca-sub-row > td[colspan]::before {
+    display: none !important;
+  }
+
+  /* Tabla de productos: tarjetas apiladas */
+  .nca-productos-table,
+  .nca-productos-table tbody,
+  .nca-productos-table tr,
+  .nca-productos-table td {
+    display: block;
+    width: 100%;
+    overflow: visible;
+  }
+  .nca-productos-table thead {
+    display: none;
+  }
   .nca-productos-table {
+    border-radius: 6px;
+    margin-top: 10px;
+  }
+  .nca-productos-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name   remove"
+      "dose   unit";
+    column-gap: 10px;
+    row-gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--aurora-border);
+    align-items: center;
+  }
+  .nca-productos-table tr:first-child {
+    border-top: none;
+  }
+  .nca-productos-table td {
+    padding: 0;
+    border: none;
+  }
+  .nca-prod-cell-name {
+    grid-area: name;
+    font-weight: 600;
+    font-size: 0.9rem;
+    word-break: break-word;
+  }
+  .nca-prod-cell-dose {
+    grid-area: dose;
+    text-align: left !important;
+  }
+  .nca-prod-cell-dose::before {
+    content: attr(data-label);
     display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+    margin-bottom: 3px;
   }
-  /* La fila principal tiene 4 columnas que no caben en 360px: permitir scroll horizontal */
-  .nca-activity-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .nca-prod-cell-dose .nca-input-num {
+    width: 100%;
+    text-align: left;
+    font-size: 16px;
+    padding: 8px 10px;
   }
-  .nca-activity-table th,
-  .nca-activity-table td {
-    min-width: 140px;
+  .nca-prod-cell-unit {
+    grid-area: unit;
+    align-self: end;
+    font-size: 0.82rem;
+    opacity: 0.75;
+    padding-bottom: 8px !important;
   }
-  .nca-activity-table .nca-sub-row td {
-    min-width: 0;
+  .nca-prod-cell-action {
+    grid-area: remove;
+    justify-self: end;
+  }
+
+  /* Buscador de producto y select de lote */
+  .nca-prod-input-wrap {
+    padding: 10px 12px;
+  }
+  .nca-prod-input-wrap input {
+    font-size: 16px;
+  }
+  .nca-lote-select {
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+
+  /* Dropdown de productos: no rebasar el viewport */
+  .nca-prod-dropdown {
+    max-width: calc(100vw - 16px);
+    max-height: 40vh;
+  }
+
+  /* Bloques: header con botón debajo si no cabe */
+  .nca-bloques-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .nca-bloque-check {
+    padding: 10px 12px;
+    font-size: 0.88rem;
   }
 }
 
