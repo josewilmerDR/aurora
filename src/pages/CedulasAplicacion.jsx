@@ -572,8 +572,10 @@ function CedulasAplicacion() {
           ? {
               ...c,
               status: 'en_transito',
-              mezclaListaAt: new Date().toISOString(),
-              mezclaListaNombre: payload.nombre || c.mezclaListaNombre || null,
+              // Preferir timestamp del servidor (data.mezclaListaAt) por consistencia
+              // con lo que quedó realmente escrito en Firestore; fallback a local.
+              mezclaListaAt: data.mezclaListaAt || new Date().toISOString(),
+              mezclaListaNombre: data.mezclaListaNombre ?? payload.nombre ?? c.mezclaListaNombre ?? null,
               ...(data.productosAplicados ? { productosAplicados: data.productosAplicados } : {}),
               ...(data.huboCambios !== undefined ? { huboCambios: data.huboCambios } : {}),
               ...(data.observacionesMezcla !== undefined ? { observacionesMezcla: data.observacionesMezcla } : {}),

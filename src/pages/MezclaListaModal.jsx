@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiX, FiCheckCircle, FiTrash2, FiPlusCircle, FiAlertTriangle } from 'react-icons/fi';
 
-const MAX_OBS_LEN = 500;
+const MAX_NOMBRE_LEN = 48;
+const MAX_OBS_LEN = 288;
 const MAX_PRODUCTOS = 50;
 const MAX_CANTIDAD_POR_HA = 100000;
 
@@ -85,14 +86,22 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
     });
   }, [cedula, task]);
 
-  const [nombre, setNombre] = useState(currentUser?.nombre || '');
+  const [nombre, setNombre] = useState(
+    (currentUser?.nombre || '').slice(0, MAX_NOMBRE_LEN)
+  );
   const [hayCambios, setHayCambios] = useState(isEditMode); // en edit mode siempre activo
   const [productosEdit, setProductosEdit] = useState(productosInicial);
-  const [observaciones, setObservaciones] = useState(
-    (isEditMode && typeof cedula?.observacionesMezcla === 'string') ? cedula.observacionesMezcla : ''
-  );
+  const [observaciones, setObservaciones] = useState(() => {
+    const raw = (isEditMode && typeof cedula?.observacionesMezcla === 'string')
+      ? cedula.observacionesMezcla
+      : '';
+    return raw.slice(0, MAX_OBS_LEN);
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Guardia contra doble submit: setSubmitting(true) es async, un doble click
+  // rápido podría disparar onConfirm dos veces antes del primer re-render.
+  const submittingRef = useRef(false);
 
   const catalogoMap = useMemo(() => {
     const m = {};
@@ -142,7 +151,14 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   );
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return;
     setError('');
+    // Validación de nombre: tipo, trim, longitud máxima.
+    const nombreTrim = typeof nombre === 'string' ? nombre.trim() : '';
+    if (nombreTrim.length > MAX_NOMBRE_LEN) {
+      setError(`El nombre no puede exceder ${MAX_NOMBRE_LEN} caracteres.`);
+      return;
+    }
     // Validaciones cliente
     if (hayCambios) {
       if (productosEdit.length === 0) {
@@ -173,12 +189,13 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
         }
       }
     }
-    if (observaciones.length > MAX_OBS_LEN) {
+    const obsTrim = observaciones.trim();
+    if (obsTrim.length > MAX_OBS_LEN) {
       setError(`Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.`);
       return;
     }
 
-    const payload = { nombre: nombre || null };
+    const payload = { nombre: nombreTrim || null };
     // En edit mode siempre enviamos productosAplicados (es el objetivo de la acción);
     // en mezcla-lista sólo si el usuario activó el toggle y realmente hubo cambios.
     const shouldSendProductos = isEditMode || (hayCambios && huboCambiosReal);
@@ -199,16 +216,18 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
         return out;
       });
     }
-    if (observaciones.trim()) {
-      payload.observacionesMezcla = observaciones.trim();
+    if (obsTrim) {
+      payload.observacionesMezcla = obsTrim;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       await onConfirm(payload);
     } catch (e) {
       setError(e?.message || 'Error al procesar la mezcla.');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -255,13 +274,16 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
           <label className="mla-field">
             <span className="mla-label">
               {isEditMode ? 'Nombre de quien edita' : 'Nombre de quien prepara la mezcla'}
+              {' · '}{nombre.length}/{MAX_NOMBRE_LEN}
             </span>
             <input
               type="text"
               className="nca-input"
               value={nombre}
-              onChange={e => setNombre(e.target.value)}
+              onChange={e => setNombre(e.target.value.slice(0, MAX_NOMBRE_LEN))}
+              maxLength={MAX_NOMBRE_LEN}
               placeholder="Nombre"
+              autoComplete="off"
             />
           </label>
 
@@ -384,6 +406,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
               className="mla-textarea"
               value={observaciones}
               onChange={e => setObservaciones(e.target.value.slice(0, MAX_OBS_LEN))}
+              maxLength={MAX_OBS_LEN}
               rows={3}
               placeholder="Ej: Producto X agotado en bodega, se sustituyó por Y. Dosis aumentada por alta población de plaga."
             />

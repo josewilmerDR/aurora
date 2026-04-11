@@ -1613,6 +1613,46 @@
   width: 100%;
   resize: vertical;
   min-height: 60px;
+  max-height: 220px;
+  box-sizing: border-box;
+}
+
+/* ── Mobile (<=600px): modal Mezcla Lista / Editar ───────────────────────── */
+@media (max-width: 600px) {
+  .mla-body {
+    padding: 12px 12px 16px;
+    gap: 12px;
+  }
+  .mla-info {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+  }
+  .mla-toggle {
+    font-size: 0.78rem;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  /* La tabla puede desbordar en pantallas de 360px: permitir scroll horizontal
+     dentro de su sección contenedora y asegurar un ancho mínimo legible. */
+  .mla-productos-section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mla-productos-table {
+    min-width: 480px;
+    font-size: 0.78rem;
+  }
+  .mla-productos-table thead th,
+  .mla-productos-table tbody td {
+    padding: 6px 6px;
+  }
+  .mla-productos-table .nca-input-num {
+    width: 70px;
+  }
+  .mla-add-btn {
+    align-self: stretch;
+    justify-content: center;
+  }
 }
 
 /* ── Mobile ───────────────────────────────────────────────────────────────── */
