@@ -114,6 +114,10 @@
 
 /* ── Contador ─────────────────────────────────────────────────────────────── */
 .historial-count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   font-size: 0.8rem;
   color: var(--aurora-light);
   opacity: 0.65;
@@ -353,13 +357,6 @@
 }
 
 /* ── Contador: limpiar filtros de columna ────────────────────────────────── */
-.historial-count {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .historial-clear-col-filters {
   display: inline-flex;
   align-items: center;
