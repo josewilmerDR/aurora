@@ -12,6 +12,7 @@ const DATE_FIELDS = [
   { value: 'snap_fechaCosecha',        label: 'F. Prog. Cosecha' },
   { value: 'snap_fechaCreacionGrupo',  label: 'F. Creación Grupo' },
   { value: 'aplicadaAt',               label: 'Fecha Aplicación' },
+  { value: 'editadaAt',                label: 'Fecha Edición' },
 ];
 
 
@@ -437,6 +438,9 @@ function HistorialAplicaciones() {
                   <SortTh field="encargadoFinca">Enc. de Finca</SortTh>
                   <SortTh field="encargadoBodega">Enc. de Bodega</SortTh>
                   <SortTh field="supAplicaciones">Sup. Aplicaciones / Regente</SortTh>
+                  {/* Edición de cédula */}
+                  <SortTh field="editadaAt">F. Edición</SortTh>
+                  <SortTh field="editadaPorNombre">Editada Por</SortTh>
                   {/* Observaciones libres */}
                   <SortTh field="observacionesMezcla">Obs. Mezcla</SortTh>
                   <SortTh field="observacionesAplicacion">Obs. Aplicación</SortTh>
@@ -518,6 +522,9 @@ function HistorialAplicaciones() {
                       <td className="historial-td-nowrap">{row.encargadoFinca  || '—'}</td>
                       <td className="historial-td-nowrap">{row.encargadoBodega || '—'}</td>
                       <td className="historial-td-nowrap">{row.supAplicaciones || '—'}</td>
+                      {/* Edición de cédula */}
+                      <td className="historial-td-nowrap">{fmt(row.editadaAt)}</td>
+                      <td className="historial-td-nowrap">{row.editadaPorNombre || '—'}</td>
                       {/* Observaciones libres */}
                       <td className="historial-td-obs">
                         {renderObs(row.observacionesMezcla, `${row.id}-${idx}-m`)}
