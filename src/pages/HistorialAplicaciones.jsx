@@ -424,6 +424,8 @@ function HistorialAplicaciones() {
                   <SortTh field="_prodOrigNombre">Prod. Original</SortTh>
                   <SortTh field="_prodOrigCantidad">Cant. Orig./Ha</SortTh>
                   <SortTh field="_prodOrigUnidad">Unid. Orig.</SortTh>
+                  {/* Costo */}
+                  <SortTh field="_prodTotal">Total Costo</SortTh>
                   {/* Campo */}
                   <SortTh field="sobrante">Sobrante</SortTh>
                   <SortTh field="sobranteLoteNombre">Depositado en</SortTh>
@@ -508,6 +510,8 @@ function HistorialAplicaciones() {
                       </td>
                       <td>{row._prodOrigCantidad != null ? n(row._prodOrigCantidad) : '—'}</td>
                       <td>{row._prodOrigUnidad || '—'}</td>
+                      {/* Costo */}
+                      <td>{row._prodTotal != null ? n(row._prodTotal, 3) : '—'}</td>
                       {/* Campo */}
                       <td>{row.sobrante === true ? 'Sí' : row.sobrante === false ? 'No' : '—'}</td>
                       <td className="historial-td-nowrap">{row.sobranteLoteNombre || '—'}</td>
