@@ -1020,11 +1020,11 @@ const fileInputRef                = useRef(null);
             <label htmlFor="fecha">Fecha de siembra</label>
             <div className="siembra-fecha-controls">
               <input id="fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-              <button className="btn btn-ia" onClick={() => fileInputRef.current?.click()} disabled={scanning || saving}>
-                <FiCpu size={15} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
-              </button>
             </div>
           </div>
+          <button className="btn btn-ia" style={{ alignSelf: 'flex-end', marginLeft: 'auto' }} onClick={() => fileInputRef.current?.click()} disabled={scanning || saving}>
+            <FiCpu size={15} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -1119,14 +1119,20 @@ const fileInputRef                = useRef(null);
                         onChange={e => handleCerradoChange(idx, e.target.checked)} />
                     </td>
 
-                    {/* Eliminar fila */}
+                    {/* Acciones de fila */}
                     <td data-col="del">
-                      {/* Desktop: ícono basurero */}
-                      {rows.length > 1 && (
-                        <button className="btn-icon btn-danger row-del-desktop" onClick={() => removeRow(idx)}>
-                          <FiTrash2 size={14} />
+                      {/* Desktop: duplicar + eliminar */}
+                      <div className="row-actions-desktop">
+                        <button className="sm-btn-icon" title="Duplicar fila"
+                          onClick={() => setRows(prev => { const next = [...prev]; next.splice(idx + 1, 0, { ...prev[idx], bloque: '', cerrado: false }); return next; })}>
+                          <FiCopy size={14} />
                         </button>
-                      )}
+                        {rows.length > 1 && (
+                          <button className="sm-btn-icon sm-btn-danger" title="Eliminar fila" onClick={() => removeRow(idx)}>
+                            <FiTrash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                       {/* Mobile: menú ⋮ */}
                       <div className="row-menu-wrap" onPointerDown={e => e.stopPropagation()}>
                         <button className="row-menu-btn" onClick={() => setRowMenu(rowMenu === idx ? null : idx)}>

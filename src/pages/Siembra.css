@@ -118,6 +118,30 @@
   position: relative;
 }
 
+.swipe-hint {
+  position: absolute !important;
+  top: 0;
+  bottom: 0;
+  display: flex !important;
+  align-items: center;
+  padding: 0 18px;
+  pointer-events: none;
+  opacity: 0;
+  border: none !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+.swipe-hint-left {
+  right: 6px;
+  color: #e05555;
+}
+
+.swipe-hint-right {
+  left: 6px;
+  color: var(--aurora-green);
+}
+
 /* ── Inputs dentro de tabla ────────────────────────────────────────────────── */
 .td-input,
 .td-select {
@@ -187,6 +211,13 @@
   gap: 0.75rem;
   align-items: center;
   padding-top: 0.5rem;
+}
+
+/* ── Acciones de fila (desktop) ─────────────────────────────────────────────── */
+.row-actions-desktop {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* ── Menú ⋮ por fila (solo mobile) ──────────────────────────────────────────── */
@@ -745,8 +776,8 @@
     display: none;
   }
 
-  /* Basurero: oculto en mobile */
-  .row-del-desktop {
+  /* Acciones de fila: ocultas en mobile */
+  .row-actions-desktop {
     display: none;
   }
 
