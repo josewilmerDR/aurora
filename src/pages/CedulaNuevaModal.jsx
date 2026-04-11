@@ -249,9 +249,6 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
     if (!form.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) { setError('Fecha inválida.'); return; }
     const fechaSel = new Date(form.fecha + 'T12:00:00');
     if (isNaN(fechaSel.getTime())) { setError('Fecha inválida.'); return; }
-    const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
-    const diffDays = Math.round((fechaSel - hoy) / 86400000);
-    if (diffDays > MAX_FUTURE_DAYS) { setError(`La fecha no puede superar los ${MAX_FUTURE_DAYS} días a futuro.`); return; }
     const tecnico = form.tecnicoResponsable.trim();
     if (tecnico.length > MAX_TECNICO_LEN) { setError(`El nombre del técnico es demasiado largo (máx. ${MAX_TECNICO_LEN}).`); return; }
     if (!form.loteId)              { setError('Seleccione un lote.'); return; }
@@ -293,19 +290,21 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
 
   // ── Warnings derivados (alerta inline al usuario) ─────────────────────────
   const maxFechaStr = useMemo(() => addDaysYmd(MAX_FUTURE_DAYS), []);
-  const fechaWarning = useMemo(() => {
-    if (!form.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) return '';
+  const fechaInfo = useMemo(() => {
+    if (!form.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) return { warning: '', isExceeded: false };
     const sel = new Date(form.fecha + 'T12:00:00');
-    if (isNaN(sel.getTime())) return '';
+    if (isNaN(sel.getTime())) return { warning: '', isExceeded: false };
     const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
     const diff = Math.round((sel - hoy) / 86400000);
     if (diff > MAX_FUTURE_DAYS) {
-      return `⚠ La fecha supera el máximo permitido (${MAX_FUTURE_DAYS} días).`;
+      // Supera el tope: botón inactivo, no permite envío
+      return { warning: `⚠ Fecha inusual. ${diff} días en el futuro. Excede el máximo permitido (${MAX_FUTURE_DAYS} días).`, isExceeded: true };
     }
     if (diff > WARN_FUTURE_DAYS) {
-      return `⚠ Fecha inusual: ${diff} días en el futuro. Lo normal es planificar con 1–2 semanas de antelación.`;
+      // Inusual pero permitido: aviso informativo
+      return { warning: `⚠ Fecha inusual. ${diff} días en el futuro. Continúa si es correcto.`, isExceeded: false };
     }
-    return '';
+    return { warning: '', isExceeded: false };
   }, [form.fecha]);
   const activityWarning = form.activityName.length >= MAX_ACTIVITY_LEN
     ? `⚠ Máximo ${MAX_ACTIVITY_LEN} caracteres alcanzado.`
@@ -343,7 +342,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                 <FiEye size={15} /> <span className="ca-toolbar-btn-text">Vista previa</span>
               </button>
             )}
-            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || fechaInfo.isExceeded}>
               <FiPlusCircle size={14} />
               {submitting ? 'Generando…' : 'Generar Cédula'}
             </button>
@@ -410,7 +409,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                     value={form.fecha}
                     onChange={e => setForm(prev => ({ ...prev, fecha: e.target.value }))}
                   />
-                  {fechaWarning && <span className="nca-warn">{fechaWarning}</span>}
+                  {fechaInfo.warning && <span className="nca-warn">{fechaInfo.warning}</span>}
                 </td>
                 <td data-label="Actividad">
                   <input

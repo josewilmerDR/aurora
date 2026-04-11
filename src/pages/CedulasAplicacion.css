@@ -225,6 +225,27 @@
   letter-spacing: 0.04em;
 }
 
+/* ── Badge "Adicional" para cédulas creadas manualmente ──────────────────── */
+.cedula-adicional-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(204, 51, 255, 0.15);
+  color: var(--aurora-magenta);
+  border: 1px solid rgba(204, 51, 255, 0.4);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.cedula-row--manual {
+  border-left: 3px solid var(--aurora-magenta);
+}
+
 /* ── Badges de estado de la cédula ───────────────────────────────────────── */
 .cedula-flow-badge {
   font-size: 0.72rem;
@@ -683,6 +704,27 @@
   font-style: italic;
 }
 
+/* ── Bloque de observaciones / ajustes (audit trail impreso) ──
+   Solo se renderiza si la cédula tiene cambios u observaciones. Se coloca
+   entre la tabla de productos y la nota de seguridad. Tipografía pequeña y
+   padding bajo para minimizar el desplazamiento vertical del resto del lienzo
+   (firmas, etc.). page-break-inside:avoid evita cortes feos al imprimir. */
+.ca-doc-observaciones {
+  margin: 8px 0 6px;
+  padding: 6px 10px;
+  border: 1px solid #d0d8e0;
+  background: #fafbfc;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #1a1a2e;
+  page-break-inside: avoid;
+}
+.ca-doc-observaciones strong { font-weight: 600; }
+.ca-doc-observaciones ul { margin: 3px 0 3px 16px; padding: 0; }
+.ca-doc-observaciones li { margin: 0; }
+.ca-doc-observaciones p { margin: 3px 0; }
+
 /* Signatures */
 .ca-doc-sig-row {
   display: grid;
@@ -774,7 +816,8 @@
   opacity: 0.8;
 }
 .aplicada-field select,
-.aplicada-field input {
+.aplicada-field input,
+.aplicada-field textarea {
   background: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-border);
   border-radius: 6px;
@@ -782,6 +825,11 @@
   padding: 6px 10px;
   font-size: 0.9rem;
   width: 100%;
+  font-family: inherit;
+}
+.aplicada-textarea {
+  resize: vertical;
+  min-height: 60px;
 }
 .aplicada-toggle {
   display: flex;
@@ -1433,6 +1481,138 @@
   color: var(--aurora-green);
   opacity: 0.8;
   font-weight: 600;
+}
+
+/* ── Modal Mezcla Lista (sustitución/ajuste de dosis) ────────────────────── */
+.mla-modal {
+  max-width: 860px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+.mla-body {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mla-info {
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  background: rgba(51, 255, 153, 0.06);
+  border: 1px solid rgba(51, 255, 153, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0;
+  line-height: 1.4;
+}
+.mla-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mla-label {
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+  font-weight: 600;
+}
+.mla-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  background: var(--aurora-dark-blue);
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: var(--aurora-light);
+}
+.mla-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+}
+.mla-productos-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mla-productos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+}
+.mla-productos-table thead th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--aurora-border);
+  opacity: 0.75;
+}
+.mla-productos-table tbody td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(42, 74, 106, 0.3);
+  vertical-align: middle;
+}
+.mla-productos-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.mla-productos-table .ca-col-num {
+  text-align: right;
+}
+.mla-row-changed td {
+  background: rgba(204, 51, 255, 0.08);
+}
+.mla-motivo-none {
+  color: var(--aurora-light);
+  opacity: 0.4;
+}
+.mla-add-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px dashed var(--aurora-border);
+  color: var(--aurora-green);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mla-add-btn:hover {
+  background: rgba(51, 255, 153, 0.06);
+  border-color: var(--aurora-green);
+}
+.mla-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(204, 51, 255, 0.08);
+  border: 1px solid rgba(204, 51, 255, 0.3);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+}
+.mla-textarea {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  width: 100%;
+  resize: vertical;
+  min-height: 60px;
 }
 
 /* ── Mobile ───────────────────────────────────────────────────────────────── */

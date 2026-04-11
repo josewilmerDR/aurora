@@ -6,6 +6,7 @@ import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import CedulaNuevaModal from './CedulaNuevaModal';
+import MezclaListaModal from './MezclaListaModal';
 import './CedulasAplicacion.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,19 +66,8 @@ const isOverdue = (task) => {
     < new Date(today.getFullYear(), today.getMonth(), today.getDate());
 };
 
-const toInputDate = d => d.toISOString().slice(0, 10);
-
-// Semana: domingo → sábado. offsetWeeks=0 → esta semana, 1 → próxima semana
-const getWeekBounds = (offsetWeeks = 0) => {
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay() + offsetWeeks * 7);
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
-  return { start: startOfWeek, end: endOfWeek };
-};
+// Tareas creadas manualmente por el usuario (fuera del paquete) — task.type === 'MANUAL'
+const isManualTask = (task) => task?.type === 'MANUAL';
 
 const CEDULA_STATUS_LABEL = {
   pendiente:          'Pendiente',
@@ -133,6 +123,7 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
   const [encargadoFinca,    setEncargadoFinca]    = useState(() => prefill?.encargadoFinca || '');
   const [encargadoBodega,   setEncargadoBodega]   = useState(() => prefill?.encargadoBodega || '');
   const [supAplicaciones,   setSupAplicaciones]   = useState(() => prefill?.supAplicaciones || '');
+  const [observacionesAplicacion, setObservacionesAplicacion] = useState('');
   const [fetchingWeather,   setFetchingWeather]   = useState(false);
 
   const [formError, setFormError] = useState('');
@@ -186,6 +177,10 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
         return;
       }
     }
+    if (observacionesAplicacion.length > 500) {
+      setFormError('Las observaciones no pueden exceder 500 caracteres.');
+      return;
+    }
     onConfirm({
       sobrante,
       sobranteLoteId:     sobrante ? sobranteLoteId   : null,
@@ -200,6 +195,7 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
       encargadoFinca:     (encargadoFinca   || '').trim().slice(0, 200) || null,
       encargadoBodega:    (encargadoBodega  || '').trim().slice(0, 200) || null,
       supAplicaciones:    (supAplicaciones  || '').trim().slice(0, 200) || null,
+      observacionesAplicacion: (observacionesAplicacion || '').trim().slice(0, 500) || null,
     });
   };
 
@@ -283,6 +279,17 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
           <input type="text" maxLength={200} value={supAplicaciones} onChange={e => setSupAplicaciones(e.target.value)} placeholder="Nombre del supervisor o regente" />
         </div>
 
+        <div className="aplicada-field">
+          <label>Observaciones de aplicación (opcional) · {observacionesAplicacion.length}/500</label>
+          <textarea
+            className="aplicada-textarea"
+            value={observacionesAplicacion}
+            onChange={e => setObservacionesAplicacion(e.target.value.slice(0, 500))}
+            rows={3}
+            placeholder="Ej: viento inesperado en el último bloque, se pausó 15 min. Novedades, incidentes, o cualquier detalle relevante para el auditor."
+          />
+        </div>
+
         {formError && <div className="nca-error">{formError}</div>}
 
         <div className="param-modal-actions">
@@ -311,16 +318,16 @@ function CedulasAplicacion() {
   const [maquinaria,    setMaquinaria]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [previewTask, setPreviewTask] = useState(null);
-  const [dateFrom, setDateFrom] = useState(() => toInputDate(getWeekBounds(0).start));
-  const [dateTo,   setDateTo]   = useState(() => toInputDate(getWeekBounds(1).end));
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
   const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
   const [showNuevaModal, setShowNuevaModal] = useState(false);
   const [openMenuId,    setOpenMenuId]    = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
+  const [mezclaModal,   setMezclaModal]   = useState(null); // cedulaId
   const [previewCedulaId, setPreviewCedulaId] = useState(null); // ID of cedula shown in preview modal
   const docRef = useRef(null);
-  const dateFromAdjusted = useRef(false);
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -389,16 +396,6 @@ function CedulasAplicacion() {
     [tasks]
   );
 
-  // ── Ajuste inicial de dateFrom según tarea vencida más antigua ───────────
-  useEffect(() => {
-    if (dateFromAdjusted.current || aplicacionTasks.length === 0) return;
-    dateFromAdjusted.current = true;
-    const overdue = aplicacionTasks.filter(isOverdue);
-    if (overdue.length === 0) return;
-    const oldest = overdue.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b);
-    setDateFrom(toInputDate(new Date(oldest.dueDate)));
-  }, [aplicacionTasks]);
-
   // taskId → cedula[] (array, since a task can have multiple split cedulas)
   // Se excluyen las anuladas para que no bloqueen la regeneración ni se muestren como activas
   const cedulasByTaskId = useMemo(() => {
@@ -412,11 +409,28 @@ function CedulasAplicacion() {
   }, [cedulas]);
 
   const visibleTasks = useMemo(() => {
-    const start = new Date(dateFrom + 'T00:00:00');
-    const end   = new Date(dateTo   + 'T23:59:59');
-    return aplicacionTasks.filter(t => {
-      const due = new Date(t.dueDate);
-      return isOverdue(t) || (due >= start && due <= end);
+    // Filtrado por rango de fechas (opcional)
+    let filtered;
+    if (!dateFrom && !dateTo) {
+      filtered = aplicacionTasks;
+    } else {
+      const start = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
+      const end   = dateTo   ? new Date(dateTo   + 'T23:59:59') : null;
+      filtered = aplicacionTasks.filter(t => {
+        if (isOverdue(t)) return true;
+        const due = new Date(t.dueDate);
+        if (start && due < start) return false;
+        if (end   && due > end)   return false;
+        return true;
+      });
+    }
+    // Ordenar: cédulas manuales ("adicionales") primero, luego las del sistema.
+    // Dentro de cada grupo se preserva el orden por dueDate ascendente heredado de aplicacionTasks.
+    return [...filtered].sort((a, b) => {
+      const am = isManualTask(a) ? 0 : 1;
+      const bm = isManualTask(b) ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return new Date(a.dueDate) - new Date(b.dueDate);
     });
   }, [aplicacionTasks, dateFrom, dateTo]);
 
@@ -445,7 +459,17 @@ function CedulasAplicacion() {
   const previewTecnicoResponsable = previewTask?.isDraft
     ? (previewTask.tecnicoResponsable || previewPkg?.tecnicoResponsable || null)
     : (previewPkg?.tecnicoResponsable || null);
-  const previewProductos = previewTask?.activity?.productos || [];
+  // Fuente de productos para la vista previa impresa: si la cédula ya registró
+  // productos aplicados (con posibles sustituciones/ajustes en mezcla-lista),
+  // esos son los que deben salir impresos. Sino, caen al plan de la tarea
+  // (cédulas antiguas o aún en estado "pendiente").
+  const previewProductos = (
+    (Array.isArray(activeCedula?.productosAplicados) && activeCedula.productosAplicados.length > 0)
+      ? activeCedula.productosAplicados
+      : (Array.isArray(activeCedula?.snap_productos) && activeCedula.snap_productos.length > 0)
+        ? activeCedula.snap_productos
+        : (previewTask?.activity?.productos || [])
+  );
 
   const previewBloques = useMemo(() => {
     // For split cedulas: use only this lote's blocks
@@ -527,25 +551,43 @@ function CedulasAplicacion() {
   });
 
   const handleMezclaLista = (cedulaId) => {
-    setConfirmModal({
-      title: 'Confirmar mezcla lista',
-      body: '¿Confirmar que la mezcla está lista? Esto debitará el inventario.',
-      confirmLabel: 'Confirmar',
-      onConfirm: async () => {
-        setActionLoading(cedulaId);
-        try {
-          const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: currentUser?.nombre || null }),
-          });
-          if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al actualizar la cédula.'); return; }
-          setCedulas(prev => prev.map(c =>
-            c.id === cedulaId ? { ...c, status: 'en_transito', mezclaListaAt: new Date().toISOString(), mezclaListaNombre: currentUser?.nombre || null } : c
-          ));
-        } finally { setActionLoading(null); }
-      },
-    });
+    setMezclaModal({ cedulaId });
+  };
+
+  const submitMezclaLista = async (cedulaId, payload) => {
+    setActionLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Error al actualizar la cédula.');
+      }
+      setCedulas(prev => prev.map(c =>
+        c.id === cedulaId
+          ? {
+              ...c,
+              status: 'en_transito',
+              mezclaListaAt: new Date().toISOString(),
+              mezclaListaNombre: payload.nombre || c.mezclaListaNombre || null,
+              ...(data.productosAplicados ? { productosAplicados: data.productosAplicados } : {}),
+              ...(data.huboCambios !== undefined ? { huboCambios: data.huboCambios } : {}),
+              ...(data.observacionesMezcla !== undefined ? { observacionesMezcla: data.observacionesMezcla } : {}),
+              ...(data.modificadaEnMezclaAt ? { modificadaEnMezclaAt: data.modificadaEnMezclaAt } : {}),
+              ...(data.modificadaEnMezclaPor ? { modificadaEnMezclaPor: data.modificadaEnMezclaPor } : {}),
+            }
+          : c
+      ));
+      setMezclaModal(null);
+    } catch (e) {
+      // Re-throw para que el modal muestre el error inline en vez de cerrarse
+      throw e;
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleAplicada = (cedulaId) => {
@@ -744,9 +786,12 @@ function CedulasAplicacion() {
     // ── Multi-lote split: one sub-row per cedula ───────────────────────────
     if (isSplit) {
       return (
-        <div key={task.id} className={`cedula-row cedula-row--split${isOverdue(task) ? ' overdue' : ''}`}>
+        <div key={task.id} className={`cedula-row cedula-row--split${isOverdue(task) ? ' overdue' : ''}${isManualTask(task) ? ' cedula-row--manual' : ''}`}>
           <div className="cedula-row-info">
-            <span className="cedula-row-name" title={task.activityName}>{task.activityName}</span>
+            <span className="cedula-row-name" title={task.activityName}>
+              {task.activityName}
+              {isManualTask(task) && <span className="cedula-adicional-badge" title="Cédula creada manualmente">Adicional</span>}
+            </span>
             <span className="cedula-row-meta">
               {task.loteName}
               {task.responsableName ? ` · ${task.responsableName}` : ''}
@@ -813,9 +858,12 @@ function CedulasAplicacion() {
     const showKebab = cedula && cedula.status !== 'aplicada_en_campo'
                    && hasMinRole(currentUser?.rol, 'encargado');
     return (
-      <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}${showKebab ? ' cedula-row--has-menu' : ''}`}>
+      <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}${showKebab ? ' cedula-row--has-menu' : ''}${isManualTask(task) ? ' cedula-row--manual' : ''}`}>
         <div className="cedula-row-info">
-          <span className="cedula-row-name" title={task.activityName}>{task.activityName}</span>
+          <span className="cedula-row-name" title={task.activityName}>
+            {task.activityName}
+            {isManualTask(task) && <span className="cedula-adicional-badge" title="Cédula creada manualmente">Adicional</span>}
+          </span>
           <span className="cedula-row-meta">
             {task.loteName}
             {task.responsableName ? ` · ${task.responsableName}` : ''}
@@ -1324,6 +1372,76 @@ function CedulasAplicacion() {
                   </table>
                 )}
 
+                {/* ── Bloque de observaciones / ajustes (solo si hay datos) ── */}
+                {(() => {
+                  const ced = activeCedula;
+                  if (!ced) return null;
+                  const originales = Array.isArray(ced.productosOriginales) ? ced.productosOriginales : [];
+                  const aplicados  = Array.isArray(ced.productosAplicados)  ? ced.productosAplicados  : [];
+                  const hay = ced.huboCambios || ced.observacionesMezcla || ced.observacionesAplicacion;
+                  if (!hay) return null;
+                  // Derivar líneas de cambios: sustituciones, ajustes de dosis, productos añadidos y eliminados
+                  const cambiosLineas = [];
+                  if (ced.huboCambios && originales.length > 0) {
+                    const origById = {};
+                    originales.forEach(o => { if (o?.productoId) origById[o.productoId] = o; });
+                    const aplicadosByOrig = {};
+                    aplicados.forEach(a => {
+                      if (a?.productoOriginalId) aplicadosByOrig[a.productoOriginalId] = a;
+                    });
+                    const touchedOriginalIds = new Set();
+                    aplicados.forEach(a => {
+                      if (!a) return;
+                      const origRef = a.productoOriginalId
+                        ? origById[a.productoOriginalId]
+                        : origById[a.productoId];
+                      if (origRef) touchedOriginalIds.add(origRef.productoId);
+                      if (a.productoOriginalId && a.productoOriginalId !== a.productoId) {
+                        const orig = origById[a.productoOriginalId];
+                        const motivo = a.motivoCambio === 'ajuste_dosis' ? 'Ajuste de dosis'
+                                     : a.motivoCambio === 'otro'        ? 'Otro'
+                                     : 'Sustitución';
+                        cambiosLineas.push(
+                          `${orig?.nombreComercial || orig?.productoId || '—'} (${orig?.cantidadPorHa ?? '—'} ${orig?.unidad || ''}/Ha) sustituido por ${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) — ${motivo}`
+                        );
+                      } else if (origRef && parseFloat(origRef.cantidadPorHa) !== parseFloat(a.cantidadPorHa)) {
+                        cambiosLineas.push(
+                          `${a.nombreComercial || a.productoId}: dosis ajustada de ${origRef.cantidadPorHa ?? '—'} a ${a.cantidadPorHa ?? '—'} ${a.unidad || origRef.unidad || ''}/Ha — Ajuste de dosis`
+                        );
+                      } else if (!origRef) {
+                        cambiosLineas.push(
+                          `${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) añadido respecto al programa original`
+                        );
+                      }
+                    });
+                    originales.forEach(o => {
+                      if (!touchedOriginalIds.has(o.productoId) && !aplicadosByOrig[o.productoId]) {
+                        cambiosLineas.push(
+                          `${o.nombreComercial || o.productoId} (${o.cantidadPorHa ?? '—'} ${o.unidad || ''}/Ha) retirado respecto al programa original`
+                        );
+                      }
+                    });
+                  }
+                  return (
+                    <div className="ca-doc-observaciones">
+                      {ced.huboCambios && cambiosLineas.length > 0 && (
+                        <div>
+                          <strong>Ajustes respecto al programa original:</strong>
+                          <ul>
+                            {cambiosLineas.map((ln, i) => <li key={i}>{ln}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {ced.observacionesMezcla && (
+                        <p><strong>Observaciones de mezcla:</strong> {ced.observacionesMezcla}</p>
+                      )}
+                      {ced.observacionesAplicacion && (
+                        <p><strong>Observaciones de aplicación:</strong> {ced.observacionesAplicacion}</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* ── Nota de seguridad ── */}
                 <div className="ca-doc-safety-note">
                   No olvide usar el Equipo de Protección Personal durante la aplicación y de asegurarse del buen estado del mismo. No fume ni ingiera alimentos durante la aplicación. Recuerde no contaminar fuentes de agua con productos o envases vacíos.
@@ -1465,6 +1583,22 @@ function CedulasAplicacion() {
           onConfirm={(data) => submitAplicada(aplicadaModal.cedulaId, data)}
         />
       )}
+      {/* ── Mezcla Lista Modal ── */}
+      {mezclaModal && (() => {
+        const cedula = cedulas.find(c => c.id === mezclaModal.cedulaId);
+        const task   = cedula ? tasks.find(t => t.id === cedula.taskId) : null;
+        if (!cedula) return null;
+        return (
+          <MezclaListaModal
+            cedula={cedula}
+            task={task}
+            productos={productos}
+            currentUser={currentUser}
+            onClose={() => setMezclaModal(null)}
+            onConfirm={(payload) => submitMezclaLista(mezclaModal.cedulaId, payload)}
+          />
+        );
+      })()}
     </div>
   );
 }
