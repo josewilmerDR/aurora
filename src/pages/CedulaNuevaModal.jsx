@@ -402,7 +402,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
             </thead>
             <tbody>
               <tr>
-                <td>
+                <td data-label="Fecha">
                   <input
                     className="nca-input"
                     type="date"
@@ -412,7 +412,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                   />
                   {fechaWarning && <span className="nca-warn">{fechaWarning}</span>}
                 </td>
-                <td>
+                <td data-label="Actividad">
                   <input
                     className="nca-input"
                     type="text"
@@ -423,7 +423,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                   />
                   {activityWarning && <span className="nca-warn">{activityWarning}</span>}
                 </td>
-                <td>
+                <td data-label="Calibración">
                   <select
                     className="nca-select"
                     value={form.calibracionId}
@@ -437,7 +437,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                     ))}
                   </select>
                 </td>
-                <td>
+                <td data-label="Técnico responsable">
                   <input
                     className="nca-input"
                     type="text"
@@ -466,8 +466,8 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                       <tbody>
                         {form.productos.map(p => (
                           <tr key={p.productoId}>
-                            <td>{p.nombreComercial}</td>
-                            <td className="ca-col-num">
+                            <td className="nca-prod-cell-name">{p.nombreComercial}</td>
+                            <td className="ca-col-num nca-prod-cell-dose" data-label="Dosis / Ha">
                               <input
                                 ref={el => { if (el) cantidadRefs.current[p.productoId] = el; else delete cantidadRefs.current[p.productoId]; }}
                                 className="nca-input nca-input-num"
@@ -481,8 +481,8 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
                                 placeholder="0"
                               />
                             </td>
-                            <td>{p.unidad}</td>
-                            <td>
+                            <td className="nca-prod-cell-unit" data-label="Unidad">{p.unidad}</td>
+                            <td className="nca-prod-cell-action">
                               <button
                                 type="button"
                                 className="btn btn-danger nca-remove-btn"
