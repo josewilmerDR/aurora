@@ -1,9 +1,65 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldValue, FieldPath } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership, enrichTask } = require('../lib/helpers');
+const { verifyOwnership, enrichTask, hasMinRoleBE } = require('../lib/helpers');
 
 const router = Router();
+
+// --- VALIDATION HELPERS ---
+const MAX_STR = 200;
+const MAX_SHORT = 60;
+const MAX_ACTIVITY_LEN = 64;
+const MAX_TECNICO_LEN = 48;
+const MAX_PRODUCTOS = 50;
+const MAX_BLOQUES = 500;
+const MAX_CANTIDAD_POR_HA = 100000;
+const MAX_FUTURE_DAYS = 1825; // tope duro: ~5 años
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const sanitizeStr = (v, max = MAX_STR) => {
+  if (v == null) return null;
+  if (typeof v !== 'string') return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max);
+};
+
+// Como sanitizeStr, pero rechaza (null) cuando el valor excede el máximo,
+// en lugar de truncarlo silenciosamente. Se usa para campos con tope duro
+// validado también en el frontend.
+const sanitizeStrStrict = (v, max) => {
+  if (v == null) return null;
+  if (typeof v !== 'string') return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > max) return null;
+  return trimmed;
+};
+
+const isValidYmd = (s) => {
+  if (typeof s !== 'string' || !DATE_RE.test(s)) return false;
+  const d = new Date(s + 'T12:00:00');
+  return !isNaN(d.getTime());
+};
+
+// True si la fecha YYYY-MM-DD está dentro del rango permitido (<= hoy + MAX_FUTURE_DAYS).
+const isWithinFutureLimit = (ymd) => {
+  const sel = new Date(ymd + 'T12:00:00');
+  if (isNaN(sel.getTime())) return false;
+  const hoy = new Date();
+  hoy.setHours(12, 0, 0, 0);
+  const diffDays = Math.round((sel - hoy) / 86400000);
+  return diffDays <= MAX_FUTURE_DAYS;
+};
+
+const requireRole = (req, res, min) => {
+  if (!hasMinRoleBE(req.userRole, min)) {
+    res.status(403).json({ message: 'No tienes permisos para realizar esta acción.' });
+    return false;
+  }
+  return true;
+};
 
 // --- HELPERS LOCALES ---
 
@@ -92,8 +148,11 @@ router.get('/api/cedulas/:id', authenticate, async (req, res) => {
 
 router.post('/api/cedulas', authenticate, async (req, res) => {
   try {
-    const { taskId } = req.body;
-    if (!taskId) return res.status(400).json({ message: 'taskId es requerido.' });
+    if (!requireRole(req, res, 'encargado')) return;
+    const { taskId } = req.body || {};
+    if (typeof taskId !== 'string' || !taskId.trim()) {
+      return res.status(400).json({ message: 'taskId es requerido.' });
+    }
 
     const ownership = await verifyOwnership('scheduled_tasks', taskId, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
@@ -102,10 +161,12 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
       .where('taskId', '==', taskId)
       .where('fincaId', '==', req.fincaId)
       .get();
-    if (!existing.empty) {
+    // Bloquear sólo si existen cédulas activas (no anuladas); si todas fueron anuladas se permite regenerar
+    const activeExisting = existing.docs.filter(d => d.data().status !== 'anulada');
+    if (activeExisting.length > 0) {
       return res.status(409).json({
         message: 'Esta tarea ya tiene cédulas generadas.',
-        cedulas: existing.docs.map(d => serializeCedula(d.id, d.data())),
+        cedulas: activeExisting.map(d => serializeCedula(d.id, d.data())),
       });
     }
 
@@ -183,6 +244,7 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
 
 router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
   try {
+    if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
@@ -258,7 +320,7 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       }
     }
 
-    const mezclaListaNombre = req.body?.nombre || null;
+    const mezclaListaNombre = sanitizeStr(req.body?.nombre);
 
     batch.update(db.collection('cedulas').doc(req.params.id), {
       status: 'en_transito',
@@ -276,6 +338,32 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
 
 router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
   try {
+    if (!requireRole(req, res, 'trabajador')) return;
+
+    const body = req.body || {};
+    // Validación de rangos y formatos antes de tocar DB
+    if (body.temperatura != null && body.temperatura !== '') {
+      const t = Number(body.temperatura);
+      if (!Number.isFinite(t) || t < -60 || t > 70) {
+        return res.status(400).json({ message: 'Temperatura fuera de rango (-60 a 70 °C).' });
+      }
+    }
+    if (body.humedadRelativa != null && body.humedadRelativa !== '') {
+      const h = Number(body.humedadRelativa);
+      if (!Number.isFinite(h) || h < 0 || h > 100) {
+        return res.status(400).json({ message: 'Humedad relativa fuera de rango (0 a 100 %).' });
+      }
+    }
+    if (body.horaInicio && !TIME_RE.test(body.horaInicio)) {
+      return res.status(400).json({ message: 'Hora inicio inválida (HH:MM).' });
+    }
+    if (body.horaFinal && !TIME_RE.test(body.horaFinal)) {
+      return res.status(400).json({ message: 'Hora final inválida (HH:MM).' });
+    }
+    if (body.horaInicio && body.horaFinal && body.horaInicio >= body.horaFinal) {
+      return res.status(400).json({ message: 'La hora de inicio debe ser menor que la hora final.' });
+    }
+
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
@@ -425,16 +513,31 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       ? (sourceData.fechaCreacion.toDate ? sourceData.fechaCreacion.toDate().toISOString().split('T')[0] : sourceData.fechaCreacion)
       : null;
 
-    const { sobrante, sobranteLoteId, sobranteLoteNombre,
-            condicionesTiempo, temperatura, humedadRelativa,
-            horaInicio, horaFinal, operario,
-            metodoAplicacion, encargadoFinca, encargadoBodega, supAplicaciones } = req.body || {};
+    const sobrante          = body.sobrante === true;
+    const sobranteLoteId    = sanitizeStr(body.sobranteLoteId);
+    const sobranteLoteNombre = sanitizeStr(body.sobranteLoteNombre);
+    const condicionesTiempo = sanitizeStr(body.condicionesTiempo, MAX_SHORT);
+    const operario          = sanitizeStr(body.operario);
+    const metodoAplicacion  = sanitizeStr(body.metodoAplicacion);
+    const encargadoFinca    = sanitizeStr(body.encargadoFinca);
+    const encargadoBodega   = sanitizeStr(body.encargadoBodega);
+    const supAplicaciones   = sanitizeStr(body.supAplicaciones);
+    const horaInicio        = body.horaInicio || null;
+    const horaFinal         = body.horaFinal  || null;
+    const temperatura       = (body.temperatura != null && body.temperatura !== '') ? Number(body.temperatura) : null;
+    const humedadRelativa   = (body.humedadRelativa != null && body.humedadRelativa !== '') ? Number(body.humedadRelativa) : null;
+
+    // Verificar ownership del sobranteLoteId si fue enviado
+    if (sobrante && sobranteLoteId) {
+      const loteOwn = await verifyOwnership('lotes', sobranteLoteId, req.fincaId);
+      if (!loteOwn.ok) return res.status(loteOwn.status).json({ message: loteOwn.message });
+    }
 
     const updateData = {
       status: 'aplicada_en_campo',
       aplicadaAt: Timestamp.now(),
       aplicadaPor: req.uid,
-      sobrante: sobrante === true,
+      sobrante,
       metodoAplicacion: metodoAplicacion || calData?.metodo || null,
       encargadoFinca:   encargadoFinca   || null,
       encargadoBodega:  encargadoBodega  || null,
@@ -467,11 +570,11 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       if (sobranteLoteNombre) updateData.sobranteLoteNombre = sobranteLoteNombre;
     }
     if (condicionesTiempo != null) updateData.condicionesTiempo = condicionesTiempo;
-    if (temperatura       != null) updateData.temperatura       = Number(temperatura);
-    if (humedadRelativa   != null) updateData.humedadRelativa   = Number(humedadRelativa);
-    if (horaInicio        != null) updateData.horaInicio        = horaInicio;
-    if (horaFinal         != null) updateData.horaFinal         = horaFinal;
-    if (operario          != null) updateData.operario          = operario;
+    if (temperatura     != null && Number.isFinite(temperatura))     updateData.temperatura     = temperatura;
+    if (humedadRelativa != null && Number.isFinite(humedadRelativa)) updateData.humedadRelativa = humedadRelativa;
+    if (horaInicio) updateData.horaInicio = horaInicio;
+    if (horaFinal)  updateData.horaFinal  = horaFinal;
+    if (operario)   updateData.operario   = operario;
 
     const siblingsSnap = await db.collection('cedulas')
       .where('taskId', '==', cedula.taskId)
@@ -502,12 +605,62 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
 
 router.post('/api/cedulas/manual', authenticate, async (req, res) => {
   try {
-    const { fecha, activityName, loteId, grupoId, bloques, productos, calibracionId, tecnicoResponsable } = req.body;
+    if (!requireRole(req, res, 'encargado')) return;
 
-    if (!fecha) return res.status(400).json({ message: 'La fecha es requerida.' });
-    if (!activityName?.trim()) return res.status(400).json({ message: 'El nombre de la aplicación es requerido.' });
-    if (!loteId && !grupoId) return res.status(400).json({ message: 'Debe indicar un lote o grupo.' });
-    if (!Array.isArray(productos) || productos.length === 0) return res.status(400).json({ message: 'Debe agregar al menos un producto.' });
+    const body = req.body || {};
+    const fecha = body.fecha;
+    const activityName = sanitizeStrStrict(body.activityName, MAX_ACTIVITY_LEN);
+    const loteId  = sanitizeStr(body.loteId);
+    const grupoId = sanitizeStr(body.grupoId);
+    const bloques = Array.isArray(body.bloques) ? body.bloques : null;
+    const productos = Array.isArray(body.productos) ? body.productos : null;
+    const calibracionId = sanitizeStr(body.calibracionId);
+    // tecnicoResponsable es opcional: si viene presente pero excede el tope, rechazamos.
+    const tecnicoRaw = body.tecnicoResponsable;
+    const tecnicoProvided = typeof tecnicoRaw === 'string' && tecnicoRaw.trim().length > 0;
+    const tecnicoResponsable = tecnicoProvided
+      ? sanitizeStrStrict(tecnicoRaw, MAX_TECNICO_LEN)
+      : null;
+    if (tecnicoProvided && !tecnicoResponsable) {
+      return res.status(400).json({ message: `El nombre del técnico es demasiado largo (máx. ${MAX_TECNICO_LEN}).` });
+    }
+
+    if (!fecha || !isValidYmd(fecha)) {
+      return res.status(400).json({ message: 'La fecha es requerida (YYYY-MM-DD).' });
+    }
+    if (!isWithinFutureLimit(fecha)) {
+      return res.status(400).json({ message: `La fecha no puede superar los ${MAX_FUTURE_DAYS} días a futuro.` });
+    }
+    if (!activityName) {
+      if (typeof body.activityName === 'string' && body.activityName.trim().length > MAX_ACTIVITY_LEN) {
+        return res.status(400).json({ message: `El nombre de la aplicación es demasiado largo (máx. ${MAX_ACTIVITY_LEN}).` });
+      }
+      return res.status(400).json({ message: 'El nombre de la aplicación es requerido.' });
+    }
+    if (!loteId && !grupoId) {
+      return res.status(400).json({ message: 'Debe indicar un lote o grupo.' });
+    }
+    if (!productos || productos.length === 0) {
+      return res.status(400).json({ message: 'Debe agregar al menos un producto.' });
+    }
+    if (productos.length > MAX_PRODUCTOS) {
+      return res.status(400).json({ message: `Máximo ${MAX_PRODUCTOS} productos por cédula.` });
+    }
+    if (bloques && bloques.length > MAX_BLOQUES) {
+      return res.status(400).json({ message: `Máximo ${MAX_BLOQUES} bloques.` });
+    }
+    if (bloques && !bloques.every(b => typeof b === 'string' && b.length > 0)) {
+      return res.status(400).json({ message: 'Lista de bloques inválida.' });
+    }
+    for (const p of productos) {
+      if (!p || typeof p.productoId !== 'string' || !p.productoId) {
+        return res.status(400).json({ message: 'Producto inválido.' });
+      }
+      const cant = parseFloat(p.cantidadPorHa);
+      if (!Number.isFinite(cant) || cant <= 0 || cant > MAX_CANTIDAD_POR_HA) {
+        return res.status(400).json({ message: `Dosis/Ha inválida para producto ${p.productoId}.` });
+      }
+    }
 
     if (loteId) {
       const o = await verifyOwnership('lotes', loteId, req.fincaId);
@@ -517,20 +670,28 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
       if (!o.ok) return res.status(o.status).json({ message: o.message });
     }
 
-    const enrichedProductos = await Promise.all(
-      productos.map(async (p) => {
-        const doc = await db.collection('productos').doc(p.productoId).get();
-        const info = doc.exists ? doc.data() : {};
-        return {
-          productoId: p.productoId,
-          nombreComercial: info.nombreComercial || '',
-          cantidadPorHa: parseFloat(p.cantidadPorHa) || 0,
-          unidad: info.unidad || '',
-          periodoReingreso: info.periodoReingreso ?? null,
-          periodoACosecha: info.periodoACosecha ?? null,
-        };
-      })
-    );
+    if (calibracionId) {
+      const o = await verifyOwnership('calibraciones', calibracionId, req.fincaId);
+      if (!o.ok) return res.status(o.status).json({ message: o.message });
+    }
+
+    // Validar ownership de cada productoId y enriquecer
+    const enrichedProductos = [];
+    for (const p of productos) {
+      const doc = await db.collection('productos').doc(p.productoId).get();
+      if (!doc.exists || doc.data().fincaId !== req.fincaId) {
+        return res.status(400).json({ message: `Producto ${p.productoId} no encontrado.` });
+      }
+      const info = doc.data();
+      enrichedProductos.push({
+        productoId: p.productoId,
+        nombreComercial: info.nombreComercial || '',
+        cantidadPorHa: parseFloat(p.cantidadPorHa),
+        unidad: info.unidad || '',
+        periodoReingreso: info.periodoReingreso ?? null,
+        periodoACosecha: info.periodoACosecha ?? null,
+      });
+    }
 
     const executeAt = Timestamp.fromDate(new Date(fecha + 'T12:00:00'));
     const taskData = {
@@ -538,8 +699,8 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
       status: 'pending',
       fincaId: req.fincaId,
       ...(loteId ? { loteId } : { grupoId }),
-      ...(Array.isArray(bloques) && bloques.length > 0 ? { bloques } : {}),
-      activity: { name: activityName.trim(), type: 'aplicacion', productos: enrichedProductos, ...(calibracionId ? { calibracionId } : {}) },
+      ...(bloques && bloques.length > 0 ? { bloques } : {}),
+      activity: { name: activityName, type: 'aplicacion', productos: enrichedProductos, ...(calibracionId ? { calibracionId } : {}) },
       executeAt,
       createdAt: Timestamp.now(),
     };
@@ -560,7 +721,7 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
 
     let snapSourceName = 'N/A';
     let snapCosecha = null, snapEtapa = null, snapFechaCosecha = null, snapFechaCreacionGrupo = null;
-    if (Array.isArray(bloques) && bloques.length > 0 && loteId) {
+    if (bloques && bloques.length > 0 && loteId) {
       const [siembrasSnap, gruposSnap, configDoc] = await Promise.all([
         db.collection('siembras').where('loteId', '==', loteId).get(),
         db.collection('grupos').where('fincaId', '==', req.fincaId).get(),
@@ -627,7 +788,7 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
       snap_calibracionNombre: calData?.nombre        || null,
       snap_volumenPorHa:      calData ? (parseFloat(calData.volumen) || null) : null,
       snap_litrosAplicador:   litrosAplicador,
-      ...(tecnicoResponsable?.trim() ? { tecnicoResponsable: tecnicoResponsable.trim() } : {}),
+      ...(tecnicoResponsable ? { tecnicoResponsable } : {}),
     };
     const cedulaRef = await db.collection('cedulas').add(cedulaData);
 
@@ -641,6 +802,7 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
 
 router.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
   try {
+    if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 

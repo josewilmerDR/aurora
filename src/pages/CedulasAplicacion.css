@@ -889,6 +889,14 @@
   margin-bottom: 16px;
 }
 
+.nca-warn {
+  display: block;
+  margin-top: 4px;
+  color: #ffb347;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
 .nca-fields-row {
   display: flex;
   gap: 16px;
@@ -1605,6 +1613,19 @@
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+  /* La fila principal tiene 4 columnas que no caben en 360px: permitir scroll horizontal */
+  .nca-activity-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nca-activity-table th,
+  .nca-activity-table td {
+    min-width: 140px;
+  }
+  .nca-activity-table .nca-sub-row td {
+    min-width: 0;
   }
 }
 
