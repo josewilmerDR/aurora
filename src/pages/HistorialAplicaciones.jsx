@@ -40,6 +40,13 @@ const n = (v, decimals) => {
   return decimals != null ? Number(v).toFixed(decimals) : String(v);
 };
 
+// Formato de costo con separador de miles y 2 decimales, opcionalmente con moneda.
+const fmtCosto = (v, moneda) => {
+  if (v == null || !Number.isFinite(Number(v))) return '—';
+  const str = Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return moneda ? `${str} ${moneda}` : str;
+};
+
 const CAMBIO_BADGE_CLASS = {
   'Sustitución':     'badge-blue',
   'Ajuste de dosis': 'badge-yellow',
@@ -110,11 +117,16 @@ function HistorialAplicaciones() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     apiFetch('/api/cedulas').then(r => r.json())
-      .then(c => setCedulas(Array.isArray(c) ? c.filter(ced => ced.status === 'aplicada_en_campo') : []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+      .then(c => {
+        if (cancelled) return;
+        setCedulas(Array.isArray(c) ? c.filter(ced => ced.status === 'aplicada_en_campo') : []);
+      })
+      .catch(e => { if (!cancelled) console.error(e); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [apiFetch]);
 
   // Aplanar: una fila por (cédula × producto). Cada fila se enriquece con el
   // producto originalmente recetado por el sistema (cuando hubo sustitución /
@@ -143,12 +155,15 @@ function HistorialAplicaciones() {
         // Cédula sin productos aplicados: conserva la fila placeholder actual.
         rows.push({
           ...c, ...base,
+          _rowKey: `${c.id}::empty`,
           _prod: null,
           _prodIdProducto: '',
           _prodNombre:     '',
           _prodCantidad:   null,
           _prodUnidad:     '',
           _prodTotal:      null,
+          _prodCostoTotal: null,
+          _prodMoneda:     '',
           _prodCambio:          '',
           _prodOrigIdProducto:  '',
           _prodOrigNombre:      '',
@@ -156,7 +171,7 @@ function HistorialAplicaciones() {
           _prodOrigUnidad:      '',
         });
       } else {
-        aplicados.forEach(prod => {
+        aplicados.forEach((prod, prodIdx) => {
           const origRef = prod?.productoOriginalId
             ? origById[prod.productoOriginalId]
             : origById[prod?.productoId];
@@ -173,14 +188,27 @@ function HistorialAplicaciones() {
             _prodCambio = 'Ajuste de dosis';
           }
 
+          // Costo snapshot = total aplicado × precioUnitario congelado en el momento
+          // de la aplicación (ambos viven en snap_productos[]). Si alguno falta,
+          // el costo es null (se renderiza como '—').
+          const _prodTotalNum      = parseFloat(prod?.total);
+          const _prodPrecioUnitNum = parseFloat(prod?.precioUnitario);
+          const _prodCostoTotal =
+            Number.isFinite(_prodTotalNum) && Number.isFinite(_prodPrecioUnitNum)
+              ? parseFloat((_prodTotalNum * _prodPrecioUnitNum).toFixed(2))
+              : null;
+
           rows.push({
             ...c, ...base,
+            _rowKey: `${c.id}::a::${prod?.productoId ?? `i${prodIdx}`}`,
             _prod: prod,
             _prodIdProducto: prod?.idProducto ?? prod?.productoId ?? '',
             _prodNombre:     prodLabel(prod),
             _prodCantidad:   prod?.cantidadPorHa ?? null,
             _prodUnidad:     prod?.unidad ?? '',
             _prodTotal:      prod?.total ?? null,
+            _prodCostoTotal,
+            _prodMoneda:     prod?.moneda ?? '',
             _prodCambio,
             _prodOrigIdProducto: origRef?.idProducto ?? origRef?.productoId ?? '',
             _prodOrigNombre:     prodLabel(origRef),
@@ -195,12 +223,15 @@ function HistorialAplicaciones() {
         if (!o?.productoId || touchedOriginalIds.has(o.productoId)) return;
         rows.push({
           ...c, ...base,
+          _rowKey: `${c.id}::r::${o.productoId}`,
           _prod: null,
           _prodIdProducto: o.idProducto ?? o.productoId ?? '',
           _prodNombre:     prodLabel(o),
           _prodCantidad:   o.cantidadPorHa ?? null,
           _prodUnidad:     o.unidad ?? '',
           _prodTotal:      null,
+          _prodCostoTotal: null, // producto no aplicado → sin costo real
+          _prodMoneda:     '',
           _prodCambio:          'Retirado',
           _prodOrigIdProducto:  o.idProducto ?? o.productoId ?? '',
           _prodOrigNombre:      prodLabel(o),
@@ -273,7 +304,12 @@ function HistorialAplicaciones() {
     if (filterPopover?.field === field) { setFilterPopover(null); return; }
     const th   = e.currentTarget.closest('th') ?? e.currentTarget;
     const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, x: rect.left, y: rect.bottom + 4 });
+    // Clamp al viewport para que el popover no se desborde en pantallas estrechas.
+    const POPOVER_WIDTH = 260;
+    const MARGIN        = 8;
+    const maxLeft       = Math.max(MARGIN, window.innerWidth - POPOVER_WIDTH - MARGIN);
+    const x             = Math.min(Math.max(rect.left, MARGIN), maxLeft);
+    setFilterPopover({ field, x, y: rect.bottom + 4 });
   };
 
   const setColFilter = (field, val) => {
@@ -425,7 +461,7 @@ function HistorialAplicaciones() {
                   <SortTh field="_prodOrigCantidad">Cant. Orig./Ha</SortTh>
                   <SortTh field="_prodOrigUnidad">Unid. Orig.</SortTh>
                   {/* Costo */}
-                  <SortTh field="_prodTotal">Total Costo</SortTh>
+                  <SortTh field="_prodCostoTotal">Total Costo</SortTh>
                   {/* Campo */}
                   <SortTh field="sobrante">Sobrante</SortTh>
                   <SortTh field="sobranteLoteNombre">Depositado en</SortTh>
@@ -449,12 +485,11 @@ function HistorialAplicaciones() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row, idx) => {
-                  const prod = row._prod;
+                {visible.map((row) => {
                   const cambioClass = row._prodCambio ? CAMBIO_BADGE_CLASS[row._prodCambio] : '';
                   return (
                     <tr
-                      key={`${row.id}-${idx}`}
+                      key={row._rowKey}
                       className={row._prodCambio ? 'historial-row-changed' : ''}
                     >
                       {/* Identificación */}
@@ -510,8 +545,8 @@ function HistorialAplicaciones() {
                       </td>
                       <td>{row._prodOrigCantidad != null ? n(row._prodOrigCantidad) : '—'}</td>
                       <td>{row._prodOrigUnidad || '—'}</td>
-                      {/* Costo */}
-                      <td>{row._prodTotal != null ? n(row._prodTotal, 3) : '—'}</td>
+                      {/* Costo — snapshot: total aplicado × precioUnitario congelado en snap_productos */}
+                      <td className="historial-td-nowrap">{fmtCosto(row._prodCostoTotal, row._prodMoneda)}</td>
                       {/* Campo */}
                       <td>{row.sobrante === true ? 'Sí' : row.sobrante === false ? 'No' : '—'}</td>
                       <td className="historial-td-nowrap">{row.sobranteLoteNombre || '—'}</td>
@@ -531,10 +566,10 @@ function HistorialAplicaciones() {
                       <td className="historial-td-nowrap">{row.editadaPorNombre || '—'}</td>
                       {/* Observaciones libres */}
                       <td className="historial-td-obs">
-                        {renderObs(row.observacionesMezcla, `${row.id}-${idx}-m`)}
+                        {renderObs(row.observacionesMezcla, `${row._rowKey}-m`)}
                       </td>
                       <td className="historial-td-obs">
-                        {renderObs(row.observacionesAplicacion, `${row.id}-${idx}-a`)}
+                        {renderObs(row.observacionesAplicacion, `${row._rowKey}-a`)}
                       </td>
                     </tr>
                   );
