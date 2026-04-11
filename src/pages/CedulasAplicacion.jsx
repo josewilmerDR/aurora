@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft, FiClock } from 'react-icons/fi';
+import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft, FiClock, FiEdit2 } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -326,6 +326,7 @@ function CedulasAplicacion() {
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
   const [mezclaModal,   setMezclaModal]   = useState(null); // cedulaId
+  const [editModal,     setEditModal]     = useState(null); // { cedulaId }
   const [previewCedulaId, setPreviewCedulaId] = useState(null); // ID of cedula shown in preview modal
   const docRef = useRef(null);
 
@@ -590,6 +591,44 @@ function CedulasAplicacion() {
     }
   };
 
+  const handleEditarProductos = (cedulaId) => {
+    setEditModal({ cedulaId });
+  };
+
+  const submitEdicionProductos = async (cedulaId, payload) => {
+    setActionLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/editar-productos`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Error al editar la cédula.');
+      }
+      setCedulas(prev => prev.map(c =>
+        c.id === cedulaId
+          ? {
+              ...c,
+              ...(data.productosAplicados ? { productosAplicados: data.productosAplicados } : {}),
+              ...(data.huboCambios !== undefined ? { huboCambios: data.huboCambios } : {}),
+              ...(data.editadaAt        ? { editadaAt:        data.editadaAt }        : {}),
+              ...(data.editadaPor       ? { editadaPor:       data.editadaPor }       : {}),
+              ...(data.editadaPorNombre !== undefined ? { editadaPorNombre: data.editadaPorNombre } : {}),
+              ...(data.observacionesMezcla !== undefined ? { observacionesMezcla: data.observacionesMezcla } : {}),
+            }
+          : c
+      ));
+      setEditModal(null);
+    } catch (e) {
+      // Re-throw para que el modal muestre el error inline en vez de cerrarse
+      throw e;
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleAplicada = (cedulaId) => {
     const cedula = cedulas.find(c => c.id === cedulaId);
     const task   = tasks.find(t => t.id === cedula?.taskId);
@@ -819,6 +858,13 @@ function CedulasAplicacion() {
                   <div className="cedula-split-sub-actions">
                     {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
                       <button className="btn btn-secondary cedula-btn-action"
+                        onClick={() => handleEditarProductos(c.id)} disabled={isLdg}
+                        title="Editar productos y dosis">
+                        <FiEdit2 size={14} /> Editar
+                      </button>
+                    )}
+                    {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
+                      <button className="btn btn-secondary cedula-btn-action"
                         onClick={() => handleMezclaLista(c.id)} disabled={isLdg}>
                         <FiCheckCircle size={14} />
                         {isLdg ? 'Procesando…' : 'Mezcla Lista'}
@@ -930,6 +976,17 @@ function CedulasAplicacion() {
               >
                 <FiX size={14} />
                 {isLdg ? 'Omitiendo…' : 'Omitir Tarea'}
+              </button>
+            )}
+
+            {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
+              <button
+                className="btn btn-secondary cedula-btn-action"
+                onClick={() => handleEditarProductos(cedula.id)}
+                disabled={isLdg}
+                title="Editar productos y dosis"
+              >
+                <FiEdit2 size={14} /> Editar
               </button>
             )}
 
@@ -1590,12 +1647,31 @@ function CedulasAplicacion() {
         if (!cedula) return null;
         return (
           <MezclaListaModal
+            mode="mezcla-lista"
             cedula={cedula}
             task={task}
             productos={productos}
             currentUser={currentUser}
             onClose={() => setMezclaModal(null)}
             onConfirm={(payload) => submitMezclaLista(mezclaModal.cedulaId, payload)}
+          />
+        );
+      })()}
+
+      {/* ── Editar Productos Modal ── */}
+      {editModal && (() => {
+        const cedula = cedulas.find(c => c.id === editModal.cedulaId);
+        const task   = cedula ? tasks.find(t => t.id === cedula.taskId) : null;
+        if (!cedula) return null;
+        return (
+          <MezclaListaModal
+            mode="edit"
+            cedula={cedula}
+            task={task}
+            productos={productos}
+            currentUser={currentUser}
+            onClose={() => setEditModal(null)}
+            onConfirm={(payload) => submitEdicionProductos(editModal.cedulaId, payload)}
           />
         );
       })()}

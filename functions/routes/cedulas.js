@@ -100,6 +100,7 @@ const serializeCedula = (id, data) => ({
   mezclaListaAt:     data.mezclaListaAt?.toDate?.()?.toISOString()     || null,
   aplicadaAt:        data.aplicadaAt?.toDate?.()?.toISOString()        || null,
   modificadaEnMezclaAt: data.modificadaEnMezclaAt?.toDate?.()?.toISOString() || null,
+  editadaAt:         data.editadaAt?.toDate?.()?.toISOString()         || null,
 });
 
 // Snapshot de un producto del plan original (task.activity.productos) para
@@ -375,7 +376,17 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       }
     }
 
-    const productos = productosAplicadosEnriched || taskData.activity?.productos;
+    // Productos para deducir stock. Prioridad:
+    //   1. productosAplicados enviados en este request (ajustes en mezcla-lista)
+    //   2. cedula.productosAplicados (ediciones previas vía /editar-productos)
+    //   3. taskData.activity.productos (plan original del paquete)
+    // Así garantizamos que lo que se deduce del inventario coincide con lo que el
+    // operador realmente va a mezclar, incluso si los ajustes ocurrieron en una
+    // acción anterior.
+    const productos = productosAplicadosEnriched
+      || (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0
+            ? cedula.productosAplicados
+            : taskData.activity?.productos);
     const productosTieneCambios = productosAplicadosEnriched != null;
 
     let hectareas = 1;
@@ -475,10 +486,111 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
 
     batch.update(db.collection('cedulas').doc(req.params.id), cedulaUpdate);
     await batch.commit();
-    res.json({ id: req.params.id, status: 'en_transito' });
+
+    // Devolvemos los campos escritos para que el frontend pueda actualizar el
+    // estado local sin recargar. Clave: productosAplicados (con sus enriched
+    // fields) se necesita para que el viewer muestre lo que realmente se mezcló
+    // en vez de la receta original del paquete.
+    const response = {
+      id: req.params.id,
+      status: 'en_transito',
+      mezclaListaAt:     cedulaUpdate.mezclaListaAt.toDate().toISOString(),
+      mezclaListaPor:    req.uid,
+      mezclaListaNombre: mezclaListaNombre || null,
+    };
+    if (productosTieneCambios) {
+      response.productosAplicados = productosAplicadosEnriched;
+      response.huboCambios        = huboCambios;
+      if (huboCambios) {
+        response.modificadaEnMezclaAt  = cedulaUpdate.modificadaEnMezclaAt.toDate().toISOString();
+        response.modificadaEnMezclaPor = req.uid;
+      }
+    }
+    if (observacionesMezcla != null) {
+      response.observacionesMezcla = observacionesMezcla;
+    }
+    res.json(response);
   } catch (error) {
     console.error('Error in mezcla-lista:', error);
     res.status(500).json({ message: 'Error al procesar la mezcla.' });
+  }
+});
+
+// Edita productos/dosis de una cédula como acción independiente, antes de que
+// se marque Mezcla Lista. Sólo permitido en status 'pendiente'. Deja registro
+// del editor en editadaAt/editadaPor/editadaPorNombre. No toca el inventario
+// (la deducción ocurre después, al marcar mezcla-lista).
+router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) => {
+  try {
+    if (!requireRole(req, res, 'encargado')) return;
+    const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const cedula = ownership.doc.data();
+    if (cedula.status !== 'pendiente') {
+      return res.status(409).json({ message: 'Sólo se pueden editar cédulas en estado pendiente.' });
+    }
+
+    if (req.body?.productosAplicados === undefined) {
+      return res.status(400).json({ message: 'productosAplicados es requerido.' });
+    }
+
+    let productosAplicadosEnriched;
+    try {
+      productosAplicadosEnriched = await validateAndEnrichProductosAplicados(
+        req.body.productosAplicados,
+        req.fincaId
+      );
+    } catch (e) {
+      if (e && e.status && e.message) return res.status(e.status).json({ message: e.message });
+      throw e;
+    }
+
+    let observacionesMezcla = null;
+    if (req.body?.observacionesMezcla != null && req.body.observacionesMezcla !== '') {
+      observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_LEN);
+      if (observacionesMezcla == null) {
+        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.` });
+      }
+    }
+
+    const editadaPorNombre = sanitizeStr(req.body?.nombre);
+
+    // huboCambios se recomputa contra el snapshot inmutable productosOriginales,
+    // para que el audit trail canónico sobreviva ediciones sucesivas.
+    const originales = Array.isArray(cedula.productosOriginales)
+      ? cedula.productosOriginales
+      : [];
+    const huboCambios = computeHuboCambios(originales, productosAplicadosEnriched);
+
+    const cedulaUpdate = {
+      productosAplicados: productosAplicadosEnriched,
+      huboCambios,
+      editadaAt: Timestamp.now(),
+      editadaPor: req.uid,
+      editadaPorNombre: editadaPorNombre || null,
+    };
+    if (observacionesMezcla != null) {
+      cedulaUpdate.observacionesMezcla = observacionesMezcla;
+    }
+
+    await db.collection('cedulas').doc(req.params.id).update(cedulaUpdate);
+
+    const response = {
+      id: req.params.id,
+      productosAplicados: productosAplicadosEnriched,
+      huboCambios,
+      editadaAt:       cedulaUpdate.editadaAt.toDate().toISOString(),
+      editadaPor:      req.uid,
+      editadaPorNombre: editadaPorNombre || null,
+    };
+    if (observacionesMezcla != null) {
+      response.observacionesMezcla = observacionesMezcla;
+    }
+    res.json(response);
+  } catch (error) {
+    console.error('Error in editar-productos:', error);
+    res.status(500).json({ message: 'Error al editar la cédula.' });
   }
 });
 

@@ -12,54 +12,85 @@ const MOTIVO_LABELS = {
   otro: 'Otro',
 };
 
-// Compara una fila editable contra el array de productosOriginales para saber
-// si fue modificada (producto distinto o dosis distinta).
-function isRowChanged(row, originales) {
-  if (!row.productoOriginalId && !originales.some(o => o.productoId === row.productoId)) {
-    return true; // producto añadido, no estaba en el original
-  }
-  const origRef = row.productoOriginalId
-    ? originales.find(o => o.productoId === row.productoOriginalId)
-    : originales.find(o => o.productoId === row.productoId);
-  if (!origRef) return true;
-  if (origRef.productoId !== row.productoId) return true;
-  const origCant = parseFloat(origRef.cantidadPorHa);
+// Compara una fila contra su baseline de sesión (estado al abrir el modal) para
+// detectar si fue editada DURANTE esta sesión. Filas añadidas en la sesión tienen
+// _baseline = null y siempre se consideran cambiadas.
+function isRowChanged(row) {
+  if (!row._baseline) return true;
+  if (row._baseline.productoId !== row.productoId) return true;
+  const origCant = row._baseline.cantidadPorHa;
   const newCant  = parseFloat(row.cantidadPorHa);
-  if (!Number.isFinite(origCant) || !Number.isFinite(newCant)) return true;
+  const origFinite = Number.isFinite(origCant);
+  const newFinite  = Number.isFinite(newCant);
+  if (origFinite !== newFinite) return true;
+  if (!origFinite) return false;
   return Math.abs(origCant - newCant) > 1e-9;
 }
 
-function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onClose }) {
-  // Fuente inicial: productos originales de la cédula (snapshot) o del plan del task
-  const productosInicial = useMemo(() => {
-    const src = (Array.isArray(cedula?.productosOriginales) && cedula.productosOriginales.length > 0)
-      ? cedula.productosOriginales
-      : (task?.activity?.productos || []);
-    return src.map(p => ({
-      productoId: p.productoId || '',
-      nombreComercial: p.nombreComercial || '',
-      cantidadPorHa: p.cantidadPorHa != null ? String(p.cantidadPorHa) : (p.cantidad != null ? String(p.cantidad) : ''),
-      unidad: p.unidad || '',
-      motivoCambio: '',
-      productoOriginalId: p.productoId || '',
-    }));
-  }, [cedula, task]);
+function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, currentUser, onConfirm, onClose }) {
+  const isEditMode = mode === 'edit';
 
-  // Lista de productoIds originales para detectar cambios
-  const originalesRef = useMemo(() => {
-    const src = (Array.isArray(cedula?.productosOriginales) && cedula.productosOriginales.length > 0)
-      ? cedula.productosOriginales
-      : (task?.activity?.productos || []);
-    return src.map(p => ({
-      productoId: p.productoId || '',
-      cantidadPorHa: p.cantidadPorHa != null ? parseFloat(p.cantidadPorHa) : (p.cantidad != null ? parseFloat(p.cantidad) : null),
-    }));
+  // Fuente inicial: estado guardado actual. Prioridad:
+  //   1. productosAplicados (ediciones previas o ajustes en mezcla lista)
+  //   2. productosOriginales (snapshot inmutable de la receta original)
+  //   3. task.activity.productos (fallback para cédulas muy viejas sin snapshot)
+  //
+  // Cada fila carga un `_baseline` con el estado al abrir el modal, para que
+  // isRowChanged detecte sólo ediciones de ESTA sesión (no las heredadas de una
+  // sesión previa). El `productoOriginalId` se mantiene apuntando al canónico en
+  // productosOriginales para preservar el audit trail A→C vía la sustitución.
+  const productosInicial = useMemo(() => {
+    const aplicados  = Array.isArray(cedula?.productosAplicados)  ? cedula.productosAplicados  : [];
+    const originales = Array.isArray(cedula?.productosOriginales) ? cedula.productosOriginales : [];
+    const src = aplicados.length > 0
+      ? aplicados
+      : (originales.length > 0 ? originales : (task?.activity?.productos || []));
+    const loadedFromAplicados = aplicados.length > 0;
+    const originalesIds = new Set(originales.map(o => o.productoId).filter(Boolean));
+    return src.map(p => {
+      const rawCant = p.cantidadPorHa != null ? p.cantidadPorHa : (p.cantidad != null ? p.cantidad : null);
+      const baselineCant = rawCant != null ? parseFloat(rawCant) : null;
+      // canonicalOriginalId: apunta a la entrada en productosOriginales si la fila deriva
+      // de (o es) un producto originalmente recetado. Se preserva a través de sesiones.
+      let canonicalOriginalId;
+      if (loadedFromAplicados) {
+        // Si la fila existente ya trae un productoOriginalId que apunta a un producto
+        // canónico, conservarlo. Si no, y el productoId actual está en originales,
+        // la fila es "misma receta, quizá ajuste de dosis" → productoOriginalId = productoId.
+        if (p.productoOriginalId && originalesIds.has(p.productoOriginalId)) {
+          canonicalOriginalId = p.productoOriginalId;
+        } else if (originalesIds.has(p.productoId)) {
+          canonicalOriginalId = p.productoId;
+        } else {
+          canonicalOriginalId = ''; // fila añadida que no está en el plan original
+        }
+      } else {
+        canonicalOriginalId = p.productoId || '';
+      }
+      return {
+        productoId: p.productoId || '',
+        nombreComercial: p.nombreComercial || '',
+        cantidadPorHa: rawCant != null ? String(rawCant) : '',
+        unidad: p.unidad || '',
+        // Preservar motivoCambio heredado de sesiones previas; se reenvía al
+        // backend aunque esta sesión no modifique la fila, para no perder la
+        // razón del cambio ya registrada.
+        motivoCambio: loadedFromAplicados ? (p.motivoCambio || '') : '',
+        productoOriginalId: canonicalOriginalId,
+        _baseline: {
+          productoId: p.productoId || '',
+          cantidadPorHa: Number.isFinite(baselineCant) ? baselineCant : null,
+        },
+      };
+    });
   }, [cedula, task]);
 
   const [nombre, setNombre] = useState(currentUser?.nombre || '');
-  const [hayCambios, setHayCambios] = useState(false);
+  const [hayCambios, setHayCambios] = useState(isEditMode); // en edit mode siempre activo
   const [productosEdit, setProductosEdit] = useState(productosInicial);
-  const [observaciones, setObservaciones] = useState('');
+  const [observaciones, setObservaciones] = useState(
+    (isEditMode && typeof cedula?.observacionesMezcla === 'string') ? cedula.observacionesMezcla : ''
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -96,17 +127,18 @@ function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onC
       unidad: '',
       motivoCambio: 'sustitucion',
       productoOriginalId: '',
+      _baseline: null, // añadida en esta sesión → siempre "changed"
     }]);
   };
 
-  // Filas que difieren del plan original — necesitan motivoCambio
+  // Filas modificadas o añadidas durante ESTA sesión del modal.
   const rowsChanged = useMemo(() => {
     if (!hayCambios) return [];
-    return productosEdit.map((r, i) => isRowChanged(r, originalesRef) ? i : -1).filter(i => i >= 0);
-  }, [productosEdit, originalesRef, hayCambios]);
+    return productosEdit.map((r, i) => isRowChanged(r) ? i : -1).filter(i => i >= 0);
+  }, [productosEdit, hayCambios]);
 
   const huboCambiosReal = hayCambios && (
-    rowsChanged.length > 0 || productosEdit.length !== originalesRef.length
+    rowsChanged.length > 0 || productosEdit.length !== productosInicial.length
   );
 
   const handleSubmit = async () => {
@@ -147,13 +179,18 @@ function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onC
     }
 
     const payload = { nombre: nombre || null };
-    if (hayCambios && huboCambiosReal) {
-      payload.productosAplicados = productosEdit.map((r, i) => {
+    // En edit mode siempre enviamos productosAplicados (es el objetivo de la acción);
+    // en mezcla-lista sólo si el usuario activó el toggle y realmente hubo cambios.
+    const shouldSendProductos = isEditMode || (hayCambios && huboCambiosReal);
+    if (shouldSendProductos) {
+      payload.productosAplicados = productosEdit.map((r) => {
         const out = {
           productoId: r.productoId,
           cantidadPorHa: parseFloat(r.cantidadPorHa),
         };
-        if (rowsChanged.includes(i) && r.motivoCambio) {
+        // Enviar motivoCambio si la fila lo trae (tanto editado en esta sesión
+        // como heredado de una edición previa).
+        if (r.motivoCambio) {
           out.motivoCambio = r.motivoCambio;
         }
         if (r.productoOriginalId && r.productoOriginalId !== r.productoId) {
@@ -181,7 +218,7 @@ function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onC
       <div className="ca-preview-container mla-modal" onClick={e => e.stopPropagation()}>
         <div className="ca-preview-toolbar">
           <span className="ca-preview-toolbar-title">
-            Mezcla Lista · {cedula?.consecutivo || ''}
+            {isEditMode ? 'Editar Cédula' : 'Mezcla Lista'} · {cedula?.consecutivo || ''}
           </span>
           <div className="ca-preview-toolbar-actions">
             <button
@@ -191,7 +228,9 @@ function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onC
               disabled={submitting}
             >
               <FiCheckCircle size={14} />
-              {submitting ? 'Procesando…' : 'Confirmar mezcla'}
+              {submitting
+                ? 'Procesando…'
+                : isEditMode ? 'Guardar cambios' : 'Confirmar mezcla'}
             </button>
             <button
               type="button"
@@ -206,15 +245,17 @@ function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onC
 
         <div className="mla-body">
           <p className="mla-info">
-            Al confirmar, se descontará del inventario la cantidad de cada producto según
-            las hectáreas a aplicar. Si un producto no está disponible en bodega o es
-            necesario ajustar la dosis, activá la edición antes de confirmar.
+            {isEditMode
+              ? 'Los cambios se guardarán en la cédula y quedará registro de quién los realizó. El inventario se descontará más adelante, al marcar la mezcla como lista.'
+              : 'Al confirmar, se descontará del inventario la cantidad de cada producto según las hectáreas a aplicar. Si un producto no está disponible en bodega o es necesario ajustar la dosis, activá la edición antes de confirmar.'}
           </p>
 
           {error && <div className="nca-error">{error}</div>}
 
           <label className="mla-field">
-            <span className="mla-label">Nombre de quien prepara la mezcla</span>
+            <span className="mla-label">
+              {isEditMode ? 'Nombre de quien edita' : 'Nombre de quien prepara la mezcla'}
+            </span>
             <input
               type="text"
               className="nca-input"
@@ -224,14 +265,16 @@ function MezclaListaModal({ cedula, task, productos, currentUser, onConfirm, onC
             />
           </label>
 
-          <label className="mla-toggle">
-            <input
-              type="checkbox"
-              checked={hayCambios}
-              onChange={e => setHayCambios(e.target.checked)}
-            />
-            <span>Se realizaron cambios respecto al programa (sustitución o ajuste de dosis)</span>
-          </label>
+          {!isEditMode && (
+            <label className="mla-toggle">
+              <input
+                type="checkbox"
+                checked={hayCambios}
+                onChange={e => setHayCambios(e.target.checked)}
+              />
+              <span>Se realizaron cambios respecto al programa (sustitución o ajuste de dosis)</span>
+            </label>
+          )}
 
           <div className="mla-productos-section">
             <span className="mla-label">Productos {hayCambios ? '(editables)' : ''}</span>
