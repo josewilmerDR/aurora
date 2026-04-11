@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft, FiClock } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
-import NuevaCedulaModal from './NuevaCedulaModal';
+import CedulaNuevaModal from './CedulaNuevaModal';
 import './CedulasAplicacion.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -135,8 +135,11 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
   const [supAplicaciones,   setSupAplicaciones]   = useState(() => prefill?.supAplicaciones || '');
   const [fetchingWeather,   setFetchingWeather]   = useState(false);
 
+  const [formError, setFormError] = useState('');
+
   useEffect(() => {
     if (!navigator.geolocation) return;
+    let cancelled = false;
     setFetchingWeather(true);
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude, longitude } }) => {
@@ -145,39 +148,58 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
             `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m&timezone=auto`
           );
           const d = await r.json();
-          if (d.current?.temperature_2m    != null) setTemperatura(d.current.temperature_2m);
-          if (d.current?.relative_humidity_2m != null) setHumedadRelativa(d.current.relative_humidity_2m);
+          if (cancelled) return;
+          if (d.current?.temperature_2m    != null) setTemperatura(String(d.current.temperature_2m));
+          if (d.current?.relative_humidity_2m != null) setHumedadRelativa(String(d.current.relative_humidity_2m));
         } catch { /* sin internet o API no disponible — el usuario llena manualmente */ }
-        setFetchingWeather(false);
+        if (!cancelled) setFetchingWeather(false);
       },
-      () => setFetchingWeather(false),
+      () => { if (!cancelled) setFetchingWeather(false); },
       { timeout: 8000 }
     );
+    return () => { cancelled = true; };
   }, []);
 
   const handleConfirm = () => {
+    setFormError('');
     if (sobrante && !sobranteLoteId) {
-      alert('Seleccione el lote donde fue depositado el sobrante.');
+      setFormError('Seleccione el lote donde fue depositado el sobrante.');
       return;
     }
     if (horaInicio && horaFinal && horaInicio >= horaFinal) {
-      alert('La hora de inicio debe ser menor que la hora final.');
+      setFormError('La hora de inicio debe ser menor que la hora final.');
       return;
+    }
+    let tempNum = null;
+    if (temperatura !== '' && temperatura != null) {
+      tempNum = Number(temperatura);
+      if (!Number.isFinite(tempNum) || tempNum < -60 || tempNum > 70) {
+        setFormError('Temperatura fuera de rango (-60 a 70 °C).');
+        return;
+      }
+    }
+    let humNum = null;
+    if (humedadRelativa !== '' && humedadRelativa != null) {
+      humNum = Number(humedadRelativa);
+      if (!Number.isFinite(humNum) || humNum < 0 || humNum > 100) {
+        setFormError('Humedad relativa fuera de rango (0 a 100 %).');
+        return;
+      }
     }
     onConfirm({
       sobrante,
       sobranteLoteId:     sobrante ? sobranteLoteId   : null,
       sobranteLoteNombre: sobrante ? (lotes.find(l => l.id === sobranteLoteId)?.nombreLote || null) : null,
       condicionesTiempo:  condicionesTiempo || null,
-      temperatura:        temperatura !== '' ? Number(temperatura)     : null,
-      humedadRelativa:    humedadRelativa !== '' ? Number(humedadRelativa) : null,
+      temperatura:        tempNum,
+      humedadRelativa:    humNum,
       horaInicio:         horaInicio  || null,
       horaFinal:          horaFinal   || null,
-      operario:           operario    || null,
-      metodoAplicacion:   metodoAplicacion  || null,
-      encargadoFinca:     encargadoFinca    || null,
-      encargadoBodega:    encargadoBodega   || null,
-      supAplicaciones:    supAplicaciones   || null,
+      operario:           (operario   || '').trim().slice(0, 200) || null,
+      metodoAplicacion:   (metodoAplicacion || '').trim().slice(0, 200) || null,
+      encargadoFinca:     (encargadoFinca   || '').trim().slice(0, 200) || null,
+      encargadoBodega:    (encargadoBodega  || '').trim().slice(0, 200) || null,
+      supAplicaciones:    (supAplicaciones  || '').trim().slice(0, 200) || null,
     });
   };
 
@@ -217,7 +239,7 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
         <div className="aplicada-field-row">
           <div className="aplicada-field">
             <label>Temperatura (°C){fetchingWeather ? ' ⏳' : ''}</label>
-            <input type="number" step="0.1" value={temperatura} onChange={e => setTemperatura(e.target.value)} placeholder="—" />
+            <input type="number" step="0.1" min="-60" max="70" value={temperatura} onChange={e => setTemperatura(e.target.value)} placeholder="—" />
           </div>
           <div className="aplicada-field">
             <label>% Humedad Relativa{fetchingWeather ? ' ⏳' : ''}</label>
@@ -238,28 +260,30 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
 
         <div className="aplicada-field">
           <label>Operario</label>
-          <input type="text" value={operario} onChange={e => setOperario(e.target.value)} placeholder="Nombre del operario" />
+          <input type="text" maxLength={200} value={operario} onChange={e => setOperario(e.target.value)} placeholder="Nombre del operario" />
         </div>
 
         <div className="aplicada-field">
           <label>Método de Aplicación</label>
-          <input type="text" value={metodoAplicacion} onChange={e => setMetodoAplicacion(e.target.value)} placeholder="Ej: Spray Boom, Drench…" />
+          <input type="text" maxLength={200} value={metodoAplicacion} onChange={e => setMetodoAplicacion(e.target.value)} placeholder="Ej: Spray Boom, Drench…" />
         </div>
 
         <div className="aplicada-field">
           <label>Encargado de Finca</label>
-          <input type="text" value={encargadoFinca} onChange={e => setEncargadoFinca(e.target.value)} placeholder="Nombre del encargado de finca" />
+          <input type="text" maxLength={200} value={encargadoFinca} onChange={e => setEncargadoFinca(e.target.value)} placeholder="Nombre del encargado de finca" />
         </div>
 
         <div className="aplicada-field">
           <label>Encargado de Bodega</label>
-          <input type="text" value={encargadoBodega} onChange={e => setEncargadoBodega(e.target.value)} placeholder="Nombre del encargado de bodega" />
+          <input type="text" maxLength={200} value={encargadoBodega} onChange={e => setEncargadoBodega(e.target.value)} placeholder="Nombre del encargado de bodega" />
         </div>
 
         <div className="aplicada-field">
           <label>Sup. Aplicaciones / Regente</label>
-          <input type="text" value={supAplicaciones} onChange={e => setSupAplicaciones(e.target.value)} placeholder="Nombre del supervisor o regente" />
+          <input type="text" maxLength={200} value={supAplicaciones} onChange={e => setSupAplicaciones(e.target.value)} placeholder="Nombre del supervisor o regente" />
         </div>
+
+        {formError && <div className="nca-error">{formError}</div>}
 
         <div className="param-modal-actions">
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
@@ -310,13 +334,6 @@ function CedulasAplicacion() {
   const savedScrollRef   = useRef(0);
   const openedViaUrlRef  = useRef(false);
 
-  const loadCedulas = useCallback(() =>
-    apiFetch('/api/cedulas').then(r => r.json()).then(d => {
-      setCedulas(Array.isArray(d) ? d : []);
-    }).catch(console.error),
-    [apiFetch]
-  );
-
   useEffect(() => {
     Promise.all([
       apiFetch('/api/tasks').then(r => r.json()),
@@ -343,7 +360,7 @@ function CedulasAplicacion() {
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  // Open NuevaCedulaModal if navigated from HistorialAplicaciones empty state
+  // Open CedulaNuevaModal if navigated from HistorialAplicaciones empty state
   useEffect(() => {
     if (location.state?.openModal) setShowNuevaModal(true);
   }, []);
@@ -383,9 +400,11 @@ function CedulasAplicacion() {
   }, [aplicacionTasks]);
 
   // taskId → cedula[] (array, since a task can have multiple split cedulas)
+  // Se excluyen las anuladas para que no bloqueen la regeneración ni se muestren como activas
   const cedulasByTaskId = useMemo(() => {
     const map = {};
     for (const c of cedulas) {
+      if (c.status === 'anulada') continue;
       if (!map[c.taskId]) map[c.taskId] = [];
       map[c.taskId].push(c);
     }
@@ -593,7 +612,8 @@ function CedulasAplicacion() {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al anular la cédula.'); return; }
           const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
-          setCedulas(prev => prev.filter(c => c.id !== cedulaId));
+          // Marcar como anulada en lugar de eliminar para mantener consistencia con el backend
+          setCedulas(prev => prev.map(c => c.id === cedulaId ? { ...c, status: 'anulada' } : c));
           if (taskId) {
             const remaining = cedulas.filter(c => c.id !== cedulaId && c.taskId === taskId);
             const allInactive = remaining.every(c => c.status === 'anulada' || c.status === 'aplicada_en_campo');
@@ -1418,7 +1438,7 @@ function CedulasAplicacion() {
 
       {/* ── Nueva Cédula Modal ── */}
       {showNuevaModal && (
-        <NuevaCedulaModal
+        <CedulaNuevaModal
           lotes={lotes}
           grupos={grupos}
           siembras={siembras}

@@ -2,7 +2,20 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye } from 'react-icons/fi';
 
-function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose, onPreviewDraft }) {
+// Límites de validación frontend
+const MAX_ACTIVITY_LEN = 64;
+const MAX_TECNICO_LEN = 48;
+const MAX_FUTURE_DAYS = 1825; // tope duro ~5 años
+const WARN_FUTURE_DAYS = 14;  // umbral de alerta "fecha inusual"
+
+const addDaysYmd = (days) => {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
+function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose, onPreviewDraft }) {
   const [form, setForm] = useState({
     activityName: '',
     fecha: new Date().toISOString().split('T')[0],
@@ -33,6 +46,7 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
   }, []);
 
   const aplicarPlantilla = (p) => {
+    if (!p || !Array.isArray(p.productos)) return;
     const validProds = p.productos
       .map(tp => {
         const cat = productos.find(pr => pr.id === tp.productoId);
@@ -45,7 +59,7 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
         };
       })
       .filter(Boolean);
-    setForm(prev => ({ ...prev, activityName: p.nombre, productos: validProds }));
+    setForm(prev => ({ ...prev, activityName: (p.nombre || '').slice(0, MAX_ACTIVITY_LEN), productos: validProds }));
   };
 
   const guardarComoPlantilla = async () => {
@@ -229,21 +243,34 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.activityName.trim()) { setError('El nombre de la aplicación es requerido.'); return; }
-    if (!form.fecha)               { setError('La fecha es requerida.'); return; }
+    const activityName = form.activityName.trim();
+    if (!activityName) { setError('El nombre de la aplicación es requerido.'); return; }
+    if (activityName.length > MAX_ACTIVITY_LEN) { setError(`El nombre de la aplicación es demasiado largo (máx. ${MAX_ACTIVITY_LEN}).`); return; }
+    if (!form.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) { setError('Fecha inválida.'); return; }
+    const fechaSel = new Date(form.fecha + 'T12:00:00');
+    if (isNaN(fechaSel.getTime())) { setError('Fecha inválida.'); return; }
+    const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+    const diffDays = Math.round((fechaSel - hoy) / 86400000);
+    if (diffDays > MAX_FUTURE_DAYS) { setError(`La fecha no puede superar los ${MAX_FUTURE_DAYS} días a futuro.`); return; }
+    const tecnico = form.tecnicoResponsable.trim();
+    if (tecnico.length > MAX_TECNICO_LEN) { setError(`El nombre del técnico es demasiado largo (máx. ${MAX_TECNICO_LEN}).`); return; }
     if (!form.loteId)              { setError('Seleccione un lote.'); return; }
     if (form.productos.length === 0) { setError('Agregue al menos un producto.'); return; }
-    const invalidProd = form.productos.find(p => !p.cantidadPorHa || parseFloat(p.cantidadPorHa) <= 0);
+    if (form.productos.length > 50) { setError('Máximo 50 productos por cédula.'); return; }
+    const invalidProd = form.productos.find(p => {
+      const v = parseFloat(p.cantidadPorHa);
+      return !Number.isFinite(v) || v <= 0 || v > 100000;
+    });
     if (invalidProd) { setError(`Ingrese una dosis válida para "${invalidProd.nombreComercial}".`); return; }
 
     setSubmitting(true);
     try {
       const body = {
-        activityName: form.activityName.trim(),
+        activityName,
         fecha: form.fecha,
         loteId: form.loteId,
         ...(form.calibracionId ? { calibracionId: form.calibracionId } : {}),
-        ...(form.tecnicoResponsable.trim() ? { tecnicoResponsable: form.tecnicoResponsable.trim() } : {}),
+        ...(tecnico ? { tecnicoResponsable: tecnico.slice(0, MAX_TECNICO_LEN) } : {}),
         ...(form.selectedBloques.length > 0 ? { bloques: form.selectedBloques } : {}),
         productos: form.productos.map(p => ({
           productoId: p.productoId,
@@ -263,6 +290,29 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
       setSubmitting(false);
     }
   };
+
+  // ── Warnings derivados (alerta inline al usuario) ─────────────────────────
+  const maxFechaStr = useMemo(() => addDaysYmd(MAX_FUTURE_DAYS), []);
+  const fechaWarning = useMemo(() => {
+    if (!form.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) return '';
+    const sel = new Date(form.fecha + 'T12:00:00');
+    if (isNaN(sel.getTime())) return '';
+    const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+    const diff = Math.round((sel - hoy) / 86400000);
+    if (diff > MAX_FUTURE_DAYS) {
+      return `⚠ La fecha supera el máximo permitido (${MAX_FUTURE_DAYS} días).`;
+    }
+    if (diff > WARN_FUTURE_DAYS) {
+      return `⚠ Fecha inusual: ${diff} días en el futuro. Lo normal es planificar con 1–2 semanas de antelación.`;
+    }
+    return '';
+  }, [form.fecha]);
+  const activityWarning = form.activityName.length >= MAX_ACTIVITY_LEN
+    ? `⚠ Máximo ${MAX_ACTIVITY_LEN} caracteres alcanzado.`
+    : '';
+  const tecnicoWarning = form.tecnicoResponsable.length >= MAX_TECNICO_LEN
+    ? `⚠ Máximo ${MAX_TECNICO_LEN} caracteres alcanzado.`
+    : '';
 
   const productosDisponibles = productos.filter(
     p => !form.productos.some(fp => fp.productoId === p.id)
@@ -356,18 +406,22 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
                   <input
                     className="nca-input"
                     type="date"
+                    max={maxFechaStr}
                     value={form.fecha}
                     onChange={e => setForm(prev => ({ ...prev, fecha: e.target.value }))}
                   />
+                  {fechaWarning && <span className="nca-warn">{fechaWarning}</span>}
                 </td>
                 <td>
                   <input
                     className="nca-input"
                     type="text"
+                    maxLength={MAX_ACTIVITY_LEN}
                     placeholder="Ej: Fungicida preventivo"
                     value={form.activityName}
-                    onChange={e => setForm(prev => ({ ...prev, activityName: e.target.value }))}
+                    onChange={e => setForm(prev => ({ ...prev, activityName: e.target.value.slice(0, MAX_ACTIVITY_LEN) }))}
                   />
+                  {activityWarning && <span className="nca-warn">{activityWarning}</span>}
                 </td>
                 <td>
                   <select
@@ -387,10 +441,12 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
                   <input
                     className="nca-input"
                     type="text"
+                    maxLength={MAX_TECNICO_LEN}
                     placeholder="Nombre del técnico"
                     value={form.tecnicoResponsable}
-                    onChange={e => setForm(prev => ({ ...prev, tecnicoResponsable: e.target.value }))}
+                    onChange={e => setForm(prev => ({ ...prev, tecnicoResponsable: e.target.value.slice(0, MAX_TECNICO_LEN) }))}
                   />
+                  {tecnicoWarning && <span className="nca-warn">{tecnicoWarning}</span>}
                 </td>
               </tr>
 
@@ -417,6 +473,7 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
                                 className="nca-input nca-input-num"
                                 type="number"
                                 min="0"
+                                max="100000"
                                 step="any"
                                 value={p.cantidadPorHa}
                                 onChange={e => updateCantidad(p.productoId, e.target.value)}
@@ -582,4 +639,4 @@ function NuevaCedulaModal({ lotes, grupos, siembras, productos, calibraciones, a
   );
 }
 
-export default NuevaCedulaModal;
+export default CedulaNuevaModal;
