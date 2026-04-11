@@ -13,9 +13,11 @@ const MAX_TECNICO_LEN = 48;
 const MAX_PRODUCTOS = 50;
 const MAX_BLOQUES = 500;
 const MAX_CANTIDAD_POR_HA = 100000;
+const MAX_OBS_LEN = 500;
 const MAX_FUTURE_DAYS = 1825; // tope duro: ~5 años
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const MOTIVOS_CAMBIO = new Set(['sustitucion', 'ajuste_dosis', 'otro']);
 
 const sanitizeStr = (v, max = MAX_STR) => {
   if (v == null) return null;
@@ -94,10 +96,92 @@ async function nextCedulasConsecutivos(fincaId, count) {
 const serializeCedula = (id, data) => ({
   id,
   ...data,
-  generadaAt:    data.generadaAt?.toDate?.()?.toISOString()    || null,
-  mezclaListaAt: data.mezclaListaAt?.toDate?.()?.toISOString() || null,
-  aplicadaAt:    data.aplicadaAt?.toDate?.()?.toISOString()    || null,
+  generadaAt:        data.generadaAt?.toDate?.()?.toISOString()        || null,
+  mezclaListaAt:     data.mezclaListaAt?.toDate?.()?.toISOString()     || null,
+  aplicadaAt:        data.aplicadaAt?.toDate?.()?.toISOString()        || null,
+  modificadaEnMezclaAt: data.modificadaEnMezclaAt?.toDate?.()?.toISOString() || null,
 });
+
+// Snapshot de un producto del plan original (task.activity.productos) para
+// guardar en cedula.productosOriginales al crearse la cédula. Nunca cambia después.
+const serializeProductoOriginal = (p) => {
+  if (!p) return null;
+  const cant = p.cantidadPorHa !== undefined
+    ? parseFloat(p.cantidadPorHa)
+    : (p.cantidad !== undefined ? parseFloat(p.cantidad) : null);
+  return {
+    productoId: p.productoId || null,
+    nombreComercial: p.nombreComercial || '',
+    cantidadPorHa: Number.isFinite(cant) ? cant : null,
+    unidad: p.unidad || '',
+    periodoReingreso: p.periodoReingreso ?? null,
+    periodoACosecha: p.periodoACosecha ?? null,
+  };
+};
+
+// Valida y enriquece un array de productosAplicados proveniente del body de
+// PUT mezcla-lista. Lanza { status, message } en caso de error para que el caller
+// lo capture y responda al cliente.
+async function validateAndEnrichProductosAplicados(input, fincaId) {
+  if (!Array.isArray(input)) {
+    throw { status: 400, message: 'productosAplicados debe ser un array.' };
+  }
+  if (input.length === 0) {
+    throw { status: 400, message: 'productosAplicados no puede estar vacío.' };
+  }
+  if (input.length > MAX_PRODUCTOS) {
+    throw { status: 400, message: `Máximo ${MAX_PRODUCTOS} productos por cédula.` };
+  }
+  const enriched = [];
+  for (const p of input) {
+    if (!p || typeof p.productoId !== 'string' || !p.productoId) {
+      throw { status: 400, message: 'Producto inválido en productosAplicados.' };
+    }
+    const cant = parseFloat(p.cantidadPorHa);
+    if (!Number.isFinite(cant) || cant <= 0 || cant > MAX_CANTIDAD_POR_HA) {
+      throw { status: 400, message: `Dosis/Ha inválida para producto ${p.productoId}.` };
+    }
+    const doc = await db.collection('productos').doc(p.productoId).get();
+    if (!doc.exists || doc.data().fincaId !== fincaId) {
+      throw { status: 400, message: `Producto ${p.productoId} no encontrado.` };
+    }
+    const info = doc.data();
+    const row = {
+      productoId: p.productoId,
+      nombreComercial: info.nombreComercial || '',
+      cantidadPorHa: cant,
+      unidad: info.unidad || '',
+      periodoReingreso: info.periodoReingreso ?? null,
+      periodoACosecha: info.periodoACosecha ?? null,
+    };
+    if (p.motivoCambio != null && p.motivoCambio !== '') {
+      if (typeof p.motivoCambio !== 'string' || !MOTIVOS_CAMBIO.has(p.motivoCambio)) {
+        throw { status: 400, message: `motivoCambio inválido: ${p.motivoCambio}.` };
+      }
+      row.motivoCambio = p.motivoCambio;
+    }
+    if (p.productoOriginalId != null && p.productoOriginalId !== '') {
+      if (typeof p.productoOriginalId !== 'string') {
+        throw { status: 400, message: 'productoOriginalId inválido.' };
+      }
+      row.productoOriginalId = p.productoOriginalId;
+    }
+    enriched.push(row);
+  }
+  return enriched;
+}
+
+// Compara productosOriginales vs productosAplicados ignorando motivos y metadata,
+// detectando diferencia de productoId o cantidadPorHa.
+function computeHuboCambios(originales, aplicados) {
+  if (!Array.isArray(originales) || !Array.isArray(aplicados)) return true;
+  if (originales.length !== aplicados.length) return true;
+  const sig = (arr) => arr
+    .map(p => `${p.productoId || ''}|${p.cantidadPorHa ?? ''}`)
+    .sort()
+    .join(',');
+  return sig(originales) !== sig(aplicados);
+}
 
 // --- RUTAS ---
 
@@ -192,6 +276,9 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
         }
         const loteEntries = Object.entries(loteMap);
         if (loteEntries.length > 1) {
+          const productosOriginalesSplit = Array.isArray(taskData.activity?.productos)
+            ? taskData.activity.productos.map(serializeProductoOriginal).filter(Boolean)
+            : [];
           const consecutivos = await nextCedulasConsecutivos(req.fincaId, loteEntries.length);
           const batch = db.batch();
           const now = Timestamp.now();
@@ -211,6 +298,7 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
               aplicadaPor: null,
               splitLoteNombre: loteNombre,
               splitBloqueIds: bloqueIds,
+              productosOriginales: productosOriginalesSplit,
             };
             batch.set(ref, cedula);
             cedulasCreated.push(serializeCedula(ref.id, cedula));
@@ -220,6 +308,10 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
         }
       }
     }
+
+    const productosOriginales = Array.isArray(taskData.activity?.productos)
+      ? taskData.activity.productos.map(serializeProductoOriginal).filter(Boolean)
+      : [];
 
     const consecutivo = await nextCedulaConsecutivo(req.fincaId);
     const cedula = {
@@ -233,6 +325,7 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
       mezclaListaPor: null,
       aplicadaAt: null,
       aplicadaPor: null,
+      productosOriginales,
     };
     const docRef = await db.collection('cedulas').add(cedula);
     res.status(201).json(serializeCedula(docRef.id, cedula));
@@ -256,7 +349,34 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     const taskDoc = await db.collection('scheduled_tasks').doc(cedula.taskId).get();
     if (!taskDoc.exists) return res.status(404).json({ message: 'Tarea asociada no encontrada.' });
     const taskData = taskDoc.data();
-    const productos = taskData.activity?.productos;
+
+    // Productos que realmente se mezclaron. Si el cliente envía productosAplicados
+    // (ajuste por sustitución o dosis), los validamos y usamos para deducir stock,
+    // en lugar de los del plan original del paquete.
+    let productosAplicadosEnriched = null;
+    try {
+      if (req.body?.productosAplicados !== undefined) {
+        productosAplicadosEnriched = await validateAndEnrichProductosAplicados(
+          req.body.productosAplicados,
+          req.fincaId
+        );
+      }
+    } catch (e) {
+      if (e && e.status && e.message) return res.status(e.status).json({ message: e.message });
+      throw e;
+    }
+
+    // Validación de observacionesMezcla (texto libre, máx MAX_OBS_LEN chars)
+    let observacionesMezcla = null;
+    if (req.body?.observacionesMezcla != null && req.body.observacionesMezcla !== '') {
+      observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_LEN);
+      if (observacionesMezcla == null) {
+        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.` });
+      }
+    }
+
+    const productos = productosAplicadosEnriched || taskData.activity?.productos;
+    const productosTieneCambios = productosAplicadosEnriched != null;
 
     let hectareas = 1;
     let sourceNombre = '';
@@ -302,7 +422,7 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
           cantidad: deduccion,
           unidad: prod.unidad || '',
           fecha: Timestamp.now(),
-          motivo: taskData.activity.name,
+          motivo: taskData.activity?.name || '',
           tareaId: cedula.taskId,
           cedulaId: req.params.id,
           cedulaConsecutivo: cedula.consecutivo,
@@ -311,6 +431,8 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
           loteNombre: taskData.loteId  ? sourceNombre : '',
           grupoNombre: taskData.grupoId ? sourceNombre : '',
           fincaId: req.fincaId,
+          ...(prod.motivoCambio ? { motivoCambio: prod.motivoCambio } : {}),
+          ...(prod.productoOriginalId ? { productoOriginalId: prod.productoOriginalId } : {}),
         });
       }
       for (const [productoId, totalDeduccion] of Object.entries(deduccionPorProducto)) {
@@ -322,12 +444,36 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
 
     const mezclaListaNombre = sanitizeStr(req.body?.nombre);
 
-    batch.update(db.collection('cedulas').doc(req.params.id), {
+    // Computar huboCambios comparando productos aplicados vs originales de la cédula
+    let huboCambios = false;
+    if (productosTieneCambios) {
+      const originales = Array.isArray(cedula.productosOriginales)
+        ? cedula.productosOriginales
+        : (Array.isArray(taskData.activity?.productos)
+            ? taskData.activity.productos.map(serializeProductoOriginal).filter(Boolean)
+            : []);
+      huboCambios = computeHuboCambios(originales, productosAplicadosEnriched);
+    }
+
+    const cedulaUpdate = {
       status: 'en_transito',
       mezclaListaAt: Timestamp.now(),
       mezclaListaPor: req.uid,
       mezclaListaNombre,
-    });
+    };
+    if (productosTieneCambios) {
+      cedulaUpdate.productosAplicados = productosAplicadosEnriched;
+      cedulaUpdate.huboCambios = huboCambios;
+      if (huboCambios) {
+        cedulaUpdate.modificadaEnMezclaPor = req.uid;
+        cedulaUpdate.modificadaEnMezclaAt  = Timestamp.now();
+      }
+    }
+    if (observacionesMezcla != null) {
+      cedulaUpdate.observacionesMezcla = observacionesMezcla;
+    }
+
+    batch.update(db.collection('cedulas').doc(req.params.id), cedulaUpdate);
     await batch.commit();
     res.json({ id: req.params.id, status: 'en_transito' });
   } catch (error) {
@@ -427,7 +573,11 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       }
     }
 
-    const productos = taskData.activity?.productos || [];
+    // Si la cédula tiene productosAplicados (ajuste en mezcla-lista), el snapshot
+    // debe reflejar lo que REALMENTE se aplicó, no lo que el paquete programó.
+    const productos = (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0)
+      ? cedula.productosAplicados
+      : (taskData.activity?.productos || []);
     const productoIds = [...new Set(productos.map(p => p.productoId).filter(Boolean))];
     const catMap = {};
     for (let i = 0; i < productoIds.length; i += 10) {
@@ -481,7 +631,7 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
         const fracDecimal = totalBoones % 1;
         cantFraccion = fracDecimal > 0 ? parseFloat((cantBoom * fracDecimal).toFixed(4)) : null;
       }
-      return {
+      const row = {
         productoId: prod.productoId || null,
         idProducto: cat.idProducto || null,
         nombreComercial: cat.nombreComercial || prod.nombreComercial || null,
@@ -496,6 +646,9 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
         cantBoom,
         cantFraccion,
       };
+      if (prod.motivoCambio)       row.motivoCambio       = prod.motivoCambio;
+      if (prod.productoOriginalId) row.productoOriginalId = prod.productoOriginalId;
+      return row;
     });
 
     const bloquesSnap = bloquesList.map(b => ({
@@ -512,6 +665,15 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     const snapFechaCreacionGrupo = sourceData?.fechaCreacion
       ? (sourceData.fechaCreacion.toDate ? sourceData.fechaCreacion.toDate().toISOString().split('T')[0] : sourceData.fechaCreacion)
       : null;
+
+    // Observaciones libres de aplicación: NO afectan productos ni inventario.
+    let observacionesAplicacion = null;
+    if (body.observacionesAplicacion != null && body.observacionesAplicacion !== '') {
+      observacionesAplicacion = sanitizeStrStrict(body.observacionesAplicacion, MAX_OBS_LEN);
+      if (observacionesAplicacion == null) {
+        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.` });
+      }
+    }
 
     const sobrante          = body.sobrante === true;
     const sobranteLoteId    = sanitizeStr(body.sobranteLoteId);
@@ -575,6 +737,7 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     if (horaInicio) updateData.horaInicio = horaInicio;
     if (horaFinal)  updateData.horaFinal  = horaFinal;
     if (operario)   updateData.operario   = operario;
+    if (observacionesAplicacion != null) updateData.observacionesAplicacion = observacionesAplicacion;
 
     const siblingsSnap = await db.collection('cedulas')
       .where('taskId', '==', cedula.taskId)
@@ -766,6 +929,8 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
       }
     }
 
+    const productosOriginalesManual = enrichedProductos.map(serializeProductoOriginal).filter(Boolean);
+
     const consecutivo = await nextCedulaConsecutivo(req.fincaId);
     const cedulaData = {
       consecutivo,
@@ -778,6 +943,7 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
       mezclaListaPor: null,
       aplicadaAt: null,
       aplicadaPor: null,
+      productosOriginales: productosOriginalesManual,
       snap_sourceName:           snapSourceName,
       snap_sourceType:           'lote',
       snap_cosecha:              snapCosecha,

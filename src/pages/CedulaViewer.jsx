@@ -99,7 +99,15 @@ export default function CedulaViewer() {
   const cal          = cedula.calibracion        || null;
   const calAplicador = cedula.calibracionAplicador || null;
   const calTractor   = cedula.calibracionTractor   || null;
-  const productos    = cedula.snap_productos || [];
+  // Preferimos snap_productos (que en cédulas nuevas ya viene copiado desde
+  // productosAplicados en el endpoint PUT /aplicada). Para cédulas que aún no
+  // hayan pasado por ese flujo (p. ej. visualización temprana), caemos a
+  // productosAplicados o productosOriginales.
+  const productos    = (Array.isArray(cedula.snap_productos) && cedula.snap_productos.length > 0)
+    ? cedula.snap_productos
+    : (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0)
+      ? cedula.productosAplicados
+      : (Array.isArray(cedula.productosOriginales) ? cedula.productosOriginales : []);
   const bloques      = cedula.snap_bloques   || [];
   const areaHa       = parseFloat(cedula.snap_areaHa) || 0;
 
@@ -339,6 +347,74 @@ export default function CedulaViewer() {
               </tbody>
             </table>
           )}
+
+          {/* Bloque de observaciones / ajustes (solo si hay datos) */}
+          {(() => {
+            const originales = Array.isArray(cedula.productosOriginales) ? cedula.productosOriginales : [];
+            const aplicados  = Array.isArray(cedula.productosAplicados)  ? cedula.productosAplicados
+                              : (Array.isArray(cedula.snap_productos) ? cedula.snap_productos : []);
+            const hay = cedula.huboCambios || cedula.observacionesMezcla || cedula.observacionesAplicacion;
+            if (!hay) return null;
+            const cambiosLineas = [];
+            if (cedula.huboCambios && originales.length > 0) {
+              const origById = {};
+              originales.forEach(o => { if (o?.productoId) origById[o.productoId] = o; });
+              const aplicadosByOrig = {};
+              aplicados.forEach(a => {
+                if (a?.productoOriginalId) aplicadosByOrig[a.productoOriginalId] = a;
+              });
+              const touchedOriginalIds = new Set();
+              aplicados.forEach(a => {
+                if (!a) return;
+                const origRef = a.productoOriginalId
+                  ? origById[a.productoOriginalId]
+                  : origById[a.productoId];
+                if (origRef) touchedOriginalIds.add(origRef.productoId);
+                if (a.productoOriginalId && a.productoOriginalId !== a.productoId) {
+                  const orig = origById[a.productoOriginalId];
+                  const motivo = a.motivoCambio === 'ajuste_dosis' ? 'Ajuste de dosis'
+                               : a.motivoCambio === 'otro'        ? 'Otro'
+                               : 'Sustitución';
+                  cambiosLineas.push(
+                    `${orig?.nombreComercial || orig?.productoId || '—'} (${orig?.cantidadPorHa ?? '—'} ${orig?.unidad || ''}/Ha) sustituido por ${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) — ${motivo}`
+                  );
+                } else if (origRef && parseFloat(origRef.cantidadPorHa) !== parseFloat(a.cantidadPorHa)) {
+                  cambiosLineas.push(
+                    `${a.nombreComercial || a.productoId}: dosis ajustada de ${origRef.cantidadPorHa ?? '—'} a ${a.cantidadPorHa ?? '—'} ${a.unidad || origRef.unidad || ''}/Ha — Ajuste de dosis`
+                  );
+                } else if (!origRef) {
+                  cambiosLineas.push(
+                    `${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) añadido respecto al programa original`
+                  );
+                }
+              });
+              originales.forEach(o => {
+                if (!touchedOriginalIds.has(o.productoId) && !aplicadosByOrig[o.productoId]) {
+                  cambiosLineas.push(
+                    `${o.nombreComercial || o.productoId} (${o.cantidadPorHa ?? '—'} ${o.unidad || ''}/Ha) retirado respecto al programa original`
+                  );
+                }
+              });
+            }
+            return (
+              <div className="ca-doc-observaciones">
+                {cedula.huboCambios && cambiosLineas.length > 0 && (
+                  <div>
+                    <strong>Ajustes respecto al programa original:</strong>
+                    <ul>
+                      {cambiosLineas.map((ln, i) => <li key={i}>{ln}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {cedula.observacionesMezcla && (
+                  <p><strong>Observaciones de mezcla:</strong> {cedula.observacionesMezcla}</p>
+                )}
+                {cedula.observacionesAplicacion && (
+                  <p><strong>Observaciones de aplicación:</strong> {cedula.observacionesAplicacion}</p>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Nota de seguridad */}
           <div className="ca-doc-safety-note">
