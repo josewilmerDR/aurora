@@ -423,7 +423,9 @@ function CedulasAplicacion() {
     ? (packages.find(p => p.id === previewSource.paqueteId) || null)
     : null;
   const previewPackageName = previewPkg?.nombrePaquete || null;
-  const previewTecnicoResponsable = previewPkg?.tecnicoResponsable || null;
+  const previewTecnicoResponsable = previewTask?.isDraft
+    ? (previewTask.tecnicoResponsable || previewPkg?.tecnicoResponsable || null)
+    : (previewPkg?.tecnicoResponsable || null);
   const previewProductos = previewTask?.activity?.productos || [];
 
   const previewBloques = useMemo(() => {
@@ -633,6 +635,29 @@ function CedulasAplicacion() {
     setCedulas(prev => [...prev, cedula]);
     setTasks(prev => [...prev, task]);
     setShowNuevaModal(false);
+  };
+
+  const handlePreviewDraft = (formData) => {
+    const lote = lotes.find(l => l.id === formData.loteId) || null;
+    const draftTask = {
+      id: 'draft',
+      isDraft: true,
+      activityName: formData.activityName || 'Borrador',
+      dueDate: formData.fecha,
+      loteId: formData.loteId || null,
+      loteHectareas: lote?.hectareas ?? null,
+      loteName: lote?.nombreLote ?? null,
+      tecnicoResponsable: formData.tecnicoResponsable || null,
+      bloques: formData.selectedBloques || [],
+      activity: {
+        productos: formData.productos || [],
+        calibracionId: formData.calibracionId || null,
+      },
+    };
+    openedViaUrlRef.current = false;
+    savedScrollRef.current = window.scrollY;
+    setPreviewTask(draftTask);
+    setPreviewCedulaId(null);
   };
 
   const handlePrint = () => {
@@ -965,15 +990,18 @@ function CedulasAplicacion() {
               </button>
               <span className="ca-preview-toolbar-title">
                 Cédula de Aplicación — {previewTask.activityName}
-                {activeCedula && (
-                  <span className="ca-toolbar-consecutivo">
-                    {activeCedula.consecutivo}
-                  </span>
-                )}
+                {previewTask.isDraft
+                  ? <span className="ca-toolbar-draft-badge">BORRADOR</span>
+                  : activeCedula && (
+                    <span className="ca-toolbar-consecutivo">
+                      {activeCedula.consecutivo}
+                    </span>
+                  )
+                }
               </span>
               <div className="ca-preview-toolbar-actions">
-                {/* ── Acciones de flujo inline ── */}
-                {(() => {
+                {/* ── Acciones de flujo inline (ocultas en borrador) ── */}
+                {!previewTask.isDraft && (() => {
                   const cedula = activeCedula;
                   const isLdg  = actionLoading === cedula?.id;
                   if (!cedula) return null;
@@ -1042,9 +1070,12 @@ function CedulasAplicacion() {
                   <div className="ca-doc-title-block">
                     <div className="ca-doc-title">CÉDULA DE APLICACIÓN DE AGROQUÍMICOS</div>
                     <div className="ca-doc-subtitle">Aplicación: {previewTask.activityName}</div>
-                    {activeCedula && (
-                      <div className="ca-doc-consecutivo">{activeCedula.consecutivo}</div>
-                    )}
+                    {previewTask.isDraft
+                      ? <div className="ca-doc-consecutivo ca-doc-consecutivo--draft">BORRADOR</div>
+                      : activeCedula && (
+                        <div className="ca-doc-consecutivo">{activeCedula.consecutivo}</div>
+                      )
+                    }
                   </div>
                 </div>
 
@@ -1396,6 +1427,7 @@ function CedulasAplicacion() {
           apiFetch={apiFetch}
           onSuccess={handleNuevaCedulaSuccess}
           onClose={() => setShowNuevaModal(false)}
+          onPreviewDraft={handlePreviewDraft}
         />
       )}
 
