@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import './PackageManagement.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
@@ -183,14 +183,26 @@ function PackageManagement() {
   };
 
   const duplicateActivity = (index) => {
-    const copy = JSON.parse(JSON.stringify(formData.activities[index]));
-    if (copy.name) copy.name = `Copia de ${copy.name}`;
-    const updatedActivities = [
-      ...formData.activities.slice(0, index + 1),
-      copy,
-      ...formData.activities.slice(index + 1),
-    ];
-    setFormData(prev => ({ ...prev, activities: updatedActivities }));
+    setFormData(prev => {
+      const copy = JSON.parse(JSON.stringify(prev.activities[index]));
+      if (copy.name) copy.name = `Copia de ${copy.name}`;
+      return {
+        ...prev,
+        activities: [
+          ...prev.activities.slice(0, index + 1),
+          copy,
+          ...prev.activities.slice(index + 1),
+        ],
+      };
+    });
+    // Shift expanded indices > index up by 1 so the expansion state
+    // keeps pointing to the same activities after the splice.
+    setExpandedActivities(prev => {
+      const next = new Set();
+      prev.forEach(i => { if (i <= index) next.add(i); else next.add(i + 1); });
+      return next;
+    });
+    setPendingDeleteIdx(null);
   };
 
   const removeActivity = (index) => {
@@ -337,6 +349,10 @@ function PackageManagement() {
     e.preventDefault();
 
     // Validaciones de entradas
+    if (!(formData.nombrePaquete || '').trim()) {
+      showToast('El nombre del paquete es requerido.', 'error');
+      return;
+    }
     if ((formData.descripcion || '').length > 1024) {
       showToast('La descripción no puede superar 1024 caracteres.', 'error');
       return;
@@ -347,9 +363,17 @@ function PackageManagement() {
     }
     for (let i = 0; i < formData.activities.length; i++) {
       const a = formData.activities[i];
+      if (!(a.name || '').trim()) {
+        showToast(`Actividad ${i + 1}: el nombre es requerido.`, 'error');
+        return;
+      }
+      if ((a.name || '').length > 120) {
+        showToast(`Actividad ${i + 1}: el nombre no puede superar 120 caracteres.`, 'error');
+        return;
+      }
       const day = Number(a.day);
-      if (!Number.isFinite(day) || day < 0 || day > 1825) {
-        showToast(`Actividad ${i + 1}: el día debe estar entre 0 y 1825.`, 'error');
+      if (!Number.isInteger(day) || day < 0 || day > 1825) {
+        showToast(`Actividad ${i + 1}: el día debe ser un entero entre 0 y 1825.`, 'error');
         return;
       }
       const prods = a.productos || [];
@@ -451,6 +475,19 @@ function PackageManagement() {
     <div className={`pkg-page-wrapper${isFormOpen ? ' pkg-page--selected' : ''}${packages.length > 0 ? ' pkg-page--has-packages' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {pendingDeletePkgId && (
+        <div className="pkg-deps-overlay" onClick={() => setPendingDeletePkgId(null)}>
+          <div className="pkg-deps-modal" onClick={e => e.stopPropagation()}>
+            <h3>¿Eliminar paquete?</h3>
+            <p>Esta acción no se puede deshacer.</p>
+            <div className="pkg-deps-actions">
+              <button className="btn btn-secondary" onClick={() => setPendingDeletePkgId(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={() => handleDelete(pendingDeletePkgId)}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pkgDepsModal && (
         <div className="pkg-deps-overlay" onClick={() => setPkgDepsModal(null)}>
           <div className="pkg-deps-modal" onClick={e => e.stopPropagation()}>
@@ -534,7 +571,6 @@ function PackageManagement() {
 
       {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && <div className="form-card">
-          <>
           <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Aplicaciones'}</h2>
           <form onSubmit={handleSubmit} className="lote-form">
           <div className="form-grid">
@@ -601,9 +637,9 @@ function PackageManagement() {
               </thead>
               <tbody>
                 {formData.activities.map((activity, index) => (
-                  <>
-                    <tr key={`row-${index}`}>
-                      <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" min={0} max={1825} required /></td>
+                  <Fragment key={`act-${index}`}>
+                    <tr>
+                      <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" min={0} max={1825} step={1} required /></td>
                       <td>
                         <div
                           className="activity-name-cell"
@@ -635,6 +671,7 @@ function PackageManagement() {
                             onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
                             placeholder="Nombre de la actividad"
                             required
+                            maxLength={120}
                             onFocus={() => setFocusedActivity(index)}
                           />
                         </div>
@@ -703,7 +740,7 @@ function PackageManagement() {
                       </td>
                     </tr>
                     {expandedActivities.has(index) && (
-                      <tr key={`products-${index}`} className="products-subrow-tr">
+                      <tr className="products-subrow-tr">
                         <td colSpan="6">
                           <div className="products-subrow">
                             <div className="products-subrow-header">
@@ -764,7 +801,7 @@ function PackageManagement() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -781,7 +818,6 @@ function PackageManagement() {
             <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
           </div>
         </form>
-        </>
       </div>}
 
       {isFormOpen && selectedPkg && (
