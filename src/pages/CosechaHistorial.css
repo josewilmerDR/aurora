@@ -75,78 +75,60 @@
 }
 .ch-search-clear:hover { color: var(--aurora-light); }
 
-/* ── Table wrapper ────────────────────────────────────────────────────────── */
-.ch-table-wrap {
-  overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--aurora-border);
+/* ── Compact table rows: columns adapt to content ────────────────────────── */
+.cosecha-page .siembra-table td {
+  white-space: nowrap;
+  padding: 4px 8px;
+  line-height: 1.3;
 }
 
-.ch-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
+.cosecha-page .siembra-table th {
+  padding: 5px 8px;
 }
 
-/* ── Header cells ─────────────────────────────────────────────────────────── */
-.ch-th {
-  padding: 0.6rem 0.75rem;
-  background: #162333;
+/* Nota column: allow wrapping, clamp via inner span */
+.cosecha-page .siembra-table .td-nota {
+  white-space: normal;
+  min-width: 440px;
+  max-width: 440px;
   color: #8ba5bf;
-  text-align: left;
-  font-weight: 600;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--aurora-border);
-  white-space: nowrap;
 }
 
-.ch-th-sortable {
-  cursor: pointer;
-  user-select: none;
-}
-.ch-th-sortable:hover { color: var(--aurora-light); }
-
-.ch-sort-icon    { vertical-align: middle; margin-left: 2px; }
-.ch-sort-inactive { opacity: 0.3; }
-.ch-sort-active   { color: var(--aurora-green); opacity: 1; }
-
-.ch-th-num     { text-align: right; }
-.ch-th-recibido { min-width: 148px; }
-
-/* ── Body rows ────────────────────────────────────────────────────────────── */
-.ch-tr { border-bottom: 1px solid #1e3348; }
-.ch-tr:last-child { border-bottom: none; }
-.ch-tr:hover { background: #1a2f43; }
-
-.ch-td {
-  padding: 0.55rem 0.75rem;
-  color: var(--aurora-light);
-  vertical-align: middle;
+.td-nota-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.ch-consec {
-  font-family: monospace;
-  font-size: 0.82rem;
-  color: var(--aurora-green);
-  white-space: nowrap;
-}
-
-.ch-nowrap { white-space: nowrap; }
-
-.ch-num { text-align: right; white-space: nowrap; }
-
-.ch-nota {
-  max-width: 160px;
+.td-nota-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
-  color: #8ba5bf;
+  line-height: 1.3;
 }
 
-.ch-td-recibido { min-width: 148px; }
+.td-nota-text--open {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.td-nota-toggle {
+  background: none;
+  border: none;
+  color: var(--aurora-green);
+  font-size: 0.72rem;
+  padding: 0;
+  cursor: pointer;
+  align-self: flex-start;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+.td-nota-toggle:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
 
 /* ── Inline editable cell ─────────────────────────────────────────────────── */
 .ch-inline-value {
