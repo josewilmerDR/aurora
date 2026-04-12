@@ -274,7 +274,50 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
     if (!data.fecha || !data.loteId || data.cantidad == null) {
       return res.status(400).json({ message: 'Fecha, lote y cantidad son obligatorios.' });
     }
-    data.cantidad = parseFloat(data.cantidad) || 0;
+    // Validar fecha no futura
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (typeof data.fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.fecha) || data.fecha > todayStr) {
+      return res.status(400).json({ message: 'Fecha inválida o futura.' });
+    }
+    // Validar cantidad
+    data.cantidad = parseFloat(data.cantidad);
+    if (isNaN(data.cantidad) || data.cantidad < 0 || data.cantidad > 32768) {
+      return res.status(400).json({ message: 'Cantidad debe estar entre 0 y 32768.' });
+    }
+    // Verificar que los IDs referenciados existan en Firestore
+    const loteDoc = await db.collection('lotes').doc(data.loteId).get();
+    if (!loteDoc.exists) {
+      return res.status(400).json({ message: 'El lote indicado no existe.' });
+    }
+    data.loteNombre = loteDoc.data().nombreLote || '';
+
+    if (data.despachadorId) {
+      const despDoc = await db.collection('usuarios').doc(data.despachadorId).get();
+      if (!despDoc.exists) {
+        return res.status(400).json({ message: 'El despachador indicado no existe.' });
+      }
+      data.despachadorNombre = despDoc.data().nombre || '';
+    }
+    if (data.encargadoId) {
+      const encDoc = await db.collection('usuarios').doc(data.encargadoId).get();
+      if (!encDoc.exists) {
+        return res.status(400).json({ message: 'El encargado indicado no existe.' });
+      }
+      data.encargadoNombre = encDoc.data().nombre || '';
+    }
+    if (data.unidadId) {
+      const uniDoc = await db.collection('unidades_medida').doc(data.unidadId).get();
+      if (!uniDoc.exists) {
+        return res.status(400).json({ message: 'La unidad indicada no existe.' });
+      }
+      data.unidad = uniDoc.data().nombre || '';
+    }
+
+    // Truncar strings a longitudes máximas
+    const strLimits = { operarioCamionNombre: 48, placaCamion: 12, nota: 288 };
+    for (const [field, max] of Object.entries(strLimits)) {
+      if (typeof data[field] === 'string') data[field] = data[field].slice(0, max);
+    }
     if (!Array.isArray(data.boletas)) data.boletas = [];
     data.estado = 'activo';
     const counterRef = db.collection('counters').doc(`cosecha_despachos_${req.fincaId}`);
