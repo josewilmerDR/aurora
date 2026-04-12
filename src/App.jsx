@@ -58,7 +58,7 @@ import SiembraHistorial from './pages/SiembraHistorial';
 import CosechaProyeccion from './pages/CosechaProyeccion';
 import CosechaHistorial from './pages/CosechaHistorial';
 import CosechaRegistro from './pages/CosechaRegistro';
-import DespachosCosecha from './pages/DespachosCosecha';
+import CosechaDespachos from './pages/CosechaDespachos';
 import CosechaHistorialDespacho from './pages/CosechaHistorialDespacho';
 import CentroCostos from './pages/CentroCostos';
 import AutopilotDashboard from './pages/AutopilotDashboard';
@@ -476,7 +476,7 @@ function App() {
             <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
             <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><CosechaRegistro /></RoleRoute>} />
-            <Route path="/cosecha/despacho" element={<RoleRoute path="/cosecha/despacho"><DespachosCosecha /></RoleRoute>} />
+            <Route path="/cosecha/despacho" element={<RoleRoute path="/cosecha/despacho"><CosechaDespachos /></RoleRoute>} />
             <Route path="/cosecha/proyeccion" element={<RoleRoute path="/cosecha/proyeccion"><CosechaProyeccion /></RoleRoute>} />
             <Route path="/cosecha/historial" element={<RoleRoute path="/cosecha/historial"><CosechaHistorial /></RoleRoute>} />
             <Route path="/cosecha/historial-despachos" element={<RoleRoute path="/cosecha/historial-despachos"><CosechaHistorialDespacho /></RoleRoute>} />
