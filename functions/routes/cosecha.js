@@ -274,9 +274,14 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
     if (!data.fecha || !data.loteId || data.cantidad == null) {
       return res.status(400).json({ message: 'Fecha, lote y cantidad son obligatorios.' });
     }
-    // Validar fecha no futura
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (typeof data.fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.fecha) || data.fecha > todayStr) {
+    // Validar formato de fecha (tolerancia +1 día para diferencias de timezone frontend/backend)
+    if (typeof data.fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
+      return res.status(400).json({ message: 'Formato de fecha inválido.' });
+    }
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const limitStr = tomorrow.toISOString().slice(0, 10);
+    if (data.fecha > limitStr) {
       return res.status(400).json({ message: 'Fecha inválida o futura.' });
     }
     // Validar cantidad
@@ -292,14 +297,14 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
     data.loteNombre = loteDoc.data().nombreLote || '';
 
     if (data.despachadorId) {
-      const despDoc = await db.collection('usuarios').doc(data.despachadorId).get();
+      const despDoc = await db.collection('users').doc(data.despachadorId).get();
       if (!despDoc.exists) {
         return res.status(400).json({ message: 'El despachador indicado no existe.' });
       }
       data.despachadorNombre = despDoc.data().nombre || '';
     }
     if (data.encargadoId) {
-      const encDoc = await db.collection('usuarios').doc(data.encargadoId).get();
+      const encDoc = await db.collection('users').doc(data.encargadoId).get();
       if (!encDoc.exists) {
         return res.status(400).json({ message: 'El encargado indicado no existe.' });
       }
