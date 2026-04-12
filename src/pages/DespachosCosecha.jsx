@@ -1,21 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { FiPlus, FiX, FiCheck, FiAlertTriangle } from 'react-icons/fi';
+import { FiX, FiCheck } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
 import './DespachosCosecha.css';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const fmt = (v) => {
-  if (!v) return '—';
-  const d = new Date(v);
-  if (isNaN(d)) return v;
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
-const num = (v) => (v != null && v !== '' ? Number(v).toLocaleString('es-ES') : '—');
 
 // ── Combobox genérico ─────────────────────────────────────────────────────────
 function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
@@ -143,20 +133,10 @@ function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeh
 
 // ── Selector de boletas de cosecha ────────────────────────────────────────────
 function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
-  const [search, setSearch] = useState('');
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return registros
-      .filter(r => !usedIds.has(r.id))
-      .filter(r =>
-        !q ||
-        (r.consecutivo  || '').toLowerCase().includes(q) ||
-        (r.loteNombre   || '').toLowerCase().includes(q) ||
-        (r.grupo        || '').toLowerCase().includes(q) ||
-        (r.bloque       || '').toLowerCase().includes(q),
-      );
-  }, [registros, usedIds, search]);
+  const filtered = useMemo(
+    () => registros.filter(r => !usedIds.has(r.id)),
+    [registros, usedIds],
+  );
 
   const toggle = (reg) => {
     const already = selected.find(s => s.id === reg.id);
@@ -195,12 +175,6 @@ function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
           ))}
         </div>
       )}
-      <input
-        className="dsp-boletas-search"
-        placeholder="Buscar boleta por consecutivo, lote…"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
       <div className="dsp-boletas-list">
           {filtered.length === 0 ? (
             <span className="dsp-boletas-empty">Sin boletas de cosecha disponibles</span>
@@ -248,38 +222,6 @@ function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
   );
 }
 
-// ── Diálogo de anulación inline ────────────────────────────────────────────────
-function AnularDialog({ despacho, onConfirm, onCancel }) {
-  const [nota, setNota] = useState('');
-  return (
-    <div className="dsp-anular-dialog">
-      <div className="dsp-anular-header">
-        <FiAlertTriangle size={14} />
-        <span>Anular {despacho.consecutivo} — esta acción no se puede deshacer.</span>
-      </div>
-      <div className="hor-field" style={{ margin: '8px 0' }}>
-        <label>Motivo (opcional)</label>
-        <input
-          type="text"
-          value={nota}
-          onChange={e => setNota(e.target.value)}
-          placeholder="Razón de la anulación…"
-          autoFocus
-          onKeyDown={e => { if (e.key === 'Enter') onConfirm(nota); if (e.key === 'Escape') onCancel(); }}
-        />
-      </div>
-      <div className="dsp-anular-actions">
-        <button type="button" className="btn btn-danger" onClick={() => onConfirm(nota)}>
-          Confirmar anulación
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>
-          Cancelar
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function DespachosCosecha() {
   const apiFetch = useApiFetch();
@@ -292,10 +234,8 @@ export default function DespachosCosecha() {
   const [despachos,       setDespachos]       = useState([]);
   const [loading,         setLoading]         = useState(true);
 
-  const [showForm,   setShowForm]   = useState(false);
-  const [saving,     setSaving]     = useState(false);
-  const [anulandoId, setAnulandoId] = useState(null);
-  const [toast,      setToast]      = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [toast,  setToast]  = useState(null);
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
@@ -372,7 +312,7 @@ export default function DespachosCosecha() {
   const handleDespachador = makeUserHandler('despachadorId', 'despachadorNombre');
   const handleEncargado   = makeUserHandler('encargadoId',   'encargadoNombre');
 
-  const resetForm = () => { setForm(emptyForm()); setShowForm(false); };
+  const resetForm = () => setForm(emptyForm());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -398,25 +338,6 @@ export default function DespachosCosecha() {
     }
   };
 
-  const handleAnular = async (id, notaAnulacion) => {
-    try {
-      const res = await apiFetch(`/api/cosecha/despachos/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'anulado', notaAnulacion: notaAnulacion || '' }),
-      });
-      if (!res.ok) throw new Error();
-      setDespachos(prev =>
-        prev.map(d => d.id === id ? { ...d, estado: 'anulado', notaAnulacion } : d),
-      );
-      showToast('Despacho anulado.');
-    } catch {
-      showToast('Error al anular.', 'error');
-    } finally {
-      setAnulandoId(null);
-    }
-  };
-
   if (loading) {
     return (
       <div className="ficha-page-loading">
@@ -431,26 +352,19 @@ export default function DespachosCosecha() {
 
       <div className="hor-toolbar">
         <h1 className="hor-page-title">Despacho de Cosecha</h1>
-        {!showForm && (
-          <button className="btn btn-primary" onClick={() => { setForm(emptyForm()); setShowForm(true); }}>
-            <FiPlus size={15} /> Nuevo despacho
-          </button>
-        )}
       </div>
 
       {/* ── Formulario ────────────────────────────────────────────────────── */}
-      {showForm && (
-        <div className="hor-form-card">
-          <div className="hor-form-header">
-            <span>Nuevo despacho de cosecha</span>
-            <button className="icon-btn" onClick={resetForm} title="Cancelar">
-              <FiX size={16} />
-            </button>
-          </div>
+      <div className="hor-form-card">
+        <div className="hor-form-header">
+          <span>Nuevo despacho de cosecha</span>
+          <button className="icon-btn" onClick={resetForm} title="Limpiar formulario">
+            <FiX size={16} />
+          </button>
+        </div>
 
           <form onSubmit={handleSubmit} style={{ padding: '16px 18px' }}>
 
-            <p className="hor-section-label">Fecha y lote</p>
             <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
                 <label>Fecha *</label>
@@ -465,7 +379,6 @@ export default function DespachosCosecha() {
               </div>
             </div>
 
-            <p className="hor-section-label">Transporte</p>
             <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
                 <label>Operario de camión</label>
@@ -512,7 +425,6 @@ export default function DespachosCosecha() {
               </div>
             </div>
 
-            <p className="hor-section-label">Carga</p>
             <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
                 <label>Cantidad *</label>
@@ -539,7 +451,6 @@ export default function DespachosCosecha() {
               </div>
             </div>
 
-            <p className="hor-section-label">Responsables</p>
             <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
                 <label>Despachador</label>
@@ -566,7 +477,6 @@ export default function DespachosCosecha() {
             <p className="hor-section-label">Observaciones</p>
             <div className="hor-form-grid">
               <div className="hor-field hor-field--full">
-                <label>Nota</label>
                 <textarea
                   name="nota"
                   value={form.nota}
@@ -583,94 +493,12 @@ export default function DespachosCosecha() {
                 {saving ? 'Guardando…' : 'Registrar despacho'}
               </button>
               <button type="button" className="btn btn-secondary" onClick={resetForm}>
-                Cancelar
+                Limpiar
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* ── Lista de despachos ─────────────────────────────────────────────── */}
-      <div className="hor-form-card">
-        <div className="hor-form-header">
-          <span>Despachos registrados {despachos.length > 0 && `(${despachos.length})`}</span>
-        </div>
-        <div style={{ padding: '12px 18px' }}>
-          {despachos.length === 0 ? (
-            <p className="empty-state">No hay despachos registrados aún.</p>
-          ) : (
-            <ul className="info-list">
-              {despachos.map(d => (
-                <li key={d.id} className={d.estado === 'anulado' ? 'dsp-item--anulado' : ''}>
-                  <div className="dsp-item-content">
-
-                    {/* Primera línea: consecutivo + badge */}
-                    <div className="dsp-item-row">
-                      <span className="dsp-consec">{d.consecutivo}</span>
-                      {d.estado === 'anulado'
-                        ? <span className="dsp-badge dsp-badge--anulado">Anulado</span>
-                        : <span className="dsp-badge dsp-badge--activo">Activo</span>}
-                    </div>
-
-                    {/* Segunda línea: fecha + lote + placa */}
-                    <div className="item-main-text">
-                      {fmt(d.fecha)}
-                      {d.loteNombre ? ` — ${d.loteNombre}` : ''}
-                      {d.placaCamion ? ` · Placa: ${d.placaCamion}` : ''}
-                    </div>
-
-                    {/* Meta: cantidad, operarios */}
-                    <div className="dsp-item-meta">
-                      {d.cantidad != null && <span>{num(d.cantidad)} {d.unidad || ''}</span>}
-                      {d.operarioCamionNombre && <span>· Op. camión: {d.operarioCamionNombre}</span>}
-                      {d.despachadorNombre    && <span>· Despachador: {d.despachadorNombre}</span>}
-                      {d.encargadoNombre      && <span>· Encargado: {d.encargadoNombre}</span>}
-                    </div>
-
-                    {/* Boletas vinculadas */}
-                    {d.boletas?.length > 0 && (
-                      <div className="dsp-boletas-tags">
-                        {d.boletas.map(b => (
-                          <span key={b.id} className="dsp-boleta-tag">{b.consecutivo}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Nota de anulación */}
-                    {d.estado === 'anulado' && d.notaAnulacion && (
-                      <div className="dsp-nota-anulacion">Motivo: {d.notaAnulacion}</div>
-                    )}
-
-                    {/* Nota general */}
-                    {d.nota && <div className="dsp-nota">{d.nota}</div>}
-
-                    {/* Diálogo inline de anulación */}
-                    {anulandoId === d.id && (
-                      <AnularDialog
-                        despacho={d}
-                        onConfirm={(nota) => handleAnular(d.id, nota)}
-                        onCancel={() => setAnulandoId(null)}
-                      />
-                    )}
-                  </div>
-
-                  {/* Acción Anular (solo para activos y cuando no hay diálogo abierto) */}
-                  {d.estado !== 'anulado' && anulandoId !== d.id && (
-                    <div className="lote-actions">
-                      <button
-                        className="btn btn-secondary dsp-btn-anular"
-                        onClick={() => setAnulandoId(d.id)}
-                      >
-                        Anular
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </div>
+
     </div>
   );
 }

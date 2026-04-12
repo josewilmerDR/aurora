@@ -59,6 +59,7 @@ import CosechaProyeccion from './pages/CosechaProyeccion';
 import CosechaHistorial from './pages/CosechaHistorial';
 import CosechaRegistro from './pages/CosechaRegistro';
 import DespachosCosecha from './pages/DespachosCosecha';
+import CosechaHistorialDespacho from './pages/CosechaHistorialDespacho';
 import CentroCostos from './pages/CentroCostos';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
@@ -141,6 +142,7 @@ const routeTitles = {
   '/cosecha/despacho': 'Despacho de Cosecha',
   '/cosecha/proyeccion': 'Proyección de Cosecha',
   '/cosecha/historial': 'Historial de Cosecha',
+  '/cosecha/historial-despachos': 'Historial de Despachos',
   '/operaciones/horimetro': 'Horímetros',
   '/operaciones/horimetro/registro': 'Registro de Horímetro',
   '/operaciones/horimetro/historial': 'Historial de Horímetros',
@@ -477,6 +479,7 @@ function App() {
             <Route path="/cosecha/despacho" element={<RoleRoute path="/cosecha/despacho"><DespachosCosecha /></RoleRoute>} />
             <Route path="/cosecha/proyeccion" element={<RoleRoute path="/cosecha/proyeccion"><CosechaProyeccion /></RoleRoute>} />
             <Route path="/cosecha/historial" element={<RoleRoute path="/cosecha/historial"><CosechaHistorial /></RoleRoute>} />
+            <Route path="/cosecha/historial-despachos" element={<RoleRoute path="/cosecha/historial-despachos"><CosechaHistorialDespacho /></RoleRoute>} />
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
             <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
