@@ -57,7 +57,7 @@ import SiembraMateriales from './pages/SiembraMateriales';
 import SiembraHistorial from './pages/SiembraHistorial';
 import CosechaProyeccion from './pages/CosechaProyeccion';
 import CosechaHistorial from './pages/CosechaHistorial';
-import RegistroCosecha from './pages/RegistroCosecha';
+import CosechaRegistro from './pages/CosechaRegistro';
 import DespachosCosecha from './pages/DespachosCosecha';
 import CentroCostos from './pages/CentroCostos';
 import AutopilotDashboard from './pages/AutopilotDashboard';
@@ -473,7 +473,7 @@ function App() {
             <Route path="/siembra" element={<RoleRoute path="/siembra"><Siembra /></RoleRoute>} />
             <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
-            <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><RegistroCosecha /></RoleRoute>} />
+            <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><CosechaRegistro /></RoleRoute>} />
             <Route path="/cosecha/despacho" element={<RoleRoute path="/cosecha/despacho"><DespachosCosecha /></RoleRoute>} />
             <Route path="/cosecha/proyeccion" element={<RoleRoute path="/cosecha/proyeccion"><CosechaProyeccion /></RoleRoute>} />
             <Route path="/cosecha/historial" element={<RoleRoute path="/cosecha/historial"><CosechaHistorial /></RoleRoute>} />

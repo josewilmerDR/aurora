@@ -8,21 +8,36 @@ const router = Router();
 // ── Validación de payload de registro de cosecha ─────────────────────────────
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function todayISO() {
-  // Día actual en UTC. Se compara lexicográficamente contra `fecha` (YYYY-MM-DD).
-  return new Date().toISOString().slice(0, 10);
+// Validación estricta: rechaza fechas inexistentes como "2026-02-30"
+// (que `new Date()` normalizaría silenciosamente a otra fecha real).
+function isValidISODate(s) {
+  if (typeof s !== 'string' || !FECHA_RE.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
+}
+
+// Límite superior del rango permitido para `fecha`. Usa "mañana UTC" como tope
+// para tolerar la diferencia de zona horaria entre el cliente (hora local) y
+// el servidor (UTC) — evita rechazar una fecha válida del día de hoy en el TZ
+// del usuario cuando el UTC aún no ha avanzado al mismo día.
+function maxAllowedFechaISO() {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function validateCosechaPayload(body, { partial = false } = {}) {
-  // fecha — requerida, formato YYYY-MM-DD, estrictamente anterior al día de hoy
+  // fecha — requerida, formato YYYY-MM-DD estricto, no posterior al día actual
   if (!partial || body.fecha !== undefined) {
-    const fecha = body.fecha;
-    if (typeof fecha !== 'string' || !FECHA_RE.test(fecha)) {
+    if (!isValidISODate(body.fecha)) {
       return 'La fecha es requerida en formato YYYY-MM-DD.';
     }
-    const d = new Date(`${fecha}T00:00:00Z`);
-    if (Number.isNaN(d.getTime())) return 'Fecha inválida.';
-    if (fecha > todayISO()) {
+    if (body.fecha > maxAllowedFechaISO()) {
       return 'La fecha no puede ser posterior al día actual.';
     }
   }
@@ -62,6 +77,18 @@ function validateCosechaPayload(body, { partial = false } = {}) {
     const cant = Number(body.cantidad);
     if (!Number.isFinite(cant) || cant <= 0 || cant >= 16384) {
       return 'La cantidad cosechada debe ser mayor a 0 y menor a 16384.';
+    }
+  }
+
+  // cantidadRecibidaPlanta — opcional, ≥ 0 y < 16384 cuando se envía
+  if (
+    body.cantidadRecibidaPlanta !== undefined &&
+    body.cantidadRecibidaPlanta !== null &&
+    body.cantidadRecibidaPlanta !== ''
+  ) {
+    const cr = Number(body.cantidadRecibidaPlanta);
+    if (!Number.isFinite(cr) || cr < 0 || cr >= 16384) {
+      return 'La cantidad recibida en planta debe ser un número entre 0 y 16384.';
     }
   }
 
