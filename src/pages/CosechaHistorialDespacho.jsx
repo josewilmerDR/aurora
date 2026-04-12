@@ -63,7 +63,11 @@ const fmt = (v) => {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
-const num = (v) => (v != null && v !== '' ? Number(v).toLocaleString('es-ES') : '—');
+const num = (v) => {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  return isNaN(n) ? '—' : n.toLocaleString('es-ES');
+};
 
 function getColVal(d, key) {
   switch (key) {
@@ -76,11 +80,36 @@ function getColVal(d, key) {
     case 'unidad':      return (d.unidad || '').toLowerCase();
     case 'despachador': return (d.despachadorNombre || '').toLowerCase();
     case 'encargado':   return (d.encargadoNombre || '').toLowerCase();
-    case 'boletas':     return (d.boletas?.map(b => b.consecutivo).join(', ') || '').toLowerCase();
+    case 'boletas':     return (d.boletas?.map(b => b.consecutivo || '').join(', ') || '').toLowerCase();
     case 'nota':        return (d.nota || '').toLowerCase();
     case 'estado':      return (d.estado || '').toLowerCase();
     default:            return '';
   }
+}
+
+// ── Subcomponente: encabezado ordenable + filtro ────────────────────────────
+function SortTh({ col, children, visibleCols, sortField, sortDir, colFilters, onSort, onFilter }) {
+  if (!visibleCols[col.key]) return null;
+  const isSort  = sortField === col.key;
+  const hasFilt = !!colFilters[col.key];
+  return (
+    <th
+      className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
+      onClick={() => onSort(col.key)}
+    >
+      <span className="sh-th-content">
+        {children}
+        <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+        <span
+          className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
+          onClick={e => onFilter(e, col.key, col.type)}
+          title="Filtrar columna"
+        >
+          <FiFilter size={10} />
+        </span>
+      </span>
+    </th>
+  );
 }
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -190,31 +219,6 @@ export default function CosechaHistorialDespacho() {
     return data;
   }, [despachos, colFilters, sortField, sortDir]);
 
-  // ── Subcomponente: encabezado ordenable + filtro ──────────────────────────
-  const SortTh = ({ col, children }) => {
-    if (!visibleCols[col.key]) return null;
-    const isSort  = sortField === col.key;
-    const hasFilt = !!colFilters[col.key];
-    return (
-      <th
-        className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
-        onClick={() => handleThSort(col.key)}
-      >
-        <span className="sh-th-content">
-          {children}
-          <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
-          <span
-            className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
-            onClick={e => openColFilter(e, col.key, col.type)}
-            title="Filtrar columna"
-          >
-            <FiFilter size={10} />
-          </span>
-        </span>
-      </th>
-    );
-  };
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="sh-layout" style={{ padding: '1.5rem' }}>
@@ -262,7 +266,10 @@ export default function CosechaHistorialDespacho() {
                 <thead>
                   <tr>
                     {COLUMNS.map(col => (
-                      <SortTh key={col.key} col={col}>{col.label}</SortTh>
+                      <SortTh key={col.key} col={col}
+                        visibleCols={visibleCols} sortField={sortField} sortDir={sortDir}
+                        colFilters={colFilters} onSort={handleThSort} onFilter={openColFilter}
+                      >{col.label}</SortTh>
                     ))}
                     <th className="sh-th-settings">
                       <button
@@ -290,7 +297,7 @@ export default function CosechaHistorialDespacho() {
                       {visibleCols.unidad      && <td>{d.unidad               || '—'}</td>}
                       {visibleCols.despachador && <td>{d.despachadorNombre    || '—'}</td>}
                       {visibleCols.encargado   && <td>{d.encargadoNombre      || '—'}</td>}
-                      {visibleCols.boletas     && <td>{d.boletas?.length ? d.boletas.map(b => b.consecutivo).join(', ') : '—'}</td>}
+                      {visibleCols.boletas     && <td>{d.boletas?.length ? d.boletas.map(b => b.consecutivo || '?').join(', ') : '—'}</td>}
                       {visibleCols.nota        && <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#8ba5bf' }} title={d.nota || ''}>{d.nota || '—'}</td>}
                       {visibleCols.estado      && <td>
                         {d.estado === 'anulado'
