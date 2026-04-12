@@ -1,8 +1,40 @@
-@import './HistorialAplicaciones.css';
+@import './LoteManagement.css';
+
+/* ── Page layout ─────────────────────────────────────────────────────────── */
+.cosecha-proyeccion-page {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cosecha-proyeccion-page .ch-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cosecha-proyeccion-page .ch-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--aurora-light);
+  margin: 0 0 0.2rem;
+}
 
 /* ── Tabla ────────────────────────────────────────────────────────────────── */
 .proyeccion-table {
   min-width: 880px;
+}
+
+.cosecha-proyeccion-page .siembra-table td {
+  white-space: nowrap;
+  padding: 4px 8px;
+  line-height: 1.3;
+}
+
+.cosecha-proyeccion-page .siembra-table th {
+  padding: 5px 8px;
 }
 
 .proyeccion-td-num {
@@ -32,4 +64,21 @@
   color: var(--aurora-light);
   opacity: 0.3;
   font-style: italic;
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cosecha-proyeccion-page {
+    padding: 0.75rem;
+  }
+
+  /* Siembra.css sets .siembra-table-wrapper { overflow-x: visible } at 640px;
+     override to restore horizontal scroll for this wide table */
+  .cosecha-proyeccion-page .siembra-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .cosecha-proyeccion-page .ch-header {
+    flex-wrap: wrap;
+  }
 }
