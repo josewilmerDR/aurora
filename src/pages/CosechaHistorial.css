@@ -188,3 +188,30 @@
 .ch-inline-ok:hover { background: rgba(51,255,153,0.12); }
 .ch-inline-cancel { color: #e55b5b; }
 .ch-inline-cancel:hover { background: rgba(229,91,91,0.12); }
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cosecha-page {
+    padding: 0.75rem;
+  }
+
+  .ch-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .ch-header .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Restore horizontal scroll lost by Siembra.css generic override */
+  .cosecha-page .siembra-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .cosecha-page .siembra-table .td-nota {
+    min-width: 200px;
+    max-width: 200px;
+  }
+}

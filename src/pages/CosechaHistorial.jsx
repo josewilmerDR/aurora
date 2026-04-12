@@ -142,12 +142,17 @@ function NotaCell({ text }) {
 // ── Inline-editable cell for cantidadRecibidaPlanta ──────────────────────────
 function InlineRecibido({ value, onSave }) {
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving]   = useState(false);
   const [val, setVal]         = useState('');
   const inputRef              = useRef(null);
 
   const open   = () => { setVal(value ?? ''); setEditing(true); };
   const cancel = () => setEditing(false);
-  const save   = () => { onSave(val); setEditing(false); };
+  const save   = async () => {
+    if (saving) return;
+    setSaving(true);
+    try { await onSave(val); } finally { setSaving(false); setEditing(false); }
+  };
 
   useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
 
@@ -163,9 +168,10 @@ function InlineRecibido({ value, onSave }) {
           onChange={e => setVal(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
           className="ch-inline-input"
+          disabled={saving}
         />
-        <button className="ch-inline-ok"     onClick={save}   title="Guardar">✓</button>
-        <button className="ch-inline-cancel" onClick={cancel} title="Cancelar">✕</button>
+        <button className="ch-inline-ok"     onClick={save}   title="Guardar" disabled={saving}>✓</button>
+        <button className="ch-inline-cancel" onClick={cancel} title="Cancelar" disabled={saving}>✕</button>
       </span>
     );
   }
@@ -249,7 +255,8 @@ export default function CosechaHistorial() {
 
   // ── Actualización inline de "recibido en planta" ──────────────────────────
   const handleRecibido = async (reg, rawVal) => {
-    const cantidadRecibidaPlanta = rawVal !== '' ? parseFloat(rawVal) : null;
+    const parsed = rawVal !== '' ? parseFloat(rawVal) : null;
+    const cantidadRecibidaPlanta = parsed != null && !isNaN(parsed) ? parsed : null;
     try {
       const res = await apiFetch(`/api/cosecha/registros/${reg.id}`, {
         method: 'PUT',
@@ -311,11 +318,11 @@ export default function CosechaHistorial() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="sh-layout cosecha-page" style={{ padding: '1.5rem' }}>
+    <div className="sh-layout cosecha-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* ── Encabezado ──────────────────────────────────────────────────── */}
-      <div className="ch-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="ch-header">
         <div>
           <h1 className="ch-title">Historial de Cosecha</h1>
         </div>
@@ -358,18 +365,23 @@ export default function CosechaHistorial() {
                         colFilters={colFilters} onSort={handleThSort} onFilter={openColFilter}
                       >{col.label}</SortTh>
                     ))}
-                    <th className="sh-th-settings">
-                      <button
-                        className={`sh-col-toggle-btn${Object.values(visibleCols).some(v=>!v) ? ' sh-col-toggle-btn--active' : ''}`}
-                        onClick={handleColBtnClick}
-                        title="Personalizar columnas"
-                      >
-                        <FiSliders size={12} />
-                        {Object.values(visibleCols).filter(v=>!v).length > 0 && (
-                          <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v=>!v).length}</span>
-                        )}
-                      </button>
-                    </th>
+                    {(() => {
+                      const hiddenCount = Object.values(visibleCols).filter(v => !v).length;
+                      return (
+                        <th className="sh-th-settings">
+                          <button
+                            className={`sh-col-toggle-btn${hiddenCount > 0 ? ' sh-col-toggle-btn--active' : ''}`}
+                            onClick={handleColBtnClick}
+                            title="Personalizar columnas"
+                          >
+                            <FiSliders size={12} />
+                            {hiddenCount > 0 && (
+                              <span className="sh-col-hidden-badge">{hiddenCount}</span>
+                            )}
+                          </button>
+                        </th>
+                      );
+                    })()}
                   </tr>
                 </thead>
                 <tbody>
@@ -411,7 +423,7 @@ export default function CosechaHistorial() {
       {filterPopover && createPortal(
         <>
           <div className="sh-filter-backdrop" onClick={() => setFilterPopover(null)} />
-          <div className="sh-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
+          <div className="sh-filter-popover" style={{ left: Math.min(filterPopover.x, window.innerWidth - 220), top: filterPopover.y }}>
             {filterPopover.type === 'text' ? (
               <>
                 <FiFilter size={13} className="sh-filter-icon" />
