@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { FiX, FiCheck } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiX, FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
-import './DespachosCosecha.css';
+import './CosechaDespachos.css';
 
 // ── Combobox genérico ─────────────────────────────────────────────────────────
 function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
@@ -217,7 +218,7 @@ const MAX_NOTA       = 288;
 const MAX_CANTIDAD   = 32768;
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export default function DespachosCosecha() {
+export default function CosechaDespachos() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
 
@@ -379,6 +380,9 @@ export default function DespachosCosecha() {
 
       <div className="hor-toolbar">
         <h1 className="hor-page-title">Despacho de Cosecha</h1>
+        <Link to="/cosecha/historial-despachos" className="btn btn-secondary">
+          <FiClock size={14} /> Historial
+        </Link>
       </div>
 
       {/* ── Formulario ────────────────────────────────────────────────────── */}
