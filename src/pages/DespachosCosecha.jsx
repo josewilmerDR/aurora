@@ -184,32 +184,20 @@ function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
               return (
                 <div
                   key={reg.id}
+                  className={`dsp-boleta-item${checked ? ' dsp-boleta-item--checked' : ''}`}
                   onClick={() => toggle(reg)}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '6px 10px',
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #1e3348',
-                    background: checked ? 'rgba(51,255,153,0.06)' : 'transparent',
-                  }}
                 >
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggle(reg)}
                     onClick={e => e.stopPropagation()}
-                    style={{ accentColor: '#33ff99', flexShrink: 0, margin: 0, width: 'auto' }}
                   />
-                  <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: '#33ff99', whiteSpace: 'nowrap' }}>
+                  <span className="dsp-boleta-consec">
                     {reg.consecutivo}
                   </span>
                   {reg.cantidad != null && (
-                    <span style={{ fontSize: '0.82rem', color: '#e6f2ff', whiteSpace: 'nowrap' }}>
+                    <span className="dsp-boleta-qty">
                       {Number(reg.cantidad).toLocaleString('es-ES')} {reg.unidad || ''}
                     </span>
                   )}
@@ -221,6 +209,12 @@ function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
     </div>
   );
 }
+
+// ── Constantes de validación ─────────────────────────────────────────────────
+const MAX_OPERARIO   = 48;
+const MAX_PLACA      = 12;
+const MAX_NOTA       = 288;
+const MAX_CANTIDAD   = 32768;
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function DespachosCosecha() {
@@ -239,8 +233,10 @@ export default function DespachosCosecha() {
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
   const emptyForm = useCallback(() => ({
-    fecha:                new Date().toISOString().slice(0, 10),
+    fecha:                today,
     loteId:               '',
     loteNombre:           '',
     operarioCamionNombre: '',
@@ -254,16 +250,17 @@ export default function DespachosCosecha() {
     encargadoId:          '',
     encargadoNombre:      '',
     nota:                 '',
-  }), [currentUser]);
+  }), [currentUser, today]);
 
   const [form, setForm] = useState(() => emptyForm());
 
   // ── Carga ─────────────────────────────────────────────────────────────────
-  const fetchDespachos = () =>
+  const fetchDespachos = useCallback(() =>
     apiFetch('/api/cosecha/despachos')
       .then(r => r.json())
       .then(data => setDespachos(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => {}),
+  [apiFetch]);
 
   useEffect(() => {
     Promise.all([
@@ -314,10 +311,40 @@ export default function DespachosCosecha() {
 
   const resetForm = () => setForm(emptyForm());
 
+  const usedBoletaIds = useMemo(
+    () => new Set(
+      despachos
+        .filter(d => d.estado !== 'anulado')
+        .flatMap(d => (d.boletas || []).map(b => b.id)),
+    ),
+    [despachos],
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.fecha || !form.loteId || !form.cantidad) {
       showToast('Fecha, lote y cantidad son obligatorios.', 'error');
+      return;
+    }
+    if (form.fecha > today) {
+      showToast('La fecha no puede ser futura.', 'error');
+      return;
+    }
+    const cantNum = parseFloat(form.cantidad);
+    if (isNaN(cantNum) || cantNum < 0 || cantNum > MAX_CANTIDAD) {
+      showToast(`Cantidad debe estar entre 0 y ${MAX_CANTIDAD}.`, 'error');
+      return;
+    }
+    if (form.operarioCamionNombre.length > MAX_OPERARIO) {
+      showToast(`Operario: máx. ${MAX_OPERARIO} caracteres.`, 'error');
+      return;
+    }
+    if (form.placaCamion.length > MAX_PLACA) {
+      showToast(`Placa: máx. ${MAX_PLACA} caracteres.`, 'error');
+      return;
+    }
+    if (form.nota.length > MAX_NOTA) {
+      showToast(`Observaciones: máx. ${MAX_NOTA} caracteres.`, 'error');
       return;
     }
     setSaving(true);
@@ -368,7 +395,7 @@ export default function DespachosCosecha() {
             <div className="hor-form-grid hor-grid-2">
               <div className="hor-field">
                 <label>Fecha *</label>
-                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
+                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} max={today} required />
               </div>
               <div className="hor-field">
                 <label>Lote *</label>
@@ -388,6 +415,7 @@ export default function DespachosCosecha() {
                   value={form.operarioCamionNombre}
                   onChange={handleChange}
                   placeholder="Nombre del chofer…"
+                  maxLength={MAX_OPERARIO}
                 />
               </div>
               <div className="hor-field">
@@ -398,6 +426,7 @@ export default function DespachosCosecha() {
                   value={form.placaCamion}
                   onChange={handleChange}
                   placeholder="Ej. ABC-123"
+                  maxLength={MAX_PLACA}
                 />
               </div>
             </div>
@@ -407,11 +436,7 @@ export default function DespachosCosecha() {
               <div className="hor-field hor-field--full">
                 <BoletasSelect
                   registros={registrosCosecha}
-                  usedIds={new Set(
-                    despachos
-                      .filter(d => d.estado !== 'anulado')
-                      .flatMap(d => (d.boletas || []).map(b => b.id))
-                  )}
+                  usedIds={usedBoletaIds}
                   selected={form.boletas}
                   onChange={(boletas) => {
                     const suma = boletas.reduce((acc, b) => acc + (parseFloat(b.cantidad) || 0), 0);
@@ -432,6 +457,7 @@ export default function DespachosCosecha() {
                   type="number"
                   name="cantidad"
                   min="0"
+                  max={MAX_CANTIDAD}
                   step="any"
                   value={form.cantidad}
                   onChange={handleChange}
@@ -483,6 +509,7 @@ export default function DespachosCosecha() {
                   onChange={handleChange}
                   placeholder="Observaciones adicionales…"
                   rows={2}
+                  maxLength={MAX_NOTA}
                 />
               </div>
             </div>

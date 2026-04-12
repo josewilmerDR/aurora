@@ -204,6 +204,11 @@
 .dsp-boleta-item input[type="checkbox"] {
   accent-color: var(--aurora-green);
   flex-shrink: 0;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
 }
 
 .dsp-boleta-consec {
