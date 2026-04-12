@@ -168,10 +168,18 @@ function PackageManagement() {
   };
 
   const addActivity = () => {
-    setFormData(prev => ({
-      ...prev,
-      activities: [...prev.activities, { day: '', name: '', responsableId: '', calibracionId: '', productos: [] }]
-    }));
+    setFormData(prev => {
+      const newIndex = prev.activities.length;
+      setExpandedActivities(exp => {
+        const next = new Set(exp);
+        next.add(newIndex);
+        return next;
+      });
+      return {
+        ...prev,
+        activities: [...prev.activities, { day: '', name: '', responsableId: '', calibracionId: '', productos: [] }]
+      };
+    });
   };
 
   const duplicateActivity = (index) => {
@@ -211,6 +219,10 @@ function PackageManagement() {
     const updatedActivities = [...formData.activities];
     const existing = updatedActivities[activityIndex].productos || [];
     if (existing.find(p => p.productoId === productoId)) return;
+    if (existing.length >= 24) {
+      showToast('Máximo 24 productos por aplicación.', 'error');
+      return;
+    }
     updatedActivities[activityIndex] = {
       ...updatedActivities[activityIndex],
       productos: [
@@ -218,7 +230,7 @@ function PackageManagement() {
         {
           productoId: producto.id,
           nombreComercial: producto.nombreComercial,
-          cantidadPorHa: 0,
+          cantidadPorHa: '',
           unidad: producto.unidad,
           periodoReingreso: producto.periodoReingreso,
           periodoACosecha: producto.periodoACosecha,
@@ -242,7 +254,7 @@ function PackageManagement() {
     updatedActivities[activityIndex] = {
       ...updatedActivities[activityIndex],
       productos: updatedActivities[activityIndex].productos.map(p =>
-        p.productoId === productoId ? { ...p, cantidadPorHa: parseFloat(newCantidad) || 0 } : p
+        p.productoId === productoId ? { ...p, cantidadPorHa: newCantidad } : p
       ),
     };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
@@ -284,7 +296,7 @@ function PackageManagement() {
     setIsEditing(true);
     setIsFormOpen(true);
     setSelectedPkg(null);
-    setExpandedActivities(new Set());
+    setExpandedActivities(new Set(normalizedActivities.map((_, i) => i)));
     window.scrollTo(0, 0);
   };
 
@@ -297,11 +309,19 @@ function PackageManagement() {
   };
 
   const handleNew = () => {
-    setFormData({ id: null, nombrePaquete: '', descripcion: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
+    setFormData({
+      id: null,
+      nombrePaquete: '',
+      descripcion: '',
+      tipoCosecha: '',
+      etapaCultivo: '',
+      tecnicoResponsable: '',
+      activities: [{ day: '', name: '', responsableId: '', calibracionId: '', productos: [] }],
+    });
     setIsEditing(false);
     setIsFormOpen(true);
     setSelectedPkg(null);
-    setExpandedActivities(new Set());
+    setExpandedActivities(new Set([0]));
   };
 
   const handleSelectPkg = (pkg) => {
@@ -315,6 +335,37 @@ function PackageManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validaciones de entradas
+    if ((formData.descripcion || '').length > 1024) {
+      showToast('La descripción no puede superar 1024 caracteres.', 'error');
+      return;
+    }
+    if ((formData.tecnicoResponsable || '').length > 48) {
+      showToast('El técnico responsable no puede superar 48 caracteres.', 'error');
+      return;
+    }
+    for (let i = 0; i < formData.activities.length; i++) {
+      const a = formData.activities[i];
+      const day = Number(a.day);
+      if (!Number.isFinite(day) || day < 0 || day > 1825) {
+        showToast(`Actividad ${i + 1}: el día debe estar entre 0 y 1825.`, 'error');
+        return;
+      }
+      const prods = a.productos || [];
+      if (prods.length > 24) {
+        showToast(`Actividad ${i + 1}: máximo 24 productos por aplicación.`, 'error');
+        return;
+      }
+      for (const p of prods) {
+        const cant = Number(p.cantidadPorHa);
+        if (!Number.isFinite(cant) || cant <= 0 || cant >= 1024) {
+          showToast(`Actividad ${i + 1}: la cantidad de "${p.nombreComercial}" debe ser mayor a 0 y menor a 1024.`, 'error');
+          return;
+        }
+      }
+    }
+
     const url = isEditing ? `/api/packages/${formData.id}` : '/api/packages';
     const method = isEditing ? 'PUT' : 'POST';
     const sortedActivities = [...formData.activities].sort((a, b) => Number(a.day) - Number(b.day));
@@ -323,6 +374,7 @@ function PackageManagement() {
       activities: sortedActivities.map(a => ({
         ...a,
         type: (a.productos && a.productos.length > 0) ? 'aplicacion' : 'notificacion',
+        productos: (a.productos || []).map(p => ({ ...p, cantidadPorHa: Number(p.cantidadPorHa) })),
       })),
     };
     try {
@@ -438,7 +490,7 @@ function PackageManagement() {
         <div className="pkg-empty-state">
           <FiPackage size={36} />
           <p>No hay paquetes de aplicaciones creados aún.</p>
-          <button className="btn btn-primary" onClick={() => setIsFormOpen(true)}>
+          <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus size={15} /> Crear el primero
           </button>
         </div>
@@ -499,6 +551,7 @@ function PackageManagement() {
                 onChange={handleInputChange}
                 placeholder="Ej: Paquete para la etapa inicial de desarrollo, incluye aplicaciones preventivas contra hongos y fertilización base."
                 rows={3}
+                maxLength={1024}
               />
             </div>
             <div className="form-control">
@@ -528,6 +581,7 @@ function PackageManagement() {
                 value={formData.tecnicoResponsable}
                 onChange={handleInputChange}
                 placeholder="Nombre del técnico responsable"
+                maxLength={48}
               />
             </div>
           </div>
@@ -549,7 +603,7 @@ function PackageManagement() {
                 {formData.activities.map((activity, index) => (
                   <>
                     <tr key={`row-${index}`}>
-                      <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" required /></td>
+                      <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" min={0} max={1825} required /></td>
                       <td>
                         <div
                           className="activity-name-cell"
@@ -607,7 +661,8 @@ function PackageManagement() {
                             const precio = parseFloat(cat?.precioUnitario) || 0;
                             if (precio <= 0) return;
                             const mon = cat?.moneda || 'USD';
-                            totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
+                            const qty = parseFloat(p.cantidadPorHa) || 0;
+                            totals[mon] = (totals[mon] || 0) + qty * precio;
                           });
                           const entries = Object.entries(totals);
                           if (entries.length === 0) return <span className="activity-cost-empty">—</span>;
@@ -659,18 +714,20 @@ function PackageManagement() {
                                 const catProd = productos.find(cp => cp.id === p.productoId);
                                 const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
                                 const moneda = catProd?.moneda || '';
-                                const precioTotal = (p.cantidadPorHa || 0) * precioUnitario;
+                                const qty = parseFloat(p.cantidadPorHa) || 0;
+                                const precioTotal = qty * precioUnitario;
                                 return (
                                   <span key={p.productoId} className="product-tag">
                                     <strong>{p.nombreComercial}</strong>
                                     <input
                                       type="number"
                                       step="0.01"
-                                      min="0"
+                                      min="0.01"
+                                      max="1023.99"
                                       value={p.cantidadPorHa}
                                       onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
                                       className="product-tag-qty"
-                                      title="Cantidad por Ha"
+                                      title="Cantidad por Ha (> 0 y < 1024)"
                                       data-prod-qty={`${index}-${p.productoId}`}
                                     />
                                     <span className="product-tag-unit">{p.unidad}/Ha</span>
