@@ -13,7 +13,26 @@ const fmt = (v) => {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-const num = (v) => (v != null && v !== '' ? Number(v).toLocaleString('es-ES') : '—');
+const num = (v) => {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  return isNaN(n) ? '—' : n.toLocaleString('es-ES');
+};
+
+// ── Subcomponente: encabezado de columna ordenable ──────────────────────────
+const Th = ({ field, label, className = '', sortField, sortDir, onSort }) => (
+  <th
+    className={`ch-th ch-th-sortable ${className}`}
+    onClick={() => onSort(field)}
+  >
+    {label}
+    {sortField === field
+      ? (sortDir === 'asc'
+          ? <FiChevronUp   className="ch-sort-icon ch-sort-active" />
+          : <FiChevronDown className="ch-sort-icon ch-sort-active" />)
+      : <FiChevronUp className="ch-sort-icon ch-sort-inactive" />}
+  </th>
+);
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function CosechaHistorialDespacho() {
@@ -66,21 +85,6 @@ export default function CosechaHistorialDespacho() {
       });
   }, [despachos, search, sortField, sortDir]);
 
-  // ── Subcomponente: encabezado de columna ordenable ────────────────────────
-  const Th = ({ field, label, className = '' }) => (
-    <th
-      className={`ch-th ch-th-sortable ${className}`}
-      onClick={() => toggleSort(field)}
-    >
-      {label}
-      {sortField === field
-        ? (sortDir === 'asc'
-            ? <FiChevronUp   className="ch-sort-icon ch-sort-active" />
-            : <FiChevronDown className="ch-sort-icon ch-sort-active" />)
-        : <FiChevronUp className="ch-sort-icon ch-sort-inactive" />}
-    </th>
-  );
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="cosecha-page">
@@ -126,18 +130,18 @@ export default function CosechaHistorialDespacho() {
           <table className="ch-table">
             <thead>
               <tr>
-                <Th field="consecutivo"          label="Consec." />
-                <Th field="fecha"                label="Fecha" />
-                <Th field="loteNombre"           label="Lote" />
-                <Th field="operarioCamionNombre" label="Op. camión" />
-                <Th field="placaCamion"          label="Placa" />
-                <Th field="cantidad"             label="Cantidad" className="ch-th-num" />
-                <Th field="unidad"               label="Unidad" />
-                <Th field="despachadorNombre"    label="Despachador" />
-                <Th field="encargadoNombre"      label="Encargado" />
+                <Th field="consecutivo"          label="Consec."      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="fecha"                label="Fecha"        sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="loteNombre"           label="Lote"         sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="operarioCamionNombre" label="Op. camión"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="placaCamion"          label="Placa"        sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="cantidad"             label="Cantidad"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} className="ch-th-num" />
+                <Th field="unidad"               label="Unidad"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="despachadorNombre"    label="Despachador"  sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <Th field="encargadoNombre"      label="Encargado"    sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <th className="ch-th">Boletas</th>
                 <th className="ch-th">Nota</th>
-                <Th field="estado"               label="Estado" />
+                <Th field="estado"               label="Estado"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
@@ -154,7 +158,7 @@ export default function CosechaHistorialDespacho() {
                   <td className="ch-td">{d.encargadoNombre      || '—'}</td>
                   <td className="ch-td">
                     {d.boletas?.length
-                      ? d.boletas.map(b => b.consecutivo).join(', ')
+                      ? d.boletas.map(b => b.consecutivo || '?').join(', ')
                       : '—'}
                   </td>
                   <td className="ch-td ch-nota" title={d.nota || ''}>{d.nota || '—'}</td>
