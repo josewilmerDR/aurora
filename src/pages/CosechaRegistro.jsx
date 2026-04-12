@@ -140,12 +140,24 @@ const toLocalISODate = (d) => {
 };
 const todayISO = () => toLocalISODate(new Date());
 
+// Validación estricta: rechaza fechas inexistentes como "2026-02-30"
+// (que `new Date()` normalizaría silenciosamente a otra fecha real).
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidISODate = (s) => {
+  if (typeof s !== 'string' || !FECHA_RE.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return (
+    dt.getFullYear() === y &&
+    dt.getMonth() === m - 1 &&
+    dt.getDate() === d
+  );
+};
+
 const CANTIDAD_MAX = 16384;   // exclusivo
 const NOTA_MAX     = 288;     // exclusivo (máx. 287 caracteres)
 
 const makeEmptyForm = () => ({
-  id: null,
-  consecutivo: '',
   fecha: todayISO(),
   loteId: '',
   loteNombre: '',
@@ -163,7 +175,7 @@ const makeEmptyForm = () => ({
   nota: '',
 });
 
-export default function RegistroCosecha() {
+export default function CosechaRegistro() {
   const apiFetch = useApiFetch();
 
   const [lotes, setLotes]         = useState([]);
@@ -180,6 +192,7 @@ export default function RegistroCosecha() {
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
+    let alive = true;
     Promise.all([
       apiFetch('/api/lotes').then(r => r.json()),
       apiFetch('/api/grupos').then(r => r.json()),
@@ -188,6 +201,7 @@ export default function RegistroCosecha() {
       apiFetch('/api/users').then(r => r.json()),
       apiFetch('/api/maquinaria').then(r => r.json()),
     ]).then(([lotesData, gruposData, siembrasData, unidadesData, usersData, maqData]) => {
+      if (!alive) return;
       setLotes(Array.isArray(lotesData) ? lotesData : []);
       setGrupos(Array.isArray(gruposData) ? gruposData : []);
       setSiembras(Array.isArray(siembrasData) ? siembrasData : []);
@@ -195,7 +209,8 @@ export default function RegistroCosecha() {
       setUsuarios(Array.isArray(usersData) ? usersData.filter(u => u.empleadoPlanilla) : []);
       setMaquinaria(Array.isArray(maqData) ? maqData : []);
     }).catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived lists (lote → grupo → bloque) ──
@@ -307,9 +322,9 @@ export default function RegistroCosecha() {
   };
 
   const validateForm = () => {
-    // fecha — requerida, no posterior al día actual
+    // fecha — requerida, existente, no posterior al día actual
     if (!form.fecha) return 'La fecha es requerida.';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) return 'Fecha inválida.';
+    if (!isValidISODate(form.fecha)) return 'Fecha inválida.';
     if (form.fecha > todayISO()) {
       return 'La fecha no puede ser posterior al día actual.';
     }
@@ -343,8 +358,24 @@ export default function RegistroCosecha() {
     }
     setSaving(true);
     try {
-      const payload = { ...form };
-      delete payload.id;
+      // Payload explícito: sólo los campos que el backend persiste
+      // (evita enviar estado local como `unidadId` que el backend descarta).
+      const payload = {
+        fecha: form.fecha,
+        loteId: form.loteId,
+        loteNombre: form.loteNombre,
+        grupo: form.grupo,
+        bloque: form.bloque,
+        cantidad: form.cantidad,
+        unidad: form.unidad,
+        operarioId: form.operarioId,
+        operarioNombre: form.operarioNombre,
+        activoId: form.activoId,
+        activoNombre: form.activoNombre,
+        implementoId: form.implementoId,
+        implementoNombre: form.implementoNombre,
+        nota: form.nota,
+      };
       const res = await apiFetch('/api/cosecha/registros', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
