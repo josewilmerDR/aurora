@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  FiPlus, FiX, FiCheck, FiEdit, FiTrash2,
-} from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './Horimetro.css';
@@ -132,10 +131,22 @@ function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeh
 }
 
 // ── Formulario principal ─────────────────────────────────────────────────────
-const EMPTY_FORM = {
+// Fecha local en formato YYYY-MM-DD (sin shift por UTC)
+const toLocalISODate = (d) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+const todayISO = () => toLocalISODate(new Date());
+
+const CANTIDAD_MAX = 16384;   // exclusivo
+const NOTA_MAX     = 288;     // exclusivo (máx. 287 caracteres)
+
+const makeEmptyForm = () => ({
   id: null,
   consecutivo: '',
-  fecha: new Date().toISOString().slice(0, 10),
+  fecha: todayISO(),
   loteId: '',
   loteNombre: '',
   grupo: '',
@@ -150,7 +161,7 @@ const EMPTY_FORM = {
   implementoId: '',
   implementoNombre: '',
   nota: '',
-};
+});
 
 export default function RegistroCosecha() {
   const apiFetch = useApiFetch();
@@ -161,22 +172,12 @@ export default function RegistroCosecha() {
   const [unidades, setUnidades]   = useState([]);
   const [usuarios, setUsuarios]   = useState([]);
   const [maquinaria, setMaquinaria] = useState([]);
-  const [records, setRecords]     = useState([]);
   const [loading, setLoading]     = useState(true);
 
-  const [form, setForm]           = useState(EMPTY_FORM);
-  const [showForm, setShowForm]   = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm]           = useState(makeEmptyForm);
   const [saving, setSaving]       = useState(false);
   const [toast, setToast]         = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
-
-  // ── Fetch catalogs ──
-  const fetchRecords = () =>
-    apiFetch('/api/cosecha/registros')
-      .then(r => r.json())
-      .then(data => setRecords(Array.isArray(data) ? data : []))
-      .catch(() => {});
 
   useEffect(() => {
     Promise.all([
@@ -195,7 +196,6 @@ export default function RegistroCosecha() {
       setMaquinaria(Array.isArray(maqData) ? maqData : []);
     }).catch(() => {})
       .finally(() => setLoading(false));
-    fetchRecords();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived lists (lote → grupo → bloque) ──
@@ -303,62 +303,61 @@ export default function RegistroCosecha() {
   };
 
   const resetForm = () => {
-    setForm(EMPTY_FORM);
-    setIsEditing(false);
-    setShowForm(false);
+    setForm(makeEmptyForm());
   };
 
-  const handleEdit = (rec) => {
-    const unidadObj = unidades.find(u => u.nombre === rec.unidad);
-    setForm({ ...EMPTY_FORM, ...rec, unidadId: unidadObj ? unidadObj.id : '' });
-    setIsEditing(true);
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este registro de cosecha?')) return;
-    try {
-      const res = await apiFetch(`/api/cosecha/registros/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      showToast('Registro eliminado.');
-      fetchRecords();
-    } catch {
-      showToast('Error al eliminar.', 'error');
+  const validateForm = () => {
+    // fecha — requerida, no posterior al día actual
+    if (!form.fecha) return 'La fecha es requerida.';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) return 'Fecha inválida.';
+    if (form.fecha > todayISO()) {
+      return 'La fecha no puede ser posterior al día actual.';
     }
+    // lote
+    if (!form.loteId || !form.loteId.trim()) return 'El lote es requerido.';
+    // cantidad — > 0 y < 16384
+    const cant = Number(form.cantidad);
+    if (!Number.isFinite(cant) || cant <= 0 || cant >= CANTIDAD_MAX) {
+      return `La cantidad cosechada debe ser mayor a 0 y menor a ${CANTIDAD_MAX}.`;
+    }
+    // nota — < 288 caracteres
+    if ((form.nota || '').length >= NOTA_MAX) {
+      return `La nota no puede superar ${NOTA_MAX - 1} caracteres.`;
+    }
+    // longitudes de los demás campos (defensa frente a valores manipulados)
+    if ((form.grupo || '').length > 128)            return 'El grupo es demasiado largo.';
+    if ((form.bloque || '').length > 64)            return 'El bloque es demasiado largo.';
+    if ((form.unidad || '').length > 64)            return 'La unidad es demasiado larga.';
+    if ((form.operarioNombre || '').length > 128)   return 'El nombre del operario es demasiado largo.';
+    if ((form.activoNombre || '').length > 160)     return 'El nombre del activo es demasiado largo.';
+    if ((form.implementoNombre || '').length > 160) return 'El nombre del implemento es demasiado largo.';
+    return null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.fecha || !form.loteId || !form.cantidad) {
-      showToast('Fecha, lote y cantidad son obligatorios.', 'error');
+    const validationError = validateForm();
+    if (validationError) {
+      showToast(validationError, 'error');
       return;
     }
     setSaving(true);
     try {
       const payload = { ...form };
       delete payload.id;
-      if (isEditing) {
-        const res = await apiFetch(`/api/cosecha/registros/${form.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error();
-        showToast('Registro actualizado.');
-      } else {
-        const res = await apiFetch('/api/cosecha/registros', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error();
-        showToast('Registro guardado.');
+      const res = await apiFetch('/api/cosecha/registros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Error al guardar.');
       }
+      showToast('Registro guardado.');
       resetForm();
-      fetchRecords();
-    } catch {
-      showToast('Error al guardar.', 'error');
+    } catch (err) {
+      showToast(err.message || 'Error al guardar.', 'error');
     } finally {
       setSaving(false);
     }
@@ -378,203 +377,156 @@ export default function RegistroCosecha() {
 
       <div className="hor-toolbar">
         <h1 className="hor-page-title">Registro de Cosecha</h1>
-        {!showForm && (
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setIsEditing(false); setShowForm(true); }}>
-            <FiPlus size={15} /> Nuevo registro
-          </button>
-        )}
+        <Link to="/cosecha/historial" className="btn btn-secondary">
+          <FiClock size={14} /> Historial
+        </Link>
       </div>
 
       {/* ── Formulario ── */}
-      {showForm && (
-        <div className="hor-form-card">
-          <div className="hor-form-header">
-            <span>
-              {isEditing
-                ? `Editar registro${form.consecutivo ? ` · ${form.consecutivo}` : ''}`
-                : 'Nuevo registro de cosecha'}
-            </span>
-            <button className="icon-btn" onClick={resetForm} title="Cancelar"><FiX size={16} /></button>
-          </div>
-
-          <form onSubmit={handleSubmit} style={{ padding: '16px 18px' }}>
-
-            {/* Fecha */}
-            <p className="hor-section-label">Fecha</p>
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Fecha</label>
-                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
-              </div>
-            </div>
-
-            {/* Ubicación: lote / grupo / bloque */}
-            <p className="hor-section-label">Ubicación</p>
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Lote *</label>
-                <select name="loteId" value={form.loteId} onChange={handleChange} required>
-                  <option value="">— Seleccionar —</option>
-                  {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                </select>
-              </div>
-
-              <div className="hor-field">
-                <label>Grupo</label>
-                <select name="grupo" value={form.grupo} onChange={handleChange} disabled={!form.loteId}>
-                  <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
-                  {gruposDelLote.map(g => (
-                    <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="hor-field">
-                <label>Bloque</label>
-                <select name="bloque" value={form.bloque} onChange={handleChange} disabled={!form.loteId}>
-                  <option value="">{form.loteId ? '— Sin bloque —' : '— Seleccione un lote primero —'}</option>
-                  {bloquesDisponibles.map(s => {
-                    const val = s.bloque || s.id;
-                    return <option key={s.id} value={val}>Bloque {val}</option>;
-                  })}
-                </select>
-              </div>
-            </div>
-
-            {/* Cantidad y unidad */}
-            <p className="hor-section-label">Cosecha</p>
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Cantidad cosechada *</label>
-                <input
-                  type="number"
-                  name="cantidad"
-                  min="0"
-                  step="any"
-                  value={form.cantidad}
-                  onChange={handleChange}
-                  placeholder="0"
-                  required
-                />
-              </div>
-
-              <div className="hor-field">
-                <label>Unidad</label>
-                <Combobox
-                  value={form.unidadId}
-                  onChange={handleUnidadChange}
-                  items={unidades}
-                  labelFn={unidadLabel}
-                  placeholder="Buscar unidad…"
-                />
-              </div>
-            </div>
-
-            {/* Operario / Activo / Implemento */}
-            <p className="hor-section-label">Recursos</p>
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Operario</label>
-                <Combobox
-                  value={form.operarioId}
-                  onChange={handleOperarioChange}
-                  items={usuarios}
-                  labelKey="nombre"
-                  placeholder="Buscar operario…"
-                />
-              </div>
-
-              <div className="hor-field">
-                <label>Activo</label>
-                <Combobox
-                  value={form.activoId}
-                  onChange={handleActivoChange}
-                  items={activos}
-                  labelFn={activoLabel}
-                  placeholder="Buscar activo…"
-                />
-              </div>
-
-              <div className="hor-field">
-                <label>Implemento</label>
-                <Combobox
-                  value={form.implementoId}
-                  onChange={handleImplementoChange}
-                  items={implementos}
-                  labelFn={activoLabel}
-                  placeholder="Buscar implemento…"
-                />
-              </div>
-            </div>
-
-            {/* Nota */}
-            <p className="hor-section-label">Observaciones</p>
-            <div className="hor-form-grid">
-              <div className="hor-field hor-field--full">
-                <label>Nota</label>
-                <textarea
-                  name="nota"
-                  value={form.nota}
-                  onChange={handleChange}
-                  placeholder="Observaciones adicionales…"
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <div className="form-actions" style={{ marginTop: 16 }}>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                <FiCheck size={15} />
-                {saving ? 'Guardando…' : isEditing ? 'Actualizar' : 'Guardar'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={resetForm}>
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ── Lista de registros ── */}
       <div className="hor-form-card">
         <div className="hor-form-header">
-          <span>Registros de cosecha {records.length > 0 && `(${records.length})`}</span>
+          <span>Nuevo registro de cosecha</span>
         </div>
-        <div style={{ padding: '12px 18px' }}>
-          {records.length === 0 ? (
-            <p className="empty-state">No hay registros de cosecha aún.</p>
-          ) : (
-            <ul className="info-list">
-              {records.map(rec => (
-                <li key={rec.id}>
-                  <div>
-                    <span className="item-main-text">
-                      {rec.consecutivo && (
-                        <span style={{ color: 'var(--aurora-green)', marginRight: 8 }}>{rec.consecutivo}</span>
-                      )}
-                      {rec.fecha} — {rec.loteNombre || 'Sin lote'}
-                      {rec.bloque ? ` / Bloque ${rec.bloque}` : ''}
-                    </span>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--aurora-light)', opacity: 0.7, marginTop: 2 }}>
-                      {rec.cantidad} {rec.unidad || ''}
-                      {rec.operarioNombre ? ` · ${rec.operarioNombre}` : ''}
-                      {rec.activoNombre ? ` · ${rec.activoNombre}` : ''}
-                      {rec.implementoNombre ? ` · ${rec.implementoNombre}` : ''}
-                    </div>
-                  </div>
-                  <div className="lote-actions">
-                    <button className="icon-btn" onClick={() => handleEdit(rec)} title="Editar">
-                      <FiEdit size={15} />
-                    </button>
-                    <button className="icon-btn icon-btn--danger" onClick={() => handleDelete(rec.id)} title="Eliminar">
-                      <FiTrash2 size={15} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+
+        <form onSubmit={handleSubmit} style={{ padding: '16px 18px' }}>
+
+          {/* Fecha */}
+          <div className="hor-form-grid hor-grid-2">
+            <div className="hor-field">
+              <label>Fecha</label>
+              <input
+                type="date"
+                name="fecha"
+                value={form.fecha}
+                onChange={handleChange}
+                max={todayISO()}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Ubicación: lote / grupo / bloque */}
+          <div className="hor-form-grid hor-grid-2">
+            <div className="hor-field">
+              <label>Lote *</label>
+              <select name="loteId" value={form.loteId} onChange={handleChange} required>
+                <option value="">— Seleccionar —</option>
+                {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+              </select>
+            </div>
+
+            <div className="hor-field">
+              <label>Grupo</label>
+              <select name="grupo" value={form.grupo} onChange={handleChange} disabled={!form.loteId}>
+                <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
+                {gruposDelLote.map(g => (
+                  <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="hor-field">
+              <label>Bloque</label>
+              <select name="bloque" value={form.bloque} onChange={handleChange} disabled={!form.loteId}>
+                <option value="">{form.loteId ? '— Sin bloque —' : '— Seleccione un lote primero —'}</option>
+                {bloquesDisponibles.map(s => {
+                  const val = s.bloque || s.id;
+                  return <option key={s.id} value={val}>Bloque {val}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* Cantidad y unidad */}
+          <div className="hor-form-grid hor-grid-2">
+            <div className="hor-field">
+              <label>Cantidad cosechada *</label>
+              <input
+                type="number"
+                name="cantidad"
+                min="0.0001"
+                max={CANTIDAD_MAX - 0.0001}
+                step="any"
+                value={form.cantidad}
+                onChange={handleChange}
+                placeholder="0"
+                required
+              />
+            </div>
+
+            <div className="hor-field">
+              <label>Unidad</label>
+              <Combobox
+                value={form.unidadId}
+                onChange={handleUnidadChange}
+                items={unidades}
+                labelFn={unidadLabel}
+                placeholder="Buscar unidad…"
+              />
+            </div>
+          </div>
+
+          {/* Operario / Activo / Implemento */}
+          <div className="hor-form-grid hor-grid-2">
+            <div className="hor-field">
+              <label>Operario</label>
+              <Combobox
+                value={form.operarioId}
+                onChange={handleOperarioChange}
+                items={usuarios}
+                labelKey="nombre"
+                placeholder="Buscar operario…"
+              />
+            </div>
+
+            <div className="hor-field">
+              <label>Activo</label>
+              <Combobox
+                value={form.activoId}
+                onChange={handleActivoChange}
+                items={activos}
+                labelFn={activoLabel}
+                placeholder="Buscar activo…"
+              />
+            </div>
+
+            <div className="hor-field">
+              <label>Implemento</label>
+              <Combobox
+                value={form.implementoId}
+                onChange={handleImplementoChange}
+                items={implementos}
+                labelFn={activoLabel}
+                placeholder="Buscar implemento…"
+              />
+            </div>
+          </div>
+
+          {/* Nota */}
+          <p className="hor-section-label">Observaciones</p>
+          <div className="hor-form-grid">
+            <div className="hor-field hor-field--full">
+              <textarea
+                name="nota"
+                value={form.nota}
+                onChange={handleChange}
+                placeholder="Observaciones adicionales…"
+                rows={3}
+                maxLength={NOTA_MAX - 1}
+              />
+            </div>
+          </div>
+
+          <div className="form-actions" style={{ marginTop: 16 }}>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              <FiCheck size={15} />
+              {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>
+              Cancelar
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -5,6 +5,119 @@ const { pick, verifyOwnership } = require('../lib/helpers');
 
 const router = Router();
 
+// ── Validación de payload de registro de cosecha ─────────────────────────────
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function todayISO() {
+  // Día actual en UTC. Se compara lexicográficamente contra `fecha` (YYYY-MM-DD).
+  return new Date().toISOString().slice(0, 10);
+}
+
+function validateCosechaPayload(body, { partial = false } = {}) {
+  // fecha — requerida, formato YYYY-MM-DD, estrictamente anterior al día de hoy
+  if (!partial || body.fecha !== undefined) {
+    const fecha = body.fecha;
+    if (typeof fecha !== 'string' || !FECHA_RE.test(fecha)) {
+      return 'La fecha es requerida en formato YYYY-MM-DD.';
+    }
+    const d = new Date(`${fecha}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return 'Fecha inválida.';
+    if (fecha > todayISO()) {
+      return 'La fecha no puede ser posterior al día actual.';
+    }
+  }
+
+  // loteId — requerido
+  if (!partial || body.loteId !== undefined) {
+    const loteId = body.loteId;
+    if (typeof loteId !== 'string' || loteId.trim().length === 0) {
+      return 'El lote es requerido.';
+    }
+    if (loteId.length > 128) return 'El identificador del lote es demasiado largo.';
+  }
+
+  // loteNombre
+  if (body.loteNombre !== undefined && body.loteNombre !== null && body.loteNombre !== '') {
+    if (typeof body.loteNombre !== 'string' || body.loteNombre.length > 128) {
+      return 'El nombre del lote no puede superar 128 caracteres.';
+    }
+  }
+
+  // grupo
+  if (body.grupo !== undefined && body.grupo !== null && body.grupo !== '') {
+    if (typeof body.grupo !== 'string' || body.grupo.length > 128) {
+      return 'El grupo no puede superar 128 caracteres.';
+    }
+  }
+
+  // bloque
+  if (body.bloque !== undefined && body.bloque !== null && body.bloque !== '') {
+    if (typeof body.bloque !== 'string' || body.bloque.length > 64) {
+      return 'El bloque no puede superar 64 caracteres.';
+    }
+  }
+
+  // cantidad — requerida, > 0 y < 16384
+  if (!partial || body.cantidad !== undefined) {
+    const cant = Number(body.cantidad);
+    if (!Number.isFinite(cant) || cant <= 0 || cant >= 16384) {
+      return 'La cantidad cosechada debe ser mayor a 0 y menor a 16384.';
+    }
+  }
+
+  // unidad
+  if (body.unidad !== undefined && body.unidad !== null && body.unidad !== '') {
+    if (typeof body.unidad !== 'string' || body.unidad.length > 64) {
+      return 'La unidad no puede superar 64 caracteres.';
+    }
+  }
+
+  // operarioId / operarioNombre
+  if (body.operarioId !== undefined && body.operarioId !== null && body.operarioId !== '') {
+    if (typeof body.operarioId !== 'string' || body.operarioId.length > 128) {
+      return 'El identificador del operario es inválido.';
+    }
+  }
+  if (body.operarioNombre !== undefined && body.operarioNombre !== null && body.operarioNombre !== '') {
+    if (typeof body.operarioNombre !== 'string' || body.operarioNombre.length > 128) {
+      return 'El nombre del operario no puede superar 128 caracteres.';
+    }
+  }
+
+  // activoId / activoNombre
+  if (body.activoId !== undefined && body.activoId !== null && body.activoId !== '') {
+    if (typeof body.activoId !== 'string' || body.activoId.length > 128) {
+      return 'El identificador del activo es inválido.';
+    }
+  }
+  if (body.activoNombre !== undefined && body.activoNombre !== null && body.activoNombre !== '') {
+    if (typeof body.activoNombre !== 'string' || body.activoNombre.length > 160) {
+      return 'El nombre del activo no puede superar 160 caracteres.';
+    }
+  }
+
+  // implementoId / implementoNombre
+  if (body.implementoId !== undefined && body.implementoId !== null && body.implementoId !== '') {
+    if (typeof body.implementoId !== 'string' || body.implementoId.length > 128) {
+      return 'El identificador del implemento es inválido.';
+    }
+  }
+  if (body.implementoNombre !== undefined && body.implementoNombre !== null && body.implementoNombre !== '') {
+    if (typeof body.implementoNombre !== 'string' || body.implementoNombre.length > 160) {
+      return 'El nombre del implemento no puede superar 160 caracteres.';
+    }
+  }
+
+  // nota — estrictamente menor a 288 caracteres
+  if (body.nota !== undefined && body.nota !== null && body.nota !== '') {
+    if (typeof body.nota !== 'string' || body.nota.length >= 288) {
+      return 'La nota no puede superar 287 caracteres.';
+    }
+  }
+
+  return null;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Registro de Cosecha
 // ══════════════════════════════════════════════════════════════════════════════
@@ -34,10 +147,9 @@ router.post('/api/cosecha/registros', authenticate, async (req, res) => {
       'nota', 'cantidadRecibidaPlanta',
     ];
     const data = pick(req.body, allowed);
-    if (!data.fecha || !data.loteId || data.cantidad == null) {
-      return res.status(400).json({ message: 'Fecha, lote y cantidad son obligatorios.' });
-    }
-    data.cantidad = parseFloat(data.cantidad) || 0;
+    const validationError = validateCosechaPayload(data);
+    if (validationError) return res.status(400).json({ message: validationError });
+    data.cantidad = parseFloat(data.cantidad);
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;
     }
@@ -76,7 +188,9 @@ router.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
       'nota', 'cantidadRecibidaPlanta',
     ];
     const data = pick(req.body, allowed);
-    if (data.cantidad != null) data.cantidad = parseFloat(data.cantidad) || 0;
+    const validationError = validateCosechaPayload(data, { partial: true });
+    if (validationError) return res.status(400).json({ message: validationError });
+    if (data.cantidad != null) data.cantidad = parseFloat(data.cantidad);
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;
     }
