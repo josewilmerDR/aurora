@@ -246,21 +246,27 @@
   margin-left: auto;
 }
 
-.module-add-btn {
-  flex-shrink: 0;
-  padding: 6px 10px 6px 4px;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
+/* ── Icon swap on hover (bodega add) ────────────────────────────────────── */
+.icon-wrap--has-action {
+  position: relative;
   cursor: pointer;
-  opacity: 0.4;
-  transition: opacity 0.2s, color 0.2s;
-  display: flex;
-  align-items: center;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
 }
 
-.module-add-btn:hover {
-  opacity: 1;
+.icon-wrap--has-action .icon-hover {
+  display: none;
+}
+
+.module-header:hover .icon-wrap--has-action .icon-default {
+  display: none;
+}
+
+.module-header:hover .icon-wrap--has-action .icon-hover {
+  display: inline;
+}
+
+.module-header:hover .icon-wrap--has-action {
   color: var(--aurora-green);
 }
 

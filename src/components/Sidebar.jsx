@@ -400,26 +400,24 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
           : item.children?.some(c => c.draftKey && checkDraft(c.draftKey))
         );
 
+        const showBodegaAdd = mod.id === 'bodega' && hasMinRole(userRole, 'administrador');
+
         return (
           <div key={mod.id} className="sidebar-module">
             <div className="module-header-row">
               <button className="module-header" onClick={() => toggleModule(mod.id)}>
-                <span className="icon-wrap">
-                  <ModIcon size={15} />
+                <span
+                  className={`icon-wrap${showBodegaAdd ? ' icon-wrap--has-action' : ''}`}
+                  onClick={showBodegaAdd ? (e) => { e.stopPropagation(); navigate('/admin/bodegas'); } : undefined}
+                  title={showBodegaAdd ? 'Administrar bodegas' : undefined}
+                >
+                  <ModIcon size={15} className="icon-default" />
+                  {showBodegaAdd && <FiPlusCircle size={15} className="icon-hover" />}
                   {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
                 </span>
                 <span>{mod.nombre}</span>
                 {expanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
               </button>
-              {mod.id === 'bodega' && hasMinRole(userRole, 'administrador') && (
-                <button
-                  className="module-add-btn"
-                  onClick={() => navigate('/admin/bodegas')}
-                  title="Administrar bodegas"
-                >
-                  <FiPlusCircle size={14} />
-                </button>
-              )}
             </div>
             {expanded && (
               <div className="module-items">
