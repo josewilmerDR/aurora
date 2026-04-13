@@ -65,6 +65,28 @@ function costoDepHoraNum(asset) {
   return null;
 }
 
+function SortTh({ field, children, filterType, sort, colFilter, onSort, onFilter }) {
+  const active = sort.field === field;
+  const dir    = active ? sort.dir : null;
+  const hasFilter = colFilter
+    ? (colFilter.type === 'range' ? !!(colFilter.from?.trim() || colFilter.to?.trim()) : !!colFilter.value?.trim())
+    : false;
+  return (
+    <th
+      className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+      onClick={() => onSort(field)}
+    >
+      {children}
+      <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      {filterType && (
+        <span className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`} onClick={e => onFilter(e, field, filterType)} title="Filtrar columna">
+          <FiFilter size={10} />
+        </span>
+      )}
+    </th>
+  );
+}
+
 function HistorialHorimetros() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
@@ -132,7 +154,9 @@ function HistorialHorimetros() {
       const combLitros = comb?.litrosEstimados ?? null;
       const combCosto  = comb?.costoEstimado   ?? null;
 
-      return { ...rec, montoDepTractor, montoDepImplemento, combTasaLH, combPrecio, combLitros, combCosto };
+      const horas = hrsNum;
+      const bloque = rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || '');
+      return { ...rec, horas, bloque, montoDepTractor, montoDepImplemento, combTasaLH, combPrecio, combLitros, combCosto };
     });
   }, [records, maquinaria]);
 
@@ -164,17 +188,16 @@ function HistorialHorimetros() {
       }
       return true;
     });
-  }, [records, colFilters]);
+  }, [enrichedRecords, colFilters]);
 
   const sorted = useMemo(() => multiSort(filtered, sorts), [filtered, sorts]);
 
   const handleThSort = (field) => {
     setSorts(prev => {
-      const next = [...prev];
-      next[0] = next[0].field === field
-        ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' }
-        : { field, dir: 'asc' };
-      return next;
+      const cur = prev[0];
+      if (cur.field !== field) return [{ field, dir: 'asc' }];
+      if (cur.dir === 'asc')  return [{ field, dir: 'desc' }];
+      return [{ field: '', dir: 'asc' }]; // OFF
     });
   };
 
@@ -183,12 +206,16 @@ function HistorialHorimetros() {
     if (filterPopover?.field === field) { setFilterPopover(null); return; }
     const th   = e.currentTarget.closest('th') ?? e.currentTarget;
     const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, x: rect.left, y: rect.bottom + 4, filterType });
+    const x = Math.min(rect.left, window.innerWidth - 240);
+    const y = Math.min(rect.bottom + 4, window.innerHeight - 60);
+    setFilterPopover({ field, x, y, filterType });
   };
 
   const openColMenu = (e) => {
     e.preventDefault();
-    setColMenu({ x: e.clientX, y: e.clientY });
+    const x = Math.min(e.clientX, window.innerWidth - 200);
+    const y = Math.min(e.clientY, window.innerHeight - 200);
+    setColMenu({ x, y });
   };
 
   const toggleCol = (id) => {
@@ -204,7 +231,9 @@ function HistorialHorimetros() {
   const handleColBtnClick = (e) => {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
-    setColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
+    const x = Math.min(r.right - 190, window.innerWidth - 200);
+    const y = Math.min(r.bottom + 4, window.innerHeight - 200);
+    setColMenu(prev => prev ? null : { x, y });
   };
 
   const setColFilter = (field, filterObj) => {
@@ -213,28 +242,6 @@ function HistorialHorimetros() {
     setColFilters(prev => empty
       ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
       : { ...prev, [field]: filterObj }
-    );
-  };
-
-  // ── Sort+filter column header ──────────────────────────────────────────────
-  const SortTh = ({ field, children, filterType = 'text' }) => {
-    const active = sorts[0].field === field;
-    const dir    = active ? sorts[0].dir : null;
-    const f      = colFilters[field];
-    const hasFilter = f
-      ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim())
-      : false;
-    return (
-      <th
-        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
-        onClick={() => handleThSort(field)}
-      >
-        {children}
-        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`} onClick={e => openFilter(e, field, filterType)} title="Filtrar columna">
-          <FiFilter size={10} />
-        </span>
-      </th>
     );
   };
 
@@ -283,9 +290,8 @@ function HistorialHorimetros() {
                 <table className="hor-table">
                   <thead>
                     <tr onContextMenu={openColMenu}>
-                      {COLUMNS.map(col => hiddenCols.has(col.id) ? null : col.plain
-                        ? <th key={col.id}>{col.label}</th>
-                        : <SortTh key={col.id} field={col.id} filterType={col.filterType}>{col.label}</SortTh>
+                      {COLUMNS.map(col => hiddenCols.has(col.id) ? null
+                        : <SortTh key={col.id} field={col.id} filterType={col.plain ? null : col.filterType} sort={sorts[0]} colFilter={colFilters[col.id]} onSort={handleThSort} onFilter={openFilter}>{col.label}</SortTh>
                       )}
                       <th className="hor-th-settings">
                         <button
@@ -300,16 +306,14 @@ function HistorialHorimetros() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.map(rec => {
-                      const hrs = horasUsadas(rec);
-                      return (
+                    {sorted.map(rec => (
                         <tr key={rec.id}>
                           {!hiddenCols.has('fecha')            && <td className="hor-td-date">{rec.fecha || '—'}</td>}
                           {!hiddenCols.has('tractorNombre')    && <td className="hor-td-maq">{rec.tractorNombre || '—'}</td>}
                           {!hiddenCols.has('implemento')       && <td>{rec.implemento || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('horimetroInicial') && <td className="hor-td-num">{rec.horimetroInicial !== '' && rec.horimetroInicial != null ? rec.horimetroInicial : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('horimetroFinal')   && <td className="hor-td-num">{rec.horimetroFinal   !== '' && rec.horimetroFinal   != null ? rec.horimetroFinal   : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('horas')            && <td className={`hor-td-horas${hrs ? '' : ' hor-td-empty'}`}>{hrs ?? '—'}</td>}
+                          {!hiddenCols.has('horas')            && <td className={`hor-td-horas${rec.horas != null ? '' : ' hor-td-empty'}`}>{rec.horas != null ? rec.horas.toFixed(1) : '—'}</td>}
                           {!hiddenCols.has('montoDepTractor')  && <td className="hor-td-num">{rec.montoDepTractor != null ? rec.montoDepTractor.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('montoDepImplemento') && <td className="hor-td-num">{rec.montoDepImplemento != null ? rec.montoDepImplemento.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('combTasaLH')  && <td className="hor-td-num">{rec.combTasaLH  != null ? rec.combTasaLH.toFixed(2)  : <span className="hor-td-empty">—</span>}</td>}
@@ -318,7 +322,7 @@ function HistorialHorimetros() {
                           {!hiddenCols.has('combCosto')   && <td className="hor-td-num">{rec.combCosto   != null ? rec.combCosto.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('loteNombre')       && <td>{rec.loteNombre || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('grupo')            && <td>{rec.grupo      || <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('bloque')           && <td>{rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || <span className="hor-td-empty">—</span>)}</td>}
+                          {!hiddenCols.has('bloque')           && <td>{rec.bloque || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('labor')            && <td className="hor-td-labor">{rec.labor || <span className="hor-td-empty">—</span>}</td>}
                           {!hiddenCols.has('horaInicio')       && <td className="hor-td-time">{rec.horaInicio || '—'}</td>}
                           {!hiddenCols.has('horaFinal')        && <td className="hor-td-time">{rec.horaFinal  || '—'}</td>}
@@ -332,8 +336,7 @@ function HistorialHorimetros() {
                             </button>
                           </td>
                         </tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>
