@@ -11,7 +11,7 @@ import ProductManagement from './pages/BodegaAgroquimicosProductManagement';
 import ProductCatalog from './pages/BodegaAgroquimicosProductCatalog';
 import ProductIngreso from './pages/BodegaAgroquimicosProductIngreso';
 import GoodsReceipt from './pages/BodegaAgroquimicosGoodsReceipt';
-import MovimientosHistorial from './pages/MovimientosHistorial';
+import MovimientosHistorial from './pages/BodegaAgroquimicosMovimientosHistorial';
 import PurchaseOrder from './pages/PurchaseOrder';
 import OrdenesList from './pages/OrdenesList';
 import OrdenesHistorial from './pages/OrdenesHistorial';
