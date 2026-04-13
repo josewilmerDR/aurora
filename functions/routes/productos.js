@@ -288,21 +288,46 @@ router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
     if (!nota || !nota.trim()) {
       return res.status(400).json({ message: 'La nota explicativa es obligatoria.' });
     }
+    if (typeof nota === 'string' && nota.length > 288) {
+      return res.status(400).json({ message: 'La nota no puede exceder 288 caracteres.' });
+    }
     if (!Array.isArray(ajustes) || ajustes.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un ajuste.' });
     }
+    // Firestore batch limit: 500 ops. Each ajuste = 2 ops (update + set).
+    if (ajustes.length > 250) {
+      return res.status(400).json({ message: 'Máximo 250 ajustes por solicitud.' });
+    }
 
     const fincaId = req.fincaId;
+    const notaTrimmed = nota.trim().slice(0, 288);
+
+    // Verify all productoIds belong to this finca before modifying
+    const productoIds = ajustes
+      .map(a => a.productoId)
+      .filter(id => typeof id === 'string' && id.length > 0);
+    if (productoIds.length === 0) {
+      return res.status(400).json({ message: 'No se encontraron productos válidos.' });
+    }
+    const prodSnaps = await Promise.all(
+      productoIds.map(id => db.collection('productos').doc(id).get())
+    );
+    const ownedIds = new Set();
+    for (const snap of prodSnaps) {
+      if (snap.exists && snap.data().fincaId === fincaId) ownedIds.add(snap.id);
+    }
+
     const batch = db.batch();
     const fechaAjuste = new Date();
     const movimientosCreados = [];
 
     for (const ajuste of ajustes) {
       const { productoId, stockAnterior, stockNuevo } = ajuste;
-      if (productoId === undefined || stockNuevo === undefined) continue;
+      if (!productoId || stockNuevo === undefined) continue;
+      if (!ownedIds.has(productoId)) continue;
       const stockNuevoNum = parseFloat(stockNuevo);
       const stockAnteriorNum = parseFloat(stockAnterior);
-      if (isNaN(stockNuevoNum) || stockNuevoNum < 0) continue;
+      if (isNaN(stockNuevoNum) || stockNuevoNum < 0 || stockNuevoNum > 32768) continue;
       if (Math.abs(stockNuevoNum - stockAnteriorNum) < 0.0001) continue; // sin cambio
 
       const prodRef = db.collection('productos').doc(productoId);
@@ -317,7 +342,7 @@ router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
         cantidad: diferencia,
         stockAnterior: stockAnteriorNum,
         stockNuevo: stockNuevoNum,
-        nota: nota.trim(),
+        nota: notaTrimmed,
         fecha: fechaAjuste,
       };
       batch.set(movRef, movData);

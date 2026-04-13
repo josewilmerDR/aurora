@@ -36,7 +36,7 @@ const PurchaseRequest = ({ onClose } = {}) => {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiFetch]);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -92,10 +92,23 @@ const PurchaseRequest = ({ onClose } = {}) => {
       showToast('Agrega al menos un producto con cantidad mayor a cero', 'error');
       return;
     }
+    const outOfRange = validItems.find(i => {
+      const n = parseFloat(i.cantidadSolicitada);
+      return n <= 0 || n >= 32768;
+    });
+    if (outOfRange) {
+      showToast(`Cantidad fuera de rango en "${outOfRange.nombreComercial}" (máx 32767)`, 'error');
+      return;
+    }
+    if (notas.length > 288) {
+      showToast('Las notas no pueden exceder 288 caracteres', 'error');
+      return;
+    }
     setShowPreview(true);
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
     setSubmitting(true);
     try {
       const res = await apiFetch('/api/solicitudes-compra', {
@@ -251,6 +264,7 @@ const PurchaseRequest = ({ onClose } = {}) => {
                     <input
                       type="number"
                       min="0"
+                      max="32767"
                       step="0.1"
                       placeholder="Cantidad"
                       value={item.cantidadSolicitada}
@@ -277,6 +291,7 @@ const PurchaseRequest = ({ onClose } = {}) => {
           <label>Notas (opcional)</label>
           <textarea
             rows={3}
+            maxLength={288}
             placeholder="Urgencia, indicaciones especiales…"
             value={notas}
             onChange={e => setNotas(e.target.value)}

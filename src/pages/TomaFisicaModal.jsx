@@ -31,6 +31,9 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
   }, [stocks, productos]);
 
   const handleStockChange = (id, value) => {
+    if (value === '' || value === '-') { setStocks(prev => ({ ...prev, [id]: '' })); return; }
+    const n = parseFloat(value);
+    if (isNaN(n) || n < 0 || n > 32768) return;
     setStocks(prev => ({ ...prev, [id]: value }));
   };
 
@@ -43,12 +46,25 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
   };
 
   const handleSubmit = async () => {
+    if (saving) return;
     if (!nota.trim()) {
       setError('La nota explicativa es obligatoria.');
       return;
     }
+    if (nota.length > 288) {
+      setError('La nota no puede exceder 288 caracteres.');
+      return;
+    }
     if (cambios.length === 0) {
       setError('No hay diferencias que ajustar. Modifica al menos un valor.');
+      return;
+    }
+    const outOfRange = cambios.find(p => {
+      const n = parseFloat(stocks[p.id]);
+      return isNaN(n) || n < 0 || n > 32768;
+    });
+    if (outOfRange) {
+      setError(`Stock fuera de rango en "${outOfRange.nombreComercial}" (0–32768).`);
       return;
     }
 
@@ -93,6 +109,7 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
           </label>
           <textarea
             className="toma-fisica-nota"
+            maxLength={288}
             placeholder="Ej: Toma física mensual realizada el 15/03/2026. Se encontraron diferencias por merma en almacenamiento…"
             value={nota}
             onChange={e => setNota(e.target.value)}
@@ -142,6 +159,7 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
                       <input
                         type="number"
                         min="0"
+                        max="32768"
                         step="0.01"
                         className="toma-stock-input"
                         value={stocks[p.id] ?? ''}
@@ -168,11 +186,11 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
         {error && <p className="toma-error">{error}</p>}
 
         <div className="toma-fisica-footer">
-          <button className="btn-secondary" onClick={onClose} disabled={saving}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
           <button
-            className="btn-primary"
+            className="btn btn-primary"
             onClick={handleSubmit}
             disabled={saving || cambios.length === 0}
           >

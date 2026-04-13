@@ -248,17 +248,29 @@ router.post('/api/solicitudes-compra', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Se requiere al menos un producto.' });
     }
 
-    const resolvedResponsableId = responsableId || 'proveeduria';
-    const resolvedResponsableNombre = responsableNombre || 'Proveeduría';
+    // Validate notas length
+    if (notas && typeof notas === 'string' && notas.length > 288) {
+      return res.status(400).json({ message: 'Las notas no pueden exceder 288 caracteres.' });
+    }
 
-    const mappedItems = items.map(i => ({
-      productoId: i.productoId,
-      nombreComercial: i.nombreComercial,
-      cantidadSolicitada: parseFloat(i.cantidadSolicitada) || 0,
-      unidad: i.unidad,
-      stockActual: parseFloat(i.stockActual) || 0,
-      stockMinimo: parseFloat(i.stockMinimo) || 0,
-    }));
+    const resolvedResponsableId = responsableId || 'proveeduria';
+    const resolvedResponsableNombre = typeof responsableNombre === 'string'
+      ? responsableNombre.slice(0, 128) : 'Proveeduría';
+
+    const mappedItems = items
+      .map(i => ({
+        productoId: i.productoId,
+        nombreComercial: typeof i.nombreComercial === 'string' ? i.nombreComercial.slice(0, 64) : '',
+        cantidadSolicitada: parseFloat(i.cantidadSolicitada) || 0,
+        unidad: typeof i.unidad === 'string' ? i.unidad.slice(0, 40) : '',
+        stockActual: parseFloat(i.stockActual) || 0,
+        stockMinimo: parseFloat(i.stockMinimo) || 0,
+      }))
+      .filter(i => i.cantidadSolicitada > 0 && i.cantidadSolicitada < 32768);
+
+    if (mappedItems.length === 0) {
+      return res.status(400).json({ message: 'Todos los productos deben tener cantidad mayor a 0 y menor a 32768.' });
+    }
 
     const batch = db.batch();
 
