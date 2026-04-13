@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import './ProductManagement.css';
+import './BodegaAgroquimicosProductManagement.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import TomaFisicaModal from './TomaFisicaModal';
-import EditProductoModal from './EditProductoModal';
+import EditProductoModal from './BodegaAgroquimicosEditProductoModal';
 import PurchaseRequest from './PurchaseRequest';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
@@ -54,6 +54,7 @@ function ProductManagement() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [productosLoaded, setProductosLoaded] = useState(false);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,7 +82,7 @@ function ProductManagement() {
         clearEditsStorage();
         clearDraftActive('inv-productos');
       }
-    }).catch(console.error);
+    }).catch(console.error).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchProductos(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -449,22 +450,25 @@ function ProductManagement() {
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="list-card" style={{ gridColumn: '1 / -1', position: 'relative' }}>
-        <button className="page-close-btn" onClick={() => navigate(-1)} title="Volver atrás">
-          <FiX size={16} />
-        </button>
+      <button className="page-close-btn" onClick={() => navigate(-1)} title="Volver atrás">
+        <FiX size={16} />
+      </button>
 
-        {productos.length === 0 ? (
-          <div className="pg-empty-state">
-            <FiBox size={32} />
-            <p>No hay productos que mostrar</p>
-            <button className="btn btn-primary" onClick={() => setShowNuevoModal(true)}>
-              <FiPlus size={14} /> Crear el primero
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="product-list-header">
+      {loading && <div className="pg-page-loading" />}
+
+      {!loading && productos.length === 0 && (
+        <div className="pg-empty-state">
+          <FiClipboard size={36} />
+          <p>No hay productos que mostrar</p>
+          <button className="btn btn-primary" onClick={() => setShowNuevoModal(true)}>
+            <FiPlus size={14} /> Crear el primero
+          </button>
+        </div>
+      )}
+
+      {!loading && productos.length > 0 && (
+        <>
+          <div className="product-list-header">
               <div className="product-title-group">
                 <div className="kebab-menu-wrap">
                   <button className="btn-kebab" onClick={() => setKebabOpen(o => !o)} title="Más opciones">
@@ -645,7 +649,6 @@ function ProductManagement() {
             )}
           </>
         )}
-      </div>
 
       {/* Filter popover portal */}
       {filterPop && createPortal(

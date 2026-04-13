@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import './ProductManagement.css';
+import './BodegaAgroquimicosProductManagement.css';
 import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera, FiMenu, FiArrowLeft } from 'react-icons/fi';
 import InvoiceScan from './InvoiceScan';
 import Toast from '../components/Toast';

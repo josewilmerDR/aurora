@@ -121,7 +121,7 @@ function BodegasAdmin() {
             <div className="lm-header-left">
               <h2 className="lm-title">Bodegas Adicionales</h2>
               <p className="lm-subtitle">
-                Gestiona almacenes secundarios de la finca. La bodega de Agroquímicos es fija del sistema.
+                Crea y gestiona almacenes secundarios de la finca u organización
               </p>
             </div>
             <button className="lm-btn-primary" onClick={openCreate}>

@@ -4,7 +4,7 @@ import {
   FiArrowLeft, FiCheckCircle, FiEye, FiPackage,
   FiX, FiImage, FiAlertTriangle, FiCheck, FiPlus
 } from 'react-icons/fi';
-import './GoodsReceipt.css';
+import './BodegaAgroquimicosGoodsReceipt.css';
 import { useApiFetch } from '../hooks/useApiFetch';
 
 const STATUS = {
