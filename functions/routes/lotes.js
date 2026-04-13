@@ -17,9 +17,26 @@ router.get('/api/lotes', authenticate, async (req, res) => {
 });
 
 router.post('/api/lotes', authenticate, async (req, res) => {
-    const { nombreLote, codigoLote, fechaCreacion, paqueteId, hectareas } = req.body;
+    const codigoLote = typeof req.body.codigoLote === 'string' ? req.body.codigoLote.trim() : '';
+    const nombreLote = typeof req.body.nombreLote === 'string' ? req.body.nombreLote.trim() : '';
+    const { fechaCreacion, paqueteId, hectareas } = req.body;
+
     if (!codigoLote || !fechaCreacion) {
         return res.status(400).json({ message: 'Faltan datos para crear el lote.' });
+    }
+    if (codigoLote.length > 16) {
+        return res.status(400).json({ message: 'Código del lote no puede exceder 16 caracteres.' });
+    }
+    if (nombreLote.length > 32) {
+        return res.status(400).json({ message: 'Nombre del lote no puede exceder 32 caracteres.' });
+    }
+    const parsedDate = new Date(fechaCreacion);
+    if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: 'Fecha de creación inválida.' });
+    }
+    const today = new Date(); today.setHours(23, 59, 59, 999);
+    if (parsedDate > today) {
+        return res.status(400).json({ message: 'La fecha de creación no puede ser futura.' });
     }
 
     // Si no hay paquete, crear el lote vacío (sin tareas)
@@ -91,11 +108,24 @@ router.put('/api/lotes/:id', authenticate, async (req, res) => {
         const ownership = await verifyOwnership('lotes', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
         const loteData = pick(req.body, ['codigoLote', 'nombreLote', 'fechaCreacion', 'paqueteId', 'hectareas']);
+        if (loteData.codigoLote !== undefined) {
+            loteData.codigoLote = typeof loteData.codigoLote === 'string' ? loteData.codigoLote.trim() : '';
+            if (!loteData.codigoLote) return res.status(400).json({ message: 'Código del lote es requerido.' });
+            if (loteData.codigoLote.length > 16) return res.status(400).json({ message: 'Código del lote no puede exceder 16 caracteres.' });
+        }
+        if (loteData.nombreLote !== undefined) {
+            loteData.nombreLote = typeof loteData.nombreLote === 'string' ? loteData.nombreLote.trim() : '';
+            if (loteData.nombreLote.length > 32) return res.status(400).json({ message: 'Nombre del lote no puede exceder 32 caracteres.' });
+        }
         const originalDoc = ownership.doc;
         const originalData = originalDoc.data();
 
         if (loteData.fechaCreacion && typeof loteData.fechaCreacion === 'string') {
-             loteData.fechaCreacion = Timestamp.fromDate(new Date(loteData.fechaCreacion));
+             const parsedDate = new Date(loteData.fechaCreacion);
+             if (isNaN(parsedDate.getTime())) return res.status(400).json({ message: 'Fecha de creación inválida.' });
+             const today = new Date(); today.setHours(23, 59, 59, 999);
+             if (parsedDate > today) return res.status(400).json({ message: 'La fecha de creación no puede ser futura.' });
+             loteData.fechaCreacion = Timestamp.fromDate(parsedDate);
         }
 
         delete loteData.id;
