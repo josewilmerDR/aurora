@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FiBox, FiTool, FiTruck, FiDroplet, FiPackage,
   FiPlus, FiEdit2, FiTrash2, FiArrowUp, FiArrowDown,
   FiX, FiAlertTriangle, FiList, FiArchive, FiPaperclip,
+  FiFilter, FiSliders,
 } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
@@ -27,8 +29,8 @@ const fmtDate = (iso) => {
   });
 };
 
-const EMPTY_ITEM     = { nombre: '', unidad: '', stockActual: '', stockMinimo: '', descripcion: '', total: '' };
-const EMPTY_MOV      = { itemId: '', tipo: 'salida',  cantidad: '', nota: '', loteId: '', laborId: '', activoId: '', operarioId: '' };
+const EMPTY_ITEM     = { nombre: '', unidad: '', stockActual: '', stockMinimo: '', descripcion: '', total: '', moneda: 'CRC' };
+const EMPTY_MOV      = { itemId: '', tipo: 'salida', cantidad: '', nota: '', loteId: '', laborId: '', activoId: '', operarioId: '' };
 const EMPTY_ENTRADA  = { itemId: '', tipo: 'entrada', cantidad: '', factura: '', oc: '', total: '' };
 
 const readFileAsBase64 = (file) => new Promise((resolve, reject) => {
@@ -40,6 +42,197 @@ const readFileAsBase64 = (file) => new Promise((resolve, reject) => {
   reader.onerror = reject;
   reader.readAsDataURL(file);
 });
+
+// ── Opciones predefinidas de unidad ──────────────────────────────────────────
+const UNIDAD_OPTIONS = [
+  'litros', 'galones', 'kg', 'gramos', 'libras', 'unidades',
+  'metros', 'pies', 'pulgadas', 'rollos', 'cajas', 'sacos',
+  'toneladas', 'quintales', 'bolsas', 'pares', 'juegos',
+];
+
+// ── Combobox unidad ──────────────────────────────────────────────────────────
+function UnidadCombobox({ value, onChange }) {
+  const [text, setText]       = useState(value || '');
+  const [open, setOpen]       = useState(false);
+  const [hi,   setHi]         = useState(0);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef              = useRef(null);
+  const listRef               = useRef(null);
+  const userTyping            = useRef(false);
+
+  useEffect(() => {
+    if (userTyping.current) { userTyping.current = false; return; }
+    setText(value || '');
+  }, [value]);
+
+  const filtered = useMemo(() =>
+    UNIDAD_OPTIONS.filter(u =>
+      !text || u.toLowerCase().includes(text.toLowerCase())
+    ), [text]);
+
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setHi(0);
+  };
+
+  const selectOption = (u) => {
+    setText(u);
+    setOpen(false);
+    setHi(0);
+    onChange(u);
+  };
+
+  const handleChange = (e) => {
+    userTyping.current = true;
+    setText(e.target.value);
+    openDropdown();
+    onChange(e.target.value);
+  };
+
+  const handleBlur = () => {
+    setTimeout(() => {
+      if (document.activeElement !== inputRef.current) setOpen(false);
+    }, 150);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        className="lm-input"
+        value={text}
+        autoComplete="off"
+        placeholder="Ej: litros, kg, unidades"
+        onChange={handleChange}
+        onFocus={openDropdown}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+      />
+      {open && filtered.length > 0 && createPortal(
+        <ul
+          ref={listRef}
+          className="bg-unidad-dropdown"
+          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          {filtered.map((u, i) => (
+            <li
+              key={u}
+              className={`bg-unidad-dropdown-item${i === hi ? ' bg-unidad-dropdown-item--active' : ''}`}
+              onMouseDown={() => selectOption(u)}
+              onMouseEnter={() => setHi(i)}
+            >
+              {u}
+            </li>
+          ))}
+        </ul>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// ── Columnas de movimientos ───────────────────────────────────────────────────
+const MOV_COLUMNS = [
+  { key: 'fecha',       label: 'Fecha',           type: 'date'   },
+  { key: 'producto',    label: 'Producto',        type: 'text'   },
+  { key: 'tipo',        label: 'Tipo',            type: 'text'   },
+  { key: 'cantidad',    label: 'Cantidad',        type: 'number', align: 'right' },
+  { key: 'stockAntes',  label: 'Stock anterior',  type: 'number', align: 'right' },
+  { key: 'stockDesp',   label: 'Stock resultante',type: 'number', align: 'right' },
+  { key: 'factura',     label: 'Factura',         type: 'text'   },
+  { key: 'oc',          label: 'OC',              type: 'text'   },
+  { key: 'total',       label: 'Total',           type: 'number', align: 'right' },
+  { key: 'totalSalida', label: 'Total salida',    type: 'number', align: 'right' },
+  { key: 'activo',      label: 'Activo',          type: 'text'   },
+  { key: 'operario',    label: 'Operario',        type: 'text'   },
+  { key: 'lote',        label: 'Lote',            type: 'text'   },
+  { key: 'labor',       label: 'Labor',           type: 'text'   },
+  { key: 'nota',        label: 'Nota',            type: 'text'   },
+];
+const ALL_MOV_COLS = Object.fromEntries(MOV_COLUMNS.map(c => [c.key, true]));
+
+function getMovVal(m, key) {
+  switch (key) {
+    case 'fecha':       return m.timestamp?.slice?.(0, 10) || m.timestamp || '';
+    case 'producto':    return (m.itemNombre || '').toLowerCase();
+    case 'tipo':        return (m.tipo || '').toLowerCase();
+    case 'cantidad':    return m.cantidad || 0;
+    case 'stockAntes':  return m.stockAntes || 0;
+    case 'stockDesp':   return m.stockDespues || 0;
+    case 'factura':     return (m.factura || '').toLowerCase();
+    case 'oc':          return (m.oc || '').toLowerCase();
+    case 'total':       return m.total ?? 0;
+    case 'totalSalida': return m.totalSalida ?? 0;
+    case 'activo':      return (m.activoNombre || '').toLowerCase();
+    case 'operario':    return (m.operarioNombre || '').toLowerCase();
+    case 'lote':        return (m.loteNombre || '').toLowerCase();
+    case 'labor':       return (m.laborNombre || '').toLowerCase();
+    case 'nota':        return (m.nota || '').toLowerCase();
+    default:            return '';
+  }
+}
+
+// ── ColMenu movimientos ──────────────────────────────────────────────────────
+function MovColMenu({ x, y, visibleCols, onToggle, onClose }) {
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
+    const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown',   onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+  return createPortal(
+    <div ref={menuRef} className="bgm-col-menu" style={{ position: 'fixed', top: y, left: x }}>
+      <div className="bgm-col-menu-title">Columnas visibles</div>
+      {MOV_COLUMNS.map(col => {
+        const checked = visibleCols[col.key];
+        const isLast  = checked && Object.values(visibleCols).filter(Boolean).length === 1;
+        return (
+          <label key={col.key} className={`bgm-col-menu-item${isLast ? ' bgm-col-menu-item--disabled' : ''}`}>
+            <input type="checkbox" checked={checked} disabled={isLast}
+              onChange={() => !isLast && onToggle(col.key)} />
+            <span>{col.label}</span>
+          </label>
+        );
+      })}
+    </div>,
+    document.body
+  );
+}
 
 function BodegaGenerica() {
   const { bodegaId } = useParams();
@@ -68,10 +261,110 @@ function BodegaGenerica() {
   const [toast,   setToast]   = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
+  // ── Movimientos: sort / filter / column visibility ────────────────────────
+  const [movSortField, setMovSortField] = useState('fecha');
+  const [movSortDir,   setMovSortDir]   = useState('desc');
+  const [movColFilters, setMovColFilters] = useState({});
+  const [movFilterPop,  setMovFilterPop]  = useState(null);
+  const [movVisibleCols, setMovVisibleCols] = useState(ALL_MOV_COLS);
+  const [movColMenu,     setMovColMenu]     = useState(null);
+
+  const handleMovSort = (field) => {
+    if (movSortField !== field) { setMovSortField(field); setMovSortDir('desc'); }
+    else if (movSortDir === 'desc') { setMovSortDir('asc'); }
+    else { setMovSortField(null); setMovSortDir(null); }
+  };
+
+  const openMovFilter = (e, field, type) => {
+    e.stopPropagation();
+    if (movFilterPop?.field === field) { setMovFilterPop(null); return; }
+    const rect = (e.currentTarget.closest('th') ?? e.currentTarget).getBoundingClientRect();
+    setMovFilterPop({ field, type, x: rect.left, y: rect.bottom + 4 });
+  };
+
+  const setMovColFilter = (field, type, key, val) => {
+    setMovColFilters(prev => {
+      const cur = prev[field] || (type === 'text' ? { text: '' } : { from: '', to: '' });
+      const updated = { ...cur, [key]: val };
+      const isEmpty = type === 'text' ? !updated.text : !updated.from && !updated.to;
+      if (isEmpty) { const { [field]: _, ...rest } = prev; return rest; }
+      return { ...prev, [field]: updated };
+    });
+  };
+
+  const toggleMovCol = (key) => setMovVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
+  const handleMovColBtn = (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setMovColMenu({ x: r.right - 185, y: r.bottom + 4 });
+  };
+
+  const MovSortTh = ({ col, children }) => {
+    const isSort  = movSortField === col.key;
+    const hasFilt = !!movColFilters[col.key];
+    if (!movVisibleCols[col.key]) return null;
+    return (
+      <th
+        className={`bgm-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}${col.align === 'right' ? ' text-right' : ''}`}
+        onClick={() => handleMovSort(col.key)}
+      >
+        <span className="bgm-th-content">
+          {children}
+          <span className="bgm-th-arrow">{isSort ? (movSortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+          <span
+            className={`bgm-th-funnel${hasFilt ? ' is-active' : ''}`}
+            onClick={e => openMovFilter(e, col.key, col.type)}
+            title="Filtrar columna"
+          >
+            <FiFilter size={10} />
+          </span>
+        </span>
+      </th>
+    );
+  };
+
+  const displayMovs = useMemo(() => {
+    let data = [...movs];
+    // filters
+    const active = Object.entries(movColFilters).filter(([, fv]) =>
+      fv.text !== undefined ? fv.text.trim() : fv.from || fv.to
+    );
+    if (active.length) {
+      data = data.filter(r => {
+        for (const [key, fv] of active) {
+          const col = MOV_COLUMNS.find(c => c.key === key);
+          if (!col) continue;
+          const val = getMovVal(r, key);
+          if (col.type === 'text') {
+            if (fv.text && !val.includes(fv.text.toLowerCase())) return false;
+          } else if (col.type === 'date') {
+            if (!val) return false;
+            if (fv.from && val < fv.from) return false;
+            if (fv.to   && val > fv.to)   return false;
+          } else if (col.type === 'number') {
+            if (fv.from !== '' && val < Number(fv.from)) return false;
+            if (fv.to   !== '' && val > Number(fv.to))   return false;
+          }
+        }
+        return true;
+      });
+    }
+    // sort
+    if (movSortField && movSortDir) {
+      data.sort((a, b) => {
+        const av = getMovVal(a, movSortField);
+        const bv = getMovVal(b, movSortField);
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return movSortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return data;
+  }, [movs, movColFilters, movSortField, movSortDir]);
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchAll = () => {
     setLoading(true);
-    Promise.all([
+    return Promise.all([
       apiFetch('/api/bodegas').then(r => r.json()),
       apiFetch(`/api/bodegas/${bodegaId}/items`).then(r => r.json()),
       apiFetch('/api/lotes').then(r => r.json()),
@@ -96,7 +389,7 @@ function BodegaGenerica() {
   };
 
   const fetchMovs = () => {
-    apiFetch(`/api/bodegas/${bodegaId}/movimientos`)
+    return apiFetch(`/api/bodegas/${bodegaId}/movimientos`)
       .then(r => r.json())
       .then(setMovs)
       .catch(() => showToast('Error al cargar movimientos.', 'error'));
@@ -109,6 +402,15 @@ function BodegaGenerica() {
   const handleSaveItem = async () => {
     const { mode, data } = itemModal;
     if (!data.nombre?.trim()) { showToast('El nombre es requerido.', 'error'); return; }
+    if (data.nombre.trim().length > 200) { showToast('Nombre demasiado largo (máx 200).', 'error'); return; }
+    if (data.descripcion && data.descripcion.length > 500) { showToast('Descripción demasiado larga (máx 500).', 'error'); return; }
+    if (data.unidad && data.unidad.length > 50) { showToast('Unidad demasiado larga (máx 50).', 'error'); return; }
+    const stockAct = parseFloat(data.stockActual);
+    const stockMin = parseFloat(data.stockMinimo);
+    const totalVal = data.total !== '' && data.total !== undefined ? parseFloat(data.total) : null;
+    if (data.stockActual !== '' && (isNaN(stockAct) || stockAct < 0)) { showToast('Stock actual debe ser un número ≥ 0.', 'error'); return; }
+    if (data.stockMinimo !== '' && (isNaN(stockMin) || stockMin < 0)) { showToast('Stock mínimo debe ser un número ≥ 0.', 'error'); return; }
+    if (totalVal !== null && (isNaN(totalVal) || totalVal < 0)) { showToast('Total debe ser un número ≥ 0.', 'error'); return; }
     setSaving(true);
     try {
       const method = mode === 'edit' ? 'PUT' : 'POST';
@@ -123,7 +425,7 @@ function BodegaGenerica() {
       }
       showToast(mode === 'edit' ? 'Producto actualizado.' : 'Producto agregado.');
       setItemModal(null);
-      fetchAll();
+      await fetchAll();
     } catch {
       showToast('Error de conexión.', 'error');
     } finally {
@@ -140,7 +442,7 @@ function BodegaGenerica() {
         return;
       }
       showToast('Producto eliminado.');
-      fetchAll();
+      await fetchAll();
     } catch {
       showToast('Error de conexión.', 'error');
     }
@@ -152,20 +454,26 @@ function BodegaGenerica() {
   const [facturaFile, setFacturaFile] = useState(null);
 
   const openMovModal = (itemId, tipo) => {
-    if (tipo === 'entrada') {
-      setEntradaForm({ ...EMPTY_ENTRADA, itemId });
-      setFacturaFile(null);
-    } else {
-      setMovForm({ ...EMPTY_MOV, itemId });
-    }
+    // Reset both forms to prevent stale data leaking between modals
+    setEntradaForm({ ...EMPTY_ENTRADA, itemId });
+    setMovForm({ ...EMPTY_MOV, itemId });
+    setFacturaFile(null);
     setMovModal({ itemId, tipo });
   };
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
   const handleSaveEntrada = async () => {
-    if (!entradaForm.cantidad || parseFloat(entradaForm.cantidad) <= 0) {
-      showToast('La cantidad debe ser mayor a cero.', 'error');
+    const cantNum = parseFloat(entradaForm.cantidad);
+    if (!entradaForm.cantidad || isNaN(cantNum) || cantNum <= 0 || !isFinite(cantNum)) {
+      showToast('La cantidad debe ser un número positivo.', 'error');
       return;
     }
+    if (entradaForm.factura && entradaForm.factura.length > 100) { showToast('Factura demasiado larga (máx 100).', 'error'); return; }
+    if (entradaForm.oc && entradaForm.oc.length > 100) { showToast('OC demasiado larga (máx 100).', 'error'); return; }
+    const totalVal = entradaForm.total !== '' && entradaForm.total !== undefined ? parseFloat(entradaForm.total) : null;
+    if (totalVal !== null && (isNaN(totalVal) || totalVal < 0 || !isFinite(totalVal))) { showToast('Total debe ser un número ≥ 0.', 'error'); return; }
+    if (facturaFile && facturaFile.size > MAX_FILE_SIZE) { showToast('Archivo demasiado grande (máx 5 MB).', 'error'); return; }
     setSaving(true);
     try {
       const payload = { ...entradaForm };
@@ -185,8 +493,8 @@ function BodegaGenerica() {
       }
       showToast('Entrada registrada.');
       setMovModal(null);
-      fetchAll();
-      if (tab === 'movimientos') fetchMovs();
+      await fetchAll();
+      if (tab === 'movimientos') await fetchMovs();
     } catch {
       showToast('Error de conexión.', 'error');
     } finally {
@@ -195,10 +503,12 @@ function BodegaGenerica() {
   };
 
   const handleSaveMov = async () => {
-    if (!movForm.cantidad || parseFloat(movForm.cantidad) <= 0) {
-      showToast('La cantidad debe ser mayor a cero.', 'error');
+    const cantNum = parseFloat(movForm.cantidad);
+    if (!movForm.cantidad || isNaN(cantNum) || cantNum <= 0 || !isFinite(cantNum)) {
+      showToast('La cantidad debe ser un número positivo.', 'error');
       return;
     }
+    if (movForm.nota && movForm.nota.length > 500) { showToast('Nota demasiado larga (máx 500).', 'error'); return; }
     if (!movForm.activoId) {
       showToast('El campo Activo es obligatorio.', 'error');
       return;
@@ -230,10 +540,10 @@ function BodegaGenerica() {
         showToast(err.message, 'error');
         return;
       }
-      showToast(movForm.tipo === 'entrada' ? 'Entrada registrada.' : 'Salida registrada.');
+      showToast('Salida registrada.');
       setMovModal(null);
-      fetchAll();
-      if (tab === 'movimientos') fetchMovs();
+      await fetchAll();
+      if (tab === 'movimientos') await fetchMovs();
     } catch {
       showToast('Error de conexión.', 'error');
     } finally {
@@ -311,6 +621,7 @@ function BodegaGenerica() {
                   <th>Unidad</th>
                   <th className="text-right">Stock actual</th>
                   <th className="text-right">Stock mínimo</th>
+                  <th>Moneda</th>
                   <th className="text-right">Total</th>
                   <th className="text-right">Precio unitario</th>
                   <th></th>
@@ -331,6 +642,7 @@ function BodegaGenerica() {
                         {low && <FiAlertTriangle size={12} className="bg-warn-icon" />}
                       </td>
                       <td className="text-right">{fmt(item.stockMinimo)}</td>
+                      <td>{item.moneda || '—'}</td>
                       <td className="text-right">{item.total != null && item.total !== '' ? fmt(item.total) : '—'}</td>
                       <td className="text-right">
                         {item.total != null && item.total !== '' && item.stockActual > 0
@@ -370,59 +682,128 @@ function BodegaGenerica() {
             <p>No hay movimientos registrados aún.</p>
           </div>
         ) : (
+          <>
           <div className="bg-table-wrap">
-            <table className="bg-table">
+            {Object.keys(movColFilters).length > 0 && (
+              <button className="bgm-clear-filters" onClick={() => setMovColFilters({})}>
+                <FiX size={11} /> Limpiar filtros
+              </button>
+            )}
+            <table className="bg-table bgm-table">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Producto</th>
-                  <th>Tipo</th>
-                  <th className="text-right">Cantidad</th>
-                  <th className="text-right">Stock anterior</th>
-                  <th className="text-right">Stock resultante</th>
-                  <th>Factura</th>
-                  <th>OC</th>
-                  <th className="text-right">Total</th>
-                  <th className="text-right">Total salida</th>
-                  <th>Activo</th>
-                  <th>Operario</th>
-                  <th>Lote</th>
-                  <th>Labor</th>
-                  <th>Nota</th>
+                  {MOV_COLUMNS.map(col => (
+                    <MovSortTh key={col.key} col={col}>{col.label}</MovSortTh>
+                  ))}
+                  <th className="bgm-th-settings">
+                    <button
+                      className={`bgm-col-toggle-btn${Object.values(movVisibleCols).some(v => !v) ? ' bgm-col-toggle-btn--active' : ''}`}
+                      onClick={handleMovColBtn}
+                      title="Personalizar columnas"
+                    >
+                      <FiSliders size={12} />
+                      {Object.values(movVisibleCols).filter(v => !v).length > 0 && (
+                        <span className="bgm-col-hidden-badge">{Object.values(movVisibleCols).filter(v => !v).length}</span>
+                      )}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {movs.map(m => (
+                {displayMovs.map(m => (
                   <tr key={m.id}>
-                    <td className="bg-date">{fmtDate(m.timestamp)}</td>
-                    <td>{m.itemNombre}</td>
-                    <td>
-                      <span className={`bg-badge ${m.tipo}`}>
-                        {m.tipo === 'entrada' ? <FiArrowDown size={12} /> : <FiArrowUp size={12} />}
-                        {m.tipo === 'entrada' ? 'Entrada' : 'Salida'}
-                      </span>
-                    </td>
-                    <td className="text-right">{fmt(m.cantidad)}</td>
-                    <td className="text-right">{fmt(m.stockAntes)}</td>
-                    <td className="text-right">{fmt(m.stockDespues)}</td>
-                    <td className="bg-nota">
-                      {m.facturaUrl
-                        ? <a href={m.facturaUrl} target="_blank" rel="noopener noreferrer" className="bg-link">{m.factura || 'Ver'}</a>
-                        : (m.factura || '—')}
-                    </td>
-                    <td className="bg-nota">{m.oc || '—'}</td>
-                    <td className="text-right bg-nota">{m.total != null && m.total !== '' ? fmt(m.total) : '—'}</td>
-                    <td className="text-right bg-nota">{m.totalSalida != null ? fmt(m.totalSalida) : '—'}</td>
-                    <td className="bg-nota">{m.activoNombre || '—'}</td>
-                    <td className="bg-nota">{m.operarioNombre || '—'}</td>
-                    <td className="bg-nota">{m.loteNombre || '—'}</td>
-                    <td className="bg-nota">{m.laborNombre || '—'}</td>
-                    <td className="bg-nota">{m.nota || '—'}</td>
+                    {movVisibleCols.fecha      && <td className="bgm-cell-nowrap">{fmtDate(m.timestamp)}</td>}
+                    {movVisibleCols.producto   && <td className="bgm-cell-nowrap">{m.itemNombre}</td>}
+                    {movVisibleCols.tipo       && (
+                      <td className="bgm-cell-nowrap">
+                        <span className={`bg-badge ${m.tipo}`}>
+                          {m.tipo === 'entrada' ? <FiArrowDown size={12} /> : <FiArrowUp size={12} />}
+                          {m.tipo === 'entrada' ? 'Entrada' : 'Salida'}
+                        </span>
+                      </td>
+                    )}
+                    {movVisibleCols.cantidad   && <td className="text-right bgm-cell-nowrap">{fmt(m.cantidad)}</td>}
+                    {movVisibleCols.stockAntes && <td className="text-right bgm-cell-nowrap">{fmt(m.stockAntes)}</td>}
+                    {movVisibleCols.stockDesp  && <td className="text-right bgm-cell-nowrap">{fmt(m.stockDespues)}</td>}
+                    {movVisibleCols.factura    && (
+                      <td className="bgm-cell-nowrap">
+                        {m.facturaUrl
+                          ? <a href={m.facturaUrl} target="_blank" rel="noopener noreferrer" className="bg-link">{m.factura || 'Ver'}</a>
+                          : (m.factura || '—')}
+                      </td>
+                    )}
+                    {movVisibleCols.oc         && <td className="bgm-cell-nowrap">{m.oc || '—'}</td>}
+                    {movVisibleCols.total      && <td className="text-right bgm-cell-nowrap">{m.total != null && m.total !== '' ? fmt(m.total) : '—'}</td>}
+                    {movVisibleCols.totalSalida && <td className="text-right bgm-cell-nowrap">{m.totalSalida != null ? fmt(m.totalSalida) : '—'}</td>}
+                    {movVisibleCols.activo     && <td className="bgm-cell-nowrap">{m.activoNombre || '—'}</td>}
+                    {movVisibleCols.operario   && <td className="bgm-cell-nowrap">{m.operarioNombre || '—'}</td>}
+                    {movVisibleCols.lote       && <td className="bgm-cell-nowrap">{m.loteNombre || '—'}</td>}
+                    {movVisibleCols.labor      && <td className="bgm-cell-nowrap">{m.laborNombre || '—'}</td>}
+                    {movVisibleCols.nota       && <td className="bgm-cell-nowrap">{m.nota || '—'}</td>}
+                    <td></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Filter popover */}
+          {movFilterPop && createPortal(
+            <>
+              <div className="bgm-filter-backdrop" onClick={() => setMovFilterPop(null)} />
+              <div className="bgm-filter-popover" style={{ left: movFilterPop.x, top: movFilterPop.y }}>
+                {movFilterPop.type === 'text' ? (
+                  <>
+                    <FiFilter size={13} className="bgm-filter-icon" />
+                    <input autoFocus className="bgm-filter-input" placeholder="Filtrar…"
+                      value={movColFilters[movFilterPop.field]?.text || ''}
+                      onChange={e => setMovColFilter(movFilterPop.field, 'text', 'text', e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setMovFilterPop(null); }}
+                    />
+                    {movColFilters[movFilterPop.field]?.text && (
+                      <button className="bgm-filter-clear" onClick={() => { setMovColFilter(movFilterPop.field, 'text', 'text', ''); setMovFilterPop(null); }}>
+                        <FiX size={13} />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="bgm-filter-range">
+                    <span className="bgm-filter-range-label">De</span>
+                    <input className="bgm-filter-input bgm-filter-input-range"
+                      type={movFilterPop.type === 'date' ? 'date' : 'number'}
+                      value={movColFilters[movFilterPop.field]?.from || ''}
+                      onChange={e => setMovColFilter(movFilterPop.field, movFilterPop.type, 'from', e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape') setMovFilterPop(null); }}
+                    />
+                    <span className="bgm-filter-range-label">A</span>
+                    <input className="bgm-filter-input bgm-filter-input-range"
+                      type={movFilterPop.type === 'date' ? 'date' : 'number'}
+                      value={movColFilters[movFilterPop.field]?.to || ''}
+                      onChange={e => setMovColFilter(movFilterPop.field, movFilterPop.type, 'to', e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape') setMovFilterPop(null); }}
+                    />
+                    {(movColFilters[movFilterPop.field]?.from || movColFilters[movFilterPop.field]?.to) && (
+                      <button className="bgm-filter-clear" onClick={() => { setMovColFilter(movFilterPop.field, movFilterPop.type, 'from', ''); setMovColFilter(movFilterPop.field, movFilterPop.type, 'to', ''); setMovFilterPop(null); }}>
+                        <FiX size={13} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>,
+            document.body
+          )}
+
+          {/* Column menu */}
+          {movColMenu && (
+            <MovColMenu
+              x={movColMenu.x} y={movColMenu.y}
+              visibleCols={movVisibleCols}
+              onToggle={toggleMovCol}
+              onClose={() => setMovColMenu(null)}
+            />
+          )}
+          </>
         )
       )}
 
@@ -441,16 +822,26 @@ function BodegaGenerica() {
                 value={itemModal.data.nombre}
                 onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, nombre: e.target.value } }))}
                 placeholder="Ej: Diesel"
+                maxLength={200}
                 autoFocus
               />
               <div className="bg-form-row">
                 <div>
                   <label className="lm-label">Unidad</label>
+                  <UnidadCombobox
+                    value={itemModal.data.unidad}
+                    onChange={v => setItemModal(m => ({ ...m, data: { ...m.data, unidad: v } }))}
+                  />
+                </div>
+                <div>
+                  <label className="lm-label">Stock actual</label>
                   <input
                     className="lm-input"
-                    value={itemModal.data.unidad}
-                    onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, unidad: e.target.value } }))}
-                    placeholder="Ej: litros, kg, unidades"
+                    type="number"
+                    min="0"
+                    value={itemModal.data.stockActual}
+                    onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, stockActual: e.target.value } }))}
+                    placeholder="0"
                   />
                 </div>
                 <div>
@@ -465,19 +856,16 @@ function BodegaGenerica() {
                   />
                 </div>
               </div>
-              {itemModal.mode === 'create' && (
-                <>
-                  <label className="lm-label">Stock inicial</label>
-                  <input
-                    className="lm-input"
-                    type="number"
-                    min="0"
-                    value={itemModal.data.stockActual}
-                    onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, stockActual: e.target.value } }))}
-                    placeholder="0"
-                  />
-                </>
-              )}
+              <label className="lm-label">Moneda</label>
+              <select
+                className="lm-input"
+                value={itemModal.data.moneda || 'CRC'}
+                onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, moneda: e.target.value } }))}
+              >
+                <option value="USD">USD</option>
+                <option value="CRC">CRC</option>
+                <option value="EUR">EUR</option>
+              </select>
               <label className="lm-label">Total (valor inventario)</label>
               <input
                 className="lm-input"
@@ -494,6 +882,7 @@ function BodegaGenerica() {
                 value={itemModal.data.descripcion}
                 onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, descripcion: e.target.value } }))}
                 placeholder="Notas adicionales"
+                maxLength={500}
               />
             </div>
             <div className="lm-modal-footer">
@@ -526,6 +915,7 @@ function BodegaGenerica() {
                     value={entradaForm.factura}
                     onChange={e => setEntradaForm(f => ({ ...f, factura: e.target.value }))}
                     placeholder="Nº de factura"
+                    maxLength={100}
                     autoFocus
                   />
                 </div>
@@ -536,6 +926,7 @@ function BodegaGenerica() {
                     value={entradaForm.oc}
                     onChange={e => setEntradaForm(f => ({ ...f, oc: e.target.value }))}
                     placeholder="Orden de compra"
+                    maxLength={100}
                   />
                 </div>
               </div>
@@ -704,6 +1095,7 @@ function BodegaGenerica() {
                 value={movForm.nota}
                 onChange={e => setMovForm(f => ({ ...f, nota: e.target.value }))}
                 placeholder="Motivo, proveedor, etc."
+                maxLength={500}
               />
             </div>
             <div className="lm-modal-footer">
