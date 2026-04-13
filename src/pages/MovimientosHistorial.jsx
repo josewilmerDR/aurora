@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiSearch, FiX, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './ProductManagement.css';
+import './BodegaAgroquimicosProductManagement.css';
 
 const formatDate = (iso) => {
   if (!iso) return '—';

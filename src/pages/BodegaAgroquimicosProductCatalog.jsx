@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiEdit, FiTrash2, FiArrowLeft } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './ProductManagement.css';
+import './BodegaAgroquimicosProductManagement.css';
 import Toast from '../components/Toast';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
