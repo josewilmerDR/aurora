@@ -28,13 +28,50 @@ router.post('/api/horimetro', authenticate, async (req, res) => {
       'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
-      'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+      'horaInicio', 'horaFinal', 'diaSiguiente', 'operarioId', 'operarioNombre',
       'combustible',
     ];
     const data = pick(req.body, allowed);
     if (!data.fecha || !data.tractorId) {
       return res.status(400).json({ message: 'Fecha y tractor son obligatorios.' });
     }
+    // Validar fecha: formato YYYY-MM-DD y no futura
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
+      return res.status(400).json({ message: 'Formato de fecha inválido.' });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (data.fecha > today) {
+      return res.status(400).json({ message: 'La fecha no puede ser futura.' });
+    }
+    // Validar horímetros: numéricos, no negativos, máximo razonable
+    if (data.horimetroInicial !== undefined && data.horimetroInicial !== '') {
+      const v = parseFloat(data.horimetroInicial);
+      if (isNaN(v) || v < 0 || v > 99999) return res.status(400).json({ message: 'Horímetro inicial fuera de rango.' });
+      data.horimetroInicial = v;
+    }
+    if (data.horimetroFinal !== undefined && data.horimetroFinal !== '') {
+      const v = parseFloat(data.horimetroFinal);
+      if (isNaN(v) || v < 0 || v > 99999) return res.status(400).json({ message: 'Horímetro final fuera de rango.' });
+      data.horimetroFinal = v;
+    }
+    // Validar horas: formato HH:MM
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (data.horaInicio && !timeRe.test(data.horaInicio)) {
+      return res.status(400).json({ message: 'Formato de hora de inicio inválido.' });
+    }
+    if (data.horaFinal && !timeRe.test(data.horaFinal)) {
+      return res.status(400).json({ message: 'Formato de hora final inválido.' });
+    }
+    // Validar bloques: debe ser array
+    if (data.bloques !== undefined && !Array.isArray(data.bloques)) {
+      data.bloques = [];
+    }
+    // Sanitizar diaSiguiente a booleano
+    if (data.diaSiguiente !== undefined) data.diaSiguiente = !!data.diaSiguiente;
+    // Truncar strings largos (max 200 chars)
+    ['tractorNombre', 'implemento', 'loteNombre', 'grupo', 'labor', 'operarioNombre'].forEach(f => {
+      if (typeof data[f] === 'string' && data[f].length > 200) data[f] = data[f].slice(0, 200);
+    });
     // Normalizar combustible: sólo guardar si tiene al menos costoEstimado
     if (data.combustible && typeof data.combustible === 'object') {
       const c = data.combustible;
@@ -72,10 +109,44 @@ router.put('/api/horimetro/:id', authenticate, async (req, res) => {
       'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
       'horimetroInicial', 'horimetroFinal',
       'loteId', 'loteNombre', 'grupo', 'bloques', 'labor',
-      'horaInicio', 'horaFinal', 'operarioId', 'operarioNombre',
+      'horaInicio', 'horaFinal', 'diaSiguiente', 'operarioId', 'operarioNombre',
       'combustible',
     ];
     const data = pick(req.body, allowed);
+    // Validar fecha si se envía
+    if (data.fecha) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
+        return res.status(400).json({ message: 'Formato de fecha inválido.' });
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      if (data.fecha > today) {
+        return res.status(400).json({ message: 'La fecha no puede ser futura.' });
+      }
+    }
+    // Validar horímetros
+    if (data.horimetroInicial !== undefined && data.horimetroInicial !== '') {
+      const v = parseFloat(data.horimetroInicial);
+      if (isNaN(v) || v < 0 || v > 99999) return res.status(400).json({ message: 'Horímetro inicial fuera de rango.' });
+      data.horimetroInicial = v;
+    }
+    if (data.horimetroFinal !== undefined && data.horimetroFinal !== '') {
+      const v = parseFloat(data.horimetroFinal);
+      if (isNaN(v) || v < 0 || v > 99999) return res.status(400).json({ message: 'Horímetro final fuera de rango.' });
+      data.horimetroFinal = v;
+    }
+    // Validar horas
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (data.horaInicio && !timeRe.test(data.horaInicio)) {
+      return res.status(400).json({ message: 'Formato de hora de inicio inválido.' });
+    }
+    if (data.horaFinal && !timeRe.test(data.horaFinal)) {
+      return res.status(400).json({ message: 'Formato de hora final inválido.' });
+    }
+    if (data.bloques !== undefined && !Array.isArray(data.bloques)) data.bloques = [];
+    if (data.diaSiguiente !== undefined) data.diaSiguiente = !!data.diaSiguiente;
+    ['tractorNombre', 'implemento', 'loteNombre', 'grupo', 'labor', 'operarioNombre'].forEach(f => {
+      if (typeof data[f] === 'string' && data[f].length > 200) data[f] = data[f].slice(0, 200);
+    });
     // En edición: actualizar sólo los campos estimados, preservar costoReal/ajuste/cierrePeriodo
     if (data.combustible && typeof data.combustible === 'object') {
       const existing = (await db.collection('horimetro').doc(id).get()).data()?.combustible || {};
@@ -118,6 +189,14 @@ router.post('/api/horimetro/escanear', authenticate, async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) return res.status(400).json({ message: 'Imagen requerida.' });
+    // Limitar tamaño de imagen (~5MB base64 ≈ 3.75MB binario)
+    if (typeof imageBase64 !== 'string' || imageBase64.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ message: 'Imagen demasiado grande (máx ~4MB).' });
+    }
+    const allowedMedia = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMedia.includes(mediaType)) {
+      return res.status(400).json({ message: 'Tipo de imagen no soportado.' });
+    }
 
     const anthropicClient = getAnthropicClient();
 
