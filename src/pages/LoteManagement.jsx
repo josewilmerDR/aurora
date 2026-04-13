@@ -364,7 +364,7 @@ function LoteManagement() {
       if (!res.ok) throw new Error('Error al eliminar');
       if (selectedLote?.id === confirmModal.loteId) setSelectedLote(null);
       setConfirmModal(null);
-      fetchLotes();
+      await fetchLotes();
       showToast('Lote eliminado correctamente');
     } catch {
       showToast('Error al eliminar el lote.', 'error');
@@ -377,11 +377,12 @@ function LoteManagement() {
     e.preventDefault();
     const url = isEditing ? `/api/lotes/${formData.id}` : '/api/lotes';
     const method = isEditing ? 'PUT' : 'POST';
+    const { id, ...payload } = formData;
     try {
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(isEditing ? formData : payload),
       });
       if (!res.ok) throw new Error('Error al guardar el lote');
       const saved = await res.json();
@@ -444,15 +445,15 @@ function LoteManagement() {
             <div className="form-grid">
               <div className="form-control">
                 <label htmlFor="codigoLote">Código del Lote</label>
-                <input id="codigoLote" name="codigoLote" value={formData.codigoLote} onChange={handleInputChange} placeholder="Ej: L2604" required />
+                <input id="codigoLote" name="codigoLote" value={formData.codigoLote} onChange={handleInputChange} placeholder="Ej: L2604" maxLength={16} required />
               </div>
               <div className="form-control">
                 <label htmlFor="nombreLote">Nombre amigable <span style={{ fontWeight: 400, opacity: 0.7 }}>(opcional)</span></label>
-                <input id="nombreLote" name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} placeholder="Ej: 4, Lote de Aurora" />
+                <input id="nombreLote" name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} placeholder="Ej: 4, Lote de Aurora" maxLength={32} />
               </div>
               <div className="form-control">
                 <label htmlFor="fechaCreacion">Fecha de Creación</label>
-                <input id="fechaCreacion" name="fechaCreacion" value={formData.fechaCreacion} onChange={handleInputChange} type="date" required />
+                <input id="fechaCreacion" name="fechaCreacion" value={formData.fechaCreacion} onChange={handleInputChange} type="date" max={new Date().toISOString().split('T')[0]} required />
               </div>
             </div>
 
@@ -475,7 +476,7 @@ function LoteManagement() {
     }
 
     return (
-      <div className="lote-hub">
+      <div className="lote-hub" key={selectedLote.id}>
         <button className="lote-hub-back" onClick={() => setSelectedLote(null)}>
           <FiArrowLeft size={13} /> Todos los lotes
         </button>
@@ -641,6 +642,7 @@ function LoteManagement() {
       {/* ── Page header ── */}
       {view !== 'form' && (
         <div className="lote-page-header">
+          <h2 className="lote-page-title">Lotes Activos</h2>
           <button onClick={handleNewLote} className="btn btn-primary">
             <FiPlus /> Nuevo Lote
           </button>
@@ -742,7 +744,6 @@ function LoteManagement() {
       )}
 
       {view !== 'form' && <div className="lote-list-panel">
-          <h3 className="lote-list-title">Lotes Activos</h3>
 
           {lotes.length === 0
           ? <p className="empty-state" style={{ marginTop: '1rem' }}>No hay lotes creados.</p>
@@ -760,7 +761,7 @@ function LoteManagement() {
                       <span className="lote-list-name">{lote.nombreLote}</span>
                     )}
                     <span className="lote-list-date">
-                      {new Date(lote.fechaCreacion._seconds * 1000).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' })}
+                      {formatDate(lote.fechaCreacion)}
                     </span>
                   </div>
                   <FiChevronRight size={14} className="lote-list-arrow" />

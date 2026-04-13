@@ -7,7 +7,14 @@
 
 .lote-page-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lote-page-title {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--aurora-light);
 }
 
 .lote-management-layout {
@@ -54,16 +61,6 @@
 }
 
 /* ── Left panel: lote list ───────────────────────────────────────────────── */
-.lote-list-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--aurora-light);
-  opacity: 0.45;
-  margin: 0 0 4px;
-}
-
 .lote-list-panel {
   background-color: var(--aurora-background);
   border: 1px solid var(--aurora-border);
@@ -349,6 +346,12 @@
   border-radius: 8px;
   padding: 24px;
   min-height: 400px;
+  animation: loteHubFadeIn 0.25s ease-out;
+}
+
+@keyframes loteHubFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .lote-hub-empty {
