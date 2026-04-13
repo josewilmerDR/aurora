@@ -27,9 +27,11 @@ const clearDraft = () => {
 };
 const loadDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch { return null; } };
 
+const TODAY = () => new Date().toISOString().slice(0, 10);
+
 const EMPTY_FORM = {
   id: null,
-  fecha: new Date().toISOString().slice(0, 10),
+  fecha: TODAY(),
   tractorId: '',
   tractorNombre: '',
   implementoId: '',
@@ -99,7 +101,8 @@ function OperarioCombobox({ value, onChange, usuarios }) {
   const openDropdown = () => {
     if (inputRef.current) {
       const r = inputRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
+      const left = Math.min(r.left + window.scrollX, window.innerWidth - 12);
+      setDropPos({ top: r.bottom + window.scrollY + 2, left, width: r.width });
     }
     setOpen(true);
     setHi(0);
@@ -204,7 +207,7 @@ function RegistroHorimetro() {
   const timeDropdownRef = useRef(null);
   const clockBtnRefs   = useRef({});
   const [timeDropdown, setTimeDropdown] = useState(null);
-  const [dropdownPos,  setDropdownPos]  = useState({ top: 0, right: 0 });
+  const [dropdownPos,  setDropdownPos]  = useState({ top: 0, bottom: 0, right: 0, openUp: false });
 
   // Scan state
   const scanFileRef = useRef(null);
@@ -506,6 +509,10 @@ function RegistroHorimetro() {
     e.preventDefault();
     if (!form.fecha || !form.tractorId) {
       showToast('Fecha y tractor son obligatorios.', 'error');
+      return;
+    }
+    if (form.fecha > TODAY()) {
+      showToast('La fecha no puede ser futura.', 'error');
       return;
     }
     const ini = parseFloat(form.horimetroInicial);
@@ -825,7 +832,7 @@ function RegistroHorimetro() {
               <div className="hor-form-grid">
                 <div className="hor-field">
                   <label>Fecha <span className="hor-req">*</span></label>
-                  <input type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
+                  <input type="date" name="fecha" value={form.fecha} onChange={handleChange} max={TODAY()} required />
                 </div>
                 <div className="hor-field">
                   <label>Operario</label>
@@ -888,7 +895,7 @@ function RegistroHorimetro() {
                 <input
                   type="number" name="horimetroInicial"
                   value={form.horimetroInicial} onChange={handleChange}
-                  min="0" step="0.1" placeholder="0.0"
+                  min="0" max="99999" step="0.1" placeholder="0.0"
                   className={errHorimetro ? 'hor-input-error' : ''}
                 />
               </div>
@@ -898,7 +905,7 @@ function RegistroHorimetro() {
                 <input
                   type="number" name="horimetroFinal"
                   value={form.horimetroFinal} onChange={handleChange}
-                  min="0" step="0.1" placeholder="0.0"
+                  min="0" max="99999" step="0.1" placeholder="0.0"
                   className={errHorimetro ? 'hor-input-error' : ''}
                 />
                 {errHorimetro && <span className="hor-field-error">El final debe ser mayor que el inicial</span>}
@@ -1006,14 +1013,14 @@ function RegistroHorimetro() {
                       </button>
                     )}
                   </div>
-                  {laborOpen && (
+                  {laborOpen && (() => {
+                    const q = laborQuery.toLowerCase();
+                    const laboresFiltradas = labores.filter(l =>
+                      !q || l.descripcion?.toLowerCase().includes(q) || l.codigo?.toLowerCase().includes(q)
+                    );
+                    return (
                     <div className="hor-labor-dropdown">
-                      {labores
-                        .filter(l => {
-                          const q = laborQuery.toLowerCase();
-                          return !q || l.descripcion?.toLowerCase().includes(q) || l.codigo?.toLowerCase().includes(q);
-                        })
-                        .map(l => (
+                      {laboresFiltradas.map(l => (
                           <button
                             type="button"
                             key={l.id}
@@ -1029,14 +1036,12 @@ function RegistroHorimetro() {
                           </button>
                         ))
                       }
-                      {labores.filter(l => {
-                        const q = laborQuery.toLowerCase();
-                        return !q || l.descripcion?.toLowerCase().includes(q) || l.codigo?.toLowerCase().includes(q);
-                      }).length === 0 && (
+                      {laboresFiltradas.length === 0 && (
                         <p className="hor-labor-empty">Sin resultados</p>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
               {['horaInicio', 'horaFinal'].map(field => (
@@ -1057,7 +1062,16 @@ function RegistroHorimetro() {
                           const btn = clockBtnRefs.current[field];
                           if (btn) {
                             const r = btn.getBoundingClientRect();
-                            setDropdownPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                            const spaceBelow = window.innerHeight - r.bottom;
+                            const spaceAbove = r.top;
+                            const dropdownH = 340; // approximate dropdown height
+                            const openUp = spaceBelow < dropdownH && spaceAbove > spaceBelow;
+                            setDropdownPos({
+                              top: openUp ? 0 : r.bottom + 4,
+                              bottom: openUp ? (window.innerHeight - r.top + 4) : 0,
+                              right: window.innerWidth - r.right,
+                              openUp,
+                            });
                           }
                           setTimeDropdown(field);
                         }}
@@ -1177,7 +1191,7 @@ function RegistroHorimetro() {
                     <tr key={idx} className={!row.tractorId ? 'hor-batch-row-warn' : ''}>
                       <td className="hor-batch-num">{idx + 1}</td>
                       <td>
-                        <input type="date" className="hor-batch-input" value={row.fecha || ''} onChange={e => updateScanRow(idx, 'fecha', e.target.value)} />
+                        <input type="date" className="hor-batch-input" value={row.fecha || ''} max={TODAY()} onChange={e => updateScanRow(idx, 'fecha', e.target.value)} />
                       </td>
                       <td>
                         <select className="hor-batch-select" value={row.tractorId || ''} onChange={e => updateScanRow(idx, 'tractorId', e.target.value)}>
@@ -1254,7 +1268,14 @@ function RegistroHorimetro() {
       <div
         ref={timeDropdownRef}
         className="hor-time-dropdown"
-        style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, left: 'auto', zIndex: 9999 }}
+        style={{
+          position: 'fixed',
+          top: dropdownPos.openUp ? 'auto' : dropdownPos.top,
+          bottom: dropdownPos.openUp ? dropdownPos.bottom : 'auto',
+          right: dropdownPos.right,
+          left: 'auto',
+          zIndex: 9999,
+        }}
       >
         <button type="button" className="hor-tdd-item hor-tdd-now"
           onClick={() => { setNow(timeDropdown); setTimeDropdown(null); }}>
