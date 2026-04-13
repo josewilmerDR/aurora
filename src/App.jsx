@@ -10,7 +10,6 @@ import TaskAction from './pages/TaskAction';
 import ProductManagement from './pages/BodegaAgroquimicosProductManagement';
 import ProductCatalog from './pages/BodegaAgroquimicosProductCatalog';
 import ProductIngreso from './pages/BodegaAgroquimicosProductIngreso';
-import GoodsReceipt from './pages/BodegaAgroquimicosGoodsReceipt';
 import MovimientosHistorial from './pages/BodegaAgroquimicosMovimientosHistorial';
 import PurchaseOrder from './pages/PurchaseOrder';
 import OrdenesList from './pages/OrdenesList';
@@ -105,7 +104,6 @@ const routeTitles = {
   '/productos': 'Inventario Agroquímicos',
   '/productos/todos': 'Inventario Completo',
   '/ingreso-productos': 'Recepción de Mercancía',
-  '/recepciones': 'Recepción de Mercancía',
   '/productos/movimientos': 'Historial de Movimientos',
   '/bodega/agroquimicos/existencias': 'Existencias — Agroquímicos',
   '/bodega/agroquimicos/recepcion': 'Recepción de Mercancía',
@@ -461,7 +459,6 @@ function App() {
             <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
             <Route path="/productos/movimientos" element={<Navigate to="/bodega/agroquimicos/movimientos" replace />} />
             <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductCatalog /></RoleRoute>} />
-            <Route path="/recepciones" element={<RoleRoute path="/recepciones"><GoodsReceipt /></RoleRoute>} />
             <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OrdenesList /></RoleRoute>} />
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OrdenesHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />

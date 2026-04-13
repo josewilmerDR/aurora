@@ -519,12 +519,50 @@ router.get('/api/recepciones', authenticate, async (req, res) => {
 router.post('/api/recepciones', authenticate, async (req, res) => {
   try {
     const { ordenCompraId, poNumber, proveedor, items, notas, imageBase64, mediaType } = req.body;
+
+    // --- Validaciones de entrada ---
+    if (typeof notas === 'string' && notas.length > 1000) {
+      return res.status(400).json({ message: 'Las notas no deben superar 1000 caracteres.' });
+    }
+    if (typeof poNumber === 'string' && poNumber.length > 100) {
+      return res.status(400).json({ message: 'El número de OC es demasiado largo.' });
+    }
+    if (typeof proveedor === 'string' && proveedor.length > 200) {
+      return res.status(400).json({ message: 'El nombre del proveedor es demasiado largo.' });
+    }
+    if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.length > 15 * 1024 * 1024) {
+      return res.status(400).json({ message: 'La imagen es demasiado grande (máx ~10 MB).' });
+    }
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
+    }
+    if (items.length > 200) {
+      return res.status(400).json({ message: 'Demasiados ítems en la recepción.' });
+    }
+    for (const item of items) {
+      const qty = parseFloat(item.cantidadRecibida);
+      if (qty < 0 || qty > 999999 || !isFinite(qty)) {
+        return res.status(400).json({ message: `Cantidad inválida para ${item.nombreComercial || 'un producto'}.` });
+      }
     }
     const recibidos = items.filter(i => parseFloat(i.cantidadRecibida) > 0);
     if (recibidos.length === 0) {
       return res.status(400).json({ message: 'Al menos un producto debe tener cantidad recibida mayor a cero.' });
+    }
+
+    // Verificar que la orden existe, pertenece a la finca y está activa
+    if (ordenCompraId) {
+      const ordenDoc = await db.collection('ordenes_compra').doc(ordenCompraId).get();
+      if (!ordenDoc.exists) {
+        return res.status(404).json({ message: 'Orden de compra no encontrada.' });
+      }
+      const ordenData = ordenDoc.data();
+      if (ordenData.fincaId !== req.fincaId) {
+        return res.status(403).json({ message: 'No tiene permiso sobre esta orden de compra.' });
+      }
+      if (ordenData.estado !== 'activa' && ordenData.estado !== 'recibida_parcial') {
+        return res.status(400).json({ message: 'Esta orden ya fue recibida o cancelada.' });
+      }
     }
 
     const recepcionRef = db.collection('recepciones').doc();

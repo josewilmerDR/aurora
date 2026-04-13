@@ -11,6 +11,7 @@ const UNIDADES = ['L', 'mL', 'kg', 'g'];
 const MONEDAS = ['USD', 'EUR', 'CRC', 'COP', 'MXN', 'BRL', 'PEN', 'GTQ', 'HNL', 'NIO'];
 
 const MAX_IMAGE_PX = 1600;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 function compressImage(file) {
   return new Promise((resolve, reject) => {
@@ -103,6 +104,8 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
     const file = e.target.files[0];
     if (!file) return;
     setScanError(null);
+    if (!file.type.startsWith('image/')) { setScanError('Solo se aceptan archivos de imagen.'); e.target.value = ''; return; }
+    if (file.size > MAX_IMAGE_SIZE) { setScanError('La imagen no debe superar 10 MB.'); e.target.value = ''; return; }
     try { setImageData(await compressImage(file)); }
     catch { setScanError('No se pudo procesar la imagen. Intenta con otro archivo.'); }
     e.target.value = '';
@@ -112,6 +115,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (!file || !file.type.startsWith('image/')) return;
+    if (file.size > MAX_IMAGE_SIZE) { setScanError('La imagen no debe superar 10 MB.'); return; }
     setScanError(null);
     try { setImageData(await compressImage(file)); }
     catch { setScanError('No se pudo procesar la imagen.'); }
