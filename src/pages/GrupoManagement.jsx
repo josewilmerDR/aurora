@@ -83,6 +83,7 @@ function NuevoCatalogModal({ field, onConfirm, onCancel }) {
             placeholder={placeholder}
             value={nombre}
             onChange={e => setNombre(e.target.value)}
+            maxLength={32}
             autoFocus
             onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
           />
@@ -476,11 +477,18 @@ function GrupoManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const nombre = formData.nombreGrupo.trim();
+    if (!nombre || nombre.length > 16) { showToast('El nombre del grupo debe tener entre 1 y 16 caracteres.', 'error'); return; }
+    if (!formData.fechaCreacion) { showToast('La fecha de creación es requerida.', 'error'); return; }
+    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + 15); maxDate.setHours(23, 59, 59, 999);
+    if (new Date(formData.fechaCreacion) > maxDate) { showToast('La fecha no puede superar 15 días en el futuro.', 'error'); return; }
     if (formData.bloques.length === 0) { showToast('Selecciona al menos un bloque.', 'error'); return; }
     const url    = isEditing ? `/api/grupos/${formData.id}` : '/api/grupos';
     const method = isEditing ? 'PUT' : 'POST';
     try {
-      const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const { id: _id, ...payload } = formData;
+      payload.nombreGrupo = payload.nombreGrupo.trim();
+      const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error();
       const saved     = await res.json();
       const newGrupos = await fetchAll();
@@ -560,11 +568,11 @@ function GrupoManagement() {
             <div className="form-grid">
               <div className="form-control">
                 <label htmlFor="nombreGrupo">Nombre de Grupo</label>
-                <input id="nombreGrupo" name="nombreGrupo" value={formData.nombreGrupo} onChange={handleInputChange} required />
+                <input id="nombreGrupo" name="nombreGrupo" value={formData.nombreGrupo} onChange={handleInputChange} required maxLength={16} />
               </div>
               <div className="form-control">
                 <label htmlFor="fechaCreacion">Fecha de Creación</label>
-                <input id="fechaCreacion" name="fechaCreacion" type="date" value={formData.fechaCreacion} onChange={handleInputChange} required />
+                <input id="fechaCreacion" name="fechaCreacion" type="date" value={formData.fechaCreacion} onChange={handleInputChange} required max={(() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()} />
               </div>
               <div className="form-control">
                 <label htmlFor="cosecha">Cosecha</label>
@@ -959,7 +967,8 @@ function GrupoManagement() {
 
       {/* ── Page header ── */}
       {!loading && grupos.length > 0 && !showForm && (
-        <div className="lote-page-header">
+        <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Grupos</h2>
           <button className="btn btn-primary" onClick={handleNewGrupo}>
             <FiPlus size={15} /> Nuevo Grupo
           </button>
@@ -973,7 +982,6 @@ function GrupoManagement() {
 
         {/* Lista compacta */}
         <div className="lote-list-panel">
-          <h3 className="lote-list-title">Grupos</h3>
           {grupos.length === 0 ? (
             <div className="grupo-cta">
               <div className="grupo-cta-icon"><FiPlus size={24} /></div>
