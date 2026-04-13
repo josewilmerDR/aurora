@@ -11,6 +11,53 @@ const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', '
   'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario',
   'iva', 'proveedor', 'registroFitosanitario', 'observacion', 'activo'];
 
+const TIPOS_VALIDOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro', ''];
+const MONEDAS_VALIDAS = ['USD', 'CRC', 'EUR'];
+
+function validateProducto(body, isCreate) {
+  const errors = [];
+  const s = (v) => typeof v === 'string' ? v : '';
+  const checkStr = (key, label, max) => {
+    if (body[key] !== undefined && s(body[key]).length > max)
+      errors.push(`${label}: máximo ${max} caracteres`);
+  };
+  const checkNumRange = (key, label, min, max, exclusive) => {
+    if (body[key] === undefined || body[key] === '' || body[key] === null) return;
+    const n = Number(body[key]);
+    if (isNaN(n)) { errors.push(`${label}: debe ser un número`); return; }
+    if (n < min) errors.push(`${label}: mínimo ${min}`);
+    if (exclusive ? n >= max : n > max) errors.push(`${label}: debe ser menor a ${max}`);
+  };
+
+  if (isCreate && !s(body.nombreComercial).trim())
+    errors.push('Nombre comercial es obligatorio');
+
+  checkStr('idProducto',            'ID Producto',        32);
+  checkStr('nombreComercial',       'Nombre comercial',   64);
+  checkStr('ingredienteActivo',     'Ingrediente activo', 64);
+  checkStr('proveedor',             'Proveedor',          128);
+  checkStr('registroFitosanitario', 'Registro',           32);
+  checkStr('observacion',           'Observación',        288);
+  checkStr('plagaQueControla',      'Plaga/enfermedad',   128);
+  checkStr('unidad',                'Unidad',             40);
+
+  if (body.tipo !== undefined && !TIPOS_VALIDOS.includes(s(body.tipo)))
+    errors.push('Tipo no válido');
+  if (body.moneda !== undefined && !MONEDAS_VALIDAS.includes(s(body.moneda)))
+    errors.push('Moneda no válida');
+
+  checkNumRange('cantidadPorHa',    'Dosis por Ha',       0, 2048, true);
+  checkNumRange('periodoReingreso', 'Período reingreso',  0, 512,  true);
+  checkNumRange('periodoACosecha',  'Período a cosecha',  0, 512,  true);
+  checkNumRange('stockActual',      'Stock',              0, 32768, true);
+  checkNumRange('stockMinimo',      'Stock mínimo',       0, 32768, true);
+  checkNumRange('precioUnitario',   'Precio unitario',    0, 2097152, true);
+  checkNumRange('tipoCambio',       'Tipo de cambio',     0, 2097152, true);
+  checkNumRange('iva',              'IVA',                0, 100,  false);
+
+  return errors;
+}
+
 // --- API ENDPOINTS: PRODUCTOS ---
 router.get('/api/productos', authenticate, async (req, res) => {
   try {
@@ -24,6 +71,9 @@ router.get('/api/productos', authenticate, async (req, res) => {
 
 router.post('/api/productos', authenticate, async (req, res) => {
   try {
+    const valErrors = validateProducto(req.body, true);
+    if (valErrors.length) return res.status(400).json({ message: valErrors.join('; ') });
+
     const { fechaIngreso, facturaNumero, registrarIngreso, ordenCompraId, ocPoNumber } = req.body;
     const fechaTs = fechaIngreso
       ? Timestamp.fromDate(new Date(fechaIngreso + 'T12:00:00'))
@@ -102,6 +152,9 @@ router.post('/api/productos', authenticate, async (req, res) => {
 
 router.put('/api/productos/:id', authenticate, async (req, res) => {
   try {
+    const valErrors = validateProducto(req.body, false);
+    if (valErrors.length) return res.status(400).json({ message: valErrors.join('; ') });
+
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });

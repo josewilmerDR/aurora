@@ -1,5 +1,12 @@
 @import url('./LoteManagement.css');
 
+/* ── Botón volver atrás ───────────────────────────────────────────────────── */
+.lote-management-layout > .page-close-btn {
+  top: -20px;
+  left: auto;
+  right: 0;
+}
+
 /* ── Page loading spinner ─────────────────────────────────────────────────── */
 .pg-page-loading {
   display: flex;
@@ -2078,6 +2085,61 @@ select.pg-input option {
 .ep-field select option {
   background-color: var(--aurora-dark-blue);
   color: var(--aurora-light);
+}
+
+.ep-field-error {
+  font-size: 0.75rem;
+  color: var(--aurora-magenta);
+  margin-top: 2px;
+}
+
+/* ── Proveedor combobox dropdown (portal) ────────────────────────────────── */
+.ep-combo-dropdown {
+  position: absolute;
+  max-height: 220px;
+  overflow-y: auto;
+  background-color: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-green);
+  border-radius: 6px;
+  padding: 4px 0;
+  list-style: none;
+  margin: 0;
+  z-index: 600;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.ep-combo-dropdown li {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ep-combo-dropdown li:hover,
+.ep-combo-dropdown li.ep-combo-item--active {
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+}
+
+/* ── Edit modal responsive ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .edit-producto-modal {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .ep-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ep-field-wide {
+    grid-column: auto;
+  }
 }
 
 /* ── Aurora AI Chat Bar ──────────────────────────────────────────────────── */

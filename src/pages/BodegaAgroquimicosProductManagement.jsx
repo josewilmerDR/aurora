@@ -109,8 +109,17 @@ function ProductManagement() {
 
   const handleColMenuOpen = (e) => {
     e.stopPropagation();
+    if (colMenu) { setColMenu(null); return; }
     const r = e.currentTarget.getBoundingClientRect();
-    setColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
+    const menuTop = r.bottom + 4;
+    const availableH = window.innerHeight - menuTop - 8;
+    // Estimate: title ~36px + each item ~33px + reset btn ~34px + padding
+    const estimatedH = 36 + COLUMNS.length * 33 + 34 + 12;
+    const needsWrap = estimatedH > availableH && availableH >= 160;
+    const cols = needsWrap ? Math.min(Math.ceil(estimatedH / Math.max(availableH, 200)), 3) : 1;
+    const menuW = cols * 190;
+    const menuLeft = Math.max(8, Math.min(r.right - menuW, window.innerWidth - menuW - 8));
+    setColMenu({ x: menuLeft, y: menuTop, availableH, cols });
   };
 
   const getVal = (p, field) =>
@@ -716,20 +725,25 @@ function ProductManagement() {
       {colMenu && createPortal(
         <>
           <div className="hor-col-menu-backdrop" onClick={() => setColMenu(null)} />
-          <div className="hor-col-menu" style={{ left: colMenu.x, top: colMenu.y }}>
+          <div
+            className={`hor-col-menu${colMenu.cols > 1 ? ' hor-col-menu--multi' : ''}`}
+            style={{ left: colMenu.x, top: colMenu.y, maxHeight: colMenu.availableH, ...(colMenu.cols > 1 ? { width: colMenu.cols * 190 } : {}) }}
+          >
             <div className="hor-col-menu-title">Columnas visibles</div>
-            {COLUMNS.map(col => (
-              <button
-                key={col.key}
-                className={`hor-col-menu-item${!visibleCols.has(col.key) ? ' is-hidden' : ''}${col.required ? ' col-picker-required' : ''}`}
-                onClick={() => !col.required && toggleCol(col.key)}
-                disabled={col.required}
-              >
-                <span className="hor-col-menu-check" />
-                {col.label}
-                {col.required && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: '0.75em' }}>🔒</span>}
-              </button>
-            ))}
+            <div className={`hor-col-menu-items${colMenu.cols > 1 ? ' hor-col-menu-items--multi' : ''}`}>
+              {COLUMNS.map(col => (
+                <button
+                  key={col.key}
+                  className={`hor-col-menu-item${!visibleCols.has(col.key) ? ' is-hidden' : ''}${col.required ? ' col-picker-required' : ''}`}
+                  onClick={() => !col.required && toggleCol(col.key)}
+                  disabled={col.required}
+                >
+                  <span className="hor-col-menu-check" />
+                  {col.label}
+                  {col.required && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: '0.75em' }}>🔒</span>}
+                </button>
+              ))}
+            </div>
             {visibleCols.size < COLUMNS.filter(c => c.defaultVisible).length && (
               <button className="hor-col-menu-reset" onClick={() => {
                 const def = new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
