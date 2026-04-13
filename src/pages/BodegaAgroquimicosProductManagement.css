@@ -2821,6 +2821,32 @@ select.pg-input option {
     flex: 1;
     justify-content: center;
   }
+
+  .ingreso-grid-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ingreso-header-right {
+    flex-direction: column;
+  }
+
+  .ingreso-header-right > div {
+    width: 100%;
+  }
+
+  .ingreso-grid-footer {
+    flex-direction: column-reverse;
+    gap: 12px;
+  }
+
+  .ingreso-footer-actions {
+    width: 100%;
+  }
+
+  .ingreso-footer-actions .btn {
+    flex: 1;
+  }
 }
 
 

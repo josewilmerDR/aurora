@@ -364,9 +364,29 @@ router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
 // --- API ENDPOINTS: INGRESO CONFIRMADO (ProductIngreso → recepción atómica) ---
 router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
   try {
-    const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, ocEstado, ocUpdatedItems, imageBase64, mediaType } = req.body;
+    const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, imageBase64, mediaType } = req.body;
+
+    // --- Validaciones de entrada ---
+    if (typeof proveedor === 'string' && proveedor.length > 200) {
+      return res.status(400).json({ message: 'El nombre del proveedor es demasiado largo.' });
+    }
+    if (typeof facturaNumero === 'string' && facturaNumero.length > 100) {
+      return res.status(400).json({ message: 'El número de factura es demasiado largo.' });
+    }
+    if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.length > 15 * 1024 * 1024) {
+      return res.status(400).json({ message: 'La imagen es demasiado grande (máx ~10 MB).' });
+    }
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
+    }
+    if (items.length > 200) {
+      return res.status(400).json({ message: 'Demasiados ítems.' });
+    }
+    for (const item of items) {
+      const qty = parseFloat(item.cantidad);
+      if (!isNaN(qty) && (qty < 0 || qty > 999999 || !isFinite(qty))) {
+        return res.status(400).json({ message: `Cantidad inválida para ${item.nombreComercial || 'un producto'}.` });
+      }
     }
     const validos = items.filter(i => (i.idProducto || '').trim() || (i.nombreComercial || '').trim());
     if (validos.length === 0) {
@@ -509,10 +529,30 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       createdAt: Timestamp.now(),
     });
 
-    if (ordenCompraId && ocEstado) {
-      const ocUpdate = { estado: ocEstado };
-      if (Array.isArray(ocUpdatedItems)) ocUpdate.items = ocUpdatedItems;
-      batch.update(db.collection('ordenes_compra').doc(ordenCompraId), ocUpdate);
+    if (ordenCompraId) {
+      const ordenDoc = await db.collection('ordenes_compra').doc(ordenCompraId).get();
+      if (ordenDoc.exists && ordenDoc.data().fincaId === req.fincaId) {
+        const ocData = ordenDoc.data();
+        const ocItems = ocData.items || [];
+        // Recalcular cantidadRecibida en el servidor (no confiar en el cliente)
+        const updatedItems = ocItems.map(ocItem => {
+          const match = recepcionItems.find(ri =>
+            ri.productoId === ocItem.productoId ||
+            (ri.nombreComercial || '').toLowerCase().trim() === (ocItem.nombreComercial || '').toLowerCase().trim()
+          );
+          const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
+          const nowReceived = match ? match.cantidadRecibida : 0;
+          return { ...ocItem, cantidadRecibida: prevReceived + nowReceived };
+        });
+        const allFull = updatedItems.every(i =>
+          (parseFloat(i.cantidad) || 0) === 0 ||
+          (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
+        );
+        batch.update(ordenDoc.ref, {
+          estado: allFull ? 'recibida' : 'recibida_parcialmente',
+          items: updatedItems,
+        });
+      }
     }
 
     await batch.commit();

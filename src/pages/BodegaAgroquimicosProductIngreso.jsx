@@ -8,6 +8,7 @@ import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
 const MAX_IMAGE_PX = 1600;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -35,7 +36,7 @@ function compressImage(file) {
   });
 }
 
-let _uid = 0;
+let _uid = Date.now();
 const newRow = () => ({
   _key: ++_uid,
   idProducto: '',
@@ -370,7 +371,7 @@ function ProductIngreso() {
   const [showScan, setShowScan] = useState(false);
   const [ocModalOpen, setOcModalOpen] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
-  const [step, setStep] = useState('list');
+  const [step, setStep] = useState('form');
   const ocVisibles = ordenes.filter(o => o.estado !== 'recibida' && o.estado !== 'completada' && o.estado !== 'cancelada');
   const [invoiceImage, setInvoiceImage] = useState(null); // { base64, mediaType, previewUrl }
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -408,6 +409,8 @@ function ProductIngreso() {
   const handleImageFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Solo se aceptan archivos de imagen.', 'error'); e.target.value = ''; return; }
+    if (file.size > MAX_IMAGE_SIZE) { showToast('La imagen no debe superar 10 MB.', 'error'); e.target.value = ''; return; }
     try { setInvoiceImage(await compressImage(file)); }
     catch { showToast('No se pudo procesar la imagen.', 'error'); }
     e.target.value = '';
@@ -460,33 +463,6 @@ function ProductIngreso() {
     setStep('form');
   };
 
-  // Devuelve { estado, updatedItems } con cantidadRecibida acumulada por ítem,
-  // o null si ningún ítem coincide con lo guardado.
-  const getReceptionStatus = (orden, validFilas) => {
-    const ocItems = orden.items || [];
-    if (ocItems.length === 0) return { estado: 'recibida', updatedItems: ocItems };
-
-    const updatedItems = ocItems.map(ocItem => {
-      const cat   = ocItem.productoId ? catalogo.find(c => c.id === ocItem.productoId) : null;
-      const match = validFilas.find(f =>
-        (cat?.idProducto && f.idProducto === cat.idProducto) ||
-        f.nombreComercial?.toLowerCase().trim() === ocItem.nombreComercial?.toLowerCase().trim()
-      );
-      const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
-      const nowReceived  = match ? (parseFloat(match.cantidad) || 0) : 0;
-      return { ...ocItem, cantidadRecibida: prevReceived + nowReceived };
-    });
-
-    const anyReceived = updatedItems.some(i => (parseFloat(i.cantidadRecibida) || 0) > 0);
-    if (!anyReceived) return null;
-
-    const allFull = updatedItems.every(i =>
-      (parseFloat(i.cantidad) || 0) === 0 ||
-      (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
-    );
-    return { estado: allFull ? 'recibida' : 'recibida_parcialmente', updatedItems };
-  };
-
   useEffect(() => {
     apiFetch('/api/productos').then(r => r.json()).then(setCatalogo).catch(console.error);
     apiFetch('/api/proveedores').then(r => r.json()).then(setProveedores).catch(console.error);
@@ -535,14 +511,6 @@ function ProductIngreso() {
     }
     setSaving(true);
 
-    // Calcular estado de OC (si hay una cargada) antes de enviar
-    let ocEstado = null;
-    let ocUpdatedItems = null;
-    if (loadedOrden) {
-      const result = getReceptionStatus(loadedOrden, validas);
-      if (result) { ocEstado = result.estado; ocUpdatedItems = result.updatedItems; }
-    }
-
     try {
       const res = await apiFetch('/api/ingreso/confirmar', {
         method: 'POST',
@@ -562,8 +530,6 @@ function ProductIngreso() {
           facturaNumero: factura,
           ordenCompraId: loadedOrdenId  || null,
           ocPoNumber:    loadedOrden?.poNumber || '',
-          ocEstado,
-          ocUpdatedItems,
           imageBase64:   invoiceImage?.base64    || null,
           mediaType:     invoiceImage?.mediaType || null,
         }),
@@ -574,13 +540,14 @@ function ProductIngreso() {
 
       if (loadedOrden) apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
 
+      const backToList = !!loadedOrden;
       setFilas([newRow()]);
       setFactura('');
       setProveedor('');
       setLoadedOrdenId(null);
       setLoadedOrden(null);
       setInvoiceImage(null);
-      setStep('list');
+      if (backToList) setStep('list');
 
       const msg = [
         data.creados   > 0 && `${data.creados} creado(s)`,
@@ -634,16 +601,7 @@ function ProductIngreso() {
       )}
 
       {/* ── Vista lista ── */}
-      {step === 'list' && (
-        ocVisibles.length === 0 ? (
-          <div className="ingreso-list-empty">
-            <FiPackage size={36} />
-            <p>No hay recepciones pendientes</p>
-            <button className="btn btn-primary" onClick={() => setStep('form')}>
-              <FiPlus size={14} /> Crear una
-            </button>
-          </div>
-        ) : (
+      {step === 'list' && ocVisibles.length > 0 && (
           <div className="ingreso-oc-list-view">
             {ocVisibles.map(orden => {
               const isParcial = orden.estado === 'recibida_parcialmente';
@@ -676,7 +634,6 @@ function ProductIngreso() {
               <FiPlus size={13} /> Nueva entrada manual
             </button>
           </div>
-        )
       )}
 
       {/* ── Vista formulario ── */}
@@ -736,6 +693,7 @@ function ProductIngreso() {
                 type="date"
                 id="fechaIngreso"
                 value={fecha}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={e => setFecha(e.target.value)}
                 className="ingreso-fecha-input"
               />
@@ -745,6 +703,7 @@ function ProductIngreso() {
               <input
                 type="text"
                 id="facturaIngreso"
+                maxLength={100}
                 value={factura}
                 onChange={e => setFactura(e.target.value)}
                 className="ingreso-factura-input"
@@ -810,7 +769,7 @@ function ProductIngreso() {
                     </td>
                     <td className="col-number">
                       <input
-                        type="number" step="0.01" min="0"
+                        type="number" step="0.01" min="0" max="999999"
                         value={f.cantidad}
                         onChange={e => update(f._key, 'cantidad', e.target.value)}
                         placeholder="0"
@@ -835,7 +794,7 @@ function ProductIngreso() {
                     </td>
                     <td className="col-total">
                       <input
-                        type="number" step="0.01" min="0"
+                        type="number" step="0.01" min="0" max="9999999999"
                         value={f.total}
                         onChange={e => update(f._key, 'total', e.target.value)}
                         placeholder="0.00"
@@ -866,7 +825,7 @@ function ProductIngreso() {
 
         <div className="ingreso-grid-footer">
           <div className="ingreso-footer-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); setLoadedOrdenId(null); setLoadedOrden(null); setStep('list'); }} disabled={saving}>
+            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); if (loadedOrdenId) setStep('list'); setLoadedOrdenId(null); setLoadedOrden(null); }} disabled={saving}>
               <FiX size={15} /> Cancelar
             </button>
             <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
@@ -906,15 +865,14 @@ function ProductIngreso() {
           </div>
 
           {(() => {
-            const visibles = ordenes.filter(o => o.estado !== 'recibida' && o.estado !== 'completada' && o.estado !== 'cancelada');
-            if (visibles.length === 0) return (
+            if (ocVisibles.length === 0) return (
               <div className="ingreso-oc-empty">
                 <p>Sin órdenes pendientes.</p>
               </div>
             );
             return (
               <div className="ingreso-oc-list">
-                {visibles.map(orden => {
+                {ocVisibles.map(orden => {
                   const isLoaded   = loadedOrdenId === orden.id;
                   const isParcial  = orden.estado === 'recibida_parcialmente';
                   return (
