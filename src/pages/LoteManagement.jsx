@@ -75,7 +75,6 @@ function LoteManagement() {
   const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [siembras, setSiembras] = useState([]);
-  const [loadingSiembras, setLoadingSiembras] = useState(false);
   const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'grupo', dir: 'asc' }]);
   const [bloqueColFilters, setBloqueColFilters] = useState({});
   const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
@@ -109,6 +108,7 @@ function LoteManagement() {
     fetchLotes();
     fetchPackages();
     apiFetch('/api/grupos').then(res => res.json()).then(setGrupos).catch(console.error);
+    apiFetch('/api/siembras').then(res => res.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/config').then(res => res.json()).then(setEmpresaConfig).catch(console.error);
   }, []);
 
@@ -133,20 +133,13 @@ function LoteManagement() {
     }
   }, [formData, isEditing, view]);
 
-  useEffect(() => {
-    if (!selectedLote) { setSiembras([]); return; }
-    setLoadingSiembras(true);
-    apiFetch(`/api/siembras?loteId=${selectedLote.id}`)
-      .then(res => res.json())
-      .then(data => { setSiembras(data); setLoadingSiembras(false); })
-      .catch(() => setLoadingSiembras(false));
-  }, [selectedLote]);
-
   // ── Table data ────────────────────────────────────────────────────────────
   const loteTableRows = useMemo(() => {
-    if (!siembras.length) return [];
+    if (!selectedLote || !siembras.length) return [];
+    const loteSiembras = siembras.filter(s => s.loteId === selectedLote.id);
+    if (!loteSiembras.length) return [];
     const bloqueData = new Map();
-    for (const s of siembras) {
+    for (const s of loteSiembras) {
       const key = s.bloque || 'Sin bloque';
       if (!bloqueData.has(key)) bloqueData.set(key, { plantas: 0, ha: 0, materiales: new Set() });
       const d = bloqueData.get(key);
@@ -157,8 +150,8 @@ function LoteManagement() {
         d.materiales.add(mat);
       }
     }
-    const siembraIds     = new Set(siembras.map(s => s.id));
-    const siembraToBloque = new Map(siembras.map(s => [s.id, s.bloque || 'Sin bloque']));
+    const siembraIds     = new Set(loteSiembras.map(s => s.id));
+    const siembraToBloque = new Map(loteSiembras.map(s => [s.id, s.bloque || 'Sin bloque']));
     const bloqueToGrupo  = new Map();
     for (const g of grupos) {
       for (const sid of (g.bloques || [])) {
@@ -176,7 +169,7 @@ function LoteManagement() {
       plantas:  d.plantas,
       material: [...d.materiales].join(' / ') || '',
     }));
-  }, [siembras, grupos]);
+  }, [selectedLote, siembras, grupos]);
 
   const loteBloquesFiltered = useMemo(() => {
     const active = Object.entries(bloqueColFilters).filter(([, f]) => {
@@ -476,7 +469,7 @@ function LoteManagement() {
     }
 
     return (
-      <div className="lote-hub" key={selectedLote.id}>
+      <div className="lote-hub">
         <button className="lote-hub-back" onClick={() => setSelectedLote(null)}>
           <FiArrowLeft size={13} /> Todos los lotes
         </button>
@@ -530,9 +523,7 @@ function LoteManagement() {
             </button>
           )}
         </div>
-        {loadingSiembras ? (
-          <p className="hub-loading">Cargando detalles...</p>
-        ) : loteTableRows.length === 0 ? (
+        {loteTableRows.length === 0 ? (
           <p className="empty-state">No hay registros de siembra para este lote.</p>
         ) : (
           <div className="hor-table-wrap">

@@ -346,12 +346,6 @@
   border-radius: 8px;
   padding: 24px;
   min-height: 400px;
-  animation: loteHubFadeIn 0.25s ease-out;
-}
-
-@keyframes loteHubFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 .lote-hub-empty {
