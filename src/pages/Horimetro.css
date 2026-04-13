@@ -1195,10 +1195,31 @@ input[type="number"] {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
   min-width: 190px;
   max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 16px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+}
+
+.hor-col-menu-items {
+  display: contents;
+}
+
+.hor-col-menu--multi {
+  overflow-y: hidden;
+}
+
+.hor-col-menu-items--multi {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.hor-col-menu-items--multi .hor-col-menu-item {
+  width: 190px;
+  box-sizing: border-box;
 }
 
 .hor-col-menu-title {
