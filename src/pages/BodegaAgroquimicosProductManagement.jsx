@@ -38,6 +38,15 @@ const COLUMNS = [
 const FIELD_LABELS = Object.fromEntries(COLUMNS.map(c => [c.key, c.label]));
 const NUM_FIELDS = ['cantidadPorHa', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'tipoCambio', 'iva'];
 
+const MAX_LENGTHS = {
+  idProducto: 32, nombreComercial: 64, ingredienteActivo: 64, plagaQueControla: 128,
+  unidad: 40, proveedor: 128, registroFitosanitario: 32, observacion: 288,
+};
+const NUM_LIMITS = {
+  cantidadPorHa: 2048, periodoReingreso: 512, periodoACosecha: 512,
+  stockMinimo: 32768, precioUnitario: 2097152, tipoCambio: 2097152, iva: 100,
+};
+
 function loadVisibleCols() {
   try {
     const saved = localStorage.getItem(LS_KEY);
@@ -229,14 +238,39 @@ function ProductManagement() {
   };
 
   const handleSaveAll = async () => {
+    if (saving) return;
+
+    // Validate changed fields before sending
+    for (const p of dirtyProducts) {
+      const e = edits[p.id] || {};
+      for (const [field, val] of Object.entries(e)) {
+        if (String(val) === String(p[field] ?? '')) continue;
+        const ml = MAX_LENGTHS[field];
+        if (ml && String(val).length > ml) {
+          showToast(`"${p.nombreComercial}": ${FIELD_LABELS[field]} excede ${ml} caracteres.`, 'error');
+          return;
+        }
+        const nl = NUM_LIMITS[field];
+        if (nl !== undefined) {
+          const n = parseFloat(val);
+          if (!isNaN(n) && (n < 0 || n > nl)) {
+            showToast(`"${p.nombreComercial}": ${FIELD_LABELS[field]} fuera de rango (0–${nl}).`, 'error');
+            return;
+          }
+        }
+      }
+    }
+
     setSaving(true);
     let ok = 0, err = 0;
     for (const p of dirtyProducts) {
+      const e = edits[p.id] || {};
       const payload = {};
-      Object.keys(FIELD_LABELS).forEach(field => {
-        const val = getVal(p, field);
+      for (const [field, val] of Object.entries(e)) {
+        if (String(val) === String(p[field] ?? '')) continue;
         payload[field] = NUM_FIELDS.includes(field) ? (parseFloat(val) || 0) : val;
-      });
+      }
+      if (Object.keys(payload).length === 0) continue;
       try {
         const res = await apiFetch(`/api/productos/${p.id}`, {
           method: 'PUT',
@@ -248,7 +282,7 @@ function ProductManagement() {
     }
     setSaving(false);
     setShowConfirm(false);
-    fetchProductos(true); // true = limpiar edits tras guardar
+    fetchProductos(true);
     showToast(
       `${ok} producto${ok !== 1 ? 's' : ''} actualizado${ok !== 1 ? 's' : ''}${err > 0 ? ` · ${err} error(es)` : ''}.`,
       err > 0 ? 'error' : 'success'
@@ -329,7 +363,7 @@ function ProductManagement() {
         return (
           <td key={colKey}>
             <div className="pg-name-cell">
-              <input className="pg-input" value={getVal(p, 'nombreComercial')}
+              <input className="pg-input" maxLength={64} value={getVal(p, 'nombreComercial')}
                 onChange={e => setVal(p, 'nombreComercial', e.target.value)} />
               {p.activo === false && <span className="pg-inactive-badge">Inactivo</span>}
             </div>
@@ -370,7 +404,9 @@ function ProductManagement() {
               className={`pg-input${isNum ? ' pg-input-num' : ''}`}
               type={isNum ? 'number' : 'text'}
               min={isNum ? 0 : undefined}
+              max={isNum ? NUM_LIMITS[colKey] : undefined}
               step={isNum ? 0.01 : undefined}
+              maxLength={!isNum ? MAX_LENGTHS[colKey] : undefined}
               value={getVal(p, colKey)}
               onChange={e => setVal(p, colKey, e.target.value)}
             />
@@ -792,7 +828,7 @@ function ProductManagement() {
               ))}
             </div>
             <div className="toma-fisica-footer">
-              <button className="btn btn-secondary" onClick={() => { clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }} disabled={saving}>Descartar</button>
+              <button className="btn btn-secondary" onClick={() => { setEdits({}); clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }} disabled={saving}>Descartar</button>
               <button className="btn btn-primary" onClick={handleSaveAll} disabled={saving}>
                 {saving ? 'Guardando…' : 'Guardar'}
               </button>

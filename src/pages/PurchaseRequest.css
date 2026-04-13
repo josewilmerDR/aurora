@@ -548,4 +548,10 @@
   .pr-modal-header {
     padding: 16px;
   }
+
+  .pr-toast {
+    left: 12px;
+    right: 12px;
+    bottom: 16px;
+  }
 }
