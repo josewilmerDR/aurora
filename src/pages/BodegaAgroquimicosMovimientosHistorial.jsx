@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiSearch, FiX, FiArrowUp, FiArrowDown } from 'react-icons/fi';
+import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiClipboard } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './BodegaAgroquimicosProductManagement.css';
 
@@ -105,7 +105,16 @@ function MovimientosHistorial() {
 
   const hasFilters = searchProd || fechaDesde || fechaHasta;
 
-  if (loading) return <div className="mhist-loading">Cargando movimientos…</div>;
+  if (loading) return <div className="pg-page-loading" />;
+
+  if (movimientos.length === 0) {
+    return (
+      <div className="pg-empty-state">
+        <FiClipboard size={36} />
+        <p>No hay movimientos</p>
+      </div>
+    );
+  }
 
   return (
     <div className="lote-management-layout">
