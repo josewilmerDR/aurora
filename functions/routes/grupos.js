@@ -5,6 +5,59 @@ const { pick, verifyOwnership, sendNotificationWithLink } = require('../lib/help
 
 const router = Router();
 
+const MAX_NOMBRE_LEN    = 16;
+const MAX_CATALOG_LEN   = 32;
+const MAX_FUTURE_DAYS   = 15;
+const MAX_BLOQUES       = 500;
+
+function validateGrupoBody(body, { requireFields = false } = {}) {
+    const errors = [];
+    const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = body;
+
+    if (requireFields) {
+        if (typeof nombreGrupo !== 'string' || !nombreGrupo.trim()) errors.push('nombreGrupo es requerido.');
+        if (!fechaCreacion) errors.push('fechaCreacion es requerida.');
+    }
+
+    if (nombreGrupo !== undefined) {
+        if (typeof nombreGrupo !== 'string') errors.push('nombreGrupo debe ser texto.');
+        else if (nombreGrupo.trim().length > MAX_NOMBRE_LEN) errors.push(`nombreGrupo máximo ${MAX_NOMBRE_LEN} caracteres.`);
+    }
+
+    if (cosecha !== undefined && cosecha !== '') {
+        if (typeof cosecha !== 'string') errors.push('cosecha debe ser texto.');
+        else if (cosecha.length > MAX_CATALOG_LEN) errors.push(`cosecha máximo ${MAX_CATALOG_LEN} caracteres.`);
+    }
+
+    if (etapa !== undefined && etapa !== '') {
+        if (typeof etapa !== 'string') errors.push('etapa debe ser texto.');
+        else if (etapa.length > MAX_CATALOG_LEN) errors.push(`etapa máximo ${MAX_CATALOG_LEN} caracteres.`);
+    }
+
+    if (fechaCreacion !== undefined) {
+        const d = new Date(fechaCreacion);
+        if (isNaN(d.getTime())) {
+            errors.push('fechaCreacion no es una fecha válida.');
+        } else {
+            const limit = new Date();
+            limit.setDate(limit.getDate() + MAX_FUTURE_DAYS);
+            limit.setHours(23, 59, 59, 999);
+            if (d > limit) errors.push(`fechaCreacion no puede superar ${MAX_FUTURE_DAYS} días en el futuro.`);
+        }
+    }
+
+    if (bloques !== undefined) {
+        if (!Array.isArray(bloques)) errors.push('bloques debe ser un arreglo.');
+        else if (bloques.length > MAX_BLOQUES) errors.push(`bloques no puede exceder ${MAX_BLOQUES} elementos.`);
+        else if (bloques.some(b => typeof b !== 'string')) errors.push('Cada bloque debe ser un ID de texto.');
+    }
+
+    if (paqueteId !== undefined && paqueteId !== '' && typeof paqueteId !== 'string') errors.push('paqueteId debe ser texto.');
+    if (paqueteMuestreoId !== undefined && paqueteMuestreoId !== '' && typeof paqueteMuestreoId !== 'string') errors.push('paqueteMuestreoId debe ser texto.');
+
+    return errors;
+}
+
 // --- API ENDPOINTS: GRUPOS ---
 router.get('/api/grupos', authenticate, async (req, res) => {
     try {
@@ -18,15 +71,17 @@ router.get('/api/grupos', authenticate, async (req, res) => {
 
 router.post('/api/grupos', authenticate, async (req, res) => {
     try {
-        const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = req.body;
-        if (!nombreGrupo || !fechaCreacion) {
-            return res.status(400).json({ message: 'Faltan datos para crear el grupo.' });
+        const validationErrors = validateGrupoBody(req.body, { requireFields: true });
+        if (validationErrors.length) {
+            return res.status(400).json({ message: validationErrors.join(' ') });
         }
 
+        const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = req.body;
+
         const grupoRef = await db.collection('grupos').add({
-            nombreGrupo,
-            cosecha: cosecha || '',
-            etapa: etapa || '',
+            nombreGrupo: nombreGrupo.trim(),
+            cosecha: (cosecha || '').trim(),
+            etapa: (etapa || '').trim(),
             fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
             bloques: Array.isArray(bloques) ? bloques : [],
             paqueteId: paqueteId || '',
@@ -121,6 +176,11 @@ router.post('/api/grupos', authenticate, async (req, res) => {
 
 router.put('/api/grupos/:id', authenticate, async (req, res) => {
     try {
+        const validationErrors = validateGrupoBody(req.body);
+        if (validationErrors.length) {
+            return res.status(400).json({ message: validationErrors.join(' ') });
+        }
+
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
         if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
@@ -128,15 +188,22 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
         const grupoData = pick(req.body, ['nombreGrupo', 'cosecha', 'etapa', 'fechaCreacion', 'bloques', 'paqueteId', 'paqueteMuestreoId']);
         const originalData = ownership.doc.data();
 
+        if (grupoData.nombreGrupo !== undefined) grupoData.nombreGrupo = grupoData.nombreGrupo.trim();
+        if (grupoData.cosecha !== undefined) grupoData.cosecha = (grupoData.cosecha || '').trim();
+        if (grupoData.etapa !== undefined) grupoData.etapa = (grupoData.etapa || '').trim();
+
         if (grupoData.fechaCreacion && typeof grupoData.fechaCreacion === 'string') {
             grupoData.fechaCreacion = Timestamp.fromDate(new Date(grupoData.fechaCreacion));
         }
 
         await db.collection('grupos').doc(id).update(grupoData);
 
-        const hasDateChanged = originalData.fechaCreacion?.toMillis() !== grupoData.fechaCreacion?.toMillis();
-        const hasPackageChanged = originalData.paqueteId !== grupoData.paqueteId;
-        const hasMuestreoPackageChanged = originalData.paqueteMuestreoId !== grupoData.paqueteMuestreoId;
+        const hasDateChanged = grupoData.fechaCreacion != null
+            && originalData.fechaCreacion?.toMillis() !== grupoData.fechaCreacion?.toMillis();
+        const hasPackageChanged = grupoData.paqueteId != null
+            && originalData.paqueteId !== grupoData.paqueteId;
+        const hasMuestreoPackageChanged = grupoData.paqueteMuestreoId != null
+            && originalData.paqueteMuestreoId !== grupoData.paqueteMuestreoId;
 
         if (hasDateChanged || hasPackageChanged || hasMuestreoPackageChanged) {
             // Eliminar tareas anteriores del grupo
