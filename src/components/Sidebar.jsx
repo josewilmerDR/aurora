@@ -82,11 +82,11 @@ export const MODULES = [
       { label: 'Ficha del Trabajador', to: '/hr/ficha', icon: FiUser, minRole: 'encargado', draftKey: 'hr-ficha' },
       { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },
       { label: 'Planilla', icon: FiDollarSign, minRole: 'encargado', children: [
-        { label: 'Fijo / Mensual', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
-        { label: 'Por Hora / Unidad', to: '/hr/planilla/horas', icon: FiClock, minRole: 'encargado', draftKey: 'hr-planilla-unidad' },
-        { label: 'Historial de Planilla', to: '/hr/planilla/horas/historial', icon: FiList, minRole: 'encargado' },
+        { label: 'Salario Fijo', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
+        { label: 'Salario por Unidad', to: '/hr/planilla/horas', icon: FiClock, minRole: 'encargado', draftKey: 'hr-planilla-unidad' },
+        { label: 'Historial Salario Fijo', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
+        { label: 'Historial Salario por Unidad', to: '/hr/planilla/horas/historial', icon: FiList, minRole: 'encargado' },
       ]},
-      { label: 'Historial de Pagos', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
     ],
   },
   {
