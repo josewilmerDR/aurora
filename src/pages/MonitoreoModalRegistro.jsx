@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiX, FiAlertCircle, FiFileText, FiCamera, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
-import './FormularioMuestreoModal.css';
+import './MonitoreoModalRegistro.css';
 
 const todayIso = () => new Date().toISOString().split('T')[0];
 
@@ -43,10 +43,11 @@ function compressImage(file) {
   });
 }
 
-export default function FormularioMuestreoModal({ orden, onClose, onComplete }) {
+export default function MonitoreoModalRegistro({ orden, onClose, onComplete }) {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const fileInputRef = useRef(null);
+  const firstCellRef = useRef(null);
 
   // Plantilla state: 'loading' | 'no-formulario' | 'ready' | 'error'
   const [state, setState] = useState('loading');
@@ -111,6 +112,11 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
     load();
     return () => { cancelled = true; };
   }, []);
+
+  // Enfoca la primera celda al quedar listo el formulario.
+  useEffect(() => {
+    if (state === 'ready') firstCellRef.current?.focus();
+  }, [state]);
 
   // ── Fetch supervisor ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -322,14 +328,14 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
               <div className="fmm-scan-bar">
                 <div className="fmm-scan-bar-left">
                   <button
-                    className="fmm-scan-pick-btn"
+                    className="btn btn-ia"
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={scanning || submitting}
-                    title="Escanear imagen — agrega o rellena la última fila vacía"
+                    title="Leer con IA — agrega o rellena la última fila vacía"
                   >
-                    <FiCamera size={14} />
-                    {scanImage ? 'Cambiar imagen' : 'Escanear desde imagen'}
+                    <FiCpu size={15} />
+                    {scanImage ? 'Cambiar imagen' : 'Leer con IA'}
                   </button>
                   <input
                     ref={fileInputRef}
@@ -404,9 +410,10 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                     {registros.map((reg, rIdx) => (
                       <tr key={rIdx} className="fmm-reg-row">
                         <td className="fmm-reg-num">{rIdx + 1}</td>
-                        {campos.map(c => (
+                        {campos.map((c, cIdx) => (
                           <td key={c.nombre} className="fmm-reg-td">
                             <input
+                              ref={rIdx === 0 && cIdx === 0 ? firstCellRef : null}
                               className="fmm-reg-input"
                               type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
                               value={reg[c.nombre] ?? ''}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import FormularioMuestreoModal from './FormularioMuestreoModal';
+import MonitoreoModalRegistro from './MonitoreoModalRegistro';
 import './MonitoreoOrdenes.css';
 
 const fmt = (iso) => {
@@ -94,7 +94,7 @@ export default function MonitoreoOrdenes() {
       )}
 
       {modalOrden && (
-        <FormularioMuestreoModal
+        <MonitoreoModalRegistro
           orden={modalOrden}
           onClose={() => setModalOrden(null)}
           onComplete={async (id, formularioData, metadata) => {
