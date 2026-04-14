@@ -21,6 +21,7 @@ function MonitoreoHistorial() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -29,22 +30,25 @@ function MonitoreoHistorial() {
         if (filtros.desde)  params.set('desde',  filtros.desde);
         if (filtros.hasta)  params.set('hasta',  filtros.hasta);
         const data = await apiFetch(`/api/monitoreo?${params}`).then(r => r.json());
-        setAllRegistros(Array.isArray(data) ? data : []);
+        if (!cancelled) setAllRegistros(Array.isArray(data) ? data : []);
       } catch {
-        showToast('Error al cargar registros.', 'error');
+        if (!cancelled) showToast('Error al cargar registros.', 'error');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchData();
+    return () => { cancelled = true; };
   }, [filtros.loteId, filtros.desde, filtros.hasta]);
 
   useEffect(() => {
     if (!filtros.tipoId) { setTipoCampos([]); return; }
+    let cancelled = false;
     apiFetch(`/api/monitoreo/tipos/${filtros.tipoId}`)
       .then(r => r.json())
-      .then(t => setTipoCampos(Array.isArray(t.campos) ? t.campos : []))
-      .catch(() => setTipoCampos([]));
+      .then(t => { if (!cancelled) setTipoCampos(Array.isArray(t.campos) ? t.campos : []); })
+      .catch(() => { if (!cancelled) setTipoCampos([]); });
+    return () => { cancelled = true; };
   }, [filtros.tipoId]);
 
   const registros = filtros.tipoId
@@ -72,27 +76,18 @@ function MonitoreoHistorial() {
 
   const handleFiltro = (e) => setFiltros(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar este registro de monitoreo?')) return;
-    try {
-      await apiFetch(`/api/monitoreo/${id}`, { method: 'DELETE' });
-      setAllRegistros(prev => prev.filter(r => r.id !== id));
-      showToast('Registro eliminado.');
-    } catch {
-      showToast('Error al eliminar.', 'error');
-    }
-  };
-
   const handleDeleteRegistro = async (monId, regIdx, regTotal) => {
     const esTodo = regTotal <= 1 || regIdx === null;
     const msg = esTodo ? '¿Eliminar este registro completo?' : '¿Eliminar esta línea?';
     if (!confirm(msg)) return;
     try {
       if (esTodo) {
-        await apiFetch(`/api/monitoreo/${monId}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/monitoreo/${monId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error();
         setAllRegistros(prev => prev.filter(r => r.id !== monId));
       } else {
         const res = await apiFetch(`/api/monitoreo/${monId}/registros/${regIdx}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error();
         const data = await res.json();
         if (data.deleted === 'monitoreo') {
           setAllRegistros(prev => prev.filter(r => r.id !== monId));

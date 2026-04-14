@@ -44,11 +44,15 @@ export default function MonitoreoOrdenes() {
   }, [ordenes, search]);
 
   const handleComplete = async (id, formularioData = null, metadata = {}) => {
-    await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
+    const res = await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ formularioData, ...metadata }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'No se pudo completar la orden.');
+    }
     setOrdenes(prev => prev.map(o => o.id === id ? { ...o, status: 'completed_by_user' } : o));
   };
 
@@ -75,6 +79,7 @@ export default function MonitoreoOrdenes() {
             type="text"
             placeholder="Buscar por lote, grupo, responsable, tipo..."
             value={search}
+            maxLength={100}
             onChange={e => setSearch(e.target.value)}
           />
         </div>

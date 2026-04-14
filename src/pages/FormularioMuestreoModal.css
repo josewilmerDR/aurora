@@ -410,6 +410,16 @@
   padding: 14px 20px;
   border-top: 1px solid var(--aurora-border);
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fmm-submit-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: #ff6b6b;
+  font-size: 0.82rem;
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
