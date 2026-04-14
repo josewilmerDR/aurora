@@ -422,6 +422,25 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Se requiere al menos un producto.' });
     }
+    if (items.length > 500) {
+      return res.status(400).json({ message: 'Demasiados productos en una sola orden.' });
+    }
+    const isValidYmd = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T12:00:00').getTime());
+    if (fecha != null && !isValidYmd(fecha)) {
+      return res.status(400).json({ message: 'Fecha de orden inválida.' });
+    }
+    if (fechaEntrega != null && fechaEntrega !== '' && !isValidYmd(fechaEntrega)) {
+      return res.status(400).json({ message: 'Fecha de entrega inválida.' });
+    }
+    if (fecha && fechaEntrega && fechaEntrega < fecha) {
+      return res.status(400).json({ message: 'La fecha de entrega no puede ser anterior a la de la orden.' });
+    }
+    const str = (v, max) => (typeof v === 'string' ? v : '').slice(0, max);
+    const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+      const n = parseFloat(v);
+      if (!isFinite(n)) return 0;
+      return Math.min(Math.max(n, min), max);
+    };
     const counterRef = db.collection('counters').doc(`oc_${req.fincaId}`);
     let seq;
     await db.runTransaction(async (t) => {
@@ -435,21 +454,22 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
       poNumber,
       fecha: fecha ? Timestamp.fromDate(new Date(fecha + 'T12:00:00')) : Timestamp.now(),
       fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega + 'T12:00:00')) : null,
-      proveedor: proveedor || '',
-      direccionProveedor: direccionProveedor || '',
-      elaboradoPor: elaboradoPor || '',
-      notas: notas || '',
+      proveedor: str(proveedor, 200),
+      direccionProveedor: str(direccionProveedor, 300),
+      elaboradoPor: str(elaboradoPor, 120),
+      notas: str(notas, 1000),
       estado: 'activa',
       taskId: taskId || null,
       solicitudId: solicitudId || null,
       items: items.map(i => ({
         productoId: i.productoId || null,
-        nombreComercial: i.nombreComercial || '',
-        ingredienteActivo: i.ingredienteActivo || '',
-        cantidad: parseFloat(i.cantidad) || 0,
-        unidad: i.unidad || '',
-        precioUnitario: parseFloat(i.precioUnitario) || 0,
-        moneda: i.moneda || 'USD',
+        nombreComercial: str(i.nombreComercial, 200),
+        ingredienteActivo: str(i.ingredienteActivo, 200),
+        cantidad: num(i.cantidad, { min: 0, max: 1e9 }),
+        unidad: str(i.unidad, 20),
+        precioUnitario: num(i.precioUnitario, { min: 0, max: 1e9 }),
+        iva: num(i.iva, { min: 0, max: 100 }),
+        moneda: str(i.moneda, 10) || 'USD',
       })),
       createdAt: Timestamp.now(),
     });

@@ -11,9 +11,9 @@ import ProductManagement from './pages/BodegaAgroquimicosProductManagement';
 import ProductCatalog from './pages/BodegaAgroquimicosProductCatalog';
 import ProductIngreso from './pages/BodegaAgroquimicosProductIngreso';
 import MovimientosHistorial from './pages/BodegaAgroquimicosMovimientosHistorial';
-import PurchaseOrder from './pages/PurchaseOrder';
-import OrdenesList from './pages/OrdenesList';
-import OrdenesHistorial from './pages/OrdenesHistorial';
+import OCDesdeSolicitud from './pages/OCDesdeSolicitud';
+import OCNueva from './pages/OCNueva';
+import OCHistorial from './pages/OCHistorial';
 import ProveedoresList from './pages/ProveedoresList';
 import Login from './pages/Login';
 import LoginPassword from './pages/LoginPassword';
@@ -426,7 +426,7 @@ function App() {
             <Route path="/nueva-organizacion" element={<NuevaOrganizacion />} />
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
-            <Route path="/orden-compra/:taskId" element={<PurchaseOrder />} />
+            <Route path="/orden-compra/:taskId" element={<OCDesdeSolicitud />} />
             <Route path="/hr/planilla/fijo/reporte" element={<HrPlanillaReporteSalarioFijo />} />
           </Route>
 
@@ -459,8 +459,8 @@ function App() {
             <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
             <Route path="/productos/movimientos" element={<Navigate to="/bodega/agroquimicos/movimientos" replace />} />
             <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductCatalog /></RoleRoute>} />
-            <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OrdenesList /></RoleRoute>} />
-            <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OrdenesHistorial /></RoleRoute>} />
+            <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OCNueva /></RoleRoute>} />
+            <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OCHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
             <Route path="/costos" element={<RoleRoute path="/costos"><CentroCostos /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />

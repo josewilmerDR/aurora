@@ -9,11 +9,17 @@ import {
 import Toast from '../components/Toast';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './OrdenesList.css';
-import './PurchaseOrder.css';
+import './OCNueva.css';
+import './OCDesdeSolicitud.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const ESTADO_LABELS = { activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada' };
+const ESTADO_LABELS = {
+  activa: 'Activa',
+  completada: 'Completada',
+  cancelada: 'Cancelada',
+  recibida: 'Recibida',
+  recibida_parcialmente: 'Parcial',
+};
 
 const formatDateLong = (dateStr) => {
   if (!dateStr) return '___________________________';
@@ -49,10 +55,14 @@ const newRow = () => ({
 });
 
 // ─── AutocompleteInput ────────────────────────────────────────────────────────
-function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder }) {
+function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder, autoFocus }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   const filtered = !value.trim()
     ? []
@@ -76,6 +86,7 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
         onFocus={() => { calcPos(); setOpen(true); }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
+        maxLength={200}
       />
       {open && filtered.length > 0 && createPortal(
         <ul className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
@@ -162,6 +173,7 @@ function ProveedorCombobox({ value, onChange, onSelect, proveedores, placeholder
         onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
+        maxLength={200}
       />
       {open && filtered.length > 0 && createPortal(
         <ul
@@ -266,6 +278,7 @@ const OrdenesList = () => {
   const [notas,       setNotas,       clearNotasDraft]       = useDraft('oc-notas',       '');
   const poDocRef = useRef(null);
   const [saving, setSaving] = useState(false);
+  const [focusRowKey, setFocusRowKey] = useState(null);
   const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g', 'und']);
   const [ivaOpciones, setIvaOpciones] = useState([0, 1, 4, 8, 13, 15]);
   const [monedas] = useState(['USD', 'CRC', 'EUR']);
@@ -294,10 +307,13 @@ const OrdenesList = () => {
     else clearDraftActive('oc-nueva');
   }, [filas, proveedor, contacto, notas, fechaEntrega]);
 
-  const addUnidad = (val) => { if (!unidades.includes(val)) setUnidades(prev => [...prev, val]); };
+  const addUnidad = (val) => {
+    const v = val.slice(0, 20);
+    if (v && !unidades.includes(v)) setUnidades(prev => [...prev, v]);
+  };
   const addIva = (val) => {
     const num = parseFloat(val);
-    if (!isNaN(num) && !ivaOpciones.includes(num))
+    if (!isNaN(num) && num >= 0 && num <= 100 && !ivaOpciones.includes(num))
       setIvaOpciones(prev => [...prev, num].sort((a, b) => a - b));
   };
 
@@ -364,7 +380,25 @@ const OrdenesList = () => {
   const update = (key, field, val) =>
     setFilas(prev => prev.map(f => f._key === key ? { ...f, [field]: val } : f));
 
-  const addFila = () => setFilas(prev => [...prev, newRow()]);
+  const addFila = () => {
+    const row = newRow();
+    setFilas(prev => [...prev, row]);
+    setFocusRowKey(row._key);
+  };
+
+  const handleCancelar = () => {
+    const hasContent = proveedor !== '' || contacto !== '' || notas !== '' ||
+      fechaEntrega !== '' || filas.some(f => f.nombreComercial.trim() !== '');
+    if (hasContent && !window.confirm('¿Descartar los cambios de esta orden?')) return;
+    clearFormDraft();
+    setFilas([newRow()]);
+    setProveedor('');
+    setContacto('');
+    setFechaOC(new Date().toISOString().split('T')[0]);
+    setFechaEntrega('');
+    setNotas('');
+    setLoadedSolicitudId(null);
+  };
   const removeFila = (key) => setFilas(prev => prev.length > 1 ? prev.filter(f => f._key !== key) : prev);
 
   const handleAutocompleteSelect = (key, producto) => {
@@ -374,6 +408,9 @@ const OrdenesList = () => {
       nombreComercial: producto.nombreComercial || f.nombreComercial,
       unidad:          producto.unidad          || f.unidad,
       iva:             producto.iva ?? f.iva,
+      precioUnitario:  f.precioUnitario !== '' ? f.precioUnitario
+                       : (producto.precioUnitario != null ? String(producto.precioUnitario) : ''),
+      moneda:          producto.moneda          || f.moneda,
     } : f));
   };
 
@@ -385,36 +422,58 @@ const OrdenesList = () => {
   }, 0);
   const totalGeneral = subtotal + ivaTotal;
 
-  const handleGuardarOC = async () => {
+  const validateAndBuildPayload = () => {
     const validItems = filas.filter(f => f.nombreComercial.trim());
     if (validItems.length === 0) {
       showToast('Agrega al menos un producto con nombre.', 'error');
-      return;
+      return null;
     }
+    const badItem = validItems.find(f => {
+      const q = parseFloat(f.cantidad);
+      const p = parseFloat(f.precioUnitario);
+      return !(q > 0) || !(p >= 0) || !isFinite(q) || !isFinite(p);
+    });
+    if (badItem) {
+      showToast('Cada producto requiere cantidad > 0 y precio ≥ 0.', 'error');
+      return null;
+    }
+    if (fechaEntrega && fechaOC && fechaEntrega < fechaOC) {
+      showToast('La fecha de entrega no puede ser anterior a la de la orden.', 'error');
+      return null;
+    }
+    return {
+      validItems,
+      body: {
+        fecha: fechaOC,
+        fechaEntrega: fechaEntrega || null,
+        proveedor,
+        direccionProveedor: contacto,
+        elaboradoPor,
+        notas,
+        taskId: loadedSolicitudId || null,
+        solicitudId: loadedSolicitudId || null,
+        items: validItems.map(f => ({
+          productoId:      f.productoId     || null,
+          nombreComercial: f.nombreComercial,
+          cantidad:        parseFloat(f.cantidad)       || 0,
+          unidad:          f.unidad,
+          precioUnitario:  parseFloat(f.precioUnitario) || 0,
+          iva:             f.iva ?? 0,
+          moneda:          f.moneda,
+        })),
+      },
+    };
+  };
+
+  const handleGuardarOC = async () => {
+    const payload = validateAndBuildPayload();
+    if (!payload) return;
     setSaving(true);
     try {
       const res = await apiFetch('/api/ordenes-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fecha: fechaOC,
-          fechaEntrega: fechaEntrega || null,
-          proveedor,
-          direccionProveedor: contacto,
-          elaboradoPor,
-          notas,
-          taskId: loadedSolicitudId || null,
-          solicitudId: loadedSolicitudId || null,
-          items: validItems.map(f => ({
-            productoId:     f.productoId     || null,
-            nombreComercial: f.nombreComercial,
-            cantidad:        parseFloat(f.cantidad)       || 0,
-            unidad:          f.unidad,
-            precioUnitario:  parseFloat(f.precioUnitario) || 0,
-            iva:             f.iva ?? 0,
-            moneda:          f.moneda,
-          })),
-        }),
+        body: JSON.stringify(payload.body),
       });
       if (!res.ok) throw new Error();
       showToast('Orden de compra guardada');
@@ -460,35 +519,14 @@ const OrdenesList = () => {
   };
 
   const handleGuardarDesdePreview = async () => {
-    const validItems = filas.filter(f => f.nombreComercial.trim());
-    if (validItems.length === 0) {
-      showToast('Agrega al menos un producto con nombre.', 'error');
-      return;
-    }
+    const payload = validateAndBuildPayload();
+    if (!payload) return;
     setSaving(true);
     try {
       const res = await apiFetch('/api/ordenes-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fecha: fechaOC,
-          fechaEntrega: fechaEntrega || null,
-          proveedor,
-          direccionProveedor: contacto,
-          elaboradoPor,
-          notas,
-          taskId: loadedSolicitudId || null,
-          solicitudId: loadedSolicitudId || null,
-          items: validItems.map(f => ({
-            productoId:      f.productoId     || null,
-            nombreComercial: f.nombreComercial,
-            cantidad:        parseFloat(f.cantidad)       || 0,
-            unidad:          f.unidad,
-            precioUnitario:  parseFloat(f.precioUnitario) || 0,
-            iva:             f.iva ?? 0,
-            moneda:          f.moneda,
-          })),
-        }),
+        body: JSON.stringify(payload.body),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -599,7 +637,7 @@ const OrdenesList = () => {
                 </div>
                 <div className="ol-oc-field">
                   <label>Dirección / Contacto</label>
-                  <input value={contacto} onChange={e => setContacto(e.target.value)} placeholder="Correo, teléfono o dirección" />
+                  <input value={contacto} onChange={e => setContacto(e.target.value)} placeholder="Correo, teléfono o dirección" maxLength={300} />
                 </div>
                 <div className="ol-oc-field">
                   <label>Fecha de la orden</label>
@@ -611,7 +649,7 @@ const OrdenesList = () => {
                 </div>
                 <div className="ol-oc-field">
                   <label>Notas / Condiciones</label>
-                  <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Condiciones de pago, urgencia…" />
+                  <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Condiciones de pago, urgencia…" maxLength={1000} />
                 </div>
               </div>
 
@@ -651,10 +689,11 @@ const OrdenesList = () => {
                               onSelect={p => handleAutocompleteSelect(f._key, p)}
                               suggestions={catalogo}
                               placeholder="Nombre comercial"
+                              autoFocus={f._key === focusRowKey}
                             />
                           </td>
                           <td className="oc-col-narrow">
-                            <input type="number" step="0.01" min="0" value={f.cantidad}
+                            <input type="number" step="0.01" min="0" max="999999999" value={f.cantidad}
                               onChange={e => update(f._key, 'cantidad', e.target.value)} placeholder="0" />
                           </td>
                           <td className="oc-col-narrow">
@@ -662,7 +701,7 @@ const OrdenesList = () => {
                               onChange={val => update(f._key, 'unidad', val)} onAddOption={addUnidad} />
                           </td>
                           <td className="oc-col-price">
-                            <input type="number" step="0.01" min="0" value={f.precioUnitario}
+                            <input type="number" step="0.01" min="0" max="999999999" value={f.precioUnitario}
                               onChange={e => update(f._key, 'precioUnitario', e.target.value)} placeholder="0.00" />
                           </td>
                           <td className="oc-col-iva">
@@ -685,22 +724,32 @@ const OrdenesList = () => {
                               : <span className="col-empty">—</span>}
                           </td>
                           <td className="oc-col-del">
-                            <button type="button" className="ingreso-row-del"
+                            <button type="button" className="ingreso-row-del" tabIndex={-1}
                               onClick={() => removeFila(f._key)} title="Eliminar fila">×</button>
                           </td>
                         </tr>
                       );
                     })}
+                    <tr
+                      className="ingreso-add-row"
+                      tabIndex={0}
+                      onClick={addFila}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          addFila();
+                        }
+                      }}
+                    >
+                      <td colSpan={8}>
+                        <span><FiPlus size={13} /> Agregar fila</span>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
 
               <div className="ol-oc-footer">
-                <div className="ol-oc-footer-left">
-                  <button type="button" className="btn btn-secondary" onClick={addFila}>
-                    <FiPlus size={14} /> Agregar fila
-                  </button>
-                </div>
                 <div className="ol-oc-footer-right">
                   {subtotal > 0 && (
                     <div className="ol-oc-totals">
@@ -720,6 +769,9 @@ const OrdenesList = () => {
                       </div>
                     </div>
                   )}
+                  <button type="button" className="btn btn-secondary" onClick={handleCancelar}>
+                    <FiX size={15} /> Cancelar
+                  </button>
                   <button type="button" className="btn btn-secondary" onClick={() => setShowPreview(true)}>
                     <FiEye size={15} /> Previsualizar
                   </button>

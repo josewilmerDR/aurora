@@ -8,7 +8,7 @@ import { useApiFetch } from '../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import TomaFisicaModal from './TomaFisicaModal';
 import EditProductoModal from './BodegaAgroquimicosEditProductoModal';
-import PurchaseRequest from './PurchaseRequest';
+import BodegaAgroquimicosPMSolicitudDeCompra from './BodegaAgroquimicosPMSolicitudDeCompra';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];
@@ -875,7 +875,7 @@ function ProductManagement() {
             >
               <FiX size={18} />
             </button>
-            <PurchaseRequest onClose={() => setShowSolicitud(false)} />
+            <BodegaAgroquimicosPMSolicitudDeCompra onClose={() => setShowSolicitud(false)} />
           </div>
         </div>
       )}

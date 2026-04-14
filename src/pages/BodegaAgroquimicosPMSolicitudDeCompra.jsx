@@ -4,7 +4,7 @@ import {
   FiAlertTriangle, FiShoppingCart, FiUser
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './PurchaseRequest.css';
+import './BodegaAgroquimicosPMSolicitudDeCompra.css';
 
 const DEPT_PROVEEDURIA = 'proveeduria';
 
