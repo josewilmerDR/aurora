@@ -437,7 +437,258 @@ router.delete('/api/hr/planilla/:id', authenticate, async (req, res) => {
   }
 });
 
+// ── Helpers compartidos para planillas (fijo / unidad / hora) ────────────────
+const PLANILLA_LIMITS = {
+  segmentos: 50,
+  trabajadoresPorPlanilla: 500,
+  observaciones: 1000,
+  nombrePlantilla: 100,
+  string: 200,        // tope para nombres de lote, labor, grupo, unidad, etc.
+  numeric: 9_999_999, // tope para totalGeneral, costos, cantidades
+  filasPorPlanilla: 500,
+  diasPorFila: 400,   // tope defensivo (~1 año + margen)
+  deduccionesPorFila: 50,
+  conceptoDeduccion: 100,
+  periodoDiasMax: 366,
+};
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const PLANILLA_ESTADOS = ['borrador', 'pendiente', 'aprobada', 'pagada'];
+
+function trimStr(v, max) {
+  if (v == null) return '';
+  return String(v).slice(0, max);
+}
+
+function clampNumber(v, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > max) return max;
+  return n;
+}
+
+// Roles que pueden crear/editar planillas a nombre de otros encargados.
+const PLANILLA_ROLES_ON_BEHALF = ['supervisor', 'administrador', 'rrhh'];
+const canActOnBehalf = (req) => PLANILLA_ROLES_ON_BEHALF.includes(req.userRole);
+
+// Resuelve el doc id del usuario autenticado (collection `users`) a partir de
+// email + fincaId. Devuelve null si no existe. Cachea en req para no repetir.
+async function resolveAuthUserId(req) {
+  if (req._authUserId !== undefined) return req._authUserId;
+  if (!req.userEmail) { req._authUserId = null; return null; }
+  const snap = await db.collection('users')
+    .where('email', '==', req.userEmail)
+    .where('fincaId', '==', req.fincaId)
+    .limit(1).get();
+  req._authUserId = snap.empty ? null : snap.docs[0].id;
+  return req._authUserId;
+}
+
+// Carga el mapa de fichas (userId → { precioHora, salarioBase, … }) para la finca activa.
+async function loadFichasMap(fincaId) {
+  const snap = await db.collection('hr_fichas').where('fincaId', '==', fincaId).get();
+  const map = new Map();
+  snap.docs.forEach(d => map.set(d.id, d.data() || {}));
+  return map;
+}
+
+// Carga el mapa de unidades (nombre normalizado → { precio, factorConversion, unidadBase }).
+async function loadUnidadesMap(fincaId) {
+  const snap = await db.collection('unidades_medida').where('fincaId', '==', fincaId).get();
+  const map = new Map();
+  snap.docs.forEach(d => {
+    const u = d.data() || {};
+    if (u.nombre) map.set(String(u.nombre).trim().toLowerCase(), u);
+  });
+  return map;
+}
+
+// Carga el mapa de usuarios (userId → user) de la finca.
+async function loadUsersMap(fincaId) {
+  const snap = await db.collection('users').where('fincaId', '==', fincaId).get();
+  const map = new Map();
+  snap.docs.forEach(d => map.set(d.id, d.data() || {}));
+  return map;
+}
+
+// ── Audit trail ──────────────────────────────────────────────────────────────
+const PLANILLA_HISTORY_MAX = 50;
+
+function buildHistoryEntry({ userId, email, action }) {
+  return { at: new Date(), by: userId || null, byEmail: email || null, action };
+}
+
+function appendHistory(currentHistory, entry) {
+  const arr = Array.isArray(currentHistory) ? currentHistory : [];
+  const next = [...arr, entry];
+  return next.length > PLANILLA_HISTORY_MAX ? next.slice(-PLANILLA_HISTORY_MAX) : next;
+}
+
+// ── Rate limiter (in-memory, por instancia de Cloud Function) ────────────────
+// Defensa en profundidad. No reemplaza quotas a nivel de API Gateway.
+const RATE_BUCKETS = new Map();
+const RATE_BUCKET_MAX = 5000;
+
+function planillaRateLimit({ windowMs = 60_000, max = 60 } = {}) {
+  return (req, res, next) => {
+    const uid = req.uid;
+    if (!uid) return next();
+    const key = `${uid}:${req.method}:${req.baseUrl || ''}${req.path}`;
+    const now = Date.now();
+    let bucket = RATE_BUCKETS.get(key);
+    if (!bucket || now - bucket.windowStart > windowMs) {
+      if (RATE_BUCKETS.size > RATE_BUCKET_MAX) {
+        for (const [k, b] of RATE_BUCKETS) {
+          if (now - b.windowStart > windowMs) RATE_BUCKETS.delete(k);
+          if (RATE_BUCKETS.size <= RATE_BUCKET_MAX / 2) break;
+        }
+      }
+      bucket = { count: 0, windowStart: now };
+      RATE_BUCKETS.set(key, bucket);
+    }
+    bucket.count++;
+    if (bucket.count > max) {
+      res.set('Retry-After', String(Math.ceil((bucket.windowStart + windowMs - now) / 1000)));
+      return res.status(429).json({ message: 'Demasiadas solicitudes. Espera un momento.' });
+    }
+    next();
+  };
+}
+
 // ── Planilla Salario Fijo ─────────────────────────────────────────────────────
+// Sanitiza un fila de planilla fijo: verifica trabajadorId contra users/fichas
+// de la finca y canonicaliza nombre / cédula / puesto / salarioBase / fechaIngreso
+// desde fuentes autoritativas. Descarta filas con trabajadorId inválido.
+const FIJO_CCSS_RATE = 0.1083;
+const FIJO_JORNADA_HORAS_DEFAULT = 48;
+
+function sanitizeFijoDia(d) {
+  const fechaRaw = typeof d?.fecha === 'string' ? d.fecha : '';
+  // Acepta tanto ISO completo como YYYY-MM-DD
+  const fechaStr = fechaRaw.slice(0, 10);
+  if (!FECHA_RE.test(fechaStr)) return null;
+  return {
+    fecha: fechaRaw.length >= 10 ? fechaRaw.slice(0, 30) : fechaStr,
+    ausente: d?.ausente === true,
+    horasParciales: clampNumber(d?.horasParciales, 24),
+    salarioExtra: clampNumber(d?.salarioExtra, PLANILLA_LIMITS.numeric),
+  };
+}
+
+function sanitizeFijoDeduccion(d) {
+  return {
+    concepto: trimStr(d?.concepto, PLANILLA_LIMITS.conceptoDeduccion).trim(),
+    monto: clampNumber(d?.monto, PLANILLA_LIMITS.numeric),
+  };
+}
+
+function sanitizeFijoFilas(filas, usersMap, fichasMap) {
+  if (!Array.isArray(filas))
+    return { ok: false, msg: 'filas debe ser un arreglo.' };
+  if (filas.length > PLANILLA_LIMITS.filasPorPlanilla)
+    return { ok: false, msg: `Máximo ${PLANILLA_LIMITS.filasPorPlanilla} empleados por planilla.` };
+
+  const cleaned = [];
+  for (const f of filas) {
+    const trabajadorId = trimStr(f?.trabajadorId, 64);
+    if (!trabajadorId || !usersMap.has(trabajadorId)) continue; // descartar silenciosamente
+
+    const userDoc  = usersMap.get(trabajadorId) || {};
+    const ficha    = fichasMap.get(trabajadorId) || {};
+    const nombre   = trimStr(userDoc.nombre, PLANILLA_LIMITS.string);
+    const cedula   = trimStr(ficha.cedula || f?.cedula, 30);
+    const puesto   = trimStr(ficha.puesto || f?.puesto, PLANILLA_LIMITS.string);
+    const fechaIng = (typeof ficha.fechaIngreso === 'string' && FECHA_RE.test(ficha.fechaIngreso))
+      ? ficha.fechaIngreso
+      : ((typeof f?.fechaIngreso === 'string' && FECHA_RE.test(f.fechaIngreso)) ? f.fechaIngreso : '');
+
+    // salarioMensual: autoritativo desde ficha si existe, fallback al valor recibido (clamp).
+    const salarioMensual = ficha.salarioBase != null
+      ? clampNumber(ficha.salarioBase, PLANILLA_LIMITS.numeric)
+      : clampNumber(f?.salarioMensual, PLANILLA_LIMITS.numeric);
+
+    // salarioDiario: editable por el usuario (override de salarioMensual/30). Clamp.
+    const salarioDiario = clampNumber(f?.salarioDiario, PLANILLA_LIMITS.numeric);
+
+    // horasSemanales: derivar de ficha.horarioSemanal si existe, sino fallback.
+    let horasSemanales = 0;
+    const horario = ficha.horarioSemanal;
+    if (horario && typeof horario === 'object') {
+      const dias = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+      for (const k of dias) {
+        const d = horario[k];
+        if (!d?.activo || typeof d.inicio !== 'string' || typeof d.fin !== 'string') continue;
+        const [h1, m1] = d.inicio.split(':').map(Number);
+        const [h2, m2] = d.fin.split(':').map(Number);
+        if ([h1, m1, h2, m2].some(n => !Number.isFinite(n))) continue;
+        horasSemanales += Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60);
+      }
+    }
+    if (!(horasSemanales > 0)) horasSemanales = FIJO_JORNADA_HORAS_DEFAULT;
+    horasSemanales = clampNumber(horasSemanales, 168); // max 7*24
+
+    const dias = Array.isArray(f?.dias)
+      ? f.dias.slice(0, PLANILLA_LIMITS.diasPorFila).map(sanitizeFijoDia).filter(Boolean)
+      : [];
+    const deduccionesExtra = Array.isArray(f?.deduccionesExtra)
+      ? f.deduccionesExtra.slice(0, PLANILLA_LIMITS.deduccionesPorFila).map(sanitizeFijoDeduccion)
+      : [];
+
+    const efectivoDesdeRaw = typeof f?.efectivoDesde === 'string' ? f.efectivoDesde.slice(0, 10) : '';
+    const efectivoDesde = FECHA_RE.test(efectivoDesdeRaw) ? efectivoDesdeRaw : '';
+
+    // Totales: confiar en cómputo del cliente pero clamp.
+    const salarioOrdinario      = clampNumber(f?.salarioOrdinario, PLANILLA_LIMITS.numeric);
+    const salarioExtraordinario = clampNumber(f?.salarioExtraordinario, PLANILLA_LIMITS.numeric);
+    const salarioBruto          = clampNumber(f?.salarioBruto, PLANILLA_LIMITS.numeric);
+    // CCSS debe ser consistente con salarioBruto; recomputar server-side.
+    const deduccionCCSS         = Math.round(salarioBruto * FIJO_CCSS_RATE);
+    const otrasDeduccionesTotal = deduccionesExtra.reduce((s, d) => s + d.monto, 0);
+    const totalDeducciones      = deduccionCCSS + otrasDeduccionesTotal;
+    const totalNeto             = Math.max(0, salarioBruto - totalDeducciones);
+
+    cleaned.push({
+      trabajadorId,
+      trabajadorNombre: nombre,
+      cedula, puesto,
+      fechaIngreso: fechaIng,
+      periodoParcial: f?.periodoParcial === true,
+      efectivoDesde,
+      salarioMensual, salarioDiario,
+      horasSemanales,
+      dias, deduccionesExtra,
+      salarioOrdinario, salarioExtraordinario, salarioBruto,
+      deduccionCCSS,
+      otrasDeduccionesTotal: Math.round(otrasDeduccionesTotal),
+      totalDeducciones: Math.round(totalDeducciones),
+      totalNeto: Math.round(totalNeto),
+    });
+  }
+  return { ok: true, value: cleaned };
+}
+
+function sumTotalGeneral(filas) {
+  const total = (filas || []).reduce((s, f) => s + (Number(f.totalNeto) || 0), 0);
+  return clampNumber(total, PLANILLA_LIMITS.numeric);
+}
+
+// Valida rango de período (ISO date string). Permite ambos formatos: YYYY-MM-DD
+// o ISO datetime completo. Devuelve objetos Date o null+msg.
+function parsePeriodoISO(periodoInicio, periodoFin) {
+  if (typeof periodoInicio !== 'string' || typeof periodoFin !== 'string')
+    return { ok: false, msg: 'Período inválido.' };
+  const ini = new Date(periodoInicio);
+  const fin = new Date(periodoFin);
+  if (Number.isNaN(ini.getTime()) || Number.isNaN(fin.getTime()))
+    return { ok: false, msg: 'Fechas inválidas.' };
+  if (fin < ini)
+    return { ok: false, msg: 'La fecha final debe ser igual o posterior a la inicial.' };
+  const diffDays = Math.floor((fin - ini) / 86400000) + 1;
+  if (diffDays > PLANILLA_LIMITS.periodoDiasMax)
+    return { ok: false, msg: `El período no puede exceder ${PLANILLA_LIMITS.periodoDiasMax} días.` };
+  return { ok: true, ini, fin };
+}
+
 router.get('/api/hr/planilla-fijo', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_planilla_fijo')
@@ -455,11 +706,31 @@ router.get('/api/hr/planilla-fijo', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
+// Sólo supervisor/administrador/rrhh pueden crear, editar el contenido, eliminar
+// o cambiar el estado de planillas fijas. trabajador/encargado pueden sólo leer.
+const PLANILLA_FIJO_ROLES_WRITE = ['supervisor', 'administrador', 'rrhh'];
+const canEditarFijo = (req) => PLANILLA_FIJO_ROLES_WRITE.includes(req.userRole);
+
+router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (req, res) => {
   try {
-    const { periodoInicio, periodoFin, periodoLabel, filas, totalGeneral } = req.body;
-    if (!periodoInicio || !periodoFin || !filas)
-      return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    if (!canEditarFijo(req))
+      return res.status(403).json({ message: 'No tienes permisos para crear planillas.' });
+
+    const { periodoInicio, periodoFin, periodoLabel, filas } = req.body;
+    const periodo = parsePeriodoISO(periodoInicio, periodoFin);
+    if (!periodo.ok) return res.status(400).json({ message: periodo.msg });
+
+    const [usersMap, fichasMap] = await Promise.all([
+      loadUsersMap(req.fincaId),
+      loadFichasMap(req.fincaId),
+    ]);
+    const san = sanitizeFijoFilas(filas, usersMap, fichasMap);
+    if (!san.ok) return res.status(400).json({ message: san.msg });
+    if (san.value.length === 0)
+      return res.status(400).json({ message: 'La planilla debe tener al menos un empleado válido.' });
+
+    const totalGeneral = sumTotalGeneral(san.value);
+    const labelClean = trimStr(periodoLabel, PLANILLA_LIMITS.string);
 
     // Generate atomic consecutive number PL-00001, PL-00002, ...
     const counterRef = db.collection('counters').doc(`planilla_fijo_${req.fincaId}`);
@@ -471,27 +742,30 @@ router.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
     });
     const numeroConsecutivo = `PL-${String(nextNum).padStart(5, '0')}`;
 
+    const authUserId = await resolveAuthUserId(req);
     const ref = await db.collection('hr_planilla_fijo').add({
-      periodoInicio: Timestamp.fromDate(new Date(periodoInicio)),
-      periodoFin: Timestamp.fromDate(new Date(periodoFin)),
-      periodoLabel: periodoLabel || '',
-      filas,
-      totalGeneral: Number(totalGeneral) || 0,
+      periodoInicio: Timestamp.fromDate(periodo.ini),
+      periodoFin: Timestamp.fromDate(periodo.fin),
+      periodoLabel: labelClean,
+      filas: san.value,
+      totalGeneral,
       estado: 'pendiente',
       numeroConsecutivo,
       fincaId: req.fincaId,
       createdAt: Timestamp.now(),
+      createdBy: { userId: authUserId || null, email: req.userEmail || null },
+      history: [buildHistoryEntry({ userId: authUserId, email: req.userEmail, action: 'created:pendiente' })],
     });
 
-    // Notify supervisors/admins via WhatsApp
+    // Notify supervisors/admins via WhatsApp (best-effort)
     try {
       const client = getTwilioClient();
       const usersSnap = await db.collection('users')
         .where('fincaId', '==', req.fincaId)
         .where('rol', 'in', ['supervisor', 'administrador'])
         .get();
-      const total = Number(totalGeneral).toLocaleString('es-CR');
-      const body = `📋 *Planilla Pendiente de Pago*\nPeríodo: ${periodoLabel}\nTotal a pagar: ₡${total}\nRevise y apruebe el pago en el sistema Aurora.`;
+      const total = totalGeneral.toLocaleString('es-CR');
+      const body = `📋 *Planilla Pendiente de Pago*\nPeríodo: ${labelClean}\nTotal a pagar: ₡${total}\nRevise y apruebe el pago en el sistema Aurora.`;
       const from = `whatsapp:${twilioWhatsappFrom.value()}`;
       const notifPromises = [];
       usersSnap.forEach(doc => {
@@ -517,7 +791,7 @@ router.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
       fincaId: req.fincaId,
       planillaId: ref.id,
       activity: {
-        name: `Aprobar pago de planilla: ${periodoLabel || ''}`,
+        name: `Aprobar pago de planilla: ${labelClean}`,
         responsableId: null,
         responsableNombre: 'Sin asignar',
       },
@@ -529,27 +803,82 @@ router.post('/api/hr/planilla-fijo', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
+router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
-    const { estado, filas, totalGeneral, periodoInicio, periodoFin, periodoLabel } = req.body;
+    const ownership = await verifyOwnership('hr_planilla_fijo', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
 
-    // Role checks for state transitions
+    const { estado, filas, periodoInicio, periodoFin, periodoLabel } = req.body;
+    const currentDoc = ownership.doc.data();
+    const currentEstado = currentDoc.estado || 'pendiente';
+
     const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(req.userRole);
     const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
+    const isAdminLike = canPagar;
+
+    // Sólo roles de escritura pueden modificar cualquier planilla fija.
+    if (!canEditarFijo(req))
+      return res.status(403).json({ message: 'No tienes permisos para modificar planillas.' });
+
+    if (estado !== undefined && !PLANILLA_ESTADOS.includes(estado))
+      return res.status(400).json({ message: 'Estado inválido.' });
     if (estado === 'aprobada' && !canAprobar)
       return res.status(403).json({ message: 'No tienes permisos para aprobar planillas.' });
     if (estado === 'pagada' && !canPagar)
       return res.status(403).json({ message: 'No tienes permisos para pagar planillas.' });
 
+    // Una vez pagada, sólo admin/rrhh puede modificarla (reversión contable).
+    if (currentEstado === 'pagada' && !isAdminLike)
+      return res.status(403).json({ message: 'Esta planilla ya fue pagada y sólo administrador o RR.HH. puede modificarla.' });
+
+    // Aprobada: sólo transición a pagada, o modificaciones por admin/rrhh.
+    if (currentEstado === 'aprobada' && !isAdminLike && estado !== 'pagada')
+      return res.status(403).json({ message: 'Esta planilla ya fue aprobada; sólo admin/RR.HH. puede modificarla fuera de pagar.' });
+
     const update = { updatedAt: Timestamp.now() };
-    if (estado) update.estado = estado;
-    if (filas) {
-      update.filas = filas;
-      update.totalGeneral = Number(totalGeneral) || 0;
+
+    // Cambio de período (sólo con filas nuevas, para evitar inconsistencia).
+    if (periodoInicio !== undefined || periodoFin !== undefined) {
+      const periodo = parsePeriodoISO(
+        periodoInicio || currentDoc.periodoInicio?.toDate().toISOString(),
+        periodoFin    || currentDoc.periodoFin?.toDate().toISOString(),
+      );
+      if (!periodo.ok) return res.status(400).json({ message: periodo.msg });
+      update.periodoInicio = Timestamp.fromDate(periodo.ini);
+      update.periodoFin    = Timestamp.fromDate(periodo.fin);
     }
-    if (periodoInicio) update.periodoInicio = Timestamp.fromDate(new Date(periodoInicio));
-    if (periodoFin)    update.periodoFin    = Timestamp.fromDate(new Date(periodoFin));
-    if (periodoLabel)  update.periodoLabel  = periodoLabel;
+    if (periodoLabel !== undefined)
+      update.periodoLabel = trimStr(periodoLabel, PLANILLA_LIMITS.string);
+
+    if (filas !== undefined) {
+      const [usersMap, fichasMap] = await Promise.all([
+        loadUsersMap(req.fincaId),
+        loadFichasMap(req.fincaId),
+      ]);
+      const san = sanitizeFijoFilas(filas, usersMap, fichasMap);
+      if (!san.ok) return res.status(400).json({ message: san.msg });
+      if (san.value.length === 0)
+        return res.status(400).json({ message: 'La planilla debe tener al menos un empleado válido.' });
+      update.filas = san.value;
+      update.totalGeneral = sumTotalGeneral(san.value);
+    }
+
+    if (estado !== undefined) update.estado = estado;
+
+    // Audit trail
+    const authUserId = await resolveAuthUserId(req);
+    const actions = [];
+    if (estado !== undefined && estado !== currentEstado) actions.push(`estado:${currentEstado}→${estado}`);
+    if (filas !== undefined) actions.push('filas');
+    if ((periodoInicio !== undefined || periodoFin !== undefined) && actions.length === 0) actions.push('periodo');
+    if (periodoLabel !== undefined && actions.length === 0) actions.push('label');
+    if (actions.length > 0) {
+      update.history = appendHistory(currentDoc.history, buildHistoryEntry({
+        userId: authUserId, email: req.userEmail, action: actions.join(','),
+      }));
+      update.updatedBy = { userId: authUserId || null, email: req.userEmail || null };
+    }
+
     await db.collection('hr_planilla_fijo').doc(req.params.id).update(update);
 
     // If marking as pagada, complete the associated dashboard task
@@ -570,10 +899,20 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/hr/planilla-fijo/:id', authenticate, async (req, res) => {
+router.delete('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
+    const ownership = await verifyOwnership('hr_planilla_fijo', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const data = ownership.doc.data();
+    const estadoActual = data.estado || 'pendiente';
+    const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
+    // Sólo pendientes son borrables libremente por roles de escritura.
+    if (!canEditarFijo(req))
+      return res.status(403).json({ message: 'No tienes permisos para eliminar planillas.' });
+    if (['aprobada', 'pagada'].includes(estadoActual) && !isAdminLike)
+      return res.status(403).json({ message: 'Planillas aprobadas o pagadas sólo puede eliminarlas admin/RR.HH.' });
+
     await db.collection('hr_planilla_fijo').doc(req.params.id).delete();
-    // Also delete the associated dashboard task
     const taskSnap = await db.collection('scheduled_tasks')
       .where('fincaId', '==', req.fincaId)
       .where('planillaId', '==', req.params.id)
@@ -686,123 +1025,6 @@ router.get('/api/hr/subordinados', authenticate, async (req, res) => {
 });
 
 // ── Planilla por Unidad / Hora ────────────────────────────────────────────────
-const PLANILLA_LIMITS = {
-  segmentos: 50,
-  trabajadoresPorPlanilla: 500,
-  observaciones: 1000,
-  nombrePlantilla: 100,
-  string: 200,        // tope para nombres de lote, labor, grupo, unidad, etc.
-  numeric: 9_999_999, // tope para totalGeneral, costos, cantidades
-};
-const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
-const PLANILLA_ESTADOS = ['borrador', 'pendiente', 'aprobada', 'pagada'];
-
-function trimStr(v, max) {
-  if (v == null) return '';
-  return String(v).slice(0, max);
-}
-
-function clampNumber(v, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
-  if (n < 0) return 0;
-  if (n > max) return max;
-  return n;
-}
-
-// Roles que pueden crear/editar planillas a nombre de otros encargados.
-const PLANILLA_ROLES_ON_BEHALF = ['supervisor', 'administrador', 'rrhh'];
-const canActOnBehalf = (req) => PLANILLA_ROLES_ON_BEHALF.includes(req.userRole);
-
-// Resuelve el doc id del usuario autenticado (collection `users`) a partir de
-// email + fincaId. Devuelve null si no existe. Cachea en req para no repetir.
-async function resolveAuthUserId(req) {
-  if (req._authUserId !== undefined) return req._authUserId;
-  if (!req.userEmail) { req._authUserId = null; return null; }
-  const snap = await db.collection('users')
-    .where('email', '==', req.userEmail)
-    .where('fincaId', '==', req.fincaId)
-    .limit(1).get();
-  req._authUserId = snap.empty ? null : snap.docs[0].id;
-  return req._authUserId;
-}
-
-// Carga el mapa de fichas (userId → { precioHora, … }) para la finca activa.
-async function loadFichasMap(fincaId) {
-  const snap = await db.collection('hr_fichas').where('fincaId', '==', fincaId).get();
-  const map = new Map();
-  snap.docs.forEach(d => map.set(d.id, d.data() || {}));
-  return map;
-}
-
-// Carga el mapa de unidades (nombre normalizado → { precio, factorConversion, unidadBase }).
-async function loadUnidadesMap(fincaId) {
-  const snap = await db.collection('unidades_medida').where('fincaId', '==', fincaId).get();
-  const map = new Map();
-  snap.docs.forEach(d => {
-    const u = d.data() || {};
-    if (u.nombre) map.set(String(u.nombre).trim().toLowerCase(), u);
-  });
-  return map;
-}
-
-// Carga el mapa de usuarios (userId → user) de la finca.
-async function loadUsersMap(fincaId) {
-  const snap = await db.collection('users').where('fincaId', '==', fincaId).get();
-  const map = new Map();
-  snap.docs.forEach(d => map.set(d.id, d.data() || {}));
-  return map;
-}
-
-// ── Audit trail ──────────────────────────────────────────────────────────────
-const PLANILLA_HISTORY_MAX = 50;
-
-// Construye una entrada de historial atómica (sin Timestamp interno, así puede
-// guardarse dentro de un array — Firestore acepta `Date`, no Timestamp, en arrays).
-function buildHistoryEntry({ userId, email, action }) {
-  return { at: new Date(), by: userId || null, byEmail: email || null, action };
-}
-
-// Apendea entrada al historial existente, manteniendo tope de PLANILLA_HISTORY_MAX.
-function appendHistory(currentHistory, entry) {
-  const arr = Array.isArray(currentHistory) ? currentHistory : [];
-  const next = [...arr, entry];
-  return next.length > PLANILLA_HISTORY_MAX ? next.slice(-PLANILLA_HISTORY_MAX) : next;
-}
-
-// ── Rate limiter (in-memory, por instancia de Cloud Function) ────────────────
-// Defensa en profundidad: protege contra spam de POST/PUT/DELETE. No reemplaza
-// quotas a nivel de API Gateway / Cloud Armor para tráfico distribuido.
-const RATE_BUCKETS = new Map();
-const RATE_BUCKET_MAX = 5000;
-
-function planillaRateLimit({ windowMs = 60_000, max = 60 } = {}) {
-  return (req, res, next) => {
-    const uid = req.uid;
-    if (!uid) return next();
-    const key = `${uid}:${req.method}:${req.baseUrl || ''}${req.path}`;
-    const now = Date.now();
-    let bucket = RATE_BUCKETS.get(key);
-    if (!bucket || now - bucket.windowStart > windowMs) {
-      // Limpieza oportunística cuando el mapa crece demasiado.
-      if (RATE_BUCKETS.size > RATE_BUCKET_MAX) {
-        for (const [k, b] of RATE_BUCKETS) {
-          if (now - b.windowStart > windowMs) RATE_BUCKETS.delete(k);
-          if (RATE_BUCKETS.size <= RATE_BUCKET_MAX / 2) break;
-        }
-      }
-      bucket = { count: 0, windowStart: now };
-      RATE_BUCKETS.set(key, bucket);
-    }
-    bucket.count++;
-    if (bucket.count > max) {
-      res.set('Retry-After', String(Math.ceil((bucket.windowStart + windowMs - now) / 1000)));
-      return res.status(429).json({ message: 'Demasiadas solicitudes. Espera un momento.' });
-    }
-    next();
-  };
-}
-
 const isHoraUnit = (u) => /^horas?$/i.test((u || '').trim());
 
 // Calcula el total de un trabajador para todos los segmentos. Regla idéntica

@@ -626,6 +626,25 @@ button.collapsible-section-header:hover { opacity: 1; }
 
 .planilla-config-btn { white-space: nowrap; }
 
+.planilla-config-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  align-self: flex-end;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.planilla-config-check input[type="checkbox"] {
+  accent-color: var(--aurora-green);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .planilla-sum-section-divider {
   border: none;
   border-top: 1px solid var(--aurora-border);
@@ -1680,30 +1699,6 @@ button.collapsible-section-header:hover { opacity: 1; }
 .planilla-modal-sub {
   font-size: 0.8rem !important;
   opacity: 0.55 !important;
-}
-
-.planilla-modal-checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
-  cursor: pointer;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--aurora-border);
-  background: rgba(255,255,255,0.04);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.planilla-modal-checkbox-row input[type="checkbox"] {
-  accent-color: var(--aurora-green);
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  flex-shrink: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

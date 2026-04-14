@@ -17,7 +17,7 @@ const fmtMoney = (n) =>
 const fmtNum = (n) =>
   n == null ? '—' : Number(n).toLocaleString('es-CR');
 
-function HrHistorialPlanillaHoras() {
+function HrHistorialPlanillaUnidad() {
   const apiFetch = useApiFetch();
   const [rows,    setRows]    = useState([]);
   const [loading, setLoading] = useState(true);
@@ -278,4 +278,4 @@ function HrHistorialPlanillaHoras() {
   );
 }
 
-export default HrHistorialPlanillaHoras;
+export default HrHistorialPlanillaUnidad;

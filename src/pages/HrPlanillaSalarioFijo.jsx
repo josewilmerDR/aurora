@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './HR.css';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiMail, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
@@ -10,6 +10,19 @@ const CCSS_RATE = 0.1083;
 // Horas semanales por defecto si la ficha no tiene horario configurado
 const JORNADA_HORAS_DEFAULT = 48;
 const ESTADO_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
+
+// Límites defensivos (validación de entrada):
+//   SALARIO_MAX cubre holgadamente el salario mensual máximo esperable en CRC.
+//   PERIODO_MAX_DIAS tope al rango cargable (anual + margen).
+const SALARIO_MAX     = 10_000_000;
+const CONCEPTO_MAX    = 100;
+const PERIODO_MAX_DIAS = 366;
+const EMAIL_RE        = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const clampNonNeg = (v, max = SALARIO_MAX) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n > max ? max : n;
+};
 
 const DIAS_HORARIO = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
 function calcHorasSemanales(horario = {}) {
@@ -203,7 +216,6 @@ function HrPlanillaSalarioFijo() {
   const [deleteConfirmId, setDeleteConfirmId]       = useState(null);
   const [aprobarConfirmId, setAprobarConfirmId]     = useState(null);
   const [pagarConfirmId, setPagarConfirmId]         = useState(null);
-  const [noEnviarComprobante, setNoEnviarComprobante] = useState(false);
   const [solapamientos, setSolapamientos]           = useState(null); // null=ok, array=show warning modal
   const [pendingFilas, setPendingFilas]             = useState(null);
   const [confirmEmailSolap, setConfirmEmailSolap]   = useState('');
@@ -275,6 +287,10 @@ function HrPlanillaSalarioFijo() {
 
   const handleCargar = async () => {
     if (!fechasValidas) { showToast('La fecha final debe ser igual o posterior a la inicial.', 'error'); return; }
+    const { dias: periodDaysCount } = getPeriodo();
+    if (periodDaysCount > PERIODO_MAX_DIAS) {
+      showToast(`El período no puede exceder ${PERIODO_MAX_DIAS} días.`, 'error'); return;
+    }
     sessionStorage.removeItem('aurora_planilla_fijo_state');
     setLoading(true);
     try {
@@ -356,14 +372,17 @@ function HrPlanillaSalarioFijo() {
 
   const handleSalarioDiarioChange = (id, value) =>
     setFilas(prev => prev.map(f => f.trabajadorId !== id ? f :
-      recalcFila({ ...f, salarioDiario: Number(value) || 0 })));
+      recalcFila({ ...f, salarioDiario: clampNonNeg(value) })));
 
-  const handleEliminar = (id) => setFilas(prev => prev.filter(f => f.trabajadorId !== id));
+  const handleEliminar = (id) => {
+    setFilas(prev => prev.filter(f => f.trabajadorId !== id));
+    if (detalleId === id) setDetalleId(null);
+  };
 
   const handleExtraChange = (id, dayIdx, value) =>
     setFilas(prev => prev.map(f => {
       if (f.trabajadorId !== id) return f;
-      const dias = f.dias.map((d, i) => i === dayIdx ? { ...d, salarioExtra: Number(value) || 0 } : d);
+      const dias = f.dias.map((d, i) => i === dayIdx ? { ...d, salarioExtra: clampNonNeg(value) } : d);
       return recalcFila({ ...f, dias });
     }));
 
@@ -374,8 +393,12 @@ function HrPlanillaSalarioFijo() {
   const updateDeduccion = (id, idx, field, value) =>
     setFilas(prev => prev.map(f => {
       if (f.trabajadorId !== id) return f;
-      const deduccionesExtra = f.deduccionesExtra.map((d, i) =>
-        i === idx ? { ...d, [field]: field === 'monto' ? Number(value) || 0 : value } : d);
+      const deduccionesExtra = f.deduccionesExtra.map((d, i) => {
+        if (i !== idx) return d;
+        if (field === 'monto')    return { ...d, monto: clampNonNeg(value) };
+        if (field === 'concepto') return { ...d, concepto: String(value).slice(0, CONCEPTO_MAX) };
+        return d;
+      });
       return recalcFila({ ...f, deduccionesExtra });
     }));
 
@@ -384,34 +407,23 @@ function HrPlanillaSalarioFijo() {
       recalcFila({ ...f, deduccionesExtra: f.deduccionesExtra.filter((_, i) => i !== idx) })));
 
   const { label: periodoLabel, inicio: periodoInicio, fin: periodoFin, dias: periodoDias } = getPeriodo();
-  // Art. 140 CT: detectar si el período es un mes calendario completo (del 1 al último día del mes)
-  const esPeriodoMesCompleto = (() => {
-    if (!fechaInicio || !fechaFin) return false;
-    const d1 = new Date(fechaInicio + 'T12:00:00');
-    const d2 = new Date(fechaFin    + 'T12:00:00');
-    const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
-    return d1.getDate() === 1 &&
-           d2.getMonth() === d1.getMonth() &&
-           d2.getFullYear() === d1.getFullYear() &&
-           d2.getDate() === ultimoDelMes;
-  })();
-  const esPeriodoSegundaQuincena = (() => {
-    if (!fechaInicio || !fechaFin) return false;
-    const d1 = new Date(fechaInicio + 'T12:00:00');
-    const d2 = new Date(fechaFin    + 'T12:00:00');
-    const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
-    return d1.getDate() === 16 &&
-           d2.getMonth() === d1.getMonth() &&
-           d2.getFullYear() === d1.getFullYear() &&
-           d2.getDate() === ultimoDelMes;
-  })();
+  // Art. 140 CT: reutiliza esMesCompleto / esSegundaQuincena armando un array
+  // de {fecha} sintético para las fechas del período.
+  const periodoDiasArr = fechasValidas
+    ? [{ fecha: new Date(fechaInicio + 'T12:00:00') }, { fecha: new Date(fechaFin + 'T12:00:00') }]
+    : [];
+  const esPeriodoMesCompleto     = esMesCompleto(periodoDiasArr);
+  const esPeriodoSegundaQuincena = !esPeriodoMesCompleto && esSegundaQuincena(periodoDiasArr);
   const diasEfectivos = esPeriodoMesCompleto ? 30 : esPeriodoSegundaQuincena ? 15 : periodoDias;
   const totalGeneral = filas.reduce((s, f) => s + Math.max(0, f.totalNeto), 0);
 
   const handleConfirmarSolapamiento = () => {
-    if (confirmEmailSolap.trim().toLowerCase() !== (currentUser?.email || '').toLowerCase()) {
-      showToast('El correo ingresado no coincide con el usuario actual.', 'error');
-      return;
+    const entered = confirmEmailSolap.trim().toLowerCase();
+    if (!EMAIL_RE.test(entered)) {
+      showToast('Ingrese un correo con formato válido.', 'error'); return;
+    }
+    if (entered !== (currentUser?.email || '').toLowerCase()) {
+      showToast('El correo ingresado no coincide con el usuario actual.', 'error'); return;
     }
     setFilas(pendingFilas);
     setLoaded(true);
@@ -423,6 +435,10 @@ function HrPlanillaSalarioFijo() {
 
   const handleGuardar = async () => {
     if (!filas.length) { showToast('No hay empleados en la planilla.', 'error'); return; }
+    if (!fechasValidas) { showToast('Fechas del período inválidas.', 'error'); return; }
+    if (periodoDias > PERIODO_MAX_DIAS) {
+      showToast(`El período no puede exceder ${PERIODO_MAX_DIAS} días.`, 'error'); return;
+    }
     setSaving(true);
     try {
       const filasPayload = filas.map(({ dias, ...rest }) => ({
@@ -459,7 +475,6 @@ function HrPlanillaSalarioFijo() {
           }),
         });
         if (!res.ok) throw new Error();
-        await res.json(); // consume response (numeroConsecutivo available via fetchPlanillas)
         // Clear the preview area and show success modal
         setLoaded(false);
         setFilas([]);
@@ -513,7 +528,6 @@ function HrPlanillaSalarioFijo() {
         body: JSON.stringify({ estado: 'pagada' }),
       });
       if (!res.ok) throw new Error();
-      // TODO: if (!noEnviarComprobante) → send payment receipts via email to each employee
       showToast('Planilla marcada como pagada.');
       fetchPlanillas();
     } catch {
@@ -597,9 +611,9 @@ function HrPlanillaSalarioFijo() {
             <input type="date" value={fechaFin} disabled={!editarFechas}
               onChange={e => handleFechaChange('fin', e.target.value)} />
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.88rem', color: 'var(--aurora-light)', alignSelf: 'flex-end', marginBottom: 4, whiteSpace: 'nowrap', cursor: 'pointer' }}>
-            <input type="checkbox" checked={editarFechas} onChange={e => setEditarFechas(e.target.checked)}
-              style={{ accentColor: 'var(--aurora-green)', width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }} />
+          <label className="planilla-config-check">
+            <input type="checkbox" checked={editarFechas}
+              onChange={e => setEditarFechas(e.target.checked)} />
             Editar fechas
           </label>
           <button className="btn btn-primary planilla-config-btn" onClick={handleCargar}
@@ -707,7 +721,7 @@ function HrPlanillaSalarioFijo() {
           {/* Header del empleado */}
           <div className="planilla-det-emp-header">
             <div className="planilla-det-emp-avatar">
-              {filaDetalle.trabajadorNombre.charAt(0).toUpperCase()}
+              {(filaDetalle.trabajadorNombre || '?').charAt(0).toUpperCase() || '?'}
             </div>
             <div>
               <div className="planilla-det-emp-name">{filaDetalle.trabajadorNombre}</div>
@@ -722,7 +736,7 @@ function HrPlanillaSalarioFijo() {
           <div className="planilla-det-diario-row">
             <span className="planilla-det-diario-label">Salario diario</span>
             <input
-              type="number" min="0" step="100"
+              type="number" min="0" step="100" max={SALARIO_MAX}
               className="planilla-det-diario-input"
               value={filaDetalle.salarioDiario ?? Math.round(filaDetalle.salarioMensual / 30)}
               onChange={e => handleSalarioDiarioChange(detalleId, e.target.value)}
@@ -772,7 +786,7 @@ function HrPlanillaSalarioFijo() {
                       </td>
                       <td>
                         <input
-                          type="number" min="0"
+                          type="number" min="0" max={SALARIO_MAX}
                           value={d.salarioExtra || ''}
                           placeholder="—"
                           className="planilla-det-extra-input"
@@ -808,6 +822,7 @@ function HrPlanillaSalarioFijo() {
               <div key={idx} className="planilla-det-sum-row planilla-det-sum-row--ded planilla-det-sum-row--editable">
                 <input
                   type="text" placeholder="Concepto de deducción"
+                  maxLength={CONCEPTO_MAX}
                   value={d.concepto}
                   onChange={e => updateDeduccion(detalleId, idx, 'concepto', e.target.value)}
                   className="planilla-ded-concepto"
@@ -815,7 +830,7 @@ function HrPlanillaSalarioFijo() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ opacity: 0.5 }}>(</span>
                   <input
-                    type="number" placeholder="0" min="0"
+                    type="number" placeholder="0" min="0" max={SALARIO_MAX}
                     value={d.monto || ''}
                     onChange={e => updateDeduccion(detalleId, idx, 'monto', e.target.value)}
                     className="planilla-ded-monto"
@@ -904,18 +919,9 @@ function HrPlanillaSalarioFijo() {
               <p>
                 Al confirmar, esta planilla pasará a estado <strong>Pagada</strong>.
               </p>
-              <p style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--aurora-light)', opacity: 0.85 }}>
-                <FiMail size={15} />
-                Se enviará un comprobante de pago por correo electrónico a los <strong>&nbsp;{numEmpleados} empleado{numEmpleados !== 1 ? 's' : ''}</strong>&nbsp;incluidos en esta planilla.
+              <p className="planilla-modal-sub">
+                Se registrará la fecha de pago y se marcará la tarea de aprobación como completada.
               </p>
-              <label className="planilla-modal-checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={noEnviarComprobante}
-                  onChange={e => setNoEnviarComprobante(e.target.checked)}
-                />
-                No enviar comprobante de pago
-              </label>
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button className="btn btn-secondary" onClick={() => setPagarConfirmId(null)}>Cancelar</button>
                 <button className="btn btn-primary" onClick={handleMarcarPagado}>
@@ -995,6 +1001,8 @@ function HrPlanillaSalarioFijo() {
             <input
               type="email"
               placeholder="Su correo de usuario"
+              maxLength={120}
+              autoComplete="off"
               value={confirmEmailSolap}
               onChange={e => setConfirmEmailSolap(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleConfirmarSolapamiento()}
@@ -1072,7 +1080,7 @@ function HrPlanillaSalarioFijo() {
                     )}
                     {isAprobada && canPagar && (
                       <button className="planilla-hist-pay-btn" title="Pagar planilla"
-                        onClick={() => { setNoEnviarComprobante(false); setPagarConfirmId(p.id); }}>
+                        onClick={() => setPagarConfirmId(p.id)}>
                         <FiCheckCircle size={14} /> Pagar
                       </button>
                     )}

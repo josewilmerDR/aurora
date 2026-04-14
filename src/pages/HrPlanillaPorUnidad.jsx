@@ -322,7 +322,7 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
   );
 });
 
-function HrPlanillaPorHora() {
+function HrPlanillaPorUnidad() {
   const { currentUser } = useUser();
   const apiFetch = useApiFetch();
   const location = useLocation();
@@ -1889,4 +1889,4 @@ function HrPlanillaPorHora() {
   );
 }
 
-export default HrPlanillaPorHora;
+export default HrPlanillaPorUnidad;
