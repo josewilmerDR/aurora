@@ -12,6 +12,44 @@ const router = Router();
 
 
 // ── Tipos de Monitoreo ────────────────────────────────────────────────────────
+const TIPOS_CAMPO_VALIDOS = ['texto', 'numero', 'fecha'];
+const MAX_NOMBRE_PLANTILLA = 60;
+const MAX_NOMBRE_CAMPO = 40;
+const MAX_CAMPOS_PERSONALIZADOS = 50;
+
+const sanitizeCampos = (campos) => {
+  if (!Array.isArray(campos)) return { ok: true, value: [] };
+  if (campos.length > MAX_CAMPOS_PERSONALIZADOS) {
+    return { ok: false, message: `Máximo ${MAX_CAMPOS_PERSONALIZADOS} campos personalizados.` };
+  }
+  const out = [];
+  for (const c of campos) {
+    if (!c || typeof c !== 'object') {
+      return { ok: false, message: 'Formato de campos inválido.' };
+    }
+    const nombre = typeof c.nombre === 'string' ? c.nombre.trim() : '';
+    if (!nombre) return { ok: false, message: 'Todos los campos deben tener nombre.' };
+    if (nombre.length > MAX_NOMBRE_CAMPO) {
+      return { ok: false, message: `Nombre de campo excede ${MAX_NOMBRE_CAMPO} caracteres.` };
+    }
+    if (!TIPOS_CAMPO_VALIDOS.includes(c.tipo)) {
+      return { ok: false, message: 'Tipo de campo inválido.' };
+    }
+    out.push({ nombre, tipo: c.tipo });
+  }
+  return { ok: true, value: out };
+};
+
+const sanitizeNombre = (nombre) => {
+  if (typeof nombre !== 'string') return { ok: false, message: 'El nombre es obligatorio.' };
+  const trimmed = nombre.trim();
+  if (!trimmed) return { ok: false, message: 'El nombre es obligatorio.' };
+  if (trimmed.length > MAX_NOMBRE_PLANTILLA) {
+    return { ok: false, message: `El nombre excede ${MAX_NOMBRE_PLANTILLA} caracteres.` };
+  }
+  return { ok: true, value: trimmed };
+};
+
 router.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
@@ -23,12 +61,15 @@ router.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
 
 router.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
-    const { nombre, campos } = req.body;
-    if (!nombre)
-      return res.status(400).json({ message: 'El nombre es obligatorio.' });
+    const nombreRes = sanitizeNombre(req.body?.nombre);
+    if (!nombreRes.ok) return res.status(400).json({ message: nombreRes.message });
+    const camposRes = sanitizeCampos(req.body?.campos);
+    if (!camposRes.ok) return res.status(400).json({ message: camposRes.message });
     const ref = await db.collection('tipos_monitoreo').add({
-      nombre, activo: true, fincaId: req.fincaId,
-      campos: Array.isArray(campos) ? campos : [],
+      nombre: nombreRes.value,
+      activo: true,
+      fincaId: req.fincaId,
+      campos: camposRes.value,
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -38,9 +79,9 @@ router.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
 
 router.get('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
-    const doc = await db.collection('tipos_monitoreo').doc(req.params.id).get();
-    if (!doc.exists) return res.status(404).json({ message: 'Plantilla no encontrada.' });
-    res.status(200).json({ id: doc.id, ...doc.data() });
+    const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    res.status(200).json({ id: req.params.id, ...ownership.doc.data() });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener la plantilla.' });
   }
@@ -48,7 +89,27 @@ router.get('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
 
 router.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
-    await db.collection('tipos_monitoreo').doc(req.params.id).update(req.body);
+    const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const update = {};
+    if (req.body?.nombre !== undefined) {
+      const nombreRes = sanitizeNombre(req.body.nombre);
+      if (!nombreRes.ok) return res.status(400).json({ message: nombreRes.message });
+      update.nombre = nombreRes.value;
+    }
+    if (req.body?.campos !== undefined) {
+      const camposRes = sanitizeCampos(req.body.campos);
+      if (!camposRes.ok) return res.status(400).json({ message: camposRes.message });
+      update.campos = camposRes.value;
+    }
+    if (req.body?.activo !== undefined) {
+      update.activo = !!req.body.activo;
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'Sin cambios.' });
+    }
+    await db.collection('tipos_monitoreo').doc(req.params.id).update(update);
     res.status(200).json({ message: 'Tipo actualizado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar tipo.' });
@@ -57,6 +118,8 @@ router.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
 
 router.delete('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
+    const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('tipos_monitoreo').doc(req.params.id).delete();
     res.status(200).json({ message: 'Tipo eliminado.' });
   } catch (error) {

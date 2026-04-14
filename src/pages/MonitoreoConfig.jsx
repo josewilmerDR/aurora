@@ -22,6 +22,27 @@ const DEFAULT_CAMPOS = [
 
 const emptyCampo = () => ({ nombre: '', tipo: 'numero' });
 
+const MAX_NOMBRE_PLANTILLA = 60;
+const MAX_NOMBRE_CAMPO = 40;
+
+const sanitizePayload = (nombre, campos) => {
+  const trimmedNombre = (nombre || '').trim();
+  if (!trimmedNombre) return { ok: false, message: 'El nombre es obligatorio.' };
+  if (trimmedNombre.length > MAX_NOMBRE_PLANTILLA) {
+    return { ok: false, message: `El nombre excede ${MAX_NOMBRE_PLANTILLA} caracteres.` };
+  }
+  const cleanCampos = [];
+  for (const c of (campos || [])) {
+    const nom = (c.nombre || '').trim();
+    if (!nom) return { ok: false, message: 'Todos los campos deben tener nombre.' };
+    if (nom.length > MAX_NOMBRE_CAMPO) {
+      return { ok: false, message: `Nombre de campo excede ${MAX_NOMBRE_CAMPO} caracteres.` };
+    }
+    cleanCampos.push({ nombre: nom, tipo: c.tipo });
+  }
+  return { ok: true, nombre: trimmedNombre, campos: cleanCampos };
+};
+
 function CamposEditor({ campos, onChange, disabled }) {
   const dragIdx = useRef(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
@@ -94,6 +115,7 @@ function CamposEditor({ campos, onChange, disabled }) {
             value={campo.nombre}
             onChange={e => updateCampo(i, 'nombre', e.target.value)}
             placeholder="Nombre del campo"
+            maxLength={MAX_NOMBRE_CAMPO}
             disabled={disabled}
           />
           <select
@@ -181,8 +203,10 @@ function MonitoreoConfig() {
   const cancelEdit = () => setEditingId(null);
 
   const saveEdit = async () => {
+    const clean = sanitizePayload(editData?.nombre, editData?.campos);
+    if (!clean.ok) { showToast(clean.message, 'error'); return; }
     try {
-      const body = { nombre: editData.nombre, campos: editData.campos };
+      const body = { nombre: clean.nombre, campos: clean.campos };
       await apiFetch(`/api/monitoreo/tipos/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -198,9 +222,10 @@ function MonitoreoConfig() {
   };
 
   const saveNew = async () => {
-    if (!newTipo.nombre.trim()) { showToast('El nombre es obligatorio.', 'error'); return; }
+    const clean = sanitizePayload(newTipo.nombre, newTipo.campos);
+    if (!clean.ok) { showToast(clean.message, 'error'); return; }
     try {
-      const body = { nombre: newTipo.nombre, campos: newTipo.campos };
+      const body = { nombre: clean.nombre, campos: clean.campos };
       const res = await apiFetch('/api/monitoreo/tipos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,6 +247,7 @@ function MonitoreoConfig() {
       await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, { method: 'DELETE' });
       setTipos(prev => prev.filter(t => t.id !== tipo.id));
       if (selectedTipo?.id === tipo.id) setSelectedTipo(null);
+      if (editingId === tipo.id) setEditingId(null);
       showToast('Plantilla eliminada.');
     } catch {
       showToast('Error al eliminar.', 'error');
@@ -295,6 +321,7 @@ function MonitoreoConfig() {
                         className="tipo-nombre-input"
                         value={editData.nombre}
                         onChange={e => setEditData(prev => ({ ...prev, nombre: e.target.value }))}
+                        maxLength={MAX_NOMBRE_PLANTILLA}
                       />
                     ) : (
                       <>
@@ -361,6 +388,7 @@ function MonitoreoConfig() {
                     value={newTipo.nombre}
                     onChange={e => setNewTipo(prev => ({ ...prev, nombre: e.target.value }))}
                     placeholder="Ej: Muestreo de pH"
+                    maxLength={MAX_NOMBRE_PLANTILLA}
                   />
                 </div>
                 <div className="tipo-campos-edit" style={{ marginTop: '0.75rem' }}>

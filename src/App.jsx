@@ -33,7 +33,7 @@ import HrHistorialPlanillaUnidad from './pages/HrHistorialPlanillaUnidad';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
-import MuestreosOrdenes from './pages/MuestreosOrdenes';
+import MonitoreoOrdenes from './pages/MonitoreoOrdenes';
 import ConfigCuenta from './pages/ConfigCuenta';
 import Parametros from './pages/Parametros';
 import MaquinariaList from './pages/MaquinariaList';
@@ -485,7 +485,7 @@ function App() {
             <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPlanillaSalarioFijo /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
             <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><MonitoreoPackages /></RoleRoute>} />
-            <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MuestreosOrdenes /></RoleRoute>} />
+            <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MonitoreoOrdenes /></RoleRoute>} />
             <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><ConfiguracionInicial /></RoleRoute>} />
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
