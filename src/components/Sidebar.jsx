@@ -94,10 +94,10 @@ export const MODULES = [
     nombre: 'Monitoreo',
     icon: FiActivity,
     items: [
-      { label: 'Historial', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
-      { label: 'Muestreos', to: '/monitoreo/muestreos', icon: FiList, minRole: 'encargado' },
-      { label: 'Plantillas de Muestreo', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
-      { label: 'Paquetes de Muestreos', to: '/monitoreo/paquetes', icon: FiPackage, minRole: 'supervisor' },
+      { label: 'Centro de Monitoreo', to: '/monitoreo/muestreos', icon: FiList, minRole: 'encargado' },
+      { label: 'Plantilla de Muestreos', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
+      { label: 'Paquete de Muestreos', to: '/monitoreo/paquetes', icon: FiPackage, minRole: 'supervisor' },
+      { label: 'Historial de Muestreos', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
     ],
   },
   {

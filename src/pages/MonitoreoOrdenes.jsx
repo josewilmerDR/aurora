@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import FormularioMuestreoModal from './FormularioMuestreoModal';
+import MonitoreoModalRegistro from './MonitoreoModalRegistro';
 import './MonitoreoOrdenes.css';
 
 const fmt = (iso) => {
@@ -44,11 +44,15 @@ export default function MonitoreoOrdenes() {
   }, [ordenes, search]);
 
   const handleComplete = async (id, formularioData = null, metadata = {}) => {
-    await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
+    const res = await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ formularioData, ...metadata }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'No se pudo completar la orden.');
+    }
     setOrdenes(prev => prev.map(o => o.id === id ? { ...o, status: 'completed_by_user' } : o));
   };
 
@@ -75,6 +79,7 @@ export default function MonitoreoOrdenes() {
             type="text"
             placeholder="Buscar por lote, grupo, responsable, tipo..."
             value={search}
+            maxLength={100}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
@@ -89,7 +94,7 @@ export default function MonitoreoOrdenes() {
       )}
 
       {modalOrden && (
-        <FormularioMuestreoModal
+        <MonitoreoModalRegistro
           orden={modalOrden}
           onClose={() => setModalOrden(null)}
           onComplete={async (id, formularioData, metadata) => {

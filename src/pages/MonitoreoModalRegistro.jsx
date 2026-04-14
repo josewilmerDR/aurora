@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiX, FiAlertCircle, FiFileText, FiCamera, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
-import './FormularioMuestreoModal.css';
+import './MonitoreoModalRegistro.css';
 
 const todayIso = () => new Date().toISOString().split('T')[0];
 
@@ -12,6 +12,9 @@ const fmtDate = (iso) => {
 };
 
 const MAX_IMAGE_PX = 1600;
+const MAX_IMAGE_FILE_BYTES = 20 * 1024 * 1024; // 20MB antes de compresión
+const MAX_OBSERVACIONES = 2000;
+const MAX_REGISTRO_VALUE = 500;
 
 function compressImage(file) {
   return new Promise((resolve, reject) => {
@@ -40,10 +43,11 @@ function compressImage(file) {
   });
 }
 
-export default function FormularioMuestreoModal({ orden, onClose, onComplete }) {
+export default function MonitoreoModalRegistro({ orden, onClose, onComplete }) {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const fileInputRef = useRef(null);
+  const firstCellRef = useRef(null);
 
   // Plantilla state: 'loading' | 'no-formulario' | 'ready' | 'error'
   const [state, setState] = useState('loading');
@@ -51,6 +55,7 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
   const [registros, setRegistros] = useState([{}]); // [{nombre: value}, ...]
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   // Metadata
   const [fechaCarga, setFechaCarga] = useState(todayIso());
@@ -108,6 +113,11 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
     return () => { cancelled = true; };
   }, []);
 
+  // Enfoca la primera celda al quedar listo el formulario.
+  useEffect(() => {
+    if (state === 'ready') firstCellRef.current?.focus();
+  }, [state]);
+
   // ── Fetch supervisor ─────────────────────────────────────────────────────
   useEffect(() => {
     const userId = currentUser?.userId;
@@ -141,6 +151,14 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
     e.target.value = '';
     if (!file) return;
     setScanMsg(null);
+    if (!file.type.startsWith('image/')) {
+      setScanMsg({ type: 'error', text: 'El archivo debe ser una imagen.' });
+      return;
+    }
+    if (file.size > MAX_IMAGE_FILE_BYTES) {
+      setScanMsg({ type: 'error', text: 'La imagen supera 20 MB.' });
+      return;
+    }
     try {
       const compressed = await compressImage(file);
       setScanImage(compressed);
@@ -186,14 +204,12 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
   // ── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const formularioData = state === 'ready' ? { registros } : null;
       const metadata = {
         fechaCarga,
-        muestreadorId: currentUser?.userId || '',
-        muestreadorNombre: currentUser?.nombre || '',
         supervisorId,
-        supervisorNombre,
         observaciones,
         ...(capturedImage ? {
           scanImageBase64: capturedImage.base64,
@@ -201,6 +217,8 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
         } : {}),
       };
       await onComplete(orden.id, formularioData, metadata);
+    } catch (err) {
+      setSubmitError(err?.message || 'Error al guardar.');
     } finally {
       setSubmitting(false);
     }
@@ -276,6 +294,7 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                 onChange={e => setObservaciones(e.target.value)}
                 disabled={submitting}
                 placeholder="Observaciones del muestreo..."
+                maxLength={MAX_OBSERVACIONES}
                 rows={2}
               />
             </div>
@@ -309,14 +328,14 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
               <div className="fmm-scan-bar">
                 <div className="fmm-scan-bar-left">
                   <button
-                    className="fmm-scan-pick-btn"
+                    className="btn btn-ia"
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={scanning || submitting}
-                    title="Escanear imagen — agrega o rellena la última fila vacía"
+                    title="Leer con IA — agrega o rellena la última fila vacía"
                   >
-                    <FiCamera size={14} />
-                    {scanImage ? 'Cambiar imagen' : 'Escanear desde imagen'}
+                    <FiCpu size={15} />
+                    {scanImage ? 'Cambiar imagen' : 'Leer con IA'}
                   </button>
                   <input
                     ref={fileInputRef}
@@ -391,13 +410,15 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
                     {registros.map((reg, rIdx) => (
                       <tr key={rIdx} className="fmm-reg-row">
                         <td className="fmm-reg-num">{rIdx + 1}</td>
-                        {campos.map(c => (
+                        {campos.map((c, cIdx) => (
                           <td key={c.nombre} className="fmm-reg-td">
                             <input
+                              ref={rIdx === 0 && cIdx === 0 ? firstCellRef : null}
                               className="fmm-reg-input"
                               type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
                               value={reg[c.nombre] ?? ''}
                               onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
+                              maxLength={MAX_REGISTRO_VALUE}
                               disabled={submitting}
                             />
                           </td>
@@ -435,6 +456,11 @@ export default function FormularioMuestreoModal({ orden, onClose, onComplete }) 
 
         {/* Footer */}
         <div className="fmm-footer">
+          {submitError && (
+            <span className="fmm-submit-error" role="alert">
+              <FiAlertCircle size={14} /> {submitError}
+            </span>
+          )}
           <button className="fmm-btn fmm-btn--cancel" onClick={onClose} disabled={submitting} type="button">
             Cancelar
           </button>

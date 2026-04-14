@@ -410,6 +410,16 @@
   padding: 14px 20px;
   border-top: 1px solid var(--aurora-border);
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fmm-submit-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: #ff6b6b;
+  font-size: 0.82rem;
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
@@ -448,10 +458,12 @@
 /* ── Multi-registro table ─────────────────────────────────────────────────── */
 .fmm-registros-wrap {
   overflow-x: auto;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--aurora-border);
   border-radius: 7px;
   margin-bottom: 10px;
-  min-height: 136px;
+  min-height: 126px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
 .fmm-registros-table {
