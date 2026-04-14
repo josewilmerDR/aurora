@@ -51,12 +51,99 @@ const getInitials = (nombre) => {
 const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'trabajador' };
 const DRAFT_KEY = 'aurora_hr_ficha_draft';
 
+const DIAS_LABORALES = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const TIPOS_CONTRATO = ['permanente', 'temporal', 'por_obra'];
+const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'administrador'];
+
+const LIMITS = {
+  nombre: 80, email: 120, telefono: 20, cedula: 30,
+  puesto: 80, departamento: 80, direccion: 200,
+  contactoEmergencia: 80, telefonoEmergencia: 20, notas: 2000,
+};
+const SALARIO_MAX = 10_000_000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^[\d\s+\-()]+$/;
+
+const toMinutes = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+
+function validateForms(userForm, fichaForm) {
+  const errors = {};
+
+  const nombre = (userForm.nombre || '').trim();
+  if (nombre.length < 2) errors.nombre = 'Mínimo 2 caracteres.';
+  else if (nombre.length > LIMITS.nombre) errors.nombre = `Máximo ${LIMITS.nombre} caracteres.`;
+
+  const email = (userForm.email || '').trim();
+  if (!email) errors.email = 'Email requerido.';
+  else if (!EMAIL_RE.test(email)) errors.email = 'Email con formato inválido.';
+  else if (email.length > LIMITS.email) errors.email = `Máximo ${LIMITS.email} caracteres.`;
+
+  const tel = (userForm.telefono || '').trim();
+  if (tel) {
+    if (!PHONE_RE.test(tel)) errors.telefono = 'Solo dígitos, espacios, +, -, ( ).';
+    else if (tel.length > LIMITS.telefono) errors.telefono = `Máximo ${LIMITS.telefono} caracteres.`;
+  }
+
+  if (!ROLES_VALIDOS.includes(userForm.rol)) errors.rol = 'Rol inválido.';
+
+  ['cedula', 'puesto', 'departamento', 'direccion', 'contactoEmergencia', 'notas'].forEach((k) => {
+    const v = fichaForm[k];
+    if (typeof v === 'string' && v.length > LIMITS[k]) errors[k] = `Máximo ${LIMITS[k]} caracteres.`;
+  });
+
+  const telEm = (fichaForm.telefonoEmergencia || '').trim();
+  if (telEm) {
+    if (!PHONE_RE.test(telEm)) errors.telefonoEmergencia = 'Formato inválido.';
+    else if (telEm.length > LIMITS.telefonoEmergencia) errors.telefonoEmergencia = `Máximo ${LIMITS.telefonoEmergencia} caracteres.`;
+  }
+
+  if (fichaForm.fechaIngreso) {
+    const d = new Date(fichaForm.fechaIngreso);
+    if (Number.isNaN(d.getTime())) {
+      errors.fechaIngreso = 'Fecha inválida.';
+    } else {
+      const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
+      if (d > hoy) errors.fechaIngreso = 'No puede ser futura.';
+    }
+  }
+
+  ['salarioBase', 'precioHora'].forEach((k) => {
+    const raw = fichaForm[k];
+    if (raw === '' || raw == null) return;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) errors[k] = 'Debe ser un número ≥ 0.';
+    else if (n > SALARIO_MAX) errors[k] = `Máximo ₡${SALARIO_MAX.toLocaleString('es-CR')}.`;
+  });
+
+  if (fichaForm.tipoContrato && !TIPOS_CONTRATO.includes(fichaForm.tipoContrato)) {
+    errors.tipoContrato = 'Contrato inválido.';
+  }
+
+  DIAS_SEMANA.forEach(({ key, label }) => {
+    const dia = fichaForm.horarioSemanal?.[key];
+    if (!dia?.activo) return;
+    if (!dia.inicio || !dia.fin) {
+      errors[`horario_${key}`] = `${label}: ingrese entrada y salida.`;
+      return;
+    }
+    if (toMinutes(dia.fin) <= toMinutes(dia.inicio)) {
+      errors[`horario_${key}`] = `${label}: salida debe ser posterior a entrada.`;
+    }
+  });
+
+  return errors;
+}
+
 // view: 'hub' | 'form'
 function HrFicha() {
   const apiFetch = useApiFetch();
   const { currentUser, refreshCurrentUser } = useUser();
   const [allUsers, setAllUsers] = useState([]);
   const [planillaUsers, setPlanillaUsers] = useState([]);
+  const [fichasMap, setFichasMap] = useState({});
   const [view, setView] = useState('hub');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -70,6 +157,8 @@ function HrFicha() {
   const [notasCollapsed, setNotasCollapsed] = useState(true);
   const [horarioCollapsed, setHorarioCollapsed] = useState(true);
   const [horarioDefault, setHorarioDefault] = useState({ inicio: '06:00', fin: '14:00' });
+  const [errors, setErrors] = useState({});
+  const formRef = useRef(null);
   const carouselRef = useRef(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
@@ -81,13 +170,19 @@ function HrFicha() {
   }, [selectedId]);
 
   const fetchUsers = () =>
-    apiFetch('/api/users')
-      .then(r => r.json())
-      .then(users => {
+    Promise.all([
+      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/hr/fichas').then(r => r.json()).catch(() => []),
+    ])
+      .then(([users, fichas]) => {
         setAllUsers(users);
         setPlanillaUsers(users.filter(u => u.empleadoPlanilla));
+        const map = {};
+        (Array.isArray(fichas) ? fichas : []).forEach(f => { map[f.userId] = f; });
+        setFichasMap(map);
+        return users;
       })
-      .catch(console.error)
+      .catch(err => { console.error(err); return []; })
       .finally(() => setLoading(false));
 
   const clearDraft = () => {
@@ -127,7 +222,8 @@ function HrFicha() {
 
   const loadFicha = async (userId) => {
     try {
-      const data = await apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json());
+      const raw = await apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json());
+      const { id: _id, userId: _uid, fincaId: _fid, updatedAt: _ua, ...data } = raw || {};
       setFichaForm({
         ...EMPTY_FICHA,
         ...data,
@@ -150,6 +246,7 @@ function HrFicha() {
     setSelectedId(null);
     setUserForm(EMPTY_USER);
     setFichaForm(EMPTY_FICHA);
+    setErrors({});
     setView('form');
     setIsEditing(false);
     window.scrollTo(0, 0);
@@ -178,6 +275,7 @@ function HrFicha() {
 
   const handleCancel = () => {
     clearDraft();
+    setErrors({});
     setView('hub');
     setIsEditing(false);
     if (!isEditing) {
@@ -191,14 +289,24 @@ function HrFicha() {
     }
   };
 
+  const clearFieldError = (name) => {
+    setErrors(prev => {
+      if (!prev[name]) return prev;
+      const { [name]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
   const handleUserChange = (e) => {
     const { name, value } = e.target;
     setUserForm(prev => ({ ...prev, [name]: value }));
+    clearFieldError(name);
   };
 
   const handleFichaChange = (e) => {
     const { name, value } = e.target;
     setFichaForm(prev => ({ ...prev, [name]: value }));
+    clearFieldError(name);
   };
 
   const handleHorarioChange = (diaKey, field, value) => {
@@ -212,9 +320,9 @@ function HrFicha() {
         horarioSemanal: { ...prev.horarioSemanal, [diaKey]: { ...diaActual, ...updates } },
       };
     });
+    clearFieldError(`horario_${diaKey}`);
   };
 
-  const DIAS_LABORALES = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
   const aplicarHorarioLV = () => {
     setFichaForm(prev => {
       const nuevoDias = { ...prev.horarioSemanal };
@@ -225,27 +333,85 @@ function HrFicha() {
     });
   };
 
+  const buildUserPayload = () => ({
+    nombre: userForm.nombre.trim(),
+    email: userForm.email.trim().toLowerCase(),
+    telefono: (userForm.telefono || '').trim(),
+    rol: userForm.rol,
+    empleadoPlanilla: true,
+  });
+
+  const buildFichaPayload = () => {
+    const s = (v) => (typeof v === 'string' ? v.trim() : v);
+    return {
+      puesto: s(fichaForm.puesto),
+      departamento: s(fichaForm.departamento),
+      fechaIngreso: fichaForm.fechaIngreso || '',
+      tipoContrato: fichaForm.tipoContrato || 'permanente',
+      salarioBase: fichaForm.salarioBase === '' || fichaForm.salarioBase == null ? null : Number(fichaForm.salarioBase),
+      precioHora: fichaForm.precioHora === '' || fichaForm.precioHora == null ? null : Number(fichaForm.precioHora),
+      cedula: s(fichaForm.cedula),
+      encargadoId: fichaForm.encargadoId || '',
+      direccion: s(fichaForm.direccion),
+      contactoEmergencia: s(fichaForm.contactoEmergencia),
+      telefonoEmergencia: s(fichaForm.telefonoEmergencia),
+      notas: s(fichaForm.notas),
+      horarioSemanal: fichaForm.horarioSemanal,
+    };
+  };
+
+  const openSectionsForErrors = (errs) => {
+    const keys = Object.keys(errs);
+    if (keys.some(k => ['puesto', 'departamento', 'fechaIngreso', 'tipoContrato', 'salarioBase', 'precioHora', 'encargadoId'].includes(k))) {
+      setLaboralCollapsed(false);
+    }
+    if (keys.some(k => k.startsWith('horario_'))) setHorarioCollapsed(false);
+    if (keys.some(k => ['direccion', 'contactoEmergencia', 'telefonoEmergencia'].includes(k))) {
+      setContactoCollapsed(false);
+    }
+    if (keys.includes('notas')) setNotasCollapsed(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errs = validateForms(userForm, fichaForm);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      openSectionsForErrors(errs);
+      showToast('Revisa los campos marcados.', 'error');
+      requestAnimationFrame(() => {
+        const el = formRef.current?.querySelector('.form-control--error input, .form-control--error select, .form-control--error textarea');
+        el?.focus();
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+    setErrors({});
     setSaving(true);
     try {
       if (isEditing) {
-        await apiFetch(`/api/users/${selectedId}`, {
+        const userRes = await apiFetch(`/api/users/${selectedId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...userForm, empleadoPlanilla: true }),
+          body: JSON.stringify(buildUserPayload()),
         });
-        await apiFetch(`/api/hr/fichas/${selectedId}`, {
+        if (!userRes.ok) {
+          const msg = await userRes.json().catch(() => ({}));
+          throw new Error(msg.message || 'Error al actualizar usuario.');
+        }
+        const fichaRes = await apiFetch(`/api/hr/fichas/${selectedId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fichaForm),
+          body: JSON.stringify(buildFichaPayload()),
         });
+        if (!fichaRes.ok) {
+          const msg = await fichaRes.json().catch(() => ({}));
+          throw new Error(msg.message || 'Error al guardar ficha.');
+        }
         showToast('Ficha actualizada correctamente.');
         if (currentUser?.userId === selectedId) refreshCurrentUser();
-        const newUsers = await apiFetch('/api/users').then(r => r.json());
-        setAllUsers(newUsers);
-        setPlanillaUsers(newUsers.filter(u => u.empleadoPlanilla));
-        const found = newUsers.find(u => u.id === selectedId);
+        const refreshed = await fetchUsers();
+        const found = refreshed.find(u => u.id === selectedId);
         if (found) setUserForm({ nombre: found.nombre, email: found.email, telefono: found.telefono || '', rol: found.rol || 'trabajador' });
         setView('hub');
         setIsEditing(false);
@@ -253,22 +419,27 @@ function HrFicha() {
         const res = await apiFetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...userForm, empleadoPlanilla: true }),
+          body: JSON.stringify(buildUserPayload()),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          const msg = await res.json().catch(() => ({}));
+          throw new Error(msg.message || 'Error al crear usuario.');
+        }
         const { id } = await res.json();
-        await apiFetch(`/api/hr/fichas/${id}`, {
+        const fichaRes = await apiFetch(`/api/hr/fichas/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fichaForm),
+          body: JSON.stringify(buildFichaPayload()),
         });
-        showToast('Empleado creado correctamente.');
+        if (!fichaRes.ok) {
+          const msg = await fichaRes.json().catch(() => ({}));
+          showToast(`Empleado creado, pero la ficha no se guardó: ${msg.message || 'error'}`, 'error');
+        } else {
+          showToast('Empleado creado correctamente.');
+        }
         clearDraft();
-        const newUsers = await apiFetch('/api/users').then(r => r.json());
-        setAllUsers(newUsers);
-        const planilla = newUsers.filter(u => u.empleadoPlanilla);
-        setPlanillaUsers(planilla);
-        const found = planilla.find(u => u.id === id);
+        const refreshed = await fetchUsers();
+        const found = refreshed.find(u => u.id === id);
         if (found) {
           setSelectedId(id);
           setUserForm({ nombre: found.nombre, email: found.email, telefono: found.telefono || '', rol: found.rol || 'trabajador' });
@@ -277,8 +448,8 @@ function HrFicha() {
         setView('hub');
         setIsEditing(false);
       }
-    } catch {
-      showToast('Error al guardar. Verifica los datos.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al guardar. Verifica los datos.', 'error');
     } finally {
       setSaving(false);
     }
@@ -410,7 +581,7 @@ function HrFicha() {
       {/* ── Carrusel móvil ── */}
       {selectedId && view === 'hub' && (
         <div className="lote-carousel" ref={carouselRef}>
-          {planillaUsers
+          {[...planillaUsers]
             .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
             .map(u => (
               <button
@@ -449,23 +620,26 @@ function HrFicha() {
           {view === 'form' && (
             <div className="form-card">
               <h2>{isEditing ? `Editando: ${selectedUser?.nombre || ''}` : 'Nuevo Empleado'}</h2>
-              <form onSubmit={handleSubmit} className="lote-form" style={{ marginTop: 16 }}>
+              <form onSubmit={handleSubmit} noValidate ref={formRef} className="lote-form" style={{ marginTop: 16 }}>
 
                 <p className="form-section-title">Información Personal</p>
                 <div className="form-grid">
-                  <div className="form-control">
+                  <div className={`form-control${errors.nombre ? ' form-control--error' : ''}`}>
                     <label>Nombre Completo</label>
-                    <input name="nombre" value={userForm.nombre} onChange={handleUserChange} required placeholder="Nombre completo" />
+                    <input name="nombre" value={userForm.nombre} onChange={handleUserChange} required maxLength={LIMITS.nombre} placeholder="Nombre completo" aria-invalid={!!errors.nombre} />
+                    {errors.nombre && <span className="form-control-error">{errors.nombre}</span>}
                   </div>
-                  <div className="form-control">
+                  <div className={`form-control${errors.email ? ' form-control--error' : ''}`}>
                     <label>Email</label>
-                    <input name="email" type="email" value={userForm.email} onChange={handleUserChange} required placeholder="correo@ejemplo.com" />
+                    <input name="email" type="email" value={userForm.email} onChange={handleUserChange} required maxLength={LIMITS.email} placeholder="correo@ejemplo.com" aria-invalid={!!errors.email} />
+                    {errors.email && <span className="form-control-error">{errors.email}</span>}
                   </div>
-                  <div className="form-control">
+                  <div className={`form-control${errors.telefono ? ' form-control--error' : ''}`}>
                     <label>Teléfono</label>
-                    <input name="telefono" value={userForm.telefono} onChange={handleUserChange} placeholder="8888-8888" />
+                    <input name="telefono" value={userForm.telefono} onChange={handleUserChange} maxLength={LIMITS.telefono} inputMode="tel" placeholder="8888-8888" aria-invalid={!!errors.telefono} />
+                    {errors.telefono && <span className="form-control-error">{errors.telefono}</span>}
                   </div>
-                  <div className="form-control">
+                  <div className={`form-control${errors.rol ? ' form-control--error' : ''}`}>
                     <label>Rol en el sistema</label>
                     <select name="rol" value={userForm.rol} onChange={handleUserChange}>
                       <option value="ninguno">Ninguno (sin acceso al sistema)</option>
@@ -474,10 +648,12 @@ function HrFicha() {
                       <option value="supervisor">Supervisor</option>
                       <option value="administrador">Administrador</option>
                     </select>
+                    {errors.rol && <span className="form-control-error">{errors.rol}</span>}
                   </div>
-                  <div className="form-control">
+                  <div className={`form-control${errors.cedula ? ' form-control--error' : ''}`}>
                     <label>Cédula / Identificación</label>
-                    <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} placeholder="1-1234-5678" />
+                    <input name="cedula" value={fichaForm.cedula} onChange={handleFichaChange} maxLength={LIMITS.cedula} placeholder="1-1234-5678" aria-invalid={!!errors.cedula} />
+                    {errors.cedula && <span className="form-control-error">{errors.cedula}</span>}
                   </div>
                 </div>
 
@@ -487,33 +663,39 @@ function HrFicha() {
                 </button>
                 <div className={laboralCollapsed ? 'collapsible-content--hidden' : ''}>
                   <div className="form-grid">
-                    <div className="form-control">
+                    <div className={`form-control${errors.puesto ? ' form-control--error' : ''}`}>
                       <label>Puesto</label>
-                      <input name="puesto" value={fichaForm.puesto} onChange={handleFichaChange} placeholder="Ej: Operario de campo" />
+                      <input name="puesto" value={fichaForm.puesto} onChange={handleFichaChange} maxLength={LIMITS.puesto} placeholder="Ej: Operario de campo" aria-invalid={!!errors.puesto} />
+                      {errors.puesto && <span className="form-control-error">{errors.puesto}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.departamento ? ' form-control--error' : ''}`}>
                       <label>Departamento</label>
-                      <input name="departamento" value={fichaForm.departamento} onChange={handleFichaChange} placeholder="Ej: Producción" />
+                      <input name="departamento" value={fichaForm.departamento} onChange={handleFichaChange} maxLength={LIMITS.departamento} placeholder="Ej: Producción" aria-invalid={!!errors.departamento} />
+                      {errors.departamento && <span className="form-control-error">{errors.departamento}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.fechaIngreso ? ' form-control--error' : ''}`}>
                       <label>Fecha de Ingreso</label>
-                      <input name="fechaIngreso" type="date" value={fichaForm.fechaIngreso} onChange={handleFichaChange} />
+                      <input name="fechaIngreso" type="date" value={fichaForm.fechaIngreso} onChange={handleFichaChange} max={new Date().toISOString().slice(0, 10)} aria-invalid={!!errors.fechaIngreso} />
+                      {errors.fechaIngreso && <span className="form-control-error">{errors.fechaIngreso}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.tipoContrato ? ' form-control--error' : ''}`}>
                       <label>Tipo de Contrato</label>
                       <select name="tipoContrato" value={fichaForm.tipoContrato} onChange={handleFichaChange}>
                         <option value="permanente">Permanente</option>
                         <option value="temporal">Temporal</option>
                         <option value="por_obra">Por obra</option>
                       </select>
+                      {errors.tipoContrato && <span className="form-control-error">{errors.tipoContrato}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.salarioBase ? ' form-control--error' : ''}`}>
                       <label>Salario Base (₡)</label>
-                      <input name="salarioBase" type="number" min="0" step="any" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" />
+                      <input name="salarioBase" type="number" min="0" max={SALARIO_MAX} step="any" inputMode="decimal" value={fichaForm.salarioBase} onChange={handleFichaChange} placeholder="0" aria-invalid={!!errors.salarioBase} />
+                      {errors.salarioBase && <span className="form-control-error">{errors.salarioBase}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.precioHora ? ' form-control--error' : ''}`}>
                       <label>Precio por Hora (₡)</label>
-                      <input name="precioHora" type="number" min="0" step="any" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" />
+                      <input name="precioHora" type="number" min="0" max={SALARIO_MAX} step="any" inputMode="decimal" value={fichaForm.precioHora} onChange={handleFichaChange} placeholder="0" aria-invalid={!!errors.precioHora} />
+                      {errors.precioHora && <span className="form-control-error">{errors.precioHora}</span>}
                     </div>
                     <div className="form-control">
                       <label>Encargado / Supervisor directo</label>
@@ -546,8 +728,10 @@ function HrFicha() {
                   </div>
                   {DIAS_SEMANA.map(({ key, letra }) => {
                     const dia = fichaForm.horarioSemanal?.[key] || { activo: false, inicio: '', fin: '' };
+                    const errKey = `horario_${key}`;
+                    const hasErr = !!errors[errKey];
                     return (
-                      <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}`}>
+                      <div key={key} className={`horario-row${dia.activo ? '' : ' horario-row--inactivo'}${hasErr ? ' horario-row--error' : ''}`}>
                         <label className="horario-toggle">
                           <input type="checkbox" checked={dia.activo} onChange={e => handleHorarioChange(key, 'activo', e.target.checked)} />
                           <span className="horario-toggle-track"><span className="horario-dia-letra">{letra}</span></span>
@@ -556,6 +740,7 @@ function HrFicha() {
                           <input type="time" value={dia.inicio} disabled={!dia.activo} onChange={e => handleHorarioChange(key, 'inicio', e.target.value)} className="horario-time-input" />
                           <input type="time" value={dia.fin}    disabled={!dia.activo} onChange={e => handleHorarioChange(key, 'fin',   e.target.value)} className="horario-time-input" />
                         </div>
+                        {hasErr && <span className="form-control-error horario-row-error">{errors[errKey]}</span>}
                       </div>
                     );
                   })}
@@ -571,17 +756,20 @@ function HrFicha() {
                 </button>
                 <div className={contactoCollapsed ? 'collapsible-content--hidden' : ''}>
                   <div className="form-grid">
-                    <div className="form-control">
+                    <div className={`form-control${errors.direccion ? ' form-control--error' : ''}`}>
                       <label>Dirección</label>
-                      <input name="direccion" value={fichaForm.direccion} onChange={handleFichaChange} placeholder="Dirección de residencia" />
+                      <input name="direccion" value={fichaForm.direccion} onChange={handleFichaChange} maxLength={LIMITS.direccion} placeholder="Dirección de residencia" aria-invalid={!!errors.direccion} />
+                      {errors.direccion && <span className="form-control-error">{errors.direccion}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.contactoEmergencia ? ' form-control--error' : ''}`}>
                       <label>Contacto de Emergencia</label>
-                      <input name="contactoEmergencia" value={fichaForm.contactoEmergencia} onChange={handleFichaChange} placeholder="Nombre" />
+                      <input name="contactoEmergencia" value={fichaForm.contactoEmergencia} onChange={handleFichaChange} maxLength={LIMITS.contactoEmergencia} placeholder="Nombre" aria-invalid={!!errors.contactoEmergencia} />
+                      {errors.contactoEmergencia && <span className="form-control-error">{errors.contactoEmergencia}</span>}
                     </div>
-                    <div className="form-control">
+                    <div className={`form-control${errors.telefonoEmergencia ? ' form-control--error' : ''}`}>
                       <label>Teléfono Emergencia</label>
-                      <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} placeholder="8888-8888" />
+                      <input name="telefonoEmergencia" value={fichaForm.telefonoEmergencia} onChange={handleFichaChange} maxLength={LIMITS.telefonoEmergencia} inputMode="tel" placeholder="8888-8888" aria-invalid={!!errors.telefonoEmergencia} />
+                      {errors.telefonoEmergencia && <span className="form-control-error">{errors.telefonoEmergencia}</span>}
                     </div>
                   </div>
                 </div>
@@ -591,8 +779,10 @@ function HrFicha() {
                   <span className={`collapsible-chevron${notasCollapsed ? '' : ' collapsible-chevron--open'}`}>▾</span>
                 </button>
                 <div className={notasCollapsed ? 'collapsible-content--hidden' : ''}>
-                  <div className="form-control">
-                    <textarea name="notas" value={fichaForm.notas} onChange={handleFichaChange} placeholder="Observaciones generales del trabajador..." />
+                  <div className={`form-control${errors.notas ? ' form-control--error' : ''}`}>
+                    <textarea name="notas" value={fichaForm.notas} onChange={handleFichaChange} maxLength={LIMITS.notas} placeholder="Observaciones generales del trabajador..." aria-invalid={!!errors.notas} />
+                    <span className="form-control-hint">{(fichaForm.notas || '').length}/{LIMITS.notas}</span>
+                    {errors.notas && <span className="form-control-error">{errors.notas}</span>}
                   </div>
                 </div>
 
@@ -613,21 +803,31 @@ function HrFicha() {
           {view !== 'form' && (
             <div className="lote-list-panel">
               <ul className="lote-list">
-                {planillaUsers
+                {[...planillaUsers]
                   .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-                  .map(u => (
-                    <li
-                      key={u.id}
-                      className={`lote-list-item${selectedId === u.id ? ' active' : ''}`}
-                      onClick={() => selectedId === u.id ? setSelectedId(null) : handleSelectEmployee(u)}
-                    >
-                      <div className="lote-list-info">
-                        <span className="lote-list-code">{u.nombre}</span>
-                        <span className="lote-list-name">{ROLE_LABELS[u.rol] || 'Trabajador'}</span>
-                      </div>
-                      <FiChevronRight size={14} className="lote-list-arrow" />
-                    </li>
-                  ))}
+                  .map(u => {
+                    const ficha = fichasMap[u.id] || {};
+                    const subParts = [
+                      ficha.cedula && `CI ${ficha.cedula}`,
+                      ficha.puesto,
+                      u.email,
+                      u.telefono,
+                      ROLE_LABELS[u.rol] || 'Trabajador',
+                    ].filter(Boolean);
+                    return (
+                      <li
+                        key={u.id}
+                        className={`lote-list-item${selectedId === u.id ? ' active' : ''}`}
+                        onClick={() => selectedId === u.id ? setSelectedId(null) : handleSelectEmployee(u)}
+                      >
+                        <div className="lote-list-info">
+                          <span className="lote-list-code">{u.nombre}</span>
+                          <span className="lote-list-name">{subParts.join(' · ')}</span>
+                        </div>
+                        <FiChevronRight size={14} className="lote-list-arrow" />
+                      </li>
+                    );
+                  })}
               </ul>
             </div>
           )}
