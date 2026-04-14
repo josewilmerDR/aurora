@@ -12,6 +12,91 @@ const router = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Fichas del Trabajador ────────────────────────────────────────────────────
+const FICHA_TIPOS_CONTRATO = ['permanente', 'temporal', 'por_obra'];
+const FICHA_DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+const PHONE_RE_FICHA = /^[\d\s+\-()]+$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const FICHA_LIMITS = {
+  puesto: 80, departamento: 80, cedula: 30, direccion: 200,
+  contactoEmergencia: 80, telefonoEmergencia: 20, notas: 2000,
+};
+const FICHA_SALARIO_MAX = 10_000_000;
+
+function validateFichaPayload(body) {
+  const allowed = [
+    'puesto', 'departamento', 'fechaIngreso', 'tipoContrato',
+    'salarioBase', 'precioHora', 'cedula', 'encargadoId',
+    'direccion', 'contactoEmergencia', 'telefonoEmergencia',
+    'notas', 'horarioSemanal',
+  ];
+  const clean = {};
+  for (const k of allowed) if (body[k] !== undefined) clean[k] = body[k];
+
+  const errs = [];
+  for (const [k, max] of Object.entries(FICHA_LIMITS)) {
+    if (typeof clean[k] === 'string') {
+      clean[k] = clean[k].trim();
+      if (clean[k].length > max) errs.push(`${k} excede ${max} caracteres.`);
+    } else if (clean[k] != null) {
+      errs.push(`${k} debe ser texto.`);
+    }
+  }
+  if (typeof clean.telefonoEmergencia === 'string' && clean.telefonoEmergencia && !PHONE_RE_FICHA.test(clean.telefonoEmergencia)) {
+    errs.push('Teléfono de emergencia inválido.');
+  }
+
+  if (clean.fechaIngreso !== undefined && clean.fechaIngreso !== '' && clean.fechaIngreso !== null) {
+    if (typeof clean.fechaIngreso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(clean.fechaIngreso)) {
+      errs.push('Fecha de ingreso inválida.');
+    } else {
+      const d = new Date(clean.fechaIngreso);
+      if (Number.isNaN(d.getTime())) errs.push('Fecha de ingreso inválida.');
+    }
+  }
+
+  if (clean.tipoContrato != null && clean.tipoContrato !== '' && !FICHA_TIPOS_CONTRATO.includes(clean.tipoContrato)) {
+    errs.push('Tipo de contrato inválido.');
+  }
+
+  for (const k of ['salarioBase', 'precioHora']) {
+    if (clean[k] === '' || clean[k] == null) { clean[k] = null; continue; }
+    const n = Number(clean[k]);
+    if (!Number.isFinite(n) || n < 0 || n > FICHA_SALARIO_MAX) {
+      errs.push(`${k} debe ser un número entre 0 y ${FICHA_SALARIO_MAX}.`);
+    } else {
+      clean[k] = n;
+    }
+  }
+
+  if (clean.encargadoId != null && typeof clean.encargadoId !== 'string') {
+    errs.push('encargadoId inválido.');
+  }
+
+  if (clean.horarioSemanal !== undefined) {
+    if (clean.horarioSemanal == null || typeof clean.horarioSemanal !== 'object' || Array.isArray(clean.horarioSemanal)) {
+      errs.push('horarioSemanal inválido.');
+    } else {
+      const norm = {};
+      for (const d of FICHA_DIAS) {
+        const day = clean.horarioSemanal[d];
+        const activo = !!(day && day.activo === true);
+        const inicio = day && typeof day.inicio === 'string' ? day.inicio : '';
+        const fin = day && typeof day.fin === 'string' ? day.fin : '';
+        if (activo) {
+          if (!TIME_RE.test(inicio) || !TIME_RE.test(fin)) { errs.push(`Horario de ${d} inválido.`); continue; }
+          const [h1, m1] = inicio.split(':').map(Number);
+          const [h2, m2] = fin.split(':').map(Number);
+          if ((h2 * 60 + m2) <= (h1 * 60 + m1)) errs.push(`Salida ≤ entrada en ${d}.`);
+        }
+        norm[d] = { activo, inicio, fin };
+      }
+      clean.horarioSemanal = norm;
+    }
+  }
+
+  return { errs, clean };
+}
+
 router.get('/api/hr/fichas', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_fichas')
@@ -25,8 +110,16 @@ router.get('/api/hr/fichas', authenticate, async (req, res) => {
 
 router.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
+    const userDoc = await db.collection('users').doc(req.params.userId).get();
+    if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
+      return res.status(403).json({ message: 'Acceso no autorizado.' });
+    }
     const doc = await db.collection('hr_fichas').doc(req.params.userId).get();
-    res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
+    if (!doc.exists) return res.status(200).json({});
+    if (doc.data().fincaId && doc.data().fincaId !== req.fincaId) {
+      return res.status(403).json({ message: 'Acceso no autorizado.' });
+    }
+    res.status(200).json({ id: doc.id, ...doc.data() });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener ficha.' });
   }
@@ -34,8 +127,20 @@ router.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
 
 router.put('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
+    const userDoc = await db.collection('users').doc(req.params.userId).get();
+    if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
+      return res.status(403).json({ message: 'Acceso no autorizado.' });
+    }
+    const { errs, clean } = validateFichaPayload(req.body || {});
+    if (errs.length) return res.status(400).json({ message: errs.join(' ') });
+    if (clean.encargadoId) {
+      const encDoc = await db.collection('users').doc(clean.encargadoId).get();
+      if (!encDoc.exists || encDoc.data().fincaId !== req.fincaId) {
+        return res.status(400).json({ message: 'Encargado no válido.' });
+      }
+    }
     await db.collection('hr_fichas').doc(req.params.userId).set(
-      { ...req.body, fincaId: req.fincaId, updatedAt: Timestamp.now() },
+      { ...clean, fincaId: req.fincaId, updatedAt: Timestamp.now() },
       { merge: true }
     );
     res.status(200).json({ message: 'Ficha actualizada.' });

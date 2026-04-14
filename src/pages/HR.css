@@ -1080,6 +1080,39 @@ button.collapsible-section-header:hover { opacity: 1; }
 }
 
 /* ── Page header (title + action button) ────────────────────────────────── */
+/* ── Error feedback en campos ─────────────────────────────────────────────── */
+.form-control--error input,
+.form-control--error select,
+.form-control--error textarea {
+  border-color: #ff5c7c !important;
+  box-shadow: 0 0 0 1px rgba(255, 92, 124, 0.35);
+}
+
+.form-control-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #ff8fa3;
+  line-height: 1.3;
+}
+
+.form-control-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: rgba(230, 242, 255, 0.4);
+  text-align: right;
+}
+
+.horario-row--error .horario-time-input {
+  border-color: #ff5c7c !important;
+}
+
+.horario-row-error {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
 .ficha-page-header {
   display: flex;
   justify-content: space-between;
@@ -1117,17 +1150,20 @@ button.collapsible-section-header:hover { opacity: 1; }
 
 @media (max-width: 768px) {
   .ficha-page-header {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
 
   .ficha-page-title {
     font-size: 1.25rem;
-    margin-bottom: 12px;
+    margin: 0;
+    flex: 1 1 50%;
+    min-width: 0;
   }
 
   .ficha-page-header .btn {
-    width: 100%;
+    flex: 1 1 50%;
     justify-content: center;
   }
 
