@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiEye, FiSearch, FiFileText } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './HR.css';
 
+const SEARCH_MAX = 100;
 const fmt = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
+const initialChar = (s) => (s || '?').charAt(0).toUpperCase() || '?';
 
 function HrHistorialPlanillaSalarioFijo() {
   const apiFetch = useApiFetch();
@@ -20,41 +22,62 @@ function HrHistorialPlanillaSalarioFijo() {
       apiFetch('/api/users').then(r => r.json()),
       apiFetch('/api/hr/planilla-fijo').then(r => r.json()),
     ]).then(([u, p]) => {
-      setUsers(u.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
+      setUsers(u.slice().sort((a, b) =>
+        (a.nombre || '').localeCompare(b.nombre || '', 'es')
+      ));
       setPlanillas(p);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(err => {
+      console.error('Error cargando historial de planillas:', err);
+      setLoading(false);
+    });
   }, []);
 
-  const filteredUsers = users.filter(u =>
-    !search.trim() || u.nombre.toLowerCase().includes(search.toLowerCase())
-  );
+  // Index: trabajadorId → planilla[] (una pasada sobre `planillas`).
+  // Reemplaza dos recorridos O(N×M) por lookups O(1) en render.
+  const planillasByUser = useMemo(() => {
+    const map = new Map();
+    for (const p of planillas) {
+      const seen = new Set();
+      for (const f of (p.filas || [])) {
+        if (f?.trabajadorId && !seen.has(f.trabajadorId)) {
+          seen.add(f.trabajadorId);
+          if (!map.has(f.trabajadorId)) map.set(f.trabajadorId, []);
+          map.get(f.trabajadorId).push(p);
+        }
+      }
+    }
+    return map;
+  }, [planillas]);
+
+  const searchNorm = search.trim().toLowerCase();
+  const filteredUsers = searchNorm
+    ? users.filter(u => (u.nombre || '').toLowerCase().includes(searchNorm))
+    : users;
 
   const selectedUser = users.find(u => u.id === selectedId);
-
-  // All planillas that include this employee, sorted newest first (already from API)
-  const empleadoPlanillas = selectedId
-    ? planillas.filter(p => p.filas?.some(f => f.trabajadorId === selectedId))
-    : [];
+  const empleadoPlanillas = selectedId ? (planillasByUser.get(selectedId) || []) : [];
 
   const handleVerPlanilla = (p) => {
-    const filaEmpleado = p.filas?.filter(f => f.trabajadorId === selectedId) || [];
+    const filaEmpleado = (p.filas || []).filter(f => f.trabajadorId === selectedId);
     const data = {
       periodoInicio:     p.periodoInicio,
       periodoFin:        p.periodoFin,
       periodoLabel:      p.periodoLabel,
-      totalGeneral:      filaEmpleado.reduce((s, f) => s + (f.totalNeto || 0), 0),
+      totalGeneral:      filaEmpleado.reduce((s, f) => s + (Number(f.totalNeto) || 0), 0),
       filas:             filaEmpleado,
       numeroConsecutivo: p.numeroConsecutivo || null,
     };
-    sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
-    sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/historial-pagos');
+    try {
+      sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+      sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/historial-pagos');
+    } catch (err) {
+      // Private mode / quota exceeded — continúa la navegación; el reporte
+      // mostrará el estado "sin datos" manejado en HrPlanillaReporteSalarioFijo.
+      console.warn('No se pudo persistir el reporte en sessionStorage:', err);
+    }
     navigate('/hr/planilla/fijo/reporte');
   };
-
-  // Count planillas per employee (for the list badge)
-  const planillaCount = (userId) =>
-    planillas.filter(p => p.filas?.some(f => f.trabajadorId === userId)).length;
 
   return (
     <div className="ficha-page-layout">
@@ -73,7 +96,7 @@ function HrHistorialPlanillaSalarioFijo() {
             {/* Employee header */}
             <div className="ficha-header">
               <div className="ficha-avatar">
-                {selectedUser.nombre.charAt(0).toUpperCase()}
+                {initialChar(selectedUser.nombre)}
               </div>
               <div>
                 <div className="ficha-worker-name">{selectedUser.nombre}</div>
@@ -154,6 +177,7 @@ function HrHistorialPlanillaSalarioFijo() {
           <input
             type="text"
             placeholder="Buscar empleado..."
+            maxLength={SEARCH_MAX}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
@@ -171,7 +195,7 @@ function HrHistorialPlanillaSalarioFijo() {
 
         <ul className="empleados-list">
           {filteredUsers.map(u => {
-            const count = planillaCount(u.id);
+            const count = planillasByUser.get(u.id)?.length || 0;
             return (
               <li
                 key={u.id}
@@ -179,7 +203,7 @@ function HrHistorialPlanillaSalarioFijo() {
                 onClick={() => setSelectedId(u.id)}
               >
                 <div className="empleados-list-avatar">
-                  {u.nombre.charAt(0).toUpperCase()}
+                  {initialChar(u.nombre)}
                 </div>
                 <div className="empleados-list-info">
                   <div className="empleados-list-name">{u.nombre}</div>

@@ -5,10 +5,14 @@ import { useApiFetch } from '../hooks/useApiFetch';
 import './HistorialAplicaciones.css';
 
 const PAGE_SIZE = 50;
+const COL_FILTER_MAX = 100;
+const POPOVER_MIN_WIDTH = 240;
 
 const fmtDate = (iso) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 const fmtMoney = (n) =>
@@ -38,18 +42,23 @@ function HrHistorialPlanillaUnidad() {
   }, []);
 
   const filtered = useMemo(() => {
-    const activeCol = Object.entries(colFilters).filter(([, v]) => v.trim());
+    // Pre-normaliza y pre-parsea para no repetir trabajo en cada row.
+    const activeCol = Object.entries(colFilters)
+      .filter(([, v]) => v && v.trim())
+      .map(([field, val]) => [field, val.toLowerCase()]);
+    const fromMs = filterFrom ? new Date(filterFrom + 'T00:00:00').getTime() : null;
+    const toMs   = filterTo   ? new Date(filterTo   + 'T23:59:59').getTime() : null;
     return rows.filter(row => {
-      if (filterFrom || filterTo) {
-        const d = row.fecha ? new Date(row.fecha) : null;
-        if (!d) return false;
-        if (filterFrom && d < new Date(filterFrom + 'T00:00:00')) return false;
-        if (filterTo   && d > new Date(filterTo   + 'T23:59:59')) return false;
+      if (fromMs != null || toMs != null) {
+        const d = row.fecha ? new Date(row.fecha).getTime() : NaN;
+        if (Number.isNaN(d)) return false;
+        if (fromMs != null && d < fromMs) return false;
+        if (toMs   != null && d > toMs)   return false;
       }
       for (const [field, val] of activeCol) {
         const cell = row[field];
         if (cell == null) return false;
-        if (!String(cell).toLowerCase().includes(val.toLowerCase())) return false;
+        if (!String(cell).toLowerCase().includes(val)) return false;
       }
       return true;
     });
@@ -75,11 +84,11 @@ function HrHistorialPlanillaUnidad() {
 
   const handleThSort = (field) => {
     setSorts(prev => {
-      const next = [...prev];
-      next[0] = next[0].field === field
-        ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' }
+      const head = prev[0];
+      const next = head && head.field === field
+        ? { field, dir: head.dir === 'asc' ? 'desc' : 'asc' }
         : { field, dir: 'asc' };
-      return next;
+      return [next, ...prev.slice(1)];
     });
     setPage(1);
   };
@@ -90,13 +99,17 @@ function HrHistorialPlanillaUnidad() {
     if (filterPopover?.field === field) { setFilterPopover(null); return; }
     const th = e.currentTarget.closest('th') ?? e.currentTarget;
     const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, x: rect.left, y: rect.bottom + 4 });
+    // Clamp a viewport para no desbordar en móvil (360px+).
+    const maxX = Math.max(8, window.innerWidth - POPOVER_MIN_WIDTH - 8);
+    const x = Math.min(Math.max(8, rect.left), maxX);
+    setFilterPopover({ field, x, y: rect.bottom + 4 });
   };
 
   const setColFilter = (field, val) => {
+    const clean = val ? String(val).slice(0, COL_FILTER_MAX) : '';
     setColFilters(prev =>
-      val ? { ...prev, [field]: val }
-          : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+      clean ? { ...prev, [field]: clean }
+            : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
     );
     setPage(1);
   };
@@ -104,8 +117,9 @@ function HrHistorialPlanillaUnidad() {
   const clearAllFilters = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
 
   const SortTh = ({ field, children, className }) => {
-    const active    = sorts[0].field === field;
-    const dir       = active ? sorts[0].dir : null;
+    const head      = sorts[0];
+    const active    = head?.field === field;
+    const dir       = active ? head.dir : null;
     const hasFilter = !!(colFilters[field]?.trim());
     return (
       <th
@@ -212,20 +226,16 @@ function HrHistorialPlanillaUnidad() {
                       <td className="historial-td-nowrap">{row.loteNombre     || '—'}</td>
                       <td>{row.grupo  || '—'}</td>
                       <td>{row.labor  || '—'}</td>
-                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      <td className="historial-td-num">
                         {row.avanceHa ? fmtNum(row.avanceHa) : '—'}
                       </td>
                       <td>{row.unidad || '—'}</td>
-                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                        {fmtMoney(row.costoUnitario)}
-                      </td>
+                      <td className="historial-td-num">{fmtMoney(row.costoUnitario)}</td>
                       <td className="historial-td-nowrap">{row.trabajadorNombre || '—'}</td>
-                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      <td className="historial-td-num">
                         {row.cantidad != null ? fmtNum(row.cantidad) : '—'}
                       </td>
-                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                        {fmtMoney(row.subtotal)}
-                      </td>
+                      <td className="historial-td-num">{fmtMoney(row.subtotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -257,6 +267,7 @@ function HrHistorialPlanillaUnidad() {
               autoFocus
               className="historial-filter-input"
               placeholder="Filtrar…"
+              maxLength={COL_FILTER_MAX}
               value={colFilters[filterPopover.field] || ''}
               onChange={e => setColFilter(filterPopover.field, e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
