@@ -20,7 +20,7 @@
 
 .pu-history-col {
   flex: 1;
-  min-width: 320px;
+  min-width: 280px;
   max-width: 400px;
   position: sticky;
   top: 16px;
@@ -367,6 +367,7 @@
   .pu-history-col {
     max-width: 100%;
     width: 100%;
+    min-width: 0;
     position: static;
   }
 }
@@ -552,6 +553,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 14px;
 }
 
