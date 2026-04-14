@@ -6,7 +6,7 @@ import './HR.css';
 
 const fmt = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
 
-function HrHistorialPagos() {
+function HrHistorialPlanillaSalarioFijo() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
   const [users, setUsers]         = useState([]);
@@ -202,4 +202,4 @@ function HrHistorialPagos() {
   );
 }
 
-export default HrHistorialPagos;
+export default HrHistorialPlanillaSalarioFijo;

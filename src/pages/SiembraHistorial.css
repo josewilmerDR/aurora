@@ -316,7 +316,7 @@
   box-sizing: border-box;
 }
 
-/* ── Encabezado del documento (replicado de HrPlanillaReporte.css) ── */
+/* ── Encabezado del documento (replicado de HrPlanillaReporteSalarioFijo.css) ── */
 .sh-preview-doc .pr-doc-header {
   display: flex;
   justify-content: space-between;

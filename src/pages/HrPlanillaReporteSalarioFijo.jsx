@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiPrinter, FiArrowLeft, FiShare2 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './HrPlanillaReporte.css';
+import './HrPlanillaReporteSalarioFijo.css';
 
 const CCSS_RATE = 0.1083;
 
@@ -18,7 +18,7 @@ const fmtDateShort = (iso) => {
   return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-export default function HrPlanillaReporte() {
+export default function HrPlanillaReporteSalarioFijo() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [fechaEmision]  = useState(new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }));

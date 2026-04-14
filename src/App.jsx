@@ -26,10 +26,10 @@ import NuevaOrganizacion from './pages/NuevaOrganizacion';
 import HrFicha from './pages/HrFicha';
 import HrPermisos from './pages/HrPermisos';
 import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
-import HrPlanillaReporte from './pages/HrPlanillaReporte';
-import HrPlanillaPorHora from './pages/HrPlanillaPorHora';
-import HrHistorialPagos from './pages/HrHistorialPagos';
-import HrHistorialPlanillaHoras from './pages/HrHistorialPlanillaHoras';
+import HrPlanillaReporteSalarioFijo from './pages/HrPlanillaReporteSalarioFijo';
+import HrPlanillaPorUnidad from './pages/HrPlanillaPorUnidad';
+import HrHistorialPlanillaSalarioFijo from './pages/HrHistorialPlanillaSalarioFijo';
+import HrHistorialPlanillaUnidad from './pages/HrHistorialPlanillaUnidad';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
@@ -427,7 +427,7 @@ function App() {
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<PurchaseOrder />} />
-            <Route path="/hr/planilla/fijo/reporte" element={<HrPlanillaReporte />} />
+            <Route path="/hr/planilla/fijo/reporte" element={<HrPlanillaReporteSalarioFijo />} />
           </Route>
 
           {/* Protected routes with sidebar */}
@@ -480,9 +480,9 @@ function App() {
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
             <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
-            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorHora /></RoleRoute>} />
-            <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaHoras /></RoleRoute>} />
-            <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPagos /></RoleRoute>} />
+            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorUnidad /></RoleRoute>} />
+            <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaUnidad /></RoleRoute>} />
+            <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPlanillaSalarioFijo /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
             <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><MonitoreoPackages /></RoleRoute>} />
             <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MuestreosOrdenes /></RoleRoute>} />
