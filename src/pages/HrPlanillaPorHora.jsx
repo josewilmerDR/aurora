@@ -11,6 +11,15 @@ import './HrPlanillaPorUnidad.css';
 
 const DRAFT_FORM_KEY = 'hr-planilla-unidad';
 
+// Límites de validación
+const MAX_OBSERVACIONES_LEN = 1000;
+const MAX_NOMBRE_PLANTILLA_LEN = 100;
+const MAX_SEGMENTOS = 50;
+const MAX_NUMERIC_INPUT = 999999;     // tope general para cantidades / costos
+const MAX_AVANCE_HA = 99999;
+const FECHA_MIN = '2000-01-01';
+const FECHA_MAX = '2100-12-31';
+
 function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
@@ -30,6 +39,15 @@ function newSegmento() {
 
 function isHoraUnit(u) {
   return /^horas?$/i.test((u || '').trim());
+}
+
+// Acepta sólo URLs http(s) o data:image — bloquea javascript:, data:text/html, etc.
+function safeImageUrl(url) {
+  if (typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^data:image\//i.test(trimmed)) return trimmed;
+  return '';
 }
 
 const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect, onTabDown }, ref) {
@@ -337,13 +355,30 @@ function HrPlanillaPorHora() {
   const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
   const [guardando, setGuardando] = useState(false);
   const [showAprobarConfirm, setShowAprobarConfirm] = useState(false);
-  const [planillaId, setPlanillaId] = useState(null);
-  const [planillaEstado, setPlanillaEstado] = useState(null);
-  const [consecutivo, setConsecutivo] = useState(null);
+  const [planillaId, setPlanillaId] = useDraft('hr-planilla-id', null);
+  const [planillaEstado, setPlanillaEstado] = useDraft('hr-planilla-estado', null);
+  const [consecutivo, setConsecutivo] = useDraft('hr-planilla-consecutivo', null);
   const [historial, setHistorial] = useState([]);
   const [historialLoading, setHistorialLoading] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
-  const skipAutoSave = useRef(true);
+  // dirty = true sólo cuando el usuario modifica el form. Evita que cargas
+  // asíncronas (trabajadores, drafts, recargas) disparen un guardado automático.
+  const dirtyRef = useRef(false);
+  // planillaIdRef refleja el último planillaId conocido. El closure del
+  // setTimeout no se reactiva al cambiar planillaId (no está en deps), así
+  // que leemos del ref para evitar disparar otro POST cuando el primero ya
+  // devolvió un id (race que generaba borradores duplicados).
+  const planillaIdRef = useRef(null);
+  // Evita que dos POST se disparen en paralelo y creen duplicados.
+  const saveInProgressRef = useRef(false);
+  // Permite que callbacks asíncronos sepan si el componente fue desmontado.
+  // Body resetea a true en cada mount (necesario para React Strict Mode dev,
+  // que ejecuta cleanup→mount otra vez al montar inicialmente).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const originalPlanillaRef = useRef(null);
   const [previewPlanilla, setPreviewPlanilla] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -375,34 +410,40 @@ function HrPlanillaPorHora() {
       .finally(() => setHistorialLoading(false));
   }, []);
 
+  // Mantiene planillaIdRef sincronizado con el state.
+  useEffect(() => { planillaIdRef.current = planillaId; }, [planillaId]);
+
+  // Al aterrizar en la página, abrir el formulario directamente
+  // (los borradores/pendientes siguen accesibles desde el panel lateral).
+  useEffect(() => {
+    if (!historialLoading && !showForm) {
+      dirtyRef.current = false;
+      setAutoSaveStatus(null);
+      setShowForm(true);
+    }
+  }, [historialLoading, showForm]);
+
   // Auto-guardado al detectar cambios (debounce 2s) — solo borradores
   useEffect(() => {
-    if (skipAutoSave.current) { skipAutoSave.current = false; return; }
+    if (!dirtyRef.current) return;
     if (!showForm) return;
     if (planillaEstado === 'pendiente') return; // pendiente no se auto-guarda
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) return;
     const estadoGuardado = planillaEstado || 'borrador';
     const timer = setTimeout(async () => {
+      // Si ya hay un POST/PUT en vuelo, no disparar otro: el POST en curso
+      // creará/actualizará el borrador, y la próxima edición del usuario
+      // re-disparará este efecto con planillaIdRef ya sincronizado.
+      if (saveInProgressRef.current) return;
+      saveInProgressRef.current = true;
       setAutoSaveStatus('saving');
-      const body = {
-        fecha,
-        encargadoId: encId,
-        encargadoNombre: currentUser.nombre || '',
-        segmentos,
-        trabajadores: visibleWorkers.map(t => ({
-          trabajadorId: t.id, trabajadorNombre: t.nombre,
-          precioHora: Number(t.precioHora) || 0,
-          cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
-        })),
-        totalGeneral: totalGeneral(),
-        estado: estadoGuardado,
-        observaciones,
-      };
+      const body = buildPlanillaBody(estadoGuardado, encId);
       try {
         let res;
-        if (planillaId) {
-          res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
+        const currentId = planillaIdRef.current;
+        if (currentId) {
+          res = await apiFetch(`/api/hr/planilla-unidad/${currentId}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
           });
         } else {
@@ -411,23 +452,32 @@ function HrPlanillaPorHora() {
           });
           if (res.ok) {
             const data = await res.json();
-            setPlanillaId(data.id);
-            setPlanillaEstado(estadoGuardado);
+            // Sync ref ANTES del setPlanillaId para que cualquier timer que
+            // dispare entre este punto y el próximo render lea el id correcto.
+            planillaIdRef.current = data.id;
+            if (mountedRef.current) {
+              setPlanillaId(data.id);
+              setPlanillaEstado(estadoGuardado);
+            }
           }
         }
+        if (!mountedRef.current) return;
         if (res.ok) {
+          dirtyRef.current = false;
           setAutoSaveStatus('saved');
           fetchHistorial();
         } else {
           setAutoSaveStatus('error');
         }
       } catch {
-        setAutoSaveStatus('error');
+        if (mountedRef.current) setAutoSaveStatus('error');
+      } finally {
+        saveInProgressRef.current = false;
       }
     }, 2000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fecha, observaciones, segmentos, cantidades, showForm, planillaEstado, fetchHistorial]);
+  }, [fecha, observaciones, segmentos, cantidades, removedWorkerIds, showForm, planillaEstado, fetchHistorial]);
 
   const fetchPlantillas = useCallback(() => {
     const encId = currentUser?.userId || currentUser?.uid;
@@ -457,6 +507,7 @@ function HrPlanillaPorHora() {
     setSegmentos(draft.segmentos?.length ? draft.segmentos : [newSegmento()]);
     setFecha(draft.fecha || todayStr());
     setObservaciones(draft.observaciones || '');
+    planillaIdRef.current = null;
     setPlanillaId(null);
     setConsecutivo(null);
     setFillAll({});
@@ -470,6 +521,7 @@ function HrPlanillaPorHora() {
       return next;
     });
     markDraftActive(DRAFT_FORM_KEY);
+    dirtyRef.current = true;
     setShowForm(true);
     showToast('Planilla cargada desde Aurora. Revisa y guarda cuando esté lista.');
     // Clear state so reload doesn't re-apply
@@ -533,6 +585,7 @@ function HrPlanillaPorHora() {
   };
 
   const addSegmento = (focusNew = false) => {
+    dirtyRef.current = true;
     const seg = newSegmento();
     if (focusNew) pendingFocusSegId.current = seg.id;
     setSegmentos(prev => [...prev, seg]);
@@ -551,6 +604,7 @@ function HrPlanillaPorHora() {
   }, [segmentos]);
 
   const removeSegmento = (segId) => {
+    dirtyRef.current = true;
     setSegmentos(prev => prev.filter(s => s.id !== segId));
     setCantidades(prev => {
       const next = {};
@@ -563,6 +617,7 @@ function HrPlanillaPorHora() {
   };
 
   const updSeg = (segId, field, value) => {
+    dirtyRef.current = true;
     setSegmentos(prev => prev.map(s => {
       if (s.id !== segId) return s;
       const u = { ...s, [field]: value };
@@ -572,6 +627,7 @@ function HrPlanillaPorHora() {
   };
 
   const setCantidad = (tId, segId, raw) => {
+    dirtyRef.current = true;
     setCantidades(prev => ({ ...prev, [tId]: { ...(prev[tId] || {}), [segId]: raw } }));
   };
 
@@ -579,7 +635,10 @@ function HrPlanillaPorHora() {
 
   const applyFillAll = (segId) => {
     const val = fillAll[segId];
-    if (val === '' || val === undefined) return;
+    if (val === '' || val == null) return;
+    const n = Number(val);
+    if (!Number.isFinite(n) || n < 0) return;
+    dirtyRef.current = true;
     setCantidades(prev => {
       const next = { ...prev };
       visibleWorkers.forEach(t => {
@@ -591,7 +650,9 @@ function HrPlanillaPorHora() {
 
   const getCant = (tId, segId) => {
     const v = cantidades[tId]?.[segId];
-    return v === '' || v === undefined ? 0 : Number(v);
+    if (v === '' || v == null) return 0;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
   };
 
   const workerTotal = (tId) => {
@@ -611,26 +672,44 @@ function HrPlanillaPorHora() {
 
   const totalGeneral = () => visibleWorkers.reduce((sum, t) => sum + workerTotal(t.id), 0);
 
+  // Construye el body común de POST/PUT — usado por auto-save, guardado manual y aprobación.
+  const buildPlanillaBody = (estado, encId) => ({
+    fecha,
+    encargadoId: encId,
+    encargadoNombre: currentUser?.nombre || '',
+    segmentos,
+    trabajadores: visibleWorkers.map(t => ({
+      trabajadorId: t.id,
+      trabajadorNombre: t.nombre,
+      precioHora: Number(t.precioHora) || 0,
+      cantidades: cantidades[t.id] || {},
+      total: workerTotal(t.id),
+    })),
+    totalGeneral: totalGeneral(),
+    estado,
+    observaciones,
+  });
+
   const handleGuardar = async (estado) => {
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) {
       showToast('Tu cuenta no está vinculada a un perfil de empleado en el sistema.', 'error');
       return;
     }
+    if (!fecha || fecha < FECHA_MIN || fecha > FECHA_MAX) {
+      showToast('La fecha está fuera del rango permitido.', 'error');
+      return;
+    }
+    if (!Array.isArray(segmentos) || segmentos.length === 0 || segmentos.length > MAX_SEGMENTOS) {
+      showToast(`La planilla debe tener entre 1 y ${MAX_SEGMENTOS} segmentos.`, 'error');
+      return;
+    }
+    if ((observaciones || '').length > MAX_OBSERVACIONES_LEN) {
+      showToast(`Las observaciones no pueden exceder ${MAX_OBSERVACIONES_LEN} caracteres.`, 'error');
+      return;
+    }
     setGuardando(true);
-    const body = {
-      fecha,
-      encargadoId: encId,
-      encargadoNombre: currentUser.nombre || '',
-      segmentos,
-      trabajadores: visibleWorkers.map(t => ({
-        trabajadorId: t.id, trabajadorNombre: t.nombre,
-        precioHora: Number(t.precioHora) || 0,
-        cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
-      })),
-      totalGeneral: totalGeneral(),
-      estado, observaciones,
-    };
+    const body = buildPlanillaBody(estado, encId);
     try {
       let res;
       if (planillaId) {
@@ -658,10 +737,12 @@ function HrPlanillaPorHora() {
       clearObsDraft();
       clearDraftActive(DRAFT_FORM_KEY);
       setPlanillaEstado(estado);
+      planillaIdRef.current = null;
       setPlanillaId(null);
       setConsecutivo(null);
       setFillAll({});
       setRemovedWorkerIds([]);
+      dirtyRef.current = false;
       showToast(estado === 'borrador' ? 'Borrador guardado.' : 'Planilla guardada correctamente.');
       setShowForm(false);
       fetchHistorial();
@@ -788,7 +869,9 @@ function HrPlanillaPorHora() {
       if (planillaId === p.id) {
         clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
         clearDraftActive(DRAFT_FORM_KEY);
+        planillaIdRef.current = null;
         setPlanillaId(null); setConsecutivo(null); setFillAll({}); setRemovedWorkerIds([]);
+        dirtyRef.current = false;
       }
       showToast('Planilla eliminada.');
       fetchHistorial();
@@ -802,20 +885,7 @@ function HrPlanillaPorHora() {
     const encId = currentUser?.userId || currentUser?.uid;
     setGuardando(true);
     try {
-      const body = {
-        fecha,
-        encargadoId: encId,
-        encargadoNombre: currentUser.nombre || '',
-        segmentos,
-        trabajadores: visibleWorkers.map(t => ({
-          trabajadorId: t.id, trabajadorNombre: t.nombre,
-          precioHora: Number(t.precioHora) || 0,
-          cantidades: cantidades[t.id] || {}, total: workerTotal(t.id),
-        })),
-        totalGeneral: totalGeneral(),
-        estado: 'aprobada',
-        observaciones,
-      };
+      const body = buildPlanillaBody('aprobada', encId);
       const res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -823,8 +893,10 @@ function HrPlanillaPorHora() {
       if (!res.ok) throw new Error();
       clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
       clearDraftActive(DRAFT_FORM_KEY);
+      planillaIdRef.current = null;
       setPlanillaId(null); setConsecutivo(null); setPlanillaEstado(null);
       setFillAll({}); setRemovedWorkerIds([]);
+      dirtyRef.current = false;
       showToast('Planilla aprobada correctamente.');
       setShowAprobarConfirm(false);
       setShowForm(false);
@@ -841,6 +913,10 @@ function HrPlanillaPorHora() {
     const nombre = nombrePlantilla.trim();
     const encId = currentUser?.userId || currentUser?.uid;
     if (!nombre || !encId) return;
+    if (nombre.length > MAX_NOMBRE_PLANTILLA_LEN) {
+      showToast(`El nombre no puede exceder ${MAX_NOMBRE_PLANTILLA_LEN} caracteres.`, 'error');
+      return;
+    }
     setSavingPlantilla(true);
     try {
       const res = await apiFetch('/api/hr/plantillas-planilla', {
@@ -899,7 +975,13 @@ function HrPlanillaPorHora() {
     setCantidades(newCantidades);
     setFillAll({});
     setRemovedWorkerIds([]);
+    // Plantilla siempre crea planilla NUEVA — limpiar refs/ids anteriores.
+    planillaIdRef.current = null;
+    setPlanillaId(null);
+    setPlanillaEstado(null);
+    setConsecutivo(null);
     markDraftActive(DRAFT_FORM_KEY);
+    dirtyRef.current = true;
     setShowForm(true);
     showToast(`Plantilla "${p.nombre}" cargada.`);
   };
@@ -916,18 +998,17 @@ function HrPlanillaPorHora() {
     setCantidades(newCantidades);
     setFecha(p.fecha ? p.fecha.split('T')[0] : todayStr());
     setObservaciones(p.observaciones || '');
+    planillaIdRef.current = p.id;
     setPlanillaId(p.id);
     setPlanillaEstado(p.estado || 'borrador');
     setConsecutivo(p.consecutivo);
     setFillAll({});
     setRemovedWorkerIds([]);
     markDraftActive(DRAFT_FORM_KEY);
-    skipAutoSave.current = true;
+    dirtyRef.current = false;
     setAutoSaveStatus(null);
     setShowForm(true);
   };
-
-  const CONFIG_ROWS = 6; // lote, labor, grupo, avance, unidad, costo
 
   const ESTADO_LABEL = { borrador: 'Borrador', pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
   const ESTADO_CLASS = { borrador: 'otro', pendiente: 'pendiente', aprobada: 'aprobado', pagada: 'active' };
@@ -978,11 +1059,13 @@ function HrPlanillaPorHora() {
                 <div className="pu-pdoc-header">
                   <div className="pu-pdoc-brand">
                     <div className="pu-pdoc-logo">
-                      {companyConfig.logoUrl
-                        ? <img src={companyConfig.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />
-                        : (companyConfig.nombreEmpresa
-                            ? companyConfig.nombreEmpresa.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                            : 'AU')}
+                      {(() => {
+                        const logo = safeImageUrl(companyConfig.logoUrl);
+                        if (logo) return <img src={logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />;
+                        return companyConfig.nombreEmpresa
+                          ? companyConfig.nombreEmpresa.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                          : 'AU';
+                      })()}
                     </div>
                     <div className="pu-pdoc-brand-info">
                       <div className="pu-pdoc-brand-name">{companyConfig.nombreEmpresa || 'Finca Aurora'}</div>
@@ -1183,58 +1266,6 @@ function HrPlanillaPorHora() {
         </div>
       )}
 
-      {!showForm && !historialLoading && historial.length === 0 && (
-        <div className="pu-full-empty-state">
-          <FiFileText size={44} />
-          <p>No hay borradores ni planillas por aprobar</p>
-          <button className="btn btn-primary" onClick={() => { skipAutoSave.current = true; setAutoSaveStatus(null); setShowForm(true); }}>
-            <FiPlus size={14} /> Crear una
-          </button>
-        </div>
-      )}
-
-      {/* ── Lista intermedia ── */}
-      {!showForm && !historialLoading && historial.length > 0 && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-            <button className="btn btn-primary" onClick={() => { skipAutoSave.current = true; setAutoSaveStatus(null); setShowForm(true); }}>
-              <FiPlus size={15} /> Nueva planilla
-            </button>
-          </div>
-          <ul className="pu-list">
-            {historial.map(p => (
-              <li
-                key={p.id}
-                className="pu-list-item"
-                onClick={() => loadPlanilla(p)}
-                title="Clic para editar"
-              >
-                <div className="pu-list-item-main">
-                  <span className="pu-list-item-consec">{p.consecutivo || 'Borrador'}</span>
-                  <span className="pu-list-item-encargado">{p.encargadoNombre || '—'}</span>
-                  <span className="pu-list-item-meta">
-                    {p.fecha ? new Date(p.fecha).toLocaleDateString('es-CR') : '—'}
-                    {' · '}
-                    {p.segmentos?.length || 0} seg.
-                  </span>
-                  <span className="pu-list-item-total">{fmtMoney(p.totalGeneral)}</span>
-                  <span className={`status-badge status-badge--${ESTADO_CLASS[p.estado] || 'pendiente'}`}>
-                    {ESTADO_LABEL[p.estado] || p.estado}
-                  </span>
-                </div>
-                <button
-                  className="pu-history-preview-btn"
-                  onClick={e => { e.stopPropagation(); setPreviewPlanilla(p); }}
-                  title="Ver vista previa"
-                >
-                  <FiEye size={13} /> Ver
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
       {/* ── Formulario ── */}
       {showForm && (
       <div className="pu-page-layout">
@@ -1264,8 +1295,10 @@ function HrPlanillaPorHora() {
             <input
               className="ut-ctrl ut-ctrl--date"
               type="date"
+              min={FECHA_MIN}
+              max={FECHA_MAX}
               value={fecha}
-              onChange={e => setFecha(e.target.value)}
+              onChange={e => { dirtyRef.current = true; setFecha(e.target.value); }}
             />
           </div>
           <div className="pu-hf-row">
@@ -1311,8 +1344,8 @@ function HrPlanillaPorHora() {
               {/* ── LOTE ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">LOTE</td>
-                {segmentos.map((seg, idx) => (
-                  <td key={seg.id} className={"ut-config-cell"}>
+                {segmentos.map((seg) => (
+                  <td key={seg.id} className="ut-config-cell">
                     <select
                       ref={el => { loteRefs.current[seg.id] = el; }}
                       className="ut-ctrl" value={seg.loteId}
@@ -1332,7 +1365,7 @@ function HrPlanillaPorHora() {
               {/* ── GRUPO ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">GRUPO</td>
-                {segmentos.map((seg, idx) => {
+                {segmentos.map((seg) => {
                   const gruposFiltrados = seg.loteId
                     ? (() => {
                         const ids = new Set(siembras.filter(s => s.loteId === seg.loteId).map(s => s.id));
@@ -1359,8 +1392,8 @@ function HrPlanillaPorHora() {
               {/* ── LABOR ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">LABOR</td>
-                {segmentos.map((seg, idx) => (
-                  <td key={seg.id} className={"ut-config-cell"}>
+                {segmentos.map((seg) => (
+                  <td key={seg.id} className="ut-config-cell">
                     <LaborCombobox
                       ref={el => { laborRefs.current[seg.id] = el; }}
                       value={seg.labor}
@@ -1377,11 +1410,11 @@ function HrPlanillaPorHora() {
               {/* ── AVANCE ── */}
               <tr className="ut-row-config">
                 <td className="ut-label-cell">AVANCE (Ha)</td>
-                {segmentos.map((seg, idx) => (
-                  <td key={seg.id} className={"ut-config-cell"}>
+                {segmentos.map((seg) => (
+                  <td key={seg.id} className="ut-config-cell">
                     <input
                       ref={el => { avanceRefs.current[seg.id] = el; }}
-                      className="ut-ctrl" type="number" min="0" step="0.01"
+                      className="ut-ctrl" type="number" min="0" max={MAX_AVANCE_HA} step="0.01"
                       value={seg.avanceHa} onChange={e => updSeg(seg.id, 'avanceHa', e.target.value)}
                       placeholder="0.00"
                       onKeyDown={e => {
@@ -1427,8 +1460,8 @@ function HrPlanillaPorHora() {
               {/* ── COSTO UNITARIO ── */}
               <tr className="ut-row-config ut-row-config--last">
                 <td className="ut-label-cell">COSTO UNITARIO</td>
-                {segmentos.map((seg, idx) => (
-                  <td key={seg.id} className={"ut-config-cell"}>
+                {segmentos.map((seg) => (
+                  <td key={seg.id} className="ut-config-cell">
                     {isHoraUnit(seg.unidad) ? (
                       <span className="ut-por-trabajador-label">por trabajador</span>
                     ) : isHoraUnit(seg.unidadBase) && seg.factorConversion != null ? (
@@ -1436,7 +1469,7 @@ function HrPlanillaPorHora() {
                     ) : (
                       <input
                         ref={el => { costoRefs.current[seg.id] = el; }}
-                        className="ut-ctrl" type="number" min="0" step="any"
+                        className="ut-ctrl" type="number" min="0" max={MAX_NUMERIC_INPUT} step="any"
                         value={seg.costoUnitario} onChange={e => updSeg(seg.id, 'costoUnitario', e.target.value)}
                         placeholder="0"
                         onKeyDown={e => {
@@ -1463,14 +1496,15 @@ function HrPlanillaPorHora() {
               {/* ── Encabezado de sección trabajadores ── */}
               <tr className="ut-row-workers-header">
                 <td className="ut-label-cell">NOMBRE</td>
-                {segmentos.map((seg, idx) => (
-                  <td key={seg.id} className={"ut-workers-col-header"}>
+                {segmentos.map((seg) => (
+                  <td key={seg.id} className="ut-workers-col-header">
                     <div className="ut-col-header-label">Cantidad</div>
                     <div className="ut-fill-all">
                       <input
                         type="number"
                         step="any"
                         min="0"
+                        max={MAX_NUMERIC_INPUT}
                         placeholder="= todos"
                         className="ut-fill-input"
                         value={fillAll[seg.id] ?? ''}
@@ -1517,21 +1551,21 @@ function HrPlanillaPorHora() {
                         <button
                           className="ut-remove-worker-btn"
                           title="Quitar de esta planilla"
-                          onClick={() => setRemovedWorkerIds(prev => [...prev, t.id])}
+                          onClick={() => { dirtyRef.current = true; setRemovedWorkerIds(prev => [...prev, t.id]); }}
                         >
                           <FiX size={10} />
                         </button>
                         {t.esEncargadoActual ? <em><strong>{t.nombre}</strong></em> : t.nombre}
                       </div>
                     </td>
-                    {segmentos.map((seg, idx) => (
-                      <td key={seg.id} className={"ut-cant-cell"}>
+                    {segmentos.map((seg) => (
+                      <td key={seg.id} className="ut-cant-cell">
                         <input
                           ref={el => {
                             if (!cantidadRefs.current[seg.id]) cantidadRefs.current[seg.id] = {};
                             cantidadRefs.current[seg.id][t.id] = el;
                           }}
-                          type="number" min="0" step="0.01"
+                          type="number" min="0" max={MAX_NUMERIC_INPUT} step="0.01"
                           value={cantidades[t.id]?.[seg.id] ?? ''}
                           onChange={e => setCantidad(t.id, seg.id, e.target.value)}
                           onKeyDown={e => {
@@ -1577,8 +1611,8 @@ function HrPlanillaPorHora() {
               {visibleWorkers.length > 0 && (
                 <tr className="ut-row-totals">
                   <td className="ut-label-cell">TOTALES</td>
-                  {segmentos.map((seg, idx) => (
-                    <td key={seg.id} className={"ut-cant-cell ut-total-cant"}>
+                  {segmentos.map((seg) => (
+                    <td key={seg.id} className="ut-cant-cell ut-total-cant">
                       {segCantTotal(seg.id) > 0
                         ? segCantTotal(seg.id).toLocaleString('es-CR', { maximumFractionDigits: 2 })
                         : '—'}
@@ -1597,7 +1631,7 @@ function HrPlanillaPorHora() {
             <span>
               {removedWorkerIds.length} trabajador{removedWorkerIds.length !== 1 ? 'es' : ''} oculto{removedWorkerIds.length !== 1 ? 's' : ''}
             </span>
-            <button className="ut-restore-btn" onClick={() => setRemovedWorkerIds([])}>
+            <button className="ut-restore-btn" onClick={() => { dirtyRef.current = true; setRemovedWorkerIds([]); }}>
               Restaurar todos
             </button>
           </div>
@@ -1609,7 +1643,13 @@ function HrPlanillaPorHora() {
       <div className="form-card pu-section-card pu-section-footer-card">
         <div className="form-control">
           <label>Observaciones</label>
-          <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Notas adicionales..." rows={3} />
+          <textarea
+            value={observaciones}
+            onChange={e => { dirtyRef.current = true; setObservaciones(e.target.value); }}
+            placeholder="Notas adicionales..."
+            rows={3}
+            maxLength={MAX_OBSERVACIONES_LEN}
+          />
         </div>
         <div className="form-actions" style={{ marginTop: 14 }}>
           {planillaEstado === 'pendiente' ? (
@@ -1634,12 +1674,14 @@ function HrPlanillaPorHora() {
                 clearFechaDraft();
                 clearObsDraft();
                 clearDraftActive(DRAFT_FORM_KEY);
+                planillaIdRef.current = null;
                 setPlanillaId(null);
                 setConsecutivo(null);
                 setPlanillaEstado(null);
                 setAutoSaveStatus(null);
                 setFillAll({});
                 setRemovedWorkerIds([]);
+                dirtyRef.current = false;
                 setShowForm(false);
               }
             }}
@@ -1779,6 +1821,7 @@ function HrPlanillaPorHora() {
                     placeholder="Nombre de la plantilla…"
                     value={nombrePlantilla}
                     onChange={e => setNombrePlantilla(e.target.value)}
+                    maxLength={MAX_NOMBRE_PLANTILLA_LEN}
                     onKeyDown={e => {
                       if (e.key === 'Enter') handleGuardarPlantilla();
                       if (e.key === 'Escape') { setShowSavePlantilla(false); setNombrePlantilla(''); }

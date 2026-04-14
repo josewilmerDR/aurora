@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, Timestamp } = require('../lib/firebase');
+const { db, Timestamp, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { getTwilioClient } = require('../lib/clients');
@@ -686,6 +686,240 @@ router.get('/api/hr/subordinados', authenticate, async (req, res) => {
 });
 
 // ── Planilla por Unidad / Hora ────────────────────────────────────────────────
+const PLANILLA_LIMITS = {
+  segmentos: 50,
+  trabajadoresPorPlanilla: 500,
+  observaciones: 1000,
+  nombrePlantilla: 100,
+  string: 200,        // tope para nombres de lote, labor, grupo, unidad, etc.
+  numeric: 9_999_999, // tope para totalGeneral, costos, cantidades
+};
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const PLANILLA_ESTADOS = ['borrador', 'pendiente', 'aprobada', 'pagada'];
+
+function trimStr(v, max) {
+  if (v == null) return '';
+  return String(v).slice(0, max);
+}
+
+function clampNumber(v, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > max) return max;
+  return n;
+}
+
+// Roles que pueden crear/editar planillas a nombre de otros encargados.
+const PLANILLA_ROLES_ON_BEHALF = ['supervisor', 'administrador', 'rrhh'];
+const canActOnBehalf = (req) => PLANILLA_ROLES_ON_BEHALF.includes(req.userRole);
+
+// Resuelve el doc id del usuario autenticado (collection `users`) a partir de
+// email + fincaId. Devuelve null si no existe. Cachea en req para no repetir.
+async function resolveAuthUserId(req) {
+  if (req._authUserId !== undefined) return req._authUserId;
+  if (!req.userEmail) { req._authUserId = null; return null; }
+  const snap = await db.collection('users')
+    .where('email', '==', req.userEmail)
+    .where('fincaId', '==', req.fincaId)
+    .limit(1).get();
+  req._authUserId = snap.empty ? null : snap.docs[0].id;
+  return req._authUserId;
+}
+
+// Carga el mapa de fichas (userId → { precioHora, … }) para la finca activa.
+async function loadFichasMap(fincaId) {
+  const snap = await db.collection('hr_fichas').where('fincaId', '==', fincaId).get();
+  const map = new Map();
+  snap.docs.forEach(d => map.set(d.id, d.data() || {}));
+  return map;
+}
+
+// Carga el mapa de unidades (nombre normalizado → { precio, factorConversion, unidadBase }).
+async function loadUnidadesMap(fincaId) {
+  const snap = await db.collection('unidades_medida').where('fincaId', '==', fincaId).get();
+  const map = new Map();
+  snap.docs.forEach(d => {
+    const u = d.data() || {};
+    if (u.nombre) map.set(String(u.nombre).trim().toLowerCase(), u);
+  });
+  return map;
+}
+
+// Carga el mapa de usuarios (userId → user) de la finca.
+async function loadUsersMap(fincaId) {
+  const snap = await db.collection('users').where('fincaId', '==', fincaId).get();
+  const map = new Map();
+  snap.docs.forEach(d => map.set(d.id, d.data() || {}));
+  return map;
+}
+
+// ── Audit trail ──────────────────────────────────────────────────────────────
+const PLANILLA_HISTORY_MAX = 50;
+
+// Construye una entrada de historial atómica (sin Timestamp interno, así puede
+// guardarse dentro de un array — Firestore acepta `Date`, no Timestamp, en arrays).
+function buildHistoryEntry({ userId, email, action }) {
+  return { at: new Date(), by: userId || null, byEmail: email || null, action };
+}
+
+// Apendea entrada al historial existente, manteniendo tope de PLANILLA_HISTORY_MAX.
+function appendHistory(currentHistory, entry) {
+  const arr = Array.isArray(currentHistory) ? currentHistory : [];
+  const next = [...arr, entry];
+  return next.length > PLANILLA_HISTORY_MAX ? next.slice(-PLANILLA_HISTORY_MAX) : next;
+}
+
+// ── Rate limiter (in-memory, por instancia de Cloud Function) ────────────────
+// Defensa en profundidad: protege contra spam de POST/PUT/DELETE. No reemplaza
+// quotas a nivel de API Gateway / Cloud Armor para tráfico distribuido.
+const RATE_BUCKETS = new Map();
+const RATE_BUCKET_MAX = 5000;
+
+function planillaRateLimit({ windowMs = 60_000, max = 60 } = {}) {
+  return (req, res, next) => {
+    const uid = req.uid;
+    if (!uid) return next();
+    const key = `${uid}:${req.method}:${req.baseUrl || ''}${req.path}`;
+    const now = Date.now();
+    let bucket = RATE_BUCKETS.get(key);
+    if (!bucket || now - bucket.windowStart > windowMs) {
+      // Limpieza oportunística cuando el mapa crece demasiado.
+      if (RATE_BUCKETS.size > RATE_BUCKET_MAX) {
+        for (const [k, b] of RATE_BUCKETS) {
+          if (now - b.windowStart > windowMs) RATE_BUCKETS.delete(k);
+          if (RATE_BUCKETS.size <= RATE_BUCKET_MAX / 2) break;
+        }
+      }
+      bucket = { count: 0, windowStart: now };
+      RATE_BUCKETS.set(key, bucket);
+    }
+    bucket.count++;
+    if (bucket.count > max) {
+      res.set('Retry-After', String(Math.ceil((bucket.windowStart + windowMs - now) / 1000)));
+      return res.status(429).json({ message: 'Demasiadas solicitudes. Espera un momento.' });
+    }
+    next();
+  };
+}
+
+const isHoraUnit = (u) => /^horas?$/i.test((u || '').trim());
+
+// Calcula el total de un trabajador para todos los segmentos. Regla idéntica
+// a la del frontend / snapshot al aprobar.
+function computeWorkerTotal(worker, segmentos) {
+  return (segmentos || []).reduce((sum, seg) => {
+    const cantidad = clampNumber(worker.cantidades?.[seg.id], PLANILLA_LIMITS.numeric);
+    if (cantidad <= 0) return sum;
+    const horaDirecta = isHoraUnit(seg.unidad);
+    const horaConFactor = !horaDirecta && isHoraUnit(seg.unidadBase) && seg.factorConversion != null;
+    const precio = (horaDirecta || horaConFactor)
+      ? (Number(worker.precioHora) || 0) * (horaConFactor ? Number(seg.factorConversion) : 1)
+      : (Number(seg.costoUnitario) || 0);
+    return sum + cantidad * precio;
+  }, 0);
+}
+
+// Re-deriva precios desde fuentes autoritativas, valida identidades y recalcula
+// totales:
+// - precioHora viene de hr_fichas (no del cliente).
+// - costoUnitario / factorConversion / unidadBase vienen del catálogo
+//   unidades_medida cuando la unidad existe ahí; si es una unidad libre no
+//   catalogada, se acepta el valor del cliente (ya saneado).
+// - trabajadorId DEBE existir en `users` y pertenecer a la finca; los demás
+//   se descartan silenciosamente (impide inyectar IDs falsos al snapshot).
+// - trabajadorNombre se sobreescribe con el `nombre` canónico de `users`.
+async function enrichPlanilla(fincaId, segmentos, trabajadores) {
+  const [fichasMap, unidadesMap, usersMap] = await Promise.all([
+    loadFichasMap(fincaId),
+    loadUnidadesMap(fincaId),
+    loadUsersMap(fincaId),
+  ]);
+
+  const enrichedSegs = (segmentos || []).map(s => {
+    const key = String(s.unidad || '').trim().toLowerCase();
+    const cat = key ? unidadesMap.get(key) : null;
+    if (!cat) return s; // unidad libre / no catalogada → respetar valor del cliente
+    return {
+      ...s,
+      // Sólo sobrescribir costoUnitario si el catálogo define un precio explícito.
+      costoUnitario: (cat.precio != null && cat.precio !== '')
+        ? clampNumber(cat.precio, PLANILLA_LIMITS.numeric)
+        : s.costoUnitario,
+      factorConversion: cat.factorConversion != null
+        ? clampNumber(cat.factorConversion, PLANILLA_LIMITS.numeric)
+        : null,
+      unidadBase: cat.unidadBase || '',
+    };
+  });
+
+  const enrichedWorkers = (trabajadores || [])
+    .filter(t => t.trabajadorId && usersMap.has(t.trabajadorId))
+    .map(t => {
+      const userDoc = usersMap.get(t.trabajadorId) || {};
+      const ficha = fichasMap.get(t.trabajadorId);
+      const precioHora = ficha ? clampNumber(ficha.precioHora, PLANILLA_LIMITS.numeric) : 0;
+      const next = {
+        ...t,
+        // Nombre canónico desde users (no del cliente) — evita falsificación cosmética.
+        trabajadorNombre: trimStr(userDoc.nombre, PLANILLA_LIMITS.string),
+        precioHora,
+      };
+      next.total = clampNumber(computeWorkerTotal(next, enrichedSegs), PLANILLA_LIMITS.numeric);
+      return next;
+    });
+
+  const totalGeneral = clampNumber(
+    enrichedWorkers.reduce((s, w) => s + (Number(w.total) || 0), 0),
+    PLANILLA_LIMITS.numeric
+  );
+
+  return { segmentos: enrichedSegs, trabajadores: enrichedWorkers, totalGeneral, usersMap };
+}
+
+// Sanitiza segmentos: tipos, longitudes, números finitos.
+function sanitizeSegmentos(segmentos) {
+  if (!Array.isArray(segmentos)) return { ok: false, msg: 'segmentos debe ser un arreglo.' };
+  if (segmentos.length > PLANILLA_LIMITS.segmentos)
+    return { ok: false, msg: `Máximo ${PLANILLA_LIMITS.segmentos} segmentos.` };
+  const cleaned = segmentos.map(s => ({
+    id: trimStr(s?.id, 64),
+    loteId: trimStr(s?.loteId, 64),
+    loteNombre: trimStr(s?.loteNombre, PLANILLA_LIMITS.string),
+    labor: trimStr(s?.labor, PLANILLA_LIMITS.string),
+    grupo: trimStr(s?.grupo, PLANILLA_LIMITS.string),
+    avanceHa: clampNumber(s?.avanceHa, PLANILLA_LIMITS.numeric),
+    unidad: trimStr(s?.unidad, PLANILLA_LIMITS.string),
+    costoUnitario: clampNumber(s?.costoUnitario, PLANILLA_LIMITS.numeric),
+    factorConversion: s?.factorConversion == null ? null : clampNumber(s.factorConversion, PLANILLA_LIMITS.numeric),
+    unidadBase: trimStr(s?.unidadBase, PLANILLA_LIMITS.string),
+  }));
+  return { ok: true, value: cleaned };
+}
+
+// Sanitiza trabajadores: tipos, longitudes, cantidades finitas.
+function sanitizeTrabajadores(trabajadores) {
+  if (!Array.isArray(trabajadores)) return { ok: false, msg: 'trabajadores debe ser un arreglo.' };
+  if (trabajadores.length > PLANILLA_LIMITS.trabajadoresPorPlanilla)
+    return { ok: false, msg: `Máximo ${PLANILLA_LIMITS.trabajadoresPorPlanilla} trabajadores.` };
+  const cleaned = trabajadores.map(t => {
+    const cantsIn = (t && typeof t.cantidades === 'object' && t.cantidades) ? t.cantidades : {};
+    const cantsOut = {};
+    for (const k of Object.keys(cantsIn).slice(0, PLANILLA_LIMITS.segmentos)) {
+      const segId = String(k).slice(0, 64);
+      cantsOut[segId] = clampNumber(cantsIn[k], PLANILLA_LIMITS.numeric);
+    }
+    return {
+      trabajadorId: trimStr(t?.trabajadorId, 64),
+      trabajadorNombre: trimStr(t?.trabajadorNombre, PLANILLA_LIMITS.string),
+      precioHora: clampNumber(t?.precioHora, PLANILLA_LIMITS.numeric),
+      cantidades: cantsOut,
+      total: clampNumber(t?.total, PLANILLA_LIMITS.numeric),
+    };
+  });
+  return { ok: true, value: cleaned };
+}
+
 router.get('/api/hr/planilla-unidad', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_planilla_unidad')
@@ -719,14 +953,44 @@ router.get('/api/hr/planilla-unidad/historial', authenticate, async (req, res) =
   }
 });
 
-router.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
+router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async (req, res) => {
   try {
-    const { fecha, encargadoId, encargadoNombre, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
-    if (!fecha || !encargadoId) return res.status(400).json({ message: 'Fecha y encargado son requeridos.' });
+    const { fecha, encargadoId, segmentos, trabajadores, estado, observaciones } = req.body;
+
+    // Validación de tipos / requeridos / longitudes
+    if (typeof fecha !== 'string' || !FECHA_RE.test(fecha))
+      return res.status(400).json({ message: 'Fecha inválida (formato YYYY-MM-DD).' });
+    const fechaDate = new Date(fecha + 'T12:00:00');
+    if (Number.isNaN(fechaDate.getTime()))
+      return res.status(400).json({ message: 'Fecha inválida.' });
+    if (typeof encargadoId !== 'string' || !encargadoId.trim())
+      return res.status(400).json({ message: 'Encargado es requerido.' });
+    if (estado != null && !PLANILLA_ESTADOS.includes(estado))
+      return res.status(400).json({ message: 'Estado inválido.' });
+
+    // El cliente no puede crear planillas a nombre de otro encargado a menos
+    // que tenga rol supervisor/admin/rrhh.
+    const authUserId = await resolveAuthUserId(req);
+    if (encargadoId !== authUserId && !canActOnBehalf(req))
+      return res.status(403).json({ message: 'No puedes crear planillas a nombre de otro encargado.' });
+
+    const segs = sanitizeSegmentos(segmentos || []);
+    if (!segs.ok) return res.status(400).json({ message: segs.msg });
+    const tabs = sanitizeTrabajadores(trabajadores || []);
+    if (!tabs.ok) return res.status(400).json({ message: tabs.msg });
+
+    // Re-derivar precios, validar identidades y recalcular totales desde
+    // fuentes autoritativas (hr_fichas + unidades_medida + users).
+    const enriched = await enrichPlanilla(req.fincaId, segs.value, tabs.value);
+
+    // Resolver nombre canónico del encargado (no del cliente).
+    const encargadoUser = enriched.usersMap.get(encargadoId.trim());
+    const encargadoNombreCanon = trimStr(encargadoUser?.nombre, PLANILLA_LIMITS.string);
 
     // El consecutivo solo se asigna cuando la planilla sale del estado borrador.
     // Si se guarda como borrador, se crea sin consecutivo para no desperdiciar números.
-    const esBorrador = !estado || estado === 'borrador';
+    const estadoFinal = estado || 'borrador';
+    const esBorrador = estadoFinal === 'borrador';
     let consecutivo = null;
     if (!esBorrador) {
       const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
@@ -738,16 +1002,24 @@ router.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
       });
     }
 
+    const auditEntry = buildHistoryEntry({
+      userId: authUserId,
+      email: req.userEmail,
+      action: `created:${estadoFinal}`,
+    });
     const docData = {
       fincaId: req.fincaId,
-      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
-      encargadoId, encargadoNombre: encargadoNombre || '',
-      segmentos: segmentos || [],
-      trabajadores: trabajadores || [],
-      totalGeneral: Number(totalGeneral) || 0,
-      estado: estado || 'borrador',
-      observaciones: observaciones || '',
+      fecha: Timestamp.fromDate(fechaDate),
+      encargadoId: trimStr(encargadoId, 64),
+      encargadoNombre: encargadoNombreCanon,
+      segmentos: enriched.segmentos,
+      trabajadores: enriched.trabajadores,
+      totalGeneral: enriched.totalGeneral,
+      estado: estadoFinal,
+      observaciones: trimStr(observaciones, PLANILLA_LIMITS.observaciones),
       createdAt: Timestamp.now(),
+      createdBy: { userId: authUserId || null, email: req.userEmail || null },
+      history: [auditEntry],
     };
     if (consecutivo) docData.consecutivo = consecutivo;
 
@@ -758,31 +1030,106 @@ router.post('/api/hr/planilla-unidad', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
+router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const { fecha, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
 
+    // Sólo el encargado dueño de la planilla (o roles superiores) puede editarla.
+    const currentDoc = ownership.doc.data();
+    const docEncargadoId = currentDoc.encargadoId;
+    const currentEstado = currentDoc.estado || 'borrador';
+    const authUserId = await resolveAuthUserId(req);
+    if (docEncargadoId !== authUserId && !canActOnBehalf(req))
+      return res.status(403).json({ message: 'No puedes editar planillas de otro encargado.' });
+
     // Role checks for state transitions
     const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(req.userRole);
     const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
+    const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
+    if (estado !== undefined && !PLANILLA_ESTADOS.includes(estado))
+      return res.status(400).json({ message: 'Estado inválido.' });
     if (estado === 'aprobada' && !canAprobar)
       return res.status(403).json({ message: 'No tienes permisos para aprobar planillas.' });
     if (estado === 'pagada' && !canPagar)
       return res.status(403).json({ message: 'No tienes permisos para pagar planillas.' });
 
+    // Bloquear retroceso desde estados terminales (aprobada / pagada): sólo
+    // administrador o rrhh pueden modificar planillas ya aprobadas o pagadas.
+    const lockedStates = ['aprobada', 'pagada'];
+    if (lockedStates.includes(currentEstado) && !isAdminLike) {
+      // Cualquier escritura sobre una planilla aprobada/pagada queda restringida.
+      return res.status(403).json({ message: 'Esta planilla ya fue aprobada/pagada y sólo administrador o RR.HH. puede modificarla.' });
+    }
+    // Bloquear transiciones de retroceso explícitas (aprobada → otro / pagada → otro)
+    // incluso para admin-like → registra acción intencional, no por descuido.
+    // (Los admin-like sí pueden hacerlo si lo envían explícitamente.)
+    // Nota: ya pasamos el guard anterior, así que admin-like puede hacerlo.
+
     const update = { updatedAt: Timestamp.now() };
-    if (fecha !== undefined) update.fecha = Timestamp.fromDate(new Date(fecha + 'T12:00:00'));
-    if (segmentos !== undefined) update.segmentos = segmentos;
-    if (trabajadores !== undefined) update.trabajadores = trabajadores;
-    if (totalGeneral !== undefined) update.totalGeneral = Number(totalGeneral);
+    if (fecha !== undefined) {
+      if (typeof fecha !== 'string' || !FECHA_RE.test(fecha))
+        return res.status(400).json({ message: 'Fecha inválida (formato YYYY-MM-DD).' });
+      const fechaDate = new Date(fecha + 'T12:00:00');
+      if (Number.isNaN(fechaDate.getTime()))
+        return res.status(400).json({ message: 'Fecha inválida.' });
+      update.fecha = Timestamp.fromDate(fechaDate);
+    }
+    let segsClean = null;
+    let tabsClean = null;
+    if (segmentos !== undefined) {
+      const segs = sanitizeSegmentos(segmentos);
+      if (!segs.ok) return res.status(400).json({ message: segs.msg });
+      segsClean = segs.value;
+    }
+    if (trabajadores !== undefined) {
+      const tabs = sanitizeTrabajadores(trabajadores);
+      if (!tabs.ok) return res.status(400).json({ message: tabs.msg });
+      tabsClean = tabs.value;
+    }
+    // Si vino segmentos o trabajadores, re-derivar precios y totales desde
+    // fuentes autoritativas. Si vino sólo uno de los dos, completar con el
+    // valor existente en el doc para que el cómputo sea coherente.
+    if (segsClean !== null || tabsClean !== null) {
+      const enriched = await enrichPlanilla(
+        req.fincaId,
+        segsClean !== null ? segsClean : (currentDoc.segmentos || []),
+        tabsClean !== null ? tabsClean : (currentDoc.trabajadores || []),
+      );
+      if (segsClean !== null) update.segmentos = enriched.segmentos;
+      if (tabsClean !== null) update.trabajadores = enriched.trabajadores;
+      // totalGeneral siempre se recalcula server-side: ignora el del cliente.
+      update.totalGeneral = enriched.totalGeneral;
+      // Resolver nombre canónico del encargado (puede haber cambiado en `users`).
+      const encargadoUser = enriched.usersMap.get(docEncargadoId);
+      if (encargadoUser) update.encargadoNombre = trimStr(encargadoUser.nombre, PLANILLA_LIMITS.string);
+    } else if (totalGeneral !== undefined) {
+      // Sólo cambió un campo "metadata" (estado, observaciones) — el cliente
+      // pudo recalcular total localmente; lo aceptamos saneado.
+      update.totalGeneral = clampNumber(totalGeneral, PLANILLA_LIMITS.numeric);
+    }
     if (estado !== undefined) update.estado = estado;
-    if (observaciones !== undefined) update.observaciones = observaciones;
+    if (observaciones !== undefined) update.observaciones = trimStr(observaciones, PLANILLA_LIMITS.observaciones);
+
+    // Audit trail: registrar quién modificó y qué tipo de cambio fue.
+    const actions = [];
+    if (estado !== undefined && estado !== currentEstado) actions.push(`estado:${currentEstado}→${estado}`);
+    if (segsClean !== null || tabsClean !== null) actions.push('updated');
+    if (observaciones !== undefined && actions.length === 0) actions.push('observaciones');
+    if (fecha !== undefined && actions.length === 0) actions.push('fecha');
+    if (actions.length > 0) {
+      const auditEntry = buildHistoryEntry({
+        userId: authUserId,
+        email: req.userEmail,
+        action: actions.join(','),
+      });
+      update.history = appendHistory(currentDoc.history, auditEntry);
+      update.updatedBy = { userId: authUserId || null, email: req.userEmail || null };
+    }
 
     // Asignar consecutivo si la planilla aún no tiene uno y está saliendo del borrador
-    const currentData = ownership.doc.data();
-    let consecutivo = currentData.consecutivo || null;
+    let consecutivo = currentDoc.consecutivo || null;
     if (!consecutivo && estado && estado !== 'borrador') {
       const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
       await db.runTransaction(async (t) => {
@@ -795,9 +1142,9 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
     }
 
     // ── Snapshot al aprobar ────────────────────────────────────────────────────
-    if (estado === 'aprobada' && !ownership.doc.data().snapshotCreado) {
+    if (estado === 'aprobada' && !currentDoc.snapshotCreado) {
       // Mezclar datos viejos con los cambios del body para usar siempre la versión más reciente
-      const doc = { ...ownership.doc.data(), ...update };
+      const doc = { ...currentDoc, ...update };
 
       // Resolver nombre del aprobador
       let aprobadoPor = req.userEmail;
@@ -812,7 +1159,6 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
       const workers = doc.trabajadores || [];
       const batch = db.batch();
 
-      const isHoraUnit = (u) => /^horas?$/i.test((u || '').trim());
       workers.forEach(worker => {
         segs.forEach(seg => {
           const cantidad = Number(worker.cantidades?.[seg.id]) || 0;
@@ -861,10 +1207,19 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
+router.delete('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const data = ownership.doc.data();
+    const docEncargadoId = data.encargadoId;
+    const authUserId = await resolveAuthUserId(req);
+    if (docEncargadoId !== authUserId && !canActOnBehalf(req))
+      return res.status(403).json({ message: 'No puedes eliminar planillas de otro encargado.' });
+    // Bloquear borrado de planillas aprobadas/pagadas salvo admin/rrhh.
+    const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
+    if (['aprobada', 'pagada'].includes(data.estado) && !isAdminLike)
+      return res.status(403).json({ message: 'Esta planilla ya fue aprobada/pagada y sólo administrador o RR.HH. puede eliminarla.' });
     await db.collection('hr_planilla_unidad').doc(req.params.id).delete();
     res.status(200).json({ message: 'Planilla eliminada.' });
   } catch (error) {
@@ -875,9 +1230,17 @@ router.delete('/api/hr/planilla-unidad/:id', authenticate, async (req, res) => {
 // ── Plantillas de Planilla por Unidad / Hora ──────────────────────────────────
 router.get('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
   try {
+    const encargadoId = typeof req.query.encargadoId === 'string' ? req.query.encargadoId.trim() : '';
+    if (!encargadoId)
+      return res.status(400).json({ message: 'encargadoId es requerido.' });
+    // Sólo el propio encargado o roles superiores pueden listar plantillas ajenas.
+    const authUserId = await resolveAuthUserId(req);
+    if (encargadoId !== authUserId && !canActOnBehalf(req))
+      return res.status(403).json({ message: 'No puedes ver plantillas de otro encargado.' });
+
     const snap = await db.collection('hr_plantillas_planilla')
       .where('fincaId', '==', req.fincaId)
-      .where('encargadoId', '==', req.query.encargadoId || '')
+      .where('encargadoId', '==', encargadoId)
       .orderBy('createdAt', 'desc').get();
     const data = snap.docs.map(d => ({
       id: d.id, ...d.data(),
@@ -889,16 +1252,30 @@ router.get('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
+router.post('/api/hr/plantillas-planilla', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const { nombre, segmentos, trabajadores, encargadoId } = req.body;
-    if (!nombre || !encargadoId) return res.status(400).json({ message: 'Nombre y encargado son requeridos.' });
+    const nombreClean = trimStr(nombre, PLANILLA_LIMITS.nombrePlantilla).trim();
+    if (!nombreClean) return res.status(400).json({ message: 'Nombre es requerido.' });
+    if (typeof encargadoId !== 'string' || !encargadoId.trim())
+      return res.status(400).json({ message: 'Encargado es requerido.' });
+
+    // No permitir guardar plantillas a nombre de otro encargado.
+    const authUserId = await resolveAuthUserId(req);
+    if (encargadoId !== authUserId && !canActOnBehalf(req))
+      return res.status(403).json({ message: 'No puedes guardar plantillas a nombre de otro encargado.' });
+
+    const segs = sanitizeSegmentos(segmentos || []);
+    if (!segs.ok) return res.status(400).json({ message: segs.msg });
+    const tabs = sanitizeTrabajadores(trabajadores || []);
+    if (!tabs.ok) return res.status(400).json({ message: tabs.msg });
+
     const ref = await db.collection('hr_plantillas_planilla').add({
       fincaId: req.fincaId,
-      nombre: nombre.trim(),
-      segmentos: segmentos || [],
-      trabajadores: trabajadores || [],
-      encargadoId,
+      nombre: nombreClean,
+      segmentos: segs.value,
+      trabajadores: tabs.value,
+      encargadoId: trimStr(encargadoId, 64),
       createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -907,10 +1284,14 @@ router.post('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/hr/plantillas-planilla/:id', authenticate, async (req, res) => {
+router.delete('/api/hr/plantillas-planilla/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_plantillas_planilla', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const docEncargadoId = ownership.doc.data().encargadoId;
+    const authUserId = await resolveAuthUserId(req);
+    if (docEncargadoId !== authUserId && !canActOnBehalf(req))
+      return res.status(403).json({ message: 'No puedes eliminar plantillas de otro encargado.' });
     await db.collection('hr_plantillas_planilla').doc(req.params.id).delete();
     res.status(200).json({ message: 'Plantilla eliminada.' });
   } catch (error) {
