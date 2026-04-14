@@ -9,7 +9,12 @@
     "preview": "vite preview",
     "emulators": "firebase emulators:start --import=./.firebase/emulators-data --export-on-exit=./.firebase/emulators-data",
     "seed": "node functions/seed.js",
-    "dump-seed": "node functions/dump-seed.js"
+    "dump-seed": "node functions/dump-seed.js",
+    "deploy": "npm run build && firebase deploy --only functions,hosting,firestore:auroradatabase:indexes,firestore:auroradatabase:rules",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "deploy:indexes": "firebase deploy --only firestore:auroradatabase:indexes",
+    "deploy:rules": "firebase deploy --only firestore:auroradatabase:rules"
   },
   "dependencies": {
     "@google/generative-ai": "^0.11.2",
