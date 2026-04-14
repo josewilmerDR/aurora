@@ -7,9 +7,9 @@ import {
 import Toast from '../components/Toast';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './OrdenesList.css';
-import './PurchaseOrder.css';
-import './OrdenesHistorial.css';
+import './OCNueva.css';
+import './OCDesdeSolicitud.css';
+import './OCHistorial.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ESTADO_LABELS = { activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada' };

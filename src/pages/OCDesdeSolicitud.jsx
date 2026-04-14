@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiPrinter, FiArrowLeft, FiSearch, FiX } from 'react-icons/fi';
-import './PurchaseOrder.css';
+import './OCDesdeSolicitud.css';
 import { useApiFetch } from '../hooks/useApiFetch';
 
 const generatePoNumber = () => {
