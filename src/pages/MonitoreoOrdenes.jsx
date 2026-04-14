@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import FormularioMuestreoModal from './FormularioMuestreoModal';
-import './MuestreosOrdenes.css';
+import './MonitoreoOrdenes.css';
 
 const fmt = (iso) => {
   if (!iso) return '—';
@@ -14,7 +14,7 @@ const fmt = (iso) => {
 const STATUS_LABEL = { pending: 'Pendiente', completed_by_user: 'Completado', skipped: 'Omitido' };
 const STATUS_CLASS = { pending: 'badge-yellow', completed_by_user: 'badge-green', skipped: 'badge-gray' };
 
-export default function MuestreosOrdenes() {
+export default function MonitoreoOrdenes() {
   const apiFetch = useApiFetch();
   const [ordenes, setOrdenes] = useState([]);
   const [loading, setLoading] = useState(true);
