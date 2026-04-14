@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { getTwilioClient } = require('../lib/clients');
 const { twilioWhatsappFrom } = require('../lib/firebase');
 
@@ -236,17 +236,88 @@ router.delete('/api/hr/horas-extra/:id', authenticate, async (req, res) => {
 });
 
 // ── Permisos y Vacaciones ────────────────────────────────────────────────────
+const PERMISO_TIPOS = ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'];
+const PERMISO_ESTADOS = ['pendiente', 'aprobado', 'rechazado'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const PERMISO_MOTIVO_MAX = 500;
+const PERMISO_NOMBRE_MAX = 120;
+
+function validatePermisoPayload(body) {
+  const errs = [];
+  const clean = {};
+
+  clean.trabajadorId = typeof body.trabajadorId === 'string' ? body.trabajadorId.trim() : '';
+  if (!clean.trabajadorId) errs.push('Trabajador requerido.');
+
+  clean.trabajadorNombre = typeof body.trabajadorNombre === 'string'
+    ? body.trabajadorNombre.trim().slice(0, PERMISO_NOMBRE_MAX) : '';
+
+  clean.tipo = typeof body.tipo === 'string' ? body.tipo : '';
+  if (!PERMISO_TIPOS.includes(clean.tipo)) errs.push('Tipo inválido.');
+
+  clean.fechaInicio = typeof body.fechaInicio === 'string' ? body.fechaInicio : '';
+  if (!DATE_RE.test(clean.fechaInicio) || Number.isNaN(new Date(clean.fechaInicio).getTime())) {
+    errs.push('Fecha inicio inválida.');
+  }
+
+  clean.esParcial = body.esParcial === true;
+
+  let fechaFin = typeof body.fechaFin === 'string' ? body.fechaFin : clean.fechaInicio;
+  if (clean.esParcial) fechaFin = clean.fechaInicio;
+  if (!DATE_RE.test(fechaFin) || Number.isNaN(new Date(fechaFin).getTime())) {
+    errs.push('Fecha fin inválida.');
+  } else if (DATE_RE.test(clean.fechaInicio) && fechaFin < clean.fechaInicio) {
+    errs.push('Fecha fin no puede ser anterior a fecha inicio.');
+  }
+  clean.fechaFin = fechaFin;
+
+  if (clean.esParcial) {
+    const hi = typeof body.horaInicio === 'string' ? body.horaInicio : '';
+    const hf = typeof body.horaFin === 'string' ? body.horaFin : '';
+    if (!TIME_RE.test(hi) || !TIME_RE.test(hf)) {
+      errs.push('Hora inicio/fin inválida.');
+    } else {
+      const [h1, m1] = hi.split(':').map(Number);
+      const [h2, m2] = hf.split(':').map(Number);
+      if ((h2 * 60 + m2) <= (h1 * 60 + m1)) errs.push('Hora fin debe ser posterior a hora inicio.');
+    }
+    clean.horaInicio = hi;
+    clean.horaFin = hf;
+    const horas = Number(body.horas);
+    if (!Number.isFinite(horas) || horas <= 0 || horas > 24) errs.push('Horas debe estar entre 0 y 24.');
+    clean.horas = Number.isFinite(horas) ? horas : 0;
+    clean.dias = 0;
+  } else {
+    clean.horaInicio = null;
+    clean.horaFin = null;
+    clean.horas = 0;
+    const dias = Number(body.dias);
+    if (!Number.isFinite(dias) || dias < 1 || dias > 365) errs.push('Días debe estar entre 1 y 365.');
+    clean.dias = Number.isFinite(dias) ? dias : 0;
+  }
+
+  clean.motivo = typeof body.motivo === 'string'
+    ? body.motivo.trim().slice(0, PERMISO_MOTIVO_MAX) : '';
+
+  clean.conGoce = body.conGoce !== false;
+
+  return { errs, clean };
+}
+
 router.get('/api/hr/permisos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_permisos')
       .where('fincaId', '==', req.fincaId)
       .orderBy('fechaInicio', 'desc').get();
-    const data = snap.docs.map(d => ({
-      id: d.id, ...d.data(),
-      fechaInicio: d.data().fechaInicio.toDate().toISOString(),
-      fechaFin: d.data().fechaFin.toDate().toISOString(),
-      createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null,
-    }));
+    const data = snap.docs.map(d => {
+      const dt = d.data();
+      return {
+        id: d.id, ...dt,
+        fechaInicio: dt.fechaInicio?.toDate ? dt.fechaInicio.toDate().toISOString() : null,
+        fechaFin:    dt.fechaFin?.toDate    ? dt.fechaFin.toDate().toISOString()    : null,
+        createdAt:   dt.createdAt?.toDate   ? dt.createdAt.toDate().toISOString()   : null,
+      };
+    });
     res.status(200).json(data);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener permisos.' });
@@ -255,21 +326,30 @@ router.get('/api/hr/permisos', authenticate, async (req, res) => {
 
 router.post('/api/hr/permisos', authenticate, async (req, res) => {
   try {
-    const { trabajadorId, trabajadorNombre, tipo, fechaInicio, fechaFin, dias, motivo, conGoce,
-            esParcial, horaInicio, horaFin, horas } = req.body;
-    if (!trabajadorId || !tipo || !fechaInicio) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    const { errs, clean } = validatePermisoPayload(req.body || {});
+    if (errs.length) return res.status(400).json({ message: errs.join(' ') });
+
+    const workerDoc = await db.collection('users').doc(clean.trabajadorId).get();
+    if (!workerDoc.exists || workerDoc.data().fincaId !== req.fincaId) {
+      return res.status(400).json({ message: 'Trabajador no válido.' });
+    }
+
     const ref = await db.collection('hr_permisos').add({
-      trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
-      fechaInicio: Timestamp.fromDate(new Date(fechaInicio + 'T12:00:00')),
-      fechaFin: Timestamp.fromDate(new Date((fechaFin || fechaInicio) + 'T12:00:00')),
-      dias: Number(dias) || 0,
-      esParcial: esParcial === true,
-      horaInicio: esParcial ? (horaInicio || null) : null,
-      horaFin:    esParcial ? (horaFin    || null) : null,
-      horas:      esParcial ? (Number(horas) || 0)  : 0,
-      motivo: motivo || '',
-      conGoce: conGoce !== false,
-      estado: 'pendiente', fincaId: req.fincaId, createdAt: Timestamp.now(),
+      trabajadorId: clean.trabajadorId,
+      trabajadorNombre: clean.trabajadorNombre || workerDoc.data().nombre || '',
+      tipo: clean.tipo,
+      fechaInicio: Timestamp.fromDate(new Date(clean.fechaInicio + 'T12:00:00')),
+      fechaFin:    Timestamp.fromDate(new Date(clean.fechaFin    + 'T12:00:00')),
+      dias: clean.dias,
+      esParcial: clean.esParcial,
+      horaInicio: clean.horaInicio,
+      horaFin:    clean.horaFin,
+      horas:      clean.horas,
+      motivo: clean.motivo,
+      conGoce: clean.conGoce,
+      estado: 'pendiente',
+      fincaId: req.fincaId,
+      createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
@@ -279,7 +359,20 @@ router.post('/api/hr/permisos', authenticate, async (req, res) => {
 
 router.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
   try {
-    await db.collection('hr_permisos').doc(req.params.id).update(req.body);
+    const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const estado = (req.body || {}).estado;
+    if (!PERMISO_ESTADOS.includes(estado)) {
+      return res.status(400).json({ message: 'Estado inválido.' });
+    }
+    if ((estado === 'aprobado' || estado === 'rechazado') && !hasMinRoleBE(req.userRole, 'supervisor')) {
+      return res.status(403).json({ message: 'No tienes permisos para aprobar o rechazar.' });
+    }
+
+    await db.collection('hr_permisos').doc(req.params.id).update({
+      estado, updatedAt: Timestamp.now(),
+    });
     res.status(200).json({ message: 'Permiso actualizado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar permiso.' });
@@ -288,6 +381,11 @@ router.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
 
 router.delete('/api/hr/permisos/:id', authenticate, async (req, res) => {
   try {
+    const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return res.status(403).json({ message: 'No tienes permisos para eliminar.' });
+    }
     await db.collection('hr_permisos').doc(req.params.id).delete();
     res.status(200).json({ message: 'Permiso eliminado.' });
   } catch (error) {

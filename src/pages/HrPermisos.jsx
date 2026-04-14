@@ -14,10 +14,22 @@ const TIPOS = [
 ];
 
 const MESES = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+const MOTIVO_MAX = 500;
+const MAX_DIAS = 365;
+
+const todayLocal = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 function calcDias(inicio, fin) {
   if (!inicio || !fin) return 1;
-  const d = Math.round((new Date(fin) - new Date(inicio)) / 86400000) + 1;
+  const ms = new Date(fin) - new Date(inicio);
+  if (!Number.isFinite(ms)) return 1;
+  const d = Math.round(ms / 86400000) + 1;
   return Math.max(1, d);
 }
 
@@ -29,40 +41,68 @@ function calcHoras(horaInicio, horaFin) {
   return Math.max(0, Math.round(mins / 60 * 10) / 10);
 }
 
+async function parseError(res, fallback) {
+  try {
+    const data = await res.json();
+    return data?.message || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function HrPermisos() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const userRole = currentUser?.rol || 'trabajador';
   const canApprove = hasMinRole(userRole, 'supervisor');
+  const canDelete  = hasMinRole(userRole, 'encargado');
 
-  const now = new Date();
+  const today = todayLocal();
   const [permisos, setPermisos] = useState([]);
   const [users, setUsers] = useState([]);
-  const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, '0'));
-  const [anio, setAnio] = useState(String(now.getFullYear()));
+  const [mes, setMes] = useState(today.slice(5, 7));
+  const [anio, setAnio] = useState(today.slice(0, 4));
   const [filtroTrabajador, setFiltroTrabajador] = useState('');
   const [toast, setToast] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [pendingId, setPendingId] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const [esParcial, setEsParcial] = useState(false);
   const [form, setForm] = useState({
     trabajadorId: '',
     tipo: 'permiso_con_goce',
-    fechaInicio: now.toISOString().split('T')[0],
-    fechaFin:    now.toISOString().split('T')[0],
+    fechaInicio: today,
+    fechaFin:    today,
     horaInicio:  '08:00',
     horaFin:     '12:00',
     motivo: '',
   });
 
-  const fetchPermisos = () => {
-    apiFetch('/api/hr/permisos')
-      .then(r => r.json()).then(setPermisos).catch(console.error);
+  const fetchPermisos = async () => {
+    try {
+      const r = await apiFetch('/api/hr/permisos');
+      if (!r.ok) throw new Error();
+      const data = await r.json();
+      setPermisos(Array.isArray(data) ? data : []);
+    } catch {
+      showToast('Error al cargar permisos.', 'error');
+    }
   };
 
   useEffect(() => {
-    apiFetch('/api/users').then(r => r.json()).then(setUsers).catch(console.error);
+    (async () => {
+      try {
+        const r = await apiFetch('/api/users');
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        setUsers(Array.isArray(data) ? data : []);
+      } catch {
+        showToast('Error al cargar trabajadores.', 'error');
+      }
+    })();
     fetchPermisos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const tipoInfo = TIPOS.find(t => t.value === form.tipo);
@@ -74,73 +114,126 @@ function HrPermisos() {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const validate = () => {
+    if (!form.trabajadorId) return 'Selecciona un trabajador.';
+    if (!TIPOS.some(t => t.value === form.tipo)) return 'Tipo de permiso inválido.';
+    if (!form.fechaInicio) return 'Fecha inicio requerida.';
+    if (esParcial) {
+      if (!form.horaInicio || !form.horaFin) return 'Hora inicio y fin son requeridas.';
+      if (horas <= 0) return 'La hora de fin debe ser posterior a la hora de inicio.';
+      if (horas > 24) return 'Las horas no pueden exceder 24.';
+    } else {
+      if (!form.fechaFin) return 'Fecha fin requerida.';
+      if (form.fechaFin < form.fechaInicio) return 'La fecha fin no puede ser anterior a la fecha inicio.';
+      if (dias > MAX_DIAS) return `El rango no puede exceder ${MAX_DIAS} días.`;
+    }
+    if (form.motivo && form.motivo.length > MOTIVO_MAX) {
+      return `El motivo no puede exceder ${MOTIVO_MAX} caracteres.`;
+    }
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (esParcial && horas <= 0) {
-      showToast('La hora de fin debe ser posterior a la hora de inicio.', 'error');
-      return;
-    }
+    if (submitting) return;
+    const err = validate();
+    if (err) { showToast(err, 'error'); return; }
+
     const worker = users.find(u => u.id === form.trabajadorId);
     const conGoce = TIPOS.find(t => t.value === form.tipo)?.conGoce ?? true;
     const payload = {
-      ...form,
-      conGoce,
+      trabajadorId: form.trabajadorId,
       trabajadorNombre: worker?.nombre || '',
+      tipo: form.tipo,
+      fechaInicio: form.fechaInicio,
+      motivo: form.motivo.trim().slice(0, MOTIVO_MAX),
+      conGoce,
       esParcial,
       ...(esParcial
-        ? { dias: 0, horas, fechaFin: form.fechaInicio }
-        : { dias, horas: 0, horaInicio: null, horaFin: null }),
+        ? { fechaFin: form.fechaInicio, dias: 0, horas, horaInicio: form.horaInicio, horaFin: form.horaFin }
+        : { fechaFin: form.fechaFin, dias, horas: 0, horaInicio: null, horaFin: null }),
     };
+
+    setSubmitting(true);
     try {
       const res = await apiFetch('/api/hr/permisos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error();
-      fetchPermisos();
+      if (!res.ok) {
+        showToast(await parseError(res, 'Error al registrar permiso.'), 'error');
+        return;
+      }
+      await fetchPermisos();
       setForm(prev => ({ ...prev, trabajadorId: '', motivo: '' }));
       showToast('Permiso registrado.');
     } catch {
       showToast('Error al registrar permiso.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleEstado = async (id, estado) => {
+    if (pendingId) return;
+    setPendingId(id);
     try {
       const res = await apiFetch(`/api/hr/permisos/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado }),
       });
-      if (!res.ok) throw new Error();
-      fetchPermisos();
+      if (!res.ok) {
+        showToast(await parseError(res, 'Error al actualizar permiso.'), 'error');
+        return;
+      }
+      await fetchPermisos();
       showToast(`Permiso ${estado}.`);
     } catch {
       showToast('Error al actualizar permiso.', 'error');
+    } finally {
+      setPendingId(null);
     }
   };
 
   const handleDelete = async (id) => {
+    if (pendingId) return;
+    if (!window.confirm('¿Eliminar este permiso? Esta acción no se puede deshacer.')) return;
+    setPendingId(id);
     try {
-      await apiFetch(`/api/hr/permisos/${id}`, { method: 'DELETE' });
-      fetchPermisos();
+      const res = await apiFetch(`/api/hr/permisos/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        showToast(await parseError(res, 'Error al eliminar.'), 'error');
+        return;
+      }
+      await fetchPermisos();
       showToast('Permiso eliminado.');
     } catch {
       showToast('Error al eliminar.', 'error');
+    } finally {
+      setPendingId(null);
     }
   };
 
-  // Filter client-side by month/year and optional worker
+  const toggleParcial = () => setEsParcial(v => !v);
+  const handleToggleKey = (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      toggleParcial();
+    }
+  };
+
   const visibles = permisos.filter(p => {
+    if (!p.fechaInicio) return false;
     const fecha = new Date(p.fechaInicio);
+    if (Number.isNaN(fecha.getTime())) return false;
     const mMatch = String(fecha.getMonth() + 1).padStart(2, '0') === mes;
     const yMatch = String(fecha.getFullYear()) === anio;
     const wMatch = !filtroTrabajador || p.trabajadorId === filtroTrabajador;
     return mMatch && yMatch && wMatch;
   });
 
-  // Stats
   const stats = {
     pendiente: visibles.filter(p => p.estado === 'pendiente').length,
     aprobado:  visibles.filter(p => p.estado === 'aprobado').length,
@@ -157,16 +250,15 @@ function HrPermisos() {
         <h2>Registrar Permiso o Ausencia</h2>
         <form onSubmit={handleSubmit} className="lote-form">
 
-          {/* Toggle permiso parcial */}
           <div className="hr-parcial-toggle">
             <label className="hr-toggle-label">
               <div
                 className={`hr-toggle-switch ${esParcial ? 'hr-toggle-switch--on' : ''}`}
-                onClick={() => setEsParcial(v => !v)}
+                onClick={toggleParcial}
                 role="switch"
                 aria-checked={esParcial}
                 tabIndex={0}
-                onKeyDown={e => e.key === ' ' && setEsParcial(v => !v)}
+                onKeyDown={handleToggleKey}
               >
                 <span className="hr-toggle-knob" />
               </div>
@@ -208,7 +300,10 @@ function HrPermisos() {
             ) : (
               <div className="form-control">
                 <label>Fecha fin</label>
-                <input type="date" name="fechaFin" value={form.fechaFin} onChange={handleChange} required />
+                <input
+                  type="date" name="fechaFin" value={form.fechaFin}
+                  min={form.fechaInicio} onChange={handleChange} required
+                />
               </div>
             )}
 
@@ -217,6 +312,7 @@ function HrPermisos() {
               <input
                 type="text" name="motivo" value={form.motivo}
                 onChange={handleChange} placeholder="Descripción breve..."
+                maxLength={MOTIVO_MAX}
               />
             </div>
           </div>
@@ -236,8 +332,8 @@ function HrPermisos() {
           </div>
 
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary">
-              <FiPlus /> Registrar
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              <FiPlus /> {submitting ? 'Registrando…' : 'Registrar'}
             </button>
           </div>
         </form>
@@ -287,14 +383,18 @@ function HrPermisos() {
           {visibles.map(p => {
             const tipoLabel = TIPOS.find(t => t.value === p.tipo)?.label || p.tipo;
             const conGoce   = p.conGoce !== false;
-            const fecha = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-            const duracion = p.esParcial
-              ? `${p.horaInicio} – ${p.horaFin} (${p.horas} ${p.horas === 1 ? 'hora' : 'horas'})`
-              : (() => {
-                  const inicio = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-                  const fin    = new Date(p.fechaFin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-                  return `${inicio} → ${fin} (${p.dias} ${p.dias === 1 ? 'día' : 'días'})`;
-                })();
+            const fecha = p.fechaInicio
+              ? new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '';
+            let duracion = '';
+            if (p.esParcial) {
+              duracion = `${p.horaInicio || ''} – ${p.horaFin || ''} (${p.horas} ${p.horas === 1 ? 'hora' : 'horas'})`;
+            } else if (p.fechaInicio && p.fechaFin) {
+              const inicio = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+              const fin    = new Date(p.fechaFin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+              duracion = `${inicio} → ${fin} (${p.dias} ${p.dias === 1 ? 'día' : 'días'})`;
+            }
+            const busy = pendingId === p.id;
             return (
               <li key={p.id}>
                 <div>
@@ -320,21 +420,29 @@ function HrPermisos() {
                     <>
                       <button
                         onClick={() => handleEstado(p.id, 'aprobado')}
+                        disabled={busy}
                         className="icon-btn btn-approve" title="Aprobar"
                       >
                         <FiCheck size={16} />
                       </button>
                       <button
                         onClick={() => handleEstado(p.id, 'rechazado')}
+                        disabled={busy}
                         className="icon-btn btn-reject" title="Rechazar"
                       >
                         <FiX size={16} />
                       </button>
                     </>
                   )}
-                  <button onClick={() => handleDelete(p.id)} className="icon-btn delete" title="Eliminar">
-                    <FiTrash2 size={18} />
-                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      disabled={busy}
+                      className="icon-btn delete" title="Eliminar"
+                    >
+                      <FiTrash2 size={18} />
+                    </button>
+                  )}
                 </div>
               </li>
             );
