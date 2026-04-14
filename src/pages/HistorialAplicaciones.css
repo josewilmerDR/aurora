@@ -259,6 +259,11 @@
   white-space: nowrap;
 }
 
+.historial-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Por defecto todas las filas miden una línea: los campos que antes permitían
    wrap ahora truncan con ellipsis. El texto completo queda accesible por
    tooltip nativo (title) o, en el caso de observaciones, por "ver más". */
