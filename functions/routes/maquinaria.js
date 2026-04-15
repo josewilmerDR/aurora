@@ -5,6 +5,78 @@ const { verifyOwnership } = require('../lib/helpers');
 
 const router = Router();
 
+const TIPOS_VALIDOS = new Set([
+  'CARRETA DE SEMILLA',
+  'CARRETA DE COSECHA',
+  'IMPLEMENTO',
+  'MAQUINARIA DE APLICACIONES',
+  'MAQUINARIA DE PREPARACIÓN DE TERRENO',
+  'MONTACARGA',
+  'MOTOCICLETA',
+  'TRACTOR DE LLANTAS',
+  'VEHÍCULO CARGA LIVIANA',
+  'OTRO MAQUINARIA DE CAMPO',
+]);
+
+const MAX_ID       = 50;
+const MAX_CODIGO   = 50;
+const MAX_DESC     = 200;
+const MAX_UBIC     = 150;
+const MAX_OBS      = 2000;
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+const floatInRange = (v, min, max) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(v);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+};
+
+const intInRange = (v, min, max) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+};
+
+const validDate = (v) => {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!s) return '';
+  if (!DATE_RE.test(s)) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : s;
+};
+
+function buildMaquinariaDoc(body) {
+  const descripcion = str(body.descripcion, MAX_DESC);
+  if (!descripcion) return { error: 'La descripción es obligatoria.' };
+
+  const tipoRaw = typeof body.tipo === 'string' ? body.tipo.trim() : '';
+  const tipo = tipoRaw && TIPOS_VALIDOS.has(tipoRaw) ? tipoRaw : '';
+
+  const fecha = validDate(body.fechaRevisionResidual);
+  if (fecha === null) return { error: 'Fecha de revisión residual inválida.' };
+
+  return {
+    data: {
+      idMaquina:             str(body.idMaquina, MAX_ID),
+      codigo:                str(body.codigo, MAX_CODIGO),
+      descripcion,
+      tipo,
+      ubicacion:             str(body.ubicacion, MAX_UBIC),
+      observacion:           str(body.observacion, MAX_OBS),
+      capacidad:             floatInRange(body.capacidad, 0, 1e6),
+      valorAdquisicion:      floatInRange(body.valorAdquisicion, 0, 1e12),
+      valorResidual:         floatInRange(body.valorResidual, 0, 1e12),
+      vidaUtilHoras:         intInRange(body.vidaUtilHoras, 0, 1e6),
+      fechaRevisionResidual: fecha,
+    },
+  };
+}
+
 // --- API ENDPOINTS: MAQUINARIA ---
 router.get('/api/maquinaria', authenticate, async (req, res) => {
   try {
@@ -22,25 +94,9 @@ router.get('/api/maquinaria', authenticate, async (req, res) => {
 
 router.post('/api/maquinaria', authenticate, async (req, res) => {
   try {
-    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion,
-            capacidad, valorAdquisicion, valorResidual, vidaUtilHoras, fechaRevisionResidual } = req.body;
-    if (!descripcion || !descripcion.trim()) {
-      return res.status(400).json({ message: 'La descripción es obligatoria.' });
-    }
-    const data = {
-      idMaquina: idMaquina?.trim() || '',
-      codigo: codigo?.trim() || '',
-      descripcion: descripcion.trim(),
-      tipo: tipo?.trim() || '',
-      ubicacion: ubicacion?.trim() || '',
-      observacion: observacion?.trim() || '',
-      fincaId: req.fincaId,
-    };
-    if (capacidad          !== undefined && capacidad          !== '') data.capacidad          = Number(capacidad);
-    if (valorAdquisicion   !== undefined && valorAdquisicion   !== '') data.valorAdquisicion   = Number(valorAdquisicion);
-    if (valorResidual      !== undefined && valorResidual      !== '') data.valorResidual      = Number(valorResidual);
-    if (vidaUtilHoras      !== undefined && vidaUtilHoras      !== '') data.vidaUtilHoras      = Number(vidaUtilHoras);
-    if (fechaRevisionResidual !== undefined && fechaRevisionResidual !== '') data.fechaRevisionResidual = fechaRevisionResidual.trim();
+    const { error, data } = buildMaquinariaDoc(req.body);
+    if (error) return res.status(400).json({ message: error });
+
     // Upsert: if idMaquina is provided and already exists for this finca, update it
     if (data.idMaquina) {
       const existing = await db.collection('maquinaria')
@@ -49,13 +105,15 @@ router.post('/api/maquinaria', authenticate, async (req, res) => {
         .limit(1).get();
       if (!existing.empty) {
         const doc = existing.docs[0];
-        const { fincaId, ...updateData } = data;
-        await doc.ref.update({ ...updateData, actualizadoEn: Timestamp.now() });
+        await doc.ref.update({ ...data, actualizadoEn: Timestamp.now() });
         return res.status(200).json({ id: doc.id, merged: true });
       }
     }
-    data.creadoEn = Timestamp.now();
-    const doc = await db.collection('maquinaria').add(data);
+    const doc = await db.collection('maquinaria').add({
+      ...data,
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    });
     res.status(201).json({ id: doc.id, merged: false });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear maquinaria.' });
@@ -64,25 +122,16 @@ router.post('/api/maquinaria', authenticate, async (req, res) => {
 
 router.put('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
-    const { idMaquina, codigo, descripcion, tipo, ubicacion, observacion,
-            capacidad, valorAdquisicion, valorResidual, vidaUtilHoras, fechaRevisionResidual } = req.body;
-    if (!descripcion || !descripcion.trim()) {
-      return res.status(400).json({ message: 'La descripción es obligatoria.' });
-    }
-    const data = {
-      idMaquina: idMaquina?.trim() || '',
-      codigo: codigo?.trim() || '',
-      descripcion: descripcion.trim(),
-      tipo: tipo?.trim() || '',
-      ubicacion: ubicacion?.trim() || '',
-      observacion: observacion?.trim() || '',
-      capacidad:          (capacidad          !== undefined && capacidad          !== '') ? Number(capacidad)        : null,
-      valorAdquisicion:   (valorAdquisicion   !== undefined && valorAdquisicion   !== '') ? Number(valorAdquisicion) : null,
-      valorResidual:      (valorResidual      !== undefined && valorResidual      !== '') ? Number(valorResidual)    : null,
-      vidaUtilHoras:      (vidaUtilHoras      !== undefined && vidaUtilHoras      !== '') ? Number(vidaUtilHoras)    : null,
-      fechaRevisionResidual: fechaRevisionResidual?.trim() || '',
-    };
-    await db.collection('maquinaria').doc(req.params.id).update(data);
+    const ownership = await verifyOwnership('maquinaria', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+
+    const { error, data } = buildMaquinariaDoc(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    await db.collection('maquinaria').doc(req.params.id).update({
+      ...data,
+      actualizadoEn: Timestamp.now(),
+    });
     res.json({ message: 'Actualizado.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar maquinaria.' });
@@ -91,6 +140,8 @@ router.put('/api/maquinaria/:id', authenticate, async (req, res) => {
 
 router.delete('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
+    const ownership = await verifyOwnership('maquinaria', req.params.id, req.fincaId);
+    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     await db.collection('maquinaria').doc(req.params.id).delete();
     res.json({ message: 'Eliminado.' });
   } catch (error) {
@@ -107,8 +158,8 @@ router.delete('/api/maquinaria/:id', authenticate, async (req, res) => {
 //   o costo ponderado actual del ítem si no hubo movimientos.
 router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) => {
   try {
-    const { bodegaId } = req.query;
-    const dias = Math.min(Math.max(parseInt(req.query.dias) || 30, 1), 90);
+    const bodegaId = typeof req.query.bodegaId === 'string' ? req.query.bodegaId.trim().slice(0, 128) : '';
+    const dias = Math.min(Math.max(parseInt(req.query.dias, 10) || 30, 1), 90);
 
     const cutoff     = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
     const cutoffDate = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
