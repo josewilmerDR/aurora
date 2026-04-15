@@ -18,7 +18,11 @@ const TIPOS = [
   'OTRO MAQUINARIA DE CAMPO',
 ];
 
-const TIPO_APLICACIONES = 'MAQUINARIA DE APLICACIONES';
+const MAX_ID = 50;
+const MAX_CODIGO = 50;
+const MAX_DESC = 200;
+const MAX_UBIC = 150;
+const MAX_OBS = 2000;
 
 const COLUMNS = [
   { id: 'idMaquina',             label: 'ID'                },
@@ -158,7 +162,7 @@ function MaquinariaList() {
   // Cargar tasas de combustible cuando cambia la bodega seleccionada
   useEffect(() => {
     if (!fuelBodegaId) { setTasas({}); return; }
-    apiFetch(`/api/maquinaria/tasas-combustible?bodegaId=${fuelBodegaId}`)
+    apiFetch(`/api/maquinaria/tasas-combustible?bodegaId=${encodeURIComponent(fuelBodegaId)}`)
       .then(r => r.json())
       .then(data => setTasas(data.tasas || {}))
       .catch(() => {});
@@ -196,7 +200,11 @@ function MaquinariaList() {
   };
 
   const handleEdit = (item) => {
+    // Coerce null numerics to '' to keep inputs controlled
     const editForm = { ...EMPTY_FORM, ...item };
+    for (const k of Object.keys(EMPTY_FORM)) {
+      if (editForm[k] == null) editForm[k] = '';
+    }
     setForm(editForm);
     setIsEditing(true);
     setShowForm(true);
@@ -404,6 +412,7 @@ function MaquinariaList() {
                   value={form.idMaquina}
                   onChange={handleChange}
                   placeholder="Ej. 0403-0020"
+                  maxLength={MAX_ID}
                 />
               </div>
 
@@ -414,6 +423,7 @@ function MaquinariaList() {
                   value={form.codigo}
                   onChange={handleChange}
                   placeholder="Ej. 3-20"
+                  maxLength={MAX_CODIGO}
                 />
               </div>
 
@@ -425,6 +435,7 @@ function MaquinariaList() {
                   onChange={handleChange}
                   placeholder="Nombre o descripción del activo"
                   required
+                  maxLength={MAX_DESC}
                 />
               </div>
 
@@ -434,6 +445,7 @@ function MaquinariaList() {
                   name="capacidad"
                   type="number"
                   min="0"
+                  max="1000000"
                   step="1"
                   value={form.capacidad}
                   onChange={handleChange}
@@ -447,6 +459,7 @@ function MaquinariaList() {
                   name="valorAdquisicion"
                   type="number"
                   min="0"
+                  max="1000000000000"
                   step="0.01"
                   value={form.valorAdquisicion}
                   onChange={handleChange}
@@ -460,6 +473,7 @@ function MaquinariaList() {
                   name="valorResidual"
                   type="number"
                   min="0"
+                  max="1000000000000"
                   step="0.01"
                   value={form.valorResidual}
                   onChange={handleChange}
@@ -482,6 +496,7 @@ function MaquinariaList() {
                   name="vidaUtilHoras"
                   type="number"
                   min="0"
+                  max="1000000"
                   step="1"
                   value={form.vidaUtilHoras}
                   onChange={handleChange}
@@ -534,6 +549,7 @@ function MaquinariaList() {
                   value={form.ubicacion}
                   onChange={handleChange}
                   placeholder="Ej. Finca Aurora"
+                  maxLength={MAX_UBIC}
                 />
               </div>
 
@@ -545,6 +561,7 @@ function MaquinariaList() {
                   onChange={handleChange}
                   placeholder="Estado, notas de mantenimiento, etc."
                   rows={2}
+                  maxLength={MAX_OBS}
                 />
               </div>
             </div>
@@ -644,14 +661,14 @@ function MaquinariaList() {
                   <tr key={item.id}>
                     {!hiddenCols.has('idMaquina')             && <td className="maq-td-code">{item.idMaquina || '—'}</td>}
                     {!hiddenCols.has('codigo')                && <td className="maq-td-code">{item.codigo || '—'}</td>}
-                    {!hiddenCols.has('descripcion')           && <td className="maq-td-desc">{item.descripcion}</td>}
+                    {!hiddenCols.has('descripcion')           && <td className="maq-td-desc">{item.descripcion || <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('tipo')                  && <td>{item.tipo ? <span className="maq-tipo-badge">{item.tipo}</span> : <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('ubicacion')             && <td>{item.ubicacion || <span className="maq-td-empty">—</span>}</td>}
-                    {!hiddenCols.has('capacidad')             && <td>{item.capacidad ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>}
-                    {!hiddenCols.has('valorAdquisicion')      && <td className="maq-td-num">{item.valorAdquisicion ? `$${Number(item.valorAdquisicion).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>}
-                    {!hiddenCols.has('valorResidual')         && <td className="maq-td-num">{item.valorResidual ? `$${Number(item.valorResidual).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('capacidad')             && <td>{item.capacidad != null && item.capacidad !== '' ? `${item.capacidad} L` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('valorAdquisicion')      && <td className="maq-td-num">{item.valorAdquisicion != null && item.valorAdquisicion !== '' ? `$${Number(item.valorAdquisicion).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('valorResidual')         && <td className="maq-td-num">{item.valorResidual != null && item.valorResidual !== '' ? `$${Number(item.valorResidual).toLocaleString('es-CR')}` : <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('residualPct')           && <td className="maq-td-num">{calcResidualPct(item.valorAdquisicion, item.valorResidual) ?? <span className="maq-td-empty">—</span>}</td>}
-                    {!hiddenCols.has('vidaUtilHoras')         && <td className="maq-td-num">{item.vidaUtilHoras ? `${Number(item.vidaUtilHoras).toLocaleString('es-CR')} h` : <span className="maq-td-empty">—</span>}</td>}
+                    {!hiddenCols.has('vidaUtilHoras')         && <td className="maq-td-num">{item.vidaUtilHoras != null && item.vidaUtilHoras !== '' ? `${Number(item.vidaUtilHoras).toLocaleString('es-CR')} h` : <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('horasAcumuladas')       && <td className="maq-td-num">{item.horasAcumuladas != null ? `${Number(item.horasAcumuladas).toFixed(1)} h` : <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('costoDepHora')          && <td className="maq-td-num">{calcCostoDepHora(item.valorAdquisicion, item.valorResidual, item.vidaUtilHoras) ?? <span className="maq-td-empty">—</span>}</td>}
                     {!hiddenCols.has('tasaLH') && (() => {

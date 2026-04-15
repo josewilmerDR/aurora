@@ -269,13 +269,6 @@
   text-align: right;
 }
 
-.maq-tipo-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
 .maq-tipo-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -285,13 +278,6 @@
   background: rgba(51, 255, 153, 0.08);
   color: rgba(230, 242, 255, 0.65);
   white-space: nowrap;
-}
-
-.maq-capacidad-note {
-  font-size: 0.72rem;
-  color: var(--aurora-green);
-  opacity: 0.75;
-  padding-left: 8px;
 }
 
 .maq-btn-icon {
@@ -578,26 +564,6 @@
   border-color: var(--aurora-magenta);
 }
 
-/* ── Import section ── */
-.maq-import-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.maq-import-buttons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.maq-import-result {
-  font-size: 0.78rem;
-  margin: 0;
-}
-.maq-import-ok    { color: var(--aurora-green); }
-.maq-import-error { color: var(--aurora-magenta); }
-
 /* ── Columna L/H y bodega de combustible ── */
 .maq-th-fuel {
   white-space: nowrap;
@@ -724,4 +690,57 @@
 }
 .maq-fuel-clear:hover {
   color: var(--aurora-magenta);
+}
+
+/* ── Mobile (≤ 640px) ── */
+@media (max-width: 640px) {
+  .maq-wrap { gap: 16px; }
+
+  .maq-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .maq-search {
+    max-width: 100%;
+    width: 100%;
+  }
+  .maq-toolbar .btn { width: 100%; justify-content: center; }
+
+  .maq-form { padding: 14px; }
+  .maq-form-grid { grid-template-columns: 1fr; gap: 12px; }
+  .maq-form-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .maq-form-actions .btn { width: 100%; justify-content: center; }
+
+  .maq-form-header { padding: 12px 14px; }
+
+  .maq-section-header { flex-wrap: wrap; }
+  .maq-clear-col-filters { margin-left: 0; }
+
+  .maq-table th,
+  .maq-table td { padding: 8px 10px; }
+
+  .maq-td-obs { max-width: 160px; }
+
+  .maq-fuel-popover {
+    min-width: 0;
+    max-width: calc(100vw - 32px);
+    width: calc(100vw - 32px);
+  }
+
+  .maq-filter-popover {
+    left: 16px !important;
+    right: 16px;
+    min-width: 0;
+    max-width: calc(100vw - 32px);
+  }
+
+  .maq-col-menu {
+    left: 16px !important;
+    right: 16px;
+    max-width: calc(100vw - 32px);
+  }
 }
