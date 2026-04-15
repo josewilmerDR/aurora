@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { FiPlus, FiEdit, FiTrash2, FiX, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiX, FiCheck, FiPackage } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './LoteManagement.css';
@@ -256,15 +256,32 @@ function UnidadesMedida() {
     <div className="um-page-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Botón top-right ── */}
-      <div className="um-page-header">
-        {items.length > 0 && !showForm && (
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <FiPlus size={15} /> Nueva unidad
-          </button>
-        )}
-      </div>
+      {/* ── Spinner de carga ── */}
+      {loading && <div className="um-page-loading" />}
 
+      {/* ── Estado vacío ── */}
+      {!loading && items.length === 0 && !showForm && (
+        <div className="um-empty-state">
+          <FiPackage size={36} />
+          <p>No hay unidades de medida registradas.</p>
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <FiPlus size={15} /> Crear el primero
+          </button>
+        </div>
+      )}
+
+      {/* ── Botón top-right ── */}
+      {!loading && items.length > 0 && (
+        <div className="um-page-header">
+          {!showForm && (
+            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+              <FiPlus size={15} /> Nueva unidad
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && (items.length > 0 || showForm) && (
       <div className="lote-management-layout um-layout">
 
         {/* ── Panel izquierdo: formulario o CTA ── */}
@@ -355,18 +372,6 @@ function UnidadesMedida() {
                 </div>
               </form>
             </>
-          ) : items.length === 0 ? (
-            <div className="um-cta">
-              <div className="um-cta-icon"><FiPlus size={28} /></div>
-              <p className="um-cta-title">Aún no hay unidades creadas</p>
-              <p className="um-cta-desc">
-                Registra las unidades de medida disponibles en los formularios
-                del sistema: peso, volumen, área, jornales, etc.
-              </p>
-              <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-                <FiPlus size={15} /> Crear primera unidad
-              </button>
-            </div>
           ) : (
             <div className="um-cta um-cta--secondary">
               <div className="um-cta-icon"><FiEdit size={24} /></div>
@@ -434,6 +439,7 @@ function UnidadesMedida() {
         </div>
 
       </div>
+      )}
     </div>
   );
 }
