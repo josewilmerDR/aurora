@@ -2,9 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
-import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './ConfiguracionInicial.css';
+
+// ── Guardarraíles de importación ─────────────────────────────────────────────
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_ROWS       = 5000;
+
+// Lee y parsea un archivo Excel con validaciones. Devuelve filas o lanza Error con msg legible.
+async function readExcelRows(file) {
+  if (!file) throw new Error('No se seleccionó archivo.');
+  if (file.size > MAX_FILE_BYTES) throw new Error(`Archivo demasiado grande (máx. ${MAX_FILE_BYTES / 1024 / 1024} MB).`);
+  const workbook = XLSX.read(await file.arrayBuffer());
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error('El archivo no contiene hojas.');
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+  if (rows.length > MAX_ROWS) throw new Error(`Demasiadas filas (máx. ${MAX_ROWS}).`);
+  return rows;
+}
 
 // ── Normalización de tipo de producto ────────────────────────────────────────
 const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
@@ -118,7 +133,7 @@ const ENTIDADES = [
     }),
     isValid: (r) => !!r.nombre,
     prepareItems: async (items, apiFetch) => {
-      const labores = await apiFetch('/api/labores').then(r => r.json()).catch(() => []);
+      const labores = await fetchJsonSafe(apiFetch, '/api/labores', []);
       const laborMap = {};
       for (const l of labores) {
         if (l.descripcion) laborMap[l.descripcion.toLowerCase()] = l.id;
@@ -231,13 +246,16 @@ function EntidadCard({ entidad }) {
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
 
-  const refreshCount = () =>
-    apiFetch(entidad.endpoint)
-      .then(r => r.json())
-      .then(data => setCount(Array.isArray(data) ? data.length : null))
-      .catch(() => {});
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
-  useEffect(() => { refreshCount(); }, []);
+  const refreshCount = async () => {
+    const data = await fetchJsonSafe(apiFetch, entidad.endpoint, null);
+    if (!mountedRef.current) return;
+    setCount(Array.isArray(data) ? data.length : null);
+  };
+
+  useEffect(() => { refreshCount(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([entidad.excelHeaders, entidad.sampleRow]);
@@ -248,13 +266,12 @@ function EntidadCard({ entidad }) {
   };
 
   const handleImport = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
     setImportResult(null);
     try {
-      const workbook = XLSX.read(await file.arrayBuffer());
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+      const rows = await readExcelRows(file);
       let validas = rows.map(entidad.parseRow).filter(entidad.isValid);
       if (entidad.prepareItems) validas = await entidad.prepareItems(validas, apiFetch);
       if (!validas.length) {
@@ -282,8 +299,8 @@ function EntidadCard({ entidad }) {
       setImportResult({ ok: true, msg: parts });
       setShowNavPrompt(true);
       refreshCount();
-    } catch {
-      setImportResult({ error: true });
+    } catch (err) {
+      setImportResult({ error: true, msg: err?.message });
     } finally {
       setImporting(false);
       e.target.value = '';
@@ -326,7 +343,7 @@ function EntidadCard({ entidad }) {
       {importResult && (
         <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
           {importResult.error
-            ? '⚠ No se pudo leer el archivo. Usa la plantilla.'
+            ? `⚠ ${importResult.msg || 'No se pudo leer el archivo. Usa la plantilla.'}`
             : `✓ ${importResult.msg}`}
         </p>
       )}
@@ -347,30 +364,41 @@ function EntidadCard({ entidad }) {
   );
 }
 
+// ── Helper: Date → YYYY-MM-DD seguro ante RangeError de .toISOString() ───────
+function dateToIsoDay(d) {
+  if (!(d instanceof Date) || isNaN(d)) return null;
+  try { return d.toISOString().slice(0, 10); } catch { return null; }
+}
+
 // ── Helper: Firestore Timestamp JSON → YYYY-MM-DD ─────────────────────────────
 function timestampToDateStr(ts) {
   if (!ts) return null;
   if (typeof ts === 'string') return ts.slice(0, 10);
   const secs = ts.seconds ?? ts._seconds;
-  return secs != null ? new Date(secs * 1000).toISOString().slice(0, 10) : null;
+  return secs != null ? dateToIsoDay(new Date(secs * 1000)) : null;
 }
 
 // ── Helper: cualquier valor de fecha de Excel → YYYY-MM-DD o null ─────────────
 // xlsx puede devolver: JS Date, número serial Excel, o string
 function toDateStr(val) {
   if (val == null || val === '') return null;
-  if (val instanceof Date) {
-    return isNaN(val) ? null : val.toISOString().slice(0, 10);
-  }
+  if (val instanceof Date) return dateToIsoDay(val);
   if (typeof val === 'number') {
     // Número serial Excel: 1 = 1 ene 1900; ajuste de los 25569 días al epoch Unix
-    const d = new Date((val - 25569) * 86400 * 1000);
-    return isNaN(d) ? null : d.toISOString().slice(0, 10);
+    return dateToIsoDay(new Date((val - 25569) * 86400 * 1000));
   }
   const s = String(val).trim();
   if (!s) return null;
-  const d = new Date(s);
-  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+  return dateToIsoDay(new Date(s));
+}
+
+// ── Helper: fetch JSON tolerante (cualquier fallo → fallback) ────────────────
+async function fetchJsonSafe(apiFetch, path, fallback) {
+  try {
+    const res = await apiFetch(path);
+    if (!res.ok) return fallback;
+    return await res.json();
+  } catch { return fallback; }
 }
 
 // ── Plantilla Lotes + Grupos + Bloques ────────────────────────────────────────
@@ -405,13 +433,12 @@ function LotesGruposCard() {
   };
 
   const handleImport = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
     setImportResult(null);
     try {
-      const workbook = XLSX.read(await file.arrayBuffer());
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+      const rows = await readExcelRows(file);
 
       if (!rows.length) {
         setImportResult({ error: true, msg: 'El archivo está vacío.' });
@@ -460,7 +487,7 @@ function LotesGruposCard() {
       }
 
       // ── Phase 0: Materiales de siembra ─────────────────────────────────────
-      const existingMateriales = await apiFetch('/api/materiales-siembra').then(r => r.json());
+      const existingMateriales = await fetchJsonSafe(apiFetch, '/api/materiales-siembra', []);
       const materialMap = {}; // nombre → { id }
       for (const m of existingMateriales) {
         if (m.nombre) materialMap[m.nombre] = { id: m.id };
@@ -488,7 +515,7 @@ function LotesGruposCard() {
       }
 
       // ── Phase 1: Lotes ──────────────────────────────────────────────────────
-      const existingLotes = await apiFetch('/api/lotes').then(r => r.json());
+      const existingLotes = await fetchJsonSafe(apiFetch, '/api/lotes', []);
       const loteMap = {};
       for (const l of existingLotes) {
         if (l.codigoLote) loteMap[l.codigoLote] = l.id;
@@ -553,7 +580,7 @@ function LotesGruposCard() {
       }
 
       // ── Phase 3: Grupos ─────────────────────────────────────────────────────
-      const existingGrupos = await apiFetch('/api/grupos').then(r => r.json());
+      const existingGrupos = await fetchJsonSafe(apiFetch, '/api/grupos', []);
       const grupoMap = {};
       for (const g of existingGrupos) {
         if (g.nombreGrupo) grupoMap[g.nombreGrupo] = g;
@@ -619,8 +646,8 @@ function LotesGruposCard() {
         setImportResult({ ok: true, msg: msgOk + msgWarn });
         setShowNavPrompt(totalCreados > 0);
       }
-    } catch {
-      setImportResult({ error: true, msg: 'Error inesperado al procesar el archivo.' });
+    } catch (err) {
+      setImportResult({ error: true, msg: err?.message || 'Error inesperado al procesar el archivo.' });
     } finally {
       setImporting(false);
       e.target.value = '';
@@ -704,13 +731,16 @@ function EmpleadosCard() {
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
 
-  const refreshCount = () =>
-    apiFetch('/api/users')
-      .then(r => r.json())
-      .then(data => setCount(Array.isArray(data) ? data.filter(u => u.empleadoPlanilla).length : null))
-      .catch(() => {});
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
-  useEffect(() => { refreshCount(); }, []);
+  const refreshCount = async () => {
+    const data = await fetchJsonSafe(apiFetch, '/api/users', null);
+    if (!mountedRef.current) return;
+    setCount(Array.isArray(data) ? data.filter(u => u.empleadoPlanilla).length : null);
+  };
+
+  useEffect(() => { refreshCount(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([EMP_HEADERS, EMP_SAMPLE]);
@@ -721,13 +751,12 @@ function EmpleadosCard() {
   };
 
   const handleImport = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
     setImportResult(null);
     try {
-      const workbook = XLSX.read(await file.arrayBuffer());
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+      const rows = await readExcelRows(file);
       const parsed = rows
         .map(row => ({
           nombre:              String(row['Nombre Completo']       || '').trim(),
@@ -784,8 +813,8 @@ function EmpleadosCard() {
       setImportResult({ ok: true, msg: parts });
       setShowNavPrompt(creados + actualizados > 0);
       refreshCount();
-    } catch {
-      setImportResult({ error: true });
+    } catch (err) {
+      setImportResult({ error: true, msg: err?.message });
     } finally {
       setImporting(false);
       e.target.value = '';
@@ -828,7 +857,7 @@ function EmpleadosCard() {
       {importResult && (
         <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
           {importResult.error
-            ? '⚠ No se pudo leer el archivo. Usa la plantilla.'
+            ? `⚠ ${importResult.msg || 'No se pudo leer el archivo. Usa la plantilla.'}`
             : `✓ ${importResult.msg}`}
         </p>
       )}
@@ -851,12 +880,8 @@ function EmpleadosCard() {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 function ConfiguracionInicial() {
-  const [toast, setToast] = useState(null);
-
   return (
     <div className="ci-wrap">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       <div className="ci-intro">
         <FiSettings size={18} />
         <p>

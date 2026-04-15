@@ -133,6 +133,7 @@
 .ci-nav-prompt-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .btn-sm {
