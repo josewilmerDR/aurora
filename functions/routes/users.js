@@ -1,11 +1,11 @@
 const { Router } = require('express');
 const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership } = require('../lib/helpers');
+const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 
 const router = Router();
 
-const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'administrador'];
+const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]+$/;
 const LIMITS = { nombre: 80, email: 120, telefono: 20 };
@@ -25,6 +25,13 @@ function validateUserPayload(body) {
   return { errs, clean: { nombre, email, telefono, rol: rol || 'trabajador' } };
 }
 
+function requireAdmin(req, res, next) {
+  if (!hasMinRoleBE(req.userRole, 'administrador')) {
+    return res.status(403).json({ message: 'Solo administradores pueden gestionar usuarios.' });
+  }
+  next();
+}
+
 // --- API ENDPOINTS: USERS ---
 router.get('/api/users', authenticate, async (req, res) => {
   try {
@@ -36,7 +43,7 @@ router.get('/api/users', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/users', authenticate, async (req, res) => {
+router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
   try {
     const { errs, clean } = validateUserPayload(req.body);
     if (errs.length) return res.status(400).json({ message: errs.join(' ') });
@@ -52,13 +59,18 @@ router.post('/api/users', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/users/:id', authenticate, async (req, res) => {
+router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
     const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol', 'empleadoPlanilla']);
-    const { errs, clean } = validateUserPayload({ ...ownership.doc.data(), ...userData });
+    const current = ownership.doc.data();
+    const isSelf = req.userEmail && current.email && current.email.toLowerCase() === req.userEmail.toLowerCase();
+    if (isSelf && userData.rol !== undefined && userData.rol !== current.rol) {
+      return res.status(403).json({ message: 'No puedes cambiar tu propio rol.' });
+    }
+    const { errs, clean } = validateUserPayload({ ...current, ...userData });
     if (errs.length) return res.status(400).json({ message: errs.join(' ') });
     if (userData.email) {
       const dup = await db.collection('users')
@@ -79,11 +91,15 @@ router.put('/api/users/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/users/:id', authenticate, async (req, res) => {
+router.delete('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    const targetEmail = (ownership.doc.data().email || '').toLowerCase();
+    if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
+      return res.status(403).json({ message: 'No puedes eliminar tu propio usuario.' });
+    }
     await db.collection('users').doc(id).delete();
     res.status(200).json({ message: 'Usuario eliminado correctamente.' });
   } catch (error) {
