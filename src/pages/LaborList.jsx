@@ -11,6 +11,10 @@ const EMPTY_FORM = {
   observacion: '',
 };
 
+const MAX_CODIGO = 30;
+const MAX_DESCRIPCION = 200;
+const MAX_OBSERVACION = 1000;
+
 function LaborList() {
   const apiFetch = useApiFetch();
   const [items, setItems] = useState([]);
@@ -44,7 +48,12 @@ function LaborList() {
   };
 
   const handleEdit = (item) => {
-    setForm({ ...EMPTY_FORM, ...item });
+    setForm({
+      id: item.id ?? null,
+      codigo: item.codigo ?? '',
+      descripcion: item.descripcion ?? '',
+      observacion: item.observacion ?? '',
+    });
     setIsEditing(true);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -70,7 +79,12 @@ function LaborList() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.descripcion.trim()) {
+    const payload = {
+      codigo: form.codigo.trim().slice(0, MAX_CODIGO),
+      descripcion: form.descripcion.trim().slice(0, MAX_DESCRIPCION),
+      observacion: form.observacion.trim().slice(0, MAX_OBSERVACION),
+    };
+    if (!payload.descripcion) {
       showToast('La descripción es obligatoria.', 'error');
       return;
     }
@@ -81,7 +95,7 @@ function LaborList() {
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
       showToast(isEditing ? 'Labor actualizada.' : 'Labor registrada.');
@@ -135,6 +149,7 @@ function LaborList() {
                   value={form.codigo}
                   onChange={handleChange}
                   placeholder="Ej. CHAP-01"
+                  maxLength={MAX_CODIGO}
                 />
               </div>
 
@@ -145,6 +160,7 @@ function LaborList() {
                   value={form.descripcion}
                   onChange={handleChange}
                   placeholder="Nombre de la labor"
+                  maxLength={MAX_DESCRIPCION}
                   required
                 />
               </div>
@@ -157,6 +173,7 @@ function LaborList() {
                   onChange={handleChange}
                   placeholder="Notas adicionales sobre esta labor…"
                   rows={2}
+                  maxLength={MAX_OBSERVACION}
                 />
               </div>
             </div>
@@ -178,11 +195,6 @@ function LaborList() {
           <FiList size={14} />
           <span>Labores registradas</span>
           {items.length > 0 && <span className="lab-count">{items.length}</span>}
-          {showForm && (
-            <button className="lab-add-inline" onClick={handleNew} title="Nueva labor">
-              <FiPlus size={13} />
-            </button>
-          )}
         </div>
 
         {loading ? (
