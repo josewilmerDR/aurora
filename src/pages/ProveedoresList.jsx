@@ -70,7 +70,19 @@ function isDraftMeaningful(d) {
 }
 
 const initials = (name) =>
-  name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+  (name || '').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+
+const safeHref = (url) => {
+  if (typeof url !== 'string' || !url.trim()) return null;
+  const candidate = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+};
 
 function ProveedoresList() {
   const apiFetch = useApiFetch();
@@ -144,7 +156,14 @@ function ProveedoresList() {
   };
 
   const handleEdit = (p) => {
-    setForm({ ...EMPTY_FORM, ...p });
+    setForm({
+      ...EMPTY_FORM,
+      ...p,
+      diasCredito: p.diasCredito ?? 30,
+      tiempoEntregaDias: p.tiempoEntregaDias ?? '',
+      limiteCredito: p.limiteCredito ?? '',
+      descuentoHabitual: p.descuentoHabitual ?? '',
+    });
     setIsEditing(true);
     setView('form');
   };
@@ -204,19 +223,19 @@ function ProveedoresList() {
               {/* ── Datos básicos ── */}
               <div className="prov-field prov-field--full">
                 <label>Nombre <span className="prov-required">*</span></label>
-                <input name="nombre" value={form.nombre} onChange={handleChange} placeholder="Razón social o nombre comercial" required />
+                <input name="nombre" value={form.nombre} onChange={handleChange} placeholder="Razón social o nombre comercial" required maxLength={150} />
               </div>
               <div className="prov-field">
                 <label>RUC / Cédula Jurídica</label>
-                <input name="ruc" value={form.ruc} onChange={handleChange} placeholder="Ej. 3-101-123456" />
+                <input name="ruc" value={form.ruc} onChange={handleChange} placeholder="Ej. 3-101-123456" maxLength={50} />
               </div>
               <div className="prov-field">
                 <label>Teléfono</label>
-                <input name="telefono" value={form.telefono} onChange={handleChange} placeholder="+506 2222-3333" />
+                <input name="telefono" value={form.telefono} onChange={handleChange} placeholder="+506 2222-3333" maxLength={30} />
               </div>
               <div className="prov-field">
                 <label>Correo electrónico</label>
-                <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="ventas@proveedor.com" />
+                <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="ventas@proveedor.com" maxLength={200} />
               </div>
               <div className="prov-field">
                 <label>Moneda <span className="prov-required">*</span></label>
@@ -235,7 +254,7 @@ function ProveedoresList() {
               {form.tipoPago === 'credito' && (
                 <div className="prov-field">
                   <label>Días de crédito</label>
-                  <input type="number" name="diasCredito" value={form.diasCredito} onChange={handleChange} min="1" placeholder="30" />
+                  <input type="number" name="diasCredito" value={form.diasCredito} onChange={handleChange} min="1" max="365" step="1" placeholder="30" />
                 </div>
               )}
 
@@ -243,15 +262,15 @@ function ProveedoresList() {
               <div className="prov-form-divider prov-field--full"><span>Contacto comercial</span></div>
               <div className="prov-field">
                 <label>Persona de contacto</label>
-                <input name="contacto" value={form.contacto} onChange={handleChange} placeholder="Nombre del representante" />
+                <input name="contacto" value={form.contacto} onChange={handleChange} placeholder="Nombre del representante" maxLength={200} />
               </div>
               <div className="prov-field">
                 <label>WhatsApp</label>
-                <input name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+506 8888-7777" />
+                <input name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+506 8888-7777" maxLength={30} />
               </div>
               <div className="prov-field prov-field--full">
                 <label>Sitio web</label>
-                <input name="sitioWeb" value={form.sitioWeb} onChange={handleChange} placeholder="https://proveedor.com" />
+                <input type="url" name="sitioWeb" value={form.sitioWeb} onChange={handleChange} placeholder="https://proveedor.com" maxLength={300} />
               </div>
 
               {/* ── Clasificación ── */}
@@ -278,39 +297,39 @@ function ProveedoresList() {
               </div>
               <div className="prov-field">
                 <label>País de origen</label>
-                <input name="paisOrigen" value={form.paisOrigen} onChange={handleChange} placeholder="Ej. Costa Rica, EE.UU." />
+                <input name="paisOrigen" value={form.paisOrigen} onChange={handleChange} placeholder="Ej. Costa Rica, EE.UU." maxLength={200} />
               </div>
               <div className="prov-field">
                 <label>Tiempo de entrega (días)</label>
-                <input type="number" name="tiempoEntregaDias" value={form.tiempoEntregaDias} onChange={handleChange} min="0" placeholder="3" />
+                <input type="number" name="tiempoEntregaDias" value={form.tiempoEntregaDias} onChange={handleChange} min="0" max="365" step="1" placeholder="3" />
               </div>
 
               {/* ── Financiero ── */}
               <div className="prov-form-divider prov-field--full"><span>Financiero</span></div>
               <div className="prov-field">
                 <label>Límite de crédito</label>
-                <input type="number" name="limiteCredito" value={form.limiteCredito} onChange={handleChange} min="0" placeholder="0.00" />
+                <input type="number" name="limiteCredito" value={form.limiteCredito} onChange={handleChange} min="0" step="0.01" placeholder="0.00" />
               </div>
               <div className="prov-field">
                 <label>Descuento habitual (%)</label>
-                <input type="number" name="descuentoHabitual" value={form.descuentoHabitual} onChange={handleChange} min="0" max="100" placeholder="0" />
+                <input type="number" name="descuentoHabitual" value={form.descuentoHabitual} onChange={handleChange} min="0" max="100" step="0.01" placeholder="0" />
               </div>
               <div className="prov-field">
                 <label>Banco</label>
-                <input name="banco" value={form.banco} onChange={handleChange} placeholder="Ej. BCR, BAC, Davivienda" />
+                <input name="banco" value={form.banco} onChange={handleChange} placeholder="Ej. BCR, BAC, Davivienda" maxLength={200} />
               </div>
               <div className="prov-field">
                 <label>Cuenta bancaria</label>
-                <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange} placeholder="Número de cuenta o IBAN" />
+                <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange} placeholder="Número de cuenta o IBAN" maxLength={100} />
               </div>
 
               <div className="prov-field prov-field--full">
                 <label>Dirección</label>
-                <input name="direccion" value={form.direccion} onChange={handleChange} placeholder="Dirección física o provincia" />
+                <input name="direccion" value={form.direccion} onChange={handleChange} placeholder="Dirección física o provincia" maxLength={300} />
               </div>
               <div className="prov-field prov-field--full">
                 <label>Notas</label>
-                <textarea name="notas" value={form.notas} onChange={handleChange} placeholder="Condiciones especiales, productos que provee, contacto comercial…" rows={2} />
+                <textarea name="notas" value={form.notas} onChange={handleChange} placeholder="Condiciones especiales, productos que provee, contacto comercial…" rows={2} maxLength={2000} />
               </div>
             </div>
 
@@ -330,6 +349,7 @@ function ProveedoresList() {
     if (!selectedProveedor) return null;
 
     const p = selectedProveedor;
+    const sitioWebHref = safeHref(p.sitioWeb);
     return (
       <div className="lote-hub">
         <button className="lote-hub-back" onClick={() => setSelectedProveedor(null)}>
@@ -383,7 +403,7 @@ function ProveedoresList() {
         <div className="prov-detail-sections">
 
           {/* Contacto */}
-          {(p.contacto || p.telefono || p.whatsapp || p.email || p.sitioWeb) && (
+          {(p.contacto || p.telefono || p.whatsapp || p.email || sitioWebHref) && (
             <div className="prov-detail-section">
               <h4 className="prov-detail-section-title">Contacto</h4>
               <div className="prov-detail-rows">
@@ -415,11 +435,11 @@ function ProveedoresList() {
                     <span className="prov-detail-value">{p.email}</span>
                   </div>
                 )}
-                {p.sitioWeb && (
+                {sitioWebHref && (
                   <div className="prov-detail-row">
                     <FiGlobe size={13} />
                     <span className="prov-detail-label">Sitio web</span>
-                    <a href={p.sitioWeb} target="_blank" rel="noreferrer">{p.sitioWeb}</a>
+                    <a href={sitioWebHref} target="_blank" rel="noopener noreferrer">{p.sitioWeb}</a>
                   </div>
                 )}
               </div>
@@ -493,7 +513,7 @@ function ProveedoresList() {
                   <FiClock size={13} />
                   <span className="prov-detail-label">Entrega</span>
                   <span className="prov-detail-value">
-                    {p.tiempoEntregaDias} día{p.tiempoEntregaDias != 1 ? 's' : ''}
+                    {p.tiempoEntregaDias} día{Number(p.tiempoEntregaDias) !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>
@@ -551,17 +571,20 @@ function ProveedoresList() {
             </div>
           )}
 
+          {view !== 'form' && (
+            <div className="lote-page-header">
+              <h2 className="lote-page-title">Proveedores</h2>
+              <button className="btn btn-primary" onClick={handleNew}>
+                <FiPlus /> Nuevo Proveedor
+              </button>
+            </div>
+          )}
+
           <div className="lote-management-layout">
             {renderMainPanel()}
 
             {view !== 'form' && (
               <div className="lote-list-panel">
-                <div className="prov-list-header">
-                  <h3 className="lote-list-title">Proveedores</h3>
-                  <button className="btn btn-primary" onClick={handleNew}>
-                    <FiPlus /> Nuevo Proveedor
-                  </button>
-                </div>
                 {loading ? (
                   <p className="hub-loading">Cargando…</p>
                 ) : (
