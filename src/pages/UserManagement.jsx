@@ -8,12 +8,21 @@ import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador' };
+const LIMITS = { nombre: 80, email: 120, telefono: 20 };
+const VALID_ROLES = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^[\d\s+\-()]+$/;
 
 const getInitials = (nombre) => {
   if (!nombre) return '?';
   const parts = nombre.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const firstName = (nombre) => {
+  if (!nombre || typeof nombre !== 'string') return '';
+  return nombre.trim().split(/\s+/)[0] || '';
 };
 
 function UserManagement() {
@@ -24,6 +33,7 @@ function UserManagement() {
   const [view, setView] = useState('hub'); // 'hub' | 'form'
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -50,7 +60,15 @@ function UserManagement() {
     if (!raw) return;
     try {
       const draft = JSON.parse(raw);
-      setFormData(draft.formData);
+      const f = draft?.formData;
+      if (!f || typeof f !== 'object') { clearDraft(); return; }
+      setFormData({
+        id: null,
+        nombre: typeof f.nombre === 'string' ? f.nombre : '',
+        email: typeof f.email === 'string' ? f.email : '',
+        telefono: typeof f.telefono === 'string' ? f.telefono : '',
+        rol: VALID_ROLES.includes(f.rol) ? f.rol : 'trabajador',
+      });
       setView('form');
       setIsEditing(false);
     } catch { clearDraft(); }
@@ -103,21 +121,41 @@ function UserManagement() {
   };
 
   const handleDelete = async (userId) => {
-    if (window.confirm('¿Seguro que quieres eliminar a este usuario?')) {
-      try {
-        const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Error al eliminar');
-        if (selectedUser?.id === userId) setSelectedUser(null);
-        fetchUsers();
-        showToast('Usuario eliminado correctamente');
-      } catch {
-        showToast('Error al eliminar el usuario.', 'error');
+    if (!window.confirm('¿Seguro que quieres eliminar a este usuario?')) return;
+    try {
+      const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Error al eliminar');
       }
+      if (selectedUser?.id === userId) setSelectedUser(null);
+      fetchUsers();
+      showToast('Usuario eliminado correctamente');
+    } catch (err) {
+      showToast(err.message || 'Error al eliminar el usuario.', 'error');
     }
+  };
+
+  const validateForm = () => {
+    const nombre = formData.nombre.trim();
+    const email = formData.email.trim();
+    const telefono = formData.telefono.trim();
+    if (nombre.length < 2 || nombre.length > LIMITS.nombre) return `Nombre: 2–${LIMITS.nombre} caracteres.`;
+    if (!EMAIL_RE.test(email) || email.length > LIMITS.email) return 'Email inválido.';
+    if (telefono && (!PHONE_RE.test(telefono) || telefono.length > LIMITS.telefono)) return 'Teléfono inválido.';
+    if (!VALID_ROLES.includes(formData.rol)) return 'Rol inválido.';
+    return null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    const validationError = validateForm();
+    if (validationError) {
+      showToast(validationError, 'error');
+      return;
+    }
+    setSubmitting(true);
     const url = isEditing ? `/api/users/${formData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
     try {
@@ -126,10 +164,14 @@ function UserManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      if (!res.ok) throw new Error('Error al guardar');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Error al guardar');
+      }
       const saved = await res.json();
       const savedId = isEditing ? formData.id : saved.id;
-      const newUsers = await apiFetch('/api/users').then(r => r.json());
+      const listRes = await apiFetch('/api/users');
+      const newUsers = listRes.ok ? await listRes.json() : [];
       setUsers(newUsers);
       if (savedId) {
         const found = newUsers.find(u => u.id === savedId);
@@ -137,8 +179,10 @@ function UserManagement() {
       }
       resetForm();
       showToast(isEditing ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente');
-    } catch {
-      showToast('Ocurrió un error al guardar.', 'error');
+    } catch (err) {
+      showToast(err.message || 'Ocurrió un error al guardar.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -202,7 +246,7 @@ function UserManagement() {
               onClick={() => selectedUser?.id === user.id ? setSelectedUser(null) : handleSelectUser(user)}
             >
               <span className="lote-bubble-avatar">{getInitials(user.nombre)}</span>
-              <span className="lote-bubble-label">{user.nombre.split(' ')[0]}</span>
+              <span className="lote-bubble-label">{firstName(user.nombre)}</span>
             </button>
           ))}
           <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
@@ -234,15 +278,15 @@ function UserManagement() {
                 <div className="form-grid">
                   <div className="form-control">
                     <label htmlFor="nombre">Nombre Completo</label>
-                    <input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} required />
+                    <input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} maxLength={LIMITS.nombre} required />
                   </div>
                   <div className="form-control">
                     <label htmlFor="email">Email</label>
-                    <input id="email" name="email" value={formData.email} onChange={handleInputChange} type="email" required />
+                    <input id="email" name="email" value={formData.email} onChange={handleInputChange} type="email" maxLength={LIMITS.email} required />
                   </div>
                   <div className="form-control">
                     <label htmlFor="telefono">Teléfono</label>
-                    <input id="telefono" name="telefono" value={formData.telefono} onChange={handleInputChange} required />
+                    <input id="telefono" name="telefono" value={formData.telefono} onChange={handleInputChange} type="tel" maxLength={LIMITS.telefono} required />
                   </div>
                   <div className="form-control">
                     <label htmlFor="rol">Rol</label>
@@ -256,11 +300,11 @@ function UserManagement() {
                   </div>
                 </div>
                 <div className="form-actions">
-                  <button type="submit" className="btn btn-primary">
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
                     <FiUserPlus />
-                    {isEditing ? 'Actualizar Usuario' : 'Guardar Usuario'}
+                    {submitting ? 'Guardando...' : (isEditing ? 'Actualizar Usuario' : 'Guardar Usuario')}
                   </button>
-                  <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
+                  <button type="button" onClick={resetForm} className="btn btn-secondary" disabled={submitting}>Cancelar</button>
                 </div>
               </form>
             </div>
