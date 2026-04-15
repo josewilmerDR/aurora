@@ -5,6 +5,24 @@ const { verifyOwnership } = require('../lib/helpers');
 
 const router = Router();
 
+const MAX_CODIGO = 30;
+const MAX_DESCRIPCION = 200;
+const MAX_OBSERVACION = 1000;
+
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+function buildLaborDoc(body) {
+  const descripcion = str(body.descripcion, MAX_DESCRIPCION);
+  if (!descripcion) return { error: 'La descripción es obligatoria.' };
+  return {
+    data: {
+      codigo: str(body.codigo, MAX_CODIGO),
+      descripcion,
+      observacion: str(body.observacion, MAX_OBSERVACION),
+    },
+  };
+}
+
 // ── Labores ────────────────────────────────────────────────────────────────
 router.get('/api/labores', authenticate, async (req, res) => {
   try {
@@ -13,7 +31,7 @@ router.get('/api/labores', authenticate, async (req, res) => {
       .get();
     const items = snapshot.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (parseInt(a.codigo) || 0) - (parseInt(b.codigo) || 0));
+      .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, { numeric: true, sensitivity: 'base' }));
     res.json(items);
   } catch (error) {
     console.error('Error al obtener labores:', error);
@@ -23,12 +41,10 @@ router.get('/api/labores', authenticate, async (req, res) => {
 
 router.post('/api/labores', authenticate, async (req, res) => {
   try {
-    const allowed = ['codigo', 'descripcion', 'observacion'];
-    const data = Object.fromEntries(
-      Object.entries(req.body).filter(([k]) => allowed.includes(k))
-    );
-    data.fincaId = req.fincaId;
-    // Upsert by código if provided
+    const { error, data } = buildLaborDoc(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    // Upsert by código if provided (scoped to finca)
     if (data.codigo) {
       const existing = await db.collection('labores')
         .where('fincaId', '==', req.fincaId)
@@ -36,13 +52,15 @@ router.post('/api/labores', authenticate, async (req, res) => {
         .limit(1).get();
       if (!existing.empty) {
         const doc = existing.docs[0];
-        const { fincaId, ...updateData } = data;
-        await doc.ref.update({ ...updateData, actualizadoEn: Timestamp.now() });
+        await doc.ref.update({ ...data, actualizadoEn: Timestamp.now() });
         return res.status(200).json({ id: doc.id, merged: true });
       }
     }
-    data.creadoEn = Timestamp.now();
-    const doc = await db.collection('labores').add(data);
+    const doc = await db.collection('labores').add({
+      ...data,
+      fincaId: req.fincaId,
+      creadoEn: Timestamp.now(),
+    });
     res.status(201).json({ id: doc.id, merged: false });
   } catch (error) {
     console.error('Error al crear labor:', error);
@@ -54,10 +72,9 @@ router.put('/api/labores/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const allowed = ['codigo', 'descripcion', 'observacion'];
-    const data = Object.fromEntries(
-      Object.entries(req.body).filter(([k]) => allowed.includes(k))
-    );
+
+    const { error, data } = buildLaborDoc(req.body);
+    if (error) return res.status(400).json({ message: error });
     await db.collection('labores').doc(req.params.id).update({ ...data, actualizadoEn: Timestamp.now() });
     res.json({ message: 'Labor actualizada.' });
   } catch (error) {

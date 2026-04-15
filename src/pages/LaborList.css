@@ -148,23 +148,6 @@
   letter-spacing: 0;
 }
 
-.lab-add-inline {
-  margin-left: auto;
-  background: none;
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  color: rgba(230, 242, 255, 0.5);
-  cursor: pointer;
-  padding: 3px 6px;
-  display: flex;
-  align-items: center;
-  transition: color 0.15s, border-color 0.15s;
-}
-.lab-add-inline:hover {
-  color: var(--aurora-green);
-  border-color: var(--aurora-green);
-}
-
 /* ── Empty state ── */
 .lab-empty {
   color: rgba(230, 242, 255, 0.4);
@@ -269,3 +252,14 @@
   color: #ff5555;
   border-color: var(--aurora-border);
 }
+
+/* ── Mobile ── */
+@media (max-width: 560px) {
+  .lab-toolbar { flex-wrap: wrap; justify-content: stretch; }
+  .lab-search { max-width: none; width: 100%; }
+  .lab-form-grid { grid-template-columns: 1fr; }
+  .lab-form-actions { flex-direction: column-reverse; }
+  .lab-form-actions .btn { width: 100%; justify-content: center; }
+  .lab-td-obs { max-width: 160px; }
+}
+
