@@ -435,7 +435,7 @@ function RegistroHorimetro() {
     setPendingLines([]);
   };
 
-  // Construye el objeto `combustible` para una línea dada (form o pendingLine)
+  // Build the `combustible` object for a given line (form or pendingLine)
   const buildCombustiblePayload = (line) => {
     const tasa = fuelBodegaId ? (tasasCombustible[line.tractorId] ?? null) : null;
     const ini  = parseFloat(line.horimetroInicial);
