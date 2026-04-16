@@ -31,7 +31,7 @@ export default function Login() {
     setError('');
     try {
       await loginWithGoogle();
-      // Mantener estado de carga — useEffect navegará cuando el contexto resuelva
+      // Keep loading state — useEffect will navigate when context resolves
     } catch (err) {
       setGoogleLoading(false);
       if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
