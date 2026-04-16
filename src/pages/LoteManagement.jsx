@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
 import { useApiFetch } from '../hooks/useApiFetch';
 
-// ── Helpers de módulo ─────────────────────────────────────────────────────────
+// ── Module helpers ───────────────────────────────────────────────────────────
 const formatDateLong = (date) => {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -112,7 +112,7 @@ function LoteManagement() {
     apiFetch('/api/config').then(res => res.json()).then(setEmpresaConfig).catch(console.error);
   }, []);
 
-  // Restaura borrador al montar (sobrevive navegación y cierre de pestaña)
+  // Restore draft on mount (survives navigation and tab close)
   useEffect(() => {
     const draft = loadLoteDraft();
     if (!isLoteDraftMeaningful(draft)) return;
@@ -122,7 +122,7 @@ function LoteManagement() {
     try { sessionStorage.setItem(DRAFT_SS, '1'); window.dispatchEvent(new CustomEvent('aurora-draft-change')); } catch {}
   }, []);
 
-  // Guarda borrador en cada cambio del formulario de creación
+  // Save draft on every change to the creation form
   useEffect(() => {
     if (isEditing || view !== 'form') return;
     const { codigoLote, nombreLote, fechaCreacion } = formData;
@@ -215,7 +215,7 @@ function LoteManagement() {
     }));
   }, [loteBloqueSorted]);
 
-  // ── Preview (PDF / impresión) ────────────────────────────────────────────
+  // ── Preview (PDF / print) ───────────────────────────────────────────────
   const previewGrouped = useMemo(() => {
     if (!previewLote) return [];
     const map = new Map();
