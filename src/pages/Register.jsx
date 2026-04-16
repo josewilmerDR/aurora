@@ -30,9 +30,9 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Navegar al dashboard en cuanto el login esté completo (currentUser cargado),
-  // o al OrgSelector si el usuario ya tiene membresías pero sin finca activa
-  // (cubre Google sign-in donde el UserContext ya reclamó invitaciones pendientes)
+  // Navigate to dashboard once login is complete (currentUser loaded),
+  // or to OrganizationSelector if the user has memberships but no active finca
+  // (covers Google sign-in where UserContext already claimed pending invitations)
   useEffect(() => {
     if (isLoggedIn) navigate('/', { replace: true });
     else if (needsOrgSelection) navigate('/', { replace: true });

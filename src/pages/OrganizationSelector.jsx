@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/apiFetch';
 import './Login.css';
 
-export default function OrgSelector() {
+export default function OrganizationSelector() {
   const { memberships, selectFinca, firebaseUser, logout, refreshMemberships } = useUser();
   const navigate = useNavigate();
   const [checking, setChecking] = useState(false);

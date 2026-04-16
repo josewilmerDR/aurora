@@ -3,9 +3,9 @@ import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPl
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './ConfiguracionInicial.css';
+import './InitialSetup.css';
 
-// ── Guardarraíles de importación ─────────────────────────────────────────────
+// ── Import guardrails ────────────────────────────────────────────────────────
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_ROWS       = 5000;
 
@@ -879,7 +879,7 @@ function EmpleadosCard() {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-function ConfiguracionInicial() {
+function InitialSetup() {
   return (
     <div className="ci-wrap">
       <div className="ci-intro">
@@ -902,4 +902,4 @@ function ConfiguracionInicial() {
   );
 }
 
-export default ConfiguracionInicial;
+export default InitialSetup;

@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { FiEdit2, FiSave, FiX, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './Parametros.css';
+import './Parameters.css';
 
-// ── Definición de parámetros ──────────────────────────────────────────────────
+// ── Parameter definitions ────────────────────────────────────────────────────
 const SECTIONS = [
   {
     title: 'Tiempos de Cosecha',
@@ -118,7 +118,7 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-function Parametros() {
+function Parameters() {
   const apiFetch = useApiFetch();
   const [saved,       setSaved]       = useState(DEFAULTS);
   const [draft,       setDraft]       = useState(DEFAULTS);
@@ -227,4 +227,4 @@ function Parametros() {
   );
 }
 
-export default Parametros;
+export default Parameters;

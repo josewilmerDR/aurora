@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { FiUpload, FiSave, FiX } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './ConfigCuenta.css';
+import './AccountSettings.css';
 
-function ConfigCuenta() {
+function AccountSettings() {
   const apiFetch = useApiFetch();
   const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', representanteLegal: '', administrador: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 });
   const [logoUrl, setLogoUrl] = useState('');
@@ -207,4 +207,4 @@ function ConfigCuenta() {
   );
 }
 
-export default ConfigCuenta;
+export default AccountSettings;
