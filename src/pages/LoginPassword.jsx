@@ -9,7 +9,7 @@ export default function LoginPassword() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Si llegan sin email (acceso directo a la URL), volver al login
+  // If they arrive without email (direct URL access), redirect to login
   const emailFromState = location.state?.email || '';
   useEffect(() => {
     if (!emailFromState) navigate('/login', { replace: true });

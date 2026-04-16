@@ -1,12 +1,13 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticateOnly, authenticate } = require('../lib/middleware');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
-// GET /api/auth/memberships — lista las fincas del usuario autenticado
+// GET /api/auth/memberships — list the authenticated user's fincas
 router.get('/api/auth/memberships', authenticateOnly, async (req, res) => {
   try {
     const snap = await db.collection('memberships')
@@ -26,11 +27,11 @@ router.get('/api/auth/memberships', authenticateOnly, async (req, res) => {
     res.status(200).json({ memberships });
   } catch (error) {
     console.error('[AUTH] Error fetching memberships:', error);
-    res.status(500).json({ message: 'Error al obtener las organizaciones.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch memberships.', 500);
   }
 });
 
-// GET /api/auth/me — perfil del usuario en la finca activa
+// GET /api/auth/me — user profile in the active finca
 router.get('/api/auth/me', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('memberships')
@@ -38,11 +39,13 @@ router.get('/api/auth/me', authenticate, async (req, res) => {
       .where('fincaId', '==', req.fincaId)
       .limit(1)
       .get();
-    if (snap.empty) return res.status(404).json({ message: 'Perfil no encontrado.' });
+    if (snap.empty) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Membership profile not found.', 404);
+    }
     const membership = snap.docs[0].data();
     const fincaDoc = await db.collection('fincas').doc(req.fincaId).get();
 
-    // Buscar el doc ID del usuario en la colección users (por email)
+    // Find the user's doc ID in the users collection (by email)
     let userId = null;
     if (req.userEmail) {
       const userSnap = await db.collection('users')
@@ -60,16 +63,16 @@ router.get('/api/auth/me', authenticate, async (req, res) => {
       fincaNombre: fincaDoc.exists ? fincaDoc.data().nombre : '',
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener el perfil.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch user profile.', 500);
   }
 });
 
-// POST /api/auth/register-finca — crea una nueva finca y el admin inicial
+// POST /api/auth/register-finca — create a new finca and its initial admin
 router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
   try {
     const { fincaNombre, nombreAdmin } = req.body;
     if (!fincaNombre || !nombreAdmin) {
-      return res.status(400).json({ message: 'fincaNombre y nombreAdmin son requeridos.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fincaNombre and nombreAdmin are required.', 400);
     }
     const fincaRef = db.collection('fincas').doc();
     const batch = db.batch();
@@ -91,20 +94,22 @@ router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
       creadoEn: Timestamp.now(),
     });
     await batch.commit();
-    res.status(201).json({ fincaId: fincaRef.id, message: 'Organización creada exitosamente.' });
+    res.status(201).json({ fincaId: fincaRef.id, code: 'FINCA_CREATED' });
   } catch (error) {
     console.error('[AUTH] Error creating finca:', error);
-    res.status(500).json({ message: 'Error al crear la organización.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create organization.', 500);
   }
 });
 
-// POST /api/auth/claim-invitations — vincula al usuario con las fincas donde fue agregado por email
+// POST /api/auth/claim-invitations — link the user to fincas where they were added by email
 router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) => {
   try {
     const { uid, userEmail } = req;
-    if (!userEmail) return res.status(400).json({ message: 'No se encontró email en el token.' });
+    if (!userEmail) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'No email found in token.', 400);
+    }
 
-    // Buscar registros en 'users' que coincidan con este email
+    // Find user records that match this email
     const usersSnap = await db.collection('users').where('email', '==', userEmail).get();
     if (usersSnap.empty) return res.status(200).json({ memberships: [] });
 
@@ -116,7 +121,7 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       const { fincaId, nombre, rol, telefono } = userData;
       if (!fincaId) continue;
 
-      // Verificar si ya existe una membresía para este uid + finca
+      // Check if a membership already exists for this uid + finca
       const existingSnap = await db.collection('memberships')
         .where('uid', '==', uid)
         .where('fincaId', '==', fincaId)
@@ -128,11 +133,11 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
         continue;
       }
 
-      // Obtener el nombre de la finca
+      // Fetch finca name
       const fincaDoc = await db.collection('fincas').doc(fincaId).get();
       const fincaNombre = fincaDoc.exists ? fincaDoc.data().nombre : fincaId;
 
-      // Crear la membresía
+      // Create the membership
       const membershipRef = db.collection('memberships').doc();
       const membershipData = {
         uid,
@@ -146,7 +151,7 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       };
       batch.set(membershipRef, membershipData);
 
-      // Actualizar el doc de usuario con el uid para futuras referencias
+      // Update the user doc with the uid for future reference
       batch.update(userDoc.ref, { uid });
 
       newMemberships.push({ id: membershipRef.id, ...membershipData });
@@ -156,7 +161,7 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
     res.status(200).json({ memberships: newMemberships });
   } catch (error) {
     console.error('[AUTH] Error claiming invitations:', error);
-    res.status(500).json({ message: 'Error al reclamar invitaciones.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to claim invitations.', 500);
   }
 });
 

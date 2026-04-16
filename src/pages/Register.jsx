@@ -18,7 +18,7 @@ export default function Register() {
   const navigate = useNavigate();
   const { refreshMemberships, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
 
-  const [step, setStep] = useState(1); // 1: cuenta, 2: datos de la finca
+  const [step, setStep] = useState(1); // 1: account, 2: finca data
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -37,13 +37,13 @@ export default function Register() {
     if (isLoggedIn) navigate('/', { replace: true });
     else if (needsOrgSelection) navigate('/', { replace: true });
     else if (needsSetup && step === 1) {
-      // Antes de mostrar el formulario de creación de organización,
-      // intentar reclamar membresías pendientes (usuario fue agregado por un admin previamente)
+      // Before showing the organization creation form,
+      // attempt to claim pending memberships (user was previously added by an admin)
       apiFetch('/api/auth/claim-invitations', { method: 'POST' })
         .then(res => res.ok ? res.json() : { memberships: [] })
         .then(async (data) => {
           if (data.memberships?.length > 0) {
-            // Tiene invitaciones → recargar membresías, isLoggedIn se volverá true y navegará a /
+            // Has invitations → reload memberships, isLoggedIn becomes true and navigates to /
             await refreshMemberships();
           } else {
             setStep(2);
@@ -55,7 +55,7 @@ export default function Register() {
 
   const passwordValid = PASSWORD_RULES.every(r => r.test(password));
 
-  // Paso 1: crear cuenta con email/password
+  // Step 1: create account with email/password
   const handleAccountStep = (e) => {
     e.preventDefault();
     if (!passwordValid) {
@@ -70,39 +70,39 @@ export default function Register() {
     setStep(2);
   };
 
-  // Paso 2: crear la finca en el backend
+  // Step 2: create the finca in the backend
   const handleFincaStep = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setError('');
     try {
-      // Solo crear cuenta email/password si el usuario NO está ya autenticado (ej. con Google)
+      // Only create email/password account if the user is NOT already authenticated (e.g. via Google)
       if (!auth.currentUser) {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      // Verificar invitaciones pendientes ANTES de crear una nueva organización.
-      // Si el usuario fue agregado previamente por un admin, no debe crear una org nueva.
+      // Check for pending invitations BEFORE creating a new organization.
+      // If the user was previously added by an admin, they should not create a new org.
       const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
       if (claimRes.ok) {
         const claimData = await claimRes.json();
         if (claimData.memberships?.length > 0) {
-          // Tiene invitaciones → recargar membresías y dejar que el useEffect navegue
+          // Has invitations → reload memberships and let useEffect navigate
           await refreshMemberships();
           return;
         }
       }
-      // Sin invitaciones → crear la organización solicitada
+      // No invitations → create the requested organization
       const res = await apiFetch('/api/auth/register-finca', {
         method: 'POST',
         body: JSON.stringify({ fincaNombre, nombreAdmin }),
       });
       if (!res.ok) {
         let msg = 'Error al crear la finca. Intenta de nuevo.';
-        try { msg = (await res.json()).message || msg; } catch { /* respuesta no es JSON (emulador en cold start) */ }
+        try { msg = (await res.json()).message || msg; } catch { /* response is not JSON (emulator cold start) */ }
         throw new Error(msg);
       }
-      // Recargar membresías para que UserContext sepa que ya hay finca → isLoggedIn = true
-      // La navegación la maneja el useEffect que observa isLoggedIn
+      // Reload memberships so UserContext knows there is a finca → isLoggedIn = true
+      // Navigation is handled by the useEffect that watches isLoggedIn
       await refreshMemberships();
     } catch (err) {
       const code = err.code;
@@ -118,13 +118,13 @@ export default function Register() {
     }
   };
 
-  // Registrarse con Google (directo al paso 2)
+  // Register with Google (goes directly to step 2)
   const handleGoogle = async () => {
     setGoogleLoading(true);
     setError('');
     try {
       await signInWithPopup(auth, googleProvider);
-      // Mantener estado de carga — el useEffect navegará o irá al paso 2 cuando needsSetup resuelva
+      // Keep loading state — useEffect will navigate or go to step 2 when needsSetup resolves
     } catch (err) {
       setGoogleLoading(false);
       if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
