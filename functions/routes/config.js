@@ -1,16 +1,17 @@
 const { Router } = require('express');
 const { admin, db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-// --- API ENDPOINTS: CONFIGURACIÓN DE CUENTA ---
+// --- API ENDPOINTS: ACCOUNT CONFIGURATION ---
 router.get('/api/config', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('config').doc(req.fincaId).get();
     res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener configuración.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch config.', 500);
   }
 });
 
@@ -79,7 +80,7 @@ router.put('/api/config', authenticate, async (req, res) => {
     const updated = await db.collection('config').doc(req.fincaId).get();
     res.status(200).json({ id: updated.id, ...updated.data() });
   } catch (error) {
-    res.status(500).json({ message: 'Error al guardar configuración.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save config.', 500);
   }
 });
 
