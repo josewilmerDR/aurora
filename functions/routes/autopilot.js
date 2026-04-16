@@ -11,6 +11,8 @@ const {
   sendWhatsAppToFincaRoles,
 } = require('../lib/helpers');
 
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
+
 const router = Router();
 
 // Build per-user feedback context: hard directives + soft few-shot examples.
@@ -273,20 +275,20 @@ router.get('/api/autopilot/config', authenticate, async (req, res) => {
     res.json({ id: doc.id, ...doc.data() });
   } catch (err) {
     console.error('[AUTOPILOT] Error al obtener config:', err);
-    res.status(500).json({ message: 'Error al obtener configuración del Piloto Automático.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch Autopilot configuration.', 500);
   }
 });
 
 // PUT /api/autopilot/config  (minRole: supervisor)
 router.put('/api/autopilot/config', authenticate, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'supervisor')) {
-    return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
   }
   try {
     const { mode, objectives, guardrails } = req.body;
     const VALID_MODES = ['off', 'nivel1', 'nivel2', 'nivel3'];
     if (mode !== undefined && !VALID_MODES.includes(mode)) {
-      return res.status(400).json({ message: 'Modo inválido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid mode.', 400);
     }
     const ref = db.collection('autopilot_config').doc(req.fincaId);
     const existing = await ref.get();
@@ -319,21 +321,21 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error al guardar config:', err);
-    res.status(500).json({ message: 'Error al guardar la configuración.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save configuration.', 500);
   }
 });
 
 // POST /api/autopilot/analyze  (minRole: encargado)
 router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'encargado')) {
-    return res.status(403).json({ message: 'Se requiere rol de Encargado o superior.' });
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Encargado role or higher required.', 403);
   }
   try {
-    // 1. Leer configuración
+    // 1. Read configuration
     const configDoc = await db.collection('autopilot_config').doc(req.fincaId).get();
     const config = configDoc.exists ? configDoc.data() : { mode: 'off', objectives: '' };
     if (config.mode === 'off') {
-      return res.status(400).json({ message: 'El Piloto Automático está desactivado. Actívalo en Configuración.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Autopilot is disabled. Enable it in Settings.', 400);
     }
 
     const now = new Date();
@@ -443,7 +445,7 @@ router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
 
     const anthropicClient = getAnthropicClient();
 
-    // Contexto de feedback/directivas del usuario que ejecuta el análisis
+    // Feedback/directives context of the user running the analysis
     const { directivesBlock, examplesBlock } = await buildFeedbackContext(req.fincaId, req.uid);
     const feedbackPrefix = [directivesBlock, examplesBlock].filter(Boolean).join('\n\n');
 
@@ -572,7 +574,7 @@ Genera las recomendaciones en formato JSON array.`;
           snapshot, recommendations: [], status: 'error',
           errorMessage: 'No se pudo interpretar la respuesta del modelo.',
         });
-        return res.status(500).json({ message: 'Error al procesar las recomendaciones. Por favor intenta de nuevo.' });
+        return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process recommendations. Please try again.', 500);
       }
 
       const sessionRef = await db.collection('autopilot_sessions').add({
@@ -594,7 +596,7 @@ Genera las recomendaciones en formato JSON array.`;
     }
 
     // ════════════════════════════════════════════════════════════════
-    //  NIVEL 2 — Agencia Supervisada (tool_use → cola de aprobación)
+    //  LEVEL 2 — Supervised agency (tool_use → approval queue)
     // ════════════════════════════════════════════════════════════════
     if (config.mode === 'nivel2') {
       const nivel2Tools = AUTOPILOT_PROPOSE_TOOLS;
@@ -642,7 +644,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
           messages,
         });
 
-        // Extraer texto de resumen de esta iteración
+        // Extract summary text from this iteration
         const textBlocks = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
         if (textBlocks) summaryText += (summaryText ? '\n' : '') + textBlocks;
 
@@ -684,7 +686,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
         messages.push({ role: 'user', content: toolResults });
       }
 
-      // Guardar sesión
+      // Save session
       const sessionRef = await db.collection('autopilot_sessions').add({
         fincaId: req.fincaId, timestamp: Timestamp.now(),
         triggeredBy: req.uid, triggeredByName: req.userEmail,
@@ -693,7 +695,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
         status: 'completed', errorMessage: null,
       });
 
-      // Guardar cada acción propuesta
+      // Save each proposed action
       const nowTs = Timestamp.now();
       const actionRefs = [];
       for (const action of proposedActions) {
@@ -758,12 +760,12 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
     }
 
     // ════════════════════════════════════════════════════════════════
-    //  NIVEL 3 — Agencia Total (ejecución directa con barandillas)
+    //  LEVEL 3 — Full agency (direct execution with guardrails)
     // ════════════════════════════════════════════════════════════════
     if (config.mode === 'nivel3') {
       const guardrails = config.guardrails || {};
 
-      // Lookup maps para validación de barandillas
+      // Lookup maps for guardrail validation
       const taskLoteMap = {};
       tasksSnap.docs.forEach(doc => { taskLoteMap[doc.id] = doc.data().loteId || null; });
       const productStockMap = {};
@@ -952,7 +954,7 @@ ${snapshotTextEnriched}
 
 Analiza el estado y ejecuta las acciones necesarias usando las herramientas disponibles.`;
 
-      // Agentic loop con ejecución gated por barandillas
+      // Agentic loop with guardrail-gated execution
       const allActions = [];
       let executedCount = 0;
       const messages = [{ role: 'user', content: userMessageN3 }];
@@ -1070,7 +1072,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
         messages.push({ role: 'user', content: toolResults });
       }
 
-      // Guardar sesión
+      // Save session
       const executedActions = allActions.filter(a => a.status === 'executed');
       const escalatedActions = allActions.filter(a => a.escalated);
       const failedActions = allActions.filter(a => a.status === 'failed');
@@ -1086,7 +1088,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
         status: 'completed', errorMessage: null,
       });
 
-      // Guardar cada acción
+      // Save each action
       const nowTs = Timestamp.now();
       const actionRefs = [];
       for (const action of allActions) {
@@ -1116,7 +1118,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
         actionRefs.push({ id: ref.id, ...action });
       }
 
-      // Feed events — cada acción ejecutada + resumen de sesión
+      // Feed events — each executed action + session summary
       for (const action of executedActions) {
         writeFeedEvent({
           fincaId: req.fincaId, userName: 'Aurora Copiloto',
@@ -1184,11 +1186,11 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
     }
 
     // Modo no reconocido
-    return res.status(400).json({ message: 'Modo del Piloto Automático no soportado.' });
+    return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Unsupported Autopilot mode.', 400);
 
   } catch (err) {
     console.error('[AUTOPILOT] Error en analyze:', err);
-    res.status(500).json({ message: 'Error interno al ejecutar el análisis.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Internal error running analysis.', 500);
   }
 });
 
@@ -1198,12 +1200,12 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
 // executes), even if the user says "ejecuta" — the supervisor approves.
 router.post('/api/autopilot/command', authenticate, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'encargado')) {
-    return res.status(403).json({ message: 'Se requiere rol de Encargado o superior.' });
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Encargado role or higher required.', 403);
   }
   try {
     const text = String(req.body?.text || '').trim();
-    if (!text) return res.status(400).json({ message: 'El comando no puede estar vacío.' });
-    if (text.length > 2000) return res.status(400).json({ message: 'El comando excede 2000 caracteres.' });
+    if (!text) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Command cannot be empty.', 400);
+    if (text.length > 2000) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Command exceeds 2000 characters.', 400);
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -1264,7 +1266,7 @@ router.post('/api/autopilot/command', authenticate, async (req, res) => {
         };
       });
 
-    // Para comandos: también expone el catálogo completo (no solo bajo stock) —
+    // For commands: also expose the full catalog (not just low stock) —
     // el usuario puede referirse a cualquier producto.
     const allProductos = productosSnap.docs.map(doc => {
       const d = doc.data();
@@ -1424,10 +1426,10 @@ ${text}`;
       messages.push({ role: 'user', content: toolResults });
     }
 
-    // La respuesta es "clarificación" si no hubo ninguna acción propuesta
+    // The response is "clarification" if no actions were proposed
     const clarifying = proposedActions.length === 0;
 
-    // Guardar sesión (trazabilidad + auditoría)
+    // Save session (traceability + audit)
     const sessionRef = await db.collection('autopilot_sessions').add({
       fincaId: req.fincaId,
       timestamp: Timestamp.now(),
@@ -1513,7 +1515,7 @@ ${text}`;
     });
   } catch (err) {
     console.error('[AUTOPILOT] Error en /command:', err);
-    res.status(500).json({ message: 'Error interno al procesar el comando.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Internal error processing command.', 500);
   }
 });
 
@@ -1539,7 +1541,7 @@ router.get('/api/autopilot/sessions', authenticate, async (req, res) => {
     res.json(sessions);
   } catch (err) {
     console.error('[AUTOPILOT] Error al listar sesiones:', err);
-    res.status(500).json({ message: 'Error al obtener sesiones.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch sessions.', 500);
   }
 });
 
@@ -1547,9 +1549,9 @@ router.get('/api/autopilot/sessions', authenticate, async (req, res) => {
 router.get('/api/autopilot/sessions/:id', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('autopilot_sessions').doc(req.params.id).get();
-    if (!doc.exists) return res.status(404).json({ message: 'Sesión no encontrada.' });
+    if (!doc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Session not found.', 404);
     const d = doc.data();
-    if (d.fincaId !== req.fincaId) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    if (d.fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     res.json({
       id: doc.id,
       timestamp: d.timestamp?.toDate?.()?.toISOString() ?? null,
@@ -1560,8 +1562,8 @@ router.get('/api/autopilot/sessions/:id', authenticate, async (req, res) => {
       errorMessage: d.errorMessage || null,
     });
   } catch (err) {
-    console.error('[AUTOPILOT] Error al obtener sesión:', err);
-    res.status(500).json({ message: 'Error al obtener la sesión.' });
+    console.error('[AUTOPILOT] Failed to fetch session:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch session.', 500);
   }
 });
 
@@ -1602,23 +1604,23 @@ router.get('/api/autopilot/actions', authenticate, async (req, res) => {
     res.json(actions);
   } catch (err) {
     console.error('[AUTOPILOT] Error al listar acciones:', err);
-    res.status(500).json({ message: 'Error al obtener acciones.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch actions.', 500);
   }
 });
 
-// PUT /api/autopilot/actions/:id/approve — aprueba y ejecuta una acción (supervisor+)
+// PUT /api/autopilot/actions/:id/approve — approves and executes an action (supervisor+)
 router.put('/api/autopilot/actions/:id/approve', authenticate, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'supervisor')) {
-    return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
   }
   try {
     const docRef = db.collection('autopilot_actions').doc(req.params.id);
     const doc = await docRef.get();
-    if (!doc.exists) return res.status(404).json({ message: 'Acción no encontrada.' });
+    if (!doc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Action not found.', 404);
     const action = doc.data();
-    if (action.fincaId !== req.fincaId) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    if (action.fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     if (action.status !== 'proposed') {
-      return res.status(400).json({ message: `La acción ya fue procesada (${action.status}).` });
+      return sendApiError(res, ERROR_CODES.CONFLICT, `Action already processed (${action.status}).`, 400);
     }
 
     await docRef.update({
@@ -1654,24 +1656,24 @@ router.put('/api/autopilot/actions/:id/approve', authenticate, async (req, res) 
 
     res.json({ ok: true, status: 'executed', executionResult });
   } catch (err) {
-    console.error('[AUTOPILOT] Error al aprobar acción:', err);
-    res.status(500).json({ message: 'Error al aprobar la acción.' });
+    console.error('[AUTOPILOT] Failed to approve action:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to approve action.', 500);
   }
 });
 
-// PUT /api/autopilot/actions/:id/reject — rechaza una acción propuesta (supervisor+)
+// PUT /api/autopilot/actions/:id/reject — rejects a proposed action (supervisor+)
 router.put('/api/autopilot/actions/:id/reject', authenticate, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'supervisor')) {
-    return res.status(403).json({ message: 'Se requiere rol de Supervisor o superior.' });
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
   }
   try {
     const docRef = db.collection('autopilot_actions').doc(req.params.id);
     const doc = await docRef.get();
-    if (!doc.exists) return res.status(404).json({ message: 'Acción no encontrada.' });
+    if (!doc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Action not found.', 404);
     const action = doc.data();
-    if (action.fincaId !== req.fincaId) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    if (action.fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     if (action.status !== 'proposed') {
-      return res.status(400).json({ message: `La acción ya fue procesada (${action.status}).` });
+      return sendApiError(res, ERROR_CODES.CONFLICT, `Action already processed (${action.status}).`, 400);
     }
 
     const { reason } = req.body || {};
@@ -1685,8 +1687,8 @@ router.put('/api/autopilot/actions/:id/reject', authenticate, async (req, res) =
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('[AUTOPILOT] Error al rechazar acción:', err);
-    res.status(500).json({ message: 'Error al rechazar la acción.' });
+    console.error('[AUTOPILOT] Failed to reject action:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to reject action.', 500);
   }
 });
 
@@ -1695,10 +1697,10 @@ router.post('/api/autopilot/feedback', authenticate, async (req, res) => {
   try {
     const { sessionId, targetId, targetType, targetTitle, categoria, nivel, signal, comment } = req.body || {};
     if (!sessionId || !targetId || !['recommendation', 'action'].includes(targetType)) {
-      return res.status(400).json({ message: 'Parámetros inválidos (sessionId, targetId, targetType).' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Invalid params (sessionId, targetId, targetType).', 400);
     }
     if (!['up', 'down'].includes(signal)) {
-      return res.status(400).json({ message: 'signal debe ser "up" o "down".' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'signal must be "up" or "down".', 400);
     }
     const docId = `${req.uid}_${sessionId}_${targetId}`;
     const now = Timestamp.now();
@@ -1720,7 +1722,7 @@ router.post('/api/autopilot/feedback', authenticate, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error al guardar feedback:', err);
-    res.status(500).json({ message: 'Error al guardar feedback.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save feedback.', 500);
   }
 });
 
@@ -1729,14 +1731,14 @@ router.delete('/api/autopilot/feedback', authenticate, async (req, res) => {
   try {
     const { sessionId, targetId } = req.query;
     if (!sessionId || !targetId) {
-      return res.status(400).json({ message: 'Parámetros requeridos: sessionId, targetId.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Required params: sessionId, targetId.', 400);
     }
     const docId = `${req.uid}_${sessionId}_${targetId}`;
     await db.collection('copilot_feedback').doc(docId).delete();
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error al borrar feedback:', err);
-    res.status(500).json({ message: 'Error al borrar feedback.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete feedback.', 500);
   }
 });
 
@@ -1764,7 +1766,7 @@ router.get('/api/autopilot/feedback', authenticate, async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error('[AUTOPILOT] Error al listar feedback:', err);
-    res.status(500).json({ message: 'Error al listar feedback.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to list feedback.', 500);
   }
 });
 
@@ -1789,7 +1791,7 @@ router.get('/api/autopilot/directives', authenticate, async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error('[AUTOPILOT] Error al listar directivas:', err);
-    res.status(500).json({ message: 'Error al listar directivas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to list directives.', 500);
   }
 });
 
@@ -1797,8 +1799,8 @@ router.get('/api/autopilot/directives', authenticate, async (req, res) => {
 router.post('/api/autopilot/directives', authenticate, async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim();
-    if (!text) return res.status(400).json({ message: 'text es requerido.' });
-    if (text.length > 300) return res.status(400).json({ message: 'text máximo 300 caracteres.' });
+    if (!text) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'text is required.', 400);
+    if (text.length > 300) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'text must not exceed 300 characters.', 400);
     const now = Timestamp.now();
     const ref = await db.collection('copilot_directives').add({
       userId: req.uid,
@@ -1811,7 +1813,7 @@ router.post('/api/autopilot/directives', authenticate, async (req, res) => {
     res.json({ id: ref.id, text, createdAt: now.toDate().toISOString() });
   } catch (err) {
     console.error('[AUTOPILOT] Error al crear directiva:', err);
-    res.status(500).json({ message: 'Error al crear directiva.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create directive.', 500);
   }
 });
 
@@ -1820,16 +1822,16 @@ router.delete('/api/autopilot/directives/:id', authenticate, async (req, res) =>
   try {
     const ref = db.collection('copilot_directives').doc(req.params.id);
     const doc = await ref.get();
-    if (!doc.exists) return res.status(404).json({ message: 'Directiva no encontrada.' });
+    if (!doc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Directive not found.', 404);
     const d = doc.data();
     if (d.fincaId !== req.fincaId || d.userId !== req.uid) {
-      return res.status(403).json({ message: 'Acceso no autorizado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     }
     await ref.update({ active: false });
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error al eliminar directiva:', err);
-    res.status(500).json({ message: 'Error al eliminar directiva.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete directive.', 500);
   }
 });
 
