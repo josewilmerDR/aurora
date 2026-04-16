@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FiZap, FiRefreshCw, FiAlertTriangle, FiAlertCircle, FiInfo,
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
   FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
   FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
+  FiMic, FiMicOff, FiMessageSquare,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -478,6 +479,143 @@ function DirectivesPanel({ directives, onAdd, onDelete, saving }) {
   );
 }
 
+// Web Speech API — graceful fallback if not supported (Safari iOS < 14.5, Firefox)
+const SpeechRecognitionImpl =
+  typeof window !== 'undefined' &&
+  (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+function CommandPanel({ onSubmit, sending, lastResponse }) {
+  const [expanded, setExpanded] = useState(false);
+  const [text, setText] = useState('');
+  const [listening, setListening] = useState(false);
+  const [micError, setMicError] = useState(null);
+  const recognitionRef = useRef(null);
+
+  const voiceSupported = !!SpeechRecognitionImpl;
+
+  useEffect(() => {
+    if (!voiceSupported) return;
+    const rec = new SpeechRecognitionImpl();
+    rec.lang = 'es-CR';
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.onresult = (e) => {
+      const transcript = Array.from(e.results).map(r => r[0].transcript).join(' ');
+      setText(prev => (prev ? prev + ' ' : '') + transcript);
+    };
+    rec.onerror = (e) => {
+      setMicError(e.error === 'not-allowed' ? 'Permiso de micrófono denegado.' : `Error de voz: ${e.error}`);
+      setListening(false);
+    };
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    return () => {
+      try { rec.abort(); } catch (_) { /* noop */ }
+    };
+  }, [voiceSupported]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    setMicError(null);
+    if (listening) {
+      recognitionRef.current.stop();
+      setListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setListening(true);
+      } catch (err) {
+        setMicError(err.message || 'No se pudo iniciar el reconocimiento de voz.');
+      }
+    }
+  };
+
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
+    const result = await onSubmit(trimmed);
+    if (result?.ok) setText('');
+  };
+
+  return (
+    <div className="ap-command">
+      <button
+        type="button"
+        className="ap-command-toggle"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <FiMessageSquare size={13} />
+        <span>Comando / Instrucción</span>
+        {expanded ? <FiChevronUp size={13} /> : <FiChevronDown size={13} />}
+      </button>
+      {expanded && (
+        <div className="ap-command-body">
+          <p className="ap-command-help">
+            Dale una instrucción concreta al Piloto Automático. Ej: <i>"Genera una orden de compra de 20 kg de Mancozeb a Almacenes El Éxito"</i> o <i>"Notifícale a María que la tarea del lote Norte se reprograma para el viernes"</i>. Todas las acciones quedan como <strong>propuestas</strong> para aprobación.
+          </p>
+          <div className="ap-command-input-row">
+            <textarea
+              className="ap-command-textarea"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder={voiceSupported
+                ? 'Escribe o pulsa el micrófono para dictar…'
+                : 'Escribe tu instrucción…'}
+              rows={3}
+              maxLength={2000}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend();
+              }}
+            />
+            <div className="ap-command-buttons">
+              {voiceSupported && (
+                <button
+                  type="button"
+                  className={`ap-command-mic ${listening ? 'ap-command-mic--on' : ''}`}
+                  onClick={toggleListening}
+                  disabled={sending}
+                  title={listening ? 'Detener dictado' : 'Dictar por voz'}
+                >
+                  {listening ? <FiMicOff size={14} /> : <FiMic size={14} />}
+                </button>
+              )}
+              <button
+                type="button"
+                className="ap-command-send"
+                onClick={handleSend}
+                disabled={sending || !text.trim()}
+              >
+                <FiSend size={13} />
+                {sending ? 'Enviando…' : 'Enviar'}
+              </button>
+            </div>
+          </div>
+          {micError && (
+            <div className="ap-command-mic-error">
+              <FiAlertTriangle size={11} /> {micError}
+            </div>
+          )}
+          {lastResponse?.clarifyingQuestion && (
+            <div className="ap-command-clarify">
+              <FiInfo size={13} className="ap-command-clarify-icon" />
+              <div>
+                <p className="ap-command-clarify-label">Aurora pregunta:</p>
+                <p className="ap-command-clarify-text">{lastResponse.clarifyingQuestion}</p>
+              </div>
+            </div>
+          )}
+          {lastResponse?.summaryText && !lastResponse?.clarifyingQuestion && (
+            <div className="ap-command-summary">
+              <FiCheck size={12} className="ap-command-summary-icon" />
+              <p>{lastResponse.summaryText}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function AutopilotDashboard() {
@@ -494,6 +632,8 @@ export default function AutopilotDashboard() {
   const [feedbackMap, setFeedbackMap] = useState({});
   const [directives, setDirectives] = useState([]);
   const [directiveSaving, setDirectiveSaving] = useState(false);
+  const [commandSending, setCommandSending] = useState(false);
+  const [commandResponse, setCommandResponse] = useState(null);
 
   // Carga inicial: config + última sesión
   useEffect(() => {
@@ -678,6 +818,34 @@ export default function AutopilotDashboard() {
     }
   };
 
+  const handleSendCommand = async (text) => {
+    setCommandSending(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/autopilot/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error al procesar el comando.');
+      setCommandResponse({
+        summaryText: data.summaryText || '',
+        clarifyingQuestion: data.clarifyingQuestion || null,
+        actionsCount: Array.isArray(data.proposedActions) ? data.proposedActions.length : 0,
+      });
+      if (Array.isArray(data.proposedActions) && data.proposedActions.length > 0) {
+        setProposedActions(prev => [...data.proposedActions, ...prev]);
+      }
+      return { ok: true };
+    } catch (err) {
+      setError(err.message);
+      return { ok: false };
+    } finally {
+      setCommandSending(false);
+    }
+  };
+
   const handleAddDirective = async (text) => {
     setDirectiveSaving(true);
     try {
@@ -777,6 +945,15 @@ export default function AutopilotDashboard() {
           onAdd={handleAddDirective}
           onDelete={handleDeleteDirective}
           saving={directiveSaving}
+        />
+      )}
+
+      {/* ── Comando / Instrucción (texto + voz) ── */}
+      {!loading && mode !== 'off' && (
+        <CommandPanel
+          onSubmit={handleSendCommand}
+          sending={commandSending}
+          lastResponse={commandResponse}
         />
       )}
 

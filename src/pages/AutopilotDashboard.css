@@ -855,6 +855,158 @@
 }
 .ap-directives-del:disabled { cursor: wait; opacity: 0.4; }
 
+/* ── Command panel (text + voice instruction channel) ── */
+.ap-command {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ap-command-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.ap-command-toggle:hover { background: rgba(255,255,255,0.03); }
+.ap-command-toggle > span:first-of-type { flex: 1; }
+.ap-command-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--aurora-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ap-command-help {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.75;
+  line-height: 1.5;
+}
+.ap-command-help i { opacity: 0.85; }
+.ap-command-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ap-command-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.88rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 72px;
+}
+.ap-command-textarea:focus { outline: none; border-color: var(--aurora-green); }
+.ap-command-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.ap-command-mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.ap-command-mic:hover:not(:disabled) { border-color: var(--aurora-green); color: var(--aurora-green); }
+.ap-command-mic:disabled { opacity: 0.4; cursor: not-allowed; }
+.ap-command-mic--on {
+  background: rgba(204, 51, 255, 0.15);
+  border-color: var(--aurora-magenta);
+  color: var(--aurora-magenta);
+  animation: ap-pulse 1s ease-in-out infinite;
+}
+@keyframes ap-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(204, 51, 255, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(204, 51, 255, 0); }
+}
+.ap-command-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--aurora-green);
+  border: none;
+  border-radius: 6px;
+  color: var(--aurora-dark-blue);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ap-command-send:hover:not(:disabled) { opacity: 0.88; }
+.ap-command-send:disabled { opacity: 0.45; cursor: not-allowed; }
+.ap-command-mic-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: var(--aurora-magenta);
+}
+.ap-command-clarify {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(30, 100, 255, 0.08);
+  border: 1px solid rgba(30, 100, 255, 0.25);
+  border-radius: 6px;
+}
+.ap-command-clarify-icon { color: #6ab0ff; flex-shrink: 0; margin-top: 2px; }
+.ap-command-clarify-label {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6ab0ff;
+  opacity: 0.8;
+}
+.ap-command-clarify-text {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--aurora-light);
+  line-height: 1.5;
+}
+.ap-command-summary {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  background: rgba(51, 255, 153, 0.08);
+  border: 1px solid rgba(51, 255, 153, 0.2);
+  border-radius: 6px;
+}
+.ap-command-summary-icon { color: var(--aurora-green); flex-shrink: 0; margin-top: 3px; }
+.ap-command-summary p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  line-height: 1.5;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .ap-header { flex-direction: column; }
@@ -865,4 +1017,6 @@
   .ap-action-buttons { flex-direction: column; }
   .ap-feedback { gap: 8px; }
   .ap-directives-add { flex-direction: column; }
+  .ap-command-buttons { justify-content: stretch; }
+  .ap-command-send { flex: 1; justify-content: center; }
 }
