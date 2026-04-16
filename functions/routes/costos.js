@@ -2,14 +2,15 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ██  CENTRO DE COSTOS — Agregación live, indirectos, snapshots
+// ██  COST CENTER — live aggregation, indirects, snapshots
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Helper: depreciación por hora de un activo ──────────────────────────
+// Depreciation per hour for an asset
 function depPerHora(asset) {
   if (!asset) return 0;
   const a = parseFloat(asset.valorAdquisicion);
@@ -18,22 +19,24 @@ function depPerHora(asset) {
   return (!isNaN(a) && !isNaN(r) && !isNaN(h) && h > 0) ? (a - r) / h : 0;
 }
 
-// ── Helper: horas de un registro de horímetro ───────────────────────────
+// Hours from a horimetro record
 function horasFromRec(rec) {
   const i = parseFloat(rec.horimetroInicial);
   const f = parseFloat(rec.horimetroFinal);
   return (!isNaN(i) && !isNaN(f) && f >= i) ? f - i : 0;
 }
 
-// ── GET /api/costos/live — Agregación en vivo ───────────────────────────
+// GET /api/costos/live — Live aggregation
 router.get('/api/costos/live', authenticate, async (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    if (!desde || !hasta) return res.status(400).json({ message: 'Parámetros desde y hasta son obligatorios (YYYY-MM-DD).' });
+    if (!desde || !hasta) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Query params "desde" and "hasta" are required (YYYY-MM-DD).', 400);
+    }
 
     const fincaId = req.fincaId;
 
-    // ─ Parallelized queries ─────────────────────────────────────────────
+    // Parallelized queries
     const [horSnap, planHistSnap, planFijoSnap, cedulasSnap, cosechaSnap, lotesSnap, maqSnap, prodSnap, indSnap, siembrasSnap] = await Promise.all([
       db.collection('horimetro').where('fincaId', '==', fincaId).get(),
       db.collection('hr_planilla_unidad_historial').where('fincaId', '==', fincaId).get(),
@@ -47,7 +50,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       db.collection('siembras').where('fincaId', '==', fincaId).get(),
     ]);
 
-    // ─ Build lookup maps ────────────────────────────────────────────────
+    // Build lookup maps
     const maqMap = {};
     maqSnap.docs.forEach(d => { maqMap[d.id] = d.data(); });
 
@@ -70,7 +73,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       siembrasMap[d.id] = { loteId: data.loteId, loteNombre: data.loteNombre, bloque: data.bloque, area: parseFloat(data.areaCalculada) || 0 };
     });
 
-    // ─ Accumulator: nested map loteId → grupo → bloqueKey → {categories} ─
+    // Accumulator: nested map loteId → grupo → bloqueKey → {categories}
     const acc = {}; // loteId → { nombre, ha, grupos: { grupo → { bloques: { bloqueKey → costs } } } }
 
     function ensure(loteId, loteNombre, grupo, bloqueKey) {
@@ -82,17 +85,17 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       return acc[loteId].grupos[g].bloques[bk];
     }
 
-    // ─ 1. Combustible + Depreciación (horímetro) ────────────────────────
+    // 1. Combustible + depreciation (horimetro)
     horSnap.docs.forEach(d => {
       const rec = d.data();
       const fecha = rec.fecha || '';
       if (fecha < desde || fecha > hasta) return;
       if (!rec.loteId) return;
 
-      const horas = horasFromRec(rec);
-      const costoComb = parseFloat(rec.combustible?.costoEstimado) || 0;
-      const depTractor = horas * depPerHora(maqMap[rec.tractorId]);
-      const depImplemento = horas * depPerHora(maqMap[rec.implementoId]);
+      const hours = horasFromRec(rec);
+      const fuelCost = parseFloat(rec.combustible?.costoEstimado) || 0;
+      const depTractor = hours * depPerHora(maqMap[rec.tractorId]);
+      const depImplemento = hours * depPerHora(maqMap[rec.implementoId]);
       const depTotal = depTractor + depImplemento;
 
       const bloques = Array.isArray(rec.bloques) && rec.bloques.length > 0 ? rec.bloques : null;
@@ -107,17 +110,17 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
         bloqueAreas.forEach(({ id: bId, area }) => {
           const ratio = totalArea > 0 ? area / totalArea : 1 / bloques.length;
           const bucket = ensure(rec.loteId, rec.loteNombre, rec.grupo, bId);
-          bucket.combustible += costoComb * ratio;
+          bucket.combustible += fuelCost * ratio;
           bucket.depreciacion += depTotal * ratio;
         });
       } else {
         const bucket = ensure(rec.loteId, rec.loteNombre, rec.grupo, null);
-        bucket.combustible += costoComb;
+        bucket.combustible += fuelCost;
         bucket.depreciacion += depTotal;
       }
     });
 
-    // ─ 2. Planilla directa (historial planilla unidad) ──────────────────
+    // 2. Direct payroll (planilla unidad historial)
     planHistSnap.docs.forEach(d => {
       const rec = d.data();
       const fecha = rec.fecha?.toDate?.()?.toISOString?.()?.split('T')[0] || rec.fecha || '';
@@ -138,7 +141,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       bucket.planilla += total;
     });
 
-    // ─ 3. Insumos (cédulas aplicadas) ───────────────────────────────────
+    // 3. Insumos (applied cédulas)
     cedulasSnap.docs.forEach(d => {
       const rec = d.data();
       if (rec.status !== 'aplicada_en_campo') return;
@@ -146,15 +149,15 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       if (fecha < desde || fecha > hasta) return;
 
       const productos = rec.snap_productos || [];
-      let costoTotal = 0;
+      let totalCost = 0;
       productos.forEach(p => {
-        const cantidad = parseFloat(p.total) || 0;
+        const quantity = parseFloat(p.total) || 0;
         // Use frozen price if available, fallback to current catalog price
-        const precio = parseFloat(p.precioUnitario) || parseFloat(prodMap[p.productoId]?.precioUnitario) || 0;
-        costoTotal += cantidad * precio;
+        const price = parseFloat(p.precioUnitario) || parseFloat(prodMap[p.productoId]?.precioUnitario) || 0;
+        totalCost += quantity * price;
       });
 
-      if (!costoTotal) return;
+      if (!totalCost) return;
 
       // Associate to lote/bloque from snap_bloques
       const bloques = rec.snap_bloques || [];
@@ -177,7 +180,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
           loteId = loteId || loteNombre || '_sin_lote';
           const grupo = rec.snap_grupo || null;
           const bucket = ensure(loteId, loteNombre, grupo, bId);
-          bucket.insumos += costoTotal * ratio;
+          bucket.insumos += totalCost * ratio;
         });
       } else {
         // Fallback: use splitLoteNombre or snap_loteNombre
@@ -188,11 +191,11 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
         }
         loteId = loteId || loteNombre;
         const bucket = ensure(loteId, loteNombre, rec.snap_grupo || null, null);
-        bucket.insumos += costoTotal;
+        bucket.insumos += totalCost;
       }
     });
 
-    // ─ 4. Producción — kg cosechados ────────────────────────────────────
+    // 4. Production — harvested kg
     cosechaSnap.docs.forEach(d => {
       const rec = d.data();
       const fecha = rec.fecha || '';
@@ -205,7 +208,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       bucket.kg += kg;
     });
 
-    // ─ 5. Costos indirectos ─────────────────────────────────────────────
+    // 5. Indirect costs
     let totalIndirectosManuales = 0;
     indSnap.docs.forEach(d => {
       const rec = d.data();
@@ -214,7 +217,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       totalIndirectosManuales += parseFloat(rec.monto) || 0;
     });
 
-    // Planilla fija (salarios administrativos) = indirecto
+    // Fixed payroll (administrative salaries) = indirect
     let totalPlanillaFija = 0;
     planFijoSnap.docs.forEach(d => {
       const rec = d.data();
@@ -257,7 +260,7 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       }
     }
 
-    // ─ 6. Build response ────────────────────────────────────────────────
+    // 6. Build response
     const round2 = n => parseFloat(n.toFixed(2));
     const costoPorKg = (costo, kg) => kg > 0 ? round2(costo / kg) : null;
 
@@ -330,12 +333,12 @@ router.get('/api/costos/live', authenticate, async (req, res) => {
       porBloque: porBloque.sort((a, b) => b.costoTotal - a.costoTotal),
     });
   } catch (error) {
-    console.error('Error en costos/live:', error);
-    res.status(500).json({ message: 'Error al calcular costos.' });
+    console.error('[costos/live]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute live costs.', 500);
   }
 });
 
-// ── CRUD costos_indirectos ──────────────────────────────────────────────
+// CRUD costos_indirectos
 router.get('/api/costos/indirectos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('costos_indirectos')
@@ -346,15 +349,17 @@ router.get('/api/costos/indirectos', authenticate, async (req, res) => {
       .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
     res.json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener costos indirectos.' });
+    console.error('[costos/indirectos:get]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch indirect costs.', 500);
   }
 });
 
 router.post('/api/costos/indirectos', authenticate, async (req, res) => {
   try {
     const { fecha, categoria, descripcion, monto } = req.body;
-    if (!fecha || !categoria || monto == null)
-      return res.status(400).json({ message: 'Fecha, categoría y monto son obligatorios.' });
+    if (!fecha || !categoria || monto == null) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fecha, categoria and monto are required.', 400);
+    }
     const data = {
       fecha, categoria, descripcion: descripcion || '',
       monto: parseFloat(monto) || 0,
@@ -363,14 +368,15 @@ router.post('/api/costos/indirectos', authenticate, async (req, res) => {
     const ref = await db.collection('costos_indirectos').add(data);
     res.status(201).json({ id: ref.id, ...data });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear costo indirecto.' });
+    console.error('[costos/indirectos:post]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create indirect cost.', 500);
   }
 });
 
 router.put('/api/costos/indirectos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('costos_indirectos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const { fecha, categoria, descripcion, monto } = req.body;
     const data = {};
     if (fecha !== undefined)       data.fecha = fecha;
@@ -381,22 +387,24 @@ router.put('/api/costos/indirectos/:id', authenticate, async (req, res) => {
     await db.collection('costos_indirectos').doc(req.params.id).update(data);
     res.json({ id: req.params.id, ...data });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar costo indirecto.' });
+    console.error('[costos/indirectos:put]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update indirect cost.', 500);
   }
 });
 
 router.delete('/api/costos/indirectos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('costos_indirectos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('costos_indirectos').doc(req.params.id).delete();
-    res.json({ message: 'Eliminado.' });
+    res.json({ message: 'Deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar costo indirecto.' });
+    console.error('[costos/indirectos:delete]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete indirect cost.', 500);
   }
 });
 
-// ── CRUD costos_snapshots ───────────────────────────────────────────────
+// CRUD costos_snapshots
 router.get('/api/costos/snapshots', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('costos_snapshots')
@@ -418,29 +426,32 @@ router.get('/api/costos/snapshots', authenticate, async (req, res) => {
       .sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''));
     res.json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener snapshots.' });
+    console.error('[costos/snapshots:list]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch snapshots.', 500);
   }
 });
 
 router.get('/api/costos/snapshots/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('costos_snapshots', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const raw = ownership.doc.data();
     res.json({
       id: ownership.doc.id, ...raw,
       fechaCreacion: raw.fechaCreacion?.toDate?.()?.toISOString() || null,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener snapshot.' });
+    console.error('[costos/snapshots:get]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch snapshot.', 500);
   }
 });
 
 router.post('/api/costos/snapshots', authenticate, async (req, res) => {
   try {
     const { nombre, tipo, rangoFechas, resumen, porLote, porGrupo, porBloque } = req.body;
-    if (!nombre || !rangoFechas || !resumen)
-      return res.status(400).json({ message: 'Nombre, rangoFechas y resumen son obligatorios.' });
+    if (!nombre || !rangoFechas || !resumen) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'nombre, rangoFechas and resumen are required.', 400);
+    }
     const data = {
       nombre, tipo: tipo || 'manual',
       rangoFechas, resumen,
@@ -450,18 +461,20 @@ router.post('/api/costos/snapshots', authenticate, async (req, res) => {
     const ref = await db.collection('costos_snapshots').add(data);
     res.status(201).json({ id: ref.id, nombre: data.nombre });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear snapshot.' });
+    console.error('[costos/snapshots:post]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create snapshot.', 500);
   }
 });
 
 router.delete('/api/costos/snapshots/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('costos_snapshots', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('costos_snapshots').doc(req.params.id).delete();
-    res.json({ message: 'Snapshot eliminado.' });
+    res.json({ message: 'Snapshot deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar snapshot.' });
+    console.error('[costos/snapshots:delete]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete snapshot.', 500);
   }
 });
 
