@@ -2,13 +2,14 @@ const { Router } = require('express');
 const { db, admin, Timestamp, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
 // --- API ENDPOINTS: BODEGAS ---
-// Una "bodega" es un almacén tipado. El campo `tipo` determina qué componente
-// frontend se renderiza (agroquimicos, combustibles, herramientas, generico…).
-// Si la finca no tiene ninguna bodega, se siembra automáticamente la de agroquímicos.
+// A "bodega" is a typed warehouse. The `tipo` field determines which frontend
+// component is rendered (agroquimicos, combustibles, herramientas, generica…).
+// If the finca has no bodegas, the agroquímicos one is auto-seeded.
 router.get('/api/bodegas', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('bodegas')
@@ -20,7 +21,7 @@ router.get('/api/bodegas', authenticate, async (req, res) => {
       return res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }
 
-    // Auto-seed: primera ejecución por finca
+    // Auto-seed: first execution per finca
     const now = Timestamp.now();
     const agroquimicos = { nombre: 'Agroquímicos', tipo: 'agroquimicos', icono: 'FiDroplet', orden: 1, fincaId: req.fincaId, creadoEn: now };
     const combustibles = { nombre: 'Combustibles',  tipo: 'combustibles',  icono: 'FiDroplet', orden: 2, fincaId: req.fincaId, creadoEn: now };
@@ -34,16 +35,16 @@ router.get('/api/bodegas', authenticate, async (req, res) => {
     ]);
   } catch (err) {
     console.error('[bodegas GET]', err);
-    return res.status(500).json({ message: 'Error al obtener bodegas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch bodegas.', 500);
   }
 });
 
 router.post('/api/bodegas', authenticate, async (req, res) => {
   try {
     const { nombre, icono } = req.body;
-    if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre es requerido.' });
+    if (!nombre?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
 
-    // Calcular orden: max + 1
+    // Calculate order: max + 1
     const snap = await db.collection('bodegas').where('fincaId', '==', req.fincaId).get();
     const maxOrden = snap.empty ? 1 : Math.max(...snap.docs.map(d => d.data().orden || 0));
     const bodega = {
@@ -58,16 +59,16 @@ router.post('/api/bodegas', authenticate, async (req, res) => {
     return res.status(201).json({ id: docRef.id, ...bodega });
   } catch (err) {
     console.error('[bodegas POST]', err);
-    return res.status(500).json({ message: 'Error al crear bodega.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create bodega.', 500);
   }
 });
 
 router.put('/api/bodegas/:id', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     if (['agroquimicos', 'combustibles'].includes(check.doc.data().tipo)) {
-      return res.status(403).json({ message: 'Esta bodega es del sistema y no se puede editar.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'System bodegas cannot be edited.', 403);
     }
     const { nombre, icono } = req.body;
     const updates = {};
@@ -77,28 +78,28 @@ router.put('/api/bodegas/:id', authenticate, async (req, res) => {
     return res.json({ id: req.params.id, ...check.doc.data(), ...updates });
   } catch (err) {
     console.error('[bodegas PUT]', err);
-    return res.status(500).json({ message: 'Error al actualizar bodega.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update bodega.', 500);
   }
 });
 
 router.delete('/api/bodegas/:id', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     if (['agroquimicos', 'combustibles'].includes(check.doc.data().tipo)) {
-      return res.status(403).json({ message: 'Esta bodega es del sistema y no se puede eliminar.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'System bodegas cannot be deleted.', 403);
     }
-    // Solo eliminar si no tiene items
+    // Only delete if it has no items
     const itemsSnap = await db.collection('bodega_items')
       .where('bodegaId', '==', req.params.id).limit(1).get();
     if (!itemsSnap.empty) {
-      return res.status(400).json({ message: 'No se puede eliminar una bodega con productos. Elimine primero todos los productos.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot delete a bodega that still has items. Remove all items first.', 400);
     }
     await check.doc.ref.delete();
-    return res.json({ message: 'Bodega eliminada.' });
+    return res.json({ ok: true });
   } catch (err) {
     console.error('[bodegas DELETE]', err);
-    return res.status(500).json({ message: 'Error al eliminar bodega.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete bodega.', 500);
   }
 });
 
@@ -107,7 +108,7 @@ router.delete('/api/bodegas/:id', authenticate, async (req, res) => {
 router.get('/api/bodegas/:id/items', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const snap = await db.collection('bodega_items')
       .where('bodegaId', '==', req.params.id)
       .where('fincaId', '==', req.fincaId)
@@ -115,23 +116,23 @@ router.get('/api/bodegas/:id/items', authenticate, async (req, res) => {
     return res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (err) {
     console.error('[bodega_items GET]', err);
-    return res.status(500).json({ message: 'Error al obtener items.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch items.', 500);
   }
 });
 
 router.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const { nombre, unidad, stockActual, stockMinimo, descripcion, total, moneda } = req.body;
-    if (!nombre?.trim()) return res.status(400).json({ message: 'El nombre del ítem es requerido.' });
-    if (nombre.trim().length > 200) return res.status(400).json({ message: 'Nombre demasiado largo (máx 200).' });
-    if (descripcion && String(descripcion).length > 500) return res.status(400).json({ message: 'Descripción demasiado larga (máx 500).' });
-    if (unidad && String(unidad).trim().length > 50) return res.status(400).json({ message: 'Unidad demasiado larga (máx 50).' });
+    if (!nombre?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Item name is required.', 400);
+    if (nombre.trim().length > 200) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long (max 200).', 400);
+    if (descripcion && String(descripcion).length > 500) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Description too long (max 500).', 400);
+    if (unidad && String(unidad).trim().length > 50) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Unit too long (max 50).', 400);
     const safeFloat = (v) => { const n = parseFloat(v); return (isNaN(n) || !isFinite(n) || n < 0) ? 0 : n; };
     const parsedTotal = total !== undefined && total !== '' ? parseFloat(total) : null;
     if (parsedTotal !== null && (isNaN(parsedTotal) || !isFinite(parsedTotal) || parsedTotal < 0)) {
-      return res.status(400).json({ message: 'Total debe ser un número válido ≥ 0.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Total must be a valid number >= 0.', 400);
     }
     const MONEDAS_VALIDAS = ['USD', 'CRC', 'EUR'];
     const item = {
@@ -151,23 +152,23 @@ router.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
     return res.status(201).json({ id: docRef.id, ...item });
   } catch (err) {
     console.error('[bodega_items POST]', err);
-    return res.status(500).json({ message: 'Error al crear ítem.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create item.', 500);
   }
 });
 
 router.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const itemDoc = await db.collection('bodega_items').doc(req.params.itemId).get();
     if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
-      return res.status(404).json({ message: 'Ítem no encontrado.' });
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Item not found.', 404);
     }
     const allowed = ['nombre', 'unidad', 'stockMinimo', 'descripcion', 'activo', 'total', 'moneda'];
     const updates = pick(req.body, allowed);
     if (updates.nombre !== undefined) {
       updates.nombre = String(updates.nombre).trim().slice(0, 200);
-      if (!updates.nombre) return res.status(400).json({ message: 'El nombre no puede estar vacío.' });
+      if (!updates.nombre) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name cannot be empty.', 400);
     }
     if (updates.unidad !== undefined) updates.unidad = String(updates.unidad).trim().slice(0, 50);
     if (updates.descripcion !== undefined) updates.descripcion = String(updates.descripcion).trim().slice(0, 500);
@@ -179,7 +180,7 @@ router.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
       if (updates.total === '' || updates.total === null) { updates.total = null; }
       else {
         const v = parseFloat(updates.total);
-        if (isNaN(v) || !isFinite(v) || v < 0) return res.status(400).json({ message: 'Total debe ser un número válido ≥ 0.' });
+        if (isNaN(v) || !isFinite(v) || v < 0) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Total must be a valid number >= 0.', 400);
         updates.total = v;
       }
     }
@@ -191,29 +192,29 @@ router.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
     return res.json({ id: req.params.itemId, ...itemDoc.data(), ...updates });
   } catch (err) {
     console.error('[bodega_items PUT]', err);
-    return res.status(500).json({ message: 'Error al actualizar ítem.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update item.', 500);
   }
 });
 
 router.delete('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const itemDoc = await db.collection('bodega_items').doc(req.params.itemId).get();
     if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
-      return res.status(404).json({ message: 'Ítem no encontrado.' });
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Item not found.', 404);
     }
-    // Solo eliminar si no tiene movimientos
+    // Only delete if it has no movements
     const movsSnap = await db.collection('bodega_movimientos')
       .where('itemId', '==', req.params.itemId).limit(1).get();
     if (!movsSnap.empty) {
-      return res.status(400).json({ message: 'No se puede eliminar un ítem con movimientos registrados.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot delete an item with registered movements.', 400);
     }
     await itemDoc.ref.delete();
-    return res.json({ message: 'Ítem eliminado.' });
+    return res.json({ ok: true });
   } catch (err) {
     console.error('[bodega_items DELETE]', err);
-    return res.status(500).json({ message: 'Error al eliminar ítem.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete item.', 500);
   }
 });
 
@@ -222,7 +223,7 @@ router.delete('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) =
 router.get('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const snap = await db.collection('bodega_movimientos')
       .where('bodegaId', '==', req.params.id)
       .where('fincaId', '==', req.fincaId)
@@ -232,14 +233,14 @@ router.get('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
     return res.json(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate().toISOString() })));
   } catch (err) {
     console.error('[bodega_movimientos GET]', err);
-    return res.status(500).json({ message: 'Error al obtener movimientos.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch movements.', 500);
   }
 });
 
 router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
-    if (!check.ok) return res.status(check.status).json({ message: check.message });
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
 
     const { itemId, tipo, cantidad, nota,
             loteId, loteNombre, laborId, laborNombre,
@@ -247,30 +248,30 @@ router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
             factura, oc, total,
             imageBase64, mediaType } = req.body;
     if (!itemId || !tipo || !cantidad) {
-      return res.status(400).json({ message: 'itemId, tipo y cantidad son requeridos.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'itemId, tipo and cantidad are required.', 400);
     }
     if (!['entrada', 'salida'].includes(tipo)) {
-      return res.status(400).json({ message: 'tipo debe ser "entrada" o "salida".' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'tipo must be "entrada" or "salida".', 400);
     }
     const cantNum = parseFloat(cantidad);
     if (isNaN(cantNum) || cantNum <= 0 || !isFinite(cantNum)) {
-      return res.status(400).json({ message: 'La cantidad debe ser un número positivo finito.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Quantity must be a positive finite number.', 400);
     }
-    // Validar longitud de strings
-    if (nota && String(nota).length > 500) return res.status(400).json({ message: 'Nota demasiado larga (máx 500).' });
-    if (factura && String(factura).length > 100) return res.status(400).json({ message: 'Factura demasiado larga (máx 100).' });
-    if (oc && String(oc).length > 100) return res.status(400).json({ message: 'OC demasiado larga (máx 100).' });
+    // Validate string lengths
+    if (nota && String(nota).length > 500) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Note too long (max 500).', 400);
+    if (factura && String(factura).length > 100) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invoice too long (max 100).', 400);
+    if (oc && String(oc).length > 100) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'OC too long (max 100).', 400);
     // Validar total
     const parsedTotal = total !== undefined && total !== '' ? parseFloat(total) : null;
     if (parsedTotal !== null && (isNaN(parsedTotal) || !isFinite(parsedTotal) || parsedTotal < 0)) {
-      return res.status(400).json({ message: 'Total debe ser un número válido ≥ 0.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Total must be a valid number >= 0.', 400);
     }
-    // Validar tamaño base64 (~5 MB en base64 ≈ 6.67 MB string)
+    // Validate base64 size (~5 MB in base64 ≈ 6.67 MB string)
     if (imageBase64 && imageBase64.length > 7 * 1024 * 1024) {
-      return res.status(400).json({ message: 'Archivo adjunto demasiado grande (máx 5 MB).' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Attachment too large (max 5 MB).', 400);
     }
 
-    // ── Subir factura adjunta a Firebase Storage (si se proveyó) ────────────
+    // ── Upload attached invoice to Firebase Storage (if provided) ──────────
     let facturaUrl = null;
     if (imageBase64) {
       const { randomUUID } = require('crypto');
@@ -292,7 +293,7 @@ router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
         : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
     }
 
-    // ── Transacción atómica: verificar stock + actualizar + registrar mov ───
+    // ── Atomic transaction: verify stock + update + register movement ──────
     const movRef = db.collection('bodega_movimientos').doc();
     const itemRef = db.collection('bodega_items').doc(itemId);
     const result = await db.runTransaction(async (t) => {
@@ -360,7 +361,7 @@ router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ message: err.message });
     console.error('[bodega_movimientos POST]', err);
-    return res.status(500).json({ message: 'Error al registrar movimiento.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register movement.', 500);
   }
 });
 

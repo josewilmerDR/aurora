@@ -3,57 +3,58 @@ const { db, Timestamp, FieldValue, admin } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-const CAMPOS_PRODUCTO = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo',
+const PRODUCT_FIELDS = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo',
   'plagaQueControla', 'periodoReingreso', 'periodoACosecha', 'cantidadPorHa',
   'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario',
   'iva', 'proveedor', 'registroFitosanitario', 'observacion', 'activo'];
 
-const TIPOS_VALIDOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro', ''];
-const MONEDAS_VALIDAS = ['USD', 'CRC', 'EUR'];
+const VALID_TYPES = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro', ''];
+const VALID_CURRENCIES = ['USD', 'CRC', 'EUR'];
 
 function validateProducto(body, isCreate) {
   const errors = [];
   const s = (v) => typeof v === 'string' ? v : '';
   const checkStr = (key, label, max) => {
     if (body[key] !== undefined && s(body[key]).length > max)
-      errors.push(`${label}: máximo ${max} caracteres`);
+      errors.push(`${label}: max ${max} characters`);
   };
   const checkNumRange = (key, label, min, max, exclusive) => {
     if (body[key] === undefined || body[key] === '' || body[key] === null) return;
     const n = Number(body[key]);
-    if (isNaN(n)) { errors.push(`${label}: debe ser un número`); return; }
-    if (n < min) errors.push(`${label}: mínimo ${min}`);
-    if (exclusive ? n >= max : n > max) errors.push(`${label}: debe ser menor a ${max}`);
+    if (isNaN(n)) { errors.push(`${label}: must be a number`); return; }
+    if (n < min) errors.push(`${label}: min ${min}`);
+    if (exclusive ? n >= max : n > max) errors.push(`${label}: must be less than ${max}`);
   };
 
   if (isCreate && !s(body.nombreComercial).trim())
-    errors.push('Nombre comercial es obligatorio');
+    errors.push('nombreComercial is required');
 
-  checkStr('idProducto',            'ID Producto',        32);
-  checkStr('nombreComercial',       'Nombre comercial',   64);
-  checkStr('ingredienteActivo',     'Ingrediente activo', 64);
-  checkStr('proveedor',             'Proveedor',          128);
-  checkStr('registroFitosanitario', 'Registro',           32);
-  checkStr('observacion',           'Observación',        288);
-  checkStr('plagaQueControla',      'Plaga/enfermedad',   128);
-  checkStr('unidad',                'Unidad',             40);
+  checkStr('idProducto',            'idProducto',           32);
+  checkStr('nombreComercial',       'nombreComercial',     64);
+  checkStr('ingredienteActivo',     'ingredienteActivo',   64);
+  checkStr('proveedor',             'proveedor',           128);
+  checkStr('registroFitosanitario', 'registroFitosanitario', 32);
+  checkStr('observacion',           'observacion',         288);
+  checkStr('plagaQueControla',      'plagaQueControla',    128);
+  checkStr('unidad',                'unidad',              40);
 
-  if (body.tipo !== undefined && !TIPOS_VALIDOS.includes(s(body.tipo)))
-    errors.push('Tipo no válido');
-  if (body.moneda !== undefined && !MONEDAS_VALIDAS.includes(s(body.moneda)))
-    errors.push('Moneda no válida');
+  if (body.tipo !== undefined && !VALID_TYPES.includes(s(body.tipo)))
+    errors.push('Invalid tipo');
+  if (body.moneda !== undefined && !VALID_CURRENCIES.includes(s(body.moneda)))
+    errors.push('Invalid moneda');
 
-  checkNumRange('cantidadPorHa',    'Dosis por Ha',       0, 2048, true);
-  checkNumRange('periodoReingreso', 'Período reingreso',  0, 512,  true);
-  checkNumRange('periodoACosecha',  'Período a cosecha',  0, 512,  true);
-  checkNumRange('stockActual',      'Stock',              0, 32768, true);
-  checkNumRange('stockMinimo',      'Stock mínimo',       0, 32768, true);
-  checkNumRange('precioUnitario',   'Precio unitario',    0, 2097152, true);
-  checkNumRange('tipoCambio',       'Tipo de cambio',     0, 2097152, true);
-  checkNumRange('iva',              'IVA',                0, 100,  false);
+  checkNumRange('cantidadPorHa',    'cantidadPorHa',      0, 2048, true);
+  checkNumRange('periodoReingreso', 'periodoReingreso',    0, 512,  true);
+  checkNumRange('periodoACosecha',  'periodoACosecha',     0, 512,  true);
+  checkNumRange('stockActual',      'stockActual',         0, 32768, true);
+  checkNumRange('stockMinimo',      'stockMinimo',         0, 32768, true);
+  checkNumRange('precioUnitario',   'precioUnitario',      0, 2097152, true);
+  checkNumRange('tipoCambio',       'tipoCambio',          0, 2097152, true);
+  checkNumRange('iva',              'iva',                 0, 100,  false);
 
   return errors;
 }
@@ -65,22 +66,22 @@ router.get('/api/productos', authenticate, async (req, res) => {
     const productos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(productos);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener productos.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch productos.', 500);
   }
 });
 
 router.post('/api/productos', authenticate, async (req, res) => {
   try {
     const valErrors = validateProducto(req.body, true);
-    if (valErrors.length) return res.status(400).json({ message: valErrors.join('; ') });
+    if (valErrors.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, valErrors.join('; '), 400);
 
     const { fechaIngreso, facturaNumero, registrarIngreso, ordenCompraId, ocPoNumber } = req.body;
     const fechaTs = fechaIngreso
       ? Timestamp.fromDate(new Date(fechaIngreso + 'T12:00:00'))
       : Timestamp.now();
-    const producto = { ...pick(req.body, CAMPOS_PRODUCTO), fincaId: req.fincaId };
+    const producto = { ...pick(req.body, PRODUCT_FIELDS), fincaId: req.fincaId };
 
-    // Verificar si ya existe un producto con el mismo idProducto
+    // Check if a producto with the same idProducto already exists
     if (producto.idProducto) {
       const existing = await db.collection('productos')
         .where('fincaId', '==', req.fincaId)
@@ -146,23 +147,23 @@ router.post('/api/productos', authenticate, async (req, res) => {
     await batch.commit();
     res.status(201).json({ id: newProdRef.id, ...producto, merged: false });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear producto.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create producto.', 500);
   }
 });
 
 router.put('/api/productos/:id', authenticate, async (req, res) => {
   try {
     const valErrors = validateProducto(req.body, false);
-    if (valErrors.length) return res.status(400).json({ message: valErrors.join('; ') });
+    if (valErrors.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, valErrors.join('; '), 400);
 
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const productoData = pick(req.body, CAMPOS_PRODUCTO);
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    const productoData = pick(req.body, PRODUCT_FIELDS);
     await db.collection('productos').doc(id).update(productoData);
     res.status(200).json({ id, ...productoData });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar producto.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update producto.', 500);
   }
 });
 
@@ -170,49 +171,49 @@ router.delete('/api/productos/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const stock = ownership.doc.data().stockActual ?? 0;
     if (stock > 0) {
-      return res.status(409).json({ message: 'Esta acción solo es permitida para productos con existencias nulas.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Only products with zero stock can be deleted.', 409);
     }
     await db.collection('productos').doc(id).delete();
-    res.status(200).json({ message: 'Producto eliminado correctamente.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar producto.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete producto.', 500);
   }
 });
 
 router.put('/api/productos/:id/inactivar', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const stock = ownership.doc.data().stockActual ?? 0;
     if (stock > 0) {
-      return res.status(409).json({ message: 'Esta acción solo es permitida para productos con existencias nulas.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Only products with zero stock can be deactivated.', 409);
     }
     await db.collection('productos').doc(req.params.id).update({ activo: false });
-    res.status(200).json({ message: 'Producto inactivado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al inactivar producto.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to deactivate producto.', 500);
   }
 });
 
 router.put('/api/productos/:id/activar', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('productos').doc(req.params.id).update({ activo: true });
-    res.status(200).json({ message: 'Producto activado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al activar producto.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to activate producto.', 500);
   }
 });
 
-// ── Chat IA para editar productos ────────────────────────────────────────────
+// ── AI chat for editing productos ────────────────────────────────────────────
 router.post('/api/productos/ai-editar', authenticate, async (req, res) => {
   try {
     const { mensaje } = req.body;
-    if (!mensaje?.trim()) return res.status(400).json({ message: 'Mensaje requerido.' });
+    if (!mensaje?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Message is required.', 400);
 
     const snap = await db.collection('productos').where('fincaId', '==', req.fincaId).get();
     const productos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -277,26 +278,26 @@ Responde SOLO con JSON válido, sin texto adicional ni bloques de código:
     res.json(parsed);
   } catch (err) {
     console.error('Error en ai-editar productos:', err);
-    res.status(500).json({ message: err.message || 'Error al procesar la solicitud.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, err.message || 'Failed to process AI request.', 500);
   }
 });
 
-// --- API ENDPOINTS: AJUSTE DE INVENTARIO (TOMA FÍSICA) ---
+// --- API ENDPOINTS: INVENTORY ADJUSTMENT (PHYSICAL COUNT) ---
 router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
   try {
     const { nota, ajustes } = req.body;
     if (!nota || !nota.trim()) {
-      return res.status(400).json({ message: 'La nota explicativa es obligatoria.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Explanatory note is required.', 400);
     }
     if (typeof nota === 'string' && nota.length > 288) {
-      return res.status(400).json({ message: 'La nota no puede exceder 288 caracteres.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Note cannot exceed 288 characters.', 400);
     }
     if (!Array.isArray(ajustes) || ajustes.length === 0) {
-      return res.status(400).json({ message: 'Se requiere al menos un ajuste.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one adjustment is required.', 400);
     }
     // Firestore batch limit: 500 ops. Each ajuste = 2 ops (update + set).
     if (ajustes.length > 250) {
-      return res.status(400).json({ message: 'Máximo 250 ajustes por solicitud.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Maximum 250 adjustments per request.', 400);
     }
 
     const fincaId = req.fincaId;
@@ -307,7 +308,7 @@ router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
       .map(a => a.productoId)
       .filter(id => typeof id === 'string' && id.length > 0);
     if (productoIds.length === 0) {
-      return res.status(400).json({ message: 'No se encontraron productos válidos.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'No valid products found.', 400);
     }
     const prodSnaps = await Promise.all(
       productoIds.map(id => db.collection('productos').doc(id).get())
@@ -350,54 +351,54 @@ router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
     }
 
     if (movimientosCreados.length === 0) {
-      return res.status(400).json({ message: 'No hay diferencias que ajustar.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'No differences to adjust.', 400);
     }
 
     await batch.commit();
     res.status(200).json({ ajustados: movimientosCreados.length, movimientos: movimientosCreados });
   } catch (error) {
-    console.error('Error en ajuste de inventario:', error);
-    res.status(500).json({ message: 'Error al procesar el ajuste de inventario.' });
+    console.error('Error in inventory adjustment:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process inventory adjustment.', 500);
   }
 });
 
-// --- API ENDPOINTS: INGRESO CONFIRMADO (ProductIngreso → recepción atómica) ---
+// --- API ENDPOINTS: CONFIRMED INTAKE (ProductIngreso → atomic reception) ---
 router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
   try {
     const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, imageBase64, mediaType } = req.body;
 
-    // --- Validaciones de entrada ---
+    // --- Input validation ---
     if (typeof proveedor === 'string' && proveedor.length > 200) {
-      return res.status(400).json({ message: 'El nombre del proveedor es demasiado largo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Supplier name too long.', 400);
     }
     if (typeof facturaNumero === 'string' && facturaNumero.length > 100) {
-      return res.status(400).json({ message: 'El número de factura es demasiado largo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invoice number too long.', 400);
     }
     if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.length > 15 * 1024 * 1024) {
-      return res.status(400).json({ message: 'La imagen es demasiado grande (máx ~10 MB).' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Image too large (max ~10 MB).', 400);
     }
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one item is required.', 400);
     }
     if (items.length > 200) {
-      return res.status(400).json({ message: 'Demasiados ítems.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Too many items.', 400);
     }
     for (const item of items) {
       const qty = parseFloat(item.cantidad);
       if (!isNaN(qty) && (qty < 0 || qty > 999999 || !isFinite(qty))) {
-        return res.status(400).json({ message: `Cantidad inválida para ${item.nombreComercial || 'un producto'}.` });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid quantity for ${item.nombreComercial || 'a product'}.`, 400);
       }
     }
     const validos = items.filter(i => (i.idProducto || '').trim() || (i.nombreComercial || '').trim());
     if (validos.length === 0) {
-      return res.status(400).json({ message: 'Ningún ítem tiene datos suficientes.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'No items have sufficient data.', 400);
     }
 
     const fechaTs = fecha
       ? Timestamp.fromDate(new Date(fecha + 'T12:00:00'))
       : Timestamp.now();
 
-    // ── Pre-resolver productos (async antes del batch) ───────────────────────
+    // ── Pre-resolve products (async before the batch) ────────────────────────
     const resolved = [];
     for (const item of validos) {
       const stockIngresado = parseFloat(item.cantidad) || 0;
@@ -419,13 +420,13 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
     }
 
     if (resolved.length === 0) {
-      return res.status(400).json({ message: 'Todos los ítems tienen cantidad cero.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'All items have zero quantity.', 400);
     }
 
-    // ── Pre-generar ID de recepción para el nombre del archivo ───────────────
+    // ── Pre-generate reception ID for the file name ──────────────────────────
     const recepcionRef = db.collection('recepciones').doc();
 
-    // ── Subir imagen de factura a Firebase Storage (si se proveyó) ───────────
+    // ── Upload invoice image to Firebase Storage (if provided) ───────────────
     let facturaImageUrl = null;
     if (imageBase64) {
       try {
@@ -449,7 +450,7 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       }
     }
 
-    // ── Construir batch ──────────────────────────────────────────────────────
+    // ── Build batch ─────────────────────────────────────────────────────────
     const batch = db.batch();
     const recepcionItems = [];
     let creados = 0, mergeados = 0;
@@ -534,7 +535,7 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       if (ordenDoc.exists && ordenDoc.data().fincaId === req.fincaId) {
         const ocData = ordenDoc.data();
         const ocItems = ocData.items || [];
-        // Recalcular cantidadRecibida en el servidor (no confiar en el cliente)
+        // Recalculate cantidadRecibida server-side (do not trust the client)
         const updatedItems = ocItems.map(ocItem => {
           const match = recepcionItems.find(ri =>
             ri.productoId === ocItem.productoId ||
@@ -558,8 +559,8 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
     await batch.commit();
     res.status(201).json({ recepcionId: recepcionRef.id, creados, mergeados });
   } catch (error) {
-    console.error('Error en ingreso/confirmar:', error);
-    res.status(500).json({ message: 'Error al registrar el ingreso.' });
+    console.error('Error in ingreso/confirmar:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register intake.', 500);
   }
 });
 
