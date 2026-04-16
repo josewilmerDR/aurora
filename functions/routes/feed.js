@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get('/api/feed', authenticate, async (req, res) => {
     res.json(events);
   } catch (error) {
     console.error('Error fetching feed:', error);
-    res.status(500).json({ message: 'Error al obtener el feed.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch feed.', 500);
   }
 });
 
