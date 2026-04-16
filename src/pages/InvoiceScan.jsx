@@ -95,7 +95,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
     touchStartY.current = null;
   };
 
-  // ── Navegación del carrusel ────────────────────────────────────────────────
+  // Carousel navigation
   const goNext = () => setCurrentIndex(i => Math.min(i + 1, lineas.length - 1));
   const goPrev = () => setCurrentIndex(i => Math.max(i - 1, 0));
 
@@ -163,7 +163,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
     }
   };
 
-  // ── Paso 2: editar líneas ──────────────────────────────────────────────────
+  // Step 2: edit lines
   const updateLinea = (index, field, value) => {
     setLineas(prev => {
       const next = [...prev];
