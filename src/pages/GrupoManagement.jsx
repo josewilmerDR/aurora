@@ -64,7 +64,7 @@ const BLOQUE_COLS = [
   { id: 'kg',         label: 'Kg Est.', filterType: 'number' },
 ];
 
-// ── Modal nuevo valor de catálogo (cosecha / etapa) ──────────────────────────
+// ── New catalog value modal (cosecha / etapa) ───────────────────────────────
 function NuevoCatalogModal({ field, onConfirm, onCancel }) {
   const [nombre, setNombre] = useState('');
   const label = field === 'cosecha' ? 'cosecha' : 'etapa';
@@ -504,7 +504,7 @@ function GrupoManagement() {
     }
   };
 
-  // ── Preview (PDF / impresión) ─────────────────────────────────────────────
+  // ── Preview (PDF / print) ────────────────────────────────────────────────
   const handleCompartir = async () => {
     if (!docRef.current) return;
     try {
