@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -13,7 +14,7 @@ const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 function buildLaborDoc(body) {
   const descripcion = str(body.descripcion, MAX_DESCRIPCION);
-  if (!descripcion) return { error: 'La descripción es obligatoria.' };
+  if (!descripcion) return { error: 'Description is required.' };
   return {
     data: {
       codigo: str(body.codigo, MAX_CODIGO),
@@ -34,15 +35,15 @@ router.get('/api/labores', authenticate, async (req, res) => {
       .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, { numeric: true, sensitivity: 'base' }));
     res.json(items);
   } catch (error) {
-    console.error('Error al obtener labores:', error);
-    res.status(500).json({ message: 'Error al obtener labores.' });
+    console.error('Error fetching labores:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch labores.', 500);
   }
 });
 
 router.post('/api/labores', authenticate, async (req, res) => {
   try {
     const { error, data } = buildLaborDoc(req.body);
-    if (error) return res.status(400).json({ message: error });
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
     // Upsert by código if provided (scoped to finca)
     if (data.codigo) {
@@ -63,35 +64,35 @@ router.post('/api/labores', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: doc.id, merged: false });
   } catch (error) {
-    console.error('Error al crear labor:', error);
-    res.status(500).json({ message: 'Error al crear labor.' });
+    console.error('Error creating labor:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create labor.', 500);
   }
 });
 
 router.put('/api/labores/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const { error, data } = buildLaborDoc(req.body);
-    if (error) return res.status(400).json({ message: error });
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     await db.collection('labores').doc(req.params.id).update({ ...data, actualizadoEn: Timestamp.now() });
-    res.json({ message: 'Labor actualizada.' });
+    res.json({ ok: true });
   } catch (error) {
-    console.error('Error al actualizar labor:', error);
-    res.status(500).json({ message: 'Error al actualizar labor.' });
+    console.error('Error updating labor:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update labor.', 500);
   }
 });
 
 router.delete('/api/labores/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('labores').doc(req.params.id).delete();
-    res.json({ message: 'Labor eliminada.' });
+    res.json({ ok: true });
   } catch (error) {
-    console.error('Error al eliminar labor:', error);
-    res.status(500).json({ message: 'Error al eliminar labor.' });
+    console.error('Error deleting labor:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete labor.', 500);
   }
 });
 
