@@ -635,7 +635,7 @@ export default function AutopilotDashboard() {
   const [commandSending, setCommandSending] = useState(false);
   const [commandResponse, setCommandResponse] = useState(null);
 
-  // Carga inicial: config + última sesión
+  // Initial load: config + latest session
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -701,7 +701,7 @@ export default function AutopilotDashboard() {
     return () => { cancelled = true; };
   }, []);
 
-  // Cargar feedback de la sesión actual (recomendaciones + acciones)
+  // Load feedback for the current session (recommendations + actions)
   useEffect(() => {
     const sid = latestSession?.id;
     if (!sid) return;
