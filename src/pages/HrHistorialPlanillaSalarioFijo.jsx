@@ -72,9 +72,9 @@ function HrHistorialPlanillaSalarioFijo() {
       sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
       sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/historial-pagos');
     } catch (err) {
-      // Private mode / quota exceeded — continúa la navegación; el reporte
-      // mostrará el estado "sin datos" manejado en HrPlanillaReporteSalarioFijo.
-      console.warn('No se pudo persistir el reporte en sessionStorage:', err);
+      // Private mode / quota exceeded — navigation continues; the report will
+      // show the "no data" state handled in HrPlanillaReporteSalarioFijo.
+      console.warn('Failed to persist report to sessionStorage:', err);
     }
     navigate('/hr/planilla/fijo/reporte');
   };

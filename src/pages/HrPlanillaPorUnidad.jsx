@@ -11,11 +11,11 @@ import './HrPlanillaPorUnidad.css';
 
 const DRAFT_FORM_KEY = 'hr-planilla-unidad';
 
-// Límites de validación
+// Validation limits
 const MAX_OBSERVACIONES_LEN = 1000;
 const MAX_NOMBRE_PLANTILLA_LEN = 100;
 const MAX_SEGMENTOS = 50;
-const MAX_NUMERIC_INPUT = 999999;     // tope general para cantidades / costos
+const MAX_NUMERIC_INPUT = 999999;     // general cap for quantities / costs
 const MAX_AVANCE_HA = 99999;
 const FECHA_MIN = '2000-01-01';
 const FECHA_MAX = '2100-12-31';
@@ -41,7 +41,7 @@ function isHoraUnit(u) {
   return /^horas?$/i.test((u || '').trim());
 }
 
-// Acepta sólo URLs http(s) o data:image — bloquea javascript:, data:text/html, etc.
+// Accepts only http(s) or data:image URLs — blocks javascript:, data:text/html, etc.
 function safeImageUrl(url) {
   if (typeof url !== 'string') return '';
   const trimmed = url.trim();
@@ -361,19 +361,19 @@ function HrPlanillaPorUnidad() {
   const [historial, setHistorial] = useState([]);
   const [historialLoading, setHistorialLoading] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
-  // dirty = true sólo cuando el usuario modifica el form. Evita que cargas
-  // asíncronas (trabajadores, drafts, recargas) disparen un guardado automático.
+  // dirty = true only when the user modifies the form. Prevents async loads
+  // (workers, drafts, reloads) from triggering an auto-save.
   const dirtyRef = useRef(false);
-  // planillaIdRef refleja el último planillaId conocido. El closure del
-  // setTimeout no se reactiva al cambiar planillaId (no está en deps), así
-  // que leemos del ref para evitar disparar otro POST cuando el primero ya
-  // devolvió un id (race que generaba borradores duplicados).
+  // planillaIdRef reflects the last known planillaId. The setTimeout closure
+  // does not re-fire when planillaId changes (it's not a dep), so we read from
+  // the ref to avoid firing a second POST after the first one already returned
+  // an id (a race that produced duplicate drafts).
   const planillaIdRef = useRef(null);
-  // Evita que dos POST se disparen en paralelo y creen duplicados.
+  // Prevents two POSTs from firing in parallel and creating duplicates.
   const saveInProgressRef = useRef(false);
-  // Permite que callbacks asíncronos sepan si el componente fue desmontado.
-  // Body resetea a true en cada mount (necesario para React Strict Mode dev,
-  // que ejecuta cleanup→mount otra vez al montar inicialmente).
+  // Lets async callbacks know whether the component has been unmounted.
+  // Resets to true on every mount (needed for React Strict Mode dev, which
+  // runs cleanup→mount again on initial mount).
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -410,11 +410,11 @@ function HrPlanillaPorUnidad() {
       .finally(() => setHistorialLoading(false));
   }, []);
 
-  // Mantiene planillaIdRef sincronizado con el state.
+  // Keeps planillaIdRef in sync with state.
   useEffect(() => { planillaIdRef.current = planillaId; }, [planillaId]);
 
-  // Al aterrizar en la página, abrir el formulario directamente
-  // (los borradores/pendientes siguen accesibles desde el panel lateral).
+  // On landing on the page, open the form directly
+  // (drafts/pendientes remain accessible from the side panel).
   useEffect(() => {
     if (!historialLoading && !showForm) {
       dirtyRef.current = false;
@@ -423,18 +423,18 @@ function HrPlanillaPorUnidad() {
     }
   }, [historialLoading, showForm]);
 
-  // Auto-guardado al detectar cambios (debounce 2s) — solo borradores
+  // Auto-save on changes (2s debounce) — drafts only
   useEffect(() => {
     if (!dirtyRef.current) return;
     if (!showForm) return;
-    if (planillaEstado === 'pendiente') return; // pendiente no se auto-guarda
+    if (planillaEstado === 'pendiente') return; // pendiente is not auto-saved
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) return;
     const estadoGuardado = planillaEstado || 'borrador';
     const timer = setTimeout(async () => {
-      // Si ya hay un POST/PUT en vuelo, no disparar otro: el POST en curso
-      // creará/actualizará el borrador, y la próxima edición del usuario
-      // re-disparará este efecto con planillaIdRef ya sincronizado.
+      // If a POST/PUT is in flight, do not fire another: the in-flight POST
+      // will create/update the draft, and the user's next edit will re-fire
+      // this effect with planillaIdRef already in sync.
       if (saveInProgressRef.current) return;
       saveInProgressRef.current = true;
       setAutoSaveStatus('saving');
@@ -452,8 +452,8 @@ function HrPlanillaPorUnidad() {
           });
           if (res.ok) {
             const data = await res.json();
-            // Sync ref ANTES del setPlanillaId para que cualquier timer que
-            // dispare entre este punto y el próximo render lea el id correcto.
+            // Sync the ref BEFORE setPlanillaId so any timer that fires
+            // between this point and the next render reads the correct id.
             planillaIdRef.current = data.id;
             if (mountedRef.current) {
               setPlanillaId(data.id);
@@ -672,7 +672,7 @@ function HrPlanillaPorUnidad() {
 
   const totalGeneral = () => visibleWorkers.reduce((sum, t) => sum + workerTotal(t.id), 0);
 
-  // Construye el body común de POST/PUT — usado por auto-save, guardado manual y aprobación.
+  // Builds the common POST/PUT body — shared by auto-save, manual save and approval.
   const buildPlanillaBody = (estado, encId) => ({
     fecha,
     encargadoId: encId,

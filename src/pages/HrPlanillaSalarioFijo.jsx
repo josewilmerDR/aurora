@@ -7,13 +7,13 @@ import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 
 const CCSS_RATE = 0.1083;
-// Horas semanales por defecto si la ficha no tiene horario configurado
+// Default weekly hours if the ficha has no schedule configured
 const JORNADA_HORAS_DEFAULT = 48;
 const ESTADO_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
 
-// Límites defensivos (validación de entrada):
-//   SALARIO_MAX cubre holgadamente el salario mensual máximo esperable en CRC.
-//   PERIODO_MAX_DIAS tope al rango cargable (anual + margen).
+// Defensive limits (input validation):
+//   SALARIO_MAX amply covers the max expected monthly salary in CRC.
+//   PERIODO_MAX_DIAS caps the loadable range (annual + margin).
 const SALARIO_MAX     = 10_000_000;
 const CONCEPTO_MAX    = 100;
 const PERIODO_MAX_DIAS = 366;
@@ -78,8 +78,8 @@ function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesd
   return dias;
 }
 
-// Art. 140 Código de Trabajo CR: el mes se computa como 30 días.
-// Detecta si el período cubre un mes calendario completo (del 1 al último día del mes).
+// Art. 140 CR Labor Code: the month is computed as 30 days.
+// Detects whether the periodo covers a full calendar month (1st to last day).
 function esMesCompleto(dias) {
   if (!dias || dias.length === 0) return false;
   const toD = (f) => f instanceof Date ? f : new Date(f);
@@ -94,8 +94,8 @@ function esMesCompleto(dias) {
   );
 }
 
-// Detecta si el período es una segunda quincena (del 16 al último día del mes).
-// La 2ª quincena siempre vale 15 días (= 30 − 15) bajo Art. 140 CT.
+// Detects whether the periodo is a second fortnight (16th to last day of month).
+// The 2nd fortnight is always 15 days (= 30 − 15) under Art. 140 of the Labor Code.
 function esSegundaQuincena(dias) {
   if (!dias || dias.length === 0) return false;
   const toD = (f) => f instanceof Date ? f : new Date(f);
@@ -110,8 +110,8 @@ function esSegundaQuincena(dias) {
   );
 }
 
-// Detecta empleados de nuevasFilas que ya aparecen en otras planillas (pendiente/aprobada/pagada)
-// con días que se solapan con el período actual. Devuelve lista de conflictos para mostrar al usuario.
+// Detects employees in nuevasFilas who already appear in other planillas (pendiente/aprobada/pagada)
+// with days overlapping the current periodo. Returns a list of conflicts to show to the user.
 function detectarSolapamientos(nuevasFilas, planillas, editingId, fechaInicio, fechaFin) {
   const ESTADOS = new Set(['pendiente', 'aprobada', 'pagada']);
   const conflicts = [];
@@ -154,9 +154,9 @@ function recalcFila(fila) {
   const horasSemanales = Number(fila.horasSemanales) || JORNADA_HORAS_DEFAULT;
   const valorHora = (fila.salarioMensual * 12) / 52 / horasSemanales;
 
-  // Aplicar convención de 30 días (Art. 140 CT CR):
-  // - Mes completo (1→último): objetivo = 30 días (día 31 no cuenta, febrero se completa)
-  // - 2ª quincena (16→último): objetivo = 15 días (día 16 en meses de 31 no cuenta, febrero se completa)
+  // Apply 30-day convention (Art. 140 of the CR Labor Code):
+  // - Full month (1→last): target = 30 days (31st ignored, February is topped up)
+  // - 2nd fortnight (16→last): target = 15 days (16th in 31-day months ignored, February topped up)
   const mesCompleto       = esMesCompleto(fila.dias);
   const segQuincena       = !mesCompleto && esSegundaQuincena(fila.dias);
   const aplicarConvencion = mesCompleto || segQuincena;
@@ -407,8 +407,8 @@ function HrPlanillaSalarioFijo() {
       recalcFila({ ...f, deduccionesExtra: f.deduccionesExtra.filter((_, i) => i !== idx) })));
 
   const { label: periodoLabel, inicio: periodoInicio, fin: periodoFin, dias: periodoDias } = getPeriodo();
-  // Art. 140 CT: reutiliza esMesCompleto / esSegundaQuincena armando un array
-  // de {fecha} sintético para las fechas del período.
+  // Art. 140 Labor Code: reuses esMesCompleto / esSegundaQuincena by building a
+  // synthetic {fecha} array for the periodo's boundaries.
   const periodoDiasArr = fechasValidas
     ? [{ fecha: new Date(fechaInicio + 'T12:00:00') }, { fecha: new Date(fechaFin + 'T12:00:00') }]
     : [];

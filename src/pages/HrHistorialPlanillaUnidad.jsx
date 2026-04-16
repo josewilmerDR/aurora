@@ -99,7 +99,7 @@ function HrHistorialPlanillaUnidad() {
     if (filterPopover?.field === field) { setFilterPopover(null); return; }
     const th = e.currentTarget.closest('th') ?? e.currentTarget;
     const rect = th.getBoundingClientRect();
-    // Clamp a viewport para no desbordar en móvil (360px+).
+    // Clamp to viewport to avoid overflow on mobile (360px+).
     const maxX = Math.max(8, window.innerWidth - POPOVER_MIN_WIDTH - 8);
     const x = Math.min(Math.max(8, rect.left), maxX);
     setFilterPopover({ field, x, y: rect.bottom + 4 });
