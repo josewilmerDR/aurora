@@ -204,8 +204,8 @@ export default function CosechaProyeccion() {
       .finally(() => setLoading(false));
   }, []);
 
-  // ── Generación de filas automáticas ───────────────────────────────────────
-  // Una fila por cada bloque (siembra) que pertenece a un grupo.
+  // ── Automatic row generation ──────────────────────────────────────────────
+  // One row per bloque (siembra) that belongs to a grupo.
   const rows = useMemo(() => {
     const siembraMap = new Map(siembras.map(s => [s.id, s]));
     const result = [];
@@ -258,7 +258,7 @@ export default function CosechaProyeccion() {
           kgPrimera,                                // totalKgEsperados × (1-Rechazo)
           kgSegunda:        totalKgEsperados - kgPrimera, // totalKgEsperados × Rechazo
           cajas:            (config.kgPorCaja ?? 12) > 0 ? kgPrimera / (config.kgPorCaja ?? 12) : null,
-          // Cost/Kg: sin fuente de datos aún
+          // Cost/Kg: no data source yet
         });
       }
     }
