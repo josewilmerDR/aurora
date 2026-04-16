@@ -2,10 +2,11 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-const TIPOS_VALIDOS = new Set([
+const VALID_TYPES = new Set([
   'CARRETA DE SEMILLA',
   'CARRETA DE COSECHA',
   'IMPLEMENTO',
@@ -52,13 +53,13 @@ const validDate = (v) => {
 
 function buildMaquinariaDoc(body) {
   const descripcion = str(body.descripcion, MAX_DESC);
-  if (!descripcion) return { error: 'La descripción es obligatoria.' };
+  if (!descripcion) return { error: 'Description is required.' };
 
   const tipoRaw = typeof body.tipo === 'string' ? body.tipo.trim() : '';
-  const tipo = tipoRaw && TIPOS_VALIDOS.has(tipoRaw) ? tipoRaw : '';
+  const tipo = tipoRaw && VALID_TYPES.has(tipoRaw) ? tipoRaw : '';
 
   const fecha = validDate(body.fechaRevisionResidual);
-  if (fecha === null) return { error: 'Fecha de revisión residual inválida.' };
+  if (fecha === null) return { error: 'Invalid residual review date.' };
 
   return {
     data: {
@@ -88,14 +89,14 @@ router.get('/api/maquinaria', authenticate, async (req, res) => {
       .sort((a, b) => (a.descripcion || '').localeCompare(b.descripcion || ''));
     res.json(items);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener maquinaria.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch maquinaria.', 500);
   }
 });
 
 router.post('/api/maquinaria', authenticate, async (req, res) => {
   try {
     const { error, data } = buildMaquinariaDoc(req.body);
-    if (error) return res.status(400).json({ message: error });
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
     // Upsert: if idMaquina is provided and already exists for this finca, update it
     if (data.idMaquina) {
@@ -116,46 +117,46 @@ router.post('/api/maquinaria', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: doc.id, merged: false });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear maquinaria.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create maquinaria.', 500);
   }
 });
 
 router.put('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('maquinaria', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const { error, data } = buildMaquinariaDoc(req.body);
-    if (error) return res.status(400).json({ message: error });
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
     await db.collection('maquinaria').doc(req.params.id).update({
       ...data,
       actualizadoEn: Timestamp.now(),
     });
-    res.json({ message: 'Actualizado.' });
+    res.json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar maquinaria.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update maquinaria.', 500);
   }
 });
 
 router.delete('/api/maquinaria/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('maquinaria', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('maquinaria').doc(req.params.id).delete();
-    res.json({ message: 'Eliminado.' });
+    res.json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar maquinaria.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete maquinaria.', 500);
   }
 });
 
-// ── Tasas de combustible por máquina ─────────────────────────────────────────
+// ── Fuel rates per machine ───────────────────────────────────────────────────
 // GET /api/maquinaria/tasas-combustible?bodegaId=xxx&dias=30
-// Devuelve un objeto keyed por maquinaId con:
+// Returns an object keyed by maquinaId with:
 //   { litros, horas, tasaLH, precioUnitario, costoEstimadoPorHora }
-// tasaLH = null si no hay horas registradas en el periodo.
-// precioUnitario = costo ponderado real del periodo (totalSalida/litros),
-//   o costo ponderado actual del ítem si no hubo movimientos.
+// tasaLH = null if no hours are registered in the period.
+// precioUnitario = actual weighted cost of the period (totalSalida/litros),
+//   or the item's current weighted cost if no movements occurred.
 router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) => {
   try {
     const bodegaId = typeof req.query.bodegaId === 'string' ? req.query.bodegaId.trim().slice(0, 128) : '';
@@ -165,12 +166,12 @@ router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) =
     const cutoffDate = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
     const cutoffTs   = Timestamp.fromDate(cutoff);
 
-    // ── 1. Precio actual del combustible ──────────────────────────────────────
-    // costo ponderado = item.total / item.stockActual  (costo promedio móvil)
+    // ── 1. Current fuel price ─────────────────────────────────────────────────
+    // weighted cost = item.total / item.stockActual  (moving average cost)
     let precioActual = 0;
     if (bodegaId) {
       const bodegaCheck = await verifyOwnership('bodegas', bodegaId, req.fincaId);
-      if (!bodegaCheck.ok) return res.status(bodegaCheck.status).json({ message: bodegaCheck.message });
+      if (!bodegaCheck.ok) return sendApiError(res, bodegaCheck.code, bodegaCheck.message, bodegaCheck.status);
 
       const itemsSnap = await db.collection('bodega_items')
         .where('bodegaId', '==', bodegaId)
@@ -183,7 +184,7 @@ router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) =
       precioActual = totalStock > 0 ? totalCosto / totalStock : 0;
     }
 
-    // ── 2. Salidas de combustible en el periodo, agrupadas por activoId ───────
+    // ── 2. Fuel outflows for the period, grouped by activoId ──────────────────
     const litrosPorActivo = {}; // { [activoId]: { litros, costo } }
     if (bodegaId) {
       const movsSnap = await db.collection('bodega_movimientos')
@@ -200,7 +201,7 @@ router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) =
       });
     }
 
-    // ── 3. Horas de horímetro en el periodo, agrupadas por tractorId ──────────
+    // ── 3. Horimeter hours for the period, grouped by tractorId ───────────────
     const horasPorTractor = {}; // { [tractorId]: horas }
     const horimSnap = await db.collection('horimetro')
       .where('fincaId', '==', req.fincaId)
@@ -216,7 +217,7 @@ router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) =
       }
     });
 
-    // ── 4. Combinar: una entrada por cada maquinaId con actividad ─────────────
+    // ── 4. Combine: one entry per maquinaId with activity ─────────────────────
     const allIds = new Set([...Object.keys(litrosPorActivo), ...Object.keys(horasPorTractor)]);
     const tasas = {};
     allIds.forEach(id => {
@@ -224,7 +225,7 @@ router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) =
       const costo  = litrosPorActivo[id]?.costo  || 0;
       const horas  = horasPorTractor[id] || 0;
       const tasaLH = horas > 0 ? litros / horas : null;
-      // Precio: costo real del periodo si hubo movimientos, sino precio actual del ítem
+      // Price: actual period cost if there were movements, otherwise current item price
       const precio = litros > 0 && costo > 0 ? costo / litros : precioActual;
       tasas[id] = {
         litros:               parseFloat(litros.toFixed(2)),
@@ -238,7 +239,7 @@ router.get('/api/maquinaria/tasas-combustible', authenticate, async (req, res) =
     res.json({ tasas, dias, bodegaId: bodegaId || null });
   } catch (error) {
     console.error('[tasas-combustible GET]', error);
-    res.status(500).json({ message: 'Error al calcular tasas de combustible.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to calculate fuel rates.', 500);
   }
 });
 
