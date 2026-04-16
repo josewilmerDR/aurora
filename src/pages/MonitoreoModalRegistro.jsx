@@ -12,7 +12,7 @@ const fmtDate = (iso) => {
 };
 
 const MAX_IMAGE_PX = 1600;
-const MAX_IMAGE_FILE_BYTES = 20 * 1024 * 1024; // 20MB antes de compresión
+const MAX_IMAGE_FILE_BYTES = 20 * 1024 * 1024; // 20MB before compression
 const MAX_OBSERVACIONES = 2000;
 const MAX_REGISTRO_VALUE = 500;
 
@@ -66,7 +66,7 @@ export default function MonitoreoModalRegistro({ orden, onClose, onComplete }) {
 
   // Scan state
   const [scanImage, setScanImage] = useState(null);
-  const [capturedImage, setCapturedImage] = useState(null); // imagen que se adjuntará al guardar
+  const [capturedImage, setCapturedImage] = useState(null); // image to attach on save
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState(null);
 
