@@ -297,7 +297,7 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
   );
 }
 
-// ── Modal de confirmación cerrado/reabrir ─────────────────────────────────────
+// ── Close/reopen confirmation modal ──────────────────────────────────────────
 function ConfirmCerrarModal({ config, onCancel }) {
   return createPortal(
     <div className="param-modal-backdrop">
@@ -502,7 +502,7 @@ const fileInputRef                = useRef(null);
     }
   };
 
-  // Abrir formulario automáticamente cuando no hay registros
+  // Open the form automatically when there are no records
   useEffect(() => {
     if (!loading && registros.length === 0) setShowForm(true);
   }, [loading, registros.length]);
@@ -650,7 +650,7 @@ const fileInputRef                = useRef(null);
   const isBloqueadoCerrado = (loteId, bloque) =>
     bloque.trim() !== '' && registros.some(r => r.loteId === loteId && r.bloque === bloque.trim() && r.cerrado);
 
-  // Checkbox "Cerrado" en el formulario: pide confirmación antes de marcar
+  // "Cerrado" checkbox in the form: ask for confirmation before marking
   const handleCerradoChange = (idx, checked) => {
     if (checked) {
       setConfirmModal({
@@ -676,7 +676,7 @@ const fileInputRef                = useRef(null);
     return (p / d).toFixed(2) + ' ha';
   };
 
-  // ── Escanear formulario físico con IA ────────────────────────────────────
+  // ── Scan physical form with AI ───────────────────────────────────────────
   const handleScanFile = async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
@@ -733,7 +733,7 @@ const fileInputRef                = useRef(null);
       return;
     }
 
-    // Validar que ningún lote+bloque esté cerrado
+    // Validate that no lote+bloque is closed
     for (const row of validos) {
       if (row.loteId && row.loteId !== '__nuevo__' && isBloqueadoCerrado(row.loteId, row.bloque)) {
         const loteNombre = lotes.find(l => l.id === row.loteId)?.nombreLote || row.loteId;
@@ -879,7 +879,7 @@ const fileInputRef                = useRef(null);
       return;
     }
 
-    // Marcar como cerrado: pide confirmación
+    // Mark as closed: ask for confirmation
     setConfirmModal({
       title: `¿Cerrar el bloque "${reg.bloque || '(sin bloque)'}"?`,
       body: `Lote: "${reg.loteNombre}". Esto indica que la siembra del bloque está completa y no se podrán agregar nuevos registros. Solo un supervisor puede revertir esta acción.`,

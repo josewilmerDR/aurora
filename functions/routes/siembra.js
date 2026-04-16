@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db, Timestamp, FieldValue } = require('../lib/firebase');
 const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -9,62 +10,62 @@ const router = Router();
 // API ENDPOINTS: SIEMBRA
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Materiales de siembra ────────────────────────────────────────────────────
+// ── Sowing materials ─────────────────────────────────────────────────────────
 router.get('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).orderBy('nombre').get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener materiales.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch materials.', 500);
   }
 });
 
 router.post('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
-    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return res.status(400).json({ message: 'El nombre es obligatorio.' });
-    if (nombre.length > 32) return res.status(400).json({ message: 'Nombre demasiado largo.' });
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
+    if (nombre.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long.', 400);
     const ref = await db.collection('materiales_siembra').add({
       nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32),
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear material.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create material.', 500);
   }
 });
 
 router.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
-    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return res.status(400).json({ message: 'El nombre es obligatorio.' });
-    if (nombre.length > 32) return res.status(400).json({ message: 'Nombre demasiado largo.' });
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
+    if (nombre.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long.', 400);
     const doc = await db.collection('materiales_siembra').doc(req.params.id).get();
-    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Material no encontrado.' });
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Material not found.', 404);
     await doc.ref.update({ nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32) });
-    res.status(200).json({ message: 'Material actualizado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar material.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update material.', 500);
   }
 });
 
 router.delete('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('materiales_siembra').doc(req.params.id).get();
-    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Material no encontrado.' });
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Material not found.', 404);
     await doc.ref.delete();
-    res.status(200).json({ message: 'Material eliminado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar material.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete material.', 500);
   }
 });
 
-// ── Escanear formulario de siembra con IA ────────────────────────────────────
+// ── Scan sowing form with AI ─────────────────────────────────────────────────
 router.post('/api/siembras/escanear', authenticate, async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
-      return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'imageBase64 and mediaType are required.', 400);
     }
 
     const [lotesSnap, matsSnap] = await Promise.all([
@@ -138,18 +139,18 @@ Reglas:
     try {
       filas = JSON.parse(jsonText);
     } catch {
-      console.error('Claude devolvió texto no parseable:', rawText);
-      return res.status(422).json({ message: 'La IA no pudo interpretar el formulario. Intenta con una imagen más clara.', raw: rawText });
+      console.error('Claude returned unparseable text:', rawText);
+      return res.status(422).json({ code: ERROR_CODES.INTERNAL_ERROR, message: 'AI could not interpret the form. Try a clearer image.', raw: rawText });
     }
 
     res.json({ filas, lotes, materiales });
   } catch (error) {
-    console.error('Error en escanear siembra:', error);
-    res.status(500).json({ message: 'Error al procesar la imagen con IA.' });
+    console.error('Error scanning siembra:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process image with AI.', 500);
   }
 });
 
-// ── Registros de siembra ─────────────────────────────────────────────────────
+// ── Siembra records ──────────────────────────────────────────────────────────
 router.get('/api/siembras', authenticate, async (req, res) => {
   try {
     const { loteId, desde, hasta } = req.query;
@@ -164,25 +165,25 @@ router.get('/api/siembras', authenticate, async (req, res) => {
     });
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener siembras.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch siembras.', 500);
   }
 });
 
 router.post('/api/siembras', authenticate, async (req, res) => {
   try {
     const { loteId, loteNombre, bloque, plantas, densidad, materialId, materialNombre, rangoPesos, variedad, cerrado, fecha, responsableId, responsableNombre } = req.body;
-    if (!loteId || !fecha) return res.status(400).json({ message: 'Lote y fecha son obligatorios.' });
+    if (!loteId || !fecha) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Lote and fecha are required.', 400);
 
-    const plantas_ = parseInt(plantas) || 0;
-    const densidad_ = parseFloat(densidad) || 0;
-    if (plantas_ < 0 || plantas_ > 199999) return res.status(400).json({ message: 'Plantas fuera de rango válido.' });
-    if (densidad_ < 0 || densidad_ > 199999) return res.status(400).json({ message: 'Densidad fuera de rango válido.' });
-    if (typeof bloque === 'string' && bloque.length > 4) return res.status(400).json({ message: 'Bloque demasiado largo.' });
-    if (typeof loteNombre === 'string' && loteNombre.length > 200) return res.status(400).json({ message: 'Nombre de lote demasiado largo.' });
-    const areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
-    const esCerrado = cerrado === true || cerrado === 'true';
+    const plantCount = parseInt(plantas) || 0;
+    const density = parseFloat(densidad) || 0;
+    if (plantCount < 0 || plantCount > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Plants out of valid range.', 400);
+    if (density < 0 || density > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Density out of valid range.', 400);
+    if (typeof bloque === 'string' && bloque.length > 4) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Block too long.', 400);
+    if (typeof loteNombre === 'string' && loteNombre.length > 200) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote name too long.', 400);
+    const areaCalculada = density > 0 ? parseFloat((plantCount / density).toFixed(4)) : 0;
+    const isClosed = cerrado === true || cerrado === 'true';
     const inputFechaCierre = req.body.fechaCierre;
-    const fechaCierre = esCerrado
+    const fechaCierre = isClosed
       ? (inputFechaCierre && String(inputFechaCierre).trim()
           ? Timestamp.fromDate(new Date(String(inputFechaCierre).trim() + 'T12:00:00'))
           : Timestamp.now())
@@ -193,13 +194,13 @@ router.post('/api/siembras', authenticate, async (req, res) => {
       fincaId: req.fincaId,
       loteId, loteNombre: loteNombre || '',
       bloque: bloqueNorm,
-      plantas: plantas_, densidad: densidad_,
+      plantas: plantCount, densidad: density,
       areaCalculada,
       materialId: materialId || '',
       materialNombre: materialNombre || '',
       rangoPesos: rangoPesos || '',
       variedad: variedad || '',
-      cerrado: esCerrado,
+      cerrado: isClosed,
       ...(fechaCierre && { fechaCierre }),
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       responsableId: responsableId || '',
@@ -207,7 +208,7 @@ router.post('/api/siembras', authenticate, async (req, res) => {
       createdAt: Timestamp.now(),
     });
 
-    if (esCerrado) {
+    if (isClosed) {
       const siblingsSnap = await db.collection('siembras')
         .where('fincaId', '==', req.fincaId)
         .where('loteId', '==', loteId)
@@ -222,7 +223,7 @@ router.post('/api/siembras', authenticate, async (req, res) => {
 
     res.status(201).json({ id: ref.id, areaCalculada });
   } catch (error) {
-    res.status(500).json({ message: 'Error al registrar siembra.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register siembra.', 500);
   }
 });
 
@@ -235,26 +236,26 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
     }
     if (updates.plantas !== undefined) {
       updates.plantas = parseInt(updates.plantas) || 0;
-      if (updates.plantas < 0 || updates.plantas > 199999) return res.status(400).json({ message: 'Plantas fuera de rango válido.' });
+      if (updates.plantas < 0 || updates.plantas > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Plants out of valid range.', 400);
     }
     if (updates.densidad !== undefined) {
       updates.densidad = parseFloat(updates.densidad) || 0;
-      if (updates.densidad < 0 || updates.densidad > 199999) return res.status(400).json({ message: 'Densidad fuera de rango válido.' });
+      if (updates.densidad < 0 || updates.densidad > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Density out of valid range.', 400);
     }
-    if (typeof updates.bloque === 'string' && updates.bloque.length > 4) return res.status(400).json({ message: 'Bloque demasiado largo.' });
-    if (typeof updates.loteNombre === 'string' && updates.loteNombre.length > 200) return res.status(400).json({ message: 'Nombre de lote demasiado largo.' });
+    if (typeof updates.bloque === 'string' && updates.bloque.length > 4) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Block too long.', 400);
+    if (typeof updates.loteNombre === 'string' && updates.loteNombre.length > 200) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote name too long.', 400);
     if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
 
     const needsDoc = updates.plantas !== undefined || updates.densidad !== undefined || updates.cerrado !== undefined;
     const doc = await db.collection('siembras').doc(req.params.id).get();
-    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Registro no encontrado.' });
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Record not found.', 404);
     if (needsDoc) {
       const current = doc.data();
 
       if (updates.plantas !== undefined || updates.densidad !== undefined) {
-        const plantas_ = parseInt(updates.plantas ?? current.plantas) || 0;
-        const densidad_ = parseFloat(updates.densidad ?? current.densidad) || 0;
-        updates.areaCalculada = densidad_ > 0 ? parseFloat((plantas_ / densidad_).toFixed(4)) : 0;
+        const plantCount = parseInt(updates.plantas ?? current.plantas) || 0;
+        const density = parseFloat(updates.densidad ?? current.densidad) || 0;
+        updates.areaCalculada = density > 0 ? parseFloat((plantCount / density).toFixed(4)) : 0;
       }
 
       if (updates.cerrado !== undefined) {
@@ -273,25 +274,25 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
           batch.update(d.ref, sibUpdates);
         });
         await batch.commit();
-        return res.status(200).json({ message: 'Siembra actualizada.' });
+        return res.status(200).json({ ok: true });
       }
     }
 
     await db.collection('siembras').doc(req.params.id).update(updates);
-    res.status(200).json({ message: 'Siembra actualizada.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar siembra.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update siembra.', 500);
   }
 });
 
 router.delete('/api/siembras/:id', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('siembras').doc(req.params.id).get();
-    if (!doc.exists || doc.data().fincaId !== req.fincaId) return res.status(404).json({ message: 'Registro no encontrado.' });
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Record not found.', 404);
     await doc.ref.delete();
-    res.status(200).json({ message: 'Registro eliminado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar siembra.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete siembra.', 500);
   }
 });
 
