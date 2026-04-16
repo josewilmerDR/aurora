@@ -3,10 +3,11 @@ const { db, admin, Timestamp, FieldValue } = require('../lib/firebase');
 const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-// --- API ENDPOINTS: COMPRAS (ESCANEO DE FACTURAS) ---
+// ── COMPRAS (Invoice scanning) ──────────────────────────────────────────────
 
 router.get('/api/compras', authenticate, async (req, res) => {
   try {
@@ -17,14 +18,14 @@ router.get('/api/compras', authenticate, async (req, res) => {
       .get();
     const compras = snapshot.docs.map(doc => {
       const data = doc.data();
-      // No devolver la imagen en el listado (puede ser pesada)
+      // Strip image from listing (can be heavy)
       const { imageBase64, ...rest } = data;
       return { id: doc.id, tieneImagen: !!imageBase64, ...rest };
     });
     res.status(200).json(compras);
   } catch (error) {
-    console.error("Error fetching compras:", error);
-    res.status(500).json({ message: 'Error al obtener el historial de compras.' });
+    console.error('[compras:list]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch compras history.', 500);
   }
 });
 
@@ -32,14 +33,14 @@ router.post('/api/compras/escanear', authenticate, async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
-      return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'imageBase64 and mediaType are required.', 400);
     }
-    const MEDIA_TYPES_VALIDOS = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!MEDIA_TYPES_VALIDOS.includes(mediaType)) {
-      return res.status(400).json({ message: 'Tipo de imagen no soportado. Use jpeg, png, gif o webp.' });
+    const VALID_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!VALID_MEDIA_TYPES.includes(mediaType)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Unsupported image type. Use jpeg, png, gif or webp.', 400);
     }
 
-    // Obtener catálogo de productos actual para que Claude pueda hacer el match
+    // Fetch current product catalog so Claude can match
     const productosSnap = await db.collection('productos')
       .where('fincaId', '==', req.fincaId)
       .get();
@@ -57,6 +58,7 @@ router.post('/api/compras/escanear', authenticate, async (req, res) => {
       ? catalogo.map(p => `- ID: "${p.id}" | Código: ${p.idProducto} | Nombre: ${p.nombreComercial} | Unidad: ${p.unidad}`).join('\n')
       : '(catálogo vacío)';
 
+    // AI prompt intentionally in Spanish — drives Spanish-language AI output for end users
     const prompt = `Eres un experto en inventario agrícola. Analiza esta imagen de factura de agroquímicos.
 
 Catálogo de productos existente en nuestra bodega:
@@ -102,21 +104,21 @@ Reglas importantes:
 
     const rawText = response.content[0].text.trim();
 
-    // Limpiar posibles bloques de código si Claude los incluyó de todas formas
+    // Strip code blocks if Claude included them anyway
     const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
 
     let lineas;
     try {
       lineas = JSON.parse(jsonText);
     } catch {
-      console.error("Claude devolvió texto no parseable:", rawText);
-      return res.status(422).json({ message: 'La IA no pudo interpretar la factura. Intenta con una imagen más clara.', raw: rawText });
+      console.error('[compras:scan] AI returned unparseable text:', rawText);
+      return sendApiError(res, ERROR_CODES.EXTERNAL_SERVICE_ERROR, 'AI could not interpret the invoice. Try a clearer image.', 422);
     }
 
     res.status(200).json({ lineas, catalogo });
   } catch (error) {
-    console.error("Error en escanear factura:", error);
-    res.status(500).json({ message: 'Error al procesar la imagen con IA.' });
+    console.error('[compras:scan]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process image with AI.', 500);
   }
 });
 
@@ -125,14 +127,14 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
     const { imageBase64, mediaType, proveedor, fecha, lineas } = req.body;
 
     if (!Array.isArray(lineas) || lineas.length === 0) {
-      return res.status(400).json({ message: 'Se requiere al menos una línea de producto.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product line is required.', 400);
     }
 
     const batch = db.batch();
     let stockActualizados = 0;
     let productosCreados = 0;
 
-    // Pre-generar ID de compra para referenciarlo en los movimientos
+    // Pre-generate compra id for referencing in movimientos
     const compraRef = db.collection('compras').doc();
     const motivoCompra = proveedor ? `Compra: ${proveedor}` : 'Compra de inventario';
 
@@ -141,7 +143,7 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
       if (cantidad <= 0) continue;
 
       if (linea.productoId) {
-        // ── Producto existente: solo incrementar stock ──
+        // Existing product: increment stock only
         const prodRef = db.collection('productos').doc(linea.productoId);
         batch.update(prodRef, { stockActual: FieldValue.increment(cantidad) });
         batch.set(db.collection('movimientos').doc(), {
@@ -157,7 +159,7 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
         });
         stockActualizados++;
       } else if (linea.ingredienteActivo) {
-        // ── Producto nuevo: crear con todos los campos del formulario ──
+        // New product: create with all form fields
         const newProdRef = db.collection('productos').doc();
         batch.set(newProdRef, {
           idProducto: linea.idProducto || `PD-${Date.now()}`,
@@ -189,10 +191,10 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
         });
         productosCreados++;
       }
-      // Si no tiene productoId ni ingredienteActivo: se ignora (incompleto)
+      // If no productoId and no ingredienteActivo: skip (incomplete)
     }
 
-    // Guardar registro de compra (ref pre-generada arriba)
+    // Save compra record (pre-generated ref above)
     batch.set(compraRef, {
       fincaId: req.fincaId,
       proveedor: proveedor || '',
@@ -213,15 +215,15 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
       id: compraRef.id,
       stockActualizados,
       productosCreados,
-      message: 'Compra registrada exitosamente.',
+      message: 'Purchase recorded.',
     });
   } catch (error) {
-    console.error("Error confirmando compra:", error);
-    res.status(500).json({ message: 'Error al registrar la compra.' });
+    console.error('[compras:confirm]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register the purchase.', 500);
   }
 });
 
-// --- API ENDPOINTS: SOLICITUDES DE COMPRA ---
+// ── SOLICITUDES DE COMPRA ───────────────────────────────────────────────────
 router.get('/api/solicitudes-compra', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('solicitudes_compra')
@@ -236,8 +238,8 @@ router.get('/api/solicitudes-compra', authenticate, async (req, res) => {
     }));
     res.status(200).json(solicitudes);
   } catch (error) {
-    console.error('Error fetching solicitudes:', error);
-    res.status(500).json({ message: 'Error al obtener solicitudes.' });
+    console.error('[solicitudes-compra:list]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch solicitudes.', 500);
   }
 });
 
@@ -245,12 +247,11 @@ router.post('/api/solicitudes-compra', authenticate, async (req, res) => {
   try {
     const { responsableId, responsableNombre, notas, items } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Se requiere al menos un producto.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product is required.', 400);
     }
 
-    // Validate notas length
     if (notas && typeof notas === 'string' && notas.length > 288) {
-      return res.status(400).json({ message: 'Las notas no pueden exceder 288 caracteres.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'notas must not exceed 288 characters.', 400);
     }
 
     const resolvedResponsableId = responsableId || 'proveeduria';
@@ -269,12 +270,12 @@ router.post('/api/solicitudes-compra', authenticate, async (req, res) => {
       .filter(i => i.cantidadSolicitada > 0 && i.cantidadSolicitada < 32768);
 
     if (mappedItems.length === 0) {
-      return res.status(400).json({ message: 'Todos los productos deben tener cantidad mayor a 0 y menor a 32768.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'All products must have quantity > 0 and < 32768.', 400);
     }
 
     const batch = db.batch();
 
-    // Crear la solicitud de compra
+    // Create the purchase request
     const solicitudRef = db.collection('solicitudes_compra').doc();
     batch.set(solicitudRef, {
       fincaId: req.fincaId,
@@ -286,7 +287,7 @@ router.post('/api/solicitudes-compra', authenticate, async (req, res) => {
       items: mappedItems,
     });
 
-    // Crear tarea asociada en scheduled_tasks
+    // Create associated task in scheduled_tasks
     const productosResumen = mappedItems
       .map(i => `${i.nombreComercial} (${i.cantidadSolicitada} ${i.unidad})`)
       .join(', ');
@@ -317,10 +318,10 @@ router.post('/api/solicitudes-compra', authenticate, async (req, res) => {
     });
 
     await batch.commit();
-    res.status(201).json({ id: solicitudRef.id, taskId: taskRef.id, message: 'Solicitud creada exitosamente.' });
+    res.status(201).json({ id: solicitudRef.id, taskId: taskRef.id, message: 'Solicitud created.' });
   } catch (error) {
-    console.error('Error creating solicitud:', error);
-    res.status(500).json({ message: 'Error al crear la solicitud.' });
+    console.error('[solicitudes-compra:post]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create solicitud.', 500);
   }
 });
 
@@ -328,10 +329,10 @@ router.put('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('solicitudes_compra', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const { estado, items, responsableId, responsableNombre, notas } = req.body;
-    const ESTADOS_VALIDOS = ['pendiente', 'aprobada', 'rechazada', 'completada'];
-    if (estado && !ESTADOS_VALIDOS.includes(estado)) return res.status(400).json({ message: 'Estado inválido.' });
+    const VALID_STATES = ['pendiente', 'aprobada', 'rechazada', 'completada'];
+    if (estado && !VALID_STATES.includes(estado)) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
     const update = {};
     if (estado) update.estado = estado;
     if (items) update.items = items;
@@ -339,26 +340,26 @@ router.put('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
     if (responsableNombre !== undefined) update.responsableNombre = responsableNombre;
     if (notas !== undefined) update.notas = notas;
     await db.collection('solicitudes_compra').doc(id).update(update);
-    res.status(200).json({ message: 'Solicitud actualizada.' });
+    res.status(200).json({ message: 'Solicitud updated.' });
   } catch (error) {
-    console.error('Error updating solicitud:', error);
-    res.status(500).json({ message: 'Error al actualizar la solicitud.' });
+    console.error('[solicitudes-compra:put]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update solicitud.', 500);
   }
 });
 
 router.delete('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('solicitudes_compra', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('solicitudes_compra').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Solicitud eliminada.' });
+    res.status(200).json({ message: 'Solicitud deleted.' });
   } catch (error) {
-    console.error('Error deleting solicitud:', error);
-    res.status(500).json({ message: 'Error al eliminar la solicitud.' });
+    console.error('[solicitudes-compra:delete]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete solicitud.', 500);
   }
 });
 
-// --- API ENDPOINTS: MOVIMIENTOS ---
+// ── MOVIMIENTOS ─────────────────────────────────────────────────────────────
 router.get('/api/movimientos', authenticate, async (req, res) => {
   try {
     const { productoId, fechaDesde, fechaHasta } = req.query;
@@ -387,12 +388,12 @@ router.get('/api/movimientos', authenticate, async (req, res) => {
     }));
     res.status(200).json(movimientos);
   } catch (error) {
-    console.error('Error fetching movimientos:', error);
-    res.status(500).json({ message: 'Error al obtener movimientos.' });
+    console.error('[movimientos:list]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch movimientos.', 500);
   }
 });
 
-// --- API ENDPOINTS: ÓRDENES DE COMPRA ---
+// ── ORDENES DE COMPRA ───────────────────────────────────────────────────────
 router.get('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('ordenes_compra')
@@ -411,8 +412,8 @@ router.get('/api/ordenes-compra', authenticate, async (req, res) => {
     if (estado) ordenes = ordenes.filter(o => o.estado === estado);
     res.status(200).json(ordenes);
   } catch (error) {
-    console.error('Error fetching ordenes:', error);
-    res.status(500).json({ message: 'Error al obtener órdenes de compra.' });
+    console.error('[ordenes-compra:list]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch purchase orders.', 500);
   }
 });
 
@@ -420,20 +421,20 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
     const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Se requiere al menos un producto.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product is required.', 400);
     }
     if (items.length > 500) {
-      return res.status(400).json({ message: 'Demasiados productos en una sola orden.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Too many products in a single order.', 400);
     }
     const isValidYmd = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T12:00:00').getTime());
     if (fecha != null && !isValidYmd(fecha)) {
-      return res.status(400).json({ message: 'Fecha de orden inválida.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid order date.', 400);
     }
     if (fechaEntrega != null && fechaEntrega !== '' && !isValidYmd(fechaEntrega)) {
-      return res.status(400).json({ message: 'Fecha de entrega inválida.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid delivery date.', 400);
     }
     if (fecha && fechaEntrega && fechaEntrega < fecha) {
-      return res.status(400).json({ message: 'La fecha de entrega no puede ser anterior a la de la orden.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Delivery date cannot be earlier than order date.', 400);
     }
     const str = (v, max) => (typeof v === 'string' ? v : '').slice(0, max);
     const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
@@ -480,10 +481,10 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
         ordenCompraId: docRef.id,
       });
     }
-    res.status(201).json({ id: docRef.id, poNumber, message: 'Orden de compra guardada.' });
+    res.status(201).json({ id: docRef.id, poNumber, message: 'Purchase order saved.' });
   } catch (error) {
-    console.error('Error saving orden:', error);
-    res.status(500).json({ message: 'Error al guardar la orden de compra.' });
+    console.error('[ordenes-compra:post]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save purchase order.', 500);
   }
 });
 
@@ -492,22 +493,22 @@ router.patch('/api/ordenes-compra/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const { estado, items } = req.body;
     const valid = ['activa', 'completada', 'cancelada', 'recibida', 'recibida_parcialmente'];
-    if (!valid.includes(estado)) return res.status(400).json({ message: 'Estado inválido.' });
+    if (!valid.includes(estado)) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
     const docRef = db.collection('ordenes_compra').doc(id);
     const doc = await docRef.get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId)
-      return res.status(404).json({ message: 'Orden no encontrada.' });
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Purchase order not found.', 404);
     const updateData = { estado, updatedAt: Timestamp.now() };
     if (Array.isArray(items)) updateData.items = items;
     await docRef.update(updateData);
-    res.status(200).json({ message: 'Estado actualizado.' });
+    res.status(200).json({ message: 'Estado updated.' });
   } catch (error) {
-    console.error('Error updating orden estado:', error);
-    res.status(500).json({ message: 'Error al actualizar la orden.' });
+    console.error('[ordenes-compra:patch]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update order.', 500);
   }
 });
 
-// --- API ENDPOINTS: RECEPCIONES DE PRODUCTOS ---
+// ── RECEPCIONES DE PRODUCTOS ────────────────────────────────────────────────
 router.get('/api/recepciones', authenticate, async (req, res) => {
   try {
     const { ordenCompraId } = req.query;
@@ -531,8 +532,8 @@ router.get('/api/recepciones', authenticate, async (req, res) => {
     });
     res.status(200).json(recepciones);
   } catch (error) {
-    console.error('Error fetching recepciones:', error);
-    res.status(500).json({ message: 'Error al obtener recepciones.' });
+    console.error('[recepciones:list]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch recepciones.', 500);
   }
 });
 
@@ -540,48 +541,48 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
   try {
     const { ordenCompraId, poNumber, proveedor, items, notas, imageBase64, mediaType } = req.body;
 
-    // --- Validaciones de entrada ---
+    // Input validation
     if (typeof notas === 'string' && notas.length > 1000) {
-      return res.status(400).json({ message: 'Las notas no deben superar 1000 caracteres.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'notas must not exceed 1000 characters.', 400);
     }
     if (typeof poNumber === 'string' && poNumber.length > 100) {
-      return res.status(400).json({ message: 'El número de OC es demasiado largo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'PO number is too long.', 400);
     }
     if (typeof proveedor === 'string' && proveedor.length > 200) {
-      return res.status(400).json({ message: 'El nombre del proveedor es demasiado largo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Supplier name is too long.', 400);
     }
     if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.length > 15 * 1024 * 1024) {
-      return res.status(400).json({ message: 'La imagen es demasiado grande (máx ~10 MB).' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Image is too large (max ~10 MB).', 400);
     }
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Se requiere al menos un ítem.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one item is required.', 400);
     }
     if (items.length > 200) {
-      return res.status(400).json({ message: 'Demasiados ítems en la recepción.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Too many items in the reception.', 400);
     }
     for (const item of items) {
       const qty = parseFloat(item.cantidadRecibida);
       if (qty < 0 || qty > 999999 || !isFinite(qty)) {
-        return res.status(400).json({ message: `Cantidad inválida para ${item.nombreComercial || 'un producto'}.` });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid quantity for ${item.nombreComercial || 'a product'}.`, 400);
       }
     }
     const recibidos = items.filter(i => parseFloat(i.cantidadRecibida) > 0);
     if (recibidos.length === 0) {
-      return res.status(400).json({ message: 'Al menos un producto debe tener cantidad recibida mayor a cero.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'At least one product must have quantity received > 0.', 400);
     }
 
-    // Verificar que la orden existe, pertenece a la finca y está activa
+    // Verify the order exists, belongs to the finca and is active
     if (ordenCompraId) {
       const ordenDoc = await db.collection('ordenes_compra').doc(ordenCompraId).get();
       if (!ordenDoc.exists) {
-        return res.status(404).json({ message: 'Orden de compra no encontrada.' });
+        return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Purchase order not found.', 404);
       }
       const ordenData = ordenDoc.data();
       if (ordenData.fincaId !== req.fincaId) {
-        return res.status(403).json({ message: 'No tiene permiso sobre esta orden de compra.' });
+        return sendApiError(res, ERROR_CODES.FORBIDDEN, 'No access to this purchase order.', 403);
       }
       if (ordenData.estado !== 'activa' && ordenData.estado !== 'recibida_parcial') {
-        return res.status(400).json({ message: 'Esta orden ya fue recibida o cancelada.' });
+        return sendApiError(res, ERROR_CODES.CONFLICT, 'This order has already been received or cancelled.', 400);
       }
     }
 
@@ -608,7 +609,7 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
           ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
           : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
       } catch (storageErr) {
-        console.error('Storage upload failed:', storageErr.message);
+        console.error('[recepciones] Storage upload failed:', storageErr.message);
       }
     }
 
@@ -667,10 +668,10 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
     }
 
     await batch.commit();
-    res.status(201).json({ id: recepcionRef.id, message: 'Recepción registrada y stock actualizado.' });
+    res.status(201).json({ id: recepcionRef.id, message: 'Reception registered and stock updated.' });
   } catch (error) {
-    console.error('Error processing recepcion:', error);
-    res.status(500).json({ message: 'Error al registrar la recepción.' });
+    console.error('[recepciones:post]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register the reception.', 500);
   }
 });
 
