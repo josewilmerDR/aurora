@@ -3,6 +3,7 @@ const { db, admin, Timestamp, FieldValue, FieldPath, STORAGE_BUCKET } = require(
 const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -11,8 +12,8 @@ const router = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-// ── Tipos de Monitoreo ────────────────────────────────────────────────────────
-const TIPOS_CAMPO_VALIDOS = ['texto', 'numero', 'fecha'];
+// ── Monitoring Types ──────────────────────────────────────────────────────────
+const VALID_FIELD_TYPES = ['texto', 'numero', 'fecha'];
 const MAX_NOMBRE_PLANTILLA = 60;
 const MAX_NOMBRE_CAMPO = 40;
 const MAX_CAMPOS_PERSONALIZADOS = 50;
@@ -20,20 +21,20 @@ const MAX_CAMPOS_PERSONALIZADOS = 50;
 const sanitizeCampos = (campos) => {
   if (!Array.isArray(campos)) return { ok: true, value: [] };
   if (campos.length > MAX_CAMPOS_PERSONALIZADOS) {
-    return { ok: false, message: `Máximo ${MAX_CAMPOS_PERSONALIZADOS} campos personalizados.` };
+    return { ok: false, message: `Max ${MAX_CAMPOS_PERSONALIZADOS} custom fields.` };
   }
   const out = [];
   for (const c of campos) {
     if (!c || typeof c !== 'object') {
-      return { ok: false, message: 'Formato de campos inválido.' };
+      return { ok: false, message: 'Invalid fields format.' };
     }
     const nombre = typeof c.nombre === 'string' ? c.nombre.trim() : '';
-    if (!nombre) return { ok: false, message: 'Todos los campos deben tener nombre.' };
+    if (!nombre) return { ok: false, message: 'All fields must have a name.' };
     if (nombre.length > MAX_NOMBRE_CAMPO) {
-      return { ok: false, message: `Nombre de campo excede ${MAX_NOMBRE_CAMPO} caracteres.` };
+      return { ok: false, message: `Field name exceeds ${MAX_NOMBRE_CAMPO} characters.` };
     }
-    if (!TIPOS_CAMPO_VALIDOS.includes(c.tipo)) {
-      return { ok: false, message: 'Tipo de campo inválido.' };
+    if (!VALID_FIELD_TYPES.includes(c.tipo)) {
+      return { ok: false, message: 'Invalid field type.' };
     }
     out.push({ nombre, tipo: c.tipo });
   }
@@ -41,11 +42,11 @@ const sanitizeCampos = (campos) => {
 };
 
 const sanitizeNombre = (nombre) => {
-  if (typeof nombre !== 'string') return { ok: false, message: 'El nombre es obligatorio.' };
+  if (typeof nombre !== 'string') return { ok: false, message: 'Name is required.' };
   const trimmed = nombre.trim();
-  if (!trimmed) return { ok: false, message: 'El nombre es obligatorio.' };
+  if (!trimmed) return { ok: false, message: 'Name is required.' };
   if (trimmed.length > MAX_NOMBRE_PLANTILLA) {
-    return { ok: false, message: `El nombre excede ${MAX_NOMBRE_PLANTILLA} caracteres.` };
+    return { ok: false, message: `Name exceeds ${MAX_NOMBRE_PLANTILLA} characters.` };
   }
   return { ok: true, value: trimmed };
 };
@@ -55,16 +56,16 @@ router.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
     const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener tipos de monitoreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch monitoreo types.', 500);
   }
 });
 
 router.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {
     const nombreRes = sanitizeNombre(req.body?.nombre);
-    if (!nombreRes.ok) return res.status(400).json({ message: nombreRes.message });
+    if (!nombreRes.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, nombreRes.message, 400);
     const camposRes = sanitizeCampos(req.body?.campos);
-    if (!camposRes.ok) return res.status(400).json({ message: camposRes.message });
+    if (!camposRes.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, camposRes.message, 400);
     const ref = await db.collection('tipos_monitoreo').add({
       nombre: nombreRes.value,
       activo: true,
@@ -73,57 +74,57 @@ router.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear tipo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create type.', 500);
   }
 });
 
 router.get('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     res.status(200).json({ id: req.params.id, ...ownership.doc.data() });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener la plantilla.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch template.', 500);
   }
 });
 
 router.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const update = {};
     if (req.body?.nombre !== undefined) {
       const nombreRes = sanitizeNombre(req.body.nombre);
-      if (!nombreRes.ok) return res.status(400).json({ message: nombreRes.message });
+      if (!nombreRes.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, nombreRes.message, 400);
       update.nombre = nombreRes.value;
     }
     if (req.body?.campos !== undefined) {
       const camposRes = sanitizeCampos(req.body.campos);
-      if (!camposRes.ok) return res.status(400).json({ message: camposRes.message });
+      if (!camposRes.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, camposRes.message, 400);
       update.campos = camposRes.value;
     }
     if (req.body?.activo !== undefined) {
       update.activo = !!req.body.activo;
     }
     if (Object.keys(update).length === 0) {
-      return res.status(400).json({ message: 'Sin cambios.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'No changes.', 400);
     }
     await db.collection('tipos_monitoreo').doc(req.params.id).update(update);
-    res.status(200).json({ message: 'Tipo actualizado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar tipo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update type.', 500);
   }
 });
 
 router.delete('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('tipos_monitoreo').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Tipo eliminado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar tipo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete type.', 500);
   }
 });
 
@@ -206,7 +207,7 @@ router.get('/api/monitoreo/paquetes', authenticate, async (req, res) => {
     const snap = await db.collection('monitoreo_paquetes').where('fincaId', '==', req.fincaId).get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener paquetes de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch monitoring packages.', 500);
   }
 });
 
@@ -214,22 +215,22 @@ router.get('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     res.status(200).json({ id, ...ownership.doc.data() });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener el paquete de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch monitoring package.', 500);
   }
 });
 
 router.post('/api/monitoreo/paquetes', authenticate, async (req, res) => {
   try {
     const parsed = sanitizePaquete(req.body);
-    if (!parsed.ok) return res.status(400).json({ message: parsed.message });
+    if (!parsed.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, parsed.message, 400);
     const pkg = { ...parsed.value, fincaId: req.fincaId };
     const docRef = await db.collection('monitoreo_paquetes').add(pkg);
     res.status(201).json({ id: docRef.id, ...pkg });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear paquete de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create monitoring package.', 500);
   }
 });
 
@@ -237,13 +238,13 @@ router.put('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const parsed = sanitizePaquete(req.body);
-    if (!parsed.ok) return res.status(400).json({ message: parsed.message });
+    if (!parsed.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, parsed.message, 400);
     await db.collection('monitoreo_paquetes').doc(id).update(parsed.value);
     res.status(200).json({ id, ...parsed.value });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar paquete de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update monitoring package.', 500);
   }
 });
 
@@ -251,11 +252,11 @@ router.delete('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('monitoreo_paquetes').doc(id).delete();
-    res.status(200).json({ message: 'Paquete de muestreo eliminado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar paquete de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete monitoring package.', 500);
   }
 });
 
@@ -331,7 +332,7 @@ router.get('/api/muestreos/ordenes', authenticate, async (req, res) => {
     res.status(200).json(enriched);
   } catch (error) {
     console.error('Error fetching muestreo ordenes:', error);
-    res.status(500).json({ message: 'Error al obtener órdenes de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch monitoring orders.', 500);
   }
 });
 
@@ -339,16 +340,16 @@ router.delete('/api/muestreos/ordenes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const task = ownership.doc.data();
     if (task.type !== 'MUESTREO') {
-      return res.status(400).json({ message: 'Esta tarea no es una orden de muestreo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'This task is not a monitoring order.', 400);
     }
     await db.collection('scheduled_tasks').doc(id).delete();
-    res.status(200).json({ message: 'Orden de muestreo eliminada.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Error deleting muestreo orden:', error);
-    res.status(500).json({ message: 'Error al eliminar la orden de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete monitoring order.', 500);
   }
 });
 
@@ -363,10 +364,10 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const task = ownership.doc.data();
     if (task.type !== 'MUESTREO') {
-      return res.status(400).json({ message: 'Esta tarea no es una orden de muestreo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'This task is not a monitoring order.', 400);
     }
 
     const body = req.body || {};
@@ -379,23 +380,23 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
 
     // Validaciones tempranas
     if (fechaCarga !== undefined && fechaCarga !== '' && !DATE_ISO_RE.test(fechaCarga)) {
-      return res.status(400).json({ message: 'Formato de fechaCarga inválido (YYYY-MM-DD).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid fechaCarga format (YYYY-MM-DD).', 400);
     }
     if (bodyObservaciones !== undefined && typeof bodyObservaciones !== 'string') {
-      return res.status(400).json({ message: 'Observaciones debe ser texto.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Observations must be a string.', 400);
     }
     if (typeof bodyObservaciones === 'string' && bodyObservaciones.length > MAX_OBSERVACIONES) {
-      return res.status(400).json({ message: `Observaciones excede ${MAX_OBSERVACIONES} caracteres.` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Observations exceed ${MAX_OBSERVACIONES} characters.`, 400);
     }
     if (scanImageBase64 !== undefined && scanImageBase64 !== null) {
       if (typeof scanImageBase64 !== 'string') {
-        return res.status(400).json({ message: 'scanImageBase64 inválido.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid scanImageBase64.', 400);
       }
       if (scanImageBase64.length > MAX_SCAN_IMAGE_BASE64) {
-        return res.status(413).json({ message: 'Imagen de escaneo excede el tamaño máximo.' });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Scan image exceeds max size.', 413);
       }
       if (scanImageMediaType && !MEDIA_TYPES_IMG.includes(scanImageMediaType)) {
-        return res.status(400).json({ message: 'Tipo de imagen no soportado.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Unsupported image type.', 400);
       }
     }
 
@@ -407,23 +408,23 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
     if (body.formularioData) {
       const { registros } = body.formularioData;
       if (!Array.isArray(registros)) {
-        return res.status(400).json({ message: 'formularioData.registros debe ser array.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'formularioData.registros must be an array.', 400);
       }
       if (registros.length > MAX_REGISTROS_ROWS) {
-        return res.status(400).json({ message: `Máximo ${MAX_REGISTROS_ROWS} filas.` });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Maximum ${MAX_REGISTROS_ROWS} rows.`, 400);
       }
       if (registros.length > 0) {
         const cleanRows = [];
         for (const row of registros) {
           if (!row || typeof row !== 'object' || Array.isArray(row)) {
-            return res.status(400).json({ message: 'Cada registro debe ser objeto.' });
+            return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Each record must be an object.', 400);
           }
           const cleanRow = {};
           for (const [k, v] of Object.entries(row)) {
             if (typeof k !== 'string' || k.length > 80) continue;
             const str = v == null ? '' : String(v);
             if (str.length > MAX_REGISTRO_VALUE) {
-              return res.status(400).json({ message: `Valor excede ${MAX_REGISTRO_VALUE} caracteres.` });
+              return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Value exceeds ${MAX_REGISTRO_VALUE} characters.`, 400);
             }
             cleanRow[k] = str;
           }
@@ -491,7 +492,7 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
 
       const observaciones = bodyObservaciones !== undefined ? bodyObservaciones : (task.nota || '');
 
-      // Subir imagen de escaneo a Firebase Storage si se proporcionó
+      // Upload scan image to Firebase Storage if provided
       let scanImageUrl = null;
       if (scanImageBase64) {
         try {
@@ -539,10 +540,10 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
       console.error('Error creating monitoreo record from muestreo:', enrichErr);
     }
 
-    res.status(200).json({ message: 'Orden marcada como hecha.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Error completing muestreo orden:', error);
-    res.status(500).json({ message: 'Error al completar la orden de muestreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to complete monitoring order.', 500);
   }
 });
 
@@ -550,21 +551,21 @@ router.post('/api/muestreos/escanear-formulario', authenticate, async (req, res)
   try {
     const { imageBase64, mediaType, campos } = req.body || {};
     if (!imageBase64 || !mediaType) {
-      return res.status(400).json({ message: 'Se requiere imageBase64 y mediaType.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'imageBase64 and mediaType are required.', 400);
     }
     if (typeof imageBase64 !== 'string' || imageBase64.length > MAX_SCAN_IMAGE_BASE64) {
-      return res.status(413).json({ message: 'Imagen excede el tamaño máximo.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Image exceeds max size.', 413);
     }
     if (!MEDIA_TYPES_IMG.includes(mediaType)) {
-      return res.status(400).json({ message: 'Tipo de imagen no soportado. Use jpeg, png, gif o webp.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Unsupported image type. Use jpeg, png, gif or webp.', 400);
     }
     if (!Array.isArray(campos) || campos.length === 0) {
-      return res.status(400).json({ message: 'Se requiere la lista de campos de la plantilla.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Template field list is required.', 400);
     }
     if (campos.length > 100) {
-      return res.status(400).json({ message: 'Demasiados campos.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Too many fields.', 400);
     }
-    // Sanitización contra prompt injection: solo nombres alfanuméricos + espacios + puntuación común,
+    // Sanitization against prompt injection: only alphanumeric names + spaces + common punctuation,
     // truncados a 40 chars (alineado con MAX_NOMBRE_CAMPO).
     const sanitizeForPrompt = (s) => String(s ?? '').replace(/[^\p{L}\p{N} _\-./%()]/gu, '').slice(0, 40);
     const camposSan = campos.map(c => ({
@@ -572,7 +573,7 @@ router.post('/api/muestreos/escanear-formulario', authenticate, async (req, res)
       unidad: c?.unidad ? sanitizeForPrompt(c.unidad) : '',
     })).filter(c => c.nombre);
     if (camposSan.length === 0) {
-      return res.status(400).json({ message: 'Nombres de campo inválidos.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid field names.', 400);
     }
 
     const client = getAnthropicClient();
@@ -616,13 +617,13 @@ Ejemplo de respuesta con 2 filas: [${exampleRow}, ${exampleRow}]`;
       parsed = JSON.parse(jsonText);
     } catch {
       console.error('Claude devolvió texto no parseable:', rawText);
-      return res.status(422).json({ message: 'La IA no pudo interpretar el formulario. Intenta con una imagen más clara.' });
+      return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'AI could not interpret the form. Try a clearer image.', 422);
     }
 
     // Accept both a single object (wrap it) and an array of objects
     const rows = Array.isArray(parsed) ? parsed : (typeof parsed === 'object' && parsed !== null ? [parsed] : null);
     if (!rows) {
-      return res.status(422).json({ message: 'La respuesta de la IA no tiene el formato esperado.' });
+      return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'AI response has unexpected format.', 422);
     }
 
     // Normalize: only defined campo keys (sanitizadas), values como strings recortados.
@@ -639,7 +640,7 @@ Ejemplo de respuesta con 2 filas: [${exampleRow}, ${exampleRow}]`;
     res.status(200).json({ registros });
   } catch (error) {
     console.error('Error escaneando formulario de muestreo:', error);
-    res.status(500).json({ message: 'Error al procesar la imagen con IA.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process image with AI.', 500);
   }
 });
 
@@ -657,10 +658,10 @@ router.get('/api/monitoreo', authenticate, async (req, res) => {
   try {
     const { loteId, desde, hasta } = req.query;
     if (desde !== undefined && desde !== '' && !DATE_ISO_RE.test(desde)) {
-      return res.status(400).json({ message: 'Formato de desde inválido (YYYY-MM-DD).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid "desde" format (YYYY-MM-DD).', 400);
     }
     if (hasta !== undefined && hasta !== '' && !DATE_ISO_RE.test(hasta)) {
-      return res.status(400).json({ message: 'Formato de hasta inválido (YYYY-MM-DD).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid "hasta" format (YYYY-MM-DD).', 400);
     }
 
     let query = db.collection('monitoreos').where('fincaId', '==', req.fincaId);
@@ -686,7 +687,7 @@ router.get('/api/monitoreo', authenticate, async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener monitoreos.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch monitoring records.', 500);
   }
 });
 
@@ -697,13 +698,13 @@ router.post('/api/monitoreo', authenticate, async (req, res) => {
     const tipoId = typeof body.tipoId === 'string' ? body.tipoId.trim() : '';
     const fecha = body.fecha;
     if (!loteId || !tipoId || !fecha) {
-      return res.status(400).json({ message: 'Lote, tipo y fecha son obligatorios.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Lote, type and date are required.', 400);
     }
     if (!DATE_ISO_RE.test(fecha)) {
-      return res.status(400).json({ message: 'Formato de fecha inválido (YYYY-MM-DD).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid date format (YYYY-MM-DD).', 400);
     }
     const fechaDate = parseIsoDate(fecha);
-    if (!fechaDate) return res.status(400).json({ message: 'Fecha inválida.' });
+    if (!fechaDate) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid date.', 400);
 
     // Verifica que el lote pertenezca a la finca del usuario.
     const loteOwn = await verifyOwnership('lotes', loteId, req.fincaId);
@@ -727,14 +728,14 @@ router.post('/api/monitoreo', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al registrar monitoreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register monitoring record.', 500);
   }
 });
 
 router.get('/api/monitoreo/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('monitoreos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const data = ownership.doc.data();
     res.status(200).json({
       id: req.params.id,
@@ -743,21 +744,21 @@ router.get('/api/monitoreo/:id', authenticate, async (req, res) => {
       createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener monitoreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch monitoring record.', 500);
   }
 });
 
 // Elimina un registro individual del array formularioData.registros.
-// Si era el único, elimina el documento completo.
+// If it was the only one, deletes the entire document.
 router.delete('/api/monitoreo/:id/registros/:regIdx', authenticate, async (req, res) => {
   try {
     const { id, regIdx } = req.params;
     const idx = Number.parseInt(regIdx, 10);
     if (!Number.isInteger(idx) || idx < 0) {
-      return res.status(400).json({ message: 'Índice de registro inválido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid record index.', 400);
     }
     const ownership = await verifyOwnership('monitoreos', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const registros = ownership.doc.data().formularioData?.registros;
     if (!Array.isArray(registros) || registros.length <= 1) {
@@ -765,25 +766,25 @@ router.delete('/api/monitoreo/:id/registros/:regIdx', authenticate, async (req, 
       return res.status(200).json({ deleted: 'monitoreo' });
     }
     if (idx >= registros.length) {
-      return res.status(400).json({ message: 'Índice fuera de rango.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Index out of range.', 400);
     }
     const updated = registros.filter((_, i) => i !== idx);
     await db.collection('monitoreos').doc(id).update({ 'formularioData.registros': updated });
     return res.status(200).json({ deleted: 'registro', registros: updated });
   } catch (error) {
     console.error('Error eliminando registro individual:', error);
-    res.status(500).json({ message: 'Error al eliminar el registro.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete record.', 500);
   }
 });
 
 router.delete('/api/monitoreo/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('monitoreos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('monitoreos').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Monitoreo eliminado.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar monitoreo.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete monitoring record.', 500);
   }
 });
 
