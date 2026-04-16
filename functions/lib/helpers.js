@@ -268,6 +268,139 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
       return { ok: true, userId, enviado: true };
     }
 
+    case 'crear_solicitud_compra': {
+      const { items, responsableId, responsableNombre, notas } = params;
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error('Se requiere al menos un producto en la solicitud.');
+      }
+      const mappedItems = items
+        .map(i => ({
+          productoId: i.productoId,
+          nombreComercial: String(i.nombreComercial || '').slice(0, 64),
+          cantidadSolicitada: parseFloat(i.cantidadSolicitada) || 0,
+          unidad: String(i.unidad || '').slice(0, 40),
+          stockActual: parseFloat(i.stockActual) || 0,
+          stockMinimo: parseFloat(i.stockMinimo) || 0,
+        }))
+        .filter(i => i.cantidadSolicitada > 0 && i.cantidadSolicitada < 32768);
+      if (mappedItems.length === 0) {
+        throw new Error('Los productos deben tener cantidad mayor a 0.');
+      }
+      const resolvedResponsableId = responsableId || 'proveeduria';
+      const resolvedResponsableNombre = String(responsableNombre || 'Proveeduría').slice(0, 128);
+      const batch = db.batch();
+      const solicitudRef = db.collection('solicitudes_compra').doc();
+      const autopilotTag = `Piloto Automático ${options.level || ''}`.trim();
+      batch.set(solicitudRef, {
+        fincaId,
+        fechaCreacion: Timestamp.now(),
+        estado: 'pendiente',
+        responsableId: resolvedResponsableId,
+        responsableNombre: resolvedResponsableNombre,
+        notas: String(notas || `Creada por ${autopilotTag}`).slice(0, 288),
+        items: mappedItems,
+        createdByAutopilot: true,
+      });
+      const productosResumen = mappedItems
+        .map(i => `${i.nombreComercial} (${i.cantidadSolicitada} ${i.unidad})`)
+        .join(', ');
+      const taskRef = db.collection('scheduled_tasks').doc();
+      batch.set(taskRef, {
+        type: 'SOLICITUD_COMPRA',
+        executeAt: Timestamp.now(),
+        status: 'pending',
+        loteId: null,
+        fincaId,
+        solicitudId: solicitudRef.id,
+        activity: {
+          name: `Solicitud de compra: ${mappedItems.length} producto(s)`,
+          type: 'notificacion',
+          responsableId: resolvedResponsableId,
+          responsableNombre: resolvedResponsableNombre,
+          descripcion: productosResumen,
+          productos: mappedItems.map(i => ({
+            productoId: i.productoId,
+            nombreComercial: i.nombreComercial,
+            cantidad: i.cantidadSolicitada,
+            unidad: i.unidad,
+            stockActual: i.stockActual,
+            stockMinimo: i.stockMinimo,
+          })),
+        },
+        notas: String(notas || '').slice(0, 288),
+        createdByAutopilot: true,
+      });
+      await batch.commit();
+      return { ok: true, solicitudId: solicitudRef.id, taskId: taskRef.id, itemsCount: mappedItems.length };
+    }
+
+    case 'crear_orden_compra': {
+      const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, solicitudId } = params;
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error('Se requiere al menos un producto en la orden.');
+      }
+      const str = (v, max) => (typeof v === 'string' ? v : '').slice(0, max);
+      const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+        const n = parseFloat(v);
+        if (!isFinite(n)) return 0;
+        return Math.min(Math.max(n, min), max);
+      };
+      const isValidYmd = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+      if (fecha && !isValidYmd(fecha)) throw new Error('Fecha de orden inválida.');
+      if (fechaEntrega && !isValidYmd(fechaEntrega)) throw new Error('Fecha de entrega inválida.');
+      const counterRef = db.collection('counters').doc(`oc_${fincaId}`);
+      let seq;
+      await db.runTransaction(async (t) => {
+        const counterDoc = await t.get(counterRef);
+        seq = (counterDoc.exists ? (counterDoc.data().value || 0) : 0) + 1;
+        t.set(counterRef, { value: seq }, { merge: true });
+      });
+      const poNumber = `OC-${String(seq).padStart(6, '0')}`;
+      const autopilotTag = `Piloto Automático ${options.level || ''}`.trim();
+      const docRef = await db.collection('ordenes_compra').add({
+        fincaId,
+        poNumber,
+        fecha: fecha ? Timestamp.fromDate(new Date(fecha + 'T12:00:00')) : Timestamp.now(),
+        fechaEntrega: fechaEntrega ? Timestamp.fromDate(new Date(fechaEntrega + 'T12:00:00')) : null,
+        proveedor: str(proveedor, 200),
+        direccionProveedor: str(direccionProveedor, 300),
+        elaboradoPor: str(elaboradoPor, 120) || autopilotTag,
+        notas: str(notas, 1000),
+        estado: 'activa',
+        taskId: null,
+        solicitudId: solicitudId || null,
+        items: items.map(i => ({
+          productoId: i.productoId || null,
+          nombreComercial: str(i.nombreComercial, 200),
+          ingredienteActivo: str(i.ingredienteActivo, 200),
+          cantidad: num(i.cantidad, { min: 0, max: 1e9 }),
+          unidad: str(i.unidad, 20),
+          precioUnitario: num(i.precioUnitario, { min: 0, max: 1e9 }),
+          iva: num(i.iva, { min: 0, max: 100 }),
+          moneda: str(i.moneda, 10) || 'USD',
+        })),
+        createdAt: Timestamp.now(),
+        createdByAutopilot: true,
+      });
+      if (solicitudId) {
+        try {
+          const solTaskSnap = await db.collection('scheduled_tasks')
+            .where('solicitudId', '==', solicitudId)
+            .where('fincaId', '==', fincaId)
+            .limit(1)
+            .get();
+          if (!solTaskSnap.empty) {
+            await solTaskSnap.docs[0].ref.update({
+              status: 'completed_by_user',
+              completedAt: Timestamp.now(),
+              ordenCompraId: docRef.id,
+            });
+          }
+        } catch (_) { /* ignore */ }
+      }
+      return { ok: true, orderId: docRef.id, poNumber, itemsCount: items.length };
+    }
+
     default:
       throw new Error(`Unknown action type: ${type}`);
   }
@@ -283,7 +416,7 @@ function validateGuardrails(actionType, params, guardrails, sessionExecutedCount
   }
 
   const allowed = guardrails.allowedActionTypes ??
-    ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion'];
+    ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion', 'crear_solicitud_compra', 'crear_orden_compra'];
   if (!allowed.includes(actionType)) {
     violations.push(`Tipo de acción "${actionType}" no está habilitado para ejecución autónoma.`);
   }
