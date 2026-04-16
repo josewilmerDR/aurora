@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, sendNotificationWithLink } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -15,45 +16,45 @@ function validateGrupoBody(body, { requireFields = false } = {}) {
     const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = body;
 
     if (requireFields) {
-        if (typeof nombreGrupo !== 'string' || !nombreGrupo.trim()) errors.push('nombreGrupo es requerido.');
-        if (!fechaCreacion) errors.push('fechaCreacion es requerida.');
+        if (typeof nombreGrupo !== 'string' || !nombreGrupo.trim()) errors.push('nombreGrupo is required.');
+        if (!fechaCreacion) errors.push('fechaCreacion is required.');
     }
 
     if (nombreGrupo !== undefined) {
-        if (typeof nombreGrupo !== 'string') errors.push('nombreGrupo debe ser texto.');
-        else if (nombreGrupo.trim().length > MAX_NOMBRE_LEN) errors.push(`nombreGrupo máximo ${MAX_NOMBRE_LEN} caracteres.`);
+        if (typeof nombreGrupo !== 'string') errors.push('nombreGrupo must be a string.');
+        else if (nombreGrupo.trim().length > MAX_NOMBRE_LEN) errors.push(`nombreGrupo max ${MAX_NOMBRE_LEN} characters.`);
     }
 
     if (cosecha !== undefined && cosecha !== '') {
-        if (typeof cosecha !== 'string') errors.push('cosecha debe ser texto.');
-        else if (cosecha.length > MAX_CATALOG_LEN) errors.push(`cosecha máximo ${MAX_CATALOG_LEN} caracteres.`);
+        if (typeof cosecha !== 'string') errors.push('cosecha must be a string.');
+        else if (cosecha.length > MAX_CATALOG_LEN) errors.push(`cosecha max ${MAX_CATALOG_LEN} characters.`);
     }
 
     if (etapa !== undefined && etapa !== '') {
-        if (typeof etapa !== 'string') errors.push('etapa debe ser texto.');
-        else if (etapa.length > MAX_CATALOG_LEN) errors.push(`etapa máximo ${MAX_CATALOG_LEN} caracteres.`);
+        if (typeof etapa !== 'string') errors.push('etapa must be a string.');
+        else if (etapa.length > MAX_CATALOG_LEN) errors.push(`etapa max ${MAX_CATALOG_LEN} characters.`);
     }
 
     if (fechaCreacion !== undefined) {
         const d = new Date(fechaCreacion);
         if (isNaN(d.getTime())) {
-            errors.push('fechaCreacion no es una fecha válida.');
+            errors.push('fechaCreacion is not a valid date.');
         } else {
             const limit = new Date();
             limit.setDate(limit.getDate() + MAX_FUTURE_DAYS);
             limit.setHours(23, 59, 59, 999);
-            if (d > limit) errors.push(`fechaCreacion no puede superar ${MAX_FUTURE_DAYS} días en el futuro.`);
+            if (d > limit) errors.push(`fechaCreacion cannot exceed ${MAX_FUTURE_DAYS} days in the future.`);
         }
     }
 
     if (bloques !== undefined) {
-        if (!Array.isArray(bloques)) errors.push('bloques debe ser un arreglo.');
-        else if (bloques.length > MAX_BLOQUES) errors.push(`bloques no puede exceder ${MAX_BLOQUES} elementos.`);
-        else if (bloques.some(b => typeof b !== 'string')) errors.push('Cada bloque debe ser un ID de texto.');
+        if (!Array.isArray(bloques)) errors.push('bloques must be an array.');
+        else if (bloques.length > MAX_BLOQUES) errors.push(`bloques cannot exceed ${MAX_BLOQUES} elements.`);
+        else if (bloques.some(b => typeof b !== 'string')) errors.push('Each bloque must be a string ID.');
     }
 
-    if (paqueteId !== undefined && paqueteId !== '' && typeof paqueteId !== 'string') errors.push('paqueteId debe ser texto.');
-    if (paqueteMuestreoId !== undefined && paqueteMuestreoId !== '' && typeof paqueteMuestreoId !== 'string') errors.push('paqueteMuestreoId debe ser texto.');
+    if (paqueteId !== undefined && paqueteId !== '' && typeof paqueteId !== 'string') errors.push('paqueteId must be a string.');
+    if (paqueteMuestreoId !== undefined && paqueteMuestreoId !== '' && typeof paqueteMuestreoId !== 'string') errors.push('paqueteMuestreoId must be a string.');
 
     return errors;
 }
@@ -65,7 +66,7 @@ router.get('/api/grupos', authenticate, async (req, res) => {
         const grupos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.status(200).json(grupos);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener grupos.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch grupos.', 500);
     }
 });
 
@@ -73,7 +74,7 @@ router.post('/api/grupos', authenticate, async (req, res) => {
     try {
         const validationErrors = validateGrupoBody(req.body, { requireFields: true });
         if (validationErrors.length) {
-            return res.status(400).json({ message: validationErrors.join(' ') });
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationErrors.join(' '), 400);
         }
 
         const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = req.body;
@@ -89,7 +90,7 @@ router.post('/api/grupos', authenticate, async (req, res) => {
             fincaId: req.fincaId,
         });
 
-        // Si hay paquete asociado, crear tareas igual que en lotes
+        // If a package is assigned, create tasks (same logic as lotes)
         if (paqueteId) {
             const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
             if (paqueteDoc.exists) {
@@ -141,7 +142,7 @@ router.post('/api/grupos', authenticate, async (req, res) => {
             }
         }
 
-        // Si hay paquete de muestreo, crear órdenes de muestreo
+        // If a monitoring package is assigned, create monitoring orders
         if (paqueteMuestreoId) {
             const muestreoDoc = await db.collection('monitoreo_paquetes').doc(paqueteMuestreoId).get();
             if (muestreoDoc.exists) {
@@ -167,10 +168,10 @@ router.post('/api/grupos', authenticate, async (req, res) => {
             }
         }
 
-        res.status(201).json({ id: grupoRef.id, message: 'Grupo creado exitosamente.' });
+        res.status(201).json({ id: grupoRef.id, code: 'GRUPO_CREATED' });
     } catch (error) {
-        console.error('[ERROR] Creando grupo:', error);
-        res.status(500).json({ message: 'Error al crear el grupo.' });
+        console.error('[ERROR] Creating grupo:', error);
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create grupo.', 500);
     }
 });
 
@@ -178,12 +179,12 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const validationErrors = validateGrupoBody(req.body);
         if (validationErrors.length) {
-            return res.status(400).json({ message: validationErrors.join(' ') });
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationErrors.join(' '), 400);
         }
 
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
         const grupoData = pick(req.body, ['nombreGrupo', 'cosecha', 'etapa', 'fechaCreacion', 'bloques', 'paqueteId', 'paqueteMuestreoId']);
         const originalData = ownership.doc.data();
@@ -206,13 +207,13 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
             && originalData.paqueteMuestreoId !== grupoData.paqueteMuestreoId;
 
         if (hasDateChanged || hasPackageChanged || hasMuestreoPackageChanged) {
-            // Eliminar tareas anteriores del grupo
+            // Delete previous tasks for this grupo
             const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
             const deleteBatch = db.batch();
             tasksSnapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
             await deleteBatch.commit();
 
-            // Crear nuevas tareas de aplicación si hay paquete técnico
+            // Create new application tasks if there is a technical package
             if (grupoData.paqueteId) {
                 const paqueteDoc = await db.collection('packages').doc(grupoData.paqueteId).get();
                 if (paqueteDoc.exists) {
@@ -236,7 +237,7 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
                 }
             }
 
-            // Crear nuevas órdenes de muestreo si hay paquete de muestreo
+            // Create new monitoring orders if there is a monitoring package
             if (grupoData.paqueteMuestreoId) {
                 const muestreoDoc = await db.collection('monitoreo_paquetes').doc(grupoData.paqueteMuestreoId).get();
                 if (muestreoDoc.exists) {
@@ -266,7 +267,7 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
         res.status(200).json({ id, ...grupoData });
     } catch (error) {
         console.error('Error updating grupo:', error);
-        res.status(500).json({ message: 'Error al actualizar el grupo.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update grupo.', 500);
     }
 });
 
@@ -274,7 +275,7 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
         const tasksSnap = await db.collection('scheduled_tasks')
             .where('grupoId', '==', id)
@@ -304,7 +305,7 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
         res.json({ cedulasAplicadas, cedulasEnTransito });
     } catch (error) {
         console.error('Error checking grupo delete:', error);
-        res.status(500).json({ message: 'Error al verificar dependencias.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to check dependencies.', 500);
     }
 });
 
@@ -312,7 +313,7 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
         const grupoDoc = await db.collection('grupos').doc(id).get();
         const snap_grupoNombre = grupoDoc.data()?.nombreGrupo || '';
@@ -322,7 +323,7 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
         const completedTasks  = allTasksSnap.docs.filter(d => d.data().status !== 'pending');
         const pendingTaskIds  = pendingTasks.map(d => d.id);
 
-        // Rechazar si hay cédulas en estado bloqueante
+        // Reject if there are cedulas in a blocking state
         if (pendingTaskIds.length > 0) {
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
@@ -330,20 +331,20 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
                 const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
                 for (const doc of cSnap.docs) {
                     const s = doc.data().status;
-                    if (s === 'aplicada_en_campo') return res.status(409).json({ code: 'CEDULA_APLICADA', message: 'Hay cédulas aplicadas en campo.' });
-                    if (s === 'en_transito')      return res.status(409).json({ code: 'CEDULA_EN_TRANSITO', message: 'Hay cédulas en estado Mezcla lista.' });
+                    if (s === 'aplicada_en_campo') return sendApiError(res, 'CEDULA_APLICADA', 'There are cedulas applied in the field.', 409);
+                    if (s === 'en_transito')      return sendApiError(res, 'CEDULA_EN_TRANSITO', 'There are cedulas in "Mezcla lista" state.', 409);
                 }
             }
         }
 
         const batch = db.batch();
 
-        // Snapshot del nombre del grupo en las tareas completadas/skipped (historial)
+        // Snapshot the grupo name in completed/skipped tasks (history)
         completedTasks.forEach(doc => {
             batch.update(doc.ref, { snap_grupoNombre });
         });
 
-        // Eliminar cédulas pendientes/anuladas de las tareas pending, luego las tareas pending
+        // Delete pending cedulas for pending tasks, then the pending tasks themselves
         if (pendingTaskIds.length > 0) {
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
@@ -357,10 +358,10 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
         batch.delete(db.collection('grupos').doc(id));
         await batch.commit();
 
-        res.status(200).json({ message: 'Grupo eliminado correctamente.' });
+        res.status(200).json({ ok: true });
     } catch (error) {
         console.error('Error deleting grupo:', error);
-        res.status(500).json({ message: 'Error al eliminar el grupo.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete grupo.', 500);
     }
 });
 
