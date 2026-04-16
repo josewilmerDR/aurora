@@ -4,14 +4,15 @@ const { authenticate } = require('../lib/middleware');
 const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { getTwilioClient } = require('../lib/clients');
 const { twilioWhatsappFrom } = require('../lib/firebase');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API ENDPOINTS: RECURSOS HUMANOS
+// API ENDPOINTS: HUMAN RESOURCES
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Fichas del Trabajador ────────────────────────────────────────────────────
+// Worker Fichas
 const FICHA_TIPOS_CONTRATO = ['permanente', 'temporal', 'por_obra'];
 const FICHA_DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
 const PHONE_RE_FICHA = /^[\d\s+\-()]+$/;
@@ -36,45 +37,45 @@ function validateFichaPayload(body) {
   for (const [k, max] of Object.entries(FICHA_LIMITS)) {
     if (typeof clean[k] === 'string') {
       clean[k] = clean[k].trim();
-      if (clean[k].length > max) errs.push(`${k} excede ${max} caracteres.`);
+      if (clean[k].length > max) errs.push(`${k} exceeds ${max} characters.`);
     } else if (clean[k] != null) {
-      errs.push(`${k} debe ser texto.`);
+      errs.push(`${k} must be a string.`);
     }
   }
   if (typeof clean.telefonoEmergencia === 'string' && clean.telefonoEmergencia && !PHONE_RE_FICHA.test(clean.telefonoEmergencia)) {
-    errs.push('Teléfono de emergencia inválido.');
+    errs.push('Invalid emergency phone.');
   }
 
   if (clean.fechaIngreso !== undefined && clean.fechaIngreso !== '' && clean.fechaIngreso !== null) {
     if (typeof clean.fechaIngreso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(clean.fechaIngreso)) {
-      errs.push('Fecha de ingreso inválida.');
+      errs.push('Invalid fechaIngreso.');
     } else {
       const d = new Date(clean.fechaIngreso);
-      if (Number.isNaN(d.getTime())) errs.push('Fecha de ingreso inválida.');
+      if (Number.isNaN(d.getTime())) errs.push('Invalid fechaIngreso.');
     }
   }
 
   if (clean.tipoContrato != null && clean.tipoContrato !== '' && !FICHA_TIPOS_CONTRATO.includes(clean.tipoContrato)) {
-    errs.push('Tipo de contrato inválido.');
+    errs.push('Invalid tipoContrato.');
   }
 
   for (const k of ['salarioBase', 'precioHora']) {
     if (clean[k] === '' || clean[k] == null) { clean[k] = null; continue; }
     const n = Number(clean[k]);
     if (!Number.isFinite(n) || n < 0 || n > FICHA_SALARIO_MAX) {
-      errs.push(`${k} debe ser un número entre 0 y ${FICHA_SALARIO_MAX}.`);
+      errs.push(`${k} must be a number between 0 and ${FICHA_SALARIO_MAX}.`);
     } else {
       clean[k] = n;
     }
   }
 
   if (clean.encargadoId != null && typeof clean.encargadoId !== 'string') {
-    errs.push('encargadoId inválido.');
+    errs.push('Invalid encargadoId.');
   }
 
   if (clean.horarioSemanal !== undefined) {
     if (clean.horarioSemanal == null || typeof clean.horarioSemanal !== 'object' || Array.isArray(clean.horarioSemanal)) {
-      errs.push('horarioSemanal inválido.');
+      errs.push('Invalid horarioSemanal.');
     } else {
       const norm = {};
       for (const d of FICHA_DIAS) {
@@ -83,10 +84,10 @@ function validateFichaPayload(body) {
         const inicio = day && typeof day.inicio === 'string' ? day.inicio : '';
         const fin = day && typeof day.fin === 'string' ? day.fin : '';
         if (activo) {
-          if (!TIME_RE.test(inicio) || !TIME_RE.test(fin)) { errs.push(`Horario de ${d} inválido.`); continue; }
+          if (!TIME_RE.test(inicio) || !TIME_RE.test(fin)) { errs.push(`Invalid schedule for ${d}.`); continue; }
           const [h1, m1] = inicio.split(':').map(Number);
           const [h2, m2] = fin.split(':').map(Number);
-          if ((h2 * 60 + m2) <= (h1 * 60 + m1)) errs.push(`Salida ≤ entrada en ${d}.`);
+          if ((h2 * 60 + m2) <= (h1 * 60 + m1)) errs.push(`End <= start on ${d}.`);
         }
         norm[d] = { activo, inicio, fin };
       }
@@ -104,7 +105,7 @@ router.get('/api/hr/fichas', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ userId: d.id, ...d.data() }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener fichas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch fichas.', 500);
   }
 });
 
@@ -112,16 +113,16 @@ router.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
     const userDoc = await db.collection('users').doc(req.params.userId).get();
     if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
-      return res.status(403).json({ message: 'Acceso no autorizado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     }
     const doc = await db.collection('hr_fichas').doc(req.params.userId).get();
     if (!doc.exists) return res.status(200).json({});
     if (doc.data().fincaId && doc.data().fincaId !== req.fincaId) {
-      return res.status(403).json({ message: 'Acceso no autorizado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     }
     res.status(200).json({ id: doc.id, ...doc.data() });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener ficha.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch ficha.', 500);
   }
 });
 
@@ -129,27 +130,27 @@ router.put('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
     const userDoc = await db.collection('users').doc(req.params.userId).get();
     if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
-      return res.status(403).json({ message: 'Acceso no autorizado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     }
     const { errs, clean } = validateFichaPayload(req.body || {});
-    if (errs.length) return res.status(400).json({ message: errs.join(' ') });
+    if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
     if (clean.encargadoId) {
       const encDoc = await db.collection('users').doc(clean.encargadoId).get();
       if (!encDoc.exists || encDoc.data().fincaId !== req.fincaId) {
-        return res.status(400).json({ message: 'Encargado no válido.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid encargado.', 400);
       }
     }
     await db.collection('hr_fichas').doc(req.params.userId).set(
       { ...clean, fincaId: req.fincaId, updatedAt: Timestamp.now() },
       { merge: true }
     );
-    res.status(200).json({ message: 'Ficha actualizada.' });
+    res.status(200).json({ message: 'Ficha updated.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al guardar ficha.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save ficha.', 500);
   }
 });
 
-// ── Asistencia ───────────────────────────────────────────────────────────────
+// Asistencia
 router.get('/api/hr/asistencia', authenticate, async (req, res) => {
   try {
     const { mes, anio } = req.query;
@@ -163,14 +164,14 @@ router.get('/api/hr/asistencia', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener asistencia.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch attendance.', 500);
   }
 });
 
 router.post('/api/hr/asistencia', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, fecha, estado, horasExtra, notas } = req.body;
-    if (!trabajadorId || !fecha || !estado) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    if (!trabajadorId || !fecha || !estado) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, fecha and estado are required.', 400);
     const ref = await db.collection('hr_asistencia').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
@@ -179,20 +180,20 @@ router.post('/api/hr/asistencia', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al registrar asistencia.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register attendance.', 500);
   }
 });
 
 router.delete('/api/hr/asistencia/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_asistencia').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Registro eliminado.' });
+    res.status(200).json({ message: 'Record deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar registro.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete record.', 500);
   }
 });
 
-// ── Horas Extra ──────────────────────────────────────────────────────────────
+// Horas Extra
 router.get('/api/hr/horas-extra', authenticate, async (req, res) => {
   try {
     const { mes, anio } = req.query;
@@ -206,14 +207,14 @@ router.get('/api/hr/horas-extra', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener horas extra.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch overtime.', 500);
   }
 });
 
 router.post('/api/hr/horas-extra', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, fecha, horas, motivo } = req.body;
-    if (!trabajadorId || !fecha || !horas) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    if (!trabajadorId || !fecha || !horas) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, fecha and horas are required.', 400);
     const ref = await db.collection('hr_horas_extra').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
@@ -222,20 +223,20 @@ router.post('/api/hr/horas-extra', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al registrar horas extra.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register overtime.', 500);
   }
 });
 
 router.delete('/api/hr/horas-extra/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_horas_extra').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Registro eliminado.' });
+    res.status(200).json({ message: 'Record deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
   }
 });
 
-// ── Permisos y Vacaciones ────────────────────────────────────────────────────
+// Permisos and Vacations
 const PERMISO_TIPOS = ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'];
 const PERMISO_ESTADOS = ['pendiente', 'aprobado', 'rechazado'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -247,17 +248,17 @@ function validatePermisoPayload(body) {
   const clean = {};
 
   clean.trabajadorId = typeof body.trabajadorId === 'string' ? body.trabajadorId.trim() : '';
-  if (!clean.trabajadorId) errs.push('Trabajador requerido.');
+  if (!clean.trabajadorId) errs.push('trabajadorId is required.');
 
   clean.trabajadorNombre = typeof body.trabajadorNombre === 'string'
     ? body.trabajadorNombre.trim().slice(0, PERMISO_NOMBRE_MAX) : '';
 
   clean.tipo = typeof body.tipo === 'string' ? body.tipo : '';
-  if (!PERMISO_TIPOS.includes(clean.tipo)) errs.push('Tipo inválido.');
+  if (!PERMISO_TIPOS.includes(clean.tipo)) errs.push('Invalid tipo.');
 
   clean.fechaInicio = typeof body.fechaInicio === 'string' ? body.fechaInicio : '';
   if (!DATE_RE.test(clean.fechaInicio) || Number.isNaN(new Date(clean.fechaInicio).getTime())) {
-    errs.push('Fecha inicio inválida.');
+    errs.push('Invalid fechaInicio.');
   }
 
   clean.esParcial = body.esParcial === true;
@@ -265,9 +266,9 @@ function validatePermisoPayload(body) {
   let fechaFin = typeof body.fechaFin === 'string' ? body.fechaFin : clean.fechaInicio;
   if (clean.esParcial) fechaFin = clean.fechaInicio;
   if (!DATE_RE.test(fechaFin) || Number.isNaN(new Date(fechaFin).getTime())) {
-    errs.push('Fecha fin inválida.');
+    errs.push('Invalid fechaFin.');
   } else if (DATE_RE.test(clean.fechaInicio) && fechaFin < clean.fechaInicio) {
-    errs.push('Fecha fin no puede ser anterior a fecha inicio.');
+    errs.push('fechaFin cannot be earlier than fechaInicio.');
   }
   clean.fechaFin = fechaFin;
 
@@ -275,16 +276,16 @@ function validatePermisoPayload(body) {
     const hi = typeof body.horaInicio === 'string' ? body.horaInicio : '';
     const hf = typeof body.horaFin === 'string' ? body.horaFin : '';
     if (!TIME_RE.test(hi) || !TIME_RE.test(hf)) {
-      errs.push('Hora inicio/fin inválida.');
+      errs.push('Invalid horaInicio/horaFin.');
     } else {
       const [h1, m1] = hi.split(':').map(Number);
       const [h2, m2] = hf.split(':').map(Number);
-      if ((h2 * 60 + m2) <= (h1 * 60 + m1)) errs.push('Hora fin debe ser posterior a hora inicio.');
+      if ((h2 * 60 + m2) <= (h1 * 60 + m1)) errs.push('horaFin must be later than horaInicio.');
     }
     clean.horaInicio = hi;
     clean.horaFin = hf;
     const horas = Number(body.horas);
-    if (!Number.isFinite(horas) || horas <= 0 || horas > 24) errs.push('Horas debe estar entre 0 y 24.');
+    if (!Number.isFinite(horas) || horas <= 0 || horas > 24) errs.push('horas must be between 0 and 24.');
     clean.horas = Number.isFinite(horas) ? horas : 0;
     clean.dias = 0;
   } else {
@@ -292,7 +293,7 @@ function validatePermisoPayload(body) {
     clean.horaFin = null;
     clean.horas = 0;
     const dias = Number(body.dias);
-    if (!Number.isFinite(dias) || dias < 1 || dias > 365) errs.push('Días debe estar entre 1 y 365.');
+    if (!Number.isFinite(dias) || dias < 1 || dias > 365) errs.push('dias must be between 1 and 365.');
     clean.dias = Number.isFinite(dias) ? dias : 0;
   }
 
@@ -320,18 +321,18 @@ router.get('/api/hr/permisos', authenticate, async (req, res) => {
     });
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener permisos.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch permisos.', 500);
   }
 });
 
 router.post('/api/hr/permisos', authenticate, async (req, res) => {
   try {
     const { errs, clean } = validatePermisoPayload(req.body || {});
-    if (errs.length) return res.status(400).json({ message: errs.join(' ') });
+    if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
 
     const workerDoc = await db.collection('users').doc(clean.trabajadorId).get();
     if (!workerDoc.exists || workerDoc.data().fincaId !== req.fincaId) {
-      return res.status(400).json({ message: 'Trabajador no válido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid worker.', 400);
     }
 
     const ref = await db.collection('hr_permisos').add({
@@ -353,47 +354,47 @@ router.post('/api/hr/permisos', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear permiso.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create permiso.', 500);
   }
 });
 
 router.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const estado = (req.body || {}).estado;
     if (!PERMISO_ESTADOS.includes(estado)) {
-      return res.status(400).json({ message: 'Estado inválido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
     }
     if ((estado === 'aprobado' || estado === 'rechazado') && !hasMinRoleBE(req.userRole, 'supervisor')) {
-      return res.status(403).json({ message: 'No tienes permisos para aprobar o rechazar.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to approve or reject.', 403);
     }
 
     await db.collection('hr_permisos').doc(req.params.id).update({
       estado, updatedAt: Timestamp.now(),
     });
-    res.status(200).json({ message: 'Permiso actualizado.' });
+    res.status(200).json({ message: 'Permiso updated.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar permiso.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update permiso.', 500);
   }
 });
 
 router.delete('/api/hr/permisos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
-      return res.status(403).json({ message: 'No tienes permisos para eliminar.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to delete.', 403);
     }
     await db.collection('hr_permisos').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Permiso eliminado.' });
+    res.status(200).json({ message: 'Permiso deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar permiso.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete permiso.', 500);
   }
 });
 
-// ── Planilla ─────────────────────────────────────────────────────────────────
+// Planilla
 router.get('/api/hr/planilla', authenticate, async (req, res) => {
   try {
     const { mes, anio } = req.query;
@@ -404,14 +405,14 @@ router.get('/api/hr/planilla', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planilla.', 500);
   }
 });
 
 router.post('/api/hr/planilla', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, mes, anio, diasTrabajados, horasExtra, salarioBase, deducciones, total } = req.body;
-    if (!trabajadorId || !mes || !anio) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    if (!trabajadorId || !mes || !anio) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, mes and anio are required.', 400);
     const ref = await db.collection('hr_planilla').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       mes: Number(mes), anio: Number(anio),
@@ -424,29 +425,29 @@ router.post('/api/hr/planilla', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al guardar planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save planilla.', 500);
   }
 });
 
 router.delete('/api/hr/planilla/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_planilla').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Registro eliminado.' });
+    res.status(200).json({ message: 'Record deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
   }
 });
 
-// ── Helpers compartidos para planillas (fijo / unidad / hora) ────────────────
+// Shared helpers for planillas (fijo / unidad / hora)
 const PLANILLA_LIMITS = {
   segmentos: 50,
   trabajadoresPorPlanilla: 500,
   observaciones: 1000,
   nombrePlantilla: 100,
-  string: 200,        // tope para nombres de lote, labor, grupo, unidad, etc.
-  numeric: 9_999_999, // tope para totalGeneral, costos, cantidades
+  string: 200,        // cap for lote, labor, grupo, unidad names, etc.
+  numeric: 9_999_999, // cap for totalGeneral, costs, quantities
   filasPorPlanilla: 500,
-  diasPorFila: 400,   // tope defensivo (~1 año + margen)
+  diasPorFila: 400,   // defensive cap (~1 year + margin)
   deduccionesPorFila: 50,
   conceptoDeduccion: 100,
   periodoDiasMax: 366,
@@ -467,12 +468,12 @@ function clampNumber(v, max) {
   return n;
 }
 
-// Roles que pueden crear/editar planillas a nombre de otros encargados.
+// Roles allowed to create/edit planillas on behalf of other encargados.
 const PLANILLA_ROLES_ON_BEHALF = ['supervisor', 'administrador', 'rrhh'];
 const canActOnBehalf = (req) => PLANILLA_ROLES_ON_BEHALF.includes(req.userRole);
 
-// Resuelve el doc id del usuario autenticado (collection `users`) a partir de
-// email + fincaId. Devuelve null si no existe. Cachea en req para no repetir.
+// Resolves the authenticated user's doc id (collection `users`) from
+// email + fincaId. Returns null if not found. Cached on req to avoid repeats.
 async function resolveAuthUserId(req) {
   if (req._authUserId !== undefined) return req._authUserId;
   if (!req.userEmail) { req._authUserId = null; return null; }
@@ -484,7 +485,7 @@ async function resolveAuthUserId(req) {
   return req._authUserId;
 }
 
-// Carga el mapa de fichas (userId → { precioHora, salarioBase, … }) para la finca activa.
+// Load the fichas map (userId → { precioHora, salarioBase, … }) for the active finca.
 async function loadFichasMap(fincaId) {
   const snap = await db.collection('hr_fichas').where('fincaId', '==', fincaId).get();
   const map = new Map();
@@ -492,7 +493,7 @@ async function loadFichasMap(fincaId) {
   return map;
 }
 
-// Carga el mapa de unidades (nombre normalizado → { precio, factorConversion, unidadBase }).
+// Load the unidades map (normalized name → { precio, factorConversion, unidadBase }).
 async function loadUnidadesMap(fincaId) {
   const snap = await db.collection('unidades_medida').where('fincaId', '==', fincaId).get();
   const map = new Map();
@@ -503,7 +504,7 @@ async function loadUnidadesMap(fincaId) {
   return map;
 }
 
-// Carga el mapa de usuarios (userId → user) de la finca.
+// Load the users map (userId → user) of the finca.
 async function loadUsersMap(fincaId) {
   const snap = await db.collection('users').where('fincaId', '==', fincaId).get();
   const map = new Map();
@@ -511,7 +512,7 @@ async function loadUsersMap(fincaId) {
   return map;
 }
 
-// ── Audit trail ──────────────────────────────────────────────────────────────
+// Audit trail
 const PLANILLA_HISTORY_MAX = 50;
 
 function buildHistoryEntry({ userId, email, action }) {
@@ -524,8 +525,8 @@ function appendHistory(currentHistory, entry) {
   return next.length > PLANILLA_HISTORY_MAX ? next.slice(-PLANILLA_HISTORY_MAX) : next;
 }
 
-// ── Rate limiter (in-memory, por instancia de Cloud Function) ────────────────
-// Defensa en profundidad. No reemplaza quotas a nivel de API Gateway.
+// Rate limiter (in-memory, per Cloud Function instance)
+// Defense in depth. Does not replace API Gateway quotas.
 const RATE_BUCKETS = new Map();
 const RATE_BUCKET_MAX = 5000;
 
@@ -549,22 +550,22 @@ function planillaRateLimit({ windowMs = 60_000, max = 60 } = {}) {
     bucket.count++;
     if (bucket.count > max) {
       res.set('Retry-After', String(Math.ceil((bucket.windowStart + windowMs - now) / 1000)));
-      return res.status(429).json({ message: 'Demasiadas solicitudes. Espera un momento.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Rate limit exceeded. Try again later.', 429);
     }
     next();
   };
 }
 
-// ── Planilla Salario Fijo ─────────────────────────────────────────────────────
-// Sanitiza un fila de planilla fijo: verifica trabajadorId contra users/fichas
-// de la finca y canonicaliza nombre / cédula / puesto / salarioBase / fechaIngreso
-// desde fuentes autoritativas. Descarta filas con trabajadorId inválido.
+// Planilla Salario Fijo
+// Sanitizes a planilla fijo row: verifies trabajadorId against users/fichas
+// of the finca and canonicalises nombre / cedula / puesto / salarioBase / fechaIngreso
+// from authoritative sources. Discards rows with invalid trabajadorId.
 const FIJO_CCSS_RATE = 0.1083;
 const FIJO_JORNADA_HORAS_DEFAULT = 48;
 
 function sanitizeFijoDia(d) {
   const fechaRaw = typeof d?.fecha === 'string' ? d.fecha : '';
-  // Acepta tanto ISO completo como YYYY-MM-DD
+  // Accepts both full ISO and YYYY-MM-DD
   const fechaStr = fechaRaw.slice(0, 10);
   if (!FECHA_RE.test(fechaStr)) return null;
   return {
@@ -584,14 +585,14 @@ function sanitizeFijoDeduccion(d) {
 
 function sanitizeFijoFilas(filas, usersMap, fichasMap) {
   if (!Array.isArray(filas))
-    return { ok: false, msg: 'filas debe ser un arreglo.' };
+    return { ok: false, msg: 'filas must be an array.' };
   if (filas.length > PLANILLA_LIMITS.filasPorPlanilla)
-    return { ok: false, msg: `Máximo ${PLANILLA_LIMITS.filasPorPlanilla} empleados por planilla.` };
+    return { ok: false, msg: `Maximum ${PLANILLA_LIMITS.filasPorPlanilla} employees per planilla.` };
 
   const cleaned = [];
   for (const f of filas) {
     const trabajadorId = trimStr(f?.trabajadorId, 64);
-    if (!trabajadorId || !usersMap.has(trabajadorId)) continue; // descartar silenciosamente
+    if (!trabajadorId || !usersMap.has(trabajadorId)) continue; // discard silently
 
     const userDoc  = usersMap.get(trabajadorId) || {};
     const ficha    = fichasMap.get(trabajadorId) || {};
@@ -602,15 +603,15 @@ function sanitizeFijoFilas(filas, usersMap, fichasMap) {
       ? ficha.fechaIngreso
       : ((typeof f?.fechaIngreso === 'string' && FECHA_RE.test(f.fechaIngreso)) ? f.fechaIngreso : '');
 
-    // salarioMensual: autoritativo desde ficha si existe, fallback al valor recibido (clamp).
+    // salarioMensual: authoritative from ficha if present, fallback to received value (clamp).
     const salarioMensual = ficha.salarioBase != null
       ? clampNumber(ficha.salarioBase, PLANILLA_LIMITS.numeric)
       : clampNumber(f?.salarioMensual, PLANILLA_LIMITS.numeric);
 
-    // salarioDiario: editable por el usuario (override de salarioMensual/30). Clamp.
+    // salarioDiario: user-editable (override of salarioMensual/30). Clamp.
     const salarioDiario = clampNumber(f?.salarioDiario, PLANILLA_LIMITS.numeric);
 
-    // horasSemanales: derivar de ficha.horarioSemanal si existe, sino fallback.
+    // horasSemanales: derive from ficha.horarioSemanal if present, else fallback.
     let horasSemanales = 0;
     const horario = ficha.horarioSemanal;
     if (horario && typeof horario === 'object') {
@@ -637,11 +638,11 @@ function sanitizeFijoFilas(filas, usersMap, fichasMap) {
     const efectivoDesdeRaw = typeof f?.efectivoDesde === 'string' ? f.efectivoDesde.slice(0, 10) : '';
     const efectivoDesde = FECHA_RE.test(efectivoDesdeRaw) ? efectivoDesdeRaw : '';
 
-    // Totales: confiar en cómputo del cliente pero clamp.
+    // Totals: trust client computation but clamp.
     const salarioOrdinario      = clampNumber(f?.salarioOrdinario, PLANILLA_LIMITS.numeric);
     const salarioExtraordinario = clampNumber(f?.salarioExtraordinario, PLANILLA_LIMITS.numeric);
     const salarioBruto          = clampNumber(f?.salarioBruto, PLANILLA_LIMITS.numeric);
-    // CCSS debe ser consistente con salarioBruto; recomputar server-side.
+    // CCSS must be consistent with salarioBruto; recompute server-side.
     const deduccionCCSS         = Math.round(salarioBruto * FIJO_CCSS_RATE);
     const otrasDeduccionesTotal = deduccionesExtra.reduce((s, d) => s + d.monto, 0);
     const totalDeducciones      = deduccionCCSS + otrasDeduccionesTotal;
@@ -672,20 +673,20 @@ function sumTotalGeneral(filas) {
   return clampNumber(total, PLANILLA_LIMITS.numeric);
 }
 
-// Valida rango de período (ISO date string). Permite ambos formatos: YYYY-MM-DD
-// o ISO datetime completo. Devuelve objetos Date o null+msg.
+// Validate periodo range (ISO date string). Accepts both formats: YYYY-MM-DD
+// or full ISO datetime. Returns Date objects or null+msg.
 function parsePeriodoISO(periodoInicio, periodoFin) {
   if (typeof periodoInicio !== 'string' || typeof periodoFin !== 'string')
-    return { ok: false, msg: 'Período inválido.' };
+    return { ok: false, msg: 'Invalid periodo.' };
   const ini = new Date(periodoInicio);
   const fin = new Date(periodoFin);
   if (Number.isNaN(ini.getTime()) || Number.isNaN(fin.getTime()))
-    return { ok: false, msg: 'Fechas inválidas.' };
+    return { ok: false, msg: 'Invalid dates.' };
   if (fin < ini)
-    return { ok: false, msg: 'La fecha final debe ser igual o posterior a la inicial.' };
+    return { ok: false, msg: 'End date must be equal or later than start date.' };
   const diffDays = Math.floor((fin - ini) / 86400000) + 1;
   if (diffDays > PLANILLA_LIMITS.periodoDiasMax)
-    return { ok: false, msg: `El período no puede exceder ${PLANILLA_LIMITS.periodoDiasMax} días.` };
+    return { ok: false, msg: `periodo cannot exceed ${PLANILLA_LIMITS.periodoDiasMax} days.` };
   return { ok: true, ini, fin };
 }
 
@@ -702,32 +703,32 @@ router.get('/api/hr/planilla-fijo', authenticate, async (req, res) => {
     }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener planillas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planillas.', 500);
   }
 });
 
-// Sólo supervisor/administrador/rrhh pueden crear, editar el contenido, eliminar
-// o cambiar el estado de planillas fijas. trabajador/encargado pueden sólo leer.
+// Only supervisor/administrador/rrhh can create, edit content, delete
+// or change the state of planillas fijas. trabajador/encargado can only read.
 const PLANILLA_FIJO_ROLES_WRITE = ['supervisor', 'administrador', 'rrhh'];
 const canEditarFijo = (req) => PLANILLA_FIJO_ROLES_WRITE.includes(req.userRole);
 
 router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     if (!canEditarFijo(req))
-      return res.status(403).json({ message: 'No tienes permisos para crear planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to create planillas.', 403);
 
     const { periodoInicio, periodoFin, periodoLabel, filas } = req.body;
     const periodo = parsePeriodoISO(periodoInicio, periodoFin);
-    if (!periodo.ok) return res.status(400).json({ message: periodo.msg });
+    if (!periodo.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, periodo.msg, 400);
 
     const [usersMap, fichasMap] = await Promise.all([
       loadUsersMap(req.fincaId),
       loadFichasMap(req.fincaId),
     ]);
     const san = sanitizeFijoFilas(filas, usersMap, fichasMap);
-    if (!san.ok) return res.status(400).json({ message: san.msg });
+    if (!san.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, san.msg, 400);
     if (san.value.length === 0)
-      return res.status(400).json({ message: 'La planilla debe tener al menos un empleado válido.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Planilla must contain at least one valid employee.', 400);
 
     const totalGeneral = sumTotalGeneral(san.value);
     const labelClean = trimStr(periodoLabel, PLANILLA_LIMITS.string);
@@ -780,7 +781,7 @@ router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (r
       });
       await Promise.all(notifPromises);
     } catch (notifErr) {
-      console.warn('Error al enviar notificaciones de planilla:', notifErr.message);
+      console.warn('Failed to send planilla notifications:', notifErr.message);
     }
 
     // Create an unassigned dashboard task for payroll approval
@@ -799,14 +800,14 @@ router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (r
 
     res.status(201).json({ id: ref.id, numeroConsecutivo });
   } catch (error) {
-    res.status(500).json({ message: 'Error al guardar planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save planilla.', 500);
   }
 });
 
 router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_fijo', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const { estado, filas, periodoInicio, periodoFin, periodoLabel } = req.body;
     const currentDoc = ownership.doc.data();
@@ -816,34 +817,34 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
     const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
     const isAdminLike = canPagar;
 
-    // Sólo roles de escritura pueden modificar cualquier planilla fija.
+    // Only write roles can modify any planilla fija.
     if (!canEditarFijo(req))
-      return res.status(403).json({ message: 'No tienes permisos para modificar planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to modify planillas.', 403);
 
     if (estado !== undefined && !PLANILLA_ESTADOS.includes(estado))
-      return res.status(400).json({ message: 'Estado inválido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
     if (estado === 'aprobada' && !canAprobar)
-      return res.status(403).json({ message: 'No tienes permisos para aprobar planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to approve planillas.', 403);
     if (estado === 'pagada' && !canPagar)
-      return res.status(403).json({ message: 'No tienes permisos para pagar planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to pay planillas.', 403);
 
-    // Una vez pagada, sólo admin/rrhh puede modificarla (reversión contable).
+    // Once paid, only admin/rrhh can modify (accounting reversal).
     if (currentEstado === 'pagada' && !isAdminLike)
-      return res.status(403).json({ message: 'Esta planilla ya fue pagada y sólo administrador o RR.HH. puede modificarla.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Planilla already paid; only administrador or rrhh may modify it.', 403);
 
-    // Aprobada: sólo transición a pagada, o modificaciones por admin/rrhh.
+    // Approved: only transition to paid, or modifications by admin/rrhh.
     if (currentEstado === 'aprobada' && !isAdminLike && estado !== 'pagada')
-      return res.status(403).json({ message: 'Esta planilla ya fue aprobada; sólo admin/RR.HH. puede modificarla fuera de pagar.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Planilla already approved; only admin/rrhh may modify outside of pay transition.', 403);
 
     const update = { updatedAt: Timestamp.now() };
 
-    // Cambio de período (sólo con filas nuevas, para evitar inconsistencia).
+    // Period change (only with new filas, to avoid inconsistency).
     if (periodoInicio !== undefined || periodoFin !== undefined) {
       const periodo = parsePeriodoISO(
         periodoInicio || currentDoc.periodoInicio?.toDate().toISOString(),
         periodoFin    || currentDoc.periodoFin?.toDate().toISOString(),
       );
-      if (!periodo.ok) return res.status(400).json({ message: periodo.msg });
+      if (!periodo.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, periodo.msg, 400);
       update.periodoInicio = Timestamp.fromDate(periodo.ini);
       update.periodoFin    = Timestamp.fromDate(periodo.fin);
     }
@@ -856,9 +857,9 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
         loadFichasMap(req.fincaId),
       ]);
       const san = sanitizeFijoFilas(filas, usersMap, fichasMap);
-      if (!san.ok) return res.status(400).json({ message: san.msg });
+      if (!san.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, san.msg, 400);
       if (san.value.length === 0)
-        return res.status(400).json({ message: 'La planilla debe tener al menos un empleado válido.' });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Planilla must contain at least one valid employee.', 400);
       update.filas = san.value;
       update.totalGeneral = sumTotalGeneral(san.value);
     }
@@ -895,22 +896,22 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
 
     res.status(200).json({ id: req.params.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update planilla.', 500);
   }
 });
 
 router.delete('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_fijo', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const data = ownership.doc.data();
     const estadoActual = data.estado || 'pendiente';
     const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
-    // Sólo pendientes son borrables libremente por roles de escritura.
+    // Only pendientes are freely deletable by write roles.
     if (!canEditarFijo(req))
-      return res.status(403).json({ message: 'No tienes permisos para eliminar planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to delete planillas.', 403);
     if (['aprobada', 'pagada'].includes(estadoActual) && !isAdminLike)
-      return res.status(403).json({ message: 'Planillas aprobadas o pagadas sólo puede eliminarlas admin/RR.HH.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Approved or paid planillas can only be deleted by admin/rrhh.', 403);
 
     await db.collection('hr_planilla_fijo').doc(req.params.id).delete();
     const taskSnap = await db.collection('scheduled_tasks')
@@ -921,13 +922,13 @@ router.delete('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), as
     if (!taskSnap.empty) {
       await taskSnap.docs[0].ref.delete();
     }
-    res.status(200).json({ message: 'Planilla eliminada.' });
+    res.status(200).json({ message: 'Planilla deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete planilla.', 500);
   }
 });
 
-// ── Memorándums ───────────────────────────────────────────────────────────────
+// Memos
 router.get('/api/hr/memorandums', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_memorandums')
@@ -936,14 +937,14 @@ router.get('/api/hr/memorandums', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener memorándums.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch memorandums.', 500);
   }
 });
 
 router.post('/api/hr/memorandums', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, tipo, motivo, descripcion, fecha } = req.body;
-    if (!trabajadorId || !tipo || !motivo) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    if (!trabajadorId || !tipo || !motivo) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, tipo and motivo are required.', 400);
     const ref = await db.collection('hr_memorandums').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '', tipo,
       motivo, descripcion: descripcion || '',
@@ -952,20 +953,20 @@ router.post('/api/hr/memorandums', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear memorándum.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create memorandum.', 500);
   }
 });
 
 router.delete('/api/hr/memorandums/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_memorandums').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Memorándum eliminado.' });
+    res.status(200).json({ message: 'Memorandum deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
   }
 });
 
-// ── Documentos Adjuntos ───────────────────────────────────────────────────────
+// Document attachments
 router.get('/api/hr/documentos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_documentos')
@@ -974,14 +975,14 @@ router.get('/api/hr/documentos', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener documentos.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch documents.', 500);
   }
 });
 
 router.post('/api/hr/documentos', authenticate, async (req, res) => {
   try {
     const { trabajadorId, trabajadorNombre, nombre, tipo, descripcion, fecha } = req.body;
-    if (!trabajadorId || !nombre || !tipo) return res.status(400).json({ message: 'Faltan campos requeridos.' });
+    if (!trabajadorId || !nombre || !tipo) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, nombre and tipo are required.', 400);
     const ref = await db.collection('hr_documentos').add({
       trabajadorId, trabajadorNombre: trabajadorNombre || '',
       nombre, tipo, descripcion: descripcion || '',
@@ -990,24 +991,24 @@ router.post('/api/hr/documentos', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al guardar documento.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save document.', 500);
   }
 });
 
 router.delete('/api/hr/documentos/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_documentos').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Documento eliminado.' });
+    res.status(200).json({ message: 'Document deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
   }
 });
 
-// ── Subordinados (trabajadores asignados a un encargado) ──────────────────────
+// Subordinates (workers assigned to an encargado)
 router.get('/api/hr/subordinados', authenticate, async (req, res) => {
   try {
     const { encargadoId } = req.query;
-    if (!encargadoId) return res.status(400).json({ message: 'encargadoId es requerido.' });
+    if (!encargadoId) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'encargadoId is required.', 400);
     const fichasSnap = await db.collection('hr_fichas')
       .where('fincaId', '==', req.fincaId)
       .where('encargadoId', '==', encargadoId)
@@ -1020,15 +1021,15 @@ router.get('/api/hr/subordinados', authenticate, async (req, res) => {
       .map(d => ({ id: d.id, ...d.data() }));
     res.status(200).json(subordinados);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener subordinados.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch subordinates.', 500);
   }
 });
 
-// ── Planilla por Unidad / Hora ────────────────────────────────────────────────
+// Planilla por Unidad / Hora
 const isHoraUnit = (u) => /^horas?$/i.test((u || '').trim());
 
-// Calcula el total de un trabajador para todos los segmentos. Regla idéntica
-// a la del frontend / snapshot al aprobar.
+// Computes the worker total across all segments. Rule identical
+// to the frontend / snapshot at approval.
 function computeWorkerTotal(worker, segmentos) {
   return (segmentos || []).reduce((sum, seg) => {
     const cantidad = clampNumber(worker.cantidades?.[seg.id], PLANILLA_LIMITS.numeric);
@@ -1042,15 +1043,15 @@ function computeWorkerTotal(worker, segmentos) {
   }, 0);
 }
 
-// Re-deriva precios desde fuentes autoritativas, valida identidades y recalcula
-// totales:
-// - precioHora viene de hr_fichas (no del cliente).
-// - costoUnitario / factorConversion / unidadBase vienen del catálogo
-//   unidades_medida cuando la unidad existe ahí; si es una unidad libre no
-//   catalogada, se acepta el valor del cliente (ya saneado).
-// - trabajadorId DEBE existir en `users` y pertenecer a la finca; los demás
-//   se descartan silenciosamente (impide inyectar IDs falsos al snapshot).
-// - trabajadorNombre se sobreescribe con el `nombre` canónico de `users`.
+// Re-derives prices from authoritative sources, validates identities and
+// recomputes totals:
+// - precioHora comes from hr_fichas (not from the client).
+// - costoUnitario / factorConversion / unidadBase come from the
+//   unidades_medida catalog when the unidad exists there; for free-form
+//   (uncatalogued) unidades, the sanitised client value is accepted.
+// - trabajadorId MUST exist in `users` and belong to the finca; others
+//   are silently discarded (prevents injecting fake IDs into the snapshot).
+// - trabajadorNombre is overwritten with the canonical `nombre` from `users`.
 async function enrichPlanilla(fincaId, segmentos, trabajadores) {
   const [fichasMap, unidadesMap, usersMap] = await Promise.all([
     loadFichasMap(fincaId),
@@ -1061,10 +1062,10 @@ async function enrichPlanilla(fincaId, segmentos, trabajadores) {
   const enrichedSegs = (segmentos || []).map(s => {
     const key = String(s.unidad || '').trim().toLowerCase();
     const cat = key ? unidadesMap.get(key) : null;
-    if (!cat) return s; // unidad libre / no catalogada → respetar valor del cliente
+    if (!cat) return s; // free-form / uncatalogued unit → respect client value
     return {
       ...s,
-      // Sólo sobrescribir costoUnitario si el catálogo define un precio explícito.
+      // Only override costoUnitario if the catalog defines an explicit price.
       costoUnitario: (cat.precio != null && cat.precio !== '')
         ? clampNumber(cat.precio, PLANILLA_LIMITS.numeric)
         : s.costoUnitario,
@@ -1083,7 +1084,7 @@ async function enrichPlanilla(fincaId, segmentos, trabajadores) {
       const precioHora = ficha ? clampNumber(ficha.precioHora, PLANILLA_LIMITS.numeric) : 0;
       const next = {
         ...t,
-        // Nombre canónico desde users (no del cliente) — evita falsificación cosmética.
+        // Canonical nombre from users (not from the client) — prevents cosmetic forgery.
         trabajadorNombre: trimStr(userDoc.nombre, PLANILLA_LIMITS.string),
         precioHora,
       };
@@ -1099,11 +1100,11 @@ async function enrichPlanilla(fincaId, segmentos, trabajadores) {
   return { segmentos: enrichedSegs, trabajadores: enrichedWorkers, totalGeneral, usersMap };
 }
 
-// Sanitiza segmentos: tipos, longitudes, números finitos.
+// Sanitises segmentos: types, lengths, finite numbers.
 function sanitizeSegmentos(segmentos) {
-  if (!Array.isArray(segmentos)) return { ok: false, msg: 'segmentos debe ser un arreglo.' };
+  if (!Array.isArray(segmentos)) return { ok: false, msg: 'segmentos must be an array.' };
   if (segmentos.length > PLANILLA_LIMITS.segmentos)
-    return { ok: false, msg: `Máximo ${PLANILLA_LIMITS.segmentos} segmentos.` };
+    return { ok: false, msg: `Maximum ${PLANILLA_LIMITS.segmentos} segmentos.` };
   const cleaned = segmentos.map(s => ({
     id: trimStr(s?.id, 64),
     loteId: trimStr(s?.loteId, 64),
@@ -1119,11 +1120,11 @@ function sanitizeSegmentos(segmentos) {
   return { ok: true, value: cleaned };
 }
 
-// Sanitiza trabajadores: tipos, longitudes, cantidades finitas.
+// Sanitises trabajadores: types, lengths, finite quantities.
 function sanitizeTrabajadores(trabajadores) {
-  if (!Array.isArray(trabajadores)) return { ok: false, msg: 'trabajadores debe ser un arreglo.' };
+  if (!Array.isArray(trabajadores)) return { ok: false, msg: 'trabajadores must be an array.' };
   if (trabajadores.length > PLANILLA_LIMITS.trabajadoresPorPlanilla)
-    return { ok: false, msg: `Máximo ${PLANILLA_LIMITS.trabajadoresPorPlanilla} trabajadores.` };
+    return { ok: false, msg: `Maximum ${PLANILLA_LIMITS.trabajadoresPorPlanilla} trabajadores.` };
   const cleaned = trabajadores.map(t => {
     const cantsIn = (t && typeof t.cantidades === 'object' && t.cantidades) ? t.cantidades : {};
     const cantsOut = {};
@@ -1154,7 +1155,7 @@ router.get('/api/hr/planilla-unidad', authenticate, async (req, res) => {
     }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener planillas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planillas.', 500);
   }
 });
 
@@ -1171,7 +1172,7 @@ router.get('/api/hr/planilla-unidad/historial', authenticate, async (req, res) =
     }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener historial de planillas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planilla history.', 500);
   }
 });
 
@@ -1179,38 +1180,38 @@ router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async 
   try {
     const { fecha, encargadoId, segmentos, trabajadores, estado, observaciones } = req.body;
 
-    // Validación de tipos / requeridos / longitudes
+    // Type / required / length validation
     if (typeof fecha !== 'string' || !FECHA_RE.test(fecha))
-      return res.status(400).json({ message: 'Fecha inválida (formato YYYY-MM-DD).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid fecha (expected YYYY-MM-DD).', 400);
     const fechaDate = new Date(fecha + 'T12:00:00');
     if (Number.isNaN(fechaDate.getTime()))
-      return res.status(400).json({ message: 'Fecha inválida.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid fecha.', 400);
     if (typeof encargadoId !== 'string' || !encargadoId.trim())
-      return res.status(400).json({ message: 'Encargado es requerido.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Encargado is required.', 400);
     if (estado != null && !PLANILLA_ESTADOS.includes(estado))
-      return res.status(400).json({ message: 'Estado inválido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
 
-    // El cliente no puede crear planillas a nombre de otro encargado a menos
-    // que tenga rol supervisor/admin/rrhh.
+    // Client cannot create planillas on behalf of another encargado unless
+    // they hold supervisor/admin/rrhh role.
     const authUserId = await resolveAuthUserId(req);
     if (encargadoId !== authUserId && !canActOnBehalf(req))
-      return res.status(403).json({ message: 'No puedes crear planillas a nombre de otro encargado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot create planillas on behalf of another encargado.', 403);
 
     const segs = sanitizeSegmentos(segmentos || []);
-    if (!segs.ok) return res.status(400).json({ message: segs.msg });
+    if (!segs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, segs.msg, 400);
     const tabs = sanitizeTrabajadores(trabajadores || []);
-    if (!tabs.ok) return res.status(400).json({ message: tabs.msg });
+    if (!tabs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, tabs.msg, 400);
 
-    // Re-derivar precios, validar identidades y recalcular totales desde
-    // fuentes autoritativas (hr_fichas + unidades_medida + users).
+    // Re-derive prices, validate identities and recompute totals from
+    // authoritative sources (hr_fichas + unidades_medida + users).
     const enriched = await enrichPlanilla(req.fincaId, segs.value, tabs.value);
 
-    // Resolver nombre canónico del encargado (no del cliente).
+    // Resolve canonical encargado nombre (not from the client).
     const encargadoUser = enriched.usersMap.get(encargadoId.trim());
     const encargadoNombreCanon = trimStr(encargadoUser?.nombre, PLANILLA_LIMITS.string);
 
-    // El consecutivo solo se asigna cuando la planilla sale del estado borrador.
-    // Si se guarda como borrador, se crea sin consecutivo para no desperdiciar números.
+    // The consecutivo is assigned only when the planilla leaves borrador.
+    // If saved as borrador, it is created without one to avoid wasting numbers.
     const estadoFinal = estado || 'borrador';
     const esBorrador = estadoFinal === 'borrador';
     let consecutivo = null;
@@ -1248,71 +1249,71 @@ router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async 
     const ref = await db.collection('hr_planilla_unidad').add(docData);
     res.status(201).json({ id: ref.id, consecutivo });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create planilla.', 500);
   }
 });
 
 router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const { fecha, segmentos, trabajadores, totalGeneral, estado, observaciones } = req.body;
 
-    // Sólo el encargado dueño de la planilla (o roles superiores) puede editarla.
+    // Only the owner encargado (or higher roles) can edit.
     const currentDoc = ownership.doc.data();
     const docEncargadoId = currentDoc.encargadoId;
     const currentEstado = currentDoc.estado || 'borrador';
     const authUserId = await resolveAuthUserId(req);
     if (docEncargadoId !== authUserId && !canActOnBehalf(req))
-      return res.status(403).json({ message: 'No puedes editar planillas de otro encargado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot edit planillas of another encargado.', 403);
 
     // Role checks for state transitions
     const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(req.userRole);
     const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
     const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
     if (estado !== undefined && !PLANILLA_ESTADOS.includes(estado))
-      return res.status(400).json({ message: 'Estado inválido.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
     if (estado === 'aprobada' && !canAprobar)
-      return res.status(403).json({ message: 'No tienes permisos para aprobar planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to approve planillas.', 403);
     if (estado === 'pagada' && !canPagar)
-      return res.status(403).json({ message: 'No tienes permisos para pagar planillas.' });
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to pay planillas.', 403);
 
-    // Bloquear retroceso desde estados terminales (aprobada / pagada): sólo
-    // administrador o rrhh pueden modificar planillas ya aprobadas o pagadas.
+    // Block rollback from terminal states (aprobada / pagada): only
+    // administrador or rrhh may modify already approved or paid planillas.
     const lockedStates = ['aprobada', 'pagada'];
     if (lockedStates.includes(currentEstado) && !isAdminLike) {
-      // Cualquier escritura sobre una planilla aprobada/pagada queda restringida.
-      return res.status(403).json({ message: 'Esta planilla ya fue aprobada/pagada y sólo administrador o RR.HH. puede modificarla.' });
+      // Any write on an approved/paid planilla is restricted.
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Planilla already approved/paid; only administrador or rrhh may modify it.', 403);
     }
-    // Bloquear transiciones de retroceso explícitas (aprobada → otro / pagada → otro)
-    // incluso para admin-like → registra acción intencional, no por descuido.
-    // (Los admin-like sí pueden hacerlo si lo envían explícitamente.)
-    // Nota: ya pasamos el guard anterior, así que admin-like puede hacerlo.
+    // Block explicit rollback transitions (aprobada → other / pagada → other)
+    // even for admin-like → records intentional action, not accidental.
+    // (admin-like may still do so if they send it explicitly.)
+    // Note: we already passed the previous guard, so admin-like can do it.
 
     const update = { updatedAt: Timestamp.now() };
     if (fecha !== undefined) {
       if (typeof fecha !== 'string' || !FECHA_RE.test(fecha))
-        return res.status(400).json({ message: 'Fecha inválida (formato YYYY-MM-DD).' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid fecha (expected YYYY-MM-DD).', 400);
       const fechaDate = new Date(fecha + 'T12:00:00');
       if (Number.isNaN(fechaDate.getTime()))
-        return res.status(400).json({ message: 'Fecha inválida.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid fecha.', 400);
       update.fecha = Timestamp.fromDate(fechaDate);
     }
     let segsClean = null;
     let tabsClean = null;
     if (segmentos !== undefined) {
       const segs = sanitizeSegmentos(segmentos);
-      if (!segs.ok) return res.status(400).json({ message: segs.msg });
+      if (!segs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, segs.msg, 400);
       segsClean = segs.value;
     }
     if (trabajadores !== undefined) {
       const tabs = sanitizeTrabajadores(trabajadores);
-      if (!tabs.ok) return res.status(400).json({ message: tabs.msg });
+      if (!tabs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, tabs.msg, 400);
       tabsClean = tabs.value;
     }
-    // Si vino segmentos o trabajadores, re-derivar precios y totales desde
-    // fuentes autoritativas. Si vino sólo uno de los dos, completar con el
-    // valor existente en el doc para que el cómputo sea coherente.
+    // If segmentos or trabajadores came in, re-derive prices and totals from
+    // authoritative sources. If only one was sent, complete with the existing
+    // doc value so the computation is coherent.
     if (segsClean !== null || tabsClean !== null) {
       const enriched = await enrichPlanilla(
         req.fincaId,
@@ -1321,20 +1322,20 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
       );
       if (segsClean !== null) update.segmentos = enriched.segmentos;
       if (tabsClean !== null) update.trabajadores = enriched.trabajadores;
-      // totalGeneral siempre se recalcula server-side: ignora el del cliente.
+      // totalGeneral is always recomputed server-side: client value ignored.
       update.totalGeneral = enriched.totalGeneral;
-      // Resolver nombre canónico del encargado (puede haber cambiado en `users`).
+      // Resolve canonical encargado nombre (may have changed in `users`).
       const encargadoUser = enriched.usersMap.get(docEncargadoId);
       if (encargadoUser) update.encargadoNombre = trimStr(encargadoUser.nombre, PLANILLA_LIMITS.string);
     } else if (totalGeneral !== undefined) {
-      // Sólo cambió un campo "metadata" (estado, observaciones) — el cliente
-      // pudo recalcular total localmente; lo aceptamos saneado.
+      // Only a "metadata" field changed (estado, observaciones) — the client
+      // may have recomputed the total locally; we accept it sanitised.
       update.totalGeneral = clampNumber(totalGeneral, PLANILLA_LIMITS.numeric);
     }
     if (estado !== undefined) update.estado = estado;
     if (observaciones !== undefined) update.observaciones = trimStr(observaciones, PLANILLA_LIMITS.observaciones);
 
-    // Audit trail: registrar quién modificó y qué tipo de cambio fue.
+    // Audit trail: record who modified and what type of change it was.
     const actions = [];
     if (estado !== undefined && estado !== currentEstado) actions.push(`estado:${currentEstado}→${estado}`);
     if (segsClean !== null || tabsClean !== null) actions.push('updated');
@@ -1350,7 +1351,7 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
       update.updatedBy = { userId: authUserId || null, email: req.userEmail || null };
     }
 
-    // Asignar consecutivo si la planilla aún no tiene uno y está saliendo del borrador
+    // Assign consecutivo if the planilla doesn't have one yet and is leaving borrador
     let consecutivo = currentDoc.consecutivo || null;
     if (!consecutivo && estado && estado !== 'borrador') {
       const counterRef = db.collection('counters').doc(`planilla_unidad_${req.fincaId}`);
@@ -1363,12 +1364,12 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
       update.consecutivo = consecutivo;
     }
 
-    // ── Snapshot al aprobar ────────────────────────────────────────────────────
+    // Snapshot on approval
     if (estado === 'aprobada' && !currentDoc.snapshotCreado) {
-      // Mezclar datos viejos con los cambios del body para usar siempre la versión más reciente
+      // Merge old data with body changes to always use the latest version
       const doc = { ...currentDoc, ...update };
 
-      // Resolver nombre del aprobador
+      // Resolve approver name
       let aprobadoPor = req.userEmail;
       const userSnap = await db.collection('users')
         .where('email', '==', req.userEmail)
@@ -1401,14 +1402,14 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
             aprobadoAt,
             observaciones:    doc.observaciones || '',
             totalGeneral:     Number(doc.totalGeneral) || 0,
-            // Segmento
+            // Segment
             loteNombre:       seg.loteNombre   || '',
             grupo:            seg.grupo        || '',
             labor:            seg.labor        || '',
             avanceHa:         Number(seg.avanceHa) || 0,
             unidad:           seg.unidad       || '',
             costoUnitario,
-            // Trabajador
+            // Worker
             trabajadorId:     worker.trabajadorId   || '',
             trabajadorNombre: worker.trabajadorNombre || '',
             cantidad,
@@ -1423,42 +1424,42 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
     }
 
     await db.collection('hr_planilla_unidad').doc(req.params.id).update(update);
-    res.status(200).json({ message: 'Planilla actualizada.', consecutivo });
+    res.status(200).json({ message: 'Planilla updated.', consecutivo });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update planilla.', 500);
   }
 });
 
 router.delete('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const data = ownership.doc.data();
     const docEncargadoId = data.encargadoId;
     const authUserId = await resolveAuthUserId(req);
     if (docEncargadoId !== authUserId && !canActOnBehalf(req))
-      return res.status(403).json({ message: 'No puedes eliminar planillas de otro encargado.' });
-    // Bloquear borrado de planillas aprobadas/pagadas salvo admin/rrhh.
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot delete planillas of another encargado.', 403);
+    // Block deletion of approved/paid planillas except for admin/rrhh.
     const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
     if (['aprobada', 'pagada'].includes(data.estado) && !isAdminLike)
-      return res.status(403).json({ message: 'Esta planilla ya fue aprobada/pagada y sólo administrador o RR.HH. puede eliminarla.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Planilla already approved/paid; only administrador or rrhh may delete it.', 403);
     await db.collection('hr_planilla_unidad').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Planilla eliminada.' });
+    res.status(200).json({ message: 'Planilla deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar planilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete planilla.', 500);
   }
 });
 
-// ── Plantillas de Planilla por Unidad / Hora ──────────────────────────────────
+// Templates for Planilla por Unidad / Hora
 router.get('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
   try {
     const encargadoId = typeof req.query.encargadoId === 'string' ? req.query.encargadoId.trim() : '';
     if (!encargadoId)
-      return res.status(400).json({ message: 'encargadoId es requerido.' });
-    // Sólo el propio encargado o roles superiores pueden listar plantillas ajenas.
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'encargadoId is required.', 400);
+    // Only the owner encargado or higher roles can list foreign templates.
     const authUserId = await resolveAuthUserId(req);
     if (encargadoId !== authUserId && !canActOnBehalf(req))
-      return res.status(403).json({ message: 'No puedes ver plantillas de otro encargado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot view templates of another encargado.', 403);
 
     const snap = await db.collection('hr_plantillas_planilla')
       .where('fincaId', '==', req.fincaId)
@@ -1470,7 +1471,7 @@ router.get('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
     }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener plantillas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch templates.', 500);
   }
 });
 
@@ -1478,19 +1479,19 @@ router.post('/api/hr/plantillas-planilla', authenticate, planillaRateLimit(), as
   try {
     const { nombre, segmentos, trabajadores, encargadoId } = req.body;
     const nombreClean = trimStr(nombre, PLANILLA_LIMITS.nombrePlantilla).trim();
-    if (!nombreClean) return res.status(400).json({ message: 'Nombre es requerido.' });
+    if (!nombreClean) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Nombre is required.', 400);
     if (typeof encargadoId !== 'string' || !encargadoId.trim())
-      return res.status(400).json({ message: 'Encargado es requerido.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Encargado is required.', 400);
 
-    // No permitir guardar plantillas a nombre de otro encargado.
+    // Do not allow saving templates on behalf of another encargado.
     const authUserId = await resolveAuthUserId(req);
     if (encargadoId !== authUserId && !canActOnBehalf(req))
-      return res.status(403).json({ message: 'No puedes guardar plantillas a nombre de otro encargado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot save templates on behalf of another encargado.', 403);
 
     const segs = sanitizeSegmentos(segmentos || []);
-    if (!segs.ok) return res.status(400).json({ message: segs.msg });
+    if (!segs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, segs.msg, 400);
     const tabs = sanitizeTrabajadores(trabajadores || []);
-    if (!tabs.ok) return res.status(400).json({ message: tabs.msg });
+    if (!tabs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, tabs.msg, 400);
 
     const ref = await db.collection('hr_plantillas_planilla').add({
       fincaId: req.fincaId,
@@ -1502,26 +1503,26 @@ router.post('/api/hr/plantillas-planilla', authenticate, planillaRateLimit(), as
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al guardar plantilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save template.', 500);
   }
 });
 
 router.delete('/api/hr/plantillas-planilla/:id', authenticate, planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_plantillas_planilla', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const docEncargadoId = ownership.doc.data().encargadoId;
     const authUserId = await resolveAuthUserId(req);
     if (docEncargadoId !== authUserId && !canActOnBehalf(req))
-      return res.status(403).json({ message: 'No puedes eliminar plantillas de otro encargado.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot delete templates of another encargado.', 403);
     await db.collection('hr_plantillas_planilla').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Plantilla eliminada.' });
+    res.status(200).json({ message: 'Template deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar plantilla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete template.', 500);
   }
 });
 
-// ── Solicitudes de Empleo ─────────────────────────────────────────────────────
+// Job applications
 router.get('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('hr_solicitudes_empleo')
@@ -1530,14 +1531,14 @@ router.get('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fechaSolicitud: d.data().fechaSolicitud.toDate().toISOString() }));
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener solicitudes.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch applications.', 500);
   }
 });
 
 router.post('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
   try {
     const { nombre, email, telefono, puesto, notas } = req.body;
-    if (!nombre || !puesto) return res.status(400).json({ message: 'Nombre y puesto son obligatorios.' });
+    if (!nombre || !puesto) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'nombre and puesto are required.', 400);
     const ref = await db.collection('hr_solicitudes_empleo').add({
       nombre, email: email || '', telefono: telefono || '',
       puesto, notas: notas || '', estado: 'pendiente',
@@ -1545,25 +1546,25 @@ router.post('/api/hr/solicitudes-empleo', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear solicitud.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create application.', 500);
   }
 });
 
 router.put('/api/hr/solicitudes-empleo/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_solicitudes_empleo').doc(req.params.id).update(req.body);
-    res.status(200).json({ message: 'Solicitud actualizada.' });
+    res.status(200).json({ message: 'Application updated.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update.', 500);
   }
 });
 
 router.delete('/api/hr/solicitudes-empleo/:id', authenticate, async (req, res) => {
   try {
     await db.collection('hr_solicitudes_empleo').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Solicitud eliminada.' });
+    res.status(200).json({ message: 'Application deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
   }
 });
 
