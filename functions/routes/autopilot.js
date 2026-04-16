@@ -85,6 +85,184 @@ async function buildFeedbackContext(fincaId, userId) {
   }
 }
 
+// ── Tools & maps shared by /analyze (Nivel 2) and /command ──────────────────
+
+const AUTOPILOT_PROPOSE_TOOLS = [
+  {
+    name: 'proponer_crear_tarea',
+    description: 'Propone la creación de una nueva tarea programada. Se guardará como propuesta para aprobación del supervisor.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre:            { type: 'string', description: 'Nombre descriptivo de la tarea/actividad.' },
+        loteId:            { type: 'string', description: 'ID del lote (del catálogo).' },
+        loteNombre:        { type: 'string', description: 'Nombre del lote (para visualización).' },
+        responsableId:     { type: 'string', description: 'ID del usuario responsable (del catálogo).' },
+        responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
+        fecha:             { type: 'string', description: 'Fecha de ejecución YYYY-MM-DD.' },
+        productos:         { type: 'array', items: { type: 'object', properties: { productoId: { type: 'string' }, nombreComercial: { type: 'string' }, cantidad: { type: 'number' }, unidad: { type: 'string' } } }, description: 'Productos a aplicar (opcional, solo para tareas de tipo aplicación).' },
+        razon:             { type: 'string', description: 'Razón clara por la cual se propone esta tarea, basada en los datos.' },
+        prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['nombre', 'loteId', 'responsableId', 'fecha', 'razon', 'prioridad'],
+    },
+  },
+  {
+    name: 'proponer_reprogramar_tarea',
+    description: 'Propone reprogramar una tarea existente a una nueva fecha.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taskId:    { type: 'string', description: 'ID de la tarea existente (del snapshot).' },
+        taskName:  { type: 'string', description: 'Nombre de la tarea (para visualización).' },
+        oldDate:   { type: 'string', description: 'Fecha actual de la tarea YYYY-MM-DD.' },
+        newDate:   { type: 'string', description: 'Nueva fecha propuesta YYYY-MM-DD.' },
+        razon:     { type: 'string', description: 'Razón de la reprogramación.' },
+        prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['taskId', 'taskName', 'newDate', 'razon', 'prioridad'],
+    },
+  },
+  {
+    name: 'proponer_reasignar_tarea',
+    description: 'Propone reasignar una tarea a un usuario diferente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taskId:      { type: 'string', description: 'ID de la tarea existente.' },
+        taskName:    { type: 'string', description: 'Nombre de la tarea.' },
+        oldUserId:   { type: 'string', description: 'ID del responsable actual.' },
+        oldUserName: { type: 'string', description: 'Nombre del responsable actual.' },
+        newUserId:   { type: 'string', description: 'ID del nuevo responsable (del catálogo).' },
+        newUserName: { type: 'string', description: 'Nombre del nuevo responsable.' },
+        razon:       { type: 'string', description: 'Razón de la reasignación.' },
+        prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['taskId', 'taskName', 'newUserId', 'newUserName', 'razon', 'prioridad'],
+    },
+  },
+  {
+    name: 'proponer_ajustar_inventario',
+    description: 'Propone CORREGIR el stock registrado para reflejar la realidad física (por conteo físico, pérdida, merma o error de captura). NO usar para reponer inventario bajo — para eso existen proponer_solicitud_compra y proponer_orden_compra.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        productoId:     { type: 'string', description: 'ID del producto (del catálogo).' },
+        productoNombre: { type: 'string', description: 'Nombre del producto.' },
+        stockActual:    { type: 'number', description: 'Stock actual registrado.' },
+        stockNuevo:     { type: 'number', description: 'Nuevo valor de stock propuesto.' },
+        unidad:         { type: 'string', description: 'Unidad de medida.' },
+        nota:           { type: 'string', description: 'Razón concreta del ajuste: conteo físico, merma, pérdida, error de captura, etc.' },
+        prioridad:      { type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['productoId', 'productoNombre', 'stockNuevo', 'nota', 'prioridad'],
+    },
+  },
+  {
+    name: 'proponer_solicitud_compra',
+    description: 'Propone crear una solicitud interna de compra (request interno para que proveeduría cotice/compre). Úsalo cuando hay bajo stock y no hay proveedor habitual claro, o cuando el productor decide la cotización antes de emitir la orden formal.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          description: 'Productos que se solicitan.',
+          items: {
+            type: 'object',
+            properties: {
+              productoId:         { type: 'string', description: 'ID del producto (del catálogo).' },
+              nombreComercial:    { type: 'string', description: 'Nombre comercial del producto.' },
+              cantidadSolicitada: { type: 'number', description: 'Cantidad a solicitar (en la misma unidad del producto).' },
+              unidad:             { type: 'string', description: 'Unidad del producto.' },
+              stockActual:        { type: 'number', description: 'Stock actual del producto al momento de la solicitud.' },
+              stockMinimo:        { type: 'number', description: 'Stock mínimo configurado para el producto.' },
+            },
+            required: ['productoId', 'nombreComercial', 'cantidadSolicitada', 'unidad'],
+          },
+        },
+        responsableId:     { type: 'string', description: 'ID del usuario responsable de la solicitud (del catálogo); omitir para default "proveeduria".' },
+        responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
+        notas:             { type: 'string', description: 'Justificación y contexto de la solicitud.' },
+        razon:             { type: 'string', description: 'Razón clara que el supervisor pueda evaluar.' },
+        prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['items', 'razon', 'prioridad'],
+    },
+  },
+  {
+    name: 'proponer_orden_compra',
+    description: 'Propone emitir una orden de compra formal a un proveedor específico. Úsalo cuando el producto tiene un proveedor habitual identificado o el productor ya tiene decidido a quién comprar. Si el proveedor habitual no está claro, prefiere proponer_solicitud_compra.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        proveedor:          { type: 'string', description: 'Nombre del proveedor (del catálogo de proveedores si existe, o del campo producto.proveedor).' },
+        direccionProveedor: { type: 'string', description: 'Dirección del proveedor (opcional).' },
+        fecha:              { type: 'string', description: 'Fecha de la orden YYYY-MM-DD (opcional; por defecto hoy).' },
+        fechaEntrega:       { type: 'string', description: 'Fecha esperada de entrega YYYY-MM-DD (opcional).' },
+        items: {
+          type: 'array',
+          description: 'Productos a ordenar con cantidad y precio estimado.',
+          items: {
+            type: 'object',
+            properties: {
+              productoId:       { type: 'string', description: 'ID del producto (del catálogo).' },
+              nombreComercial:  { type: 'string', description: 'Nombre comercial.' },
+              ingredienteActivo:{ type: 'string', description: 'Ingrediente activo (si aplica).' },
+              cantidad:         { type: 'number', description: 'Cantidad a ordenar.' },
+              unidad:           { type: 'string', description: 'Unidad (kg, L, etc).' },
+              precioUnitario:   { type: 'number', description: 'Precio unitario estimado (0 si no se conoce).' },
+              iva:              { type: 'number', description: 'Porcentaje de IVA (0 si no se conoce).' },
+              moneda:           { type: 'string', description: 'Moneda (USD/CRC). Default USD.' },
+            },
+            required: ['nombreComercial', 'cantidad', 'unidad'],
+          },
+        },
+        solicitudId: { type: 'string', description: 'ID de la solicitud de compra asociada (opcional).' },
+        notas:       { type: 'string', description: 'Notas adicionales de la orden.' },
+        razon:       { type: 'string', description: 'Razón clara que el supervisor pueda evaluar.' },
+        prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['proveedor', 'items', 'razon', 'prioridad'],
+    },
+  },
+  {
+    name: 'proponer_notificacion',
+    description: 'Propone enviar una notificación WhatsApp a un trabajador.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        userId:   { type: 'string', description: 'ID del usuario destinatario (del catálogo).' },
+        userName: { type: 'string', description: 'Nombre del usuario.' },
+        telefono: { type: 'string', description: 'Teléfono del usuario.' },
+        mensaje:  { type: 'string', description: 'Contenido del mensaje WhatsApp.' },
+        razon:    { type: 'string', description: 'Razón de la notificación.' },
+        prioridad:{ type: 'string', enum: ['alta', 'media', 'baja'] },
+      },
+      required: ['userId', 'userName', 'mensaje', 'razon', 'prioridad'],
+    },
+  },
+];
+
+const PROPOSE_ACTION_MAP = {
+  proponer_crear_tarea: 'crear_tarea',
+  proponer_reprogramar_tarea: 'reprogramar_tarea',
+  proponer_reasignar_tarea: 'reasignar_tarea',
+  proponer_ajustar_inventario: 'ajustar_inventario',
+  proponer_notificacion: 'enviar_notificacion',
+  proponer_solicitud_compra: 'crear_solicitud_compra',
+  proponer_orden_compra: 'crear_orden_compra',
+};
+
+const ACTION_CATEGORY_MAP = {
+  crear_tarea: 'tareas',
+  reprogramar_tarea: 'tareas',
+  reasignar_tarea: 'tareas',
+  ajustar_inventario: 'inventario',
+  enviar_notificacion: 'general',
+  crear_solicitud_compra: 'inventario',
+  crear_orden_compra: 'inventario',
+};
+
 // GET /api/autopilot/config
 router.get('/api/autopilot/config', authenticate, async (req, res) => {
   try {
@@ -419,161 +597,7 @@ Genera las recomendaciones en formato JSON array.`;
     //  NIVEL 2 — Agencia Supervisada (tool_use → cola de aprobación)
     // ════════════════════════════════════════════════════════════════
     if (config.mode === 'nivel2') {
-      const nivel2Tools = [
-        {
-          name: 'proponer_crear_tarea',
-          description: 'Propone la creación de una nueva tarea programada. Se guardará como propuesta para aprobación del supervisor.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              nombre:            { type: 'string', description: 'Nombre descriptivo de la tarea/actividad.' },
-              loteId:            { type: 'string', description: 'ID del lote (del catálogo).' },
-              loteNombre:        { type: 'string', description: 'Nombre del lote (para visualización).' },
-              responsableId:     { type: 'string', description: 'ID del usuario responsable (del catálogo).' },
-              responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
-              fecha:             { type: 'string', description: 'Fecha de ejecución YYYY-MM-DD.' },
-              productos:         { type: 'array', items: { type: 'object', properties: { productoId: { type: 'string' }, nombreComercial: { type: 'string' }, cantidad: { type: 'number' }, unidad: { type: 'string' } } }, description: 'Productos a aplicar (opcional, solo para tareas de tipo aplicación).' },
-              razon:             { type: 'string', description: 'Razón clara por la cual se propone esta tarea, basada en los datos.' },
-              prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['nombre', 'loteId', 'responsableId', 'fecha', 'razon', 'prioridad'],
-          },
-        },
-        {
-          name: 'proponer_reprogramar_tarea',
-          description: 'Propone reprogramar una tarea existente a una nueva fecha.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              taskId:    { type: 'string', description: 'ID de la tarea existente (del snapshot).' },
-              taskName:  { type: 'string', description: 'Nombre de la tarea (para visualización).' },
-              oldDate:   { type: 'string', description: 'Fecha actual de la tarea YYYY-MM-DD.' },
-              newDate:   { type: 'string', description: 'Nueva fecha propuesta YYYY-MM-DD.' },
-              razon:     { type: 'string', description: 'Razón de la reprogramación.' },
-              prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['taskId', 'taskName', 'newDate', 'razon', 'prioridad'],
-          },
-        },
-        {
-          name: 'proponer_reasignar_tarea',
-          description: 'Propone reasignar una tarea a un usuario diferente.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              taskId:      { type: 'string', description: 'ID de la tarea existente.' },
-              taskName:    { type: 'string', description: 'Nombre de la tarea.' },
-              oldUserId:   { type: 'string', description: 'ID del responsable actual.' },
-              oldUserName: { type: 'string', description: 'Nombre del responsable actual.' },
-              newUserId:   { type: 'string', description: 'ID del nuevo responsable (del catálogo).' },
-              newUserName: { type: 'string', description: 'Nombre del nuevo responsable.' },
-              razon:       { type: 'string', description: 'Razón de la reasignación.' },
-              prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['taskId', 'taskName', 'newUserId', 'newUserName', 'razon', 'prioridad'],
-          },
-        },
-        {
-          name: 'proponer_ajustar_inventario',
-          description: 'Propone CORREGIR el stock registrado para reflejar la realidad física (por conteo físico, pérdida, merma o error de captura). NO usar para reponer inventario bajo — para eso existen proponer_solicitud_compra y proponer_orden_compra.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              productoId:     { type: 'string', description: 'ID del producto (del catálogo).' },
-              productoNombre: { type: 'string', description: 'Nombre del producto.' },
-              stockActual:    { type: 'number', description: 'Stock actual registrado.' },
-              stockNuevo:     { type: 'number', description: 'Nuevo valor de stock propuesto.' },
-              unidad:         { type: 'string', description: 'Unidad de medida.' },
-              nota:           { type: 'string', description: 'Razón concreta del ajuste: conteo físico, merma, pérdida, error de captura, etc.' },
-              prioridad:      { type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['productoId', 'productoNombre', 'stockNuevo', 'nota', 'prioridad'],
-          },
-        },
-        {
-          name: 'proponer_solicitud_compra',
-          description: 'Propone crear una solicitud interna de compra (request interno para que proveeduría cotice/compre). Úsalo cuando hay bajo stock y no hay proveedor habitual claro, o cuando el productor decide la cotización antes de emitir la orden formal.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              items: {
-                type: 'array',
-                description: 'Productos que se solicitan.',
-                items: {
-                  type: 'object',
-                  properties: {
-                    productoId:         { type: 'string', description: 'ID del producto (del catálogo).' },
-                    nombreComercial:    { type: 'string', description: 'Nombre comercial del producto.' },
-                    cantidadSolicitada: { type: 'number', description: 'Cantidad a solicitar (en la misma unidad del producto).' },
-                    unidad:             { type: 'string', description: 'Unidad del producto.' },
-                    stockActual:        { type: 'number', description: 'Stock actual del producto al momento de la solicitud.' },
-                    stockMinimo:        { type: 'number', description: 'Stock mínimo configurado para el producto.' },
-                  },
-                  required: ['productoId', 'nombreComercial', 'cantidadSolicitada', 'unidad'],
-                },
-              },
-              responsableId:     { type: 'string', description: 'ID del usuario responsable de la solicitud (del catálogo); omitir para default "proveeduria".' },
-              responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
-              notas:             { type: 'string', description: 'Justificación y contexto de la solicitud.' },
-              razon:             { type: 'string', description: 'Razón clara que el supervisor pueda evaluar.' },
-              prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['items', 'razon', 'prioridad'],
-          },
-        },
-        {
-          name: 'proponer_orden_compra',
-          description: 'Propone emitir una orden de compra formal a un proveedor específico. Úsalo cuando el producto tiene un proveedor habitual identificado o el productor ya tiene decidido a quién comprar. Si el proveedor habitual no está claro, prefiere proponer_solicitud_compra.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              proveedor:          { type: 'string', description: 'Nombre del proveedor (del catálogo de proveedores si existe, o del campo producto.proveedor).' },
-              direccionProveedor: { type: 'string', description: 'Dirección del proveedor (opcional).' },
-              fecha:              { type: 'string', description: 'Fecha de la orden YYYY-MM-DD (opcional; por defecto hoy).' },
-              fechaEntrega:       { type: 'string', description: 'Fecha esperada de entrega YYYY-MM-DD (opcional).' },
-              items: {
-                type: 'array',
-                description: 'Productos a ordenar con cantidad y precio estimado.',
-                items: {
-                  type: 'object',
-                  properties: {
-                    productoId:       { type: 'string', description: 'ID del producto (del catálogo).' },
-                    nombreComercial:  { type: 'string', description: 'Nombre comercial.' },
-                    ingredienteActivo:{ type: 'string', description: 'Ingrediente activo (si aplica).' },
-                    cantidad:         { type: 'number', description: 'Cantidad a ordenar.' },
-                    unidad:           { type: 'string', description: 'Unidad (kg, L, etc).' },
-                    precioUnitario:   { type: 'number', description: 'Precio unitario estimado (0 si no se conoce).' },
-                    iva:              { type: 'number', description: 'Porcentaje de IVA (0 si no se conoce).' },
-                    moneda:           { type: 'string', description: 'Moneda (USD/CRC). Default USD.' },
-                  },
-                  required: ['nombreComercial', 'cantidad', 'unidad'],
-                },
-              },
-              solicitudId: { type: 'string', description: 'ID de la solicitud de compra asociada (opcional).' },
-              notas:       { type: 'string', description: 'Notas adicionales de la orden.' },
-              razon:       { type: 'string', description: 'Razón clara que el supervisor pueda evaluar.' },
-              prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['proveedor', 'items', 'razon', 'prioridad'],
-          },
-        },
-        {
-          name: 'proponer_notificacion',
-          description: 'Propone enviar una notificación WhatsApp a un trabajador.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              userId:   { type: 'string', description: 'ID del usuario destinatario (del catálogo).' },
-              userName: { type: 'string', description: 'Nombre del usuario.' },
-              telefono: { type: 'string', description: 'Teléfono del usuario.' },
-              mensaje:  { type: 'string', description: 'Contenido del mensaje WhatsApp.' },
-              razon:    { type: 'string', description: 'Razón de la notificación.' },
-              prioridad:{ type: 'string', enum: ['alta', 'media', 'baja'] },
-            },
-            required: ['userId', 'userName', 'mensaje', 'razon', 'prioridad'],
-          },
-        },
-      ];
+      const nivel2Tools = AUTOPILOT_PROPOSE_TOOLS;
 
       const nivel2SystemPrompt = `Eres el piloto automático de Aurora (Nivel 2: Agencia Supervisada), una plataforma de gestión agrícola.
 Tu tarea es analizar el estado actual de la finca y proponer acciones concretas usando las herramientas disponibles.
@@ -630,30 +654,16 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
         messages.push({ role: 'assistant', content: response.content });
         const toolResults = [];
 
-        const ACTION_TYPE_MAP = {
-          proponer_crear_tarea: 'crear_tarea',
-          proponer_reprogramar_tarea: 'reprogramar_tarea',
-          proponer_reasignar_tarea: 'reasignar_tarea',
-          proponer_ajustar_inventario: 'ajustar_inventario',
-          proponer_notificacion: 'enviar_notificacion',
-          proponer_solicitud_compra: 'crear_solicitud_compra',
-          proponer_orden_compra: 'crear_orden_compra',
-        };
-
         for (const block of response.content) {
           if (block.type !== 'tool_use') continue;
-          const actionType = ACTION_TYPE_MAP[block.name];
+          const actionType = PROPOSE_ACTION_MAP[block.name];
           if (!actionType) {
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: 'Herramienta desconocida' }) });
             continue;
           }
 
           const { prioridad, razon, ...params } = block.input;
-          const catMap = {
-            crear_tarea: 'tareas', reprogramar_tarea: 'tareas', reasignar_tarea: 'tareas',
-            ajustar_inventario: 'inventario', enviar_notificacion: 'general',
-            crear_solicitud_compra: 'inventario', crear_orden_compra: 'inventario',
-          };
+          const catMap = ACTION_CATEGORY_MAP;
 
           proposedActions.push({
             type: actionType,
@@ -1179,6 +1189,331 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
   } catch (err) {
     console.error('[AUTOPILOT] Error en analyze:', err);
     res.status(500).json({ message: 'Error interno al ejecutar el análisis.' });
+  }
+});
+
+// POST /api/autopilot/command  (minRole: encargado)
+// Intent-driven channel: user types or dictates a command; agent converts it to
+// proposed actions using the same tools as Nivel 2. Always proposes (never
+// executes), even if the user says "ejecuta" — the supervisor approves.
+router.post('/api/autopilot/command', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'encargado')) {
+    return res.status(403).json({ message: 'Se requiere rol de Encargado o superior.' });
+  }
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ message: 'El comando no puede estar vacío.' });
+    if (text.length > 2000) return res.status(400).json({ message: 'El comando excede 2000 caracteres.' });
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    // Finca snapshot (mismos 6 queries que /analyze)
+    const [tasksSnap, productosSnap, monitoreosSnap, lotesSnap, usersSnap, proveedoresSnap] = await Promise.all([
+      db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get(),
+      db.collection('productos').where('fincaId', '==', req.fincaId).get(),
+      db.collection('monitoreos')
+        .where('fincaId', '==', req.fincaId)
+        .where('fecha', '>=', Timestamp.fromDate(thirtyDaysAgo))
+        .orderBy('fecha', 'desc')
+        .limit(50)
+        .get(),
+      db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
+      db.collection('users').where('fincaId', '==', req.fincaId).get(),
+      db.collection('proveedores').where('fincaId', '==', req.fincaId).get(),
+    ]);
+
+    const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const overdueTasks = [];
+    const upcomingTasks = [];
+    tasksSnap.docs.forEach(doc => {
+      const t = doc.data();
+      if (['completed_by_user', 'skipped'].includes(t.status)) return;
+      if (t.type === 'REMINDER_3_DAY') return;
+      const due = t.executeAt?.toDate?.() || null;
+      if (!due) return;
+      const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+      const info = {
+        id: doc.id,
+        nombre: t.activity?.name || '—',
+        dueDate: due.toISOString().split('T')[0],
+        responsableId: t.activity?.responsableId || null,
+        loteId: t.loteId || null,
+      };
+      if (dueDay < todayDay) overdueTasks.push(info);
+      else if (due <= fourteenDaysAhead) upcomingTasks.push(info);
+    });
+
+    const lowStockProductos = productosSnap.docs
+      .filter(doc => {
+        const d = doc.data();
+        return (d.stockActual ?? 0) <= (d.stockMinimo ?? 0);
+      })
+      .map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          nombre: d.nombreComercial || '—',
+          ingredienteActivo: d.ingredienteActivo || '',
+          stockActual: d.stockActual ?? 0,
+          stockMinimo: d.stockMinimo ?? 0,
+          unidad: d.unidad || '',
+          proveedor: d.proveedor || '',
+        };
+      });
+
+    // Para comandos: también expone el catálogo completo (no solo bajo stock) —
+    // el usuario puede referirse a cualquier producto.
+    const allProductos = productosSnap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        nombre: d.nombreComercial || '—',
+        unidad: d.unidad || '',
+        stockActual: d.stockActual ?? 0,
+        stockMinimo: d.stockMinimo ?? 0,
+        proveedor: d.proveedor || '',
+      };
+    });
+
+    const recentMonitoreos = monitoreosSnap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        loteNombre: d.loteNombre || '—',
+        tipoNombre: d.tipoNombre || '—',
+        fecha: d.fecha?.toDate?.()?.toISOString().split('T')[0] || '—',
+      };
+    });
+
+    const activeLotes = lotesSnap.docs.map(doc => {
+      const d = doc.data();
+      return { id: doc.id, codigo: d.codigoLote || '', nombre: d.nombreLote || '', hectareas: d.hectareas || null };
+    });
+
+    const catalogoUsers = usersSnap.docs.map(doc => {
+      const d = doc.data();
+      return { id: doc.id, nombre: d.nombre || '', rol: d.rol || '', telefono: d.telefono || '' };
+    });
+
+    const catalogoProveedores = proveedoresSnap.docs
+      .map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          nombre: d.nombre || '',
+          direccion: d.direccion || '',
+          tipoPago: d.tipoPago || '',
+          moneda: d.moneda || '',
+          estado: d.estado || 'activo',
+          categoria: d.categoria || '',
+        };
+      })
+      .filter(p => p.nombre && p.estado !== 'inactivo');
+
+    const snapshot = {
+      overdueTasksCount: overdueTasks.length,
+      upcomingTasksCount: upcomingTasks.length,
+      lowStockCount: lowStockProductos.length,
+      recentMonitoreosCount: recentMonitoreos.length,
+      activeLotesCount: activeLotes.length,
+      productosCount: allProductos.length,
+    };
+
+    const snapshotText = `
+## Estado actual de la finca (fecha: ${now.toISOString().split('T')[0]})
+
+**Lotes (${activeLotes.length}):**
+${activeLotes.length ? activeLotes.slice(0, 20).map(l => `  - [ID: ${l.id}] ${l.codigo ? l.codigo + ' ' : ''}"${l.nombre}"${l.hectareas ? ` | ${l.hectareas} ha` : ''}`).join('\n') : '  (sin lotes)'}
+
+**Tareas vencidas (${overdueTasks.length}):**
+${overdueTasks.length ? overdueTasks.slice(0, 10).map(t => `  - [ID: ${t.id}] "${t.nombre}" — vencida el ${t.dueDate}`).join('\n') : '  (ninguna)'}
+
+**Tareas próximas — 14 días (${upcomingTasks.length}):**
+${upcomingTasks.length ? upcomingTasks.slice(0, 10).map(t => `  - [ID: ${t.id}] "${t.nombre}" — ${t.dueDate}`).join('\n') : '  (ninguna)'}
+
+**Productos en catálogo (${allProductos.length}):**
+${allProductos.length ? allProductos.slice(0, 40).map(p => `  - [ID: ${p.id}] ${p.nombre} | Stock: ${p.stockActual} ${p.unidad}${p.proveedor ? ` | Proveedor habitual: "${p.proveedor}"` : ''}`).join('\n') : '  (sin productos)'}
+
+**Usuarios (${catalogoUsers.length}):**
+${catalogoUsers.length ? catalogoUsers.map(u => `  - [ID: ${u.id}] ${u.nombre} | Rol: ${u.rol}${u.telefono ? ` | Tel: ${u.telefono}` : ''}`).join('\n') : '  (sin usuarios)'}
+
+**Proveedores activos (${catalogoProveedores.length}):**
+${catalogoProveedores.length ? catalogoProveedores.map(p => `  - [ID: ${p.id}] "${p.nombre}"${p.categoria ? ` | ${p.categoria}` : ''}`).join('\n') : '  (sin proveedores)'}
+`.trim();
+
+    const { directivesBlock, examplesBlock } = await buildFeedbackContext(req.fincaId, req.uid);
+    const feedbackPrefix = [directivesBlock, examplesBlock].filter(Boolean).join('\n\n');
+
+    const commandSystemPrompt = `Eres el piloto automático de Aurora en modo Comando. El usuario te da una instrucción concreta en lenguaje natural (texto escrito o transcripción de voz). Tu tarea es convertir esa instrucción en acciones usando las herramientas disponibles.
+
+Cada herramienta "proponer_*" registra una propuesta que será revisada por un supervisor antes de ejecutarse. SIEMPRE se usa modo propuesta: aunque el usuario diga "ejecuta", "hazlo ya" u órdenes similares, tú solo propones — el supervisor decide la ejecución final.
+
+Reglas:
+- Si el comando es claro y tienes toda la información necesaria → llama a las herramientas para proponer las acciones y luego escribe un resumen breve de lo propuesto.
+- Si falta información esencial (qué producto, qué cantidad, qué proveedor, qué usuario, qué fecha) → NO llames ninguna herramienta. Responde SOLO con texto haciendo UNA pregunta concreta para obtener lo que falta. Se específico sobre qué información necesitas.
+- Si el usuario menciona nombres que aparecen en los catálogos del snapshot → usa los IDs exactos del catálogo (no los inventes).
+- Si el usuario menciona algo que NO existe en los catálogos (producto, proveedor, lote o usuario desconocido) → responde con texto explicando qué no encontraste y sugiere alternativas del catálogo si las hay.
+- Si la instrucción está fuera del alcance del sistema (algo que las herramientas no pueden hacer) → responde con texto explicando amablemente qué sí puedes hacer.
+- Para cada herramienta que uses, incluye un campo "razon" que capture la intención del usuario en una frase.
+
+Jerarquía de compras (igual que en modo análisis):
+- Bajo stock con proveedor habitual presente en catálogo activo → proponer_orden_compra.
+- Bajo stock sin proveedor habitual claro → proponer_solicitud_compra.
+- proponer_ajustar_inventario SOLO para corregir discrepancias físicas (conteo, merma, pérdida, error de captura). NUNCA para reponer stock.`;
+
+    const anthropicClient = getAnthropicClient();
+
+    const userMessage = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}${snapshotText}
+
+---
+
+**Comando del usuario:**
+${text}`;
+
+    // Agentic loop
+    const proposedActions = [];
+    const messages = [{ role: 'user', content: userMessage }];
+    let summaryText = '';
+    let iterations = 0;
+
+    while (iterations < 4) {
+      iterations++;
+      const response = await anthropicClient.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: commandSystemPrompt,
+        tools: AUTOPILOT_PROPOSE_TOOLS,
+        messages,
+      });
+
+      const textBlocks = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+      if (textBlocks) summaryText += (summaryText ? '\n' : '') + textBlocks;
+
+      if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+        break;
+      }
+
+      messages.push({ role: 'assistant', content: response.content });
+      const toolResults = [];
+
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue;
+        const actionType = PROPOSE_ACTION_MAP[block.name];
+        if (!actionType) {
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: 'Herramienta desconocida' }) });
+          continue;
+        }
+        const { prioridad, razon, ...params } = block.input;
+        proposedActions.push({
+          type: actionType,
+          params,
+          titulo: String(razon || '').slice(0, 120),
+          descripcion: String(razon || ''),
+          prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
+          categoria: ACTION_CATEGORY_MAP[actionType] || 'general',
+        });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: JSON.stringify({ ok: true, mensaje: `Propuesta de ${actionType} registrada.` }),
+        });
+      }
+
+      messages.push({ role: 'user', content: toolResults });
+    }
+
+    // La respuesta es "clarificación" si no hubo ninguna acción propuesta
+    const clarifying = proposedActions.length === 0;
+
+    // Guardar sesión (trazabilidad + auditoría)
+    const sessionRef = await db.collection('autopilot_sessions').add({
+      fincaId: req.fincaId,
+      timestamp: Timestamp.now(),
+      triggeredBy: req.uid,
+      triggeredByName: req.userEmail,
+      snapshot,
+      recommendations: [],
+      summaryText,
+      commandText: text.slice(0, 2000),
+      mode: 'command',
+      proposedActionsCount: proposedActions.length,
+      awaitingClarification: clarifying,
+      status: 'completed',
+      errorMessage: null,
+    });
+
+    // Guardar acciones propuestas
+    const nowTs = Timestamp.now();
+    const actionRefs = [];
+    for (const action of proposedActions) {
+      const ref = await db.collection('autopilot_actions').add({
+        fincaId: req.fincaId,
+        sessionId: sessionRef.id,
+        type: action.type,
+        params: action.params,
+        titulo: action.titulo,
+        descripcion: action.descripcion,
+        prioridad: action.prioridad,
+        categoria: action.categoria,
+        status: 'proposed',
+        proposedBy: req.uid,
+        proposedByName: req.userEmail,
+        viaCommand: true,
+        createdAt: nowTs,
+        reviewedBy: null,
+        reviewedByName: null,
+        reviewedAt: null,
+        rejectionReason: null,
+        executedAt: null,
+        executionResult: null,
+      });
+      actionRefs.push({ id: ref.id, ...action, status: 'proposed' });
+    }
+
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      userName: 'Aurora Copiloto',
+      eventType: 'autopilot_command',
+      title: clarifying
+        ? `Comando recibido (requiere aclaración): "${text.slice(0, 80)}"`
+        : `Comando recibido: ${proposedActions.length} acción(es) propuestas`,
+    });
+
+    // Notificar a supervisores si hay acciones pendientes
+    if (proposedActions.length > 0) {
+      const notifRoles = ['supervisor', 'administrador'];
+      const actionsList = proposedActions.map(a => `• ${a.titulo}`).join('\n');
+      sendPushToFincaRoles(req.fincaId, notifRoles, {
+        title: '🤖 Aurora Copiloto — Comando',
+        body: `${proposedActions.length} acción(es) propuestas vía comando esperan tu aprobación.`,
+        url: '/autopilot',
+      });
+      sendWhatsAppToFincaRoles(req.fincaId, notifRoles, [
+        '🤖 *Aurora Copiloto — Comando*',
+        '',
+        `*Solicitud de ${req.userEmail || 'usuario'}:*`,
+        `"${text.slice(0, 200)}"`,
+        '',
+        `*${proposedActions.length} acciones propuestas:*`,
+        actionsList,
+        '',
+        '_Ingresa a Aurora para aprobar o rechazar._',
+      ].join('\n'));
+    }
+
+    res.json({
+      sessionId: sessionRef.id,
+      proposedActions: actionRefs,
+      summaryText,
+      clarifyingQuestion: clarifying ? summaryText : null,
+      snapshot,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error en /command:', err);
+    res.status(500).json({ message: 'Error interno al procesar el comando.' });
   }
 });
 
