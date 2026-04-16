@@ -2,10 +2,11 @@ const { Router } = require('express');
 const { db, Timestamp, FieldValue, FieldPath } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership, enrichTask, hasMinRoleBE } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-// --- VALIDATION HELPERS ---
+// ── VALIDATION HELPERS ──────────────────────────────────────────────────────
 const MAX_STR = 200;
 const MAX_SHORT = 60;
 const MAX_ACTIVITY_LEN = 64;
@@ -14,12 +15,12 @@ const MAX_PRODUCTOS = 50;
 const MAX_BLOQUES = 500;
 const MAX_CANTIDAD_POR_HA = 100000;
 const MAX_OBS_LEN = 500;
-// Límites específicos del modal de Editar / Mezcla Lista — alineados con el
-// frontend (MezclaListaModal.jsx). No reutilizamos MAX_OBS_LEN porque otros
-// endpoints (ej. aplicada) mantienen el límite histórico.
+// Limits specific to the Edit / Mezcla Lista modal — aligned with the
+// frontend (MezclaListaModal.jsx). We don't reuse MAX_OBS_LEN because other
+// endpoints (e.g. aplicada) keep the historical limit.
 const MAX_OBS_MEZCLA_LEN = 288;
 const MAX_NOMBRE_MEZCLA_LEN = 48;
-const MAX_FUTURE_DAYS = 1825; // tope duro: ~5 años
+const MAX_FUTURE_DAYS = 1825; // hard cap: ~5 years
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MOTIVOS_CAMBIO = new Set(['sustitucion', 'ajuste_dosis', 'otro']);
@@ -32,9 +33,9 @@ const sanitizeStr = (v, max = MAX_STR) => {
   return trimmed.slice(0, max);
 };
 
-// Como sanitizeStr, pero rechaza (null) cuando el valor excede el máximo,
-// en lugar de truncarlo silenciosamente. Se usa para campos con tope duro
-// validado también en el frontend.
+// Like sanitizeStr, but rejects (returns null) when the value exceeds the max,
+// instead of silently truncating. Used for fields with a hard cap that is also
+// validated on the frontend.
 const sanitizeStrStrict = (v, max) => {
   if (v == null) return null;
   if (typeof v !== 'string') return null;
@@ -50,7 +51,7 @@ const isValidYmd = (s) => {
   return !isNaN(d.getTime());
 };
 
-// True si la fecha YYYY-MM-DD está dentro del rango permitido (<= hoy + MAX_FUTURE_DAYS).
+// True if the YYYY-MM-DD date is within the allowed range (<= today + MAX_FUTURE_DAYS).
 const isWithinFutureLimit = (ymd) => {
   const sel = new Date(ymd + 'T12:00:00');
   if (isNaN(sel.getTime())) return false;
@@ -62,13 +63,13 @@ const isWithinFutureLimit = (ymd) => {
 
 const requireRole = (req, res, min) => {
   if (!hasMinRoleBE(req.userRole, min)) {
-    res.status(403).json({ message: 'No tienes permisos para realizar esta acción.' });
+    sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role for this action.', 403);
     return false;
   }
   return true;
 };
 
-// --- HELPERS LOCALES ---
+// ── LOCAL HELPERS ───────────────────────────────────────────────────────────
 
 async function nextCedulaConsecutivo(fincaId) {
   const counterRef = db.collection('cedula_counters').doc(fincaId);
@@ -108,8 +109,8 @@ const serializeCedula = (id, data) => ({
   editadaAt:         data.editadaAt?.toDate?.()?.toISOString()         || null,
 });
 
-// Snapshot de un producto del plan original (task.activity.productos) para
-// guardar en cedula.productosOriginales al crearse la cédula. Nunca cambia después.
+// Snapshot of a product from the original plan (task.activity.productos) to
+// store in cedula.productosOriginales when the cédula is created. Never changes afterwards.
 const serializeProductoOriginal = (p) => {
   if (!p) return null;
   const cant = p.cantidadPorHa !== undefined
@@ -125,31 +126,30 @@ const serializeProductoOriginal = (p) => {
   };
 };
 
-// Valida y enriquece un array de productosAplicados proveniente del body de
-// PUT mezcla-lista. Lanza { status, message } en caso de error para que el caller
-// lo capture y responda al cliente.
+// Validates and enriches a productosAplicados array from the PUT mezcla-lista body.
+// Throws { status, message } on error so the caller can catch and respond to the client.
 async function validateAndEnrichProductosAplicados(input, fincaId) {
   if (!Array.isArray(input)) {
-    throw { status: 400, message: 'productosAplicados debe ser un array.' };
+    throw { status: 400, message: 'productosAplicados must be an array.' };
   }
   if (input.length === 0) {
-    throw { status: 400, message: 'productosAplicados no puede estar vacío.' };
+    throw { status: 400, message: 'productosAplicados cannot be empty.' };
   }
   if (input.length > MAX_PRODUCTOS) {
-    throw { status: 400, message: `Máximo ${MAX_PRODUCTOS} productos por cédula.` };
+    throw { status: 400, message: `Maximum ${MAX_PRODUCTOS} products per cedula.` };
   }
   const enriched = [];
   for (const p of input) {
     if (!p || typeof p.productoId !== 'string' || !p.productoId) {
-      throw { status: 400, message: 'Producto inválido en productosAplicados.' };
+      throw { status: 400, message: 'Invalid product in productosAplicados.' };
     }
     const cant = parseFloat(p.cantidadPorHa);
     if (!Number.isFinite(cant) || cant <= 0 || cant > MAX_CANTIDAD_POR_HA) {
-      throw { status: 400, message: `Dosis/Ha inválida para producto ${p.productoId}.` };
+      throw { status: 400, message: `Invalid dose/Ha for product ${p.productoId}.` };
     }
     const doc = await db.collection('productos').doc(p.productoId).get();
     if (!doc.exists || doc.data().fincaId !== fincaId) {
-      throw { status: 400, message: `Producto ${p.productoId} no encontrado.` };
+      throw { status: 400, message: `Product ${p.productoId} not found.` };
     }
     const info = doc.data();
     const row = {
@@ -162,13 +162,13 @@ async function validateAndEnrichProductosAplicados(input, fincaId) {
     };
     if (p.motivoCambio != null && p.motivoCambio !== '') {
       if (typeof p.motivoCambio !== 'string' || !MOTIVOS_CAMBIO.has(p.motivoCambio)) {
-        throw { status: 400, message: `motivoCambio inválido: ${p.motivoCambio}.` };
+        throw { status: 400, message: `Invalid motivoCambio: ${p.motivoCambio}.` };
       }
       row.motivoCambio = p.motivoCambio;
     }
     if (p.productoOriginalId != null && p.productoOriginalId !== '') {
       if (typeof p.productoOriginalId !== 'string') {
-        throw { status: 400, message: 'productoOriginalId inválido.' };
+        throw { status: 400, message: 'Invalid productoOriginalId.' };
       }
       row.productoOriginalId = p.productoOriginalId;
     }
@@ -177,8 +177,8 @@ async function validateAndEnrichProductosAplicados(input, fincaId) {
   return enriched;
 }
 
-// Compara productosOriginales vs productosAplicados ignorando motivos y metadata,
-// detectando diferencia de productoId o cantidadPorHa.
+// Compares productosOriginales vs productosAplicados ignoring motivos and metadata,
+// detecting differences in productoId or cantidadPorHa.
 function computeHuboCambios(originales, aplicados) {
   if (!Array.isArray(originales) || !Array.isArray(aplicados)) return true;
   if (originales.length !== aplicados.length) return true;
@@ -189,7 +189,7 @@ function computeHuboCambios(originales, aplicados) {
   return sig(originales) !== sig(aplicados);
 }
 
-// --- RUTAS ---
+// ── ROUTES ──────────────────────────────────────────────────────────────────
 
 router.get('/api/cedulas', authenticate, async (req, res) => {
   try {
@@ -201,14 +201,14 @@ router.get('/api/cedulas', authenticate, async (req, res) => {
     res.json(snap.docs.map(d => serializeCedula(d.id, d.data())));
   } catch (error) {
     console.error('Error fetching cedulas:', error);
-    res.status(500).json({ message: 'Error al obtener cédulas.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch cedulas.', 500);
   }
 });
 
 router.get('/api/cedulas/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const data = ownership.doc.data();
     const cedula = serializeCedula(ownership.doc.id, data);
@@ -232,7 +232,7 @@ router.get('/api/cedulas/:id', authenticate, async (req, res) => {
     res.json(cedula);
   } catch (error) {
     console.error('Error fetching cedula by id:', error);
-    res.status(500).json({ message: 'Error al obtener la cédula.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch cedula.', 500);
   }
 });
 
@@ -241,21 +241,21 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
     if (!requireRole(req, res, 'encargado')) return;
     const { taskId } = req.body || {};
     if (typeof taskId !== 'string' || !taskId.trim()) {
-      return res.status(400).json({ message: 'taskId es requerido.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'taskId is required.', 400);
     }
 
     const ownership = await verifyOwnership('scheduled_tasks', taskId, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const existing = await db.collection('cedulas')
       .where('taskId', '==', taskId)
       .where('fincaId', '==', req.fincaId)
       .get();
-    // Bloquear sólo si existen cédulas activas (no anuladas); si todas fueron anuladas se permite regenerar
+    // Block only if active (non-voided) cedulas exist; if all were voided allow regeneration
     const activeExisting = existing.docs.filter(d => d.data().status !== 'anulada');
     if (activeExisting.length > 0) {
       return res.status(409).json({
-        message: 'Esta tarea ya tiene cédulas generadas.',
+        code: ERROR_CODES.CONFLICT, message: 'This task already has generated cedulas.',
         cedulas: activeExisting.map(d => serializeCedula(d.id, d.data())),
       });
     }
@@ -337,7 +337,7 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
     res.status(201).json(serializeCedula(docRef.id, cedula));
   } catch (error) {
     console.error('Error creating cedula:', error);
-    res.status(500).json({ message: 'Error al generar la cédula.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to generate cedula.', 500);
   }
 });
 
@@ -345,20 +345,20 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const cedula = ownership.doc.data();
     if (cedula.status !== 'pendiente') {
-      return res.status(409).json({ message: `La cédula no está en estado pendiente (estado actual: ${cedula.status}).` });
+      return sendApiError(res, ERROR_CODES.CONFLICT, `Cedula is not in pendiente state (current: ${cedula.status}).`, 409);
     }
 
     const taskDoc = await db.collection('scheduled_tasks').doc(cedula.taskId).get();
-    if (!taskDoc.exists) return res.status(404).json({ message: 'Tarea asociada no encontrada.' });
+    if (!taskDoc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Associated task not found.', 404);
     const taskData = taskDoc.data();
 
-    // Productos que realmente se mezclaron. Si el cliente envía productosAplicados
-    // (ajuste por sustitución o dosis), los validamos y usamos para deducir stock,
-    // en lugar de los del plan original del paquete.
+    // Products actually mixed. If the client sends productosAplicados (substitution
+    // or dose adjustment), we validate and use them for stock deduction instead of
+    // the original package plan.
     let productosAplicadosEnriched = null;
     try {
       if (req.body?.productosAplicados !== undefined) {
@@ -372,25 +372,24 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       throw e;
     }
 
-    // Validación de observacionesMezcla (texto libre, máx MAX_OBS_MEZCLA_LEN chars)
+    // Validate observacionesMezcla (free text, max MAX_OBS_MEZCLA_LEN chars)
     let observacionesMezcla = null;
     if (req.body?.observacionesMezcla != null && req.body.observacionesMezcla !== '') {
       if (typeof req.body.observacionesMezcla !== 'string') {
-        return res.status(400).json({ message: 'observacionesMezcla debe ser texto.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'observacionesMezcla must be a string.', 400);
       }
       observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_MEZCLA_LEN);
       if (observacionesMezcla == null) {
-        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_MEZCLA_LEN} caracteres.` });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Observations cannot exceed ${MAX_OBS_MEZCLA_LEN} characters.`, 400);
       }
     }
 
     // Productos para deducir stock. Prioridad:
     //   1. productosAplicados enviados en este request (ajustes en mezcla-lista)
-    //   2. cedula.productosAplicados (ediciones previas vía /editar-productos)
-    //   3. taskData.activity.productos (plan original del paquete)
-    // Así garantizamos que lo que se deduce del inventario coincide con lo que el
-    // operador realmente va a mezclar, incluso si los ajustes ocurrieron en una
-    // acción anterior.
+    //   2. cedula.productosAplicados (previous edits via /editar-productos)
+    //   3. taskData.activity.productos (original package plan)
+    // This ensures what is deducted from inventory matches what the operator
+    // will actually mix, even if adjustments occurred in a prior action.
     const productos = productosAplicadosEnriched
       || (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0
             ? cedula.productosAplicados
@@ -461,18 +460,18 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       }
     }
 
-    // Nombre de quien prepara la mezcla: tipo string, máx MAX_NOMBRE_MEZCLA_LEN.
-    // Rechazamos con 400 si excede (no truncamos silenciosamente) para que el
-    // frontend muestre un error consistente con su validación.
+    // Name of who prepared the mix: string, max MAX_NOMBRE_MEZCLA_LEN.
+    // Reject with 400 if exceeded (no silent truncation) so the frontend
+    // shows an error consistent with its own validation.
     if (req.body?.nombre != null && typeof req.body.nombre !== 'string') {
-      return res.status(400).json({ message: 'nombre debe ser texto.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'nombre must be a string.', 400);
     }
     const mezclaListaNombre = sanitizeStrStrict(req.body?.nombre, MAX_NOMBRE_MEZCLA_LEN);
     if (req.body?.nombre != null && req.body.nombre !== '' && mezclaListaNombre == null) {
-      return res.status(400).json({ message: `El nombre no puede exceder ${MAX_NOMBRE_MEZCLA_LEN} caracteres.` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Name cannot exceed ${MAX_NOMBRE_MEZCLA_LEN} characters.`, 400);
     }
 
-    // Computar huboCambios comparando productos aplicados vs originales de la cédula
+    // Compute huboCambios comparing applied products vs cedula originals
     let huboCambios = false;
     if (productosTieneCambios) {
       const originales = Array.isArray(cedula.productosOriginales)
@@ -504,10 +503,9 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     batch.update(db.collection('cedulas').doc(req.params.id), cedulaUpdate);
     await batch.commit();
 
-    // Devolvemos los campos escritos para que el frontend pueda actualizar el
-    // estado local sin recargar. Clave: productosAplicados (con sus enriched
-    // fields) se necesita para que el viewer muestre lo que realmente se mezcló
-    // en vez de la receta original del paquete.
+    // Return written fields so the frontend can update local state without
+    // reloading. Key: productosAplicados (with enriched fields) is needed so
+    // the viewer shows what was actually mixed rather than the original recipe.
     const response = {
       id: req.params.id,
       status: 'en_transito',
@@ -529,27 +527,27 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error('Error in mezcla-lista:', error);
-    res.status(500).json({ message: 'Error al procesar la mezcla.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process mezcla.', 500);
   }
 });
 
-// Edita productos/dosis de una cédula como acción independiente, antes de que
-// se marque Mezcla Lista. Sólo permitido en status 'pendiente'. Deja registro
-// del editor en editadaAt/editadaPor/editadaPorNombre. No toca el inventario
-// (la deducción ocurre después, al marcar mezcla-lista).
+// Edits products/doses of a cedula as an independent action, before marking
+// Mezcla Lista. Only allowed in 'pendiente' status. Records the editor in
+// editadaAt/editadaPor/editadaPorNombre. Does not touch inventory (the
+// deduction happens later, when mezcla-lista is marked).
 router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const cedula = ownership.doc.data();
     if (cedula.status !== 'pendiente') {
-      return res.status(409).json({ message: 'Sólo se pueden editar cédulas en estado pendiente.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Only cedulas in pendiente state can be edited.', 409);
     }
 
     if (req.body?.productosAplicados === undefined) {
-      return res.status(400).json({ message: 'productosAplicados es requerido.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'productosAplicados is required.', 400);
     }
 
     let productosAplicadosEnriched;
@@ -566,25 +564,25 @@ router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) =
     let observacionesMezcla = null;
     if (req.body?.observacionesMezcla != null && req.body.observacionesMezcla !== '') {
       if (typeof req.body.observacionesMezcla !== 'string') {
-        return res.status(400).json({ message: 'observacionesMezcla debe ser texto.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'observacionesMezcla must be a string.', 400);
       }
       observacionesMezcla = sanitizeStrStrict(req.body.observacionesMezcla, MAX_OBS_MEZCLA_LEN);
       if (observacionesMezcla == null) {
-        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_MEZCLA_LEN} caracteres.` });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Observations cannot exceed ${MAX_OBS_MEZCLA_LEN} characters.`, 400);
       }
     }
 
-    // Nombre de quien edita: string, máx MAX_NOMBRE_MEZCLA_LEN, rechazar si excede.
+    // Name of who edits: string, max MAX_NOMBRE_MEZCLA_LEN, reject if exceeded.
     if (req.body?.nombre != null && typeof req.body.nombre !== 'string') {
-      return res.status(400).json({ message: 'nombre debe ser texto.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'nombre must be a string.', 400);
     }
     const editadaPorNombre = sanitizeStrStrict(req.body?.nombre, MAX_NOMBRE_MEZCLA_LEN);
     if (req.body?.nombre != null && req.body.nombre !== '' && editadaPorNombre == null) {
-      return res.status(400).json({ message: `El nombre no puede exceder ${MAX_NOMBRE_MEZCLA_LEN} caracteres.` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Name cannot exceed ${MAX_NOMBRE_MEZCLA_LEN} characters.`, 400);
     }
 
-    // huboCambios se recomputa contra el snapshot inmutable productosOriginales,
-    // para que el audit trail canónico sobreviva ediciones sucesivas.
+    // huboCambios is recomputed against the immutable productosOriginales snapshot,
+    // so the canonical audit trail survives successive edits.
     const originales = Array.isArray(cedula.productosOriginales)
       ? cedula.productosOriginales
       : [];
@@ -617,7 +615,7 @@ router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) =
     res.json(response);
   } catch (error) {
     console.error('Error in editar-productos:', error);
-    res.status(500).json({ message: 'Error al editar la cédula.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to edit cedula.', 500);
   }
 });
 
@@ -626,35 +624,35 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     if (!requireRole(req, res, 'trabajador')) return;
 
     const body = req.body || {};
-    // Validación de rangos y formatos antes de tocar DB
+    // Range and format validation before touching DB
     if (body.temperatura != null && body.temperatura !== '') {
       const t = Number(body.temperatura);
       if (!Number.isFinite(t) || t < -60 || t > 70) {
-        return res.status(400).json({ message: 'Temperatura fuera de rango (-60 a 70 °C).' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Temperature out of range (-60 to 70 °C).', 400);
       }
     }
     if (body.humedadRelativa != null && body.humedadRelativa !== '') {
       const h = Number(body.humedadRelativa);
       if (!Number.isFinite(h) || h < 0 || h > 100) {
-        return res.status(400).json({ message: 'Humedad relativa fuera de rango (0 a 100 %).' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Relative humidity out of range (0 to 100 %).', 400);
       }
     }
     if (body.horaInicio && !TIME_RE.test(body.horaInicio)) {
-      return res.status(400).json({ message: 'Hora inicio inválida (HH:MM).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid start time (HH:MM).', 400);
     }
     if (body.horaFinal && !TIME_RE.test(body.horaFinal)) {
-      return res.status(400).json({ message: 'Hora final inválida (HH:MM).' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid end time (HH:MM).', 400);
     }
     if (body.horaInicio && body.horaFinal && body.horaInicio >= body.horaFinal) {
-      return res.status(400).json({ message: 'La hora de inicio debe ser menor que la hora final.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Start time must be before end time.', 400);
     }
 
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const cedula = ownership.doc.data();
     if (cedula.status !== 'en_transito') {
-      return res.status(409).json({ message: `La cédula no está en tránsito (estado actual: ${cedula.status}).` });
+      return sendApiError(res, ERROR_CODES.CONFLICT, `Cedula is not in en_transito state (current: ${cedula.status}).`, 409);
     }
 
     const taskDoc = await db.collection('scheduled_tasks').doc(cedula.taskId).get();
@@ -712,8 +710,8 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       }
     }
 
-    // Si la cédula tiene productosAplicados (ajuste en mezcla-lista), el snapshot
-    // debe reflejar lo que REALMENTE se aplicó, no lo que el paquete programó.
+    // If the cedula has productosAplicados (mezcla-lista adjustment), the snapshot
+    // must reflect what was ACTUALLY applied, not what the package scheduled.
     const productos = (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0)
       ? cedula.productosAplicados
       : (taskData.activity?.productos || []);
@@ -805,12 +803,12 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       ? (sourceData.fechaCreacion.toDate ? sourceData.fechaCreacion.toDate().toISOString().split('T')[0] : sourceData.fechaCreacion)
       : null;
 
-    // Observaciones libres de aplicación: NO afectan productos ni inventario.
+    // Free-text application observations: do NOT affect products or inventory.
     let observacionesAplicacion = null;
     if (body.observacionesAplicacion != null && body.observacionesAplicacion !== '') {
       observacionesAplicacion = sanitizeStrStrict(body.observacionesAplicacion, MAX_OBS_LEN);
       if (observacionesAplicacion == null) {
-        return res.status(400).json({ message: `Las observaciones no pueden exceder ${MAX_OBS_LEN} caracteres.` });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Observations cannot exceed ${MAX_OBS_LEN} characters.`, 400);
       }
     }
 
@@ -828,10 +826,10 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     const temperatura       = (body.temperatura != null && body.temperatura !== '') ? Number(body.temperatura) : null;
     const humedadRelativa   = (body.humedadRelativa != null && body.humedadRelativa !== '') ? Number(body.humedadRelativa) : null;
 
-    // Verificar ownership del sobranteLoteId si fue enviado
+    // Verify ownership of sobranteLoteId if provided
     if (sobrante && sobranteLoteId) {
       const loteOwn = await verifyOwnership('lotes', sobranteLoteId, req.fincaId);
-      if (!loteOwn.ok) return res.status(loteOwn.status).json({ message: loteOwn.message });
+      if (!loteOwn.ok) return sendApiError(res, loteOwn.code, loteOwn.message, loteOwn.status);
     }
 
     const updateData = {
@@ -901,7 +899,7 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     res.json({ id: req.params.id, status: 'aplicada_en_campo' });
   } catch (error) {
     console.error('Error in cedula aplicada:', error);
-    res.status(500).json({ message: 'Error al registrar la aplicación.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register the application.', 500);
   }
 });
 
@@ -917,72 +915,72 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
     const bloques = Array.isArray(body.bloques) ? body.bloques : null;
     const productos = Array.isArray(body.productos) ? body.productos : null;
     const calibracionId = sanitizeStr(body.calibracionId);
-    // tecnicoResponsable es opcional: si viene presente pero excede el tope, rechazamos.
+    // tecnicoResponsable is optional: if present but exceeds the cap, reject.
     const tecnicoRaw = body.tecnicoResponsable;
     const tecnicoProvided = typeof tecnicoRaw === 'string' && tecnicoRaw.trim().length > 0;
     const tecnicoResponsable = tecnicoProvided
       ? sanitizeStrStrict(tecnicoRaw, MAX_TECNICO_LEN)
       : null;
     if (tecnicoProvided && !tecnicoResponsable) {
-      return res.status(400).json({ message: `El nombre del técnico es demasiado largo (máx. ${MAX_TECNICO_LEN}).` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Technician name too long (max ${MAX_TECNICO_LEN}).`, 400);
     }
 
     if (!fecha || !isValidYmd(fecha)) {
-      return res.status(400).json({ message: 'La fecha es requerida (YYYY-MM-DD).' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fecha is required (YYYY-MM-DD).', 400);
     }
     if (!isWithinFutureLimit(fecha)) {
-      return res.status(400).json({ message: `La fecha no puede superar los ${MAX_FUTURE_DAYS} días a futuro.` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Date cannot exceed ${MAX_FUTURE_DAYS} days in the future.`, 400);
     }
     if (!activityName) {
       if (typeof body.activityName === 'string' && body.activityName.trim().length > MAX_ACTIVITY_LEN) {
-        return res.status(400).json({ message: `El nombre de la aplicación es demasiado largo (máx. ${MAX_ACTIVITY_LEN}).` });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Activity name too long (max ${MAX_ACTIVITY_LEN}).`, 400);
       }
-      return res.status(400).json({ message: 'El nombre de la aplicación es requerido.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Activity name is required.', 400);
     }
     if (!loteId && !grupoId) {
-      return res.status(400).json({ message: 'Debe indicar un lote o grupo.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'A lote or grupo must be specified.', 400);
     }
     if (!productos || productos.length === 0) {
-      return res.status(400).json({ message: 'Debe agregar al menos un producto.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product is required.', 400);
     }
     if (productos.length > MAX_PRODUCTOS) {
-      return res.status(400).json({ message: `Máximo ${MAX_PRODUCTOS} productos por cédula.` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Maximum ${MAX_PRODUCTOS} products per cedula.`, 400);
     }
     if (bloques && bloques.length > MAX_BLOQUES) {
-      return res.status(400).json({ message: `Máximo ${MAX_BLOQUES} bloques.` });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Maximum ${MAX_BLOQUES} bloques.`, 400);
     }
     if (bloques && !bloques.every(b => typeof b === 'string' && b.length > 0)) {
-      return res.status(400).json({ message: 'Lista de bloques inválida.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid bloques list.', 400);
     }
     for (const p of productos) {
       if (!p || typeof p.productoId !== 'string' || !p.productoId) {
-        return res.status(400).json({ message: 'Producto inválido.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid product.', 400);
       }
       const cant = parseFloat(p.cantidadPorHa);
       if (!Number.isFinite(cant) || cant <= 0 || cant > MAX_CANTIDAD_POR_HA) {
-        return res.status(400).json({ message: `Dosis/Ha inválida para producto ${p.productoId}.` });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid dose/Ha for product ${p.productoId}.`, 400);
       }
     }
 
     if (loteId) {
       const o = await verifyOwnership('lotes', loteId, req.fincaId);
-      if (!o.ok) return res.status(o.status).json({ message: o.message });
+      if (!o.ok) return sendApiError(res, o.code, o.message, o.status);
     } else {
       const o = await verifyOwnership('grupos', grupoId, req.fincaId);
-      if (!o.ok) return res.status(o.status).json({ message: o.message });
+      if (!o.ok) return sendApiError(res, o.code, o.message, o.status);
     }
 
     if (calibracionId) {
       const o = await verifyOwnership('calibraciones', calibracionId, req.fincaId);
-      if (!o.ok) return res.status(o.status).json({ message: o.message });
+      if (!o.ok) return sendApiError(res, o.code, o.message, o.status);
     }
 
-    // Validar ownership de cada productoId y enriquecer
+    // Validate ownership of each productoId and enrich
     const enrichedProductos = [];
     for (const p of productos) {
       const doc = await db.collection('productos').doc(p.productoId).get();
       if (!doc.exists || doc.data().fincaId !== req.fincaId) {
-        return res.status(400).json({ message: `Producto ${p.productoId} no encontrado.` });
+        return sendApiError(res, ERROR_CODES.NOT_FOUND, `Product ${p.productoId} not found.`, 400);
       }
       const info = doc.data();
       enrichedProductos.push({
@@ -1101,7 +1099,7 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
     res.status(201).json({ cedula: serializeCedula(cedulaRef.id, cedulaData), task: enrichedTask });
   } catch (error) {
     console.error('Error creating manual cedula:', error);
-    res.status(500).json({ message: 'Error al crear la cédula.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create cedula.', 500);
   }
 });
 
@@ -1109,14 +1107,14 @@ router.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const cedula = ownership.doc.data();
     if (cedula.status === 'aplicada_en_campo') {
-      return res.status(409).json({ message: 'No se puede anular una cédula ya aplicada en campo.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot void a cedula that has already been applied in the field.', 409);
     }
     if (cedula.status === 'anulada') {
-      return res.status(409).json({ message: 'La cédula ya está anulada.' });
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Cedula is already voided.', 409);
     }
 
     const batch = db.batch();
@@ -1188,7 +1186,7 @@ router.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
     res.json({ id: req.params.id, status: 'anulada' });
   } catch (error) {
     console.error('Error anulando cedula:', error);
-    res.status(500).json({ message: 'Error al anular la cédula.' });
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to void cedula.', 500);
   }
 });
 

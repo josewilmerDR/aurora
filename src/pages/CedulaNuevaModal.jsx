@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye } from 'react-icons/fi';
 
-// Límites de validación frontend
+// Frontend validation limits
 const MAX_ACTIVITY_LEN = 64;
 const MAX_TECNICO_LEN = 48;
 const MAX_FUTURE_DAYS = 1825; // tope duro ~5 años
@@ -297,7 +297,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
     const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
     const diff = Math.round((sel - hoy) / 86400000);
     if (diff > MAX_FUTURE_DAYS) {
-      // Supera el tope: botón inactivo, no permite envío
+      // Exceeds the cap: button disabled, submission blocked
       return { warning: `⚠ Fecha inusual. ${diff} días en el futuro. Excede el máximo permitido (${MAX_FUTURE_DAYS} días).`, isExceeded: true };
     }
     if (diff > WARN_FUTURE_DAYS) {
