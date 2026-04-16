@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, writeFeedEvent, sendNotificationWithLink } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get('/api/lotes', authenticate, async (req, res) => {
     const lotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(lotes);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener lotes.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch lotes.', 500);
   }
 });
 
@@ -22,24 +23,24 @@ router.post('/api/lotes', authenticate, async (req, res) => {
     const { fechaCreacion, paqueteId, hectareas } = req.body;
 
     if (!codigoLote || !fechaCreacion) {
-        return res.status(400).json({ message: 'Faltan datos para crear el lote.' });
+        return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'codigoLote and fechaCreacion are required.', 400);
     }
     if (codigoLote.length > 16) {
-        return res.status(400).json({ message: 'Código del lote no puede exceder 16 caracteres.' });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'codigoLote cannot exceed 16 characters.', 400);
     }
     if (nombreLote.length > 32) {
-        return res.status(400).json({ message: 'Nombre del lote no puede exceder 32 caracteres.' });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'nombreLote cannot exceed 32 characters.', 400);
     }
     const parsedDate = new Date(fechaCreacion);
     if (isNaN(parsedDate.getTime())) {
-        return res.status(400).json({ message: 'Fecha de creación inválida.' });
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid creation date.', 400);
     }
     const today = new Date(); today.setHours(23, 59, 59, 999);
     if (parsedDate > today) {
-        return res.status(400).json({ message: 'La fecha de creación no puede ser futura.' });
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Creation date cannot be in the future.', 400);
     }
 
-    // Si no hay paquete, crear el lote vacío (sin tareas)
+    // If no package, create an empty lote (without tasks)
     if (!paqueteId) {
         try {
             const loteRef = await db.collection('lotes').add({
@@ -50,17 +51,17 @@ router.post('/api/lotes', authenticate, async (req, res) => {
                 fincaId: req.fincaId,
             });
             writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'lote_created', title: nombreLote || codigoLote, loteNombre: nombreLote || codigoLote });
-            return res.status(201).json({ id: loteRef.id, message: 'Lote creado sin paquete técnico.' });
+            return res.status(201).json({ id: loteRef.id, code: 'LOTE_CREATED' });
         } catch (error) {
-            console.error("[ERROR] Creando lote sin paquete:", error);
-            return res.status(500).json({ message: 'Error al crear el lote.' });
+            console.error("[ERROR] Creating lote without package:", error);
+            return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create lote.', 500);
         }
     }
 
     try {
         const loteRef = await db.collection('lotes').add({ codigoLote, ...(nombreLote ? { nombreLote } : {}), fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)), paqueteId, hectareas: parseFloat(hectareas) || 1, fincaId: req.fincaId });
         const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
-        if (!paqueteDoc.exists) throw new Error('Paquete no encontrado');
+        if (!paqueteDoc.exists) throw new Error('Package not found');
         const paqueteData = paqueteDoc.data();
 
         const loteCreationDate = new Date(fechaCreacion);
@@ -94,11 +95,11 @@ router.post('/api/lotes', authenticate, async (req, res) => {
         }
 
         writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'lote_created', title: nombreLote || codigoLote, loteNombre: nombreLote || codigoLote });
-        res.status(201).json({ id: loteRef.id, message: 'Lote y tareas programadas con éxito. Se enviaron notificaciones inmediatas.' });
+        res.status(201).json({ id: loteRef.id, code: 'LOTE_CREATED' });
 
     } catch (error) {
-        console.error("[ERROR] Creando lote y tareas:", error);
-        res.status(500).json({ message: 'Error al procesar el lote.' });
+        console.error("[ERROR] Creating lote and tasks:", error);
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create lote.', 500);
     }
 });
 
@@ -106,25 +107,27 @@ router.put('/api/lotes/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const ownership = await verifyOwnership('lotes', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) {
+            return sendApiError(res, ownership.code, ownership.message, ownership.status);
+        }
         const loteData = pick(req.body, ['codigoLote', 'nombreLote', 'fechaCreacion', 'paqueteId', 'hectareas']);
         if (loteData.codigoLote !== undefined) {
             loteData.codigoLote = typeof loteData.codigoLote === 'string' ? loteData.codigoLote.trim() : '';
-            if (!loteData.codigoLote) return res.status(400).json({ message: 'Código del lote es requerido.' });
-            if (loteData.codigoLote.length > 16) return res.status(400).json({ message: 'Código del lote no puede exceder 16 caracteres.' });
+            if (!loteData.codigoLote) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'codigoLote is required.', 400);
+            if (loteData.codigoLote.length > 16) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'codigoLote cannot exceed 16 characters.', 400);
         }
         if (loteData.nombreLote !== undefined) {
             loteData.nombreLote = typeof loteData.nombreLote === 'string' ? loteData.nombreLote.trim() : '';
-            if (loteData.nombreLote.length > 32) return res.status(400).json({ message: 'Nombre del lote no puede exceder 32 caracteres.' });
+            if (loteData.nombreLote.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'nombreLote cannot exceed 32 characters.', 400);
         }
         const originalDoc = ownership.doc;
         const originalData = originalDoc.data();
 
         if (loteData.fechaCreacion && typeof loteData.fechaCreacion === 'string') {
              const parsedDate = new Date(loteData.fechaCreacion);
-             if (isNaN(parsedDate.getTime())) return res.status(400).json({ message: 'Fecha de creación inválida.' });
+             if (isNaN(parsedDate.getTime())) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid creation date.', 400);
              const today = new Date(); today.setHours(23, 59, 59, 999);
-             if (parsedDate > today) return res.status(400).json({ message: 'La fecha de creación no puede ser futura.' });
+             if (parsedDate > today) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Creation date cannot be in the future.', 400);
              loteData.fechaCreacion = Timestamp.fromDate(parsedDate);
         }
 
@@ -186,8 +189,8 @@ router.put('/api/lotes/:id', authenticate, async (req, res) => {
 
         res.status(200).json({ id, ...loteData });
     } catch (error) {
-        console.error("Error updating lote: ", error);
-        res.status(500).json({ message: 'Error al actualizar el lote.' });
+        console.error("Error updating lote:", error);
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update lote.', 500);
     }
 });
 
@@ -200,7 +203,7 @@ router.get('/api/lotes/:id/task-count', authenticate, async (req, res) => {
         const count = snapshot.docs.filter(doc => doc.data().type !== 'REMINDER_3_DAY').length;
         res.status(200).json({ count });
     } catch (error) {
-        res.status(500).json({ message: 'Error al contar tareas.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to count tasks.', 500);
     }
 });
 
@@ -208,7 +211,9 @@ router.delete('/api/lotes/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const ownership = await verifyOwnership('lotes', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) {
+            return sendApiError(res, ownership.code, ownership.message, ownership.status);
+        }
         const tasksQuery = db.collection('scheduled_tasks').where('loteId', '==', id);
         const tasksSnapshot = await tasksQuery.get();
         const batch = db.batch();
@@ -216,10 +221,10 @@ router.delete('/api/lotes/:id', authenticate, async (req, res) => {
         const loteRef = db.collection('lotes').doc(id);
         batch.delete(loteRef);
         await batch.commit();
-        res.status(200).json({ message: 'Lote y tareas asociadas eliminados correctamente.' });
+        res.status(200).json({ ok: true });
     } catch (error) {
-        console.error("Error deleting lote: ", error);
-        res.status(500).json({ message: 'Error al eliminar el lote.' });
+        console.error("Error deleting lote:", error);
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete lote.', 500);
     }
 });
 
