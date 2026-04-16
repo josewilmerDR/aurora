@@ -19,10 +19,10 @@ import Login from './pages/Login';
 import LoginPassword from './pages/LoginPassword';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
-import MiPerfil from './pages/MiPerfil';
+import Profile from './pages/Profile';
 import FincaSelector from './pages/FincaSelector';
-import OrgSelector from './pages/OrgSelector';
-import NuevaOrganizacion from './pages/NuevaOrganizacion';
+import OrganizationSelector from './pages/OrganizationSelector';
+import NewOrganization from './pages/NewOrganization';
 import HrFicha from './pages/HrFicha';
 import HrPermisos from './pages/HrPermisos';
 import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
@@ -34,10 +34,10 @@ import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
 import MonitoreoOrdenes from './pages/MonitoreoOrdenes';
-import ConfigCuenta from './pages/ConfigCuenta';
-import Parametros from './pages/Parametros';
+import AccountSettings from './pages/AccountSettings';
+import Parameters from './pages/Parameters';
 import MaquinariaList from './pages/MaquinariaList';
-import ConfiguracionInicial from './pages/ConfiguracionInicial';
+import InitialSetup from './pages/InitialSetup';
 import Calibraciones from './pages/Calibraciones';
 import LaborList from './pages/LaborList';
 import UnidadesMedida from './pages/UnidadesMedida';
@@ -156,7 +156,7 @@ const ProtectedRoute = ({ children }) => {
   // Finca selected but profile still loading: show spinner instead of redirecting to /login
   if (firebaseUser && activeFincaId && !currentUser) return <div className="app-loading" />;
   if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
-  if (needsOrgSelection) return <OrgSelector />;
+  if (needsOrgSelection) return <OrganizationSelector />;
   return children;
 };
 
@@ -382,7 +382,7 @@ const MainLayout = () => {
         <div className="profile-panel-backdrop" onClick={() => setProfileOpen(false)} />
       )}
       <div className={`profile-panel${profileOpen ? ' open' : ''}`}>
-        <MiPerfil />
+        <Profile />
       </div>
       {showPushPrompt && (
         <div className="push-prompt">
@@ -423,7 +423,7 @@ function App() {
             <Route path="/login/contrasena" element={<LoginPassword />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/nueva-organizacion" element={<NuevaOrganizacion />} />
+            <Route path="/nueva-organizacion" element={<NewOrganization />} />
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<OCDesdeSolicitud />} />
@@ -443,8 +443,8 @@ function App() {
             <Route path="/operaciones/horimetro" element={<Horimetro />} />
             <Route path="/operaciones/horimetro/registro" element={<RegistroHorimetro />} />
             <Route path="/operaciones/horimetro/historial" element={<HistorialHorimetros />} />
-            <Route path="/config/cuenta" element={<ConfigCuenta />} />
-            <Route path="/mi-perfil" element={<MiPerfil />} />
+            <Route path="/config/cuenta" element={<AccountSettings />} />
+            <Route path="/mi-perfil" element={<Profile />} />
             {/* encargado+ */}
             <Route path="/users" element={<RoleRoute path="/users"><UserManagement /></RoleRoute>} />
             <Route path="/lotes" element={<RoleRoute path="/lotes"><LoteManagement /></RoleRoute>} />
@@ -486,7 +486,7 @@ function App() {
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
             <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><MonitoreoPackages /></RoleRoute>} />
             <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MonitoreoOrdenes /></RoleRoute>} />
-            <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><ConfiguracionInicial /></RoleRoute>} />
+            <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><InitialSetup /></RoleRoute>} />
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
@@ -497,7 +497,7 @@ function App() {
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />
-            <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parametros /></RoleRoute>} />
+            <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parameters /></RoleRoute>} />
           </Route>
         </Routes>
       </UserProvider>
