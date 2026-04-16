@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db, Timestamp, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, enrichTask, writeFeedEvent, sendNotificationWithLink } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.get('/api/tasks', authenticate, async (req, res) => {
         tasksSnapshot.docs.map(doc => enrichTask(doc).catch(err => { console.error(`enrichTask failed for ${doc.id}:`, err); return null; }))
     )).filter(t => t !== null);
 
-    // Trabajadores solo ven las tareas asignadas a ellos
+    // Workers can only see tasks assigned to them
     if (req.userRole === 'trabajador') {
       const userSnap = await db.collection('users')
         .where('uid', '==', req.uid)
@@ -28,18 +29,18 @@ router.get('/api/tasks', authenticate, async (req, res) => {
     res.status(200).json(enrichedTasks);
   } catch (error) {
     console.error("Error fetching tasks:", error);
-    res.status(500).json({ message: 'Error al obtener las tareas.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch tasks.', 500);
   }
 });
 
 router.post('/api/tasks', authenticate, async (req, res) => {
   if (req.userRole === 'trabajador') {
-    return res.status(403).json({ message: 'No tienes permisos para crear actividades.' });
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to create tasks.', 403);
   }
   try {
     const { nombre, loteId, responsableId, fecha, productos } = req.body;
     if (!nombre || !loteId || !responsableId || !fecha) {
-      return res.status(400).json({ message: 'Faltan campos requeridos.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'nombre, loteId, responsableId and fecha are required.', 400);
     }
     const prodList = Array.isArray(productos) ? productos : [];
     const newTask = {
@@ -67,7 +68,7 @@ router.post('/api/tasks', authenticate, async (req, res) => {
     res.status(201).json(enriched);
   } catch (error) {
     console.error('Error creating task:', error);
-    res.status(500).json({ message: 'Error al crear la tarea.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create task.', 500);
   }
 });
 
@@ -82,7 +83,7 @@ router.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
 
     let docs = snapshot.docs.filter(doc => !['completed_by_user', 'skipped'].includes(doc.data().status));
 
-    // Trabajadores solo cuentan sus propias tareas vencidas
+    // Workers can only count their own overdue tasks
     if (req.userRole === 'trabajador') {
       const userSnap = await db.collection('users')
         .where('uid', '==', req.uid)
@@ -96,7 +97,7 @@ router.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
     res.status(200).json({ count: docs.length });
   } catch (error) {
     console.error('Error counting overdue tasks:', error);
-    res.status(500).json({ message: 'Error al contar tareas vencidas.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to count overdue tasks.', 500);
   }
 });
 
@@ -105,26 +106,28 @@ router.get('/api/tasks/:id', async (req, res) => {
     const { id } = req.params;
     const taskDoc = await db.collection('scheduled_tasks').doc(id).get();
     if (!taskDoc.exists) {
-      return res.status(404).json({ message: 'Tarea no encontrada.' });
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Task not found.', 404);
     }
     const enrichedTask = await enrichTask(taskDoc);
     res.status(200).json(enrichedTask);
   } catch (error) {
     console.error(`Error fetching task ${req.params.id}:`, error);
-    res.status(500).json({ message: 'Error al obtener la tarea.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch task.', 500);
   }
 });
 
 router.put('/api/tasks/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const STATUSES_VALIDOS = ['pending', 'completed_by_user', 'skipped', 'notified'];
+    const VALID_STATUSES = ['pending', 'completed_by_user', 'skipped', 'notified'];
     const updateData = pick(req.body, ['status', 'notas']);
-    if (updateData.status && !STATUSES_VALIDOS.includes(updateData.status)) {
-      return res.status(400).json({ message: 'Estado de tarea inválido.' });
+    if (updateData.status && !VALID_STATUSES.includes(updateData.status)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid task status.', 400);
     }
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) {
+      return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    }
 
     if (updateData.status === 'completed_by_user') {
       const taskDoc = ownership.doc;
@@ -138,16 +141,16 @@ router.put('/api/tasks/:id', authenticate, async (req, res) => {
           const batch = db.batch();
           batch.update(db.collection('scheduled_tasks').doc(id), updateData);
           for (const prod of productos) {
-            const deduccion = prod.cantidad !== undefined
+            const deduction = prod.cantidad !== undefined
               ? prod.cantidad
               : prod.cantidadPorHa * hectareas;
             const prodRef = db.collection('productos').doc(prod.productoId);
-            batch.update(prodRef, { stockActual: FieldValue.increment(-deduccion) });
+            batch.update(prodRef, { stockActual: FieldValue.increment(-deduction) });
             batch.set(db.collection('movimientos').doc(), {
               tipo: 'egreso',
               productoId: prod.productoId,
               nombreComercial: prod.nombreComercial || '',
-              cantidad: deduccion,
+              cantidad: deduction,
               unidad: prod.unidad || '',
               fecha: Timestamp.now(),
               motivo: taskData.activity.name,
@@ -162,11 +165,11 @@ router.put('/api/tasks/:id', authenticate, async (req, res) => {
           return res.status(200).json({ id, ...updateData });
         }
 
-        // Tarea completada no-aplicacion: buscar lote para el feed
+        // Non-aplicacion task completed: fetch lote for the feed event
         if (updateData.status === 'completed_by_user') {
           const loteDoc = taskData.loteId ? await db.collection('lotes').doc(taskData.loteId).get() : null;
           const loteNombre = loteDoc?.exists ? (loteDoc.data().nombreLote || '') : '';
-          writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'task_completed', activityType: taskData.activity?.type || 'notificacion', title: taskData.activity?.name || 'Tarea completada', loteNombre });
+          writeFeedEvent({ fincaId: req.fincaId, uid: req.uid, userEmail: req.userEmail, eventType: 'task_completed', activityType: taskData.activity?.type || 'notificacion', title: taskData.activity?.name || 'Task completed', loteNombre });
         }
       }
     }
@@ -175,7 +178,7 @@ router.put('/api/tasks/:id', authenticate, async (req, res) => {
     res.status(200).json({ id, ...updateData });
   } catch (error) {
     console.error(`Error updating task ${req.params.id}:`, error);
-    res.status(500).json({ message: 'Error al actualizar la tarea.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update task.', 500);
   }
 });
 
@@ -185,15 +188,19 @@ router.post('/api/tasks/:id/reschedule', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { newDate } = req.body;
-        if (!newDate) return res.status(400).json({ message: 'Falta la nueva fecha.' });
+        if (!newDate) {
+          return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'New date is required.', 400);
+        }
         const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) {
+          return sendApiError(res, ownership.code, ownership.message, ownership.status);
+        }
         const newTimestamp = Timestamp.fromDate(new Date(newDate));
         await db.collection('scheduled_tasks').doc(id).update({ executeAt: newTimestamp });
-        res.status(200).json({ message: 'Tarea reprogramada correctamente.' });
+        res.status(200).json({ ok: true });
     } catch (error) {
         console.error('Error rescheduling task:', error);
-        res.status(500).json({ message: 'Error al reprogramar la tarea.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to reschedule task.', 500);
     }
 });
 
@@ -201,11 +208,15 @@ router.post('/api/tasks/:id/reassign', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { newUserId } = req.body;
-        if (!newUserId) return res.status(400).json({ message: 'Falta el nuevo responsable.' });
+        if (!newUserId) {
+          return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'New assignee is required.', 400);
+        }
 
         const taskRef = db.collection('scheduled_tasks').doc(id);
         const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
-        if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+        if (!ownership.ok) {
+          return sendApiError(res, ownership.code, ownership.message, ownership.status);
+        }
         const taskDoc = ownership.doc;
 
         const taskData = taskDoc.data();
@@ -213,14 +224,14 @@ router.post('/api/tasks/:id/reassign', authenticate, async (req, res) => {
         await taskRef.update({ activity: updatedActivity, status: 'pending' });
 
         const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
-        const loteNombre = loteDoc.exists ? loteDoc.data().nombreLote : 'Lote desconocido';
+        const loteNombre = loteDoc.exists ? loteDoc.data().nombreLote : 'Unknown lote';
         const updatedTaskData = { ...taskData, activity: updatedActivity };
         await sendNotificationWithLink(taskRef, updatedTaskData, loteNombre);
 
-        res.status(200).json({ message: 'Tarea reasignada y notificación enviada.' });
+        res.status(200).json({ ok: true });
     } catch (error) {
         console.error('Error reassigning task:', error);
-        res.status(500).json({ message: 'Error al reasignar la tarea.' });
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to reassign task.', 500);
     }
 });
 

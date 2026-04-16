@@ -256,7 +256,7 @@ function TaskTracking() {
     }
   };
 
-  // --- Lógica de visualización de tareas ---
+  // --- Task display logic ---
   const getTaskDisplayStatus = (task) => {
     if (task.status === 'completed_by_user') {
       return { text: 'Hecha', className: 'status-completed', key: 'completed' };
@@ -352,7 +352,7 @@ function TaskTracking() {
       const aCompleted = a.displayStatus.key === 'completed';
       const bCompleted = b.displayStatus.key === 'completed';
       if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
-      // ambas completadas → más reciente primero; ambas no-completadas → más urgente primero
+      // both completed → most recent first; both not completed → most urgent first
       return aCompleted
         ? new Date(b.dueDate) - new Date(a.dueDate)
         : new Date(a.dueDate) - new Date(b.dueDate);
