@@ -120,7 +120,7 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
       updatedAt: now,
     };
     if (guardrails !== undefined && typeof guardrails === 'object') {
-      const VALID_ACTION_TYPES = ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion'];
+      const VALID_ACTION_TYPES = ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion', 'crear_solicitud_compra', 'crear_orden_compra'];
       const g = {};
       if (typeof guardrails.maxActionsPerSession === 'number') {
         g.maxActionsPerSession = Math.max(1, Math.min(20, Math.round(guardrails.maxActionsPerSession)));
@@ -163,7 +163,7 @@ router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
     const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
     // 2. Consultas paralelas al estado de la finca (users incluido para nivel2)
-    const [tasksSnap, productosSnap, monitoreosSnap, lotesSnap, usersSnap] = await Promise.all([
+    const [tasksSnap, productosSnap, monitoreosSnap, lotesSnap, usersSnap, proveedoresSnap] = await Promise.all([
       db.collection('scheduled_tasks').where('fincaId', '==', req.fincaId).get(),
       db.collection('productos').where('fincaId', '==', req.fincaId).get(),
       db.collection('monitoreos')
@@ -174,6 +174,7 @@ router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
         .get(),
       db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
       db.collection('users').where('fincaId', '==', req.fincaId).get(),
+      db.collection('proveedores').where('fincaId', '==', req.fincaId).get(),
     ]);
 
     // 3. Procesar snapshot (enriched con IDs para nivel2)
@@ -209,7 +210,15 @@ router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
       })
       .map(doc => {
         const d = doc.data();
-        return { id: doc.id, nombre: d.nombreComercial || '—', stockActual: d.stockActual ?? 0, stockMinimo: d.stockMinimo ?? 0, unidad: d.unidad || '' };
+        return {
+          id: doc.id,
+          nombre: d.nombreComercial || '—',
+          ingredienteActivo: d.ingredienteActivo || '',
+          stockActual: d.stockActual ?? 0,
+          stockMinimo: d.stockMinimo ?? 0,
+          unidad: d.unidad || '',
+          proveedor: d.proveedor || '',
+        };
       });
 
     const recentMonitoreos = monitoreosSnap.docs.map(doc => {
@@ -230,6 +239,21 @@ router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
       const d = doc.data();
       return { id: doc.id, nombre: d.nombre || '', rol: d.rol || '', telefono: d.telefono || '' };
     });
+
+    const catalogoProveedores = proveedoresSnap.docs
+      .map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          nombre: d.nombre || '',
+          direccion: d.direccion || '',
+          tipoPago: d.tipoPago || '',
+          moneda: d.moneda || '',
+          estado: d.estado || 'activo',
+          categoria: d.categoria || '',
+        };
+      })
+      .filter(p => p.nombre && p.estado !== 'inactivo');
 
     const snapshot = {
       overdueTasksCount: overdueTasks.length,
@@ -259,13 +283,16 @@ ${overdueTasks.length ? overdueTasks.slice(0, 15).map(t => `  - [ID: ${t.id}] "$
 ${upcomingTasks.length ? upcomingTasks.slice(0, 15).map(t => `  - [ID: ${t.id}] "${t.nombre}" — programada para ${t.dueDate}${t.responsableId ? ` (responsable: ${t.responsableId})` : ''}`).join('\n') : '  (sin tareas próximas)'}
 
 **Productos con stock bajo o agotado (${lowStockProductos.length}):**
-${lowStockProductos.length ? lowStockProductos.map(p => `  - [ID: ${p.id}] ${p.nombre} | Stock actual: ${p.stockActual} ${p.unidad} | Mínimo: ${p.stockMinimo} ${p.unidad}`).join('\n') : '  (todos los productos tienen stock suficiente)'}
+${lowStockProductos.length ? lowStockProductos.map(p => `  - [ID: ${p.id}] ${p.nombre}${p.ingredienteActivo ? ` (${p.ingredienteActivo})` : ''} | Stock actual: ${p.stockActual} ${p.unidad} | Mínimo: ${p.stockMinimo} ${p.unidad}${p.proveedor ? ` | Proveedor habitual: "${p.proveedor}"` : ' | Sin proveedor habitual'}`).join('\n') : '  (todos los productos tienen stock suficiente)'}
 
 **Monitoreos recientes — últimos 30 días (${recentMonitoreos.length}):**
 ${recentMonitoreos.length ? recentMonitoreos.slice(0, 10).map(m => `  - ${m.tipoNombre} en ${m.loteNombre} el ${m.fecha}`).join('\n') : '  (sin monitoreos recientes)'}
 
 **Usuarios / trabajadores disponibles (${catalogoUsers.length}):**
 ${catalogoUsers.length ? catalogoUsers.map(u => `  - [ID: ${u.id}] ${u.nombre} | Rol: ${u.rol}${u.telefono ? ` | Tel: ${u.telefono}` : ''}`).join('\n') : '  (sin usuarios registrados)'}
+
+**Proveedores activos (${catalogoProveedores.length}):**
+${catalogoProveedores.length ? catalogoProveedores.map(p => `  - [ID: ${p.id}] "${p.nombre}"${p.categoria ? ` | ${p.categoria}` : ''}${p.tipoPago ? ` | Pago: ${p.tipoPago}` : ''}${p.moneda ? ` | ${p.moneda}` : ''}`).join('\n') : '  (sin proveedores registrados)'}
 `.trim();
 
     // ════════════════════════════════════════════════════════════════
@@ -285,10 +312,13 @@ ${overdueTasks.length ? overdueTasks.slice(0, 15).map(t => `  - "${t.nombre}" �
 ${upcomingTasks.length ? upcomingTasks.slice(0, 15).map(t => `  - "${t.nombre}" — programada para ${t.dueDate}`).join('\n') : '  (sin tareas próximas)'}
 
 **Productos con stock bajo o agotado (${lowStockProductos.length}):**
-${lowStockProductos.length ? lowStockProductos.map(p => `  - ${p.nombre} | Stock actual: ${p.stockActual} ${p.unidad} | Mínimo: ${p.stockMinimo} ${p.unidad}`).join('\n') : '  (todos los productos tienen stock suficiente)'}
+${lowStockProductos.length ? lowStockProductos.map(p => `  - ${p.nombre} | Stock actual: ${p.stockActual} ${p.unidad} | Mínimo: ${p.stockMinimo} ${p.unidad}${p.proveedor ? ` | Proveedor habitual: "${p.proveedor}"` : ' | Sin proveedor habitual'}`).join('\n') : '  (todos los productos tienen stock suficiente)'}
 
 **Monitoreos recientes — últimos 30 días (${recentMonitoreos.length}):**
 ${recentMonitoreos.length ? recentMonitoreos.slice(0, 10).map(m => `  - ${m.tipoNombre} en ${m.loteNombre} el ${m.fecha}`).join('\n') : '  (sin monitoreos recientes)'}
+
+**Proveedores activos (${catalogoProveedores.length}):**
+${catalogoProveedores.length ? catalogoProveedores.slice(0, 15).map(p => `  - "${p.nombre}"${p.categoria ? ` | ${p.categoria}` : ''}`).join('\n') : '  (sin proveedores registrados)'}
 `.trim();
 
       const systemPrompt = `Eres el analizador estratégico de Aurora, una plataforma de gestión agrícola inteligente.
@@ -301,6 +331,12 @@ Reglas de respuesta:
 - Sé específico: menciona los nombres de productos, tareas o lotes relevantes del contexto.
 - Evita recomendaciones genéricas; todas deben basarse en los datos reales proporcionados.
 - Si el estado es bueno en un área, puedes omitirla o generar una recomendación de baja prioridad.
+
+Reglas específicas para BAJO STOCK:
+- La recomendación NUNCA debe ser "ajustar inventario" ni "actualizar stock" para reponer faltantes. "Ajustar inventario" es solo para corregir discrepancias con la realidad física (conteo, merma, pérdida documentada).
+- Si el producto tiene "Proveedor habitual" identificado → recomienda **emitir una orden de compra** a ese proveedor.
+- Si el producto no tiene proveedor habitual claro → recomienda **generar una solicitud de compra** para que proveeduría cotice.
+- Cantidad a reponer sugerida: al menos 2× el stockMinimo o lo suficiente para 30-60 días.
 
 Esquema de cada recomendación (JSON estricto):
 {
@@ -439,7 +475,7 @@ Genera las recomendaciones en formato JSON array.`;
         },
         {
           name: 'proponer_ajustar_inventario',
-          description: 'Propone ajustar el stock de un producto del inventario.',
+          description: 'Propone CORREGIR el stock registrado para reflejar la realidad física (por conteo físico, pérdida, merma o error de captura). NO usar para reponer inventario bajo — para eso existen proponer_solicitud_compra y proponer_orden_compra.',
           input_schema: {
             type: 'object',
             properties: {
@@ -448,10 +484,77 @@ Genera las recomendaciones en formato JSON array.`;
               stockActual:    { type: 'number', description: 'Stock actual registrado.' },
               stockNuevo:     { type: 'number', description: 'Nuevo valor de stock propuesto.' },
               unidad:         { type: 'string', description: 'Unidad de medida.' },
-              nota:           { type: 'string', description: 'Nota/razón del ajuste.' },
+              nota:           { type: 'string', description: 'Razón concreta del ajuste: conteo físico, merma, pérdida, error de captura, etc.' },
               prioridad:      { type: 'string', enum: ['alta', 'media', 'baja'] },
             },
             required: ['productoId', 'productoNombre', 'stockNuevo', 'nota', 'prioridad'],
+          },
+        },
+        {
+          name: 'proponer_solicitud_compra',
+          description: 'Propone crear una solicitud interna de compra (request interno para que proveeduría cotice/compre). Úsalo cuando hay bajo stock y no hay proveedor habitual claro, o cuando el productor decide la cotización antes de emitir la orden formal.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                description: 'Productos que se solicitan.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    productoId:         { type: 'string', description: 'ID del producto (del catálogo).' },
+                    nombreComercial:    { type: 'string', description: 'Nombre comercial del producto.' },
+                    cantidadSolicitada: { type: 'number', description: 'Cantidad a solicitar (en la misma unidad del producto).' },
+                    unidad:             { type: 'string', description: 'Unidad del producto.' },
+                    stockActual:        { type: 'number', description: 'Stock actual del producto al momento de la solicitud.' },
+                    stockMinimo:        { type: 'number', description: 'Stock mínimo configurado para el producto.' },
+                  },
+                  required: ['productoId', 'nombreComercial', 'cantidadSolicitada', 'unidad'],
+                },
+              },
+              responsableId:     { type: 'string', description: 'ID del usuario responsable de la solicitud (del catálogo); omitir para default "proveeduria".' },
+              responsableNombre: { type: 'string', description: 'Nombre del responsable (para visualización).' },
+              notas:             { type: 'string', description: 'Justificación y contexto de la solicitud.' },
+              razon:             { type: 'string', description: 'Razón clara que el supervisor pueda evaluar.' },
+              prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['items', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'proponer_orden_compra',
+          description: 'Propone emitir una orden de compra formal a un proveedor específico. Úsalo cuando el producto tiene un proveedor habitual identificado o el productor ya tiene decidido a quién comprar. Si el proveedor habitual no está claro, prefiere proponer_solicitud_compra.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              proveedor:          { type: 'string', description: 'Nombre del proveedor (del catálogo de proveedores si existe, o del campo producto.proveedor).' },
+              direccionProveedor: { type: 'string', description: 'Dirección del proveedor (opcional).' },
+              fecha:              { type: 'string', description: 'Fecha de la orden YYYY-MM-DD (opcional; por defecto hoy).' },
+              fechaEntrega:       { type: 'string', description: 'Fecha esperada de entrega YYYY-MM-DD (opcional).' },
+              items: {
+                type: 'array',
+                description: 'Productos a ordenar con cantidad y precio estimado.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    productoId:       { type: 'string', description: 'ID del producto (del catálogo).' },
+                    nombreComercial:  { type: 'string', description: 'Nombre comercial.' },
+                    ingredienteActivo:{ type: 'string', description: 'Ingrediente activo (si aplica).' },
+                    cantidad:         { type: 'number', description: 'Cantidad a ordenar.' },
+                    unidad:           { type: 'string', description: 'Unidad (kg, L, etc).' },
+                    precioUnitario:   { type: 'number', description: 'Precio unitario estimado (0 si no se conoce).' },
+                    iva:              { type: 'number', description: 'Porcentaje de IVA (0 si no se conoce).' },
+                    moneda:           { type: 'string', description: 'Moneda (USD/CRC). Default USD.' },
+                  },
+                  required: ['nombreComercial', 'cantidad', 'unidad'],
+                },
+              },
+              solicitudId: { type: 'string', description: 'ID de la solicitud de compra asociada (opcional).' },
+              notas:       { type: 'string', description: 'Notas adicionales de la orden.' },
+              razon:       { type: 'string', description: 'Razón clara que el supervisor pueda evaluar.' },
+              prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['proveedor', 'items', 'razon', 'prioridad'],
           },
         },
         {
@@ -477,13 +580,20 @@ Tu tarea es analizar el estado actual de la finca y proponer acciones concretas 
 
 Cada herramienta "proponer_*" registra una propuesta que será revisada por un supervisor antes de ejecutarse.
 
-Reglas:
+Reglas generales:
 - Propón entre 1 y 8 acciones, priorizando las más urgentes e impactantes.
 - Solo propón acciones que tengan sustento claro en los datos proporcionados.
-- Usa los IDs exactos del catálogo (lotes, usuarios, productos) — no inventes IDs.
+- Usa los IDs exactos del catálogo (lotes, usuarios, productos, proveedores) — no inventes IDs.
 - Para cada propuesta, incluye una razón clara que el supervisor pueda evaluar rápidamente.
 - Después de llamar a todas las herramientas necesarias, escribe un resumen breve (2-3 oraciones) de lo que propusiste y por qué.
-- Si no hay acciones claras que proponer, escribe solo el resumen explicando que la finca está en buen estado.`;
+- Si no hay acciones claras que proponer, escribe solo el resumen explicando que la finca está en buen estado.
+
+Decisión para BAJO STOCK (sigue esta jerarquía estrictamente):
+1. Si el producto tiene "Proveedor habitual" en el snapshot y ese proveedor aparece en el catálogo de proveedores activos → usa **proponer_orden_compra** (orden formal al proveedor). Referencia al proveedor por su nombre tal como aparece.
+2. Si el producto tiene "Proveedor habitual" pero NO está en el catálogo activo de proveedores, o no tiene proveedor habitual → usa **proponer_solicitud_compra** (solicitud interna para que proveeduría cotice/compre).
+3. **NUNCA uses proponer_ajustar_inventario para bajo stock.** Esa herramienta es exclusivamente para CORREGIR el stock registrado cuando hay discrepancia con la realidad física (conteo físico, merma, pérdida documentada, error de captura). Si usas ajustar_inventario sin evidencia de discrepancia física, el supervisor rechazará la propuesta.
+
+Cantidad sugerida al comprar: busca reponer hasta al menos (stockMinimo × 2) si es razonable, o lo suficiente para cubrir 30-60 días de consumo estimado. Si no hay datos de consumo, propón 2× el stockMinimo.`;
 
       const userMessageN2 = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
@@ -526,6 +636,8 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
           proponer_reasignar_tarea: 'reasignar_tarea',
           proponer_ajustar_inventario: 'ajustar_inventario',
           proponer_notificacion: 'enviar_notificacion',
+          proponer_solicitud_compra: 'crear_solicitud_compra',
+          proponer_orden_compra: 'crear_orden_compra',
         };
 
         for (const block of response.content) {
@@ -537,7 +649,11 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
           }
 
           const { prioridad, razon, ...params } = block.input;
-          const catMap = { crear_tarea: 'tareas', reprogramar_tarea: 'tareas', reasignar_tarea: 'tareas', ajustar_inventario: 'inventario', enviar_notificacion: 'general' };
+          const catMap = {
+            crear_tarea: 'tareas', reprogramar_tarea: 'tareas', reasignar_tarea: 'tareas',
+            ajustar_inventario: 'inventario', enviar_notificacion: 'general',
+            crear_solicitud_compra: 'inventario', crear_orden_compra: 'inventario',
+          };
 
           proposedActions.push({
             type: actionType,
@@ -699,7 +815,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
         },
         {
           name: 'ejecutar_ajustar_inventario',
-          description: 'Ajusta el stock de un producto del inventario directamente.',
+          description: 'CORRIGE el stock registrado para reflejar la realidad física (por conteo físico, merma, pérdida documentada, error de captura). NO usar para reponer inventario bajo — para eso existen ejecutar_solicitud_compra y ejecutar_orden_compra.',
           input_schema: {
             type: 'object',
             properties: {
@@ -708,10 +824,76 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
               stockActual:    { type: 'number', description: 'Stock actual registrado.' },
               stockNuevo:     { type: 'number', description: 'Nuevo valor de stock.' },
               unidad:         { type: 'string', description: 'Unidad de medida.' },
-              nota:           { type: 'string', description: 'Nota/razón del ajuste.' },
+              nota:           { type: 'string', description: 'Razón concreta del ajuste: conteo físico, merma, pérdida, error de captura.' },
               prioridad:      { type: 'string', enum: ['alta', 'media', 'baja'] },
             },
             required: ['productoId', 'productoNombre', 'stockNuevo', 'nota', 'prioridad'],
+          },
+        },
+        {
+          name: 'ejecutar_solicitud_compra',
+          description: 'Crea una solicitud interna de compra directamente. Úsalo cuando hay bajo stock y no hay proveedor habitual claro, o cuando se necesita que proveeduría cotice antes de emitir la orden formal.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                description: 'Productos que se solicitan.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    productoId:         { type: 'string' },
+                    nombreComercial:    { type: 'string' },
+                    cantidadSolicitada: { type: 'number' },
+                    unidad:             { type: 'string' },
+                    stockActual:        { type: 'number' },
+                    stockMinimo:        { type: 'number' },
+                  },
+                  required: ['productoId', 'nombreComercial', 'cantidadSolicitada', 'unidad'],
+                },
+              },
+              responsableId:     { type: 'string' },
+              responsableNombre: { type: 'string' },
+              notas:             { type: 'string' },
+              razon:             { type: 'string', description: 'Razón clara de la solicitud.' },
+              prioridad:         { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['items', 'razon', 'prioridad'],
+          },
+        },
+        {
+          name: 'ejecutar_orden_compra',
+          description: 'Emite una orden de compra formal a un proveedor específico directamente. Úsalo cuando el producto tiene un proveedor habitual identificado y conocido.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              proveedor:          { type: 'string', description: 'Nombre del proveedor.' },
+              direccionProveedor: { type: 'string' },
+              fecha:              { type: 'string', description: 'YYYY-MM-DD (opcional).' },
+              fechaEntrega:       { type: 'string', description: 'YYYY-MM-DD (opcional).' },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    productoId:        { type: 'string' },
+                    nombreComercial:   { type: 'string' },
+                    ingredienteActivo: { type: 'string' },
+                    cantidad:          { type: 'number' },
+                    unidad:            { type: 'string' },
+                    precioUnitario:    { type: 'number' },
+                    iva:               { type: 'number' },
+                    moneda:            { type: 'string' },
+                  },
+                  required: ['nombreComercial', 'cantidad', 'unidad'],
+                },
+              },
+              solicitudId: { type: 'string' },
+              notas:       { type: 'string' },
+              razon:       { type: 'string', description: 'Razón clara de la orden.' },
+              prioridad:   { type: 'string', enum: ['alta', 'media', 'baja'] },
+            },
+            required: ['proveedor', 'items', 'razon', 'prioridad'],
           },
         },
         {
@@ -737,14 +919,21 @@ Tu tarea es analizar el estado actual de la finca y ejecutar acciones concretas 
 
 Cada herramienta "ejecutar_*" realiza la acción directamente. Si una acción excede las barandillas de seguridad configuradas por el productor, será escalada automáticamente a un supervisor para aprobación manual.
 
-Reglas:
+Reglas generales:
 - Ejecuta entre 1 y 8 acciones, priorizando las más urgentes e impactantes.
 - Solo ejecuta acciones que tengan sustento claro en los datos proporcionados.
-- Usa los IDs exactos del catálogo (lotes, usuarios, productos) — no inventes IDs.
+- Usa los IDs exactos del catálogo (lotes, usuarios, productos, proveedores) — no inventes IDs.
 - Para cada acción, incluye una razón clara que justifique la decisión.
 - Después de llamar a todas las herramientas necesarias, escribe un resumen breve (2-3 oraciones) de las acciones ejecutadas y su impacto.
 - Si una acción fue escalada (no ejecutada por barandilla), menciónalo en el resumen.
-- Si no hay acciones claras que ejecutar, escribe solo el resumen explicando que la finca está en buen estado.`;
+- Si no hay acciones claras que ejecutar, escribe solo el resumen explicando que la finca está en buen estado.
+
+Decisión para BAJO STOCK (sigue esta jerarquía estrictamente):
+1. Si el producto tiene "Proveedor habitual" en el snapshot y ese proveedor aparece en el catálogo de proveedores activos → usa **ejecutar_orden_compra**.
+2. Si el producto tiene "Proveedor habitual" pero NO está en el catálogo, o no tiene proveedor habitual → usa **ejecutar_solicitud_compra**.
+3. **NUNCA uses ejecutar_ajustar_inventario para bajo stock.** Esa herramienta es exclusivamente para CORREGIR el stock registrado cuando hay discrepancia con la realidad física (conteo físico, merma, pérdida documentada, error de captura).
+
+Cantidad sugerida al comprar: busca reponer hasta al menos (stockMinimo × 2) si es razonable, o lo suficiente para cubrir 30-60 días de consumo estimado. Si no hay datos de consumo, usa 2× el stockMinimo.`;
 
       const userMessageN3 = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
@@ -766,10 +955,13 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
         ejecutar_reasignar_tarea: 'reasignar_tarea',
         ejecutar_ajustar_inventario: 'ajustar_inventario',
         ejecutar_notificacion: 'enviar_notificacion',
+        ejecutar_solicitud_compra: 'crear_solicitud_compra',
+        ejecutar_orden_compra: 'crear_orden_compra',
       };
       const catMap = {
         crear_tarea: 'tareas', reprogramar_tarea: 'tareas', reasignar_tarea: 'tareas',
         ajustar_inventario: 'inventario', enviar_notificacion: 'general',
+        crear_solicitud_compra: 'inventario', crear_orden_compra: 'inventario',
       };
 
       while (iterations < 4) {

@@ -4,7 +4,7 @@ import {
   FiZap, FiRefreshCw, FiAlertTriangle, FiAlertCircle, FiInfo,
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
   FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
-  FiChevronDown, FiChevronUp, FiSliders,
+  FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -42,19 +42,23 @@ const PRIORIDAD_ICONS = {
 };
 
 const ACTION_TYPE_LABELS = {
-  crear_tarea:        'Crear tarea',
-  reprogramar_tarea:  'Reprogramar tarea',
-  reasignar_tarea:    'Reasignar tarea',
-  ajustar_inventario: 'Ajustar inventario',
-  enviar_notificacion:'Enviar notificación',
+  crear_tarea:            'Crear tarea',
+  reprogramar_tarea:      'Reprogramar tarea',
+  reasignar_tarea:        'Reasignar tarea',
+  ajustar_inventario:     'Corregir inventario',
+  enviar_notificacion:    'Enviar notificación',
+  crear_solicitud_compra: 'Solicitud de compra',
+  crear_orden_compra:     'Orden de compra',
 };
 
 const ACTION_TYPE_ICONS = {
-  crear_tarea:        FiCalendar,
-  reprogramar_tarea:  FiClock,
-  reasignar_tarea:    FiCalendar,
-  ajustar_inventario: FiPackage,
-  enviar_notificacion:FiSend,
+  crear_tarea:            FiCalendar,
+  reprogramar_tarea:      FiClock,
+  reasignar_tarea:        FiCalendar,
+  ajustar_inventario:     FiPackage,
+  enviar_notificacion:    FiSend,
+  crear_solicitud_compra: FiFileText,
+  crear_orden_compra:     FiShoppingCart,
 };
 
 const STATUS_LABELS = {
@@ -253,6 +257,28 @@ function ActionParamsSummary({ type, params }) {
       items.push(`A: ${params.userName}`);
       items.push(`Mensaje: "${params.mensaje}"`);
       break;
+    case 'crear_solicitud_compra': {
+      const list = Array.isArray(params.items) ? params.items : [];
+      items.push(`${list.length} producto${list.length !== 1 ? 's' : ''}`);
+      list.slice(0, 5).forEach(p => {
+        items.push(`• ${p.nombreComercial}: ${p.cantidadSolicitada} ${p.unidad}`);
+      });
+      if (list.length > 5) items.push(`…y ${list.length - 5} más`);
+      if (params.responsableNombre) items.push(`Responsable: ${params.responsableNombre}`);
+      break;
+    }
+    case 'crear_orden_compra': {
+      const list = Array.isArray(params.items) ? params.items : [];
+      items.push(`Proveedor: ${params.proveedor || '—'}`);
+      items.push(`${list.length} producto${list.length !== 1 ? 's' : ''}`);
+      list.slice(0, 5).forEach(p => {
+        const precio = (p.precioUnitario || 0) > 0 ? ` @ ${p.precioUnitario} ${p.moneda || 'USD'}` : '';
+        items.push(`• ${p.nombreComercial}: ${p.cantidad} ${p.unidad}${precio}`);
+      });
+      if (list.length > 5) items.push(`…y ${list.length - 5} más`);
+      if (params.fechaEntrega) items.push(`Entrega: ${params.fechaEntrega}`);
+      break;
+    }
   }
   if (!items.length) return null;
   return (
