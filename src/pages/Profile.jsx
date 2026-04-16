@@ -5,7 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { FiBell, FiTrash2 } from 'react-icons/fi';
 import Toast from '../components/Toast';
-import './MiPerfil.css';
+import './Profile.css';
 
 const GOOGLE_PROVIDER_ID = 'google.com';
 const PASSWORD_PROVIDER_ID = 'password';
@@ -16,7 +16,7 @@ function formatReminderDate(isoString) {
   return d.toLocaleString('es-CR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function MiPerfil() {
+export default function Profile() {
   const { firebaseUser, currentUser } = useUser();
   const apiFetch = useApiFetch();
   const [loading, setLoading] = useState(null); // 'link' | 'unlink' | 'reset'

@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { useUser } from '../contexts/UserContext';
 import './Login.css';
 
-export default function NuevaOrganizacion() {
+export default function NewOrganization() {
   const navigate = useNavigate();
   const { firebaseUser, isLoading, isLoggedIn, selectFinca, refreshMemberships } = useUser();
   const [fincaNombre, setFincaNombre] = useState('');
