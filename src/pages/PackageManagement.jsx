@@ -5,7 +5,7 @@ import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiCh
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 
-// ── Combobox de búsqueda de productos ─────────────────────────────────────────
+// ── Product search combobox ──────────────────────────────────────────────────
 function ProdCombobox({ productos, excludeIds, onSelect }) {
   const [text, setText]       = useState('');
   const [open, setOpen]       = useState(false);
