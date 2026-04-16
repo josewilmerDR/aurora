@@ -98,7 +98,7 @@ function ProveedoresList() {
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  // Restaura borrador al montar (sobrevive navegación y cierre de pestaña)
+  // Restore draft on mount (survives navigation and tab close)
   useEffect(() => {
     const draft = loadDraft();
     if (!isDraftMeaningful(draft)) return;
