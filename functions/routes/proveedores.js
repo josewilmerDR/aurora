@@ -2,13 +2,14 @@ const { Router } = require('express');
 const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-const TIPO_PAGO_VALIDOS = new Set(['contado', 'credito']);
-const MONEDAS_VALIDAS = new Set(['USD', 'CRC']);
-const ESTADOS_VALIDOS = new Set(['activo', 'inactivo']);
-const CATEGORIAS_VALIDAS = new Set(['', 'agroquimicos', 'fertilizantes', 'maquinaria', 'servicios', 'combustible', 'semillas', 'otros']);
+const VALID_PAYMENT_TYPES = new Set(['contado', 'credito']);
+const VALID_CURRENCIES = new Set(['USD', 'CRC']);
+const VALID_STATUSES = new Set(['activo', 'inactivo']);
+const VALID_CATEGORIES = new Set(['', 'agroquimicos', 'fertilizantes', 'maquinaria', 'servicios', 'combustible', 'semillas', 'otros']);
 
 const MAX_NOMBRE = 150;
 const MAX_TEXT = 200;
@@ -39,15 +40,15 @@ const floatInRange = (v, min, max) => {
 
 function buildProveedorDoc(body) {
   const nombre = str(body.nombre, MAX_NOMBRE);
-  if (!nombre) return { error: 'El nombre del proveedor es obligatorio.' };
+  if (!nombre) return { error: 'Supplier name is required.' };
 
   const email = str(body.email, MAX_TEXT);
-  if (email && !EMAIL_RE.test(email)) return { error: 'El correo electrónico no es válido.' };
+  if (email && !EMAIL_RE.test(email)) return { error: 'Invalid email address.' };
 
-  const tipoPago = TIPO_PAGO_VALIDOS.has(body.tipoPago) ? body.tipoPago : 'contado';
-  const moneda = MONEDAS_VALIDAS.has(body.moneda) ? body.moneda : 'USD';
-  const estado = ESTADOS_VALIDOS.has(body.estado) ? body.estado : 'activo';
-  const categoria = CATEGORIAS_VALIDAS.has(body.categoria) ? (body.categoria || '') : '';
+  const tipoPago = VALID_PAYMENT_TYPES.has(body.tipoPago) ? body.tipoPago : 'contado';
+  const moneda = VALID_CURRENCIES.has(body.moneda) ? body.moneda : 'USD';
+  const estado = VALID_STATUSES.has(body.estado) ? body.estado : 'activo';
+  const categoria = VALID_CATEGORIES.has(body.categoria) ? (body.categoria || '') : '';
 
   return {
     data: {
@@ -84,14 +85,14 @@ router.get('/api/proveedores', authenticate, async (req, res) => {
     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     res.json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener proveedores.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch proveedores.', 500);
   }
 });
 
 router.post('/api/proveedores', authenticate, async (req, res) => {
   try {
     const { error, data } = buildProveedorDoc(req.body);
-    if (error) return res.status(400).json({ message: error });
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     const doc = await db.collection('proveedores').add({
       ...data,
       fincaId: req.fincaId,
@@ -99,32 +100,32 @@ router.post('/api/proveedores', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: doc.id });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear proveedor.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create proveedor.', 500);
   }
 });
 
 router.put('/api/proveedores/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('proveedores', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     const { error, data } = buildProveedorDoc(req.body);
-    if (error) return res.status(400).json({ message: error });
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     await db.collection('proveedores').doc(req.params.id).update(data);
-    res.json({ message: 'Proveedor actualizado.' });
+    res.json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar proveedor.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update proveedor.', 500);
   }
 });
 
 router.delete('/api/proveedores/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('proveedores', req.params.id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('proveedores').doc(req.params.id).delete();
-    res.json({ message: 'Proveedor eliminado.' });
+    res.json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar proveedor.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete proveedor.', 500);
   }
 });
 
