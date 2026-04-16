@@ -194,11 +194,11 @@ function ActivoCombobox({ value, onChange, activos, placeholder = '— Seleccion
   );
 }
 
-// ── Menú contextual de columnas ────────────────────────────────────────────────
+// ── Column context menu ──────────────────────────────────────────────────────
 function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
   const menuRef = useRef(null);
 
-  // Cerrar al hacer clic fuera o al presionar Escape
+  // Close on outside click or Escape key
   useEffect(() => {
     const onDown = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
@@ -212,7 +212,7 @@ function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
     };
   }, [onClose]);
 
-  // Ajustar posición para no salirse del viewport
+  // Adjust position to stay within the viewport
   const style = { position: 'fixed', top: y, left: x };
 
   return createPortal(
@@ -220,7 +220,7 @@ function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
       <div className="cal-col-menu-title">Columnas visibles</div>
       {COLUMNS.map(col => {
         const checked = visibleCols[col.key];
-        // Impedir ocultar la última columna visible
+        // Prevent hiding the last visible column
         const isLast = checked && Object.values(visibleCols).filter(Boolean).length === 1;
         return (
           <label
@@ -242,7 +242,7 @@ function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
   );
 }
 
-// ── Página principal ───────────────────────────────────────────────────────────
+// ── Main page ────────────────────────────────────────────────────────────────
 function Calibraciones() {
   const apiFetch = useApiFetch();
   const [items, setItems]       = useState([]);
