@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   FiZap, FiRefreshCw, FiAlertTriangle, FiAlertCircle, FiInfo,
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
-  FiCheck, FiX, FiSend,
+  FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
+  FiChevronDown, FiChevronUp, FiSliders,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -86,7 +87,109 @@ function SnapshotStat({ icon: Icon, label, value, accent }) {
   );
 }
 
-function RecommendationCard({ rec }) {
+function FeedbackControls({ current, onSubmit }) {
+  const [showCommentFor, setShowCommentFor] = useState(null);
+  const [comment, setComment] = useState(current?.comment || '');
+  const [saving, setSaving] = useState(false);
+
+  const activeSignal = current?.signal || null;
+
+  const handleClick = async (signal, e) => {
+    e.stopPropagation();
+    if (activeSignal === signal) {
+      setSaving(true);
+      await onSubmit(null, '');
+      setSaving(false);
+      setShowCommentFor(null);
+      setComment('');
+      return;
+    }
+    setSaving(true);
+    await onSubmit(signal, comment || current?.comment || '');
+    setSaving(false);
+    if (signal === 'down') {
+      setShowCommentFor('down');
+      setComment(current?.comment || '');
+    } else {
+      setShowCommentFor(null);
+    }
+  };
+
+  const handleCommentSave = async (e) => {
+    e.stopPropagation();
+    setSaving(true);
+    await onSubmit(activeSignal, comment);
+    setSaving(false);
+    setShowCommentFor(null);
+  };
+
+  return (
+    <div className="ap-feedback" onClick={e => e.stopPropagation()}>
+      <button
+        type="button"
+        className={`ap-fb-btn ${activeSignal === 'up' ? 'ap-fb-btn--active-up' : ''}`}
+        onClick={e => handleClick('up', e)}
+        disabled={saving}
+        title="Útil"
+      >
+        <FiThumbsUp size={12} />
+      </button>
+      <button
+        type="button"
+        className={`ap-fb-btn ${activeSignal === 'down' ? 'ap-fb-btn--active-down' : ''}`}
+        onClick={e => handleClick('down', e)}
+        disabled={saving}
+        title="No útil"
+      >
+        <FiThumbsDown size={12} />
+      </button>
+      {activeSignal === 'down' && showCommentFor !== 'down' && current?.comment && (
+        <span className="ap-fb-comment-preview" title={current.comment}>
+          "{current.comment.slice(0, 40)}{current.comment.length > 40 ? '…' : ''}"
+        </span>
+      )}
+      {activeSignal === 'down' && showCommentFor !== 'down' && (
+        <button
+          type="button"
+          className="ap-fb-comment-toggle"
+          onClick={e => { e.stopPropagation(); setShowCommentFor('down'); setComment(current?.comment || ''); }}
+        >
+          {current?.comment ? 'Editar motivo' : 'Añadir motivo (opcional)'}
+        </button>
+      )}
+      {showCommentFor === 'down' && (
+        <div className="ap-fb-comment-box">
+          <input
+            type="text"
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            placeholder="¿Qué no fue útil? (opcional)"
+            maxLength={500}
+            className="ap-fb-comment-input"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            className="ap-fb-comment-save"
+            onClick={handleCommentSave}
+            disabled={saving}
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            className="ap-fb-comment-cancel"
+            onClick={e => { e.stopPropagation(); setShowCommentFor(null); setComment(current?.comment || ''); }}
+          >
+            <FiX size={11} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecommendationCard({ rec, feedback, onFeedback }) {
   const [expanded, setExpanded] = useState(false);
   const CatIcon = CATEGORIA_ICONS[rec.categoria] || FiInfo;
   return (
@@ -109,6 +212,12 @@ function RecommendationCard({ rec }) {
             <div className="ap-rec-accion">
               <span className="ap-rec-label">Acción sugerida:</span>{rec.accionSugerida}
             </div>
+          )}
+          {onFeedback && (
+            <FeedbackControls
+              current={feedback}
+              onSubmit={(signal, comment) => onFeedback(rec, 'recommendation', signal, comment)}
+            />
           )}
         </div>
       )}
@@ -153,7 +262,7 @@ function ActionParamsSummary({ type, params }) {
   );
 }
 
-function ActionCard({ action, onApprove, onReject, canApprove }) {
+function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedback }) {
   const [confirming, setConfirming] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -258,6 +367,87 @@ function ActionCard({ action, onApprove, onReject, canApprove }) {
       {action.status === 'failed' && action.executionResult?.error && (
         <div className="ap-action-result ap-action-result--error">Error: {action.executionResult.error}</div>
       )}
+
+      {/* Feedback — siempre visible al final */}
+      {onFeedback && (
+        <FeedbackControls
+          current={feedback}
+          onSubmit={(signal, comment) => onFeedback(action, 'action', signal, comment)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DirectivesPanel({ directives, onAdd, onDelete, saving }) {
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const handleAdd = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    await onAdd(text);
+    setDraft('');
+  };
+
+  return (
+    <div className="ap-directives">
+      <button
+        type="button"
+        className="ap-directives-toggle"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <FiSliders size={13} />
+        <span>Mis preferencias</span>
+        <span className="ap-directives-count">{directives.length}</span>
+        {expanded ? <FiChevronUp size={13} /> : <FiChevronDown size={13} />}
+      </button>
+      {expanded && (
+        <div className="ap-directives-body">
+          <p className="ap-directives-help">
+            Reglas firmes que Copilot respetará siempre. Úsalas solo para lo que quieres que deje de hacer — los 👎 por sí solos no generan reglas.
+          </p>
+          <div className="ap-directives-add">
+            <input
+              type="text"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+              placeholder='Ej: "No recomendar compras si stockMinimo no está configurado"'
+              maxLength={300}
+              className="ap-directives-input"
+            />
+            <button
+              type="button"
+              className="ap-directives-add-btn"
+              onClick={handleAdd}
+              disabled={saving || !draft.trim()}
+            >
+              <FiPlus size={12} /> Añadir
+            </button>
+          </div>
+          {directives.length === 0 ? (
+            <p className="ap-directives-empty">Aún no tienes preferencias guardadas.</p>
+          ) : (
+            <ul className="ap-directives-list">
+              {directives.map(d => (
+                <li key={d.id} className="ap-directives-item">
+                  <span className="ap-directives-text">{d.text}</span>
+                  <button
+                    type="button"
+                    className="ap-directives-del"
+                    onClick={() => onDelete(d.id)}
+                    title="Eliminar"
+                    disabled={saving}
+                  >
+                    <FiTrash2 size={12} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -275,6 +465,9 @@ export default function AutopilotDashboard() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [feedbackMap, setFeedbackMap] = useState({});
+  const [directives, setDirectives] = useState([]);
+  const [directiveSaving, setDirectiveSaving] = useState(false);
 
   // Carga inicial: config + última sesión
   useEffect(() => {
@@ -325,6 +518,44 @@ export default function AutopilotDashboard() {
     loadActions();
     return () => { cancelled = true; };
   }, [config?.mode]);
+
+  // Cargar directivas del usuario
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDirectives() {
+      try {
+        const res = await apiFetch('/api/autopilot/directives');
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setDirectives(Array.isArray(data) ? data : []);
+        }
+      } catch (_) { /* silent */ }
+    }
+    loadDirectives();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Cargar feedback de la sesión actual (recomendaciones + acciones)
+  useEffect(() => {
+    const sid = latestSession?.id;
+    if (!sid) return;
+    let cancelled = false;
+    async function loadFeedback() {
+      try {
+        const res = await apiFetch(`/api/autopilot/feedback?sessionId=${encodeURIComponent(sid)}`);
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          const map = {};
+          (Array.isArray(data) ? data : []).forEach(f => {
+            map[f.targetId] = { signal: f.signal, comment: f.comment || '' };
+          });
+          setFeedbackMap(map);
+        }
+      } catch (_) { /* silent */ }
+    }
+    loadFeedback();
+    return () => { cancelled = true; };
+  }, [latestSession?.id]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -381,6 +612,74 @@ export default function AutopilotDashboard() {
       );
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleFeedback = async (target, targetType, signal, comment) => {
+    const sid = latestSession?.id;
+    if (!sid) return;
+    const targetId = target.id;
+    const titulo = target.titulo || target.titulo || target.nombre || '';
+    try {
+      if (signal === null) {
+        const res = await apiFetch(`/api/autopilot/feedback?sessionId=${encodeURIComponent(sid)}&targetId=${encodeURIComponent(targetId)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('No se pudo borrar el feedback.');
+        setFeedbackMap(prev => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        return;
+      }
+      const res = await apiFetch('/api/autopilot/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sid,
+          targetId,
+          targetType,
+          targetTitle: titulo,
+          categoria: target.categoria || 'general',
+          nivel: config?.mode || null,
+          signal,
+          comment: comment || '',
+        }),
+      });
+      if (!res.ok) throw new Error('No se pudo guardar el feedback.');
+      setFeedbackMap(prev => ({ ...prev, [targetId]: { signal, comment: comment || '' } }));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleAddDirective = async (text) => {
+    setDirectiveSaving(true);
+    try {
+      const res = await apiFetch('/api/autopilot/directives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'No se pudo guardar la preferencia.');
+      setDirectives(prev => [data, ...prev]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDirectiveSaving(false);
+    }
+  };
+
+  const handleDeleteDirective = async (id) => {
+    setDirectiveSaving(true);
+    try {
+      const res = await apiFetch(`/api/autopilot/directives/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('No se pudo eliminar la preferencia.');
+      setDirectives(prev => prev.filter(d => d.id !== id));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDirectiveSaving(false);
     }
   };
 
@@ -443,6 +742,16 @@ export default function AutopilotDashboard() {
         <div className="ap-notice ap-notice--error">
           <FiAlertTriangle size={15} /> {error}
         </div>
+      )}
+
+      {/* ── Mis preferencias (directivas explícitas) ── */}
+      {!loading && mode !== 'off' && (
+        <DirectivesPanel
+          directives={directives}
+          onAdd={handleAddDirective}
+          onDelete={handleDeleteDirective}
+          saving={directiveSaving}
+        />
       )}
 
       {/* ── Empty state ── */}
@@ -508,7 +817,14 @@ export default function AutopilotDashboard() {
                   <PrioIcon size={13} />
                   Prioridad {prioridad.charAt(0).toUpperCase() + prioridad.slice(1)}
                 </h2>
-                {group.map(rec => <RecommendationCard key={rec.id} rec={rec} />)}
+                {group.map(rec => (
+                  <RecommendationCard
+                    key={rec.id}
+                    rec={rec}
+                    feedback={feedbackMap[rec.id]}
+                    onFeedback={handleFeedback}
+                  />
+                ))}
               </div>
             );
           })}
@@ -541,6 +857,8 @@ export default function AutopilotDashboard() {
                     onApprove={handleApprove}
                     onReject={handleReject}
                     canApprove={canConfig}
+                    feedback={feedbackMap[action.id]}
+                    onFeedback={handleFeedback}
                   />
                 ))}
               </div>
@@ -565,6 +883,8 @@ export default function AutopilotDashboard() {
               onApprove={handleApprove}
               onReject={handleReject}
               canApprove={false}
+              feedback={feedbackMap[action.id]}
+              onFeedback={handleFeedback}
             />
           ))}
         </div>
@@ -586,6 +906,8 @@ export default function AutopilotDashboard() {
               onApprove={handleApprove}
               onReject={handleReject}
               canApprove={canConfig}
+              feedback={feedbackMap[action.id]}
+              onFeedback={handleFeedback}
             />
           ))}
         </div>

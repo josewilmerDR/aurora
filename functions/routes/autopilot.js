@@ -13,6 +13,78 @@ const {
 
 const router = Router();
 
+// Build per-user feedback context: hard directives + soft few-shot examples.
+// Directives are rules the user explicitly opted in; feedback is a style signal only.
+async function buildFeedbackContext(fincaId, userId) {
+  try {
+    const [feedbackSnap, directivesSnap] = await Promise.all([
+      db.collection('copilot_feedback')
+        .where('fincaId', '==', fincaId)
+        .where('userId', '==', userId)
+        .orderBy('updatedAt', 'desc')
+        .limit(20)
+        .get(),
+      db.collection('copilot_directives')
+        .where('fincaId', '==', fincaId)
+        .where('userId', '==', userId)
+        .where('active', '==', true)
+        .orderBy('createdAt', 'desc')
+        .limit(20)
+        .get(),
+    ]);
+
+    const directives = directivesSnap.docs
+      .map(d => String(d.data().text || '').trim())
+      .filter(Boolean);
+    const feedback = feedbackSnap.docs.map(d => d.data());
+
+    const directivesBlock = directives.length
+      ? [
+          '<reglas_del_usuario>',
+          'Reglas firmes establecidas explícitamente por este usuario. Respétalas sin excepciones:',
+          ...directives.map((t, i) => `${i + 1}. ${t}`),
+          '</reglas_del_usuario>',
+        ].join('\n')
+      : '';
+
+    const positive = feedback.filter(f => f.signal === 'up').slice(0, 5);
+    const negative = feedback.filter(f => f.signal === 'down').slice(0, 5);
+
+    let examplesBlock = '';
+    if (positive.length || negative.length) {
+      const lines = ['<feedback_previo>'];
+      lines.push('Historial de feedback de este usuario. Úsalo como guía de ESTILO — qué tipo de sugerencias valora y cuáles no. NO lo uses como filtro de temas: un 👎 no significa "evitar este tema", solo "esta sugerencia específica no sirvió". Sigue proponiendo en todas las categorías a menos que una regla explícita en <reglas_del_usuario> lo prohíba.');
+      if (positive.length) {
+        lines.push('');
+        lines.push('Marcadas como útiles (👍):');
+        positive.forEach(f => {
+          const titulo = f.targetTitle || '(sin título)';
+          const cat = f.categoria || 'general';
+          const c = f.comment ? ` — comentario: "${f.comment}"` : '';
+          lines.push(`- [${cat}] "${titulo}"${c}`);
+        });
+      }
+      if (negative.length) {
+        lines.push('');
+        lines.push('Marcadas como NO útiles (👎):');
+        negative.forEach(f => {
+          const titulo = f.targetTitle || '(sin título)';
+          const cat = f.categoria || 'general';
+          const c = f.comment ? ` — comentario: "${f.comment}"` : '';
+          lines.push(`- [${cat}] "${titulo}"${c}`);
+        });
+      }
+      lines.push('</feedback_previo>');
+      examplesBlock = lines.join('\n');
+    }
+
+    return { directivesBlock, examplesBlock };
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al construir contexto de feedback:', err);
+    return { directivesBlock: '', examplesBlock: '' };
+  }
+}
+
 // GET /api/autopilot/config
 router.get('/api/autopilot/config', authenticate, async (req, res) => {
   try {
@@ -169,6 +241,10 @@ router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
 
     const anthropicClient = getAnthropicClient();
 
+    // Contexto de feedback/directivas del usuario que ejecuta el análisis
+    const { directivesBlock, examplesBlock } = await buildFeedbackContext(req.fincaId, req.uid);
+    const feedbackPrefix = [directivesBlock, examplesBlock].filter(Boolean).join('\n\n');
+
     // Snapshot enriquecido con IDs (compartido por nivel2 y nivel3)
     const snapshotTextEnriched = `
 ## Estado actual de la finca (fecha: ${now.toISOString().split('T')[0]})
@@ -237,7 +313,7 @@ Esquema de cada recomendación (JSON estricto):
   "accionSugerida": "paso concreto a tomar, comenzando con un verbo"
 }`;
 
-      const userMessage = `**Objetivos del productor para este ciclo:**
+      const userMessage = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
 
 ${snapshotText}
@@ -409,7 +485,7 @@ Reglas:
 - Después de llamar a todas las herramientas necesarias, escribe un resumen breve (2-3 oraciones) de lo que propusiste y por qué.
 - Si no hay acciones claras que proponer, escribe solo el resumen explicando que la finca está en buen estado.`;
 
-      const userMessageN2 = `**Objetivos del productor para este ciclo:**
+      const userMessageN2 = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
 
 ${snapshotTextEnriched}
@@ -670,7 +746,7 @@ Reglas:
 - Si una acción fue escalada (no ejecutada por barandilla), menciónalo en el resumen.
 - Si no hay acciones claras que ejecutar, escribe solo el resumen explicando que la finca está en buen estado.`;
 
-      const userMessageN3 = `**Objetivos del productor para este ciclo:**
+      const userMessageN3 = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
 
 ${snapshotTextEnriched}
@@ -1084,6 +1160,149 @@ router.put('/api/autopilot/actions/:id/reject', authenticate, async (req, res) =
   } catch (err) {
     console.error('[AUTOPILOT] Error al rechazar acción:', err);
     res.status(500).json({ message: 'Error al rechazar la acción.' });
+  }
+});
+
+// POST /api/autopilot/feedback — save/update 👍/👎 on a recommendation or action
+router.post('/api/autopilot/feedback', authenticate, async (req, res) => {
+  try {
+    const { sessionId, targetId, targetType, targetTitle, categoria, nivel, signal, comment } = req.body || {};
+    if (!sessionId || !targetId || !['recommendation', 'action'].includes(targetType)) {
+      return res.status(400).json({ message: 'Parámetros inválidos (sessionId, targetId, targetType).' });
+    }
+    if (!['up', 'down'].includes(signal)) {
+      return res.status(400).json({ message: 'signal debe ser "up" o "down".' });
+    }
+    const docId = `${req.uid}_${sessionId}_${targetId}`;
+    const now = Timestamp.now();
+    await db.collection('copilot_feedback').doc(docId).set({
+      userId: req.uid,
+      userName: req.userEmail,
+      fincaId: req.fincaId,
+      nivel: nivel || null,
+      sessionId,
+      targetId,
+      targetType,
+      targetTitle: targetTitle ? String(targetTitle).slice(0, 200) : '',
+      categoria: categoria || 'general',
+      signal,
+      comment: comment ? String(comment).slice(0, 500) : '',
+      updatedAt: now,
+      createdAt: now,
+    }, { merge: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al guardar feedback:', err);
+    res.status(500).json({ message: 'Error al guardar feedback.' });
+  }
+});
+
+// DELETE /api/autopilot/feedback?sessionId=X&targetId=Y — clear feedback (toggle off)
+router.delete('/api/autopilot/feedback', authenticate, async (req, res) => {
+  try {
+    const { sessionId, targetId } = req.query;
+    if (!sessionId || !targetId) {
+      return res.status(400).json({ message: 'Parámetros requeridos: sessionId, targetId.' });
+    }
+    const docId = `${req.uid}_${sessionId}_${targetId}`;
+    await db.collection('copilot_feedback').doc(docId).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al borrar feedback:', err);
+    res.status(500).json({ message: 'Error al borrar feedback.' });
+  }
+});
+
+// GET /api/autopilot/feedback?sessionId=X — list current user's feedback (for UI pre-fill)
+router.get('/api/autopilot/feedback', authenticate, async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+    let query = db.collection('copilot_feedback')
+      .where('fincaId', '==', req.fincaId)
+      .where('userId', '==', req.uid);
+    if (sessionId) query = query.where('sessionId', '==', sessionId);
+    const snap = await query.limit(100).get();
+    const items = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        sessionId: d.sessionId,
+        targetId: d.targetId,
+        targetType: d.targetType,
+        signal: d.signal,
+        comment: d.comment || '',
+        updatedAt: d.updatedAt?.toDate?.()?.toISOString() || null,
+      };
+    });
+    res.json(items);
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al listar feedback:', err);
+    res.status(500).json({ message: 'Error al listar feedback.' });
+  }
+});
+
+// GET /api/autopilot/directives — list active directives for current user
+router.get('/api/autopilot/directives', authenticate, async (req, res) => {
+  try {
+    const snap = await db.collection('copilot_directives')
+      .where('fincaId', '==', req.fincaId)
+      .where('userId', '==', req.uid)
+      .where('active', '==', true)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+    const items = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        text: d.text,
+        createdAt: d.createdAt?.toDate?.()?.toISOString() || null,
+      };
+    });
+    res.json(items);
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al listar directivas:', err);
+    res.status(500).json({ message: 'Error al listar directivas.' });
+  }
+});
+
+// POST /api/autopilot/directives — create a new explicit directive
+router.post('/api/autopilot/directives', authenticate, async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ message: 'text es requerido.' });
+    if (text.length > 300) return res.status(400).json({ message: 'text máximo 300 caracteres.' });
+    const now = Timestamp.now();
+    const ref = await db.collection('copilot_directives').add({
+      userId: req.uid,
+      userName: req.userEmail,
+      fincaId: req.fincaId,
+      text,
+      active: true,
+      createdAt: now,
+    });
+    res.json({ id: ref.id, text, createdAt: now.toDate().toISOString() });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al crear directiva:', err);
+    res.status(500).json({ message: 'Error al crear directiva.' });
+  }
+});
+
+// DELETE /api/autopilot/directives/:id — soft delete
+router.delete('/api/autopilot/directives/:id', authenticate, async (req, res) => {
+  try {
+    const ref = db.collection('copilot_directives').doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ message: 'Directiva no encontrada.' });
+    const d = doc.data();
+    if (d.fincaId !== req.fincaId || d.userId !== req.uid) {
+      return res.status(403).json({ message: 'Acceso no autorizado.' });
+    }
+    await ref.update({ active: false });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error al eliminar directiva:', err);
+    res.status(500).json({ message: 'Error al eliminar directiva.' });
   }
 });
 
