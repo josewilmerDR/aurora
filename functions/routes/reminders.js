@@ -1,16 +1,17 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-// --- API ENDPOINTS: RECORDATORIOS PERSONALES ---
+// --- API ENDPOINTS: PERSONAL REMINDERS ---
 
-// GET /api/reminders/due — recordatorios vencidos (remindAt <= ahora), los marca como entregados
+// GET /api/reminders/due — due reminders (remindAt <= now), marks them as delivered
 router.get('/api/reminders/due', authenticate, async (req, res) => {
   try {
     const now = new Date();
-    // Sin filtro de rango en Firestore (requeriría índice compuesto); se filtra en JS
+    // No range filter in Firestore (would require composite index); filtered in JS
     const snap = await db.collection('reminders')
       .where('uid', '==', req.uid)
       .where('fincaId', '==', req.fincaId)
@@ -29,12 +30,12 @@ router.get('/api/reminders/due', authenticate, async (req, res) => {
     await batch.commit();
     res.json(reminders);
   } catch (err) {
-    console.error('Error al obtener recordatorios vencidos:', err);
-    res.status(500).json({ message: 'Error al obtener recordatorios.' });
+    console.error('Error fetching due reminders:', err);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch due reminders.', 500);
   }
 });
 
-// GET /api/reminders — lista todos los recordatorios pendientes del usuario
+// GET /api/reminders — list all pending reminders for the user
 router.get('/api/reminders', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('reminders')
@@ -47,19 +48,25 @@ router.get('/api/reminders', authenticate, async (req, res) => {
       .sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt));
     res.json(reminders);
   } catch (err) {
-    console.error('Error al obtener recordatorios:', err);
-    res.status(500).json({ message: 'Error al obtener recordatorios.' });
+    console.error('Error fetching reminders:', err);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch reminders.', 500);
   }
 });
 
-// POST /api/reminders — crea un recordatorio personal
+// POST /api/reminders — create a personal reminder
 router.post('/api/reminders', authenticate, async (req, res) => {
   try {
     const { message, remindAt } = req.body;
-    if (!message?.trim()) return res.status(400).json({ message: 'El mensaje es requerido.' });
-    if (!remindAt) return res.status(400).json({ message: 'La fecha del recordatorio es requerida.' });
+    if (!message?.trim()) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Message is required.', 400);
+    }
+    if (!remindAt) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Reminder date is required.', 400);
+    }
     const remindDate = new Date(remindAt);
-    if (isNaN(remindDate.getTime())) return res.status(400).json({ message: 'Fecha inválida.' });
+    if (isNaN(remindDate.getTime())) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid date.', 400);
+    }
     const docRef = await db.collection('reminders').add({
       uid: req.uid,
       fincaId: req.fincaId,
@@ -70,22 +77,26 @@ router.post('/api/reminders', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: docRef.id, message: message.trim(), remindAt: remindDate.toISOString() });
   } catch (err) {
-    console.error('Error al crear recordatorio:', err);
-    res.status(500).json({ message: 'Error al crear el recordatorio.' });
+    console.error('Error creating reminder:', err);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create reminder.', 500);
   }
 });
 
-// DELETE /api/reminders/:id — elimina un recordatorio
+// DELETE /api/reminders/:id — delete a reminder
 router.delete('/api/reminders/:id', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('reminders').doc(req.params.id).get();
-    if (!doc.exists) return res.status(404).json({ message: 'Recordatorio no encontrado.' });
-    if (doc.data().uid !== req.uid) return res.status(403).json({ message: 'Acceso no autorizado.' });
+    if (!doc.exists) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Reminder not found.', 404);
+    }
+    if (doc.data().uid !== req.uid) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Access denied.', 403);
+    }
     await db.collection('reminders').doc(req.params.id).delete();
     res.json({ ok: true });
   } catch (err) {
-    console.error('Error al eliminar recordatorio:', err);
-    res.status(500).json({ message: 'Error al eliminar el recordatorio.' });
+    console.error('Error deleting reminder:', err);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete reminder.', 500);
   }
 });
 
