@@ -4,8 +4,8 @@ import App from './App.jsx';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
 
-// Con registerType: 'prompt', onNeedRefresh se dispara cuando hay nueva versión esperando.
-// __swUpdatePending persiste el estado por si el evento se dispara antes de que React monte.
+// With registerType: 'prompt', onNeedRefresh fires when a new version is waiting.
+// __swUpdatePending persists the state in case the event fires before React mounts.
 window.__swUpdatePending = false;
 
 const updateSW = registerSW({
@@ -17,8 +17,8 @@ const updateSW = registerSW({
   },
 });
 
-// En SPAs el browser no hace check del SW en cada navegación.
-// Forzamos el chequeo al volver al tab y cada hora.
+// In SPAs the browser does not check the SW on every navigation.
+// Force an update check when the tab regains focus, and every hour.
 if ('serviceWorker' in navigator) {
   const checkForUpdate = () => navigator.serviceWorker.ready.then(r => r.update()).catch(() => {});
   document.addEventListener('visibilitychange', () => {

@@ -1,4 +1,4 @@
-// --- AURORA BACKEND — PUNTO DE ENTRADA ---
+// --- AURORA BACKEND — ENTRY POINT ---
 const { functions, allSecrets } = require('./lib/firebase');
 const express = require('express');
 
@@ -7,13 +7,13 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '15mb' }));
 
-// --- MIDDLEWARE DE LOGGING ---
+// --- LOGGING MIDDLEWARE ---
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// --- MONTAR ROUTERS ---
+// --- MOUNT ROUTERS ---
 app.use(require('./routes/auth'));
 app.use(require('./routes/feed'));
 app.use(require('./routes/tasks'));
@@ -44,7 +44,7 @@ app.use(require('./routes/autopilot'));
 app.use(require('./routes/cosecha'));
 app.use(require('./routes/costos'));
 
-// --- EXPORTAR CLOUD FUNCTIONS ---
+// --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
   { secrets: allSecrets },
   app

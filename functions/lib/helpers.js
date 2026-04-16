@@ -1,8 +1,9 @@
 const webpush = require('web-push');
 const { db, Timestamp, FieldPath, APP_URL, twilioWhatsappFrom } = require('./firebase');
 const { getTwilioClient } = require('./clients');
+const { ERROR_CODES } = require('./errors');
 
-// --- HELPERS DE SEGURIDAD ---
+// --- SECURITY HELPERS ---
 const pick = (obj, fields) => fields.reduce((acc, f) => {
   if (obj[f] !== undefined) acc[f] = obj[f];
   return acc;
@@ -10,8 +11,12 @@ const pick = (obj, fields) => fields.reduce((acc, f) => {
 
 const verifyOwnership = async (collection, docId, fincaId) => {
   const doc = await db.collection(collection).doc(docId).get();
-  if (!doc.exists) return { ok: false, status: 404, message: 'Documento no encontrado.' };
-  if (doc.data().fincaId !== fincaId) return { ok: false, status: 403, message: 'Acceso no autorizado.' };
+  if (!doc.exists) {
+    return { ok: false, status: 404, code: ERROR_CODES.NOT_FOUND, message: 'Document not found.' };
+  }
+  if (doc.data().fincaId !== fincaId) {
+    return { ok: false, status: 403, code: ERROR_CODES.FORBIDDEN, message: 'Access denied to this resource.' };
+  }
   return { ok: true, doc };
 };
 
@@ -20,7 +25,7 @@ const ROLE_LEVELS_BE = { trabajador: 1, encargado: 2, supervisor: 3, rrhh: 3, ad
 const hasMinRoleBE = (userRole, minRole) =>
   (ROLE_LEVELS_BE[userRole] || 0) >= (ROLE_LEVELS_BE[minRole] || 0);
 
-// --- FUNCIÓN DE ENRIQUECIMIENTO DE TAREA ---
+// --- TASK ENRICHMENT ---
 const enrichTask = async (taskDoc) => {
   const task = taskDoc.data();
   if (!task) return null;
@@ -101,7 +106,7 @@ async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType
       timestamp: Timestamp.now(),
     });
   } catch (err) {
-    console.error('[FEED] Error escribiendo evento:', err.message);
+    console.error('[FEED] Error writing event:', err.message);
   }
 }
 
@@ -143,7 +148,7 @@ async function sendPushToFincaRoles(fincaId, roles, { title, body, url }) {
       }
     }
   } catch (err) {
-    console.error('[PUSH] Error enviando push a roles:', err.message);
+    console.error('[PUSH] Error sending push to roles:', err.message);
   }
 }
 
@@ -166,15 +171,15 @@ async function sendWhatsAppToFincaRoles(fincaId, roles, mensaje) {
         const to = `whatsapp:${phone.replace(/\s+/g, '')}`;
         await client.messages.create({ body: mensaje, from, to });
       } catch (err) {
-        console.error(`[WHATSAPP] Error enviando a ${phone}:`, err.message);
+        console.error(`[WHATSAPP] Error sending to ${phone}:`, err.message);
       }
     }
   } catch (err) {
-    console.error('[WHATSAPP] Error enviando WhatsApp a roles:', err.message);
+    console.error('[WHATSAPP] Error sending WhatsApp to roles:', err.message);
   }
 }
 
-// --- AUTOPILOT: ejecutar acción aprobada ---
+// --- AUTOPILOT: execute approved action ---
 async function executeAutopilotAction(type, params, fincaId, options = {}) {
   switch (type) {
     case 'crear_tarea': {
@@ -252,10 +257,10 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
       let phone = telefono;
       if (!phone) {
         const userDoc = await db.collection('users').doc(userId).get();
-        if (!userDoc.exists) throw new Error('Usuario no encontrado.');
+        if (!userDoc.exists) throw new Error('User not found.');
         phone = userDoc.data().telefono;
       }
-      if (!phone) throw new Error('El usuario no tiene teléfono registrado.');
+      if (!phone) throw new Error('User has no phone number on file.');
       const client = getTwilioClient();
       const to = `whatsapp:${phone.replace(/\s+/g, '')}`;
       const from = `whatsapp:${twilioWhatsappFrom.value()}`;
@@ -264,11 +269,11 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
     }
 
     default:
-      throw new Error(`Tipo de acción desconocido: ${type}`);
+      throw new Error(`Unknown action type: ${type}`);
   }
 }
 
-// --- AUTOPILOT: validación de barandillas de seguridad (Nivel 3) ---
+// --- AUTOPILOT: safety guardrails validation (Level 3) ---
 function validateGuardrails(actionType, params, guardrails, sessionExecutedCount) {
   const violations = [];
 
@@ -304,7 +309,7 @@ function validateGuardrails(actionType, params, guardrails, sessionExecutedCount
   return { allowed: violations.length === 0, violations };
 }
 
-// --- NOTIFICACIÓN CON ENLACE (WhatsApp con link a la tarea) ---
+// --- NOTIFICATION WITH LINK (WhatsApp message linking to the task) ---
 const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
   try {
     const client = getTwilioClient();
@@ -331,10 +336,10 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
 
     await client.messages.create({ body, from, to });
     await taskRef.update({ status: 'notified' });
-    console.log(`Notificación con ENLACE enviada para tarea ${taskRef.id} a ${cleanPhoneNumber}`);
+    console.log(`Notification with LINK sent for task ${taskRef.id} to ${cleanPhoneNumber}`);
 
   } catch (error) {
-    console.error(`[ERROR] Fallo al enviar notificación con enlace para ${taskRef.id}:`, error);
+    console.error(`[ERROR] Failed to send notification with link for ${taskRef.id}:`, error);
   }
 };
 

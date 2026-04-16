@@ -2,8 +2,8 @@ const twilio = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
 const { twilioAccountSid, twilioAuthToken } = require('./firebase');
 
-// Los clientes externos se inicializan "perezosamente" (lazy) para evitar
-// errores de despliegue cuando los secretos aún no están disponibles.
+// External clients are initialized lazily to avoid deployment errors when
+// secrets are not yet available at module-load time.
 let twilioClient;
 let anthropicClient;
 

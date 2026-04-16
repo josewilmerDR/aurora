@@ -10,7 +10,7 @@ import {
   FiCpu,
 } from 'react-icons/fi';
 
-// Mapa de iconos para bodegas genéricas (clave string → componente)
+// Icon map for generic bodegas (string key → React component)
 const BODEGA_ICON_MAP = { FiBox, FiTool, FiTruck, FiDroplet, FiPackage };
 const getBodegaIcon = (key) => BODEGA_ICON_MAP[key] || FiBox;
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
@@ -188,7 +188,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     return () => window.removeEventListener('aurora-draft-change', handler);
   }, []);
 
-  // Soporta draftKey como string o array de strings
+  // Supports draftKey as a string or an array of strings
   const checkDraft = (key) =>
     Array.isArray(key) ? key.some(k => activeDrafts.has(k)) : activeDrafts.has(key);
 
@@ -341,7 +341,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     );
   };
 
-  // ── Favoritos tab ────────────────────────────────────────────────────────
+  // ── "Favoritos" (favorites) tab ──────────────────────────────────────────
   const FavoritosTab = () => {
     const pinnedItems = pinnedRoutes.map(itemFor).filter(Boolean).filter(canAccess);
     const recentItems = recentRoutes.map(itemFor).filter(Boolean).filter(canAccess)
@@ -382,7 +382,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     );
   };
 
-  // ── Todas las funciones tab ──────────────────────────────────────────────
+  // ── "All functions" tab ──────────────────────────────────────────────────
   const TodasTab = () => (
     <div className="tab-content">
       {canAccess(DASHBOARD_ITEM) && (
@@ -426,7 +426,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
                     ? <GroupItem key={item.label} item={item} />
                     : <NavItem key={item.to} item={item} showPinBtn />
                 )}
-                {/* Bodegas genéricas dinámicas (solo en módulo bodega) */}
+                {/* Dynamic generic bodegas (only in the bodega module) */}
                 {mod.id === 'bodega' && genericBodegas.map((b) => {
                   const Icon = getBodegaIcon(b.icono);
                   const syntheticItem = { label: b.nombre, to: `/bodega/${b.id}`, icon: Icon, minRole: 'encargado' };
