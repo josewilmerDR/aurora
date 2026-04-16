@@ -100,8 +100,8 @@ export default function CierreCombustible() {
   const [bodegas,  setBodegas]  = useState([]);
   const [bodegaId, setBodegaId] = useState(() => localStorage.getItem('aurora_fuel_bodegaId') || '');
 
-  // Preview / ejecución
-  const [preview,   setPreview]   = useState(null);   // resultado del preview
+  // Preview / execution
+  const [preview,   setPreview]   = useState(null);   // preview result
   const [loading,   setLoading]   = useState(false);
   const [executing, setExecuting] = useState(false);
   const [confirm,   setConfirm]   = useState(false);
@@ -147,7 +147,7 @@ export default function CierreCombustible() {
       const data = await res.json();
       if (!res.ok) { showToast(data.message || 'Error al calcular la vista previa.', 'error'); return; }
       setPreview(data);
-      // Expandir la primera máquina por defecto
+      // Expand the first machine by default
       if (data.maquinas?.length) setExpanded({ [data.maquinas[0].maquinaId]: true });
     } catch {
       showToast('Error de conexión.', 'error');
