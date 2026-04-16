@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './Horimetro.css';
 
-// ── Combobox genérico ────────────────────────────────────────────────────────
+// ── Generic combobox ─────────────────────────────────────────────────────────
 function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
   const getLabel = useCallback(
     (item) => labelFn ? labelFn(item) : (item?.[labelKey] || ''),
@@ -140,8 +140,8 @@ const toLocalISODate = (d) => {
 };
 const todayISO = () => toLocalISODate(new Date());
 
-// Validación estricta: rechaza fechas inexistentes como "2026-02-30"
-// (que `new Date()` normalizaría silenciosamente a otra fecha real).
+// Strict validation: rejects non-existent dates like "2026-02-30"
+// (which `new Date()` would silently normalize to another real date).
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isValidISODate = (s) => {
   if (typeof s !== 'string' || !FECHA_RE.test(s)) return false;
@@ -154,8 +154,8 @@ const isValidISODate = (s) => {
   );
 };
 
-const CANTIDAD_MAX = 16384;   // exclusivo
-const NOTA_MAX     = 288;     // exclusivo (máx. 287 caracteres)
+const CANTIDAD_MAX = 16384;   // exclusive
+const NOTA_MAX     = 288;     // exclusive (max 287 characters)
 
 const makeEmptyForm = () => ({
   fecha: todayISO(),
@@ -322,7 +322,7 @@ export default function CosechaRegistro() {
   };
 
   const validateForm = () => {
-    // fecha — requerida, existente, no posterior al día actual
+    // fecha — required, existing, not after the current day
     if (!form.fecha) return 'La fecha es requerida.';
     if (!isValidISODate(form.fecha)) return 'Fecha inválida.';
     if (form.fecha > todayISO()) {
@@ -339,7 +339,7 @@ export default function CosechaRegistro() {
     if ((form.nota || '').length >= NOTA_MAX) {
       return `La nota no puede superar ${NOTA_MAX - 1} caracteres.`;
     }
-    // longitudes de los demás campos (defensa frente a valores manipulados)
+    // lengths of other fields (defense against tampered values)
     if ((form.grupo || '').length > 128)            return 'El grupo es demasiado largo.';
     if ((form.bloque || '').length > 64)            return 'El bloque es demasiado largo.';
     if ((form.unidad || '').length > 64)            return 'La unidad es demasiado larga.';
@@ -358,8 +358,8 @@ export default function CosechaRegistro() {
     }
     setSaving(true);
     try {
-      // Payload explícito: sólo los campos que el backend persiste
-      // (evita enviar estado local como `unidadId` que el backend descarta).
+      // Explicit payload: only fields the backend persists
+      // (avoids sending local state like `unidadId` which the backend discards).
       const payload = {
         fecha: form.fecha,
         loteId: form.loteId,

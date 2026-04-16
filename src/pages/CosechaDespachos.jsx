@@ -8,7 +8,7 @@ import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
 import './CosechaDespachos.css';
 
-// ── Combobox genérico ─────────────────────────────────────────────────────────
+// ── Generic combobox ─────────────────────────────────────────────────────────
 function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
   const getLabel = useCallback(
     (item) => labelFn ? labelFn(item) : (item?.[labelKey] || ''),
@@ -211,7 +211,7 @@ function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
   );
 }
 
-// ── Constantes de validación ─────────────────────────────────────────────────
+// ── Validation constants ─────────────────────────────────────────────────────
 const MAX_OPERARIO   = 48;
 const MAX_PLACA      = 12;
 const MAX_NOTA       = 288;

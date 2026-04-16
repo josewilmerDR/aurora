@@ -112,7 +112,7 @@ function SortTh({ col, children, visibleCols, sortField, sortDir, colFilters, on
   );
 }
 
-// ── Nota cell with "ver más / ver menos" ─────────────────────────────────────
+// ── Nota cell with "show more / show less" ──────────────────────────────────
 function NotaCell({ text }) {
   const [expanded, setExpanded] = useState(false);
   const [clamped, setClamped]   = useState(false);
@@ -253,7 +253,7 @@ export default function CosechaHistorial() {
 
   useEffect(() => { fetchRegistros(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Actualización inline de "recibido en planta" ──────────────────────────
+  // ── Inline update of "recibido en planta" ─────────────────────────────────
   const handleRecibido = async (reg, rawVal) => {
     const parsed = rawVal !== '' ? parseFloat(rawVal) : null;
     const cantidadRecibidaPlanta = parsed != null && !isNaN(parsed) ? parsed : null;
