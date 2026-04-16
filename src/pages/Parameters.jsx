@@ -43,7 +43,7 @@ function fromApi(data) {
   return Object.fromEntries(ALL_PARAMS.map(p => [p.key, data[p.key] ?? p.default]));
 }
 
-// ── Modal de desbloqueo ───────────────────────────────────────────────────────
+// ── Unlock confirmation modal ─────────────────────────────────────────────────
 function UnlockModal({ onConfirm, onCancel }) {
   const [checked, setChecked] = useState(false);
   return createPortal(
@@ -74,7 +74,7 @@ function UnlockModal({ onConfirm, onCancel }) {
   );
 }
 
-// ── Modal de confirmación de guardado ─────────────────────────────────────────
+// ── Save confirmation modal ──────────────────────────────────────────────────
 function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
   const changes = ALL_PARAMS.filter(p => Number(saved[p.key]) !== Number(draft[p.key]));
   return createPortal(
@@ -117,7 +117,7 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
   );
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
+// ── Main page ────────────────────────────────────────────────────────────────
 function Parameters() {
   const apiFetch = useApiFetch();
   const [saved,       setSaved]       = useState(DEFAULTS);
@@ -171,13 +171,13 @@ function Parameters() {
       {modal === 'unlock' && <UnlockModal onConfirm={handleUnlockConfirm} onCancel={() => setModal(null)} />}
       {modal === 'save'   && <SaveModal saved={saved} draft={draft} loading={loading} onConfirm={handleSaveConfirm} onCancel={() => setModal(null)} />}
 
-      {/* ── Izquierda: KPI ── */}
+      {/* ── Left panel: KPI ── */}
       <div className="form-card param-kpi-card">
         <p className="form-section-title">KPI</p>
         <p className="param-kpi-placeholder">Próximamente — indicadores clave de rendimiento.</p>
       </div>
 
-      {/* ── Derecha: Parámetros ── */}
+      {/* ── Right panel: Parameters ── */}
       <div className="form-card param-list-card">
 
         <div className="param-list-header">
