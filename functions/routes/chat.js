@@ -6,7 +6,7 @@ const { getAnthropicClient } = require('../lib/clients');
 
 const router = Router();
 
-// Tool: escanea imagen de siembra y extrae filas estructuradas
+// Tool: scan a sowing form image and extract structured rows
 async function chatToolEscanarSiembra(imageBase64, mediaType, fincaId) {
   const [lotesSnap, matsSnap] = await Promise.all([
     db.collection('lotes').where('fincaId', '==', fincaId).get(),
@@ -75,16 +75,16 @@ Reglas:
   return { filas, lotes, materiales };
 }
 
-// Tool: registra filas de siembra en Firestore
+// Tool: persist sowing rows to Firestore
 async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, responsableNombre, fincaId) {
   const today = new Date().toISOString().slice(0, 10);
   const fechaFinal = fecha || today;
   const results = [];
-  const omitidas = [];
+  const skipped = [];
 
   for (const fila of filas) {
     if (!fila.loteId || !fila.plantas || !fila.densidad) {
-      omitidas.push(fila.loteNombre || '(sin lote)');
+      skipped.push(fila.loteNombre || '(sin lote)');
       continue;
     }
     const plantas_ = parseInt(fila.plantas) || 0;
@@ -112,14 +112,14 @@ async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, respon
     results.push({ id: ref.id, loteNombre: fila.loteNombre, bloque: fila.bloque, plantas: plantas_, areaCalculada });
   }
 
-  return { registrados: results.length, detalles: results, omitidas };
+  return { registrados: results.length, detalles: results, skipped };
 }
 
-// Tool: consulta genérica de Firestore para reportes y análisis
+// Tool: generic Firestore query for reports and analysis
 async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }, fincaId) {
-  const coleccionesPermitidas = ['lotes', 'siembras', 'grupos', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
-  if (!coleccionesPermitidas.includes(coleccion)) {
-    return { error: `Colección no permitida. Usa una de: ${coleccionesPermitidas.join(', ')}` };
+  const allowedCollections = ['lotes', 'siembras', 'grupos', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
+  if (!allowedCollections.includes(coleccion)) {
+    return { error: `Colección no permitida. Usa una de: ${allowedCollections.join(', ')}` };
   }
 
   let query = db.collection(coleccion).where('fincaId', '==', fincaId);
@@ -132,8 +132,8 @@ async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, lim
     query = query.orderBy(ordenarPor.campo, ordenarPor.direccion || 'asc');
   }
 
-  const limiteSeguro = Math.min(parseInt(limite) || 20, 200);
-  query = query.limit(limiteSeguro);
+  const safeLimit = Math.min(parseInt(limite) || 20, 200);
+  query = query.limit(safeLimit);
 
   const snap = await query.get();
 
@@ -164,7 +164,7 @@ async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, lim
   return { coleccion, total: docs.length, datos: docs };
 }
 
-// Tool: crea un nuevo lote con sus tareas programadas
+// Tool: create a new lote with its scheduled tasks
 async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas }, fincaId) {
   const loteData = {
     codigoLote,
@@ -224,7 +224,7 @@ async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paquet
   };
 }
 
-// Tool: consulta registros de siembra existentes
+// Tool: query existing siembra records
 async function chatToolConsultarSiembras({ loteId, limite = 10 }, fincaId) {
   let query = db.collection('siembras')
     .where('fincaId', '==', fincaId)
@@ -241,7 +241,7 @@ async function chatToolConsultarSiembras({ loteId, limite = 10 }, fincaId) {
   return { siembras, total: siembras.length };
 }
 
-// Tool: registrar registro de horímetro
+// Tool: register a horímetro entry
 async function chatToolRegistrarHorimetro(input, fincaId) {
   const allowed = [
     'fecha', 'tractorId', 'tractorNombre', 'implemento',
@@ -264,7 +264,7 @@ async function chatToolRegistrarHorimetro(input, fincaId) {
   return { id: ref.id, registrado: true, horas };
 }
 
-// Tool: registrar permiso o ausencia de RR.HH.
+// Tool: register an HR leave/absence
 async function chatToolRegistrarPermiso(input, fincaId) {
   const { trabajadorId, trabajadorNombre, tipo, conGoce, fechaInicio, esParcial,
           horaInicio, horaFin: horaFinInput, fechaFin, motivo } = input;
@@ -273,9 +273,9 @@ async function chatToolRegistrarPermiso(input, fincaId) {
     return { error: 'trabajadorId, tipo y fechaInicio son obligatorios.' };
   }
 
-  const TIPOS_VALIDOS = ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'];
-  if (!TIPOS_VALIDOS.includes(tipo)) {
-    return { error: `Tipo "${tipo}" no válido. Usa: ${TIPOS_VALIDOS.join(', ')}` };
+  const VALID_TYPES = ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'];
+  if (!VALID_TYPES.includes(tipo)) {
+    return { error: `Tipo "${tipo}" no válido. Usa: ${VALID_TYPES.join(', ')}` };
   }
 
   // Verify trabajador belongs to finca
@@ -290,7 +290,7 @@ async function chatToolRegistrarPermiso(input, fincaId) {
   if (esParcial) {
     if (!horaInicio) return { error: 'horaInicio es obligatoria para permisos parciales.' };
 
-    // Si no se proporcionó horaFin, buscar en el horario semanal del trabajador
+    // If horaFin was not provided, look it up from the worker's weekly schedule
     if (!horaFin) {
       try {
         const fichaDoc = await db.collection('hr_fichas').doc(trabajadorId).get();
@@ -303,7 +303,7 @@ async function chatToolRegistrarPermiso(input, fincaId) {
             horaFin = diaHorario.fin;
           }
         }
-      } catch { /* ignorar */ }
+      } catch { /* ignore */ }
     }
 
     if (horaInicio && horaFin) {
@@ -416,7 +416,7 @@ router.post('/api/chat', authenticate, async (req, res) => {
 
     const anthropicClient = getAnthropicClient();
 
-    // Cargar catálogos para que Claude pueda resolver nombres a IDs
+    // Load catalogs so Claude can resolve names to IDs
     const [lotesSnap, matsSnap, paquetesSnap, gruposSnap, siembrasSnap, maquinariaSnap, usersSnap, laboresSnap, productosSnap] = await Promise.all([
       db.collection('lotes').where('fincaId', '==', req.fincaId).get(),
       db.collection('materiales_siembra').where('fincaId', '==', req.fincaId).get(),
@@ -457,7 +457,7 @@ router.post('/api/chat', authenticate, async (req, res) => {
       ? catalogoPaquetes.map(p => `  - ID: "${p.id}" | Nombre: "${p.nombre}"${p.tipo ? ` | Tipo: "${p.tipo}"` : ''}${p.etapa ? ` | Etapa: "${p.etapa}"` : ''}`).join('\n')
       : '  (sin paquetes registrados)';
 
-    // Construir mapa siembraId -> {loteNombre, bloque} para enriquecer grupos
+    // Build siembraId → {loteNombre, bloque} map to enrich grupos
     const siembraMap = {};
     siembrasSnap.docs.forEach(d => {
       siembraMap[d.id] = { loteNombre: d.data().loteNombre || '', bloque: d.data().bloque || '' };
@@ -465,7 +465,7 @@ router.post('/api/chat', authenticate, async (req, res) => {
     const catalogoGrupos = gruposSnap.docs.map(d => {
       const g = d.data();
       const bloques = Array.isArray(g.bloques) ? g.bloques : [];
-      // Resolver lotes únicos que conforman este grupo
+      // Resolve unique lotes that make up this grupo
       const lotesEnGrupo = [...new Set(bloques.map(sid => siembraMap[sid]?.loteNombre).filter(Boolean))];
       const bloquesDetalle = bloques.map(sid => {
         const s = siembraMap[sid];
@@ -491,7 +491,7 @@ router.post('/api/chat', authenticate, async (req, res) => {
         ).join('\n')
       : '  (sin grupos registrados)';
 
-    // Catálogos de maquinaria, usuarios y labores para horímetro
+    // Maquinaria, users, and labores catalogs for horímetro
     const catalogoMaquinaria = maquinariaSnap.docs.map(d => ({
       id: d.id, idMaquina: d.data().idMaquina || '', codigo: d.data().codigo || '',
       descripcion: d.data().descripcion || '', tipo: d.data().tipo || '',
@@ -530,7 +530,7 @@ router.post('/api/chat', authenticate, async (req, res) => {
         ).join('\n')
       : '  (sin productos registrados)';
 
-    // Fecha y hora del cliente (con zona horaria local del usuario)
+    // Client date and time (using the user's local timezone)
     const userNow = clientTime ? new Date(clientTime) : new Date();
     const tz = clientTzName || 'America/Costa_Rica';
     const userDateTimeStr = userNow.toLocaleString('es-CR', {
@@ -1029,32 +1029,32 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
       },
     ];
 
-    // Construir historial de conversación
+    // Build conversation history
     const messages = [];
     if (Array.isArray(history) && history.length > 0) {
       for (const h of history) {
         if (h.role !== 'user' && h.role !== 'assistant') continue;
         if (!h.text) continue;
-        // Asegurar alternancia: si el último rol es igual al entrante, fusionar
+        // Ensure alternation: if last role equals incoming, skip duplicate
         const last = messages[messages.length - 1];
         if (last && last.role === h.role) continue;
         messages.push({ role: h.role, content: [{ type: 'text', text: h.text }] });
       }
     }
 
-    // Construir mensaje actual del usuario
+    // Build current user message
     const userContent = [];
     if (imageBase64 && mediaType) {
       userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } });
     }
     userContent.push({ type: 'text', text: message || 'Ayúdame con esta información.' });
 
-    // Anthropic exige que el primer mensaje sea de rol 'user'
+    // Anthropic requires the first message to have role 'user'
     if (messages.length > 0 && messages[0].role !== 'user') messages.shift();
 
     messages.push({ role: 'user', content: userContent });
 
-    // Loop agéntico: máximo 6 iteraciones para evitar loops infinitos
+    // Agentic loop: max 6 iterations to prevent infinite loops
     let horimetroDraft = null;
     let planillaDraft = null;
     let iterations = 0;
@@ -1069,7 +1069,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         messages,
       });
 
-      // Si Claude terminó, devolver respuesta
+      // If Claude finished, return the response
       if (response.stop_reason === 'end_turn') {
         const text = response.content
           .filter(b => b.type === 'text')
@@ -1081,13 +1081,13 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         return res.json(responsePayload);
       }
 
-      // Si no hay tool_use, salir
+      // If no tool_use, exit
       if (response.stop_reason !== 'tool_use') {
         const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
         return res.json({ reply: text || 'No pude procesar la solicitud.' });
       }
 
-      // Ejecutar herramientas
+      // Execute tools
       messages.push({ role: 'assistant', content: response.content });
 
       const toolResults = [];
@@ -1114,8 +1114,8 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             result = await chatToolRegistrarHorimetro(block.input, req.fincaId);
           } else if (block.name === 'editar_producto') {
             const { productoId, campo, nuevoValor } = block.input;
-            const CAMPOS_EDITABLES = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo', 'plagaQueControla', 'cantidadPorHa', 'unidad', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'moneda', 'tipoCambio', 'proveedor'];
-            if (!CAMPOS_EDITABLES.includes(campo)) {
+            const EDITABLE_FIELDS = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo', 'plagaQueControla', 'cantidadPorHa', 'unidad', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'moneda', 'tipoCambio', 'proveedor'];
+            if (!EDITABLE_FIELDS.includes(campo)) {
               result = { error: `Campo "${campo}" no permitido. Para ajustar el stock usa ajustar_stock.` };
             } else {
               const ownership = await verifyOwnership('productos', productoId, req.fincaId);
@@ -1198,8 +1198,8 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
             if (!rMsg?.trim() || !rAt) {
               result = { error: 'Se requieren message y remindAt.' };
             } else {
-              // Si Claude devuelve hora local sin offset (ej: "2026-03-17T08:40:00"),
-              // el servidor UTC lo interpretaría como UTC. Corregimos usando el offset del cliente.
+              // If Claude returns a local time without offset (e.g. "2026-03-17T08:40:00"),
+              // the UTC server would interpret it as UTC. Correct using the client's offset.
               const remindDate = /Z$|[+-]\d{2}:\d{2}$/.test(rAt)
                 ? new Date(rAt)
                 : new Date(new Date(rAt + 'Z').getTime() + (Number(clientTzOffset) || 0) * 60 * 1000);
