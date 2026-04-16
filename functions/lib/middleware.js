@@ -1,13 +1,13 @@
 const { admin, db } = require('./firebase');
+const { sendApiError, ERROR_CODES } = require('./errors');
 
-// --- MIDDLEWARE DE AUTENTICACIÓN ---
-// Verifica el Firebase ID Token y la membresía del usuario en la finca indicada.
+// Verifies the Firebase ID Token and the user's membership in the requested finca.
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   const fincaId = req.headers['x-finca-id'];
 
   if (!authHeader?.startsWith('Bearer ') || !fincaId) {
-    return res.status(401).json({ message: 'No autorizado.' });
+    return sendApiError(res, ERROR_CODES.UNAUTHORIZED, 'Missing auth token or finca header.', 401);
   }
 
   try {
@@ -15,7 +15,6 @@ const authenticate = async (req, res, next) => {
     const decoded = await admin.auth().verifyIdToken(token);
     const uid = decoded.uid;
 
-    // Verificar membresía en la finca solicitada
     const membershipSnap = await db.collection('memberships')
       .where('uid', '==', uid)
       .where('fincaId', '==', fincaId)
@@ -23,7 +22,7 @@ const authenticate = async (req, res, next) => {
       .get();
 
     if (membershipSnap.empty) {
-      return res.status(403).json({ message: 'No tienes acceso a esta organización.' });
+      return sendApiError(res, ERROR_CODES.NO_FINCA_ACCESS, 'User is not a member of the requested finca.', 403);
     }
 
     req.uid = uid;
@@ -32,16 +31,16 @@ const authenticate = async (req, res, next) => {
     req.userRole = membershipSnap.docs[0].data().rol;
     next();
   } catch (error) {
-    console.error('[AUTH] Token inválido:', error.message);
-    return res.status(401).json({ message: 'Sesión inválida. Inicia sesión de nuevo.' });
+    console.error('[AUTH] Invalid token:', error.message);
+    return sendApiError(res, ERROR_CODES.INVALID_SESSION, 'Invalid session token.', 401);
   }
 };
 
-// Middleware solo de token (sin verificar finca) — para endpoints de auth
+// Token-only middleware (does not verify finca membership) — used by auth endpoints.
 const authenticateOnly = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No autorizado.' });
+    return sendApiError(res, ERROR_CODES.UNAUTHORIZED, 'Missing auth token.', 401);
   }
   try {
     const token = authHeader.split('Bearer ')[1];
@@ -50,7 +49,7 @@ const authenticateOnly = async (req, res, next) => {
     req.userEmail = decoded.email;
     next();
   } catch {
-    return res.status(401).json({ message: 'Sesión inválida.' });
+    return sendApiError(res, ERROR_CODES.INVALID_SESSION, 'Invalid session token.', 401);
   }
 };
 

@@ -35,16 +35,16 @@ const UserContext = createContext(null);
 const ACTIVE_FINCA_KEY = 'aurora_active_finca';
 
 export function UserProvider({ children }) {
-  // firebaseUser: usuario de Firebase Auth (o null)
-  const [firebaseUser, setFirebaseUser] = useState(undefined); // undefined = cargando
-  // memberships: lista de fincas a las que pertenece el usuario
+  // firebaseUser: Firebase Auth user (or null)
+  const [firebaseUser, setFirebaseUser] = useState(undefined); // undefined = loading
+  // memberships: list of fincas the user belongs to
   const [memberships, setMemberships] = useState([]);
-  // activeFincaId: finca seleccionada actualmente
+  // activeFincaId: currently selected finca
   const [activeFincaId, setActiveFincaId] = useState(() => localStorage.getItem(ACTIVE_FINCA_KEY));
-  // currentUser: perfil del usuario en la finca activa { nombre, rol, telefono, ... }
+  // currentUser: user profile in the active finca { nombre, rol, telefono, ... }
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Escucha cambios de sesión de Firebase Auth
+  // Listen to Firebase Auth session changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (!fbUser) {
@@ -55,8 +55,8 @@ export function UserProvider({ children }) {
         localStorage.removeItem(ACTIVE_FINCA_KEY);
         return;
       }
-      // Cargar membresías ANTES de setear firebaseUser para evitar un render
-      // intermedio donde memberships=[] y needsSetup=true causa redirect a /register
+      // Load memberships BEFORE setting firebaseUser to avoid an intermediate render
+      // where memberships=[] and needsSetup=true would redirect to /register
       let membershipsData = [];
       try {
         const res = await apiFetch('/api/auth/memberships');
@@ -64,16 +64,16 @@ export function UserProvider({ children }) {
           const data = await res.json();
           membershipsData = data.memberships || [];
         }
-      } catch { /* dejar membershipsData vacío */ }
+      } catch { /* leave membershipsData empty */ }
 
-      // Reclamar invitaciones por email siempre — independiente de si GET /memberships tuvo éxito.
-      // Cubre primer login (sin membresías por UID) y usuarios agregados a otra org por un admin.
+      // Always claim email invitations — regardless of whether GET /memberships succeeded.
+      // Covers first login (no memberships by UID) and users added to another org by an admin.
       try {
         const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
         if (claimRes.ok) {
           const claimData = await claimRes.json();
           const claimed = claimData.memberships || [];
-          // Agregar solo las membresías que aún no están en la lista (evitar duplicados)
+          // Append only memberships not already in the list (dedupe)
           const newOnes = claimed.filter(cm => !membershipsData.some(m => m.fincaId === cm.fincaId));
           if (newOnes.length > 0) membershipsData = [...membershipsData, ...newOnes];
         }
@@ -81,9 +81,9 @@ export function UserProvider({ children }) {
 
       setMemberships(membershipsData);
 
-      // Si hay una finca activa guardada, cargar el perfil ANTES de revelar el usuario
-      // autenticado. Así cuando isLoading pase a false, currentUser ya está listo
-      // y ProtectedRoute nunca redirige a /login innecesariamente.
+      // If a stored active finca exists, load the profile BEFORE revealing the
+      // authenticated user. This way, when isLoading flips to false, currentUser
+      // is already ready and ProtectedRoute never redirects to /login unnecessarily.
       const storedFincaId = localStorage.getItem(ACTIVE_FINCA_KEY);
       if (storedFincaId) {
         try {
@@ -94,14 +94,14 @@ export function UserProvider({ children }) {
         }
       }
 
-      // Setear firebaseUser al final: isLoading queda true hasta aquí,
-      // evitando que ProtectedRoute tome decisiones con estado incompleto
+      // Set firebaseUser last: isLoading stays true until this point,
+      // preventing ProtectedRoute from deciding on incomplete state.
       setFirebaseUser(fbUser);
     });
     return unsubscribe;
   }, []);
 
-  // Cuando el usuario cambia de finca manualmente, recargar su perfil
+  // When the user switches finca manually, reload their profile
   useEffect(() => {
     if (!firebaseUser || !activeFincaId) {
       setCurrentUser(null);
@@ -132,7 +132,7 @@ export function UserProvider({ children }) {
     localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
   }, []);
 
-  // Recarga el perfil del usuario en la finca activa (útil tras editar el propio usuario)
+  // Reloads the user's profile on the active finca (useful after editing the user themselves)
   const refreshCurrentUser = useCallback(async () => {
     if (!firebaseUser || !activeFincaId) return;
     try {
@@ -141,7 +141,7 @@ export function UserProvider({ children }) {
     } catch { /* silently fail */ }
   }, [firebaseUser, activeFincaId]);
 
-  // Recarga las membresías desde la API (útil después de crear una nueva finca)
+  // Reloads memberships from the API (useful after creating a new finca)
   const refreshMemberships = useCallback(async () => {
     if (!auth.currentUser) return;
     try {

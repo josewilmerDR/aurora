@@ -344,18 +344,18 @@
   }
 
   .aurora-chat-fab {
-    bottom: calc(62px + 14px); /* encima de la barra de navegación inferior */
+    bottom: calc(62px + 14px); /* above the bottom nav bar */
     right: 16px;
   }
 
-  /* En mobile con el panel abierto el FAB se oculta:
-     el encabezado del panel ya tiene su propio botón de cierre. */
+  /* On mobile, when the panel is open, the FAB is hidden:
+     the panel header already has its own close button. */
   .aurora-chat-fab-open {
     display: none;
   }
 }
 
-/* ── Tarjeta de previsualización de horímetro ────────────────────────────────── */
+/* ── Horímetro preview card ──────────────────────────────────────────────────── */
 .aurora-draft-card {
   margin-top: 10px;
   background: var(--aurora-background);

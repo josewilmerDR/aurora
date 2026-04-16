@@ -69,10 +69,10 @@ export default function AuroraChat() {
 
   const speechSupported = !!SpeechRecognition;
 
-  // Mantener openRef sincronizado para accederlo dentro de efectos asíncronos
+  // Keep openRef in sync so async effects can read it
   useEffect(() => { openRef.current = open; }, [open]);
 
-  // Cerrar al hacer clic fuera del panel y del FAB (solo si no está fijado)
+  // Close on click outside panel and FAB (only when not pinned)
   useEffect(() => {
     if (!open || pinned) return;
     const handler = (e) => {
@@ -98,7 +98,7 @@ export default function AuroraChat() {
     return () => recognitionRef.current?.abort();
   }, []);
 
-  // Verificar recordatorios vencidos cuando el usuario Y la finca están disponibles
+  // Check for due reminders once both user AND finca are available
   useEffect(() => {
     if (!currentUser?.uid || !activeFincaId) return;
     let cancelled = false;
@@ -110,23 +110,23 @@ export default function AuroraChat() {
         if (!due.length) return;
         if (cancelled) return;
         if (openRef.current) {
-          // El chat ya está abierto: inyectar directo
+          // Chat is already open: inject directly
           setMessages(prev => [...prev, ...due.map(r => ({ role: 'reminder', text: r.message, remindAt: r.remindAt }))]);
         } else {
-          // El chat está cerrado: mostrar badge y guardar para inyectar al abrir
+          // Chat is closed: show badge and queue reminders to inject on open
           setReminderBadge(prev => prev + due.length);
           pendingRemindersRef.current = [...pendingRemindersRef.current, ...due];
         }
       }).catch(() => {});
     };
 
-    checkDue(); // verificar al montar
-    const interval = setInterval(checkDue, 60_000); // verificar cada minuto
+    checkDue(); // check on mount
+    const interval = setInterval(checkDue, 60_000); // check every minute
     return () => { cancelled = true; clearInterval(interval); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid, activeFincaId]);
 
-  // Inyectar recordatorios vencidos como mensajes especiales al abrir el chat
+  // Inject due reminders as special messages when the chat opens
   useEffect(() => {
     if (!open) return;
     const due = pendingRemindersRef.current;
@@ -169,7 +169,7 @@ export default function AuroraChat() {
     setThinking(true);
 
     try {
-      // Enviar los últimos 20 mensajes como historial (excluye el saludo inicial)
+      // Send the last 20 messages as history (excludes the initial greeting)
       const history = messages
         .slice(1)
         .slice(-20)
@@ -183,7 +183,7 @@ export default function AuroraChat() {
         userName: currentUser?.nombre || '',
         clientTime: now.toISOString(),
         clientTzName: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        clientTzOffset: now.getTimezoneOffset(), // minutos: positivo = atrás de UTC (ej: UTC-6 → 360)
+        clientTzOffset: now.getTimezoneOffset(), // minutes: positive = behind UTC (e.g. UTC-6 → 360)
       };
       if (sentImage) {
         body.imageBase64 = sentImage.base64;
@@ -262,7 +262,7 @@ export default function AuroraChat() {
           interim += result[0].transcript;
         }
       }
-      // Mostrar texto en el input mientras habla
+      // Show transcribed text in the input as the user speaks
       setInput(finalTranscript || interim);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -272,7 +272,7 @@ export default function AuroraChat() {
 
     recognition.onend = () => {
       setRecording(false);
-      // Si hay transcripción final, enviar automáticamente
+      // If a final transcript is available, send automatically
       if (finalTranscript.trim()) {
         handleSend(finalTranscript.trim());
       }

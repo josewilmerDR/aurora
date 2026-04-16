@@ -74,12 +74,12 @@ import { MODULES, ALL_ITEMS } from './components/Sidebar';
 import './index.css';
 import './App.css';
 
-// Mapeo de rutas → minRole derivado de MODULES (para restricción de rutas)
+// Route → minRole mapping derived from MODULES (used for route-level access control).
 const ROUTE_MIN_ROLE = {
   ...Object.fromEntries(
     ALL_ITEMS.filter(item => item.to).map(item => [item.to, item.minRole || 'trabajador'])
   ),
-  // Sub-rutas no listadas directamente en MODULES
+  // Sub-routes not listed directly in MODULES
   '/productos/todos': 'encargado',
   '/bodega/agroquimicos/existencias': 'encargado',
   '/bodega/agroquimicos/recepcion': 'encargado',
@@ -94,7 +94,7 @@ const ROUTE_MIN_ROLE = {
   '/monitoreo/muestreos': 'encargado',
 };
 
-// Mapeo de rutas a títulos
+// Route → human-readable title mapping (displayed in the app header).
 const routeTitles = {
   '/': 'Panel de Control',
   '/users': 'Gestión de Usuarios',
@@ -153,7 +153,7 @@ const ProtectedRoute = ({ children }) => {
   const { isLoggedIn, isLoading, needsOrgSelection, firebaseUser, activeFincaId, currentUser } = useUser();
   const location = useLocation();
   if (isLoading) return <div className="app-loading" />;
-  // Finca seleccionada pero perfil aún cargando: spinner en vez de redirigir a /login
+  // Finca selected but profile still loading: show spinner instead of redirecting to /login
   if (firebaseUser && activeFincaId && !currentUser) return <div className="app-loading" />;
   if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   if (needsOrgSelection) return <OrgSelector />;
@@ -191,7 +191,7 @@ const MainLayout = () => {
 
   const [swUpdateVisible, setSwUpdateVisible] = useState(false);
   useEffect(() => {
-    // Comprueba si onNeedRefresh se disparó antes de que React montara
+    // Check if onNeedRefresh fired before React mounted
     if (window.__swUpdatePending) setSwUpdateVisible(true);
     const handler = () => setSwUpdateVisible(true);
     window.addEventListener('sw-update-available', handler);
@@ -317,7 +317,7 @@ const MainLayout = () => {
           <span className="app-header-name">Aurora</span>
         </NavLink>
 
-        {/* Buscador desktop + móvil expandido */}
+        {/* Desktop search + expanded mobile search */}
         <div className="app-header-search" ref={wrapperRef}>
           <button className="app-header-search-back" onClick={closeMobileSearch} title="Cerrar búsqueda">
             <FiArrowLeft size={18} />
@@ -350,7 +350,7 @@ const MainLayout = () => {
           )}
         </div>
 
-        {/* Lupa móvil (solo visible en mobile con búsqueda cerrada) */}
+        {/* Mobile search toggle (visible only on mobile when search is closed) */}
         <button className="app-header-search-toggle" onClick={openMobileSearch} title="Buscar">
           <FiSearch size={19} />
         </button>
@@ -449,12 +449,12 @@ function App() {
             <Route path="/users" element={<RoleRoute path="/users"><UserManagement /></RoleRoute>} />
             <Route path="/lotes" element={<RoleRoute path="/lotes"><LoteManagement /></RoleRoute>} />
             <Route path="/grupos" element={<RoleRoute path="/grupos"><GrupoManagement /></RoleRoute>} />
-            {/* Rutas canónicas de bodega — patrón /bodega/:bodegaId/:submodulo */}
+            {/* Canonical bodega routes — pattern /bodega/:bodegaId/:submodule */}
             <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><ProductManagement /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><ProductIngreso /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
             <Route path="/bodega/:bodegaId" element={<RoleRoute path="/bodega/agroquimicos/existencias"><BodegaGenerica /></RoleRoute>} />
-            {/* Redirects de rutas legacy → canónicas */}
+            {/* Legacy route redirects → canonical */}
             <Route path="/productos" element={<Navigate to="/bodega/agroquimicos/existencias" replace />} />
             <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
             <Route path="/productos/movimientos" element={<Navigate to="/bodega/agroquimicos/movimientos" replace />} />
@@ -491,7 +491,7 @@ function App() {
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
             <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
-            {/* Piloto Automático */}
+            {/* Autopilot */}
             <Route path="/autopilot" element={<RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute>} />
             <Route path="/autopilot/configuracion" element={<RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute>} />
             {/* administrador */}

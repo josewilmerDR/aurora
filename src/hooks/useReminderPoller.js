@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApiFetch } from './useApiFetch';
 import { useUser } from '../contexts/UserContext';
 
-const POLL_INTERVAL = 60 * 1000; // 60 segundos
+const POLL_INTERVAL = 60 * 1000; // 60 seconds
 
 export function useReminderPoller() {
   const apiFetch = useApiFetch();
@@ -23,7 +23,7 @@ export function useReminderPoller() {
         return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
       });
     } catch {
-      // Falla silenciosamente — no interrumpe al usuario
+      // Fail silently — must not interrupt the user
     }
   }, []);
 

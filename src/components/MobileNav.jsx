@@ -114,7 +114,7 @@ export default function MobileNav() {
     );
   };
 
-  // ── Sheet: Favoritos ──────────────────────────────────────────────────────
+  // ── Sheet: "Favoritos" (favorites) ────────────────────────────────────────
   const FavoritosSheet = () => {
     const pinned = pinnedRoutes.map(itemFor).filter(Boolean).filter(canAccess);
     const recents = recentRoutes.map(itemFor).filter(Boolean).filter(canAccess)
@@ -139,7 +139,7 @@ export default function MobileNav() {
     );
   };
 
-  // ── Sheet: Todas ──────────────────────────────────────────────────────────
+  // ── Sheet: "Todas" (all functions) ────────────────────────────────────────
   const TodasSheet = () => (
     <>
 {MODULES.map((mod) => {

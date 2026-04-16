@@ -10,7 +10,7 @@ export function usePushNotifications() {
   );
   const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // Al montar, verificar si ya hay una suscripción activa
+  // On mount, check if a subscription is already active
   useEffect(() => {
     if (!isLoggedIn || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.ready.then(async (reg) => {
@@ -22,24 +22,24 @@ export function usePushNotifications() {
   const subscribe = useCallback(async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
-    // 1. Pedir permiso
+    // 1. Request permission
     const perm = await Notification.requestPermission();
     setPermission(perm);
     if (perm !== 'granted') return;
 
-    // 2. Obtener la clave pública VAPID del servidor
+    // 2. Fetch the VAPID public key from the server
     const res = await apiFetch('/api/push/vapid-public-key');
     if (!res.ok) return;
     const { publicKey } = await res.json();
 
-    // 3. Crear suscripción en el service worker
+    // 3. Create a subscription in the service worker
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
 
-    // 4. Guardar suscripción en el servidor
+    // 4. Persist the subscription on the server
     await apiFetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,7 +67,7 @@ export function usePushNotifications() {
   return { permission, isSubscribed, subscribe, unsubscribe };
 }
 
-// Convierte la clave pública VAPID (base64url) al formato que espera PushManager
+// Converts the VAPID public key (base64url) to the format expected by PushManager
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
