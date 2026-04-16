@@ -75,7 +75,7 @@ const CEDULA_STATUS_LABEL = {
   aplicada_en_campo:  'Aplicada',
 };
 
-// ── Modal de confirmación ─────────────────────────────────────────────────────
+// Confirmation modal
 function ConfirmModal({ config, onClose }) {
   return createPortal(
     <div className="param-modal-backdrop" onClick={onClose}>
@@ -398,7 +398,7 @@ function CedulasAplicacion() {
   );
 
   // taskId → cedula[] (array, since a task can have multiple split cedulas)
-  // Se excluyen las anuladas para que no bloqueen la regeneración ni se muestren como activas
+  // Exclude voided cedulas so they don't block regeneration or appear as active
   const cedulasByTaskId = useMemo(() => {
     const map = {};
     for (const c of cedulas) {
@@ -425,7 +425,7 @@ function CedulasAplicacion() {
         return true;
       });
     }
-    // Ordenar: cédulas manuales ("adicionales") primero, luego las del sistema.
+    // Sort: manual cedulas ("additional") first, then system ones.
     // Dentro de cada grupo se preserva el orden por dueDate ascendente heredado de aplicacionTasks.
     return [...filtered].sort((a, b) => {
       const am = isManualTask(a) ? 0 : 1;
@@ -460,10 +460,10 @@ function CedulasAplicacion() {
   const previewTecnicoResponsable = previewTask?.isDraft
     ? (previewTask.tecnicoResponsable || previewPkg?.tecnicoResponsable || null)
     : (previewPkg?.tecnicoResponsable || null);
-  // Fuente de productos para la vista previa impresa: si la cédula ya registró
-  // productos aplicados (con posibles sustituciones/ajustes en mezcla-lista),
-  // esos son los que deben salir impresos. Sino, caen al plan de la tarea
-  // (cédulas antiguas o aún en estado "pendiente").
+  // Product source for the print preview: if the cedula already recorded
+  // applied products (with possible substitutions/adjustments in mezcla-lista),
+  // those are the ones that should be printed. Otherwise, fall back to the task plan
+  // (old cedulas or still in "pending" status).
   const previewProductos = (
     (Array.isArray(activeCedula?.productosAplicados) && activeCedula.productosAplicados.length > 0)
       ? activeCedula.productosAplicados
@@ -491,7 +491,7 @@ function CedulasAplicacion() {
     (s, b) => s + (parseFloat(b.areaCalculada) || 0), 0
   );
 
-  // Calibración: desde la actividad de la tarea, con fallback en la actividad actual del paquete
+  // Calibration: from the task's activity, with fallback to the current package activity
   const previewCal = (() => {
     // 1. calibracionId guardado directamente en la actividad de la tarea
     const calId = previewTask?.activity?.calibracionId
@@ -572,8 +572,8 @@ function CedulasAplicacion() {
           ? {
               ...c,
               status: 'en_transito',
-              // Preferir timestamp del servidor (data.mezclaListaAt) por consistencia
-              // con lo que quedó realmente escrito en Firestore; fallback a local.
+              // Prefer server timestamp (data.mezclaListaAt) for consistency
+              // with what was actually written to Firestore; fall back to local.
               mezclaListaAt: data.mezclaListaAt || new Date().toISOString(),
               mezclaListaNombre: data.mezclaListaNombre ?? payload.nombre ?? c.mezclaListaNombre ?? null,
               ...(data.productosAplicados ? { productosAplicados: data.productosAplicados } : {}),
@@ -1439,7 +1439,7 @@ function CedulasAplicacion() {
                   const aplicados  = Array.isArray(ced.productosAplicados)  ? ced.productosAplicados  : [];
                   const hay = ced.huboCambios || ced.observacionesMezcla || ced.observacionesAplicacion;
                   if (!hay) return null;
-                  // Derivar líneas de cambios: sustituciones, ajustes de dosis, productos añadidos y eliminados
+                  // Derive change lines: substitutions, dose adjustments, added and removed products
                   const cambiosLineas = [];
                   if (ced.huboCambios && originales.length > 0) {
                     const origById = {};

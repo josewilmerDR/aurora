@@ -55,8 +55,8 @@ const CAMBIO_BADGE_CLASS = {
   'Otro':            'badge-violet',
 };
 
-// Umbral de caracteres: si el texto es más largo, el botón "ver más" aparece.
-// El alto de fila es 1 línea por defecto (ver CSS), así que a ~480px de ancho
+// Character threshold: if the text is longer, the "see more" button appears.
+// Row height defaults to 1 line (see CSS), so at ~480px wide
 // con font 0.78rem caben aproximadamente 70-80 caracteres antes de truncar.
 const OBS_TRUNCATE_AT = 70;
 
@@ -128,8 +128,8 @@ function HistorialAplicaciones() {
     return () => { cancelled = true; };
   }, [apiFetch]);
 
-  // Aplanar: una fila por (cédula × producto). Cada fila se enriquece con el
-  // producto originalmente recetado por el sistema (cuando hubo sustitución /
+  // Flatten: one row per (cedula × product). Each row is enriched with the
+  // product originally prescribed by the system (when there was a substitution /
   // ajuste de dosis) y con una marca de cambio (`_prodCambio`). Los productos
   // que estaban en el plan original pero no fueron aplicados generan filas
   // fantasma marcadas como "Retirado" para preservar el audit trail.
@@ -152,7 +152,7 @@ function HistorialAplicaciones() {
       const touchedOriginalIds = new Set();
 
       if (aplicados.length === 0) {
-        // Cédula sin productos aplicados: conserva la fila placeholder actual.
+        // Cedula with no applied products: keep the current placeholder row.
         rows.push({
           ...c, ...base,
           _rowKey: `${c.id}::empty`,
@@ -189,7 +189,7 @@ function HistorialAplicaciones() {
           }
 
           // Costo snapshot = total aplicado × precioUnitario congelado en el momento
-          // de la aplicación (ambos viven en snap_productos[]). Si alguno falta,
+          // of the application (both live in snap_productos[]). If either is missing,
           // el costo es null (se renderiza como '—').
           const _prodTotalNum      = parseFloat(prod?.total);
           const _prodPrecioUnitNum = parseFloat(prod?.precioUnitario);
@@ -244,7 +244,7 @@ function HistorialAplicaciones() {
     });
   }, [cedulas]);
 
-  // Filtrado por período
+  // Period filtering
   const filtered = useMemo(() => {
     const activeCol = Object.entries(colFilters).filter(([, v]) => v.trim());
     return flattened.filter(row => {
@@ -264,7 +264,7 @@ function HistorialAplicaciones() {
     });
   }, [flattened, filterDateField, filterFrom, filterTo, colFilters]);
 
-  // Ordenamiento multi-nivel (sobre campos de la cédula)
+  // Multi-level sorting (on cedula fields)
   const sorted = useMemo(() => {
     const active = sorts.filter(s => s.field);
     if (active.length === 0) return filtered;

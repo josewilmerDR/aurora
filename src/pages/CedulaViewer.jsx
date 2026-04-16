@@ -99,9 +99,9 @@ export default function CedulaViewer() {
   const cal          = cedula.calibracion        || null;
   const calAplicador = cedula.calibracionAplicador || null;
   const calTractor   = cedula.calibracionTractor   || null;
-  // Preferimos snap_productos (que en cédulas nuevas ya viene copiado desde
-  // productosAplicados en el endpoint PUT /aplicada). Para cédulas que aún no
-  // hayan pasado por ese flujo (p. ej. visualización temprana), caemos a
+  // Prefer snap_productos (which in new cedulas is already copied from
+  // productosAplicados in the PUT /aplicada endpoint). For cedulas that haven't
+  // gone through that flow yet (e.g. early viewing), fall back to
   // productosAplicados o productosOriginales.
   const productos    = (Array.isArray(cedula.snap_productos) && cedula.snap_productos.length > 0)
     ? cedula.snap_productos
