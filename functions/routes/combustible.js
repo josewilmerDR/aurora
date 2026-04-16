@@ -2,11 +2,12 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
-// ── Cierre mensual de combustible ─────────────────────────────────────────────
-// GET /api/cierres-combustible — lista los cierres de la finca
+// ── Monthly fuel closing ─────────────────────────────────────────────────────
+// GET /api/cierres-combustible — list the finca's closings
 router.get('/api/cierres-combustible', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('cierres_combustible')
@@ -20,26 +21,26 @@ router.get('/api/cierres-combustible', authenticate, async (req, res) => {
     })));
   } catch (err) {
     console.error('[cierres-combustible GET]', err);
-    res.status(500).json({ message: 'Error al obtener cierres.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch closings.', 500);
   }
 });
 
 // POST /api/cierres-combustible
 // body: { periodo: "2026-03", bodegaId, preview?: true }
-// preview=true  → devuelve el cálculo sin guardar
-// preview=false → guarda el cierre y actualiza los horímetros afectados
+// preview=true  → returns the calculation without saving
+// preview=false → saves the closing and updates the affected horimeter records
 router.post('/api/cierres-combustible', authenticate, async (req, res) => {
   try {
     const { periodo, bodegaId, preview = false } = req.body;
     if (!periodo || !/^\d{4}-\d{2}$/.test(periodo))
-      return res.status(400).json({ message: 'El periodo debe tener formato YYYY-MM.' });
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Period must be in YYYY-MM format.', 400);
     if (!bodegaId)
-      return res.status(400).json({ message: 'bodegaId es requerido.' });
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'bodegaId is required.', 400);
 
     const bodegaCheck = await verifyOwnership('bodegas', bodegaId, req.fincaId);
-    if (!bodegaCheck.ok) return res.status(bodegaCheck.status).json({ message: bodegaCheck.message });
+    if (!bodegaCheck.ok) return sendApiError(res, bodegaCheck.code, bodegaCheck.message, bodegaCheck.status);
 
-    // Bloquear doble cierre para el mismo periodo + bodega
+    // Block double closing for the same period + bodega
     if (!preview) {
       const dup = await db.collection('cierres_combustible')
         .where('fincaId',  '==', req.fincaId)
@@ -48,18 +49,18 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
         .where('estado',   '==', 'cerrado')
         .limit(1).get();
       if (!dup.empty)
-        return res.status(409).json({ message: `Ya existe un cierre para ${periodo}. Reabrirlo antes de volver a cerrar.` });
+        return sendApiError(res, ERROR_CODES.CONFLICT, `A closing already exists for ${periodo}. Reopen it before closing again.`, 409);
     }
 
-    // Rango de fechas del periodo
+    // Period date range
     const [year, month] = periodo.split('-').map(Number);
     const periodoStart  = new Date(year, month - 1, 1);
-    const periodoEnd    = new Date(year, month, 1);          // primer día del mes siguiente
+    const periodoEnd    = new Date(year, month, 1);          // first day of next month
     const fechaIni      = `${periodo}-01`;
     const lastDay       = new Date(year, month, 0).getDate();
     const fechaFin      = `${periodo}-${String(lastDay).padStart(2, '0')}`;
 
-    // ── 1. Horímetros del periodo ──────────────────────────────────────────
+    // ── 1. Horímetro records for the period ───────────────────────────────
     const horimSnap = await db.collection('horimetro')
       .where('fincaId', '==', req.fincaId)
       .where('fecha',   '>=', fechaIni)
@@ -67,9 +68,9 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
       .get();
     const horimetros = horimSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!horimetros.length)
-      return res.status(400).json({ message: `No hay registros de horímetro para ${periodo}.` });
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, `No horímetro records found for ${periodo}.`, 400);
 
-    // ── 2. Salidas de combustible del periodo, agrupadas por activoId ──────
+    // ── 2. Fuel outflows for the period, grouped by activoId ──────────────
     const movsSnap = await db.collection('bodega_movimientos')
       .where('bodegaId',  '==', bodegaId)
       .where('tipo',      '==', 'salida')
@@ -85,7 +86,7 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
       salidasPorActivo[activoId].costo  += totalSalida;
     });
 
-    // ── 3. Agrupar horímetros por tractorId ────────────────────────────────
+    // ── 3. Group horímetro records by tractorId ───────────────────────────
     const horimPorTractor = {};
     horimetros.forEach(h => {
       if (!h.tractorId) return;
@@ -93,7 +94,7 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
       horimPorTractor[h.tractorId].push(h);
     });
 
-    // ── 4. Calcular cierre por máquina ─────────────────────────────────────
+    // ── 4. Compute closing per machine ────────────────────────────────────
     const maquinas  = [];
     const ajustes   = []; // { horimetroId, costoReal, ajuste }
 
@@ -128,7 +129,7 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
       const tasaReal   = totalHoras > 0 ? parseFloat((litros / totalHoras).toFixed(3)) : null;
       const precioMed  = litros > 0 ? parseFloat((costoReal / litros).toFixed(2)) : 0;
 
-      // Distribuir costoReal proporcional a horas
+      // Distribute costoReal proportional to hours
       const detallesConReal = detalles.map(d => {
         const real  = totalHoras > 0
           ? parseFloat((costoReal * (d.horas / totalHoras)).toFixed(2))
@@ -155,7 +156,7 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
 
     if (preview) return res.json({ preview: true, periodo, bodegaId, maquinas });
 
-    // ── 5. Guardar documento de cierre ────────────────────────────────────
+    // ── 5. Persist the closing document ──────────────────────────────────
     const bodegaNombre = (await db.collection('bodegas').doc(bodegaId).get()).data()?.nombre || '';
     const cierreData = {
       fincaId: req.fincaId, periodo, bodegaId, bodegaNombre,
@@ -164,7 +165,7 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
     };
     const cierreRef = await db.collection('cierres_combustible').add(cierreData);
 
-    // ── 6. Actualizar horímetros con costoReal, ajuste, cierrePeriodo ─────
+    // ── 6. Update horímetro records with costoReal, ajuste, cierrePeriodo ─
     const BATCH = 500;
     for (let i = 0; i < ajustes.length; i += BATCH) {
       const batch = db.batch();
@@ -185,7 +186,7 @@ router.post('/api/cierres-combustible', authenticate, async (req, res) => {
     });
   } catch (err) {
     console.error('[cierres-combustible POST]', err);
-    res.status(500).json({ message: 'Error al procesar el cierre.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process closing.', 500);
   }
 });
 
