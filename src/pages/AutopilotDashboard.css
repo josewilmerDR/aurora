@@ -642,6 +642,43 @@
   height: 16px;
 }
 
+.ap-guardrail-subheading {
+  margin: 20px 0 4px 0;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-top: 1px solid var(--aurora-border);
+  padding-top: 14px;
+}
+
+.ap-guardrail-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.ap-guardrail-time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-guardrail-time-row input[type="time"] {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+.ap-guardrail-time-row input[type="time"]:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
 /* ── Nivel 3 action sections ── */
 .ap-actions-title--n3 { color: var(--aurora-magenta); }
 .ap-actions-title--escalated { color: #ffb347; }
