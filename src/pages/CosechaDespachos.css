@@ -29,6 +29,40 @@
   border: 1px solid rgba(229, 91, 91, 0.25);
 }
 
+/* ── Botón "Registrar ingreso" en historial de despachos ─────────────────── */
+.dsp-income-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(51, 255, 153, 0.1);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  color: var(--aurora-green);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.dsp-income-btn:hover {
+  background: rgba(51, 255, 153, 0.2);
+}
+
+.dsp-income-linked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(160, 160, 160, 0.08);
+  border: 1px solid rgba(160, 160, 160, 0.2);
+  color: #a0a0a0;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
 /* ── Item layout ─────────────────────────────────────────────────────────── */
 .dsp-item-content {
   flex: 1;

@@ -1,0 +1,80 @@
+@import '../LoteManagement.css';
+
+.finance-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.finance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.finance-field label {
+  font-size: 12px;
+  color: var(--aurora-light);
+  opacity: 0.75;
+}
+
+.finance-field input,
+.finance-field select,
+.finance-field textarea {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.finance-field input:focus,
+.finance-field select:focus,
+.finance-field textarea:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.finance-field-full {
+  grid-column: 1 / -1;
+}
+
+.finance-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.finance-pill--pending  { background: rgba(204, 51, 255, 0.15); color: var(--aurora-magenta); }
+.finance-pill--paid     { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
+.finance-pill--void     { background: rgba(255, 80, 80, 0.15);  color: #ff8080; }
+.finance-pill--inactive { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
+
+.finance-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.finance-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.finance-filters .finance-field {
+  min-width: 140px;
+}
+
+.finance-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}

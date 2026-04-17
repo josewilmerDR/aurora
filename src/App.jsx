@@ -60,6 +60,8 @@ import CosechaRegistro from './pages/CosechaRegistro';
 import CosechaDespachos from './pages/CosechaDespachos';
 import CosechaHistorialDespacho from './pages/CosechaHistorialDespacho';
 import CentroCostos from './pages/CentroCostos';
+import IncomeRecords from './pages/finance/IncomeRecords';
+import BuyersList from './pages/finance/BuyersList';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
 import Sidebar from './components/Sidebar';
@@ -118,6 +120,8 @@ const routeTitles = {
   '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
   '/proveedores': 'Proveedores',
   '/costos': 'Centro de Costos',
+  '/finance/ingresos': 'Ingresos',
+  '/finance/compradores': 'Compradores',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/permisos': 'Permisos y Vacaciones',
   '/hr/planilla': 'Cálculo de Planilla',
@@ -521,6 +525,8 @@ function App() {
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OCHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
             <Route path="/costos" element={<RoleRoute path="/costos"><CentroCostos /></RoleRoute>} />
+            <Route path="/finance/ingresos" element={<RoleRoute path="/finance/ingresos"><IncomeRecords /></RoleRoute>} />
+            <Route path="/finance/compradores" element={<RoleRoute path="/finance/compradores"><BuyersList /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />

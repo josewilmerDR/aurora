@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FiFilter, FiX, FiSliders } from 'react-icons/fi';
+import { FiFilter, FiX, FiSliders, FiDollarSign } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import Toast from '../components/Toast';
+import DispatchIncomeModal from '../components/finance/DispatchIncomeModal';
 import './Siembra.css';
 import './SiembraHistorial.css';
 import './CosechaDespachos.css';
@@ -128,6 +129,10 @@ export default function CosechaHistorialDespacho() {
   const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
   const [colMenu, setColMenu] = useState(null);
 
+  // Despachos que ya tienen un income_record asociado (para evitar duplicados).
+  const [linkedDispatchIds, setLinkedDispatchIds] = useState(new Set());
+  const [ingresoDispatchId, setIngresoDispatchId] = useState(null);
+
   const toggleCol = (key) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
   const handleColBtnClick = (e) => {
     e.stopPropagation();
@@ -167,6 +172,18 @@ export default function CosechaHistorialDespacho() {
   };
 
   // ── Carga ─────────────────────────────────────────────────────────────────
+  const loadLinkedIncome = () => {
+    // Carga ingresos y extrae los despachoId ya vinculados.
+    apiFetch('/api/income')
+      .then(r => r.json())
+      .then(data => {
+        if (!Array.isArray(data)) return;
+        const ids = new Set(data.map(i => i.despachoId).filter(Boolean));
+        setLinkedDispatchIds(ids);
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     setLoading(true);
     apiFetch('/api/cosecha/despachos')
@@ -174,6 +191,7 @@ export default function CosechaHistorialDespacho() {
       .then(data => setDespachos(Array.isArray(data) ? data : []))
       .catch(() => showToast('Error al cargar el historial de despachos.', 'error'))
       .finally(() => setLoading(false));
+    loadLinkedIncome();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Filtrado y ordenamiento ───────────────────────────────────────────────
@@ -286,7 +304,10 @@ export default function CosechaHistorialDespacho() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayData.map(d => (
+                  {displayData.map(d => {
+                    const alreadyLinked = linkedDispatchIds.has(d.id);
+                    const canRegisterIncome = d.estado !== 'anulado' && !alreadyLinked;
+                    return (
                     <tr key={d.id} className={d.estado === 'anulado' ? 'dsp-item--anulado' : ''}>
                       {visibleCols.consecutivo && <td style={{ fontFamily: 'monospace', color: 'var(--aurora-green)', whiteSpace: 'nowrap' }}>{d.consecutivo || '—'}</td>}
                       {visibleCols.fecha       && <td style={{ whiteSpace: 'nowrap' }}>{fmt(d.fecha)}</td>}
@@ -304,9 +325,25 @@ export default function CosechaHistorialDespacho() {
                           ? <span className="dsp-badge dsp-badge--anulado">Anulado</span>
                           : <span className="dsp-badge dsp-badge--activo">Activo</span>}
                       </td>}
-                      <td />
+                      <td>
+                        {canRegisterIncome && (
+                          <button
+                            className="dsp-income-btn"
+                            onClick={() => setIngresoDispatchId(d.id)}
+                            title="Registrar ingreso desde este despacho"
+                          >
+                            <FiDollarSign size={12} /> Registrar ingreso
+                          </button>
+                        )}
+                        {alreadyLinked && (
+                          <span className="dsp-income-linked" title="Este despacho ya tiene un ingreso registrado">
+                            <FiDollarSign size={12} /> Ingreso registrado
+                          </span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -317,6 +354,20 @@ export default function CosechaHistorialDespacho() {
       {/* ── Column visibility menu portal ─────────────────────────────────── */}
       {colMenu && (
         <ColMenu x={colMenu.x} y={colMenu.y} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
+      )}
+
+      {/* ── Modal: registrar ingreso desde despacho ───────────────────────── */}
+      {ingresoDispatchId && (
+        <DispatchIncomeModal
+          dispatchId={ingresoDispatchId}
+          onClose={() => setIngresoDispatchId(null)}
+          onCreated={() => {
+            setIngresoDispatchId(null);
+            showToast('Ingreso registrado.', 'success');
+            loadLinkedIncome();
+          }}
+          onError={(msg) => showToast(msg, 'error')}
+        />
       )}
 
       {/* ── Column filter popover portal ──────────────────────────────────── */}
