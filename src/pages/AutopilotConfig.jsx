@@ -229,6 +229,113 @@ export default function AutopilotConfig() {
                 )}
               </div>
             </div>
+
+            <h3 className="ap-guardrail-subheading">Límites globales</h3>
+            <p className="ap-objectives-hint">
+              Límites acumulados por finca (no por sesión). Las acciones que los excedan se escalan.
+            </p>
+
+            <div className="ap-guardrail-row">
+              <div className="form-control">
+                <label>Máx. acciones por día</label>
+                <input
+                  type="number" min={1} max={500}
+                  value={config.guardrails.maxActionsPerDay ?? 20}
+                  onChange={e => setConfig(c => ({
+                    ...c, guardrails: { ...c.guardrails, maxActionsPerDay: parseInt(e.target.value) || 20 },
+                  }))}
+                />
+              </div>
+              <div className="form-control">
+                <label>Máx. OC por día</label>
+                <input
+                  type="number" min={1} max={100}
+                  value={config.guardrails.maxOrdenesCompraPerDay ?? 3}
+                  onChange={e => setConfig(c => ({
+                    ...c, guardrails: { ...c.guardrails, maxOrdenesCompraPerDay: parseInt(e.target.value) || 3 },
+                  }))}
+                />
+              </div>
+            </div>
+
+            <div className="ap-guardrail-row">
+              <div className="form-control">
+                <label>Monto máx. por OC (USD)</label>
+                <input
+                  type="number" min={0}
+                  value={config.guardrails.maxOrdenCompraMonto ?? 5000}
+                  onChange={e => setConfig(c => ({
+                    ...c, guardrails: { ...c.guardrails, maxOrdenCompraMonto: parseFloat(e.target.value) || 0 },
+                  }))}
+                />
+              </div>
+              <div className="form-control">
+                <label>Monto máx. mensual de OC (USD)</label>
+                <input
+                  type="number" min={0}
+                  value={config.guardrails.maxOrdenesCompraMonthlyAmount ?? 30000}
+                  onChange={e => setConfig(c => ({
+                    ...c, guardrails: { ...c.guardrails, maxOrdenesCompraMonthlyAmount: parseFloat(e.target.value) || 0 },
+                  }))}
+                />
+              </div>
+            </div>
+
+            <div className="form-control">
+              <label>Máx. notificaciones al mismo trabajador por día</label>
+              <input
+                type="number" min={0} max={100}
+                value={config.guardrails.maxNotificationsPerUserPerDay ?? 3}
+                onChange={e => setConfig(c => ({
+                  ...c, guardrails: { ...c.guardrails, maxNotificationsPerUserPerDay: parseInt(e.target.value) || 0 },
+                }))}
+              />
+            </div>
+
+            <h3 className="ap-guardrail-subheading">Horarios</h3>
+
+            <label className="ap-guardrail-check">
+              <input
+                type="checkbox"
+                checked={config.guardrails.weekendActions !== false}
+                onChange={e => setConfig(c => ({
+                  ...c, guardrails: { ...c.guardrails, weekendActions: e.target.checked },
+                }))}
+              />
+              Permitir acciones autónomas en fin de semana
+            </label>
+
+            <div className="form-control">
+              <label>Horario silencioso (HH:MM — HH:MM)</label>
+              <div className="ap-guardrail-time-row">
+                <input
+                  type="time"
+                  value={config.guardrails.quietHours?.start || ''}
+                  onChange={e => setConfig(c => ({
+                    ...c,
+                    guardrails: {
+                      ...c.guardrails,
+                      quietHours: { ...(c.guardrails.quietHours || {}), start: e.target.value },
+                    },
+                  }))}
+                />
+                <span style={{ opacity: 0.6 }}>—</span>
+                <input
+                  type="time"
+                  value={config.guardrails.quietHours?.end || ''}
+                  onChange={e => setConfig(c => ({
+                    ...c,
+                    guardrails: {
+                      ...c.guardrails,
+                      quietHours: { ...(c.guardrails.quietHours || {}), end: e.target.value },
+                    },
+                  }))}
+                />
+              </div>
+              <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                Deja vacío para desactivar. Aplica por defecto a notificaciones; configura `enforce` por API para otros tipos.
+              </p>
+            </div>
           </div>
         )}
 

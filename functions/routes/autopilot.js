@@ -4,11 +4,11 @@ const { authenticate } = require('../lib/middleware');
 const { getAnthropicClient } = require('../lib/clients');
 const {
   hasMinRoleBE,
-  validateGuardrails,
   writeFeedEvent,
   sendPushToFincaRoles,
   sendWhatsAppToFincaRoles,
 } = require('../lib/helpers');
+const { validateGuardrails } = require('../lib/autopilotGuardrails');
 const { executeAutopilotAction } = require('../lib/autopilotActions');
 const { assertAutopilotActive } = require('../lib/autopilotMiddleware');
 const {
@@ -308,18 +308,50 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
     };
     if (guardrails !== undefined && typeof guardrails === 'object') {
       const VALID_ACTION_TYPES = ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion', 'crear_solicitud_compra', 'crear_orden_compra'];
+      const clampInt = (v, min, max) => Math.max(min, Math.min(max, Math.round(v)));
+      const clampNum = (v, min, max) => Math.max(min, Math.min(max, v));
+      const isHhMm = (s) => typeof s === 'string' && /^\d{1,2}:\d{2}$/.test(s);
       const g = {};
+      // Session limits (existing)
       if (typeof guardrails.maxActionsPerSession === 'number') {
-        g.maxActionsPerSession = Math.max(1, Math.min(20, Math.round(guardrails.maxActionsPerSession)));
+        g.maxActionsPerSession = clampInt(guardrails.maxActionsPerSession, 1, 50);
       }
       if (typeof guardrails.maxStockAdjustPercent === 'number') {
-        g.maxStockAdjustPercent = Math.max(1, Math.min(100, Math.round(guardrails.maxStockAdjustPercent)));
+        g.maxStockAdjustPercent = clampInt(guardrails.maxStockAdjustPercent, 1, 100);
       }
       if (Array.isArray(guardrails.allowedActionTypes)) {
         g.allowedActionTypes = guardrails.allowedActionTypes.filter(t => VALID_ACTION_TYPES.includes(t));
       }
       if (Array.isArray(guardrails.blockedLotes)) {
         g.blockedLotes = guardrails.blockedLotes.filter(id => typeof id === 'string' && id.length > 0);
+      }
+      // Global limits (new in 0.4)
+      if (typeof guardrails.maxActionsPerDay === 'number') {
+        g.maxActionsPerDay = clampInt(guardrails.maxActionsPerDay, 1, 500);
+      }
+      if (typeof guardrails.maxOrdenesCompraPerDay === 'number') {
+        g.maxOrdenesCompraPerDay = clampInt(guardrails.maxOrdenesCompraPerDay, 1, 100);
+      }
+      if (typeof guardrails.maxOrdenCompraMonto === 'number') {
+        g.maxOrdenCompraMonto = clampNum(guardrails.maxOrdenCompraMonto, 0, 1e9);
+      }
+      if (typeof guardrails.maxOrdenesCompraMonthlyAmount === 'number') {
+        g.maxOrdenesCompraMonthlyAmount = clampNum(guardrails.maxOrdenesCompraMonthlyAmount, 0, 1e9);
+      }
+      if (typeof guardrails.maxNotificationsPerUserPerDay === 'number') {
+        g.maxNotificationsPerUserPerDay = clampInt(guardrails.maxNotificationsPerUserPerDay, 0, 100);
+      }
+      if (typeof guardrails.weekendActions === 'boolean') {
+        g.weekendActions = guardrails.weekendActions;
+      }
+      if (guardrails.quietHours && typeof guardrails.quietHours === 'object') {
+        const qh = {};
+        if (isHhMm(guardrails.quietHours.start)) qh.start = guardrails.quietHours.start;
+        if (isHhMm(guardrails.quietHours.end)) qh.end = guardrails.quietHours.end;
+        if (Array.isArray(guardrails.quietHours.enforce)) {
+          qh.enforce = guardrails.quietHours.enforce.filter(t => VALID_ACTION_TYPES.includes(t));
+        }
+        if (Object.keys(qh).length > 0) g.quietHours = qh;
       }
       payload.guardrails = g;
     }
@@ -1038,7 +1070,10 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
             enrichedParams.stockActual = productStockMap[params.productoId] ?? params.stockActual ?? 0;
           }
 
-          const guardrailResult = validateGuardrails(actionType, enrichedParams, guardrails, executedCount);
+          const guardrailResult = await validateGuardrails(actionType, enrichedParams, guardrails, {
+            fincaId: req.fincaId,
+            sessionExecutedCount: executedCount,
+          });
 
           const actionDocRef = db.collection('autopilot_actions').doc();
           const actionInitialDoc = {

@@ -179,45 +179,10 @@ async function sendWhatsAppToFincaRoles(fincaId, roles, mensaje) {
   }
 }
 
-// NOTE: executeAutopilotAction and AutopilotPausedError live in ./autopilotActions.js.
-// They were moved out of helpers.js as part of the transactional refactor —
-// import them directly from that module.
-
-// --- AUTOPILOT: safety guardrails validation (Level 3) ---
-function validateGuardrails(actionType, params, guardrails, sessionExecutedCount) {
-  const violations = [];
-
-  const maxActions = guardrails.maxActionsPerSession ?? 5;
-  if (sessionExecutedCount >= maxActions) {
-    violations.push(`Límite de ${maxActions} acciones autónomas por sesión alcanzado.`);
-  }
-
-  const allowed = guardrails.allowedActionTypes ??
-    ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion', 'crear_solicitud_compra', 'crear_orden_compra'];
-  if (!allowed.includes(actionType)) {
-    violations.push(`Tipo de acción "${actionType}" no está habilitado para ejecución autónoma.`);
-  }
-
-  const blocked = guardrails.blockedLotes ?? [];
-  const loteId = params.loteId || null;
-  if (loteId && blocked.includes(loteId)) {
-    violations.push(`El lote está bloqueado para acciones autónomas.`);
-  }
-
-  if (actionType === 'ajustar_inventario') {
-    const maxPct = guardrails.maxStockAdjustPercent ?? 30;
-    const current = params.stockActual ?? 0;
-    const next = params.stockNuevo ?? 0;
-    if (current > 0) {
-      const pctChange = Math.abs(next - current) / current * 100;
-      if (pctChange > maxPct) {
-        violations.push(`Cambio de stock de ${pctChange.toFixed(0)}% excede el límite de ${maxPct}%.`);
-      }
-    }
-  }
-
-  return { allowed: violations.length === 0, violations };
-}
+// NOTE: executeAutopilotAction and AutopilotPausedError live in
+// ./autopilotActions.js. validateGuardrails lives in ./autopilotGuardrails.js.
+// They were moved out of helpers.js as part of the hardening refactor —
+// import them directly from those modules.
 
 // --- NOTIFICATION WITH LINK (WhatsApp message linking to the task) ---
 const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
@@ -263,5 +228,4 @@ module.exports = {
   sendPushToFincaRoles,
   sendWhatsAppToFincaRoles,
   sendNotificationWithLink,
-  validateGuardrails,
 };
