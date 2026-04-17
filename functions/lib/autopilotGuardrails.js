@@ -21,6 +21,12 @@
  */
 
 const { db, Timestamp } = require('./firebase');
+const { resolveBudgetCategory, supplierCategoryToBudget } = require('./finance/categoryMapping');
+const { checkBudgetCap, checkBlockedCategory } = require('./finance/budgetGuardCheck');
+const { currentMonthPeriod, fetchSupplier, fetchBudgetGuardInputs } = require('./finance/budgetGuardInputs');
+const { checkCashFloor } = require('./finance/cashFloorCheck');
+const { fetchLatestCashBalance, collectProjectionEvents } = require('./finance/treasurySources');
+const { toISO, addDays, parseISO } = require('./finance/weekRanges');
 
 // Default values for each guardrail. Merged with what the user has set on
 // autopilot_config.guardrails. null / undefined means "not enforced".
@@ -33,6 +39,14 @@ const DEFAULTS = Object.freeze({
   maxOrdenesCompraMonthlyAmount: 30000,
   maxNotificationsPerUserPerDay: 3,
   weekendActions: true, // true = allowed; false = blocked on Sat/Sun
+  // Budget caps — si se setean, validamos contra budgets + execution del
+  // período actual. null = no enforcement.
+  maxBudgetConsumptionPct: null,    // ej: 100 = no exceder el 100% del asignado
+  blockedBudgetCategories: [],      // categorías bloqueadas (ej: ['otro'])
+  // Cash floor — si se setea, bloqueamos acciones que llevarían la caja
+  // proyectada por debajo del piso dentro del horizonte configurado.
+  minCajaProyectada: null,          // ej: 5000 (saldo mínimo en USD)
+  cashFloorHorizonWeeks: 4,         // cuántas semanas mirar hacia adelante
 });
 
 const ALL_ACTION_TYPES = Object.freeze([
@@ -142,6 +156,123 @@ async function countNotificationsToUserToday(fincaId, userId, startMs) {
   return snap.docs.filter(d => d.data().params?.userId === userId).length;
 }
 
+// ── Violation tagging (Sub-fase 1.4 extensión) ─────────────────────────────
+
+// Acumulador de violaciones con categoría. El consumo tradicional
+// (`.violations: string[]`) se mantiene; los consumidores nuevos pueden leer
+// `.violationsByCategory.{financial|general}`.
+function createViolationAccumulator() {
+  const flat = [];
+  const byCategory = { financial: [], general: [] };
+  return {
+    push(message, category = 'general') {
+      flat.push(message);
+      const bucket = byCategory[category] || byCategory.general;
+      bucket.push(message);
+    },
+    pushMany(messages, category = 'general') {
+      for (const m of messages) this.push(m, category);
+    },
+    snapshot() {
+      return {
+        violations: flat.slice(),
+        violationsByCategory: {
+          financial: byCategory.financial.slice(),
+          general: byCategory.general.slice(),
+        },
+      };
+    },
+  };
+}
+
+// ── Cash floor (Sub-fase 1.4 extensión) ────────────────────────────────────
+
+// Evalúa si una acción propuesta (típicamente una OC) llevaría la caja
+// proyectada por debajo del piso configurado dentro del horizonte.
+async function evaluateCashFloor(fincaId, params, cfg, now) {
+  if (cfg.minCajaProyectada == null) return [];
+
+  const proposedAmount = computeOrderAmount(params);
+  if (!Number.isFinite(proposedAmount) || proposedAmount <= 0) return [];
+
+  const latest = await fetchLatestCashBalance(fincaId);
+  const todayISO = toISO(now || new Date());
+  const startingDate = latest && latest.dateAsOf > todayISO
+    ? latest.dateAsOf
+    : (latest ? latest.dateAsOf : todayISO);
+
+  const startDt = parseISO(startingDate);
+  const horizonWeeks = Number.isFinite(Number(cfg.cashFloorHorizonWeeks))
+    ? Math.max(1, Math.floor(Number(cfg.cashFloorHorizonWeeks)))
+    : 4;
+  const endDt = startDt ? addDays(startDt, horizonWeeks * 7) : null;
+  const toStr = endDt ? toISO(endDt) : todayISO;
+
+  const baseEvents = startDt
+    ? await collectProjectionEvents(fincaId, { fromISO: startingDate, toISO: toStr })
+    : [];
+
+  // La acción propuesta se evalúa como si se pagara en la próxima "due date"
+  // razonable: si es OC con fechaEntrega + diasCredito, usamos esa; si no,
+  // usamos hoy (peor caso — impacto inmediato).
+  const proposedDate = params?.fechaEntrega && typeof params.fechaEntrega === 'string'
+    ? params.fechaEntrega
+    : todayISO;
+
+  const result = checkCashFloor({
+    startingBalance: latest ? Number(latest.amount) || 0 : 0,
+    startingDate,
+    baseEvents,
+    proposedOutflow: { date: proposedDate, amount: proposedAmount, label: 'Acción propuesta' },
+    floor: cfg.minCajaProyectada,
+    horizonWeeks,
+    currency: latest?.currency || 'USD',
+  });
+
+  return result.ok ? [] : [result.reason];
+}
+
+// ── Budget caps (Sub-fase 1.4) ──────────────────────────────────────────────
+
+// Resuelve la categoría de budget para una acción de compra. Prioridad:
+//   1. `params.budgetCategory` explícito
+//   2. Proveedor.categoria → mapeo
+// Devuelve null si no se puede resolver (en cuyo caso el cap se salta).
+async function resolveActionBudgetCategory(fincaId, params) {
+  if (typeof params?.budgetCategory === 'string' && params.budgetCategory) {
+    return params.budgetCategory;
+  }
+  const supplierId = params?.proveedor?.id || params?.proveedorId || null;
+  if (!supplierId || !fincaId) return null;
+  const supplier = await fetchSupplier(fincaId, supplierId);
+  if (!supplier) return null;
+  return supplierCategoryToBudget(supplier.categoria);
+}
+
+// Aplica los dos chequeos de budget (bloqueo por categoría + cap %) contra un
+// monto propuesto. Devuelve un array de razones de violación (vacío si pasa).
+async function evaluateBudgetGuards(fincaId, category, proposedAmount, cfg, now) {
+  const violations = [];
+
+  const blockedCheck = checkBlockedCategory(category, cfg.blockedBudgetCategories);
+  if (!blockedCheck.ok) violations.push(blockedCheck.reason);
+
+  if (cfg.maxBudgetConsumptionPct != null && category) {
+    const period = currentMonthPeriod(now);
+    const { assigned, executed } = await fetchBudgetGuardInputs(fincaId, { period, category });
+    const capCheck = checkBudgetCap({
+      proposedAmount,
+      assigned,
+      executed,
+      maxConsumptionPct: cfg.maxBudgetConsumptionPct,
+      category,
+    });
+    if (!capCheck.ok) violations.push(capCheck.reason);
+  }
+
+  return violations;
+}
+
 // ── Public validator ────────────────────────────────────────────────────────
 
 /**
@@ -156,7 +287,10 @@ async function countNotificationsToUserToday(fincaId, userId, startMs) {
  * Returns { allowed: bool, violations: string[] }.
  */
 async function validateGuardrails(actionType, params, guardrails = {}, ctx = {}) {
-  const violations = [];
+  // `acc` mantiene el array plano `violations` (para consumidores existentes)
+  // y un `violationsByCategory` con la división financial/general (para
+  // consumidores nuevos). Es aditivo — no rompe el shape previo.
+  const acc = createViolationAccumulator();
   const now = ctx.now ? new Date(ctx.now) : new Date();
   const cfg = { ...DEFAULTS, ...guardrails };
   const sessionExecutedCount = ctx.sessionExecutedCount ?? 0;
@@ -164,20 +298,20 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
 
   // ── Session limit ────────────────────────────────────────────────────────
   if (sessionExecutedCount >= cfg.maxActionsPerSession) {
-    violations.push(`Límite de ${cfg.maxActionsPerSession} acciones autónomas por sesión alcanzado.`);
+    acc.push(`Límite de ${cfg.maxActionsPerSession} acciones autónomas por sesión alcanzado.`);
   }
 
   // ── Action type allowlist ────────────────────────────────────────────────
   const allowedTypes = guardrails.allowedActionTypes ?? ALL_ACTION_TYPES;
   if (!allowedTypes.includes(actionType)) {
-    violations.push(`Tipo de acción "${actionType}" no está habilitado para ejecución autónoma.`);
+    acc.push(`Tipo de acción "${actionType}" no está habilitado para ejecución autónoma.`);
   }
 
   // ── Blocked lotes ────────────────────────────────────────────────────────
   const blockedLotes = guardrails.blockedLotes ?? [];
   const loteId = params?.loteId || null;
   if (loteId && blockedLotes.includes(loteId)) {
-    violations.push('El lote está bloqueado para acciones autónomas.');
+    acc.push('El lote está bloqueado para acciones autónomas.');
   }
 
   // ── Stock % change (inventory adjustments) ───────────────────────────────
@@ -187,14 +321,14 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
     if (currentStock > 0) {
       const pctChange = Math.abs(nextStock - currentStock) / currentStock * 100;
       if (pctChange > cfg.maxStockAdjustPercent) {
-        violations.push(`Cambio de stock de ${pctChange.toFixed(0)}% excede el límite de ${cfg.maxStockAdjustPercent}%.`);
+        acc.push(`Cambio de stock de ${pctChange.toFixed(0)}% excede el límite de ${cfg.maxStockAdjustPercent}%.`);
       }
     }
   }
 
   // ── Weekend block ────────────────────────────────────────────────────────
   if (cfg.weekendActions === false && isWeekend(now)) {
-    violations.push('Las acciones autónomas están bloqueadas en fin de semana.');
+    acc.push('Las acciones autónomas están bloqueadas en fin de semana.');
   }
 
   // ── Quiet hours ──────────────────────────────────────────────────────────
@@ -203,7 +337,7 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
       ? cfg.quietHours.enforce
       : ['enviar_notificacion'];
     if (enforce.includes(actionType) && isWithinQuietHours(now, cfg.quietHours.start, cfg.quietHours.end)) {
-      violations.push(`"${actionType}" no se permite en horario silencioso (${cfg.quietHours.start}–${cfg.quietHours.end}).`);
+      acc.push(`"${actionType}" no se permite en horario silencioso (${cfg.quietHours.start}–${cfg.quietHours.end}).`);
     }
   }
 
@@ -211,7 +345,7 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
   if (actionType === 'crear_orden_compra' && cfg.maxOrdenCompraMonto != null) {
     const amount = computeOrderAmount(params);
     if (amount > cfg.maxOrdenCompraMonto) {
-      violations.push(`Monto de la OC ($${amount.toFixed(0)}) excede el límite de $${cfg.maxOrdenCompraMonto} por orden.`);
+      acc.push(`Monto de la OC ($${amount.toFixed(0)}) excede el límite de $${cfg.maxOrdenCompraMonto} por orden.`, 'financial');
     }
   }
 
@@ -223,7 +357,7 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
     if (cfg.maxActionsPerDay != null) {
       const executedToday = await countExecutedActionsToday(fincaId, dayStart);
       if (executedToday >= cfg.maxActionsPerDay) {
-        violations.push(`Límite diario de ${cfg.maxActionsPerDay} acciones ejecutadas alcanzado.`);
+        acc.push(`Límite diario de ${cfg.maxActionsPerDay} acciones ejecutadas alcanzado.`);
       }
     }
 
@@ -232,7 +366,7 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
       if (cfg.maxOrdenesCompraPerDay != null) {
         const ocsToday = await countOrdenesCompraToday(fincaId, dayStart);
         if (ocsToday >= cfg.maxOrdenesCompraPerDay) {
-          violations.push(`Límite diario de ${cfg.maxOrdenesCompraPerDay} órdenes de compra alcanzado.`);
+          acc.push(`Límite diario de ${cfg.maxOrdenesCompraPerDay} órdenes de compra alcanzado.`, 'financial');
         }
       }
       if (cfg.maxOrdenesCompraMonthlyAmount != null) {
@@ -240,21 +374,41 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
         const sumSoFar = await sumOrdenesCompraThisMonth(fincaId, monthStart);
         const thisAmount = computeOrderAmount(params);
         if (sumSoFar + thisAmount > cfg.maxOrdenesCompraMonthlyAmount) {
-          violations.push(`Esta OC ($${thisAmount.toFixed(0)}) + ya gastado este mes ($${sumSoFar.toFixed(0)}) excede el límite mensual de $${cfg.maxOrdenesCompraMonthlyAmount}.`);
+          acc.push(`Esta OC ($${thisAmount.toFixed(0)}) + ya gastado este mes ($${sumSoFar.toFixed(0)}) excede el límite mensual de $${cfg.maxOrdenesCompraMonthlyAmount}.`, 'financial');
         }
       }
+    }
+
+    // Budget caps — aplican a OCs y solicitudes.
+    if ((actionType === 'crear_orden_compra' || actionType === 'crear_solicitud_compra')
+        && (cfg.maxBudgetConsumptionPct != null
+            || (Array.isArray(cfg.blockedBudgetCategories) && cfg.blockedBudgetCategories.length > 0))) {
+      const category = await resolveActionBudgetCategory(fincaId, params);
+      if (category) {
+        const proposedAmount = computeOrderAmount(params);
+        const budgetViolations = await evaluateBudgetGuards(fincaId, category, proposedAmount, cfg, now);
+        acc.pushMany(budgetViolations, 'financial');
+      }
+    }
+
+    // Cash floor — solo aplica a acciones con salida monetaria.
+    if ((actionType === 'crear_orden_compra' || actionType === 'crear_solicitud_compra')
+        && cfg.minCajaProyectada != null) {
+      const cashViolations = await evaluateCashFloor(fincaId, params, cfg, now);
+      acc.pushMany(cashViolations, 'financial');
     }
 
     // Per-user notification cap
     if (actionType === 'enviar_notificacion' && cfg.maxNotificationsPerUserPerDay != null && params?.userId) {
       const sentToday = await countNotificationsToUserToday(fincaId, params.userId, dayStart);
       if (sentToday >= cfg.maxNotificationsPerUserPerDay) {
-        violations.push(`Ya se enviaron ${sentToday} notificaciones a este usuario hoy (límite: ${cfg.maxNotificationsPerUserPerDay}).`);
+        acc.push(`Ya se enviaron ${sentToday} notificaciones a este usuario hoy (límite: ${cfg.maxNotificationsPerUserPerDay}).`);
       }
     }
   }
 
-  return { allowed: violations.length === 0, violations };
+  const snap = acc.snapshot();
+  return { allowed: snap.violations.length === 0, ...snap };
 }
 
 module.exports = {
@@ -265,4 +419,8 @@ module.exports = {
   computeOrderAmount,
   isWithinQuietHours,
   isWeekend,
+  resolveActionBudgetCategory,
+  evaluateBudgetGuards,
+  evaluateCashFloor,
+  createViolationAccumulator,
 };
