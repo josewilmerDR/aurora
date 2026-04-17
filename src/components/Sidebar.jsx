@@ -106,6 +106,9 @@ export const MODULES = [
     items: [
       { label: 'Centro de Costos', to: '/costos', icon: FiBarChart2, minRole: 'encargado' },
       { label: 'Presupuestos', to: '/finance/presupuestos', icon: FiDollarSign, minRole: 'encargado' },
+      { label: 'Tesorería', to: '/finance/tesoreria', icon: FiActivity, minRole: 'encargado' },
+      { label: 'Ingresos', to: '/finance/ingresos', icon: FiDollarSign, minRole: 'encargado' },
+      { label: 'Compradores', to: '/finance/compradores', icon: FiUsers, minRole: 'encargado' },
       { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
       { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
     ],

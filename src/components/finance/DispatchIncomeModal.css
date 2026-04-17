@@ -1,0 +1,31 @@
+@import '../../pages/finance/finance.css';
+
+.dispatch-income-modal-card {
+  max-width: 760px;
+  width: 94%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.dispatch-income-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.dispatch-income-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.dispatch-income-modal-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
