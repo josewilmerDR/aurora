@@ -4,12 +4,12 @@ const { authenticate } = require('../lib/middleware');
 const { getAnthropicClient } = require('../lib/clients');
 const {
   hasMinRoleBE,
-  executeAutopilotAction,
   validateGuardrails,
   writeFeedEvent,
   sendPushToFincaRoles,
   sendWhatsAppToFincaRoles,
 } = require('../lib/helpers');
+const { executeAutopilotAction } = require('../lib/autopilotActions');
 const { assertAutopilotActive } = require('../lib/autopilotMiddleware');
 
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
@@ -955,8 +955,14 @@ ${snapshotTextEnriched}
 
 Analiza el estado y ejecuta las acciones necesarias usando las herramientas disponibles.`;
 
-      // Agentic loop with guardrail-gated execution
-      const allActions = [];
+      // Agentic loop with guardrail-gated execution.
+      // Action docs are persisted inline by executeAutopilotAction so that the
+      // side effect and the autopilot_actions write commit (or roll back) as
+      // a single transaction. Escalations are written directly since they
+      // produce no side effect.
+      const sessionRef = db.collection('autopilot_sessions').doc();
+      const sessionId = sessionRef.id;
+      const actionRefs = []; // Each entry: action initial fields + id + final status
       let executedCount = 0;
       const messages = [{ role: 'user', content: userMessageN3 }];
       let summaryText = '';
@@ -1007,22 +1013,24 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
 
           const { prioridad, razon, ...params } = block.input;
 
-          // Resolver loteId para barandilla de lotes bloqueados
+          // Resolve loteId for blocked-lotes guardrail
           let resolvedLoteId = params.loteId || null;
           if (!resolvedLoteId && (actionType === 'reprogramar_tarea' || actionType === 'reasignar_tarea')) {
             resolvedLoteId = taskLoteMap[params.taskId] || null;
           }
 
-          // Enriquecer stockActual para barandilla de inventario
+          // Enrich stockActual for the inventory guardrail
           const enrichedParams = { ...params, loteId: resolvedLoteId };
           if (actionType === 'ajustar_inventario' && params.productoId) {
             enrichedParams.stockActual = productStockMap[params.productoId] ?? params.stockActual ?? 0;
           }
 
-          // Validar barandillas
           const guardrailResult = validateGuardrails(actionType, enrichedParams, guardrails, executedCount);
 
-          const actionRecord = {
+          const actionDocRef = db.collection('autopilot_actions').doc();
+          const actionInitialDoc = {
+            fincaId: req.fincaId,
+            sessionId,
             type: actionType,
             params,
             titulo: String(razon || '').slice(0, 120),
@@ -1030,37 +1038,52 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
             prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
             categoria: catMap[actionType] || 'general',
             autonomous: true,
+            escalated: false,
+            guardrailViolations: null,
+            proposedBy: req.uid,
+            proposedByName: req.userEmail,
+            createdAt: Timestamp.now(),
+            reviewedBy: null,
+            reviewedByName: null,
+            reviewedAt: null,
+            rejectionReason: null,
           };
 
           if (guardrailResult.allowed) {
-            // EJECUTAR DIRECTAMENTE
-            const startMs = Date.now();
             try {
-              const execResult = await executeAutopilotAction(actionType, params, req.fincaId, { level: 'Nivel 3' });
-              actionRecord.status = 'executed';
-              actionRecord.executionResult = execResult;
-              actionRecord.executedAt = Timestamp.now();
-              actionRecord.latencyMs = Date.now() - startMs;
+              const execResult = await executeAutopilotAction(actionType, params, req.fincaId, {
+                level: 'Nivel 3',
+                actionDocRef,
+                actionInitialDoc,
+              });
               executedCount++;
+              actionRefs.push({ id: actionDocRef.id, ...actionInitialDoc, status: 'executed', executionResult: execResult });
               toolResults.push({
                 type: 'tool_result', tool_use_id: block.id,
                 content: JSON.stringify({ ok: true, mensaje: 'Acción ejecutada exitosamente.', resultado: execResult }),
               });
             } catch (execErr) {
-              actionRecord.status = 'failed';
-              actionRecord.executionResult = { error: execErr.message };
-              actionRecord.executedAt = Timestamp.now();
-              actionRecord.latencyMs = Date.now() - startMs;
+              // executeAutopilotAction already recorded status='failed' on the action doc
+              actionRefs.push({ id: actionDocRef.id, ...actionInitialDoc, status: 'failed', executionResult: { error: execErr.message } });
               toolResults.push({
                 type: 'tool_result', tool_use_id: block.id,
                 content: JSON.stringify({ ok: false, error: execErr.message }),
               });
             }
           } else {
-            // ESCALAR — guardar como propuesta para supervisor
-            actionRecord.status = 'proposed';
-            actionRecord.escalated = true;
-            actionRecord.guardrailViolations = guardrailResult.violations;
+            // Escalation — direct write, no transaction needed (no side effect)
+            const escalatedDoc = {
+              ...actionInitialDoc,
+              status: 'proposed',
+              escalated: true,
+              guardrailViolations: guardrailResult.violations,
+            };
+            try {
+              await actionDocRef.set(escalatedDoc);
+            } catch (writeErr) {
+              console.error('[AUTOPILOT] Failed to write escalated action:', writeErr);
+            }
+            actionRefs.push({ id: actionDocRef.id, ...escalatedDoc });
             toolResults.push({
               type: 'tool_result', tool_use_id: block.id,
               content: JSON.stringify({
@@ -1069,59 +1092,27 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
               }),
             });
           }
-
-          allActions.push(actionRecord);
         }
 
         messages.push({ role: 'user', content: toolResults });
       }
 
-      // Save session
-      const executedActions = allActions.filter(a => a.status === 'executed');
-      const escalatedActions = allActions.filter(a => a.escalated);
-      const failedActions = allActions.filter(a => a.status === 'failed');
+      // Aggregate counts and persist the session at the end (its ID was
+      // pre-allocated above so action docs already reference it).
+      const executedActions = actionRefs.filter(a => a.status === 'executed');
+      const escalatedActions = actionRefs.filter(a => a.escalated);
+      const failedActions = actionRefs.filter(a => a.status === 'failed');
 
-      const sessionRef = await db.collection('autopilot_sessions').add({
+      await sessionRef.set({
         fincaId: req.fincaId, timestamp: Timestamp.now(),
         triggeredBy: req.uid, triggeredByName: req.userEmail,
         snapshot, recommendations: [], summaryText,
         executedActionsCount: executedActions.length,
         escalatedActionsCount: escalatedActions.length,
-        totalActionsCount: allActions.length,
+        totalActionsCount: actionRefs.length,
         mode: 'nivel3',
         status: 'completed', errorMessage: null,
       });
-
-      // Save each action
-      const nowTs = Timestamp.now();
-      const actionRefs = [];
-      for (const action of allActions) {
-        const ref = await db.collection('autopilot_actions').add({
-          fincaId: req.fincaId,
-          sessionId: sessionRef.id,
-          type: action.type,
-          params: action.params,
-          titulo: action.titulo,
-          descripcion: action.descripcion,
-          prioridad: action.prioridad,
-          categoria: action.categoria,
-          status: action.status,
-          autonomous: true,
-          escalated: action.escalated || false,
-          guardrailViolations: action.guardrailViolations || null,
-          proposedBy: req.uid,
-          proposedByName: req.userEmail,
-          createdAt: nowTs,
-          reviewedBy: null,
-          reviewedByName: null,
-          reviewedAt: null,
-          rejectionReason: null,
-          executedAt: action.executedAt || null,
-          executionResult: action.executionResult || null,
-          latencyMs: typeof action.latencyMs === 'number' ? action.latencyMs : null,
-        });
-        actionRefs.push({ id: ref.id, ...action });
-      }
 
       // Feed events — each executed action + session summary
       for (const action of executedActions) {
@@ -1684,23 +1675,15 @@ router.put('/api/autopilot/actions/:id/approve', authenticate, assertAutopilotAc
     });
 
     let executionResult;
-    const execStartMs = Date.now();
     try {
-      executionResult = await executeAutopilotAction(action.type, action.params, req.fincaId);
-      await docRef.update({
-        status: 'executed',
-        executedAt: Timestamp.now(),
-        executionResult,
-        latencyMs: Date.now() - execStartMs,
+      // Pass actionDocRef so the executor writes status='executed' (or 'failed')
+      // atomically with the side effect, and records latencyMs itself.
+      executionResult = await executeAutopilotAction(action.type, action.params, req.fincaId, {
+        actionDocRef: docRef,
       });
     } catch (execErr) {
       console.error('[AUTOPILOT] Error al ejecutar acción:', execErr);
-      await docRef.update({
-        status: 'failed',
-        executedAt: Timestamp.now(),
-        executionResult: { error: execErr.message },
-        latencyMs: Date.now() - execStartMs,
-      });
+      // Action doc was already updated to status='failed' by the executor.
       return res.json({ ok: true, status: 'failed', error: execErr.message });
     }
 
