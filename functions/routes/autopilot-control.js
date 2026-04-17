@@ -10,6 +10,7 @@ const { hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { getStatus, pause, resume } = require('../lib/autopilotKillSwitch');
 const { getHealthSummary, getRecentFailures } = require('../lib/autopilotMetrics');
+const { applyRollback, findByActionId } = require('../lib/autopilotCompensations');
 
 const router = Router();
 
@@ -95,5 +96,61 @@ function clampInt(raw, min, max, fallback) {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(Math.max(n, min), max);
 }
+
+// ── Rollback ────────────────────────────────────────────────────────────────
+// Maps compensation result codes to HTTP status. Rollback intentionally does
+// NOT use `assertAutopilotActive`: it's the recovery mechanism for when the
+// system has been paused.
+
+const ROLLBACK_HTTP_STATUS = {
+  NOT_FOUND: 404,
+  FORBIDDEN: 403,
+  ACTION_NOT_EXECUTED: 400,
+  ACTION_ALREADY_ROLLED_BACK: 409,
+  COMPENSATION_NOT_AVAILABLE: 404,
+  COMPENSATION_NOT_COMPENSABLE: 400,
+  COMPENSATION_EXPIRED: 410,
+  COMPENSATION_ALREADY_APPLIED: 409,
+  COMPENSATION_BLOCKED: 409,
+  INTERNAL_ERROR: 500,
+};
+
+// POST /api/autopilot/actions/:id/rollback  (minRole: supervisor)
+router.post('/api/autopilot/actions/:id/rollback', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+  }
+  try {
+    const result = await applyRollback(req.params.id, req.fincaId, {
+      uid: req.uid,
+      email: req.userEmail,
+    });
+    if (result.ok) {
+      return res.json({ ok: true, result: result.result });
+    }
+    const status = ROLLBACK_HTTP_STATUS[result.code] || 400;
+    return sendApiError(res, result.code, result.message || 'Rollback could not be applied.', status);
+  } catch (err) {
+    console.error('[AUTOPILOT] Rollback endpoint error:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to apply rollback.', 500);
+  }
+});
+
+// GET /api/autopilot/actions/:id/compensation  (any authenticated member)
+// Returns the compensation record for an action, or 404 if none exists.
+router.get('/api/autopilot/actions/:id/compensation', authenticate, async (req, res) => {
+  try {
+    const comp = await findByActionId(req.params.id, req.fincaId);
+    if (!comp) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'No compensation registered for this action.', 404);
+    }
+    // Strip the internal ref before returning
+    const { ref, ...payload } = comp;
+    res.json(payload);
+  } catch (err) {
+    console.error('[AUTOPILOT] Error fetching compensation:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch compensation.', 500);
+  }
+});
 
 module.exports = router;

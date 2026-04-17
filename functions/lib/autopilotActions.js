@@ -27,6 +27,10 @@ const { db, Timestamp, twilioWhatsappFrom } = require('./firebase');
 const { getTwilioClient } = require('./clients');
 const { isPaused: isAutopilotPaused } = require('./autopilotKillSwitch');
 const { ERROR_CODES } = require('./errors');
+const {
+  buildDescriptor: buildCompensationDescriptor,
+  writeCompensationInTx,
+} = require('./autopilotCompensations');
 
 class AutopilotPausedError extends Error {
   constructor(fincaId) {
@@ -125,6 +129,12 @@ async function executeCrearTarea(params, fincaId, ctx) {
         createdByAutopilot: true,
       });
       const result = { ok: true, taskId: taskRef.id, nombre };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'crear_tarea',
+        descriptor: buildCompensationDescriptor('crear_tarea', params, result),
+        fincaId,
+      });
       writeSuccessOutcome(t, ctx, result, startMs);
       return result;
     });
@@ -138,11 +148,19 @@ async function executeReprogramarTarea(params, fincaId, ctx) {
       const taskRef = db.collection('scheduled_tasks').doc(taskId);
       const snap = await t.get(taskRef);
       if (!snap.exists) throw new Error('Document not found.');
-      if (snap.data().fincaId !== fincaId) throw new Error('Access denied to this resource.');
+      const taskData = snap.data();
+      if (taskData.fincaId !== fincaId) throw new Error('Access denied to this resource.');
+      const oldExecuteAt = taskData.executeAt || null;
       t.update(taskRef, {
         executeAt: Timestamp.fromDate(new Date(newDate + 'T08:00:00')),
       });
       const result = { ok: true, taskId, newDate };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'reprogramar_tarea',
+        descriptor: buildCompensationDescriptor('reprogramar_tarea', params, result, { oldExecuteAt }),
+        fincaId,
+      });
       writeSuccessOutcome(t, ctx, result, startMs);
       return result;
     });
@@ -158,11 +176,18 @@ async function executeReasignarTarea(params, fincaId, ctx) {
       if (!snap.exists) throw new Error('Document not found.');
       const taskData = snap.data();
       if (taskData.fincaId !== fincaId) throw new Error('Access denied to this resource.');
+      const oldResponsableId = taskData.activity?.responsableId ?? null;
       t.update(taskRef, {
         activity: { ...taskData.activity, responsableId: newUserId },
         status: 'pending',
       });
       const result = { ok: true, taskId, newUserId };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'reasignar_tarea',
+        descriptor: buildCompensationDescriptor('reasignar_tarea', params, result, { oldResponsableId }),
+        fincaId,
+      });
       writeSuccessOutcome(t, ctx, result, startMs);
       return result;
     });
@@ -194,6 +219,12 @@ async function executeAjustarInventario(params, fincaId, ctx, options) {
       });
 
       const result = { ok: true, productoId, stockAnterior, stockNuevo };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'ajustar_inventario',
+        descriptor: buildCompensationDescriptor('ajustar_inventario', params, result, { stockAnterior }),
+        fincaId,
+      });
       writeSuccessOutcome(t, ctx, result, startMs);
       return result;
     });
@@ -271,6 +302,12 @@ async function executeCrearSolicitudCompra(params, fincaId, ctx, options) {
         taskId: taskRef.id,
         itemsCount: mappedItems.length,
       };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'crear_solicitud_compra',
+        descriptor: buildCompensationDescriptor('crear_solicitud_compra', params, result),
+        fincaId,
+      });
       writeSuccessOutcome(t, ctx, result, startMs);
       return result;
     });
@@ -352,6 +389,12 @@ async function executeCrearOrdenCompra(params, fincaId, ctx, options) {
       }
 
       const result = { ok: true, orderId: orderRef.id, poNumber, itemsCount: items.length };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'crear_orden_compra',
+        descriptor: buildCompensationDescriptor('crear_orden_compra', params, result),
+        fincaId,
+      });
       writeSuccessOutcome(t, ctx, result, startMs);
       return result;
     });
@@ -406,7 +449,8 @@ async function executeEnviarNotificacion(params, fincaId, ctx) {
 
     const result = { ok: true, userId, enviado: true };
 
-    // Phase 3: mark executed
+    // Phase 3: mark executed and record a non-compensable compensation
+    // (Twilio messages cannot be unsent; the record exists for UI clarity).
     if (ctx.actionDocRef) {
       await ctx.actionDocRef.update({
         status: 'executed',
@@ -414,6 +458,18 @@ async function executeEnviarNotificacion(params, fincaId, ctx) {
         executedAt: Timestamp.now(),
         latencyMs: Date.now() - startMs,
       });
+      try {
+        await db.runTransaction(async (t) => {
+          writeCompensationInTx(t, {
+            actionDocRef: ctx.actionDocRef,
+            actionType: 'enviar_notificacion',
+            descriptor: buildCompensationDescriptor('enviar_notificacion', params, result),
+            fincaId,
+          });
+        });
+      } catch (compErr) {
+        console.error('[AUTOPILOT] Failed to record not_compensable for notification:', compErr);
+      }
     }
     return result;
   } catch (err) {

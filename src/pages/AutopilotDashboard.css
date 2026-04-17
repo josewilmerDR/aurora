@@ -512,6 +512,11 @@
   color: #ff6b6b;
   border: 1px solid rgba(255,68,68,0.25);
 }
+.ap-action-btn--rollback {
+  background: rgba(255,140,0,0.12);
+  color: #ffb347;
+  border: 1px solid rgba(255,140,0,0.3);
+}
 .ap-action-btn--cancel {
   background: rgba(230,242,255,0.08);
   color: var(--aurora-light);
