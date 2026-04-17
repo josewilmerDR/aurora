@@ -1034,11 +1034,13 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
 
           if (guardrailResult.allowed) {
             // EJECUTAR DIRECTAMENTE
+            const startMs = Date.now();
             try {
               const execResult = await executeAutopilotAction(actionType, params, req.fincaId, { level: 'Nivel 3' });
               actionRecord.status = 'executed';
               actionRecord.executionResult = execResult;
               actionRecord.executedAt = Timestamp.now();
+              actionRecord.latencyMs = Date.now() - startMs;
               executedCount++;
               toolResults.push({
                 type: 'tool_result', tool_use_id: block.id,
@@ -1048,6 +1050,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
               actionRecord.status = 'failed';
               actionRecord.executionResult = { error: execErr.message };
               actionRecord.executedAt = Timestamp.now();
+              actionRecord.latencyMs = Date.now() - startMs;
               toolResults.push({
                 type: 'tool_result', tool_use_id: block.id,
                 content: JSON.stringify({ ok: false, error: execErr.message }),
@@ -1115,6 +1118,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
           rejectionReason: null,
           executedAt: action.executedAt || null,
           executionResult: action.executionResult || null,
+          latencyMs: typeof action.latencyMs === 'number' ? action.latencyMs : null,
         });
         actionRefs.push({ id: ref.id, ...action });
       }
@@ -1680,12 +1684,14 @@ router.put('/api/autopilot/actions/:id/approve', authenticate, assertAutopilotAc
     });
 
     let executionResult;
+    const execStartMs = Date.now();
     try {
       executionResult = await executeAutopilotAction(action.type, action.params, req.fincaId);
       await docRef.update({
         status: 'executed',
         executedAt: Timestamp.now(),
         executionResult,
+        latencyMs: Date.now() - execStartMs,
       });
     } catch (execErr) {
       console.error('[AUTOPILOT] Error al ejecutar acción:', execErr);
@@ -1693,6 +1699,7 @@ router.put('/api/autopilot/actions/:id/approve', authenticate, assertAutopilotAc
         status: 'failed',
         executedAt: Timestamp.now(),
         executionResult: { error: execErr.message },
+        latencyMs: Date.now() - execStartMs,
       });
       return res.json({ ok: true, status: 'failed', error: execErr.message });
     }

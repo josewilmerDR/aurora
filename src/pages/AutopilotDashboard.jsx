@@ -9,6 +9,8 @@ import {
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
+import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
+import AutopilotHealthPanel from '../components/AutopilotHealthPanel';
 import './AutopilotDashboard.css';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -946,6 +948,12 @@ export default function AutopilotDashboard() {
           )}
         </div>
       </div>
+
+      {/* ── Kill switch (visible siempre) ── */}
+      <AutopilotKillSwitch />
+
+      {/* ── Panel de salud (supervisor+) ── */}
+      {canConfig && <AutopilotHealthPanel />}
 
       {/* ── Notice: modo OFF ── */}
       {!loading && mode === 'off' && (

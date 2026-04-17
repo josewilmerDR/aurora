@@ -1,0 +1,209 @@
+.ap-health {
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--aurora-background);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ap-health-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ap-health-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--aurora-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-health-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-health-window {
+  display: inline-flex;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ap-health-window-btn {
+  background: transparent;
+  color: var(--aurora-light);
+  border: none;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.ap-health-window-btn.is-active {
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  opacity: 1;
+}
+
+.ap-health-window-btn:disabled {
+  cursor: not-allowed;
+}
+
+.ap-health-refresh {
+  padding: 4px 8px;
+}
+
+.ap-health-spin {
+  animation: ap-health-spin 1s linear infinite;
+}
+
+@keyframes ap-health-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.ap-health-error {
+  font-size: 0.82rem;
+  color: #ff6b6b;
+  background: rgba(255, 77, 77, 0.08);
+  border: 1px solid rgba(255, 77, 77, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.ap-health-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.ap-health-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  background: var(--aurora-dark-blue);
+}
+
+.ap-health-kpi-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.ap-health-kpi-label {
+  font-size: 0.74rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ap-health-kpi--good  .ap-health-kpi-value { color: var(--aurora-green); }
+.ap-health-kpi--warn  .ap-health-kpi-value { color: #ffb347; }
+.ap-health-kpi--bad   .ap-health-kpi-value { color: #ff6b6b; }
+
+.ap-health-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.ap-health-breakdown-group h5 {
+  margin: 0 0 6px 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.ap-health-breakdown-group ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ap-health-breakdown-group li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.84rem;
+  color: var(--aurora-light);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ap-health-failures h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ap-health-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+.ap-health-failures ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ap-health-failures li {
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 77, 77, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 77, 77, 0.04);
+}
+
+.ap-health-failure-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.84rem;
+  color: var(--aurora-light);
+}
+
+.ap-health-failure-head span {
+  opacity: 0.6;
+  font-size: 0.76rem;
+}
+
+.ap-health-failure-title {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+}
+
+.ap-health-failure-error {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #ff6b6b;
+  word-break: break-word;
+}
