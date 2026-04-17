@@ -5,12 +5,13 @@ import {
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
   FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
   FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
-  FiMic, FiMicOff, FiMessageSquare,
+  FiMic, FiMicOff, FiMessageSquare, FiRotateCcw,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
 import AutopilotHealthPanel from '../components/AutopilotHealthPanel';
+import { translateApiError } from '../lib/errorMessages';
 import './AutopilotDashboard.css';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -291,7 +292,7 @@ function ActionParamsSummary({ type, params }) {
   );
 }
 
-function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedback }) {
+function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRollback, feedback, onFeedback }) {
   const [confirming, setConfirming] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -311,7 +312,15 @@ function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedb
     setConfirming(null);
   };
 
+  const handleRollback = async () => {
+    setProcessing(true);
+    await onRollback(action.id);
+    setProcessing(false);
+    setConfirming(null);
+  };
+
   const isActionable = action.status === 'proposed' && canApprove;
+  const canBeRolledBack = action.status === 'executed' && !action.rolledBack && canRollback && !!onRollback;
 
   return (
     <div className={`ap-action-card ap-action-card--${action.status} ap-action-card--pri-${action.prioridad}`}>
@@ -391,10 +400,36 @@ function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedb
 
       {/* Resultado de ejecución */}
       {action.status === 'executed' && (
-        <div className="ap-action-result ap-action-result--ok">Ejecutada correctamente</div>
+        <div className="ap-action-result ap-action-result--ok">
+          {action.rolledBack ? 'Revertida' : 'Ejecutada correctamente'}
+        </div>
       )}
       {action.status === 'failed' && action.executionResult?.error && (
         <div className="ap-action-result ap-action-result--error">Error: {action.executionResult.error}</div>
+      )}
+
+      {/* Botón Revertir */}
+      {canBeRolledBack && !confirming && (
+        <div className="ap-action-buttons">
+          <button className="ap-action-btn ap-action-btn--rollback" onClick={() => setConfirming('rollback')}>
+            <FiRotateCcw size={13} /> Revertir
+          </button>
+        </div>
+      )}
+
+      {/* Confirmación de reversión */}
+      {confirming === 'rollback' && (
+        <div className="ap-action-confirm">
+          <p>Esto deshará el efecto de la acción. ¿Continuar?</p>
+          <div className="ap-action-confirm-buttons">
+            <button className="ap-action-btn ap-action-btn--rollback" onClick={handleRollback} disabled={processing}>
+              {processing ? 'Revirtiendo…' : 'Confirmar reversión'}
+            </button>
+            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Feedback — siempre visible al final */}
@@ -804,6 +839,22 @@ export default function AutopilotDashboard() {
     }
   };
 
+  const handleRollback = async (actionId) => {
+    try {
+      const res = await apiFetch(`/api/autopilot/actions/${actionId}/rollback`, { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(translateApiError(data));
+      setExecutedActions(prev =>
+        prev.map(a => a.id === actionId ? { ...a, rolledBack: true } : a)
+      );
+      setProposedActions(prev =>
+        prev.map(a => a.id === actionId ? { ...a, rolledBack: true } : a)
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleFeedback = async (target, targetType, signal, comment) => {
     const sid = latestSession?.id;
     if (!sid) return;
@@ -1122,7 +1173,9 @@ export default function AutopilotDashboard() {
               action={action}
               onApprove={handleApprove}
               onReject={handleReject}
+              onRollback={handleRollback}
               canApprove={false}
+              canRollback={canConfig}
               feedback={feedbackMap[action.id]}
               onFeedback={handleFeedback}
             />
