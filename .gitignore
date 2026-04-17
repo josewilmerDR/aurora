@@ -31,6 +31,9 @@ node_modules/
 dist/
 build/
 
+# Test coverage
+coverage/
+
 # OS-generated files
 .DS_Store
 .DS_Store?

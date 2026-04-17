@@ -224,18 +224,21 @@ async function applyCompensationInTx(t, type, params, fincaId) {
       return { ok: true, productoId: params.productoId, stockRestaurado: targetStock };
     }
     case 'cancel_solicitud': {
-      const ref = db.collection('solicitudes_compra').doc(params.solicitudId);
-      const snap = await t.get(ref);
-      if (!snap.exists) throw new Error('Solicitud ya no existe.');
-      if (snap.data().fincaId !== fincaId) throw new Error('Solicitud no pertenece a esta finca.');
-      t.update(ref, { estado: 'cancelada', canceladaAt: Timestamp.now() });
+      // Firestore transactions require all reads BEFORE any writes.
+      const solRef = db.collection('solicitudes_compra').doc(params.solicitudId);
+      const solSnap = await t.get(solRef);
+      if (!solSnap.exists) throw new Error('Solicitud ya no existe.');
+      if (solSnap.data().fincaId !== fincaId) throw new Error('Solicitud no pertenece a esta finca.');
+      let taskRef = null;
+      let taskExists = false;
       if (params.taskId) {
-        const taskRef = db.collection('scheduled_tasks').doc(params.taskId);
+        taskRef = db.collection('scheduled_tasks').doc(params.taskId);
         const taskSnap = await t.get(taskRef);
-        if (taskSnap.exists && taskSnap.data().fincaId === fincaId) {
-          t.update(taskRef, { status: 'skipped' });
-        }
+        taskExists = taskSnap.exists && taskSnap.data().fincaId === fincaId;
       }
+      // All writes after all reads.
+      t.update(solRef, { estado: 'cancelada', canceladaAt: Timestamp.now() });
+      if (taskExists) t.update(taskRef, { status: 'skipped' });
       return { ok: true, solicitudId: params.solicitudId };
     }
     case 'cancel_orden': {

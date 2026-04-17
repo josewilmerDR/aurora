@@ -2,6 +2,12 @@
   "name": "functions",
   "description": "Cloud Functions for Firebase",
   "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:emulator": "firebase emulators:exec --only firestore -- npm test",
+    "test:coverage:emulator": "firebase emulators:exec --only firestore -- npm run test:coverage"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "dotenv": "^16.4.5",
@@ -10,6 +16,9 @@
     "firebase-functions": "^7.2.3",
     "twilio": "^5.0.4",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   },
   "engines": {
     "node": "22"
