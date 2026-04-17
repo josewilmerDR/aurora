@@ -484,14 +484,23 @@ const SpeechRecognitionImpl =
   typeof window !== 'undefined' &&
   (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-function CommandPanel({ onSubmit, sending, lastResponse }) {
+function CommandPanel({ onSubmit, sending, conversation, onReset }) {
   const [expanded, setExpanded] = useState(false);
   const [text, setText] = useState('');
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState(null);
   const recognitionRef = useRef(null);
+  const chatEndRef = useRef(null);
 
   const voiceSupported = !!SpeechRecognitionImpl;
+  const hasConversation = conversation && conversation.length > 0;
+  const lastEntry = hasConversation ? conversation[conversation.length - 1] : null;
+  const awaitingReply = lastEntry?.role === 'assistant' && !sending;
+
+  // Auto-scroll chat to bottom when conversation updates
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [conversation?.length]);
 
   useEffect(() => {
     if (!voiceSupported) return;
@@ -558,9 +567,11 @@ function CommandPanel({ onSubmit, sending, lastResponse }) {
               className="ap-command-textarea"
               value={text}
               onChange={e => setText(e.target.value)}
-              placeholder={voiceSupported
-                ? 'Escribe o pulsa el micrófono para dictar…'
-                : 'Escribe tu instrucción…'}
+              placeholder={awaitingReply
+                ? 'Responde a la pregunta de Aurora…'
+                : voiceSupported
+                  ? 'Escribe o pulsa el micrófono para dictar…'
+                  : 'Escribe tu instrucción…'}
               rows={3}
               maxLength={2000}
               onKeyDown={e => {
@@ -595,20 +606,29 @@ function CommandPanel({ onSubmit, sending, lastResponse }) {
               <FiAlertTriangle size={11} /> {micError}
             </div>
           )}
-          {lastResponse?.clarifyingQuestion && (
-            <div className="ap-command-clarify">
-              <FiInfo size={13} className="ap-command-clarify-icon" />
-              <div>
-                <p className="ap-command-clarify-label">Aurora pregunta:</p>
-                <p className="ap-command-clarify-text">{lastResponse.clarifyingQuestion}</p>
-              </div>
+          {/* Multi-turn chat log */}
+          {hasConversation && (
+            <div className="ap-command-chat">
+              {conversation.map((entry, i) => (
+                <div key={i} className={`ap-chat-bubble ap-chat-bubble--${entry.role}`}>
+                  <span className="ap-chat-role">
+                    {entry.role === 'user' ? 'Tú' : 'Aurora'}
+                  </span>
+                  <p className="ap-chat-text">{entry.content}</p>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
             </div>
           )}
-          {lastResponse?.summaryText && !lastResponse?.clarifyingQuestion && (
-            <div className="ap-command-summary">
-              <FiCheck size={12} className="ap-command-summary-icon" />
-              <p>{lastResponse.summaryText}</p>
-            </div>
+          {hasConversation && (
+            <button
+              type="button"
+              className="ap-command-reset"
+              onClick={onReset}
+              disabled={sending}
+            >
+              Nueva conversación
+            </button>
           )}
         </div>
       )}
@@ -633,7 +653,8 @@ export default function AutopilotDashboard() {
   const [directives, setDirectives] = useState([]);
   const [directiveSaving, setDirectiveSaving] = useState(false);
   const [commandSending, setCommandSending] = useState(false);
-  const [commandResponse, setCommandResponse] = useState(null);
+  const [commandSessionId, setCommandSessionId] = useState(null);
+  const [commandConversation, setCommandConversation] = useState([]);
 
   // Initial load: config + latest session
   useEffect(() => {
@@ -822,18 +843,20 @@ export default function AutopilotDashboard() {
     setCommandSending(true);
     setError(null);
     try {
+      const payload = { text };
+      if (commandSessionId) payload.sessionId = commandSessionId;
+
       const res = await apiFetch('/api/autopilot/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al procesar el comando.');
-      setCommandResponse({
-        summaryText: data.summaryText || '',
-        clarifyingQuestion: data.clarifyingQuestion || null,
-        actionsCount: Array.isArray(data.proposedActions) ? data.proposedActions.length : 0,
-      });
+
+      setCommandSessionId(data.sessionId);
+      setCommandConversation(Array.isArray(data.conversationLog) ? data.conversationLog : []);
+
       if (Array.isArray(data.proposedActions) && data.proposedActions.length > 0) {
         setProposedActions(prev => [...data.proposedActions, ...prev]);
       }
@@ -844,6 +867,11 @@ export default function AutopilotDashboard() {
     } finally {
       setCommandSending(false);
     }
+  };
+
+  const handleResetCommand = () => {
+    setCommandSessionId(null);
+    setCommandConversation([]);
   };
 
   const handleAddDirective = async (text) => {
@@ -953,7 +981,8 @@ export default function AutopilotDashboard() {
         <CommandPanel
           onSubmit={handleSendCommand}
           sending={commandSending}
-          lastResponse={commandResponse}
+          conversation={commandConversation}
+          onReset={handleResetCommand}
         />
       )}
 
