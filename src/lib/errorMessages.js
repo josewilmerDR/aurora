@@ -31,6 +31,9 @@ export const ERROR_MESSAGES = {
   // Server
   INTERNAL_ERROR: 'Error interno del servidor.',
   EXTERNAL_SERVICE_ERROR: 'Error en un servicio externo.',
+
+  // Autopilot
+  AUTOPILOT_PAUSED: 'El Piloto Automático está pausado. Reanúdalo para ejecutar acciones.',
 };
 
 const DEFAULT_FALLBACK = 'Ocurrió un error inesperado.';

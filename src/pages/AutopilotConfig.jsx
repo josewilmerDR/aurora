@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiSave, FiCheck, FiCpu, FiShield } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './AutopilotDashboard.css';
 
@@ -90,6 +91,9 @@ export default function AutopilotConfig() {
   return (
     <div className="ap-page">
       <div className="ap-config-layout">
+
+        {/* ── Kill switch (visible siempre) ── */}
+        <AutopilotKillSwitch />
 
         {/* ── Selector de modo ── */}
         <div className="form-card">

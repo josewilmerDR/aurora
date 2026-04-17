@@ -10,6 +10,7 @@ const {
   sendPushToFincaRoles,
   sendWhatsAppToFincaRoles,
 } = require('../lib/helpers');
+const { assertAutopilotActive } = require('../lib/autopilotMiddleware');
 
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
@@ -326,7 +327,7 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
 });
 
 // POST /api/autopilot/analyze  (minRole: encargado)
-router.post('/api/autopilot/analyze', authenticate, async (req, res) => {
+router.post('/api/autopilot/analyze', authenticate, assertAutopilotActive, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'encargado')) {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Encargado role or higher required.', 403);
   }
@@ -1198,7 +1199,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
 // Intent-driven channel: user types or dictates a command; agent converts it to
 // proposed actions using the same tools as Nivel 2. Always proposes (never
 // executes), even if the user says "ejecuta" — the supervisor approves.
-router.post('/api/autopilot/command', authenticate, async (req, res) => {
+router.post('/api/autopilot/command', authenticate, assertAutopilotActive, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'encargado')) {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Encargado role or higher required.', 403);
   }
@@ -1657,7 +1658,7 @@ router.get('/api/autopilot/actions', authenticate, async (req, res) => {
 });
 
 // PUT /api/autopilot/actions/:id/approve — approves and executes an action (supervisor+)
-router.put('/api/autopilot/actions/:id/approve', authenticate, async (req, res) => {
+router.put('/api/autopilot/actions/:id/approve', authenticate, assertAutopilotActive, async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'supervisor')) {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
   }

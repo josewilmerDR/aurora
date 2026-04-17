@@ -29,6 +29,9 @@ const ERROR_CODES = {
   // Server
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   EXTERNAL_SERVICE_ERROR: 'EXTERNAL_SERVICE_ERROR',
+
+  // Autopilot
+  AUTOPILOT_PAUSED: 'AUTOPILOT_PAUSED',
 };
 
 class ApiError extends Error {
