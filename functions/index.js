@@ -44,6 +44,7 @@ app.use(require('./routes/autopilot-control'));
 app.use(require('./routes/autopilot'));
 app.use(require('./routes/cosecha'));
 app.use(require('./routes/costos'));
+app.use(require('./routes/budgets'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
