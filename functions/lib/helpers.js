@@ -2,6 +2,15 @@ const webpush = require('web-push');
 const { db, Timestamp, FieldPath, APP_URL, twilioWhatsappFrom } = require('./firebase');
 const { getTwilioClient } = require('./clients');
 const { ERROR_CODES } = require('./errors');
+const { isPaused: isAutopilotPaused } = require('./autopilotKillSwitch');
+
+class AutopilotPausedError extends Error {
+  constructor(fincaId) {
+    super(`Autopilot is paused for finca ${fincaId}.`);
+    this.name = 'AutopilotPausedError';
+    this.code = ERROR_CODES.AUTOPILOT_PAUSED;
+  }
+}
 
 // --- SECURITY HELPERS ---
 const pick = (obj, fields) => fields.reduce((acc, f) => {
@@ -181,6 +190,13 @@ async function sendWhatsAppToFincaRoles(fincaId, roles, mensaje) {
 
 // --- AUTOPILOT: execute approved action ---
 async function executeAutopilotAction(type, params, fincaId, options = {}) {
+  // Defense-in-depth kill switch: even if a future caller bypasses the route
+  // middleware (cron jobs, internal callers), no Autopilot-driven side effect
+  // runs while the finca is paused.
+  if (await isAutopilotPaused(fincaId)) {
+    throw new AutopilotPausedError(fincaId);
+  }
+
   switch (type) {
     case 'crear_tarea': {
       const { nombre, loteId, responsableId, fecha, productos } = params;
@@ -488,4 +504,5 @@ module.exports = {
   sendNotificationWithLink,
   executeAutopilotAction,
   validateGuardrails,
+  AutopilotPausedError,
 };

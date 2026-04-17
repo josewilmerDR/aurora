@@ -40,6 +40,7 @@ app.use(require('./routes/unidades'));
 app.use(require('./routes/labores'));
 app.use(require('./routes/webpush'));
 app.use(require('./routes/calibraciones'));
+app.use(require('./routes/autopilot-control'));
 app.use(require('./routes/autopilot'));
 app.use(require('./routes/cosecha'));
 app.use(require('./routes/costos'));
