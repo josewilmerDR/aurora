@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { FiMenu, FiUser, FiSearch, FiArrowLeft } from 'react-icons/fi';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { FiMenu, FiUser, FiSearch, FiArrowLeft, FiCpu } from 'react-icons/fi';
 import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigate, Navigate, NavLink } from 'react-router-dom';
 import UserManagement from './pages/UserManagement';
 import PackageManagement from './pages/PackageManagement';
@@ -65,6 +65,8 @@ import AutopilotConfig from './pages/AutopilotConfig';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
+import AutopilotPanel from './components/AutopilotPanel';
+import { useApiFetch } from './hooks/useApiFetch';
 import ReminderNotification from './components/ReminderNotification';
 import { useReminderPoller } from './hooks/useReminderPoller';
 import { usePushNotifications } from './hooks/usePushNotifications';
@@ -92,6 +94,9 @@ const ROUTE_MIN_ROLE = {
   '/hr/planilla/horas': 'encargado',
   '/monitoreo/paquetes': 'supervisor',
   '/monitoreo/muestreos': 'encargado',
+  // Autopilot — accessed via header icon, not sidebar
+  '/autopilot': 'encargado',
+  '/autopilot/configuracion': 'supervisor',
 };
 
 // Route → human-readable title mapping (displayed in the app header).
@@ -180,8 +185,11 @@ const LogoutRoute = () => {
 const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [autopilotOpen, setAutopilotOpen] = useState(false);
+  const [autopilotPendingCount, setAutopilotPendingCount] = useState(0);
   const { pendingReminders, dismissReminder } = useReminderPoller();
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
@@ -212,6 +220,36 @@ const MainLayout = () => {
   const searchInputRef = useRef(null);
   const wrapperRef = useRef(null);
   const userRole = currentUser?.rol || 'trabajador';
+  const canSeeAutopilot = hasMinRole(userRole, 'encargado');
+
+  // Refresh the pending-actions badge from /api/autopilot/actions
+  const refreshAutopilotPending = useCallback(() => {
+    if (!canSeeAutopilot) return;
+    apiFetch('/api/autopilot/actions')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAutopilotPendingCount(data.filter(a => a.status === 'proposed').length);
+        }
+      })
+      .catch(() => { });
+  }, [apiFetch, canSeeAutopilot]);
+
+  useEffect(() => {
+    refreshAutopilotPending();
+    window.addEventListener('aurora-autopilot-changed', refreshAutopilotPending);
+    return () => window.removeEventListener('aurora-autopilot-changed', refreshAutopilotPending);
+  }, [refreshAutopilotPending]);
+
+  const openAutopilot = () => {
+    setProfileOpen(false);
+    setAutopilotOpen(true);
+  };
+  const openProfile = () => {
+    setAutopilotOpen(false);
+    setProfileOpen(o => !o);
+  };
+
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try { return localStorage.getItem('aurora_sidebar_collapsed') === 'true'; }
     catch { return false; }
@@ -355,9 +393,24 @@ const MainLayout = () => {
           <FiSearch size={19} />
         </button>
 
+        {canSeeAutopilot && (
+          <button
+            className={`app-header-autopilot-btn${autopilotOpen ? ' active' : ''}`}
+            onClick={openAutopilot}
+            title="Piloto Automático"
+          >
+            <FiCpu size={17} />
+            {autopilotPendingCount > 0 && (
+              <span className="app-header-autopilot-badge">
+                {autopilotPendingCount > 99 ? '99+' : autopilotPendingCount}
+              </span>
+            )}
+          </button>
+        )}
+
         <button
           className={`app-header-profile-btn${profileOpen ? ' active' : ''}`}
-          onClick={() => setProfileOpen(o => !o)}
+          onClick={openProfile}
           title="Mi perfil"
         >
           <FiUser size={17} />
@@ -384,6 +437,11 @@ const MainLayout = () => {
       <div className={`profile-panel${profileOpen ? ' open' : ''}`}>
         <Profile />
       </div>
+
+      {/* ── Autopilot panel ── */}
+      {canSeeAutopilot && (
+        <AutopilotPanel open={autopilotOpen} onClose={() => setAutopilotOpen(false)} />
+      )}
       {showPushPrompt && (
         <div className="push-prompt">
           <span className="push-prompt-text">¿Activar notificaciones para recordatorios?</span>
