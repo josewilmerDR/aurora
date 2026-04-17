@@ -5,12 +5,13 @@ import {
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
   FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
   FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
-  FiMic, FiMicOff, FiMessageSquare,
+  FiMic, FiMicOff, FiMessageSquare, FiRotateCcw,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
 import AutopilotHealthPanel from '../components/AutopilotHealthPanel';
+import { translateApiError } from '../lib/errorMessages';
 import './AutopilotDashboard.css';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -291,7 +292,7 @@ function ActionParamsSummary({ type, params }) {
   );
 }
 
-function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedback }) {
+function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRollback, canSeeReasoning, feedback, onFeedback }) {
   const [confirming, setConfirming] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -311,7 +312,15 @@ function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedb
     setConfirming(null);
   };
 
+  const handleRollback = async () => {
+    setProcessing(true);
+    await onRollback(action.id);
+    setProcessing(false);
+    setConfirming(null);
+  };
+
   const isActionable = action.status === 'proposed' && canApprove;
+  const canBeRolledBack = action.status === 'executed' && !action.rolledBack && canRollback && !!onRollback;
 
   return (
     <div className={`ap-action-card ap-action-card--${action.status} ap-action-card--pri-${action.prioridad}`}>
@@ -391,11 +400,40 @@ function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedb
 
       {/* Resultado de ejecución */}
       {action.status === 'executed' && (
-        <div className="ap-action-result ap-action-result--ok">Ejecutada correctamente</div>
+        <div className="ap-action-result ap-action-result--ok">
+          {action.rolledBack ? 'Revertida' : 'Ejecutada correctamente'}
+        </div>
       )}
       {action.status === 'failed' && action.executionResult?.error && (
         <div className="ap-action-result ap-action-result--error">Error: {action.executionResult.error}</div>
       )}
+
+      {/* Botón Revertir */}
+      {canBeRolledBack && !confirming && (
+        <div className="ap-action-buttons">
+          <button className="ap-action-btn ap-action-btn--rollback" onClick={() => setConfirming('rollback')}>
+            <FiRotateCcw size={13} /> Revertir
+          </button>
+        </div>
+      )}
+
+      {/* Confirmación de reversión */}
+      {confirming === 'rollback' && (
+        <div className="ap-action-confirm">
+          <p>Esto deshará el efecto de la acción. ¿Continuar?</p>
+          <div className="ap-action-confirm-buttons">
+            <button className="ap-action-btn ap-action-btn--rollback" onClick={handleRollback} disabled={processing}>
+              {processing ? 'Revirtiendo…' : 'Confirmar reversión'}
+            </button>
+            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Razonamiento de Claude — supervisor+ */}
+      {canSeeReasoning && <ReasoningPanel actionId={action.id} />}
 
       {/* Feedback — siempre visible al final */}
       {onFeedback && (
@@ -403,6 +441,66 @@ function ActionCard({ action, onApprove, onReject, canApprove, feedback, onFeedb
           current={feedback}
           onSubmit={(signal, comment) => onFeedback(action, 'action', signal, comment)}
         />
+      )}
+    </div>
+  );
+}
+
+function ReasoningPanel({ actionId }) {
+  const apiFetch = useApiFetch();
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleToggle = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (data || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/autopilot/actions/${actionId}`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(translateApiError(body));
+      setData(body);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reasoning = data?.reasoning;
+
+  return (
+    <div className="ap-action-reasoning">
+      <button type="button" className="ap-action-reasoning-toggle" onClick={handleToggle}>
+        {open ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
+        {open ? 'Ocultar razonamiento' : 'Ver razonamiento del modelo'}
+      </button>
+      {open && (
+        <div className="ap-action-reasoning-body">
+          {loading && <p className="ap-action-reasoning-empty">Cargando…</p>}
+          {error && <p className="ap-action-reasoning-error">{error}</p>}
+          {!loading && !error && data && !reasoning && (
+            <p className="ap-action-reasoning-empty">Esta acción no tiene razonamiento registrado.</p>
+          )}
+          {reasoning && (
+            <>
+              {reasoning.thinking ? (
+                <pre className="ap-action-reasoning-thinking">{reasoning.thinking}</pre>
+              ) : (
+                <p className="ap-action-reasoning-empty">Sin texto de razonamiento (el modelo no lo emitió).</p>
+              )}
+              <div className="ap-action-reasoning-meta">
+                {reasoning.modelVersion && <span>Modelo: {reasoning.modelVersion}</span>}
+                {reasoning.toolName && <span>Herramienta: {reasoning.toolName}</span>}
+                {reasoning.capturedAt && <span>{new Date(reasoning.capturedAt).toLocaleString('es-ES')}</span>}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -804,6 +902,22 @@ export default function AutopilotDashboard() {
     }
   };
 
+  const handleRollback = async (actionId) => {
+    try {
+      const res = await apiFetch(`/api/autopilot/actions/${actionId}/rollback`, { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(translateApiError(data));
+      setExecutedActions(prev =>
+        prev.map(a => a.id === actionId ? { ...a, rolledBack: true } : a)
+      );
+      setProposedActions(prev =>
+        prev.map(a => a.id === actionId ? { ...a, rolledBack: true } : a)
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleFeedback = async (target, targetType, signal, comment) => {
     const sid = latestSession?.id;
     if (!sid) return;
@@ -1097,6 +1211,7 @@ export default function AutopilotDashboard() {
                     onApprove={handleApprove}
                     onReject={handleReject}
                     canApprove={canConfig}
+                    canSeeReasoning={canConfig}
                     feedback={feedbackMap[action.id]}
                     onFeedback={handleFeedback}
                   />
@@ -1122,7 +1237,10 @@ export default function AutopilotDashboard() {
               action={action}
               onApprove={handleApprove}
               onReject={handleReject}
+              onRollback={handleRollback}
               canApprove={false}
+              canRollback={canConfig}
+              canSeeReasoning={canConfig}
               feedback={feedbackMap[action.id]}
               onFeedback={handleFeedback}
             />
@@ -1146,6 +1264,7 @@ export default function AutopilotDashboard() {
               onApprove={handleApprove}
               onReject={handleReject}
               canApprove={canConfig}
+              canSeeReasoning={canConfig}
               feedback={feedbackMap[action.id]}
               onFeedback={handleFeedback}
             />

@@ -34,6 +34,13 @@ export const ERROR_MESSAGES = {
 
   // Autopilot
   AUTOPILOT_PAUSED: 'El Piloto Automático está pausado. Reanúdalo para ejecutar acciones.',
+  COMPENSATION_NOT_AVAILABLE: 'No hay compensación registrada para esta acción.',
+  COMPENSATION_NOT_COMPENSABLE: 'Esta acción no se puede revertir (efecto irreversible).',
+  COMPENSATION_EXPIRED: 'La ventana para revertir esta acción ya expiró.',
+  COMPENSATION_ALREADY_APPLIED: 'Esta acción ya fue revertida anteriormente.',
+  COMPENSATION_BLOCKED: 'No se puede revertir: hay efectos posteriores que lo impiden.',
+  ACTION_NOT_EXECUTED: 'Solo se pueden revertir acciones ejecutadas.',
+  ACTION_ALREADY_ROLLED_BACK: 'Esta acción ya fue revertida.',
 };
 
 const DEFAULT_FALLBACK = 'Ocurrió un error inesperado.';
