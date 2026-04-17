@@ -1,0 +1,134 @@
+@import '../LoteManagement.css';
+
+.finance-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.finance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.finance-field label {
+  font-size: 12px;
+  color: var(--aurora-light);
+  opacity: 0.75;
+}
+
+.finance-field input,
+.finance-field select,
+.finance-field textarea {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.finance-field input:focus,
+.finance-field select:focus,
+.finance-field textarea:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.finance-field-full { grid-column: 1 / -1; }
+
+.finance-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.finance-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.finance-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}
+
+/* ── Execution panel — tabla de consumo por categoría ───────────────────── */
+.finance-execution-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.finance-execution-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.finance-execution-summary {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.finance-execution-summary-item strong { color: var(--aurora-green); }
+.finance-execution-summary-item--over strong { color: #ff8080; }
+
+.finance-execution-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.finance-execution-table th,
+.finance-execution-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.finance-execution-table th {
+  color: var(--aurora-light);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.finance-execution-table td.finance-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-row-over   { color: #ff8080; }
+.finance-row-nobudget { opacity: 0.6; }
+
+/* ── Progress bar por categoría ─────────────────────────────────────────── */
+.finance-progress {
+  display: block;
+  height: 6px;
+  width: 120px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.finance-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--aurora-green);
+  transition: width 0.2s;
+}
+
+.finance-progress-fill--warn { background: #ffcc33; }
+.finance-progress-fill--over { background: #ff8080; }
