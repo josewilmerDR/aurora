@@ -38,6 +38,21 @@
 
 .finance-field-full { grid-column: 1 / -1; }
 
+.finance-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.finance-pill--pending  { background: rgba(204, 51, 255, 0.15); color: var(--aurora-magenta); }
+.finance-pill--paid     { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
+.finance-pill--void     { background: rgba(255, 80, 80, 0.15);  color: #ff8080; }
+.finance-pill--inactive { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
+
 .finance-amount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -132,3 +147,47 @@
 
 .finance-progress-fill--warn { background: #ffcc33; }
 .finance-progress-fill--over { background: #ff8080; }
+
+/* ── Treasury — chart + tabla semanal ─────────────────────────────────── */
+.treasury-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.treasury-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-size: 13px;
+}
+
+.treasury-stats strong { color: var(--aurora-green); }
+.treasury-stats .treasury-stat--negative strong { color: #ff8080; }
+
+.treasury-chart-wrap {
+  width: 100%;
+  height: 220px;
+}
+
+.treasury-chart-line     { fill: none; stroke: var(--aurora-green); stroke-width: 2; }
+.treasury-chart-area     { fill: rgba(51, 255, 153, 0.12); stroke: none; }
+.treasury-chart-baseline { stroke: rgba(255, 80, 80, 0.6); stroke-dasharray: 4 4; stroke-width: 1; fill: none; }
+.treasury-chart-grid     { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
+
+.treasury-week-row-negative td { color: #ff8080; }
+
+.treasury-cash-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 204, 51, 0.08);
+  border: 1px solid rgba(255, 204, 51, 0.25);
+  color: #ffcc33;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
