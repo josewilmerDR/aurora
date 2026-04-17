@@ -61,6 +61,9 @@ import CosechaDespachos from './pages/CosechaDespachos';
 import CosechaHistorialDespacho from './pages/CosechaHistorialDespacho';
 import CentroCostos from './pages/CentroCostos';
 import Budgets from './pages/finance/Budgets';
+import IncomeRecords from './pages/finance/IncomeRecords';
+import BuyersList from './pages/finance/BuyersList';
+import Treasury from './pages/finance/Treasury';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
 import Sidebar from './components/Sidebar';
@@ -120,6 +123,9 @@ const routeTitles = {
   '/proveedores': 'Proveedores',
   '/costos': 'Centro de Costos',
   '/finance/presupuestos': 'Presupuestos',
+  '/finance/tesoreria': 'Tesorería',
+  '/finance/ingresos': 'Ingresos',
+  '/finance/compradores': 'Compradores',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/permisos': 'Permisos y Vacaciones',
   '/hr/planilla': 'Cálculo de Planilla',
@@ -524,6 +530,9 @@ function App() {
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
             <Route path="/costos" element={<RoleRoute path="/costos"><CentroCostos /></RoleRoute>} />
             <Route path="/finance/presupuestos" element={<RoleRoute path="/finance/presupuestos"><Budgets /></RoleRoute>} />
+            <Route path="/finance/tesoreria" element={<RoleRoute path="/finance/tesoreria"><Treasury /></RoleRoute>} />
+            <Route path="/finance/ingresos" element={<RoleRoute path="/finance/ingresos"><IncomeRecords /></RoleRoute>} />
+            <Route path="/finance/compradores" element={<RoleRoute path="/finance/compradores"><BuyersList /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
