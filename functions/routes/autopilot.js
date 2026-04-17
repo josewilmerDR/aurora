@@ -1207,6 +1207,23 @@ router.post('/api/autopilot/command', authenticate, async (req, res) => {
     if (!text) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Command cannot be empty.', 400);
     if (text.length > 2000) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Command exceeds 2000 characters.', 400);
 
+    // Multi-turn: optional sessionId for follow-up messages
+    const followUpSessionId = req.body?.sessionId || null;
+    let conversationLog = [];
+    const MAX_CONVERSATION_TURNS = 10; // 5 exchanges max
+
+    if (followUpSessionId) {
+      const priorDoc = await db.collection('autopilot_sessions').doc(followUpSessionId).get();
+      if (!priorDoc.exists || priorDoc.data().fincaId !== req.fincaId) {
+        return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Session not found.', 404);
+      }
+      conversationLog = priorDoc.data().conversationLog || [];
+      if (conversationLog.length >= MAX_CONVERSATION_TURNS) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED,
+          'Conversación alcanzó el límite de turnos. Inicia una nueva.', 400);
+      }
+    }
+
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -1367,16 +1384,23 @@ Jerarquía de compras (igual que en modo análisis):
 
     const anthropicClient = getAnthropicClient();
 
-    const userMessage = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}${snapshotText}
+    // Build messages array — snapshot always in first user message (refreshed each turn)
+    const isFollowUp = followUpSessionId && conversationLog.length > 0;
+    const firstUserText = isFollowUp ? conversationLog[0].content : text;
+    const initialUserContent = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}${snapshotText}\n\n---\n\n**Comando del usuario:**\n${firstUserText}`;
+    const messages = [{ role: 'user', content: initialUserContent }];
 
----
-
-**Comando del usuario:**
-${text}`;
+    // Append prior conversation turns (skip first — it's embedded in snapshot message)
+    if (isFollowUp) {
+      for (let i = 1; i < conversationLog.length; i++) {
+        messages.push({ role: conversationLog[i].role, content: conversationLog[i].content });
+      }
+      // Append the new follow-up message
+      messages.push({ role: 'user', content: text });
+    }
 
     // Agentic loop
     const proposedActions = [];
-    const messages = [{ role: 'user', content: userMessage }];
     let summaryText = '';
     let iterations = 0;
 
@@ -1429,30 +1453,53 @@ ${text}`;
     // The response is "clarification" if no actions were proposed
     const clarifying = proposedActions.length === 0;
 
-    // Save session (traceability + audit)
-    const sessionRef = await db.collection('autopilot_sessions').add({
-      fincaId: req.fincaId,
-      timestamp: Timestamp.now(),
-      triggeredBy: req.uid,
-      triggeredByName: req.userEmail,
-      snapshot,
-      recommendations: [],
-      summaryText,
-      commandText: text.slice(0, 2000),
-      mode: 'command',
-      proposedActionsCount: proposedActions.length,
-      awaitingClarification: clarifying,
-      status: 'completed',
-      errorMessage: null,
-    });
+    // Update conversation log with new exchange
+    conversationLog.push({ role: 'user', content: text });
+    conversationLog.push({ role: 'assistant', content: summaryText });
 
-    // Guardar acciones propuestas
+    // Save or update session
+    let sessionRefId;
+    if (followUpSessionId) {
+      // Count total proposed actions across all turns in this session
+      const totalActions = await db.collection('autopilot_actions')
+        .where('sessionId', '==', followUpSessionId)
+        .where('fincaId', '==', req.fincaId)
+        .get();
+      await db.collection('autopilot_sessions').doc(followUpSessionId).update({
+        conversationLog,
+        summaryText,
+        awaitingClarification: clarifying,
+        proposedActionsCount: totalActions.size + proposedActions.length,
+        updatedAt: Timestamp.now(),
+      });
+      sessionRefId = followUpSessionId;
+    } else {
+      const sessionRef = await db.collection('autopilot_sessions').add({
+        fincaId: req.fincaId,
+        timestamp: Timestamp.now(),
+        triggeredBy: req.uid,
+        triggeredByName: req.userEmail,
+        snapshot,
+        recommendations: [],
+        summaryText,
+        commandText: text.slice(0, 2000),
+        mode: 'command',
+        conversationLog,
+        proposedActionsCount: proposedActions.length,
+        awaitingClarification: clarifying,
+        status: 'completed',
+        errorMessage: null,
+      });
+      sessionRefId = sessionRef.id;
+    }
+
+    // Save proposed actions
     const nowTs = Timestamp.now();
     const actionRefs = [];
     for (const action of proposedActions) {
       const ref = await db.collection('autopilot_actions').add({
         fincaId: req.fincaId,
-        sessionId: sessionRef.id,
+        sessionId: sessionRefId,
         type: action.type,
         params: action.params,
         titulo: action.titulo,
@@ -1506,10 +1553,11 @@ ${text}`;
     }
 
     res.json({
-      sessionId: sessionRef.id,
+      sessionId: sessionRefId,
       proposedActions: actionRefs,
       summaryText,
       clarifyingQuestion: clarifying ? summaryText : null,
+      conversationLog,
       snapshot,
       timestamp: new Date().toISOString(),
     });
