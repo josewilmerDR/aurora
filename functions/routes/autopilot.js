@@ -11,6 +11,12 @@ const {
 } = require('../lib/helpers');
 const { executeAutopilotAction } = require('../lib/autopilotActions');
 const { assertAutopilotActive } = require('../lib/autopilotMiddleware');
+const {
+  thinkingConfig,
+  MAX_TOKENS_WITH_THINKING,
+  buildReasoning,
+  stripReasoning,
+} = require('../lib/autopilotReasoning');
 
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
@@ -639,7 +645,8 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
         iterations++;
         const response = await anthropicClient.messages.create({
           model: 'claude-sonnet-4-6',
-          max_tokens: 4096,
+          max_tokens: MAX_TOKENS_WITH_THINKING,
+          thinking: thinkingConfig(),
           system: nivel2SystemPrompt,
           tools: nivel2Tools,
           messages,
@@ -675,6 +682,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
             descripcion: String(razon || ''),
             prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
             categoria: catMap[actionType] || 'general',
+            reasoning: buildReasoning(response, block),
           });
 
           toolResults.push({
@@ -719,6 +727,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
           rejectionReason: null,
           executedAt: null,
           executionResult: null,
+          reasoning: action.reasoning || null,
         });
         actionRefs.push({ id: ref.id, ...action, status: 'proposed' });
       }
@@ -753,7 +762,7 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
       return res.json({
         sessionId: sessionRef.id,
         recommendations: [],
-        proposedActions: actionRefs,
+        proposedActions: actionRefs.map(stripReasoning),
         summaryText,
         snapshot,
         timestamp: new Date().toISOString(),
@@ -987,7 +996,8 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
         iterations++;
         const response = await anthropicClient.messages.create({
           model: 'claude-sonnet-4-6',
-          max_tokens: 4096,
+          max_tokens: MAX_TOKENS_WITH_THINKING,
+          thinking: thinkingConfig(),
           system: nivel3SystemPrompt,
           tools: nivel3Tools,
           messages,
@@ -1000,6 +1010,9 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
           break;
         }
 
+        // Preserve thinking blocks when echoing the assistant turn back in
+        // the next request — required by the API to maintain extended-thinking
+        // signatures across the agentic loop.
         messages.push({ role: 'assistant', content: response.content });
         const toolResults = [];
 
@@ -1047,6 +1060,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
             reviewedByName: null,
             reviewedAt: null,
             rejectionReason: null,
+            reasoning: buildReasoning(response, block),
           };
 
           if (guardrailResult.allowed) {
@@ -1172,9 +1186,9 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
       return res.json({
         sessionId: sessionRef.id,
         recommendations: [],
-        proposedActions: actionRefs.filter(a => a.status === 'proposed'),
-        executedActions: actionRefs.filter(a => a.status === 'executed'),
-        failedActions: actionRefs.filter(a => a.status === 'failed'),
+        proposedActions: actionRefs.filter(a => a.status === 'proposed').map(stripReasoning),
+        executedActions: actionRefs.filter(a => a.status === 'executed').map(stripReasoning),
+        failedActions: actionRefs.filter(a => a.status === 'failed').map(stripReasoning),
         summaryText,
         snapshot,
         timestamp: new Date().toISOString(),
@@ -1404,7 +1418,8 @@ Jerarquía de compras (igual que en modo análisis):
       iterations++;
       const response = await anthropicClient.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
+        max_tokens: MAX_TOKENS_WITH_THINKING,
+        thinking: thinkingConfig(),
         system: commandSystemPrompt,
         tools: AUTOPILOT_PROPOSE_TOOLS,
         messages,
@@ -1435,6 +1450,7 @@ Jerarquía de compras (igual que en modo análisis):
           descripcion: String(razon || ''),
           prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
           categoria: ACTION_CATEGORY_MAP[actionType] || 'general',
+          reasoning: buildReasoning(response, block),
         });
         toolResults.push({
           type: 'tool_result',
@@ -1513,6 +1529,7 @@ Jerarquía de compras (igual que en modo análisis):
         rejectionReason: null,
         executedAt: null,
         executionResult: null,
+        reasoning: action.reasoning || null,
       });
       actionRefs.push({ id: ref.id, ...action, status: 'proposed' });
     }
@@ -1550,7 +1567,7 @@ Jerarquía de compras (igual que en modo análisis):
 
     res.json({
       sessionId: sessionRefId,
-      proposedActions: actionRefs,
+      proposedActions: actionRefs.map(stripReasoning),
       summaryText,
       clarifyingQuestion: clarifying ? summaryText : null,
       conversationLog,
@@ -1611,37 +1628,51 @@ router.get('/api/autopilot/sessions/:id', authenticate, async (req, res) => {
   }
 });
 
+// Build an outbound action payload from a Firestore doc, optionally including
+// the model's reasoning. Reasoning is potentially sensitive (snapshot data,
+// user names) so callers without supervisor+ rights never see it, regardless
+// of the includeReasoning flag.
+function serializeAction(doc, { includeReasoning } = {}) {
+  const d = doc.data();
+  const base = {
+    id: doc.id,
+    type: d.type,
+    params: d.params,
+    titulo: d.titulo,
+    descripcion: d.descripcion,
+    prioridad: d.prioridad,
+    categoria: d.categoria,
+    status: d.status,
+    sessionId: d.sessionId,
+    createdAt: d.createdAt?.toDate?.()?.toISOString() ?? null,
+    reviewedByName: d.reviewedByName || null,
+    reviewedAt: d.reviewedAt?.toDate?.()?.toISOString() ?? null,
+    rejectionReason: d.rejectionReason || null,
+    executedAt: d.executedAt?.toDate?.()?.toISOString() ?? null,
+    executionResult: d.executionResult || null,
+    autonomous: d.autonomous || false,
+    escalated: d.escalated || false,
+    guardrailViolations: d.guardrailViolations || null,
+    rolledBack: d.rolledBack || false,
+    rolledBackAt: d.rolledBackAt?.toDate?.()?.toISOString() ?? null,
+  };
+  return includeReasoning ? { ...base, reasoning: d.reasoning || null } : base;
+}
+
 // GET /api/autopilot/actions — lista acciones propuestas/ejecutadas
+//   ?status=...        filter
+//   ?sessionId=...     filter
+//   ?includeReasoning=1 (supervisor+ only) — returns the captured Claude reasoning
 router.get('/api/autopilot/actions', authenticate, async (req, res) => {
   try {
+    const wantsReasoning = req.query.includeReasoning === '1';
+    const includeReasoning = wantsReasoning && hasMinRoleBE(req.userRole, 'supervisor');
     const snap = await db.collection('autopilot_actions')
       .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc')
       .limit(50)
       .get();
-    let actions = snap.docs.map(doc => {
-      const d = doc.data();
-      return {
-        id: doc.id,
-        type: d.type,
-        params: d.params,
-        titulo: d.titulo,
-        descripcion: d.descripcion,
-        prioridad: d.prioridad,
-        categoria: d.categoria,
-        status: d.status,
-        sessionId: d.sessionId,
-        createdAt: d.createdAt?.toDate?.()?.toISOString() ?? null,
-        reviewedByName: d.reviewedByName || null,
-        reviewedAt: d.reviewedAt?.toDate?.()?.toISOString() ?? null,
-        rejectionReason: d.rejectionReason || null,
-        executedAt: d.executedAt?.toDate?.()?.toISOString() ?? null,
-        executionResult: d.executionResult || null,
-        autonomous: d.autonomous || false,
-        escalated: d.escalated || false,
-        guardrailViolations: d.guardrailViolations || null,
-      };
-    });
+    let actions = snap.docs.map(doc => serializeAction(doc, { includeReasoning }));
     const { status, sessionId } = req.query;
     if (status) actions = actions.filter(a => a.status === status);
     if (sessionId) actions = actions.filter(a => a.sessionId === sessionId);
@@ -1649,6 +1680,22 @@ router.get('/api/autopilot/actions', authenticate, async (req, res) => {
   } catch (err) {
     console.error('[AUTOPILOT] Error al listar acciones:', err);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch actions.', 500);
+  }
+});
+
+// GET /api/autopilot/actions/:id — single action; supervisor+ gets reasoning included
+router.get('/api/autopilot/actions/:id', authenticate, async (req, res) => {
+  try {
+    const doc = await db.collection('autopilot_actions').doc(req.params.id).get();
+    if (!doc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Action not found.', 404);
+    if (doc.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
+    }
+    const includeReasoning = hasMinRoleBE(req.userRole, 'supervisor');
+    res.json(serializeAction(doc, { includeReasoning }));
+  } catch (err) {
+    console.error('[AUTOPILOT] Failed to fetch action:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch action.', 500);
   }
 });
 
