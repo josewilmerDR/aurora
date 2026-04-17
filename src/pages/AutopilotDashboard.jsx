@@ -292,7 +292,7 @@ function ActionParamsSummary({ type, params }) {
   );
 }
 
-function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRollback, feedback, onFeedback }) {
+function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRollback, canSeeReasoning, feedback, onFeedback }) {
   const [confirming, setConfirming] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -432,12 +432,75 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
         </div>
       )}
 
+      {/* Razonamiento de Claude — supervisor+ */}
+      {canSeeReasoning && <ReasoningPanel actionId={action.id} />}
+
       {/* Feedback — siempre visible al final */}
       {onFeedback && (
         <FeedbackControls
           current={feedback}
           onSubmit={(signal, comment) => onFeedback(action, 'action', signal, comment)}
         />
+      )}
+    </div>
+  );
+}
+
+function ReasoningPanel({ actionId }) {
+  const apiFetch = useApiFetch();
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleToggle = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (data || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/autopilot/actions/${actionId}`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(translateApiError(body));
+      setData(body);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reasoning = data?.reasoning;
+
+  return (
+    <div className="ap-action-reasoning">
+      <button type="button" className="ap-action-reasoning-toggle" onClick={handleToggle}>
+        {open ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
+        {open ? 'Ocultar razonamiento' : 'Ver razonamiento del modelo'}
+      </button>
+      {open && (
+        <div className="ap-action-reasoning-body">
+          {loading && <p className="ap-action-reasoning-empty">Cargando…</p>}
+          {error && <p className="ap-action-reasoning-error">{error}</p>}
+          {!loading && !error && data && !reasoning && (
+            <p className="ap-action-reasoning-empty">Esta acción no tiene razonamiento registrado.</p>
+          )}
+          {reasoning && (
+            <>
+              {reasoning.thinking ? (
+                <pre className="ap-action-reasoning-thinking">{reasoning.thinking}</pre>
+              ) : (
+                <p className="ap-action-reasoning-empty">Sin texto de razonamiento (el modelo no lo emitió).</p>
+              )}
+              <div className="ap-action-reasoning-meta">
+                {reasoning.modelVersion && <span>Modelo: {reasoning.modelVersion}</span>}
+                {reasoning.toolName && <span>Herramienta: {reasoning.toolName}</span>}
+                {reasoning.capturedAt && <span>{new Date(reasoning.capturedAt).toLocaleString('es-ES')}</span>}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1148,6 +1211,7 @@ export default function AutopilotDashboard() {
                     onApprove={handleApprove}
                     onReject={handleReject}
                     canApprove={canConfig}
+                    canSeeReasoning={canConfig}
                     feedback={feedbackMap[action.id]}
                     onFeedback={handleFeedback}
                   />
@@ -1176,6 +1240,7 @@ export default function AutopilotDashboard() {
               onRollback={handleRollback}
               canApprove={false}
               canRollback={canConfig}
+              canSeeReasoning={canConfig}
               feedback={feedbackMap[action.id]}
               onFeedback={handleFeedback}
             />
@@ -1199,6 +1264,7 @@ export default function AutopilotDashboard() {
               onApprove={handleApprove}
               onReject={handleReject}
               canApprove={canConfig}
+              canSeeReasoning={canConfig}
               feedback={feedbackMap[action.id]}
               onFeedback={handleFeedback}
             />
