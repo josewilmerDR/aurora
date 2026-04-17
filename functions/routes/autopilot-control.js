@@ -9,8 +9,12 @@ const { authenticate } = require('../lib/middleware');
 const { hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { getStatus, pause, resume } = require('../lib/autopilotKillSwitch');
+const { getHealthSummary, getRecentFailures } = require('../lib/autopilotMetrics');
 
 const router = Router();
+
+const MAX_HEALTH_WINDOW_HOURS = 24 * 7;
+const MAX_FAILURES_LIMIT = 50;
 
 // GET /api/autopilot/status — read-only, available to any authenticated member.
 router.get('/api/autopilot/status', authenticate, async (req, res) => {
@@ -64,5 +68,32 @@ router.post('/api/autopilot/resume', authenticate, async (req, res) => {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to resume Autopilot.', 500);
   }
 });
+
+// GET /api/autopilot/health  (minRole: supervisor)
+//   ?windowHours=24  (1..168, default 24)
+//   ?failuresLimit=10 (1..50, default 10)
+router.get('/api/autopilot/health', authenticate, async (req, res) => {
+  if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+  }
+  try {
+    const windowHours = clampInt(req.query.windowHours, 1, MAX_HEALTH_WINDOW_HOURS, 24);
+    const failuresLimit = clampInt(req.query.failuresLimit, 1, MAX_FAILURES_LIMIT, 10);
+    const [summary, recentFailures] = await Promise.all([
+      getHealthSummary(req.fincaId, windowHours),
+      getRecentFailures(req.fincaId, failuresLimit),
+    ]);
+    res.json({ summary, recentFailures });
+  } catch (err) {
+    console.error('[AUTOPILOT] Error fetching health:', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch Autopilot health.', 500);
+  }
+});
+
+function clampInt(raw, min, max, fallback) {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, min), max);
+}
 
 module.exports = router;

@@ -52,3 +52,4 @@ exports.api = functions.https.onRequest(
 );
 
 exports.sendDuePushReminders = require('./scheduled/reminders-cron');
+exports.autopilotMonitor = require('./scheduled/autopilot-monitor');
