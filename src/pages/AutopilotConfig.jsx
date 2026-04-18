@@ -465,6 +465,68 @@ export default function AutopilotConfig() {
               </div>
             </div>
 
+            <h3 className="ap-guardrail-subheading">Dominio RR.HH. (Agente)</h3>
+            <p className="ap-objectives-hint">
+              Controles del agente de recursos humanos. Por diseño, el dominio RR.HH. no admite Nivel 3
+              — las decisiones sobre personas siempre requieren revisión humana. El backend rechaza
+              cualquier intento de configurar nivel3 aquí.
+            </p>
+
+            <label className="ap-guardrail-check">
+              <input
+                type="checkbox"
+                checked={config.guardrails.dominios?.rrhh?.activo !== false}
+                onChange={e => setConfig(c => ({
+                  ...c,
+                  guardrails: {
+                    ...c.guardrails,
+                    dominios: {
+                      ...(c.guardrails.dominios || {}),
+                      rrhh: {
+                        ...(c.guardrails.dominios?.rrhh || {}),
+                        activo: e.target.checked,
+                      },
+                    },
+                  },
+                }))}
+              />
+              Dominio RR.HH. activo
+            </label>
+
+            <div className="ap-guardrail-row">
+              <div className="form-control">
+                <label>Nivel del dominio (opcional)</label>
+                <select
+                  value={config.guardrails.dominios?.rrhh?.nivel || ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setConfig(c => ({
+                      ...c,
+                      guardrails: {
+                        ...c.guardrails,
+                        dominios: {
+                          ...(c.guardrails.dominios || {}),
+                          rrhh: {
+                            ...(c.guardrails.dominios?.rrhh || {}),
+                            nivel: v || undefined,
+                          },
+                        },
+                      },
+                    }));
+                  }}
+                >
+                  <option value="">Heredar del modo global (cap a Nivel 2)</option>
+                  <option value="nivel1">Nivel 1 — solo recomendaciones</option>
+                  <option value="nivel2">Nivel 2 — propuestas con aprobación</option>
+                  {/* Nivel 3 NO se ofrece — rechazado por PUT /api/autopilot/config */}
+                </select>
+                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                  Las acciones del agente (contratación, alertas) siempre quedan como propuestas,
+                  independiente del nivel elegido. Esta barrera es arquitectónica.
+                </p>
+              </div>
+            </div>
+
             <h3 className="ap-guardrail-subheading">Horarios</h3>
 
             <label className="ap-guardrail-check">

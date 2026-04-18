@@ -68,6 +68,8 @@ import Treasury from './pages/finance/Treasury';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
 import ProcurementDashboard from './pages/procurement/ProcurementDashboard';
+import HrPerformanceDashboard from './pages/hr/HrPerformanceDashboard';
+import HrMyPerformance from './pages/hr/HrMyPerformance';
 import RfqsList from './pages/procurement/RfqsList';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
@@ -107,6 +109,10 @@ const ROUTE_MIN_ROLE = {
   // Procurement
   '/procurement/dashboard': 'encargado',
   '/procurement/rfqs': 'encargado',
+  // HR (phase 3.6) — supervisor for the team dashboard, any authenticated
+  // user for their own score
+  '/hr/performance': 'supervisor',
+  '/hr/my-performance': 'trabajador',
 };
 
 // Route → human-readable title mapping (displayed in the app header).
@@ -168,6 +174,8 @@ const routeTitles = {
   '/autopilot/configuracion': 'Configuración — Piloto Automático',
   '/procurement/dashboard': 'Procurement — Dashboard',
   '/procurement/rfqs': 'RFQs — Cotizaciones',
+  '/hr/performance': 'RR.HH. — Desempeño',
+  '/hr/my-performance': 'Mi desempeño',
 };
 
 // --- Route guards ---
@@ -575,6 +583,8 @@ function App() {
             <Route path="/autopilot" element={<RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute>} />
             <Route path="/autopilot/configuracion" element={<RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute>} />
             <Route path="/procurement/dashboard" element={<RoleRoute path="/procurement/dashboard"><ProcurementDashboard /></RoleRoute>} />
+            <Route path="/hr/performance" element={<RoleRoute path="/hr/performance"><HrPerformanceDashboard /></RoleRoute>} />
+            <Route path="/hr/my-performance" element={<RoleRoute path="/hr/my-performance"><HrMyPerformance /></RoleRoute>} />
             <Route path="/procurement/rfqs" element={<RoleRoute path="/procurement/rfqs"><RfqsList /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />

@@ -1,0 +1,282 @@
+.hr-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.hr-dashboard-grid .hr-widget--wide { grid-column: span 2; }
+
+@media (max-width: 960px) {
+  .hr-dashboard-grid { grid-template-columns: 1fr; }
+  .hr-dashboard-grid .hr-widget--wide { grid-column: span 1; }
+}
+
+.hr-widget {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.hr-widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hr-widget-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hr-widget-sub {
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.hr-widget-loading,
+.hr-widget-empty {
+  color: var(--aurora-light);
+  opacity: 0.5;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 24px 0;
+}
+.hr-widget-error { color: #ff8080; }
+
+.hr-period-input {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
+
+/* ── Tags ─────────────────────────────────────────────────────────── */
+.hr-tag {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+.hr-tag--warn    { background: rgba(255, 204, 51, 0.15); color: #ffcc33; }
+.hr-tag--danger  { background: rgba(255, 128, 128, 0.15); color: #ff8080; }
+.hr-tag--neutral { background: rgba(230, 242, 255, 0.1); color: var(--aurora-light); }
+
+/* ── Score table ─────────────────────────────────────────────────── */
+.hr-score-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.82rem;
+  overflow-x: auto;
+}
+.hr-score-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 0.5fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--aurora-border);
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.hr-score-row--head {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  border-bottom: 1px solid var(--aurora-border);
+}
+.hr-score-row--low-conf { opacity: 0.65; }
+.hr-score-user { color: var(--aurora-light); }
+.hr-score-value { color: var(--aurora-green); font-weight: 600; }
+.hr-score-n { text-align: right; opacity: 0.6; }
+
+/* ── Productivity groups ─────────────────────────────────────────── */
+.hr-prod-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hr-prod-group {
+  border-top: 1px solid var(--aurora-border);
+  padding-top: 8px;
+}
+.hr-prod-group-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.hr-prod-group-head strong { color: var(--aurora-light); }
+
+.hr-prod-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.82rem;
+}
+.hr-prod-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr auto auto;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.hr-prod-row--below_p25 { background: rgba(255, 128, 128, 0.08); }
+.hr-prod-row--above_p75 { background: rgba(51, 255, 153, 0.08); }
+.hr-prod-row--in_range  { background: rgba(230, 242, 255, 0.03); }
+.hr-prod-user { color: var(--aurora-light); }
+.hr-prod-lote { color: var(--aurora-light); opacity: 0.6; }
+.hr-prod-avg  { color: var(--aurora-light); font-weight: 600; }
+
+/* ── Workload chart ─────────────────────────────────────────────── */
+.hr-workload-chart {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  align-items: end;
+  height: 160px;
+}
+.hr-workload-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.hr-workload-bar-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: rgba(230, 242, 255, 0.04);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hr-workload-bar-capacity {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: rgba(230, 242, 255, 0.15);
+}
+.hr-workload-bar-demand {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: var(--aurora-green);
+  opacity: 0.7;
+}
+.hr-workload-bar-demand--over {
+  background: #ff8080;
+  opacity: 0.8;
+}
+.hr-workload-bar-label {
+  font-size: 0.7rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Recommendation / alert items ─────────────────────────────── */
+.hr-rec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hr-rec-item {
+  padding: 10px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  background: rgba(230, 242, 255, 0.03);
+}
+.hr-rec-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.hr-rec-item-title {
+  color: var(--aurora-light);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.hr-rec-item-desc {
+  margin: 0 0 4px 0;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.hr-reasoning-details {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+.hr-reasoning-details summary {
+  cursor: pointer;
+  opacity: 0.7;
+  color: var(--aurora-light);
+}
+.hr-reasoning-details pre {
+  margin: 6px 0 0 0;
+  padding: 8px;
+  background: var(--aurora-dark-blue);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ── Self view ─────────────────────────────────────────────────── */
+.hr-self-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 520px;
+}
+.hr-self-score {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  font-variant-numeric: tabular-nums;
+}
+.hr-self-subscores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+.hr-self-subscore {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(230, 242, 255, 0.05);
+}
