@@ -74,6 +74,20 @@ function buildDescriptor(actionType, params, executionResult, preExecState = {})
         compensationType: 'cancel_orden',
         params: { orderId: executionResult.orderId },
       };
+    case 'reasignar_presupuesto':
+      // La compensación restaura los montos previos de ambos budgets. Usamos
+      // los valores capturados en el result (prevSource, prevTarget) para
+      // ser robustos: si alguien editó los budgets entre ejecución y
+      // rollback, la reversión apunta al snapshot del momento de la acción.
+      return {
+        compensationType: 'reverse_budget_transfer',
+        params: {
+          sourceBudgetId: executionResult.sourceBudgetId,
+          targetBudgetId: executionResult.targetBudgetId,
+          prevSource: executionResult.prevSource,
+          prevTarget: executionResult.prevTarget,
+        },
+      };
     case 'enviar_notificacion':
     default:
       return { compensationType: 'not_compensable', params: {} };
@@ -248,6 +262,24 @@ async function applyCompensationInTx(t, type, params, fincaId) {
       if (snap.data().fincaId !== fincaId) throw new Error('Orden no pertenece a esta finca.');
       t.update(ref, { estado: 'anulada', anuladaAt: Timestamp.now() });
       return { ok: true, orderId: params.orderId };
+    }
+    case 'reverse_budget_transfer': {
+      const sourceRef = db.collection('budgets').doc(params.sourceBudgetId);
+      const targetRef = db.collection('budgets').doc(params.targetBudgetId);
+      const [sourceSnap, targetSnap] = await Promise.all([t.get(sourceRef), t.get(targetRef)]);
+      if (!sourceSnap.exists) throw new Error('Budget origen ya no existe.');
+      if (!targetSnap.exists) throw new Error('Budget destino ya no existe.');
+      if (sourceSnap.data().fincaId !== fincaId || targetSnap.data().fincaId !== fincaId) {
+        throw new Error('Budget no pertenece a esta finca.');
+      }
+      const prevSource = Number(params.prevSource);
+      const prevTarget = Number(params.prevTarget);
+      if (!Number.isFinite(prevSource) || !Number.isFinite(prevTarget)) {
+        throw new Error('Montos previos no disponibles en la compensación.');
+      }
+      t.update(sourceRef, { assignedAmount: prevSource, updatedAt: Timestamp.now(), updatedBy: 'rollback_autopilot' });
+      t.update(targetRef, { assignedAmount: prevTarget, updatedAt: Timestamp.now(), updatedBy: 'rollback_autopilot' });
+      return { ok: true, sourceBudgetId: params.sourceBudgetId, targetBudgetId: params.targetBudgetId };
     }
     default:
       throw new Error(`Unknown compensation type: ${type}`);
