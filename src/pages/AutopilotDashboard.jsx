@@ -5,7 +5,7 @@ import {
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
   FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
   FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
-  FiMic, FiMicOff, FiMessageSquare, FiRotateCcw,
+  FiMic, FiMicOff, FiMessageSquare, FiRotateCcw, FiUsers,
 } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../contexts/UserContext';
@@ -29,6 +29,8 @@ const CATEGORIA_ICONS = {
   aplicaciones: FiDroplet,
   monitoreo:    FiActivity,
   general:      FiGrid,
+  procurement:  FiShoppingCart,
+  hr:           FiUsers,
 };
 
 const CATEGORIA_LABELS = {
@@ -37,6 +39,8 @@ const CATEGORIA_LABELS = {
   aplicaciones: 'Aplicaciones',
   monitoreo:    'Monitoreo',
   general:      'General',
+  procurement:  'Compras',
+  hr:           'RR.HH.',
 };
 
 const PRIORIDAD_ICONS = {
