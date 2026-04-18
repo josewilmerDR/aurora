@@ -5,6 +5,11 @@ const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { getTwilioClient } = require('../lib/clients');
 const { twilioWhatsappFrom } = require('../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const {
+  computeFincaScores,
+  listScores,
+  getScore,
+} = require('../lib/hr/performanceAggregator');
 
 const router = Router();
 
@@ -1565,6 +1570,77 @@ router.delete('/api/hr/solicitudes-empleo/:id', authenticate, async (req, res) =
     res.status(200).json({ message: 'Application deleted.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance scoring (Sub-fase 3.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PERIOD_RE = /^\d{4}-\d{2}$/;
+
+// Remove ranking and cross-worker details from a score doc before sending
+// it to a worker looking at their own record. Keeps the subscores visible
+// but strips context that would let the worker infer peers' performance.
+function redactForSelfView(doc) {
+  if (!doc) return doc;
+  const { details, weights, ...rest } = doc;
+  return { ...rest, details, weights };
+}
+
+router.get('/api/hr/performance', authenticate, async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+    }
+    const period = String(req.query.period || '');
+    if (!PERIOD_RE.test(period)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'period must be YYYY-MM.', 400);
+    }
+    const rows = await listScores(req.fincaId, period);
+    res.status(200).json(rows);
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch performance scores.', 500);
+  }
+});
+
+router.get('/api/hr/performance/:userId', authenticate, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const period = String(req.query.period || '');
+    if (!PERIOD_RE.test(period)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'period must be YYYY-MM.', 400);
+    }
+    const isSelf = req.dbUserId === userId;
+    const isSupervisor = hasMinRoleBE(req.userRole, 'supervisor');
+    if (!isSelf && !isSupervisor) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
+    }
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
+    }
+    const doc = await getScore(req.fincaId, userId, period);
+    if (!doc) return res.status(200).json(null);
+    res.status(200).json(isSupervisor ? doc : redactForSelfView(doc));
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch performance score.', 500);
+  }
+});
+
+router.post('/api/hr/performance/recompute', authenticate, async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+    }
+    const period = String(req.query.period || req.body?.period || '');
+    if (!PERIOD_RE.test(period)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'period must be YYYY-MM.', 400);
+    }
+    const results = await computeFincaScores(req.fincaId, period, { computedBy: 'manual' });
+    res.status(200).json({ period, computed: results.length, results });
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to recompute performance scores.', 500);
   }
 });
 
