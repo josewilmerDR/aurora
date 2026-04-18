@@ -51,6 +51,7 @@ app.use(require('./routes/buyers'));
 app.use(require('./routes/income'));
 app.use(require('./routes/treasury'));
 app.use(require('./routes/suppliers'));
+app.use(require('./routes/procurement'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
