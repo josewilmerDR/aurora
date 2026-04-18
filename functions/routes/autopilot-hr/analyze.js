@@ -17,10 +17,56 @@ const { isHrDomainActive, resolveHrLevel } = require('../../lib/hr/hrDomainGuard
 const { projectWorkload } = require('../../lib/hr/workloadProjector');
 const { currentCapacity } = require('../../lib/hr/capacityCalculator');
 const { recommendHiring } = require('../../lib/hr/hiringRecommender');
+const { detectAlerts } = require('../../lib/hr/performanceAlertDetector');
+const { reasonAboutAlert } = require('../../lib/hr/performanceReasoner');
+const { getAnthropicClient } = require('../../lib/clients');
 
 const { routeCandidate } = require('./routeCandidate');
 
 const DEFAULT_HORIZON_WEEKS = 12;
+const PERIOD_RE = /^\d{4}-\d{2}$/;
+const ALERT_LOOKBACK_MONTHS = 3; // enough for the 'alta' 3-month rule
+
+// Build a period chain newest → oldest for a given currentPeriod YYYY-MM.
+function buildPeriodChain(currentPeriod, monthsBack) {
+  if (!PERIOD_RE.test(currentPeriod)) return [];
+  const year = Number(currentPeriod.slice(0, 4));
+  const month = Number(currentPeriod.slice(5, 7));
+  const chain = [];
+  for (let offset = 0; offset < monthsBack; offset++) {
+    const target = new Date(Date.UTC(year, month - 1 - offset, 1));
+    const y = target.getUTCFullYear();
+    const mm = String(target.getUTCMonth() + 1).padStart(2, '0');
+    chain.push(`${y}-${mm}`);
+  }
+  return chain;
+}
+
+// Anthropic client may not be configured in all environments. Wrap so
+// a missing secret can't break the whole endpoint — worst case we fall
+// back to deterministic text.
+function safeGetAnthropic() {
+  try {
+    return getAnthropicClient();
+  } catch (err) {
+    console.warn('[AUTOPILOT-HR] Anthropic client unavailable:', err.message);
+    return null;
+  }
+}
+
+async function loadScoresByPeriod(fincaId, periodChain) {
+  const snaps = await Promise.all(periodChain.map(p =>
+    db.collection('hr_performance_scores')
+      .where('fincaId', '==', fincaId)
+      .where('period', '==', p)
+      .get()
+  ));
+  const out = {};
+  snaps.forEach((snap, i) => {
+    out[periodChain[i]] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  });
+  return out;
+}
 
 function clampHorizon(raw) {
   const n = Number(raw);
@@ -116,6 +162,73 @@ async function analyze(req, res) {
       });
     }
 
+    // ── Alerts branch (sub-fase 3.5) ────────────────────────────────────
+    //
+    // Runs only when `period=YYYY-MM` is provided. Reads score docs for
+    // the current + lookback months, detects sustained under-performance,
+    // drafts a supervisor-facing note (Claude opt-in), and persists each
+    // alert as a sugerir_revision_desempeno action via routeCandidate.
+    let alertResults = [];
+    let alertReason = 'not_run';
+    const period = typeof body.period === 'string' ? body.period : null;
+    if (period && PERIOD_RE.test(period)) {
+      const periodChain = buildPeriodChain(period, ALERT_LOOKBACK_MONTHS);
+      const scoresByPeriod = await loadScoresByPeriod(fincaId, periodChain);
+      const { alerts, reason: detectReason } = detectAlerts({
+        currentPeriod: period, periodChain, scoresByPeriod,
+      });
+      alertReason = detectReason;
+
+      // Claude reasoning opt-in. Default off; enable via body.useClaude=1
+      // (same pattern as RFQ winner selection in sub-fase 2.5).
+      const reasonerEnabled = body.useClaude === true || body.useClaude === 1 || body.useClaude === '1';
+      const anthropicClient = reasonerEnabled ? safeGetAnthropic() : null;
+
+      for (const alert of alerts) {
+        const scoreDoc = scoresByPeriod[period]?.find(s => s.userId === alert.userId) || null;
+        const reasoned = await reasonAboutAlert(alert, {
+          subscoresSnapshot: scoreDoc?.subscores || null,
+        }, { enabled: reasonerEnabled && !!anthropicClient, anthropicClient });
+
+        const candidate = {
+          type: 'sugerir_revision_desempeno',
+          params: {
+            userId: alert.userId,
+            period,
+            severity: alert.severity,
+            evidenceRefs: alert.evidenceRefs,
+          },
+          titulo: `Revisión de desempeño sugerida (severidad: ${alert.severity})`,
+          descripcion: reasoned.text,
+          prioridad: alert.severity === 'alta' ? 'alta' : 'media',
+          hrRecommendation: {
+            alert,
+            reasoningText: reasoned.text,
+            reasoningFallback: reasoned.fallback,
+          },
+        };
+
+        const row = await routeCandidate({
+          candidate,
+          level,
+          fincaId,
+          sessionId, // may be empty string if hiring produced none; harmless
+          proposedBy: req.uid || null,
+          proposedByName: req.userEmail || 'autopilot',
+        });
+
+        // Persist Claude reasoning on the action doc if we captured it.
+        // The value lives alongside the existing action fields and is
+        // role-gated downstream via stripReasoning() on read paths.
+        if (!reasoned.fallback && reasoned.reasoning) {
+          await db.collection('autopilot_actions').doc(row.actionId).update({
+            reasoning: reasoned.reasoning,
+          });
+        }
+        alertResults.push(row);
+      }
+    }
+
     res.json({
       ran: true,
       level,
@@ -130,6 +243,11 @@ async function analyze(req, res) {
       reason,
       summary,
       results,
+      alerts: {
+        reason: alertReason,
+        found: alertResults.length,
+        results: alertResults,
+      },
       sessionId: results.length > 0 ? sessionId : null,
     });
   } catch (error) {
