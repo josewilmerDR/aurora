@@ -1653,8 +1653,6 @@ router.post('/api/hr/performance/recompute', authenticate, async (req, res) => {
   }
 });
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 // GET /api/hr/productivity?periodStart=YYYY-MM-DD&periodEnd=YYYY-MM-DD
 //
 // Productivity matrix (userId × labor × loteId × unidad) + benchmarks
