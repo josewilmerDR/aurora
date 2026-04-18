@@ -10,6 +10,8 @@ const {
   listScores,
   getScore,
 } = require('../lib/hr/performanceAggregator');
+const { productivityMatrix } = require('../lib/hr/productivityByLabor');
+const { computeLaborBenchmarks } = require('../lib/hr/laborBenchmarks');
 
 const router = Router();
 
@@ -1641,6 +1643,43 @@ router.post('/api/hr/performance/recompute', authenticate, async (req, res) => {
     res.status(200).json({ period, computed: results.length, results });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to recompute performance scores.', 500);
+  }
+});
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// GET /api/hr/productivity?periodStart=YYYY-MM-DD&periodEnd=YYYY-MM-DD
+//
+// Productivity matrix (userId × labor × loteId × unidad) + benchmarks
+// (p25/p50/p75 por labor+unidad). Supervisor-only. Pairs crossing
+// different units NEVER compared — each (labor, unidad) bucket is
+// independent.
+router.get('/api/hr/productivity', authenticate, async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+    }
+    const periodStart = String(req.query.periodStart || '');
+    const periodEnd = String(req.query.periodEnd || '');
+    if (!DATE_RE.test(periodStart) || !DATE_RE.test(periodEnd)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'periodStart and periodEnd must be YYYY-MM-DD.', 400);
+    }
+    const start = new Date(`${periodStart}T00:00:00Z`);
+    const end = new Date(`${periodEnd}T23:59:59.999Z`);
+    if (!(start < end)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'periodStart must be before periodEnd.', 400);
+    }
+    const snap = await db.collection('hr_planilla_unidad')
+      .where('fincaId', '==', req.fincaId)
+      .where('fecha', '>=', Timestamp.fromDate(start))
+      .where('fecha', '<=', Timestamp.fromDate(end))
+      .get();
+    const planillas = snap.docs.map(d => d.data());
+    const matrix = productivityMatrix(planillas);
+    const benchmarks = computeLaborBenchmarks(matrix);
+    res.status(200).json({ periodStart, periodEnd, matrix, benchmarks });
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute productivity matrix.', 500);
   }
 });
 
