@@ -4,6 +4,7 @@ import ProductivityHeatmap from '../../components/hr/dashboard/ProductivityHeatm
 import WorkloadProjectionChart from '../../components/hr/dashboard/WorkloadProjectionChart';
 import HiringRecommendationsCard from '../../components/hr/dashboard/HiringRecommendationsCard';
 import PerformanceAlertsCard from '../../components/hr/dashboard/PerformanceAlertsCard';
+import HrAccuracyWidget from '../../components/hr/dashboard/HrAccuracyWidget';
 import './HrPerformanceDashboard.css';
 
 // Supervisor+ dashboard — 5 widgets. Role gating is applied upstream
@@ -27,6 +28,7 @@ function HrPerformanceDashboard() {
         <ProductivityHeatmap />
         <HiringRecommendationsCard />
         <PerformanceAlertsCard />
+        <HrAccuracyWidget />
       </div>
     </div>
   );
