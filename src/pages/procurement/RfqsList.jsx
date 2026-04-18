@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FiSend, FiCheck, FiTrash2, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiSend, FiCheck, FiTrash2, FiChevronDown, FiChevronRight, FiCpu } from 'react-icons/fi';
 import { useApiFetch } from '../../hooks/useApiFetch';
 import RfqResponseForm from '../../components/procurement/rfqs/RfqResponseForm';
 import './RfqsList.css';
@@ -32,10 +32,14 @@ function RfqsList() {
 
   useEffect(() => { load(); }, [load]);
 
-  const closeRfq = async (id) => {
-    if (!window.confirm('¿Cerrar el RFQ y elegir ganador?')) return;
+  const closeRfq = async (id, useClaude) => {
+    const confirmMsg = useClaude
+      ? '¿Cerrar el RFQ usando razonamiento de IA?'
+      : '¿Cerrar el RFQ y elegir ganador?';
+    if (!window.confirm(confirmMsg)) return;
     try {
-      const r = await apiFetch(`/api/rfqs/${id}/close`, { method: 'POST' });
+      const url = useClaude ? `/api/rfqs/${id}/close?useClaude=1` : `/api/rfqs/${id}/close`;
+      const r = await apiFetch(url, { method: 'POST' });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
       setCloseResult({ rfqId: id, ...data });
@@ -93,7 +97,7 @@ function RfqsList() {
                 rfq={r}
                 expanded={expandedId === r.id}
                 onToggle={() => setExpandedId(prev => prev === r.id ? null : r.id)}
-                onClose={() => closeRfq(r.id)}
+                onClose={(useClaude) => closeRfq(r.id, useClaude)}
                 onCancel={() => cancelRfq(r.id)}
                 onResponseSaved={load}
                 closeResult={closeResult?.rfqId === r.id ? closeResult : null}
@@ -163,11 +167,19 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, c
             <div className="rfq-section rfq-close-result">
               <h4>Resultado del cierre</h4>
               {closeResult.winner ? (
-                <p>
-                  Ganador: <strong>{closeResult.winner.supplierName}</strong> ·
-                  {' '}{closeResult.winner.precioUnitario} {closeResult.winner.moneda || 'USD'}
-                  {closeResult.winner.leadTimeDays != null && ` · ${closeResult.winner.leadTimeDays}d`}
-                </p>
+                <>
+                  <p>
+                    Ganador: <strong>{closeResult.winner.supplierName}</strong> ·
+                    {' '}{closeResult.winner.precioUnitario} {closeResult.winner.moneda || 'USD'}
+                    {closeResult.winner.leadTimeDays != null && ` · ${closeResult.winner.leadTimeDays}d`}
+                  </p>
+                  {closeResult.decisionSource === 'claude' && (
+                    <p className="fin-widget-sub">
+                      Decisión con IA{closeResult.overrodeDeterministic ? ' (sobrescribió la determinista)' : ''}
+                      {closeResult.rationale ? `: ${closeResult.rationale}` : ''}
+                    </p>
+                  )}
+                </>
               ) : (
                 <p>Sin respuestas elegibles.</p>
               )}
@@ -181,8 +193,20 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, c
                 <RfqResponseForm rfq={rfq} onSaved={onResponseSaved} />
               </div>
               <div className="rfq-card-actions">
-                <button className="rfq-primary-btn" onClick={onClose} disabled={responses.length === 0}>
-                  <FiCheck size={12} /> Cerrar RFQ
+                <button
+                  className="rfq-primary-btn"
+                  onClick={() => onClose(false)}
+                  disabled={responses.length === 0}
+                >
+                  <FiCheck size={12} /> Cerrar (determinista)
+                </button>
+                <button
+                  className="rfq-primary-btn"
+                  onClick={() => onClose(true)}
+                  disabled={responses.length < 2}
+                  title="Requiere al menos 2 respuestas elegibles"
+                >
+                  <FiCpu size={12} /> Cerrar con IA
                 </button>
                 <button className="rfq-danger-btn" onClick={onCancel}>
                   <FiTrash2 size={12} /> Eliminar

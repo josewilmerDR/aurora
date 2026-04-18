@@ -1,8 +1,12 @@
 // RFQ list / get / delete handlers. Creation and lifecycle endpoints live
 // in their own files to keep this one focused on pure read/delete paths.
+//
+// `winnerReasoning` contains Claude's thinking text when phase-2.5 reasoning
+// is enabled; we strip it for roles below supervisor — same pattern the
+// autopilot_actions endpoint follows for its own reasoning field.
 
 const { db } = require('../../lib/firebase');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 
 async function listRfqs(req, res) {
@@ -20,7 +24,8 @@ async function listRfqs(req, res) {
         .limit(limit);
     }
     const snap = await query.get();
-    const rows = snap.docs.map(d => serialize(d));
+    const canSeeReasoning = hasMinRoleBE(req.userRole, 'supervisor');
+    const rows = snap.docs.map(d => serialize(d, { canSeeReasoning }));
     res.json(rows);
   } catch (error) {
     console.error('[RFQS] list failed:', error);
@@ -32,7 +37,8 @@ async function getRfq(req, res) {
   try {
     const ownership = await verifyOwnership('rfqs', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
-    res.json(serialize(ownership.doc));
+    const canSeeReasoning = hasMinRoleBE(req.userRole, 'supervisor');
+    res.json(serialize(ownership.doc, { canSeeReasoning }));
   } catch (error) {
     console.error('[RFQS] get failed:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch RFQ.', 500);
@@ -51,14 +57,16 @@ async function deleteRfq(req, res) {
   }
 }
 
-function serialize(doc) {
+function serialize(doc, { canSeeReasoning }) {
   const data = doc.data();
-  return {
+  const out = {
     id: doc.id,
     ...data,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
     closedAt: data.closedAt ? data.closedAt.toDate().toISOString() : null,
   };
+  if (!canSeeReasoning) delete out.winnerReasoning;
+  return out;
 }
 
 module.exports = { listRfqs, getRfq, deleteRfq };
