@@ -14,6 +14,11 @@ const { productivityMatrix } = require('../lib/hr/productivityByLabor');
 const { computeLaborBenchmarks } = require('../lib/hr/laborBenchmarks');
 const { projectWorkload, MAX_HORIZON_WEEKS } = require('../lib/hr/workloadProjector');
 const { currentCapacity } = require('../lib/hr/capacityCalculator');
+const {
+  computeAccuracy,
+  cutoffForWindow,
+  VALID_RESOLUTIONS,
+} = require('../lib/hr/accuracyCalculator');
 
 const router = Router();
 
@@ -1741,6 +1746,117 @@ router.get('/api/hr/workload-projection', authenticate, async (req, res) => {
     });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute workload projection.', 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recommendations audit (Sub-fase 3.7)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// `hr_recommendations_audit` stores, per autopilot_actions doc of the HR
+// domain, what the human decided (approved / rejected / ignored) and the
+// retrospective outcome judgement (outcomeMatchedReality: bool | null).
+// Feeds the accuracy endpoint, which is the substrate for the phase 3
+// exit criterion (90% agreement with humans over 6 months).
+
+function validateAuditPayload(body) {
+  const errs = [];
+  const clean = {};
+  if (body?.humanResolution !== undefined) {
+    if (!VALID_RESOLUTIONS.has(body.humanResolution)) {
+      errs.push(`humanResolution must be one of: ${Array.from(VALID_RESOLUTIONS).join(', ')}.`);
+    } else {
+      clean.humanResolution = body.humanResolution;
+    }
+  }
+  if (body?.outcomeMatchedReality !== undefined && body.outcomeMatchedReality !== null) {
+    if (typeof body.outcomeMatchedReality !== 'boolean') {
+      errs.push('outcomeMatchedReality must be a boolean or null.');
+    } else {
+      clean.outcomeMatchedReality = body.outcomeMatchedReality;
+    }
+  } else if (body?.outcomeMatchedReality === null) {
+    clean.outcomeMatchedReality = null;
+  }
+  if (body?.outcomeNotes !== undefined) {
+    if (typeof body.outcomeNotes !== 'string' || body.outcomeNotes.length > 1000) {
+      errs.push('outcomeNotes must be a string up to 1000 chars.');
+    } else {
+      clean.outcomeNotes = body.outcomeNotes.trim();
+    }
+  }
+  return { errs, clean };
+}
+
+// POST /api/hr/recommendations-audit/:actionId (supervisor+)
+// Upserts the audit doc keyed by actionId. Lets admins revisit the
+// same record to add outcomeMatchedReality later without losing the
+// initial resolution.
+router.post('/api/hr/recommendations-audit/:actionId', authenticate, async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+    }
+    const { actionId } = req.params;
+    const { errs, clean } = validateAuditPayload(req.body || {});
+    if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
+
+    // Verify the action exists and belongs to this finca, and capture
+    // the action type so the audit doc is self-contained for reporting.
+    const actionDoc = await db.collection('autopilot_actions').doc(actionId).get();
+    if (!actionDoc.exists || actionDoc.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
+    }
+    if (actionDoc.data().categoria !== 'hr') {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Audit is only valid for HR actions.', 400);
+    }
+
+    const now = Timestamp.now();
+    const ref = db.collection('hr_recommendations_audit').doc(actionId);
+    const existing = await ref.get();
+    const payload = {
+      fincaId: req.fincaId,
+      autopilotActionId: actionId,
+      type: actionDoc.data().type,
+      ...clean,
+      resolvedAt: now,
+      resolvedBy: req.dbUserId || null,
+      resolvedByEmail: req.userEmail || null,
+    };
+    if (!existing.exists) payload.createdAt = now;
+    await ref.set(payload, { merge: true });
+    res.status(200).json({ id: actionId, ...payload });
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save audit.', 500);
+  }
+});
+
+// GET /api/hr/recommendations-accuracy?months=6 (supervisor+)
+// Computes overall + per-type hitRate over the last N months.
+router.get('/api/hr/recommendations-accuracy', authenticate, async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+    }
+    const raw = req.query.months;
+    let months = 6;
+    if (raw !== undefined) {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 1 || n > 36) {
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'months must be a number in [1, 36].', 400);
+      }
+      months = Math.floor(n);
+    }
+    const cutoff = cutoffForWindow(months);
+    const snap = await db.collection('hr_recommendations_audit')
+      .where('fincaId', '==', req.fincaId)
+      .where('resolvedAt', '>=', Timestamp.fromDate(cutoff))
+      .get();
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const accuracy = computeAccuracy(rows, { windowMonths: months });
+    res.status(200).json({ months, cutoff: cutoff.toISOString(), ...accuracy });
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute accuracy.', 500);
   }
 });
 
