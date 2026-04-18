@@ -12,6 +12,8 @@ const {
 } = require('../lib/hr/performanceAggregator');
 const { productivityMatrix } = require('../lib/hr/productivityByLabor');
 const { computeLaborBenchmarks } = require('../lib/hr/laborBenchmarks');
+const { projectWorkload, MAX_HORIZON_WEEKS } = require('../lib/hr/workloadProjector');
+const { currentCapacity } = require('../lib/hr/capacityCalculator');
 
 const router = Router();
 
@@ -1680,6 +1682,65 @@ router.get('/api/hr/productivity', authenticate, async (req, res) => {
     res.status(200).json({ periodStart, periodEnd, matrix, benchmarks });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute productivity matrix.', 500);
+  }
+});
+
+// GET /api/hr/workload-projection?horizonWeeks=12
+//
+// Projects upcoming labor demand over the next N weeks using each
+// active siembra's linked package. Emits activity count (hard) and
+// estimated person-hours (soft, via a per-activity default) side by
+// side. Also returns current baseline capacity from permanent workers.
+//
+// Known limitation: packages.activities[] have no per-activity hour
+// field. estimatedPersonHours uses the default in
+// `assumptions.defaultActivityHours` — the UI should surface this so
+// the user knows the metric is an estimate.
+router.get('/api/hr/workload-projection', authenticate, async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role or higher required.', 403);
+    }
+    const rawHorizon = req.query.horizonWeeks;
+    let horizonWeeks = 12;
+    if (rawHorizon !== undefined) {
+      const n = Number(rawHorizon);
+      if (!Number.isFinite(n)) {
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'horizonWeeks must be a number.', 400);
+      }
+      horizonWeeks = n;
+    }
+
+    const [siembrasSnap, packagesSnap, fichasSnap] = await Promise.all([
+      db.collection('siembras').where('fincaId', '==', req.fincaId).get(),
+      db.collection('packages').where('fincaId', '==', req.fincaId).get(),
+      db.collection('hr_fichas').where('fincaId', '==', req.fincaId).get(),
+    ]);
+    const siembras = siembrasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const packages = packagesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const fichas = fichasSnap.docs.map(d => ({ userId: d.id, ...d.data() }));
+
+    const capacity = currentCapacity(fichas);
+    const projection = projectWorkload({
+      siembras,
+      packages,
+      horizonWeeks,
+      now: new Date(),
+      opts: { avgWeeklyHoursPerWorker: capacity.avgWeeklyHoursPermanent },
+    });
+
+    res.status(200).json({
+      horizonWeeks: projection.horizonWeeks,
+      maxHorizonWeeks: MAX_HORIZON_WEEKS,
+      now: projection.now,
+      assumptions: projection.assumptions,
+      capacity,
+      weeks: projection.weeks,
+      summary: projection.summary,
+      diagnostics: projection.diagnostics,
+    });
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute workload projection.', 500);
   }
 });
 
