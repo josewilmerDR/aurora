@@ -67,6 +67,8 @@ import BuyersList from './pages/finance/BuyersList';
 import Treasury from './pages/finance/Treasury';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
+import ProcurementDashboard from './pages/procurement/ProcurementDashboard';
+import RfqsList from './pages/procurement/RfqsList';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
@@ -102,6 +104,9 @@ const ROUTE_MIN_ROLE = {
   // Autopilot — accessed via header icon, not sidebar
   '/autopilot': 'encargado',
   '/autopilot/configuracion': 'supervisor',
+  // Procurement
+  '/procurement/dashboard': 'encargado',
+  '/procurement/rfqs': 'encargado',
 };
 
 // Route → human-readable title mapping (displayed in the app header).
@@ -161,6 +166,8 @@ const routeTitles = {
   '/operaciones/horimetro/historial': 'Historial de Horímetros',
   '/autopilot': 'Piloto Automático',
   '/autopilot/configuracion': 'Configuración — Piloto Automático',
+  '/procurement/dashboard': 'Procurement — Dashboard',
+  '/procurement/rfqs': 'RFQs — Cotizaciones',
 };
 
 // --- Route guards ---
@@ -567,6 +574,8 @@ function App() {
             {/* Autopilot */}
             <Route path="/autopilot" element={<RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute>} />
             <Route path="/autopilot/configuracion" element={<RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute>} />
+            <Route path="/procurement/dashboard" element={<RoleRoute path="/procurement/dashboard"><ProcurementDashboard /></RoleRoute>} />
+            <Route path="/procurement/rfqs" element={<RoleRoute path="/procurement/rfqs"><RfqsList /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />

@@ -1708,9 +1708,10 @@ router.get('/api/autopilot/actions', authenticate, async (req, res) => {
       .limit(50)
       .get();
     let actions = snap.docs.map(doc => serializeAction(doc, { includeReasoning }));
-    const { status, sessionId } = req.query;
+    const { status, sessionId, categoria } = req.query;
     if (status) actions = actions.filter(a => a.status === status);
     if (sessionId) actions = actions.filter(a => a.sessionId === sessionId);
+    if (categoria) actions = actions.filter(a => a.categoria === categoria);
     res.json(actions);
   } catch (err) {
     console.error('[AUTOPILOT] Error al listar acciones:', err);
