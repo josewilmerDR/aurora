@@ -1,12 +1,18 @@
 // POST /api/rfqs/:id/close — picks a winner from the responses and marks
 // the RFQ closed. Does NOT create a purchase order; the UI can do that via
-// the normal OC flow using the winner's price + supplier. Wiring the
-// procurement agent to auto-OC an RFQ winner is a follow-up.
+// the normal OC flow using the winner's price + supplier.
+//
+// Query/body flag `useClaude=1` escalates the decision to Claude (phase
+// 2.5). Claude sees the deterministic pick plus each supplier's history
+// signals and either ratifies or overrides. Any failure — timeout, non-
+// tool-use response, invalid supplierId — falls back silently to the
+// deterministic winner.
 
 const { db, Timestamp } = require('../../lib/firebase');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { pickWinner } = require('../../lib/procurement/rfqWinner');
+const { reasonAboutRfqWinner } = require('../../lib/procurement/rfqReasoner');
 
 async function closeRfq(req, res) {
   try {
@@ -21,27 +27,59 @@ async function closeRfq(req, res) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'RFQ is cancelled.', 409);
     }
 
-    const { winner, rankedEligible, rejected } = pickWinner(rfq.responses || [], {
+    const { winner: deterministicWinner, rankedEligible, rejected } = pickWinner(rfq.responses || [], {
       maxLeadTimeDays: rfq.maxLeadTimeDays ?? null,
       currency: rfq.currency || null,
     });
 
+    const useClaude = req.query.useClaude === '1' || req.body?.useClaude === true;
+    let chosenWinner = deterministicWinner;
+    let decisionSource = 'deterministic';
+    let winnerReasoning = null;
+    let rationale = null;
+    let overrode = false;
+
+    if (useClaude && rankedEligible.length >= 2) {
+      const claudeResult = await reasonAboutRfqWinner({
+        rfq,
+        deterministicWinner,
+        eligibleResponses: rankedEligible,
+        fincaId: req.fincaId,
+      });
+      if (claudeResult) {
+        chosenWinner = claudeResult.winner;
+        rationale = claudeResult.rationale;
+        winnerReasoning = claudeResult.reasoning;
+        decisionSource = 'claude';
+        overrode = deterministicWinner && deterministicWinner.supplierId !== chosenWinner.supplierId;
+      }
+    }
+
     const update = {
       estado: 'closed',
-      winner: winner ? sanitizeWinner(winner) : null,
+      winner: chosenWinner ? sanitizeWinner(chosenWinner) : null,
+      winnerRationale: rationale,
+      decisionSource,
+      winnerReasoning,
       closedAt: Timestamp.now(),
       closedBy: req.uid || null,
       closeSummary: {
         eligibleCount: rankedEligible.length,
         rejectedCount: rejected.length,
+        overrodeDeterministic: overrode,
       },
     };
 
     await db.collection('rfqs').doc(req.params.id).update(update);
 
+    const canSeeReasoning = hasMinRoleBE(req.userRole, 'supervisor');
     res.json({
       ok: true,
       winner: update.winner,
+      decisionSource,
+      rationale,
+      overrodeDeterministic: overrode,
+      winnerReasoning: canSeeReasoning ? winnerReasoning : null,
       rankedEligible: rankedEligible.map(sanitizeWinner),
       rejected: rejected.map(r => ({
         supplierId: r.supplierId,
