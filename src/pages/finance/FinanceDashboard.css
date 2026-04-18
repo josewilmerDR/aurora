@@ -1,0 +1,177 @@
+@import './finance.css';
+
+.fin-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 960px) {
+  .fin-dashboard-grid { grid-template-columns: 1fr; }
+}
+
+.fin-widget {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.fin-widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.fin-widget-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fin-widget-primary {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--aurora-green);
+  font-variant-numeric: tabular-nums;
+}
+.fin-widget-primary--negative { color: #ff8080; }
+
+.fin-widget-sub {
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.fin-widget-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+.fin-widget-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fin-widget-stats strong {
+  color: var(--aurora-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-widget-loading,
+.fin-widget-empty {
+  color: var(--aurora-light);
+  opacity: 0.5;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 24px 0;
+}
+.fin-widget-error { color: #ff8080; }
+
+/* ── Mini sparkline ────────────────────────────────────────────────── */
+.fin-sparkline {
+  width: 100%;
+  height: 60px;
+}
+.fin-sparkline-line     { fill: none; stroke: var(--aurora-green); stroke-width: 2; }
+.fin-sparkline-area     { fill: rgba(51, 255, 153, 0.1); stroke: none; }
+.fin-sparkline-baseline { stroke: rgba(255, 80, 80, 0.5); stroke-dasharray: 3 3; stroke-width: 1; }
+
+/* ── Budget rows compactas ─────────────────────────────────────────── */
+.fin-budget-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fin-budget-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.83rem;
+}
+.fin-budget-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  grid-column: 1 / -1;
+}
+.fin-budget-row-cat { color: var(--aurora-light); }
+.fin-budget-row-pct {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+.fin-budget-row-pct--warn { color: #ffcc33; opacity: 1; }
+.fin-budget-row-pct--over { color: #ff8080; opacity: 1; font-weight: 600; }
+
+/* ── ROI top/worst lotes ───────────────────────────────────────────── */
+.fin-roi-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fin-roi-section-title {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.fin-roi-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.83rem;
+  padding: 3px 0;
+}
+.fin-roi-item-name { color: var(--aurora-light); }
+.fin-roi-item-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ── Commitments list ─────────────────────────────────────────────── */
+.fin-commits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+.fin-commit-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--aurora-border);
+}
+.fin-commit-item:last-child { border-bottom: none; }
+.fin-commit-date {
+  font-variant-numeric: tabular-nums;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  font-size: 0.78rem;
+  min-width: 60px;
+}
+.fin-commit-label { color: var(--aurora-light); }
+.fin-commit-amount {
+  color: #ff8080;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
