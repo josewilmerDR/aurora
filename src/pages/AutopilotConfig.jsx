@@ -385,6 +385,86 @@ export default function AutopilotConfig() {
               </p>
             </div>
 
+            <h3 className="ap-guardrail-subheading">Dominio financiero (Agente)</h3>
+            <p className="ap-objectives-hint">
+              Controles del agente financiero autónomo. El kill switch detiene solo este dominio; el resto del autopilot sigue funcionando.
+            </p>
+
+            <label className="ap-guardrail-check">
+              <input
+                type="checkbox"
+                checked={config.guardrails.dominios?.financiera?.activo !== false}
+                onChange={e => setConfig(c => ({
+                  ...c,
+                  guardrails: {
+                    ...c.guardrails,
+                    dominios: {
+                      ...(c.guardrails.dominios || {}),
+                      financiera: {
+                        ...(c.guardrails.dominios?.financiera || {}),
+                        activo: e.target.checked,
+                      },
+                    },
+                  },
+                }))}
+              />
+              Dominio financiero activo
+            </label>
+
+            <div className="ap-guardrail-row">
+              <div className="form-control">
+                <label>Nivel del dominio (opcional)</label>
+                <select
+                  value={config.guardrails.dominios?.financiera?.nivel || ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setConfig(c => ({
+                      ...c,
+                      guardrails: {
+                        ...c.guardrails,
+                        dominios: {
+                          ...(c.guardrails.dominios || {}),
+                          financiera: {
+                            ...(c.guardrails.dominios?.financiera || {}),
+                            nivel: v || undefined,
+                          },
+                        },
+                      },
+                    }));
+                  }}
+                >
+                  <option value="">Heredar del modo global</option>
+                  <option value="nivel1">Nivel 1 — solo recomendaciones</option>
+                  <option value="nivel2">Nivel 2 — propuestas con aprobación</option>
+                  <option value="nivel3">Nivel 3 — ejecución automática</option>
+                </select>
+                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                  Default recomendado: heredar. Si defines explícitamente, puede ser más conservador que el modo global (nunca más agresivo).
+                </p>
+              </div>
+              <div className="form-control">
+                <label>Tope por reasignación (% del source)</label>
+                <input
+                  type="number" min={0} max={100}
+                  placeholder="Ej: 25"
+                  value={config.guardrails.maxDesviacionPresupuesto ?? 25}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setConfig(c => ({
+                      ...c,
+                      guardrails: {
+                        ...c.guardrails,
+                        maxDesviacionPresupuesto: v === '' ? null : parseFloat(v) || 0,
+                      },
+                    }));
+                  }}
+                />
+                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                  Una sola reasignación no puede mover más de este % del monto asignado del budget origen.
+                </p>
+              </div>
+            </div>
+
             <h3 className="ap-guardrail-subheading">Horarios</h3>
 
             <label className="ap-guardrail-check">

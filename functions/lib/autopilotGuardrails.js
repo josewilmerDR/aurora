@@ -27,6 +27,7 @@ const { currentMonthPeriod, fetchSupplier, fetchBudgetGuardInputs } = require('.
 const { checkCashFloor } = require('./finance/cashFloorCheck');
 const { fetchLatestCashBalance, collectProjectionEvents } = require('./finance/treasurySources');
 const { toISO, addDays, parseISO } = require('./finance/weekRanges');
+const { isFinancialDomainActive, checkMaxDeviation } = require('./finance/financeDomainGuards');
 
 // Default values for each guardrail. Merged with what the user has set on
 // autopilot_config.guardrails. null / undefined means "not enforced".
@@ -47,12 +48,23 @@ const DEFAULTS = Object.freeze({
   // proyectada por debajo del piso dentro del horizonte configurado.
   minCajaProyectada: null,          // ej: 5000 (saldo mínimo en USD)
   cashFloorHorizonWeeks: 4,         // cuántas semanas mirar hacia adelante
+  // Agente financiero (Sub-fase 1.6) — tope porcentual para una sola
+  // reasignación de presupuesto. Si null, no se enforzar cap %.
+  maxDesviacionPresupuesto: 25,     // % respecto al asignado del source
 });
 
 const ALL_ACTION_TYPES = Object.freeze([
   'crear_tarea', 'reprogramar_tarea', 'reasignar_tarea',
   'ajustar_inventario', 'enviar_notificacion',
   'crear_solicitud_compra', 'crear_orden_compra',
+  'reasignar_presupuesto',
+]);
+
+// Tipos de acción que pertenecen al dominio financiero. Si el dominio está
+// inactivo (kill switch), estas acciones se bloquean sin tocar los demás
+// guardrails.
+const FINANCIAL_ACTION_TYPES = new Set([
+  'reasignar_presupuesto',
 ]);
 
 // ── Time helpers ────────────────────────────────────────────────────────────
@@ -312,6 +324,28 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
   const loteId = params?.loteId || null;
   if (loteId && blockedLotes.includes(loteId)) {
     acc.push('El lote está bloqueado para acciones autónomas.');
+  }
+
+  // ── Dominio financiero: kill switch + reasignación (Sub-fase 1.6) ──────
+  if (FINANCIAL_ACTION_TYPES.has(actionType)) {
+    if (!isFinancialDomainActive(guardrails)) {
+      acc.push('El dominio financiero está desactivado (kill switch).', 'financial');
+    }
+    if (actionType === 'reasignar_presupuesto') {
+      const amount = Number(params?.amount) || 0;
+      // Para el cap %, necesitamos el assigned del source. El handler lo
+      // provee en params.sourceAssigned cuando lo conoce; si no, saltamos
+      // el cap (el validator de budgetReallocation ya capta casos obvios).
+      const sourceAssigned = Number(params?.sourceAssigned);
+      if (Number.isFinite(sourceAssigned)) {
+        const check = checkMaxDeviation({
+          amount,
+          sourceAssigned,
+          maxPct: cfg.maxDesviacionPresupuesto,
+        });
+        if (!check.ok) acc.push(check.reason, 'financial');
+      }
+    }
   }
 
   // ── Stock % change (inventory adjustments) ───────────────────────────────

@@ -479,6 +479,81 @@ async function executeEnviarNotificacion(params, fincaId, ctx) {
   }
 }
 
+// ── Reasignar presupuesto (Sub-fase 1.6) ──────────────────────────────────
+
+async function executeReasignarPresupuesto(params, fincaId, ctx) {
+  return withFailureRecording(ctx, async (startMs) => {
+    const { sourceBudgetId, targetBudgetId, amount, reason } = params || {};
+    if (!sourceBudgetId || !targetBudgetId) {
+      throw new Error('sourceBudgetId and targetBudgetId are required.');
+    }
+    if (sourceBudgetId === targetBudgetId) {
+      throw new Error('sourceBudgetId and targetBudgetId must differ.');
+    }
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw new Error('amount must be a positive number.');
+    }
+
+    const { validateReallocation } = require('./finance/budgetReallocation');
+
+    return db.runTransaction(async (t) => {
+      const sourceRef = db.collection('budgets').doc(sourceBudgetId);
+      const targetRef = db.collection('budgets').doc(targetBudgetId);
+      const [sourceSnap, targetSnap] = await Promise.all([t.get(sourceRef), t.get(targetRef)]);
+      if (!sourceSnap.exists) throw new Error('Source budget not found.');
+      if (!targetSnap.exists) throw new Error('Target budget not found.');
+
+      const source = { id: sourceSnap.id, ...sourceSnap.data() };
+      const target = { id: targetSnap.id, ...targetSnap.data() };
+
+      // Verificamos ownership: ambos deben pertenecer a la finca que solicita.
+      if (source.fincaId !== fincaId || target.fincaId !== fincaId) {
+        throw new Error('Budget ownership mismatch.');
+      }
+
+      const v = validateReallocation({ amount: amt, source, target });
+      if (!v.ok) throw new Error(v.reason);
+
+      // Capturamos los montos previos para la compensación.
+      const prevSource = Number(source.assignedAmount) || 0;
+      const prevTarget = Number(target.assignedAmount) || 0;
+
+      t.update(sourceRef, {
+        assignedAmount: v.newSourceAmount,
+        updatedAt: Timestamp.now(),
+        updatedBy: 'autopilot',
+      });
+      t.update(targetRef, {
+        assignedAmount: v.newTargetAmount,
+        updatedAt: Timestamp.now(),
+        updatedBy: 'autopilot',
+      });
+
+      const result = {
+        ok: true,
+        sourceBudgetId,
+        targetBudgetId,
+        amount: amt,
+        prevSource,
+        prevTarget,
+        newSource: v.newSourceAmount,
+        newTarget: v.newTargetAmount,
+        reason: reason || null,
+      };
+
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'reasignar_presupuesto',
+        descriptor: buildCompensationDescriptor('reasignar_presupuesto', params, result),
+        fincaId,
+      });
+      writeSuccessOutcome(t, ctx, result, startMs);
+      return result;
+    });
+  });
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 
 /**
@@ -505,6 +580,7 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
     case 'enviar_notificacion':     return executeEnviarNotificacion(params, fincaId, ctx);
     case 'crear_solicitud_compra':  return executeCrearSolicitudCompra(params, fincaId, ctx, options);
     case 'crear_orden_compra':      return executeCrearOrdenCompra(params, fincaId, ctx, options);
+    case 'reasignar_presupuesto':   return executeReasignarPresupuesto(params, fincaId, ctx);
     default:
       throw new Error(`Unknown action type: ${type}`);
   }
