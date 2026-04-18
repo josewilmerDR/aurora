@@ -104,6 +104,7 @@ export const MODULES = [
     nombre: 'Contabilidad y Finanzas',
     icon: FiDollarSign,
     items: [
+      { label: 'Dashboard Financiero', to: '/finance/dashboard', icon: FiGrid, minRole: 'administrador' },
       { label: 'Centro de Costos', to: '/costos', icon: FiBarChart2, minRole: 'encargado' },
       { label: 'Presupuestos', to: '/finance/presupuestos', icon: FiDollarSign, minRole: 'encargado' },
       { label: 'Tesorería', to: '/finance/tesoreria', icon: FiActivity, minRole: 'encargado' },
