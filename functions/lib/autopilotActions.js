@@ -31,6 +31,19 @@ const {
   buildDescriptor: buildCompensationDescriptor,
   writeCompensationInTx,
 } = require('./autopilotCompensations');
+const { isHrActionType } = require('./hr/hrActionCaps');
+
+class HrActionNotExecutableError extends Error {
+  constructor(actionType) {
+    super(
+      `HR action "${actionType}" cannot be executed autonomously. ` +
+      `Actions in the RRHH domain are always proposed for human review.`
+    );
+    this.name = 'HrActionNotExecutableError';
+    this.code = ERROR_CODES.VALIDATION_FAILED;
+    this.actionType = actionType;
+  }
+}
 
 class AutopilotPausedError extends Error {
   constructor(fincaId) {
@@ -567,6 +580,17 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
     throw new AutopilotPausedError(fincaId);
   }
 
+  // HR actions (sugerir_contratacion, sugerir_despido, ...) can never be
+  // executed autonomously. This is the 4th and final defense layer of the
+  // phase 3 cap: UI → PUT config → validateGuardrails → here. If any earlier
+  // layer is removed, bypassed, or the type reaches this dispatcher through
+  // an internal caller (cron, test fixture), we refuse with an explicit
+  // error — not the generic "Unknown action type" the default branch would
+  // produce.
+  if (isHrActionType(type)) {
+    throw new HrActionNotExecutableError(type);
+  }
+
   const ctx = {
     actionDocRef: options.actionDocRef || null,
     actionInitialDoc: options.actionInitialDoc || null,
@@ -589,4 +613,5 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
 module.exports = {
   executeAutopilotAction,
   AutopilotPausedError,
+  HrActionNotExecutableError,
 };
