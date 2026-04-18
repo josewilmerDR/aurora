@@ -45,6 +45,7 @@ app.use(require('./routes/autopilot'));
 app.use(require('./routes/cosecha'));
 app.use(require('./routes/costos'));
 app.use(require('./routes/budgets'));
+app.use(require('./routes/roi'));
 app.use(require('./routes/buyers'));
 app.use(require('./routes/income'));
 app.use(require('./routes/treasury'));

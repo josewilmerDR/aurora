@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiCamera, FiTrash2, FiEye, FiColumns, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
+import RoiTable from '../components/finance/RoiTable';
 import './CentroCostos.css';
 
 const TABS = [
-  { id: 'general', label: 'General' },
-  { id: 'lote',    label: 'Por Lote' },
-  { id: 'grupo',   label: 'Por Grupo' },
-  { id: 'bloque',  label: 'Por Bloque' },
+  { id: 'general',      label: 'General' },
+  { id: 'lote',         label: 'Por Lote' },
+  { id: 'grupo',        label: 'Por Grupo' },
+  { id: 'bloque',       label: 'Por Bloque' },
+  { id: 'rentabilidad', label: 'Rentabilidad' },
 ];
 
 const CATEGORIAS_INDIRECTO = [
@@ -309,7 +311,11 @@ export default function CentroCostos() {
             ))}
           </div>
 
-          <CostTable rows={tabRows} nameLabel={tab === 'general' ? 'Finca' : tab === 'lote' ? 'Lote' : tab === 'grupo' ? 'Grupo' : 'Bloque'} />
+          {tab === 'rentabilidad' ? (
+            <RoiTable desde={desde} hasta={hasta} />
+          ) : (
+            <CostTable rows={tabRows} nameLabel={tab === 'general' ? 'Finca' : tab === 'lote' ? 'Lote' : tab === 'grupo' ? 'Grupo' : 'Bloque'} />
+          )}
         </>
       )}
 
