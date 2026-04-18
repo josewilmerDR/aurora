@@ -3,12 +3,15 @@
 // Returns every active supplier scored and sorted high → low. When productoId
 // is set, the list is filtered to suppliers that have actually sold that
 // product, and the price subscore narrows to that product's price index.
+//
+// The ranking logic itself lives in lib/procurement/supplierRanking.js so
+// the procurement agent (phase 2.2) can reuse it without importing from
+// a route module.
 
 const { db } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
-const { collectSupplierSignals } = require('../../lib/procurement/supplierSignals');
+const { rankSuppliers } = require('../../lib/procurement/supplierRanking');
 const { marketMedianByProduct } = require('../../lib/procurement/supplierPriceStats');
-const { scoreSupplier } = require('../../lib/procurement/supplierScore');
 const { fetchOrdersAndReceptions } = require('./fetchHistory');
 
 async function getSupplierRanking(req, res) {
@@ -22,39 +25,29 @@ async function getSupplierRanking(req, res) {
       db.collection('proveedores').where('fincaId', '==', req.fincaId).get(),
       fetchOrdersAndReceptions(req.fincaId),
     ]);
-    const suppliers = suppliersSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(s => s.nombre && s.estado !== 'inactivo');
+    const suppliers = suppliersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const marketMedians = marketMedianByProduct(history.orders, currency);
 
-    const market = marketMedianByProduct(history.orders, currency);
+    const ranked = rankSuppliers({
+      suppliers,
+      orders: history.orders,
+      receptions: history.receptions,
+      marketMedians,
+      opts: { productoId, currency },
+    });
 
-    const rows = [];
-    for (const supplier of suppliers) {
-      const signals = collectSupplierSignals({
-        supplierName: supplier.nombre,
-        aliases: Array.isArray(supplier.aliases) ? supplier.aliases : [],
-        orders: history.orders,
-        receptions: history.receptions,
-        currency,
-      });
-      if (productoId && !signals.productosOfrecidos.includes(productoId)) continue;
-
-      const scored = scoreSupplier(signals, market, productoId ? { productoId } : {});
-      rows.push({
-        supplierId: supplier.id,
-        supplierName: supplier.nombre,
-        categoria: supplier.categoria || '',
-        score: scored.score,
-        breakdown: scored.breakdown,
-        orderCount: signals.orderCount,
-        avgLeadTimeDays: signals.avgLeadTimeDays,
-        fillRate: signals.fillRate,
-        priceForProduct: productoId ? (signals.pricesByProduct[productoId] || null) : null,
-        lastOrderDate: signals.lastOrderDate ? signals.lastOrderDate.toISOString() : null,
-      });
-    }
-
-    rows.sort(byScoreDesc);
+    const rows = ranked.map(r => ({
+      supplierId: r.supplierId,
+      supplierName: r.supplierName,
+      categoria: r.categoria,
+      score: r.score,
+      breakdown: r.breakdown,
+      orderCount: r.signals.orderCount,
+      avgLeadTimeDays: r.signals.avgLeadTimeDays,
+      fillRate: r.signals.fillRate,
+      priceForProduct: r.priceForProduct,
+      lastOrderDate: r.signals.lastOrderDate ? r.signals.lastOrderDate.toISOString() : null,
+    }));
 
     res.json({
       productoId: productoId || null,
@@ -66,14 +59,6 @@ async function getSupplierRanking(req, res) {
     console.error('[SUPPLIERS] ranking failed:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute supplier ranking.', 500);
   }
-}
-
-// Nulls rank below any scored supplier. Among nulls, order is stable.
-function byScoreDesc(a, b) {
-  if (a.score == null && b.score == null) return 0;
-  if (a.score == null) return 1;
-  if (b.score == null) return -1;
-  return b.score - a.score;
 }
 
 module.exports = { getSupplierRanking };
