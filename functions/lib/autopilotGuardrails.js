@@ -28,6 +28,8 @@ const { checkCashFloor } = require('./finance/cashFloorCheck');
 const { fetchLatestCashBalance, collectProjectionEvents } = require('./finance/treasurySources');
 const { toISO, addDays, parseISO } = require('./finance/weekRanges');
 const { isFinancialDomainActive, checkMaxDeviation } = require('./finance/financeDomainGuards');
+const { isHrDomainActive } = require('./hr/hrDomainGuards');
+const { HR_ACTION_TYPES, FORBIDDEN_AT_NIVEL3, capHrActionLevel } = require('./hr/hrActionCaps');
 
 // Default values for each guardrail. Merged with what the user has set on
 // autopilot_config.guardrails. null / undefined means "not enforced".
@@ -58,6 +60,7 @@ const ALL_ACTION_TYPES = Object.freeze([
   'ajustar_inventario', 'enviar_notificacion',
   'crear_solicitud_compra', 'crear_orden_compra',
   'reasignar_presupuesto',
+  ...HR_ACTION_TYPES,
 ]);
 
 // Tipos de acción que pertenecen al dominio financiero. Si el dominio está
@@ -66,6 +69,10 @@ const ALL_ACTION_TYPES = Object.freeze([
 const FINANCIAL_ACTION_TYPES = new Set([
   'reasignar_presupuesto',
 ]);
+
+// Mismo patrón para el dominio RRHH. Se construye aquí para que el check
+// de kill switch + cap sea uniforme con el de finanzas.
+const HR_ACTION_TYPES_SET = new Set(HR_ACTION_TYPES);
 
 // ── Time helpers ────────────────────────────────────────────────────────────
 
@@ -172,10 +179,10 @@ async function countNotificationsToUserToday(fincaId, userId, startMs) {
 
 // Acumulador de violaciones con categoría. El consumo tradicional
 // (`.violations: string[]`) se mantiene; los consumidores nuevos pueden leer
-// `.violationsByCategory.{financial|general}`.
+// `.violationsByCategory.{financial|hr|general}`.
 function createViolationAccumulator() {
   const flat = [];
-  const byCategory = { financial: [], general: [] };
+  const byCategory = { financial: [], hr: [], general: [] };
   return {
     push(message, category = 'general') {
       flat.push(message);
@@ -190,6 +197,7 @@ function createViolationAccumulator() {
         violations: flat.slice(),
         violationsByCategory: {
           financial: byCategory.financial.slice(),
+          hr: byCategory.hr.slice(),
           general: byCategory.general.slice(),
         },
       };
@@ -344,6 +352,29 @@ async function validateGuardrails(actionType, params, guardrails = {}, ctx = {})
           maxPct: cfg.maxDesviacionPresupuesto,
         });
         if (!check.ok) acc.push(check.reason, 'financial');
+      }
+    }
+  }
+
+  // ── Dominio RRHH: kill switch + cap hard (Sub-fase 3.0) ─────────────────
+  //
+  // Todo action type en HR_ACTION_TYPES es inherentemente no-ejecutable por
+  // diseño: son sugerencias, no operaciones. Si validateGuardrails se llama
+  // sobre una de estas (lo cual implica que algo intenta EJECUTARLAS vía el
+  // dispatcher), bloqueamos con violación en la categoría `hr`. Ésta es la
+  // 3ra de 4 capas de defensa; el dispatcher también lanza, la UI no las
+  // ofrece en nivel3 y el PUT config rechaza `rrhh.nivel='nivel3'`.
+  if (HR_ACTION_TYPES_SET.has(actionType)) {
+    if (!isHrDomainActive(guardrails)) {
+      acc.push('El dominio RRHH está desactivado (kill switch).', 'hr');
+    }
+    if (FORBIDDEN_AT_NIVEL3.has(actionType)) {
+      const capped = capHrActionLevel(actionType, 'nivel3');
+      if (capped !== 'nivel3') {
+        acc.push(
+          `"${actionType}" no puede ejecutarse autónomamente — requiere revisión humana (cap máx: ${capped}).`,
+          'hr'
+        );
       }
     }
   }

@@ -307,7 +307,10 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
       updatedAt: now,
     };
     if (guardrails !== undefined && typeof guardrails === 'object') {
-      const VALID_ACTION_TYPES = ['crear_tarea', 'reprogramar_tarea', 'reasignar_tarea', 'ajustar_inventario', 'enviar_notificacion', 'crear_solicitud_compra', 'crear_orden_compra'];
+      const { ALL_ACTION_TYPES } = require('../lib/autopilotGuardrails');
+      const VALID_ACTION_TYPES = ALL_ACTION_TYPES;
+      const VALID_DOMAIN_LEVELS = ['nivel1', 'nivel2', 'nivel3'];
+      const VALID_HR_LEVELS = ['nivel1', 'nivel2']; // nivel3 prohibido para RRHH
       const clampInt = (v, min, max) => Math.max(min, Math.min(max, Math.round(v)));
       const clampNum = (v, min, max) => Math.max(min, Math.min(max, v));
       const isHhMm = (s) => typeof s === 'string' && /^\d{1,2}:\d{2}$/.test(s);
@@ -352,6 +355,30 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
           qh.enforce = guardrails.quietHours.enforce.filter(t => VALID_ACTION_TYPES.includes(t));
         }
         if (Object.keys(qh).length > 0) g.quietHours = qh;
+      }
+      // Dominios: kill switch + nivel por dominio. El dominio `rrhh` no
+      // admite 'nivel3' — se rechaza el request con 400 (defensa en PUT,
+      // complementaria al cap en runtime y al clamp del lib).
+      if (guardrails.dominios && typeof guardrails.dominios === 'object') {
+        const d = {};
+        const domainNames = ['financiera', 'procurement', 'rrhh'];
+        for (const name of domainNames) {
+          const src = guardrails.dominios[name];
+          if (!src || typeof src !== 'object') continue;
+          const allowedLevels = name === 'rrhh' ? VALID_HR_LEVELS : VALID_DOMAIN_LEVELS;
+          if (src.nivel !== undefined && src.nivel !== null && src.nivel !== '' && !allowedLevels.includes(src.nivel)) {
+            if (name === 'rrhh' && src.nivel === 'nivel3') {
+              return sendApiError(res, ERROR_CODES.INVALID_INPUT,
+                'El dominio RRHH no admite nivel3. Decisiones sobre personas requieren revisión humana.', 400);
+            }
+            return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid nivel for dominio ${name}.`, 400);
+          }
+          const entry = {};
+          if (typeof src.activo === 'boolean') entry.activo = src.activo;
+          if (typeof src.nivel === 'string' && allowedLevels.includes(src.nivel)) entry.nivel = src.nivel;
+          if (Object.keys(entry).length > 0) d[name] = entry;
+        }
+        if (Object.keys(d).length > 0) g.dominios = d;
       }
       payload.guardrails = g;
     }
