@@ -53,6 +53,7 @@ app.use(require('./routes/treasury'));
 app.use(require('./routes/suppliers'));
 app.use(require('./routes/procurement'));
 app.use(require('./routes/autopilot-procurement'));
+app.use(require('./routes/rfqs'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(

@@ -55,7 +55,9 @@
     { "collectionGroup": "cierres_combustible",  "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "creadoEn",       "order": "DESCENDING" }] },
     { "collectionGroup": "cierres_combustible",  "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "periodo",        "order": "ASCENDING"  }, { "fieldPath": "bodegaId", "order": "ASCENDING" }, { "fieldPath": "estado", "order": "ASCENDING" }] },
     { "collectionGroup": "autopilot_sessions",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "timestamp",      "order": "DESCENDING" }] },
-    { "collectionGroup": "autopilot_actions",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] }
+    { "collectionGroup": "autopilot_actions",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
+    { "collectionGroup": "rfqs",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
+    { "collectionGroup": "rfqs",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "estado",         "order": "ASCENDING"  }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }
