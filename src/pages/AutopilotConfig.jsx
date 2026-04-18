@@ -292,6 +292,99 @@ export default function AutopilotConfig() {
               />
             </div>
 
+            <h3 className="ap-guardrail-subheading">Presupuestos y caja</h3>
+            <p className="ap-objectives-hint">
+              Guardrails financieros. Vacío = no enforcement. Aplican a órdenes y solicitudes de compra.
+            </p>
+
+            <div className="ap-guardrail-row">
+              <div className="form-control">
+                <label>Tope de consumo del presupuesto (%)</label>
+                <input
+                  type="number" min={0} max={500}
+                  placeholder="Ej: 100 (no exceder el asignado)"
+                  value={config.guardrails.maxBudgetConsumptionPct ?? ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setConfig(c => ({
+                      ...c,
+                      guardrails: {
+                        ...c.guardrails,
+                        maxBudgetConsumptionPct: v === '' ? null : parseFloat(v) || 0,
+                      },
+                    }));
+                  }}
+                />
+                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                  Bloquea acciones que llevarían la categoría por encima de este porcentaje del asignado del mes.
+                </p>
+              </div>
+              <div className="form-control">
+                <label>Saldo mínimo de caja (USD)</label>
+                <input
+                  type="number"
+                  placeholder="Ej: 5000 (piso de caja)"
+                  value={config.guardrails.minCajaProyectada ?? ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setConfig(c => ({
+                      ...c,
+                      guardrails: {
+                        ...c.guardrails,
+                        minCajaProyectada: v === '' ? null : parseFloat(v),
+                      },
+                    }));
+                  }}
+                />
+                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                  La acción se bloquea si dejaría la caja proyectada por debajo del piso dentro del horizonte.
+                </p>
+              </div>
+            </div>
+
+            <div className="form-control">
+              <label>Horizonte de caja (semanas)</label>
+              <input
+                type="number" min={1} max={52}
+                value={config.guardrails.cashFloorHorizonWeeks ?? 4}
+                onChange={e => setConfig(c => ({
+                  ...c,
+                  guardrails: { ...c.guardrails, cashFloorHorizonWeeks: parseInt(e.target.value) || 4 },
+                }))}
+              />
+            </div>
+
+            <div className="form-control">
+              <label>Categorías bloqueadas</label>
+              <div className="ap-guardrail-checklist">
+                {['combustible', 'depreciacion', 'planilla_directa', 'planilla_fija', 'insumos', 'mantenimiento', 'administrativo', 'otro'].map(cat => {
+                  const blocked = config.guardrails.blockedBudgetCategories ?? [];
+                  const checked = blocked.includes(cat);
+                  return (
+                    <label key={cat} className="ap-guardrail-check">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => {
+                          const next = e.target.checked
+                            ? [...blocked, cat]
+                            : blocked.filter(c => c !== cat);
+                          setConfig(c => ({
+                            ...c,
+                            guardrails: { ...c.guardrails, blockedBudgetCategories: next },
+                          }));
+                        }}
+                      />
+                      {cat.replace(/_/g, ' ')}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                Las categorías marcadas no pueden recibir acciones autónomas.
+              </p>
+            </div>
+
             <h3 className="ap-guardrail-subheading">Horarios</h3>
 
             <label className="ap-guardrail-check">
