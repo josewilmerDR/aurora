@@ -118,6 +118,15 @@ export const MODULES = [
     ],
   },
   {
+    id: 'estrategia',
+    nombre: 'Estrategia',
+    icon: FiTrendingUp,
+    items: [
+      { label: 'Rendimiento Histórico', to: '/strategy/rendimiento', icon: FiBarChart2, minRole: 'supervisor' },
+      { label: 'Temporadas', to: '/strategy/temporadas', icon: FiCalendar, minRole: 'supervisor' },
+    ],
+  },
+  {
     id: 'admin',
     nombre: 'Administración del Sistema',
     icon: FiSettings,

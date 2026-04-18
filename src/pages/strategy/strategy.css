@@ -1,0 +1,257 @@
+@import '../LoteManagement.css';
+
+/* ── Strategy — layout compartido ────────────────────────────────────────── */
+
+.strategy-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.strategy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.strategy-field label {
+  font-size: 12px;
+  color: var(--aurora-light);
+  opacity: 0.75;
+}
+
+.strategy-field input,
+.strategy-field select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.strategy-field input:focus,
+.strategy-field select:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.strategy-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.strategy-amount--neg {
+  color: #ff8080;
+}
+
+.strategy-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+}
+
+/* ── KPI strip (resumen en la cabecera) ──────────────────────────────────── */
+.strategy-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.strategy-kpi {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.strategy-kpi-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  margin-bottom: 4px;
+}
+
+.strategy-kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--aurora-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-kpi-value--neg { color: #ff8080; }
+.strategy-kpi-value--pos { color: var(--aurora-green); }
+
+/* ── Tabla de yield ─────────────────────────────────────────────────────── */
+.strategy-table-wrap {
+  overflow-x: auto;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+}
+
+.strategy-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+  font-size: 13px;
+}
+
+.strategy-table thead th {
+  text-align: right;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.75;
+  border-bottom: 1px solid var(--aurora-border);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+
+.strategy-table thead th:first-child {
+  text-align: left;
+}
+
+.strategy-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(42, 74, 106, 0.3);
+  text-align: right;
+  color: var(--aurora-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-table tbody td:first-child {
+  text-align: left;
+  font-weight: 600;
+}
+
+.strategy-table tbody tr:hover {
+  background: rgba(51, 255, 153, 0.04);
+}
+
+/* ── Temporadas ─────────────────────────────────────────────────────────── */
+.temporadas-header-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.temporadas-list {
+  display: grid;
+  gap: 10px;
+}
+
+.temporada-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.temporada-card--archived {
+  opacity: 0.55;
+}
+
+.temporada-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.temporada-name {
+  font-weight: 700;
+  color: var(--aurora-light);
+}
+
+.temporada-range {
+  font-size: 12px;
+  color: var(--aurora-light);
+  opacity: 0.7;
+}
+
+.temporada-meta {
+  font-size: 11px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.temporada-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.temporada-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.temporada-badge--auto   { background: rgba(204, 51, 255, 0.15); color: var(--aurora-magenta); }
+.temporada-badge--manual { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
+.temporada-badge--archived { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
+
+.temporada-proposal-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.temporada-proposal {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.temporada-proposal--existing {
+  opacity: 0.55;
+}
+
+/* ── Segmented control (groupBy) ────────────────────────────────────────── */
+.strategy-segmented {
+  display: inline-flex;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.strategy-segmented button {
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.strategy-segmented button.active {
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  opacity: 1;
+  font-weight: 700;
+}
