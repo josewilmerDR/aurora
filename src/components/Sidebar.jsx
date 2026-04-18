@@ -7,6 +7,7 @@ import {
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
+  FiShoppingCart, FiSend,
 } from 'react-icons/fi';
 
 // Icon map for generic bodegas (string key → React component)
@@ -112,6 +113,8 @@ export const MODULES = [
       { label: 'Compradores', to: '/finance/compradores', icon: FiUsers, minRole: 'encargado' },
       { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
       { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
+      { label: 'Procurement — Dashboard', to: '/procurement/dashboard', icon: FiShoppingCart, minRole: 'encargado' },
+      { label: 'RFQs', to: '/procurement/rfqs', icon: FiSend, minRole: 'encargado' },
     ],
   },
   {

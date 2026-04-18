@@ -1,0 +1,165 @@
+@import '../finance/FinanceDashboard.css';
+
+.rfq-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.rfq-toolbar label {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+}
+
+.rfq-toolbar select {
+  background: var(--aurora-background);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+.rfq-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.rfq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rfq-card {
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rfq-card--closed { opacity: 0.7; }
+.rfq-card--cancelled { opacity: 0.5; }
+
+.rfq-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  gap: 12px;
+}
+
+.rfq-card-head:hover {
+  background: rgba(51, 255, 153, 0.04);
+}
+
+.rfq-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+}
+
+.rfq-badge {
+  padding: 2px 10px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rfq-card-body {
+  padding: 0 16px 16px 16px;
+  border-top: 1px solid var(--aurora-border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rfq-section {
+  padding-top: 12px;
+}
+
+.rfq-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-light);
+  opacity: 0.8;
+}
+
+.rfq-close-result {
+  background: rgba(51, 255, 153, 0.06);
+  border-left: 3px solid var(--aurora-green);
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.rfq-card-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.rfq-primary-btn,
+.rfq-danger-btn {
+  background: transparent;
+  border: 1px solid var(--aurora-green);
+  color: var(--aurora-green);
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rfq-danger-btn {
+  border-color: #ff8080;
+  color: #ff8080;
+}
+
+.rfq-primary-btn:disabled,
+.rfq-danger-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rfq-response-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rfq-response-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rfq-response-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  flex: 1;
+}
+
+.rfq-response-form input,
+.rfq-response-form select {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
