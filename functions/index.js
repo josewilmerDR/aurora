@@ -50,6 +50,7 @@ app.use(require('./routes/autopilot-finance'));
 app.use(require('./routes/buyers'));
 app.use(require('./routes/income'));
 app.use(require('./routes/treasury'));
+app.use(require('./routes/suppliers'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
