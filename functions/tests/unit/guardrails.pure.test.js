@@ -168,3 +168,48 @@ describe('validateGuardrails — session and synchronous checks (no fincaId)', (
     expect(monRes.allowed).toBe(true);
   });
 });
+
+describe('validateGuardrails — HR domain (sub-fase 3.0)', () => {
+  const baseCtx = { sessionExecutedCount: 0 };
+
+  test('blocks HR action when rrhh kill switch is off', async () => {
+    const res = await validateGuardrails('sugerir_contratacion', {}, {
+      dominios: { rrhh: { activo: false } },
+    }, baseCtx);
+    expect(res.allowed).toBe(false);
+    expect(res.violationsByCategory.hr).toEqual(
+      expect.arrayContaining([expect.stringMatching(/kill switch/i)])
+    );
+  });
+
+  test('blocks every FORBIDDEN_AT_NIVEL3 HR action regardless of config', async () => {
+    const types = [
+      'sugerir_contratacion',
+      'sugerir_despido',
+      'sugerir_sancion',
+      'sugerir_memorando',
+      'sugerir_revision_desempeno',
+    ];
+    for (const t of types) {
+      const res = await validateGuardrails(t, {}, {}, baseCtx);
+      expect(res.allowed).toBe(false);
+      expect(res.violationsByCategory.hr).toEqual(
+        expect.arrayContaining([expect.stringMatching(/revisión humana/i)])
+      );
+    }
+  });
+
+  test('non-HR actions are unaffected by rrhh kill switch', async () => {
+    const res = await validateGuardrails('crear_tarea', {}, {
+      dominios: { rrhh: { activo: false } },
+    }, baseCtx);
+    expect(res.allowed).toBe(true);
+  });
+
+  test('HR action kill switch + cap produce two distinct violations', async () => {
+    const res = await validateGuardrails('sugerir_contratacion', {}, {
+      dominios: { rrhh: { activo: false } },
+    }, baseCtx);
+    expect(res.violationsByCategory.hr.length).toBe(2);
+  });
+});

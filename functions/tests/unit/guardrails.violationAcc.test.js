@@ -7,7 +7,7 @@ describe('createViolationAccumulator', () => {
     const acc = createViolationAccumulator();
     const snap = acc.snapshot();
     expect(snap.violations).toEqual([]);
-    expect(snap.violationsByCategory).toEqual({ financial: [], general: [] });
+    expect(snap.violationsByCategory).toEqual({ financial: [], hr: [], general: [] });
   });
 
   test('defaults to general category', () => {
@@ -25,6 +25,17 @@ describe('createViolationAccumulator', () => {
     const snap = acc.snapshot();
     expect(snap.violations).toEqual(['OC excede presupuesto']);
     expect(snap.violationsByCategory.financial).toEqual(['OC excede presupuesto']);
+    expect(snap.violationsByCategory.general).toEqual([]);
+    expect(snap.violationsByCategory.hr).toEqual([]);
+  });
+
+  test('routes hr category correctly', () => {
+    const acc = createViolationAccumulator();
+    acc.push('Dominio RRHH desactivado', 'hr');
+    const snap = acc.snapshot();
+    expect(snap.violations).toEqual(['Dominio RRHH desactivado']);
+    expect(snap.violationsByCategory.hr).toEqual(['Dominio RRHH desactivado']);
+    expect(snap.violationsByCategory.financial).toEqual([]);
     expect(snap.violationsByCategory.general).toEqual([]);
   });
 
