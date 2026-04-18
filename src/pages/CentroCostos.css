@@ -334,3 +334,20 @@
   gap: 10px;
   margin-top: 18px;
 }
+
+/* ── ROI (Rentabilidad) ────────────────────────────────────────────── */
+.roi-positive { color: var(--aurora-green); }
+.roi-negative { color: #ff8080; }
+
+.cc-kpi.roi-positive .cc-kpi-value { color: var(--aurora-green); }
+.cc-kpi.roi-negative .cc-kpi-value { color: #ff8080; }
+
+.roi-notice {
+  background: rgba(255, 204, 51, 0.08);
+  border: 1px solid rgba(255, 204, 51, 0.25);
+  color: #ffcc33;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+}
