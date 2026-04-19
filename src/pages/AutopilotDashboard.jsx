@@ -41,6 +41,8 @@ const CATEGORIA_LABELS = {
   general:      'General',
   procurement:  'Compras',
   hr:           'RR.HH.',
+  financiera:   'Finanzas',
+  meta:         'Meta',
 };
 
 const PRIORIDAD_ICONS = {
@@ -57,6 +59,9 @@ const ACTION_TYPE_LABELS = {
   enviar_notificacion:    'Enviar notificación',
   crear_solicitud_compra: 'Solicitud de compra',
   crear_orden_compra:     'Orden de compra',
+  reasignar_presupuesto:  'Reasignar presupuesto',
+  crear_siembra:          'Crear siembra',
+  ajustar_guardrails:     'Ajustar guardrails',
 };
 
 const ACTION_TYPE_ICONS = {
@@ -67,6 +72,9 @@ const ACTION_TYPE_ICONS = {
   enviar_notificacion:    FiSend,
   crear_solicitud_compra: FiFileText,
   crear_orden_compra:     FiShoppingCart,
+  reasignar_presupuesto:  FiFileText,
+  crear_siembra:          FiCalendar,
+  ajustar_guardrails:     FiFileText,
 };
 
 const STATUS_LABELS = {

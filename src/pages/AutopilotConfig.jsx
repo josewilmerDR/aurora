@@ -571,6 +571,70 @@ export default function AutopilotConfig() {
               </p>
             </div>
 
+            <h3 className="ap-guardrail-subheading">Dominio Meta / Orquestador (Fase 6)</h3>
+            <p className="ap-objectives-hint">
+              Controla al meta-agente: orquestador que delega a los especialistas (Fase 6.1),
+              trust manager que ajusta guardrails dinámicamente dentro del corredor (Fase 6.3),
+              y cadenas cross-domain (Fase 6.4). Los caps arquitectónicos de RRHH (N3 prohibido)
+              y financiamiento (N1-only) siguen enforzados en backend — este nivel sólo controla
+              al orquestador / ajuste de guardrails, no los permisos de los dominios downstream.
+            </p>
+
+            <label className="ap-guardrail-check">
+              <input
+                type="checkbox"
+                checked={config.guardrails.dominios?.meta?.activo !== false}
+                onChange={e => setConfig(c => ({
+                  ...c,
+                  guardrails: {
+                    ...c.guardrails,
+                    dominios: {
+                      ...(c.guardrails.dominios || {}),
+                      meta: {
+                        ...(c.guardrails.dominios?.meta || {}),
+                        activo: e.target.checked,
+                      },
+                    },
+                  },
+                }))}
+              />
+              Dominio meta activo
+            </label>
+
+            <div className="ap-guardrail-row">
+              <div className="form-control">
+                <label>Nivel del dominio (opcional)</label>
+                <select
+                  value={config.guardrails.dominios?.meta?.nivel || ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setConfig(c => ({
+                      ...c,
+                      guardrails: {
+                        ...c.guardrails,
+                        dominios: {
+                          ...(c.guardrails.dominios || {}),
+                          meta: {
+                            ...(c.guardrails.dominios?.meta || {}),
+                            nivel: v || undefined,
+                          },
+                        },
+                      },
+                    }));
+                  }}
+                >
+                  <option value="">Heredar del modo global</option>
+                  <option value="nivel1">Nivel 1 — sólo recomendaciones (planes, propuestas)</option>
+                  <option value="nivel2">Nivel 2 — fan-out del orquestador + tightening auto</option>
+                  <option value="nivel3">Nivel 3 — fan-out + ajuste bidireccional de guardrails + chains ejecutables</option>
+                </select>
+                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                  En N3 el trust manager aplica tanto relax como tighten dentro del corridor; cada
+                  relax queda compensable vía rollback estándar durante 7 días.
+                </p>
+              </div>
+            </div>
+
             <h3 className="ap-guardrail-subheading">Horarios</h3>
 
             <label className="ap-guardrail-check">
