@@ -21,6 +21,11 @@ const {
   deleteCreditProduct,
 } = require('./creditProducts');
 const { simulateCreditCost } = require('./simulateCost');
+const {
+  analyzeEligibility,
+  listEligibilityAnalyses,
+  getEligibilityAnalysis,
+} = require('./eligibility');
 
 const router = Router();
 
@@ -39,5 +44,10 @@ router.post('/api/financing/credit-products/:id/simulate-cost', authenticate, si
 router.get('/api/financing/credit-products/:id', authenticate, getCreditProduct);
 router.put('/api/financing/credit-products/:id', authenticate, updateCreditProduct);
 router.delete('/api/financing/credit-products/:id', authenticate, deleteCreditProduct);
+
+// Fase 5.3 — eligibility analysis.
+router.post('/api/financing/eligibility/analyze', authenticate, analyzeEligibility);
+router.get('/api/financing/eligibility', authenticate, listEligibilityAnalyses);
+router.get('/api/financing/eligibility/:id', authenticate, getEligibilityAnalysis);
 
 module.exports = router;
