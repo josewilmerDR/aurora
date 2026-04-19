@@ -58,7 +58,8 @@
     { "collectionGroup": "autopilot_actions",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
     { "collectionGroup": "rfqs",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "createdAt",      "order": "DESCENDING" }] },
     { "collectionGroup": "rfqs",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId",  "order": "ASCENDING" }, { "fieldPath": "estado",         "order": "ASCENDING"  }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "financial_profile_snapshots", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "generatedAt", "order": "DESCENDING" }] }
+    { "collectionGroup": "financial_profile_snapshots", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "generatedAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "credit_products",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "providerName", "order": "ASCENDING"  }] }
   ],
   "fieldOverrides": []
 }
