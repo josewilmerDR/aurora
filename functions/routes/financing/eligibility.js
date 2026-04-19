@@ -22,6 +22,7 @@ const {
 const { refineWithClaude } = require('../../lib/financing/eligibilityReasoner');
 const {
   isFinancingDomainActive,
+  assertNivelAllowed,
 } = require('../../lib/financing/financingDomainGuards');
 
 // ─── Kill switch checks ───────────────────────────────────────────────────
@@ -31,11 +32,17 @@ async function assertAllowed(fincaId) {
   if (await isPaused(fincaId)) {
     return { blocked: true, reason: 'Autopilot paused for this finca.' };
   }
-  // Financing-specific domain toggle.
   const cfgDoc = await db.collection('autopilot_config').doc(fincaId).get();
   const cfg = cfgDoc.exists ? cfgDoc.data() : {};
+  // Financing-specific domain toggle.
   if (!isFinancingDomainActive(cfg)) {
     return { blocked: true, reason: 'Financing domain disabled (dominios.financing.activo = false).' };
+  }
+  // Hard-coded N1 policy: reject if the user tried to configure nivel2/3.
+  const configuredLevel = cfg?.dominios?.financing?.nivel;
+  if (configuredLevel && configuredLevel !== 'nivel1') {
+    const check = assertNivelAllowed(configuredLevel);
+    if (check.blocked) return { blocked: true, reason: check.reason };
   }
   return { blocked: false };
 }
