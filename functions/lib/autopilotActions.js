@@ -643,6 +643,75 @@ async function executeCrearSiembra(params, fincaId, ctx, options) {
   });
 }
 
+// ── Ajustar guardrails (Sub-fase 6.3) ─────────────────────────────────────
+//
+// Applies a single guardrail change inside `autopilot_config.guardrails`.
+// The trust manager (lib/meta/trust/trustManager.js) proposes these; this
+// handler writes them transactionally along with the action record and a
+// compensation that restores the previous value.
+//
+// Expected params:
+//   { key, newValue, previousValue, direction, trustInput, corridor, unit, domains }
+//
+// The value is re-clamped to the corridor here as a defense-in-depth
+// check — the proposer already clamps, but we don't trust callers.
+
+async function executeAjustarGuardrails(params, fincaId, ctx) {
+  return withFailureRecording(ctx, async (startMs) => {
+    const { key, newValue } = params || {};
+    if (!key || typeof key !== 'string') {
+      throw new Error('ajustar_guardrails requires a `key` string.');
+    }
+    if (!Number.isFinite(Number(newValue))) {
+      throw new Error('ajustar_guardrails requires a finite `newValue`.');
+    }
+
+    const { clampToCorridor } = require('./meta/trust/corridor');
+    const clamp = clampToCorridor(key, newValue);
+    if (!clamp.ok) throw new Error(clamp.reason);
+    const targetValue = clamp.value;
+
+    const configRef = db.collection('autopilot_config').doc(fincaId);
+
+    return db.runTransaction(async (t) => {
+      const configSnap = await t.get(configRef);
+      const currentConfig = configSnap.exists ? configSnap.data() : {};
+      const currentGuardrails = currentConfig.guardrails || {};
+      const actualPrev = currentGuardrails[key];
+
+      // Use the value actually present in Firestore right now for the
+      // compensation — NOT what the caller claimed `previousValue` was —
+      // so rollback always returns to the last real state.
+      const resolvedPrev = actualPrev == null ? null : Number(actualPrev);
+
+      t.set(configRef, {
+        guardrails: {
+          ...currentGuardrails,
+          [key]: targetValue,
+        },
+        updatedAt: Timestamp.now(),
+        updatedBy: 'trust-manager',
+      }, { merge: true });
+
+      const result = {
+        ok: true,
+        key,
+        previousValue: resolvedPrev,
+        newValue: targetValue,
+      };
+
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'ajustar_guardrails',
+        descriptor: buildCompensationDescriptor('ajustar_guardrails', params, result, { resolvedPrev }),
+        fincaId,
+      });
+      writeSuccessOutcome(t, ctx, result, startMs);
+      return result;
+    });
+  });
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 
 /**
@@ -682,6 +751,7 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
     case 'crear_orden_compra':      return executeCrearOrdenCompra(params, fincaId, ctx, options);
     case 'reasignar_presupuesto':   return executeReasignarPresupuesto(params, fincaId, ctx);
     case 'crear_siembra':           return executeCrearSiembra(params, fincaId, ctx, options);
+    case 'ajustar_guardrails':      return executeAjustarGuardrails(params, fincaId, ctx);
     default:
       throw new Error(`Unknown action type: ${type}`);
   }
