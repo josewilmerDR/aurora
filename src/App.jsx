@@ -77,6 +77,7 @@ import RotationRecommender from './pages/strategy/RotationRecommender';
 import SignalSources from './pages/strategy/SignalSources';
 import SignalsDashboard from './pages/strategy/SignalsDashboard';
 import ScenariosSimulator from './pages/strategy/ScenariosSimulator';
+import AnnualPlan from './pages/strategy/AnnualPlan';
 import RfqsList from './pages/procurement/RfqsList';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
@@ -128,6 +129,7 @@ const ROUTE_MIN_ROLE = {
   '/strategy/senales/fuentes': 'supervisor',
   '/strategy/senales': 'supervisor',
   '/strategy/escenarios': 'supervisor',
+  '/strategy/plan-anual': 'supervisor',
 };
 
 // Route → human-readable title mapping (displayed in the app header).
@@ -198,6 +200,7 @@ const routeTitles = {
   '/strategy/senales/fuentes': 'Señales — Fuentes',
   '/strategy/senales': 'Señales — Observaciones',
   '/strategy/escenarios': 'Escenarios What-if',
+  '/strategy/plan-anual': 'Plan Anual Vivo',
 };
 
 // --- Route guards ---
@@ -616,6 +619,7 @@ function App() {
             <Route path="/strategy/senales/fuentes" element={<RoleRoute path="/strategy/senales/fuentes"><SignalSources /></RoleRoute>} />
             <Route path="/strategy/senales" element={<RoleRoute path="/strategy/senales"><SignalsDashboard /></RoleRoute>} />
             <Route path="/strategy/escenarios" element={<RoleRoute path="/strategy/escenarios"><ScenariosSimulator /></RoleRoute>} />
+            <Route path="/strategy/plan-anual" element={<RoleRoute path="/strategy/plan-anual"><AnnualPlan /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />

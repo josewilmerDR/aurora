@@ -59,6 +59,7 @@ app.use(require('./routes/analytics'));
 app.use(require('./routes/strategy'));
 app.use(require('./routes/signals'));
 app.use(require('./routes/scenarios'));
+app.use(require('./routes/annualPlans'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
@@ -70,3 +71,4 @@ exports.sendDuePushReminders = require('./scheduled/reminders-cron');
 exports.autopilotMonitor = require('./scheduled/autopilot-monitor');
 exports.hrMonthlyScoring = require('./scheduled/hrMonthlyScoring');
 exports.signalsIngestCron = require('./scheduled/signals-cron');
+exports.annualPlanActivator = require('./scheduled/annualPlanActivator');

@@ -129,6 +129,7 @@ export const MODULES = [
       { label: 'Señales — Fuentes', to: '/strategy/senales/fuentes', icon: FiDroplet, minRole: 'supervisor' },
       { label: 'Señales — Observaciones', to: '/strategy/senales', icon: FiActivity, minRole: 'supervisor' },
       { label: 'Escenarios What-if', to: '/strategy/escenarios', icon: FiGrid, minRole: 'supervisor' },
+      { label: 'Plan Anual', to: '/strategy/plan-anual', icon: FiFileText, minRole: 'supervisor' },
     ],
   },
   {
