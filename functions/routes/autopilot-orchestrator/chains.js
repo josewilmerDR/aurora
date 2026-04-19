@@ -177,6 +177,7 @@ async function executeHandler(req, res) {
       result.code === 'FORBIDDEN' ? 403 :
       result.code === 'EXPIRED' ? 410 :
       result.code === 'CONFLICT' ? 409 :
+      result.code === 'AUTOPILOT_PAUSED' ? 423 :
       result.code === 'CHAIN_FAILED' ? 200 : 400;
     return res.status(status).json(result);
   } catch (error) {
