@@ -7,7 +7,7 @@ import {
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
-  FiShoppingCart, FiSend,
+  FiShoppingCart, FiSend, FiCpu,
 } from 'react-icons/fi';
 
 // Icon map for generic bodegas (string key → React component)
@@ -124,6 +124,8 @@ export const MODULES = [
     items: [
       { label: 'Rendimiento Histórico', to: '/strategy/rendimiento', icon: FiBarChart2, minRole: 'supervisor' },
       { label: 'Temporadas', to: '/strategy/temporadas', icon: FiCalendar, minRole: 'supervisor' },
+      { label: 'Rotación — Restricciones', to: '/strategy/rotacion/restricciones', icon: FiLayers, minRole: 'supervisor' },
+      { label: 'Rotación — Recomendador', to: '/strategy/rotacion/recomendador', icon: FiCpu, minRole: 'supervisor' },
     ],
   },
   {
