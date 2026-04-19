@@ -64,7 +64,8 @@
     { "collectionGroup": "debt_simulations",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
     { "collectionGroup": "meta_finca_snapshots",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "generatedAt", "order": "DESCENDING" }] },
     { "collectionGroup": "meta_orchestrator_runs",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
-    { "collectionGroup": "meta_kpi_observations",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "evaluatedAt", "order": "DESCENDING" }] }
+    { "collectionGroup": "meta_kpi_observations",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "evaluatedAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "meta_chains",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }
