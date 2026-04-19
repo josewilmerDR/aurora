@@ -2,8 +2,10 @@
 //
 // Fase 6.0 mounts the FincaState snapshot endpoints — the unified view
 // of the finca that the orchestrator (6.1) and downstream sweeps (6.2,
-// 6.3) will consume. Later sub-fases add orchestrator, KPI, trust, and
-// chain endpoints under the same router.
+// 6.3) will consume.
+//
+// Fase 6.2 adds KPI endpoints (observations aggregated into hit-rate
+// per actionType × window, plus a manual sweep trigger for admins).
 
 const { Router } = require('express');
 const { authenticate } = require('../../lib/middleware');
@@ -13,13 +15,24 @@ const {
   listSnapshots,
   getSnapshot,
 } = require('./fincaState');
+const {
+  getAccuracy,
+  runSweep,
+  listObservations,
+} = require('./kpiAccuracy');
 
 const router = Router();
 
-// Order matters: specific paths before /:id.
+// Fase 6.0 — FincaState snapshot endpoints. Order matters: specific
+// paths before /:id.
 router.get('/api/meta/finca-state/live', authenticate, getLiveState);
 router.post('/api/meta/finca-state/snapshot', authenticate, createSnapshot);
 router.get('/api/meta/finca-state/snapshots', authenticate, listSnapshots);
 router.get('/api/meta/finca-state/snapshots/:id', authenticate, getSnapshot);
+
+// Fase 6.2 — KPI accuracy + observations + manual sweep.
+router.get('/api/meta/kpi-accuracy', authenticate, getAccuracy);
+router.get('/api/meta/kpi-observations', authenticate, listObservations);
+router.post('/api/meta/kpi-sweep/run', authenticate, runSweep);
 
 module.exports = router;

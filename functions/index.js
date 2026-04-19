@@ -75,3 +75,4 @@ exports.autopilotMonitor = require('./scheduled/autopilot-monitor');
 exports.hrMonthlyScoring = require('./scheduled/hrMonthlyScoring');
 exports.signalsIngestCron = require('./scheduled/signals-cron');
 exports.annualPlanActivator = require('./scheduled/annualPlanActivator');
+exports.metaKpiSweep = require('./scheduled/metaKpiSweep');
