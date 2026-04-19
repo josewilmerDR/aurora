@@ -62,6 +62,7 @@ app.use(require('./routes/scenarios'));
 app.use(require('./routes/annualPlans'));
 app.use(require('./routes/financing'));
 app.use(require('./routes/meta'));
+app.use(require('./routes/autopilot-orchestrator'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
