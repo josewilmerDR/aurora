@@ -60,6 +60,7 @@ const ALL_ACTION_TYPES = Object.freeze([
   'ajustar_inventario', 'enviar_notificacion',
   'crear_solicitud_compra', 'crear_orden_compra',
   'reasignar_presupuesto',
+  'ajustar_guardrails',
   ...HR_ACTION_TYPES,
 ]);
 

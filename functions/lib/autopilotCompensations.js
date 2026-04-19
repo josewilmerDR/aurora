@@ -96,6 +96,18 @@ function buildDescriptor(actionType, params, executionResult, preExecState = {})
         compensationType: 'marcar_siembra_cancelada',
         params: { siembraId: executionResult.siembraId },
       };
+    case 'ajustar_guardrails':
+      // Restaura el valor previo del guardrail. `resolvedPrev` puede ser
+      // null cuando el guardrail no tenía override explícito en el config
+      // (estaba en su valor default del corridor); en ese caso la
+      // compensación elimina la clave.
+      return {
+        compensationType: 'reverse_guardrail_change',
+        params: {
+          key: params.key,
+          previousValue: preExecState.resolvedPrev ?? null,
+        },
+      };
     case 'enviar_notificacion':
     default:
       return { compensationType: 'not_compensable', params: {} };
@@ -297,6 +309,25 @@ async function applyCompensationInTx(t, type, params, fincaId) {
         canceladaReason: 'rollback_autopilot',
       });
       return { ok: true, siembraId: params.siembraId };
+    }
+    case 'reverse_guardrail_change': {
+      const ref = db.collection('autopilot_config').doc(fincaId);
+      const snap = await t.get(ref);
+      const currentConfig = snap.exists ? snap.data() : {};
+      const currentGuardrails = currentConfig.guardrails || {};
+      const nextGuardrails = { ...currentGuardrails };
+      if (params.previousValue == null) {
+        // The key didn't exist before — delete to restore "use default".
+        delete nextGuardrails[params.key];
+      } else {
+        nextGuardrails[params.key] = params.previousValue;
+      }
+      t.set(ref, {
+        guardrails: nextGuardrails,
+        updatedAt: Timestamp.now(),
+        updatedBy: 'rollback_autopilot',
+      }, { merge: true });
+      return { ok: true, key: params.key, restoredTo: params.previousValue ?? null };
     }
     case 'reverse_budget_transfer': {
       const sourceRef = db.collection('budgets').doc(params.sourceBudgetId);

@@ -20,6 +20,14 @@ const {
   runSweep,
   listObservations,
 } = require('./kpiAccuracy');
+const {
+  getScores,
+  recompute,
+  listProposals,
+  approveProposal,
+  rejectProposal,
+  getCorridor,
+} = require('./trust');
 
 const router = Router();
 
@@ -34,5 +42,13 @@ router.get('/api/meta/finca-state/snapshots/:id', authenticate, getSnapshot);
 router.get('/api/meta/kpi-accuracy', authenticate, getAccuracy);
 router.get('/api/meta/kpi-observations', authenticate, listObservations);
 router.post('/api/meta/kpi-sweep/run', authenticate, runSweep);
+
+// Fase 6.3 — trust scores + guardrail proposals (dynamic corridor).
+router.get('/api/meta/trust/scores', authenticate, getScores);
+router.get('/api/meta/trust/corridor', authenticate, getCorridor);
+router.post('/api/meta/trust/recompute', authenticate, recompute);
+router.get('/api/meta/guardrails/proposals', authenticate, listProposals);
+router.post('/api/meta/guardrails/proposals/:id/approve', authenticate, approveProposal);
+router.post('/api/meta/guardrails/proposals/:id/reject', authenticate, rejectProposal);
 
 module.exports = router;
