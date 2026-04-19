@@ -128,6 +128,7 @@ export const MODULES = [
       { label: 'Rotación — Recomendador', to: '/strategy/rotacion/recomendador', icon: FiCpu, minRole: 'supervisor' },
       { label: 'Señales — Fuentes', to: '/strategy/senales/fuentes', icon: FiDroplet, minRole: 'supervisor' },
       { label: 'Señales — Observaciones', to: '/strategy/senales', icon: FiActivity, minRole: 'supervisor' },
+      { label: 'Escenarios What-if', to: '/strategy/escenarios', icon: FiGrid, minRole: 'supervisor' },
     ],
   },
   {
