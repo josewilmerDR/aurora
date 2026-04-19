@@ -26,6 +26,11 @@ const {
   listEligibilityAnalyses,
   getEligibilityAnalysis,
 } = require('./eligibility');
+const {
+  simulateDebtRoiHandler,
+  listDebtSimulations,
+  getDebtSimulation,
+} = require('./debtSimulations');
 
 const router = Router();
 
@@ -49,5 +54,10 @@ router.delete('/api/financing/credit-products/:id', authenticate, deleteCreditPr
 router.post('/api/financing/eligibility/analyze', authenticate, analyzeEligibility);
 router.get('/api/financing/eligibility', authenticate, listEligibilityAnalyses);
 router.get('/api/financing/eligibility/:id', authenticate, getEligibilityAnalysis);
+
+// Fase 5.4 — debt ROI Monte Carlo simulations.
+router.post('/api/financing/debt-simulations/simulate', authenticate, simulateDebtRoiHandler);
+router.get('/api/financing/debt-simulations', authenticate, listDebtSimulations);
+router.get('/api/financing/debt-simulations/:id', authenticate, getDebtSimulation);
 
 module.exports = router;
