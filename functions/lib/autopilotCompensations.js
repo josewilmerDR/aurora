@@ -88,6 +88,14 @@ function buildDescriptor(actionType, params, executionResult, preExecState = {})
           prevTarget: executionResult.prevTarget,
         },
       };
+    case 'crear_siembra':
+      // Las siembras no se borran: marcamos `cancelada: true` + auditoría.
+      // Los reportes (costos, ROI, rendimiento) deben excluir siembras
+      // canceladas, pero el documento queda para trazabilidad.
+      return {
+        compensationType: 'marcar_siembra_cancelada',
+        params: { siembraId: executionResult.siembraId },
+      };
     case 'enviar_notificacion':
     default:
       return { compensationType: 'not_compensable', params: {} };
@@ -179,6 +187,17 @@ async function precheckCompensation(type, params, fincaId) {
       }
       return { ok: true };
     }
+    case 'marcar_siembra_cancelada': {
+      const snap = await db.collection('siembras').doc(params.siembraId).get();
+      if (!snap.exists) return { ok: false, reason: 'Siembra no encontrada.' };
+      if (snap.data().fincaId !== fincaId) return { ok: false, reason: 'Siembra no pertenece a esta finca.' };
+      // Si la siembra ya fue cerrada por cosecha, no tiene sentido marcarla
+      // cancelada — el ciclo productivo terminó con salida real.
+      if (snap.data().cerrado === true) {
+        return { ok: false, reason: 'La siembra ya está cerrada; no se puede cancelar.' };
+      }
+      return { ok: true };
+    }
     default:
       return { ok: true };
   }
@@ -262,6 +281,22 @@ async function applyCompensationInTx(t, type, params, fincaId) {
       if (snap.data().fincaId !== fincaId) throw new Error('Orden no pertenece a esta finca.');
       t.update(ref, { estado: 'anulada', anuladaAt: Timestamp.now() });
       return { ok: true, orderId: params.orderId };
+    }
+    case 'marcar_siembra_cancelada': {
+      const ref = db.collection('siembras').doc(params.siembraId);
+      const snap = await t.get(ref);
+      if (!snap.exists) throw new Error('Siembra ya no existe.');
+      if (snap.data().fincaId !== fincaId) throw new Error('Siembra no pertenece a esta finca.');
+      if (snap.data().cancelada === true) {
+        // Idempotencia: si ya estaba cancelada, no fallamos pero informamos.
+        return { ok: true, siembraId: params.siembraId, alreadyCancelled: true };
+      }
+      t.update(ref, {
+        cancelada: true,
+        canceladaAt: Timestamp.now(),
+        canceladaReason: 'rollback_autopilot',
+      });
+      return { ok: true, siembraId: params.siembraId };
     }
     case 'reverse_budget_transfer': {
       const sourceRef = db.collection('budgets').doc(params.sourceBudgetId);

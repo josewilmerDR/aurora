@@ -72,6 +72,8 @@ import HrPerformanceDashboard from './pages/hr/HrPerformanceDashboard';
 import HrMyPerformance from './pages/hr/HrMyPerformance';
 import YieldHistory from './pages/strategy/YieldHistory';
 import TemporadasManager from './pages/strategy/TemporadasManager';
+import RotationConstraints from './pages/strategy/RotationConstraints';
+import RotationRecommender from './pages/strategy/RotationRecommender';
 import RfqsList from './pages/procurement/RfqsList';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
@@ -118,6 +120,8 @@ const ROUTE_MIN_ROLE = {
   // Strategy (phase 4.1)
   '/strategy/rendimiento': 'supervisor',
   '/strategy/temporadas': 'supervisor',
+  '/strategy/rotacion/restricciones': 'supervisor',
+  '/strategy/rotacion/recomendador': 'supervisor',
 };
 
 // Route → human-readable title mapping (displayed in the app header).
@@ -183,6 +187,8 @@ const routeTitles = {
   '/hr/my-performance': 'Mi desempeño',
   '/strategy/rendimiento': 'Rendimiento Histórico',
   '/strategy/temporadas': 'Temporadas',
+  '/strategy/rotacion/restricciones': 'Rotación — Restricciones Agronómicas',
+  '/strategy/rotacion/recomendador': 'Rotación — Recomendador',
 };
 
 // --- Route guards ---
@@ -596,6 +602,8 @@ function App() {
             {/* Strategy (phase 4.1) */}
             <Route path="/strategy/rendimiento" element={<RoleRoute path="/strategy/rendimiento"><YieldHistory /></RoleRoute>} />
             <Route path="/strategy/temporadas" element={<RoleRoute path="/strategy/temporadas"><TemporadasManager /></RoleRoute>} />
+            <Route path="/strategy/rotacion/restricciones" element={<RoleRoute path="/strategy/rotacion/restricciones"><RotationConstraints /></RoleRoute>} />
+            <Route path="/strategy/rotacion/recomendador" element={<RoleRoute path="/strategy/rotacion/recomendador"><RotationRecommender /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />

@@ -567,6 +567,82 @@ async function executeReasignarPresupuesto(params, fincaId, ctx) {
   });
 }
 
+// ── Crear siembra (Sub-fase 4.2) ──────────────────────────────────────────
+//
+// Params esperados:
+//   { loteId, paqueteId, fecha: 'YYYY-MM-DD',
+//     plantas?, densidad?, bloque?,
+//     materialId?, materialNombre?,
+//     responsableId?, responsableNombre?,
+//     razon? }
+//
+// La siembra se crea con `cancelada: false, cerrado: false`. El campo
+// `createdByAutopilot: true` la distingue del registro manual.
+
+async function executeCrearSiembra(params, fincaId, ctx, options) {
+  return withFailureRecording(ctx, async (startMs) => {
+    const { loteId, paqueteId, fecha } = params || {};
+    if (!loteId || !paqueteId || !fecha) {
+      throw new Error('loteId, paqueteId and fecha are required.');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+      throw new Error('Invalid fecha format (expected YYYY-MM-DD).');
+    }
+    const plantas = Math.max(0, Math.min(199999, parseInt(params.plantas) || 0));
+    const densidad = Math.max(0, Math.min(199999, parseFloat(params.densidad) || 0));
+    const areaCalculada = densidad > 0 ? parseFloat((plantas / densidad).toFixed(4)) : 0;
+    const bloque = String(params.bloque || '').slice(0, 4);
+    const autopilotTag = `Piloto Automático ${options?.level || ''}`.trim();
+
+    // Reads fuera de la transacción: Firestore transactions no admiten
+    // queries. Validamos ownership aquí.
+    const [loteSnap, paqueteSnap] = await Promise.all([
+      db.collection('lotes').doc(loteId).get(),
+      db.collection('packages').doc(paqueteId).get(),
+    ]);
+    if (!loteSnap.exists) throw new Error('Lote no encontrado.');
+    if (loteSnap.data().fincaId !== fincaId) throw new Error('Lote no pertenece a esta finca.');
+    if (!paqueteSnap.exists) throw new Error('Paquete no encontrado.');
+    if (paqueteSnap.data().fincaId !== fincaId) throw new Error('Paquete no pertenece a esta finca.');
+
+    return db.runTransaction(async (t) => {
+      const ref = db.collection('siembras').doc();
+      t.set(ref, {
+        fincaId,
+        loteId,
+        loteNombre: loteSnap.data().nombreLote || '',
+        paqueteId,
+        paqueteNombre: paqueteSnap.data().nombrePaquete || '',
+        bloque,
+        plantas,
+        densidad,
+        areaCalculada,
+        materialId: params.materialId || '',
+        materialNombre: params.materialNombre || '',
+        variedad: params.variedad || '',
+        cerrado: false,
+        cancelada: false,
+        fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
+        responsableId: params.responsableId || '',
+        responsableNombre: params.responsableNombre || '',
+        razonAutopilot: String(params.razon || '').slice(0, 512),
+        createdByAutopilot: true,
+        createdByTag: autopilotTag,
+        createdAt: Timestamp.now(),
+      });
+      const result = { ok: true, siembraId: ref.id, loteId, paqueteId, fecha };
+      writeCompensationInTx(t, {
+        actionDocRef: ctx.actionDocRef,
+        actionType: 'crear_siembra',
+        descriptor: buildCompensationDescriptor('crear_siembra', params, result),
+        fincaId,
+      });
+      writeSuccessOutcome(t, ctx, result, startMs);
+      return result;
+    });
+  });
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 
 /**
@@ -605,6 +681,7 @@ async function executeAutopilotAction(type, params, fincaId, options = {}) {
     case 'crear_solicitud_compra':  return executeCrearSolicitudCompra(params, fincaId, ctx, options);
     case 'crear_orden_compra':      return executeCrearOrdenCompra(params, fincaId, ctx, options);
     case 'reasignar_presupuesto':   return executeReasignarPresupuesto(params, fincaId, ctx);
+    case 'crear_siembra':           return executeCrearSiembra(params, fincaId, ctx, options);
     default:
       throw new Error(`Unknown action type: ${type}`);
   }
