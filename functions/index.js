@@ -60,6 +60,7 @@ app.use(require('./routes/strategy'));
 app.use(require('./routes/signals'));
 app.use(require('./routes/scenarios'));
 app.use(require('./routes/annualPlans'));
+app.use(require('./routes/financing'));
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
