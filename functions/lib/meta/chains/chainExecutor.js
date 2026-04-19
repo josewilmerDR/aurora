@@ -26,6 +26,7 @@
 const { db, Timestamp, FieldValue } = require('../../firebase');
 const { executeAutopilotAction } = require('../../autopilotActions');
 const { applyRollback } = require('../../autopilotCompensations');
+const { isPaused: isAutopilotPaused } = require('../../autopilotKillSwitch');
 const { topologicalSort } = require('./chainValidator');
 
 const CHAIN_COLLECTION = 'meta_chains';
@@ -138,6 +139,19 @@ async function executeChain(chainId, fincaId, actor) {
   if (isExpired(chain)) {
     await chainRef.update({ status: 'expired', updatedAt: nowTs() });
     return { ok: false, code: 'EXPIRED' };
+  }
+
+  // Global kill switch (Fase 0). Defense-in-depth: even if preflight
+  // already ran and passed earlier, the admin may have paused the
+  // autopilot in the interim. Checked BEFORE marking the chain as
+  // executing so a paused finca never flips a chain into 'running'
+  // state it can't leave.
+  if (await isAutopilotPaused(fincaId)) {
+    return {
+      ok: false,
+      code: 'AUTOPILOT_PAUSED',
+      message: 'Autopilot is paused for this finca; chain execution refused.',
+    };
   }
 
   // Topological order. validator ran at creation so this shouldn't fail,
