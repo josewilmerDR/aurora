@@ -76,6 +76,7 @@ import RotationConstraints from './pages/strategy/RotationConstraints';
 import RotationRecommender from './pages/strategy/RotationRecommender';
 import SignalSources from './pages/strategy/SignalSources';
 import SignalsDashboard from './pages/strategy/SignalsDashboard';
+import ScenariosSimulator from './pages/strategy/ScenariosSimulator';
 import RfqsList from './pages/procurement/RfqsList';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
@@ -126,6 +127,7 @@ const ROUTE_MIN_ROLE = {
   '/strategy/rotacion/recomendador': 'supervisor',
   '/strategy/senales/fuentes': 'supervisor',
   '/strategy/senales': 'supervisor',
+  '/strategy/escenarios': 'supervisor',
 };
 
 // Route → human-readable title mapping (displayed in the app header).
@@ -195,6 +197,7 @@ const routeTitles = {
   '/strategy/rotacion/recomendador': 'Rotación — Recomendador',
   '/strategy/senales/fuentes': 'Señales — Fuentes',
   '/strategy/senales': 'Señales — Observaciones',
+  '/strategy/escenarios': 'Escenarios What-if',
 };
 
 // --- Route guards ---
@@ -612,6 +615,7 @@ function App() {
             <Route path="/strategy/rotacion/recomendador" element={<RoleRoute path="/strategy/rotacion/recomendador"><RotationRecommender /></RoleRoute>} />
             <Route path="/strategy/senales/fuentes" element={<RoleRoute path="/strategy/senales/fuentes"><SignalSources /></RoleRoute>} />
             <Route path="/strategy/senales" element={<RoleRoute path="/strategy/senales"><SignalsDashboard /></RoleRoute>} />
+            <Route path="/strategy/escenarios" element={<RoleRoute path="/strategy/escenarios"><ScenariosSimulator /></RoleRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />
