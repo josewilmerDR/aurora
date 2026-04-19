@@ -42,9 +42,46 @@ function assertFinancingActive(autopilotConfig) {
   return { blocked: false };
 }
 
+// Hard-coded Nivel 1 policy — Fase 5.5.
+//
+// Contracting debt is irreversible on a multi-year horizon. Even if a caller
+// (a route, a future agent, a stray action registration) tries to escalate
+// the financing domain to nivel2 / nivel3, this guard blocks it. Together
+// with the absence of any autopilot_actions in this domain, the blast radius
+// of a bug or a misconfiguration stays bounded.
+//
+// Returns { blocked: true, reason } for anything but 'nivel1'.
+// 'off' is treated as blocked too — N1 is the minimum for this domain.
+function assertNivelAllowed(level) {
+  if (level === FINANCING_MAX_LEVEL) {
+    return { blocked: false };
+  }
+  return {
+    blocked: true,
+    reason: `Financing domain is Nivel 1 only by policy; requested level "${level}" is not permitted. See docs/financing-autonomy.md.`,
+  };
+}
+
+// Names of autopilot actions that would indicate an escalation beyond N1.
+// The invariant test in tests/unit/financing.actionsInvariant.test.js scans
+// the action registry and fails if any of these names appears. Keeping the
+// list here (not in a test file) means the invariant travels with the guard
+// and any future contributor who adds one of these has to also remove it
+// from this list — a deliberate friction point.
+const FORBIDDEN_ACTION_TYPES = Object.freeze([
+  'aplicar_credito',
+  'solicitar_credito',
+  'tomar_prestamo',
+  'contratar_deuda',
+  'aceptar_oferta_credito',
+  'firmar_pagare',
+]);
+
 module.exports = {
   FINANCING_MAX_LEVEL,
+  FORBIDDEN_ACTION_TYPES,
   isFinancingDomainActive,
   resolveFinancingLevel,
   assertFinancingActive,
+  assertNivelAllowed,
 };

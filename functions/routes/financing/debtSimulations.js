@@ -9,7 +9,10 @@ const { db, FieldValue } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { isPaused } = require('../../lib/autopilotKillSwitch');
-const { isFinancingDomainActive } = require('../../lib/financing/financingDomainGuards');
+const {
+  isFinancingDomainActive,
+  assertNivelAllowed,
+} = require('../../lib/financing/financingDomainGuards');
 const { simulateDebtRoi } = require('../../lib/financing/debtScenarioSimulator');
 const {
   refineWithClaude,
@@ -34,6 +37,11 @@ async function assertAllowed(fincaId) {
   const cfg = cfgDoc.exists ? cfgDoc.data() : {};
   if (!isFinancingDomainActive(cfg)) {
     return { blocked: true, reason: 'Financing domain disabled.' };
+  }
+  const configuredLevel = cfg?.dominios?.financing?.nivel;
+  if (configuredLevel && configuredLevel !== 'nivel1') {
+    const check = assertNivelAllowed(configuredLevel);
+    if (check.blocked) return { blocked: true, reason: check.reason };
   }
   return { blocked: false };
 }

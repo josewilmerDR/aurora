@@ -62,6 +62,7 @@ import CosechaHistorialDespacho from './pages/CosechaHistorialDespacho';
 import CentroCostos from './pages/CentroCostos';
 import Budgets from './pages/finance/Budgets';
 import FinanceDashboard from './pages/finance/FinanceDashboard';
+import FinancingDashboard from './pages/finance/FinancingDashboard';
 import IncomeRecords from './pages/finance/IncomeRecords';
 import BuyersList from './pages/finance/BuyersList';
 import Treasury from './pages/finance/Treasury';
@@ -121,6 +122,8 @@ const ROUTE_MIN_ROLE = {
   // user for their own score
   '/hr/performance': 'supervisor',
   '/hr/my-performance': 'trabajador',
+  // Financing (phase 5.5) — supervisor+ can read; admin gates write ops at API layer
+  '/finance/financing': 'supervisor',
   // Strategy (phase 4.1)
   '/strategy/rendimiento': 'supervisor',
   '/strategy/temporadas': 'supervisor',
@@ -156,6 +159,7 @@ const routeTitles = {
   '/finance/tesoreria': 'Tesorería',
   '/finance/ingresos': 'Ingresos',
   '/finance/compradores': 'Compradores',
+  '/finance/financing': 'Financiamiento externo',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/permisos': 'Permisos y Vacaciones',
   '/hr/planilla': 'Cálculo de Planilla',
@@ -576,6 +580,7 @@ function App() {
             <Route path="/finance/tesoreria" element={<RoleRoute path="/finance/tesoreria"><Treasury /></RoleRoute>} />
             <Route path="/finance/ingresos" element={<RoleRoute path="/finance/ingresos"><IncomeRecords /></RoleRoute>} />
             <Route path="/finance/compradores" element={<RoleRoute path="/finance/compradores"><BuyersList /></RoleRoute>} />
+            <Route path="/finance/financing" element={<RoleRoute path="/finance/financing"><FinancingDashboard /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />

@@ -527,6 +527,50 @@ export default function AutopilotConfig() {
               </div>
             </div>
 
+            <h3 className="ap-guardrail-subheading">Dominio Financiamiento externo (Agente)</h3>
+            <p className="ap-objectives-hint">
+              Controles del agente de financiamiento (Fase 5). Por política permanente,
+              este dominio es <strong>Nivel 1 únicamente</strong> — produce recomendaciones
+              pero nunca firma, aplica ni acepta crédito automáticamente. El backend
+              rechaza cualquier intento de configurar nivel2 o nivel3. Ver
+              <code>docs/financing-autonomy.md</code> para los fundamentos.
+            </p>
+
+            <label className="ap-guardrail-check">
+              <input
+                type="checkbox"
+                checked={config.guardrails.dominios?.financing?.activo !== false}
+                onChange={e => setConfig(c => ({
+                  ...c,
+                  guardrails: {
+                    ...c.guardrails,
+                    dominios: {
+                      ...(c.guardrails.dominios || {}),
+                      financing: {
+                        ...(c.guardrails.dominios?.financing || {}),
+                        activo: e.target.checked,
+                      },
+                    },
+                  },
+                }))}
+              />
+              Dominio Financiamiento activo
+            </label>
+
+            <div className="form-control">
+              <label>Nivel del dominio</label>
+              <select
+                value="nivel1"
+                disabled
+              >
+                <option value="nivel1">Nivel 1 — solo recomendaciones (permanente)</option>
+              </select>
+              <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
+                Fijo en Nivel 1. Revisar N2/N3 requiere revisión de política explícita con
+                evidencia acumulada ≥ 24 meses de decisiones validadas en Fases 1-4.
+              </p>
+            </div>
+
             <h3 className="ap-guardrail-subheading">Horarios</h3>
 
             <label className="ap-guardrail-check">

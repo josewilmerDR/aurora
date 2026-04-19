@@ -111,6 +111,7 @@ export const MODULES = [
       { label: 'Tesorería', to: '/finance/tesoreria', icon: FiActivity, minRole: 'encargado' },
       { label: 'Ingresos', to: '/finance/ingresos', icon: FiDollarSign, minRole: 'encargado' },
       { label: 'Compradores', to: '/finance/compradores', icon: FiUsers, minRole: 'encargado' },
+      { label: 'Financiamiento externo', to: '/finance/financing', icon: FiBriefcase, minRole: 'supervisor' },
       { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
       { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
       { label: 'Procurement — Dashboard', to: '/procurement/dashboard', icon: FiShoppingCart, minRole: 'encargado' },
