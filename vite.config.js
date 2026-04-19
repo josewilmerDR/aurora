@@ -42,6 +42,9 @@ export default defineConfig({
       // Con injectManifest, la lógica de Workbox va en src/sw.js
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // El bundle supera los 2 MB tras Fase 4.3; permitir hasta 4 MB en
+        // precache. Revisar si seguimos creciendo — candidato a code-splitting.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],

@@ -10,6 +10,10 @@ const twilioWhatsappFrom = defineSecret("TWILIO_WHATSAPP_FROM");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 const vapidPublicKey = defineSecret("VAPID_PUBLIC_KEY");
 const vapidPrivateKey = defineSecret("VAPID_PRIVATE_KEY");
+// External signals — Fase 4.3. Opcionales: si el secreto está vacío, el
+// proveedor correspondiente queda deshabilitado hasta que se cargue.
+const openWeatherApiKey = defineSecret("OPENWEATHER_API_KEY");
+const alphaVantageApiKey = defineSecret("ALPHAVANTAGE_API_KEY");
 
 // --- UNIVERSAL CLIENT INITIALIZATION ---
 admin.initializeApp();
@@ -33,6 +37,12 @@ module.exports = {
   anthropicApiKey,
   vapidPublicKey,
   vapidPrivateKey,
+  openWeatherApiKey,
+  alphaVantageApiKey,
   // All secrets array for Cloud Function config
-  allSecrets: [twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, anthropicApiKey, vapidPublicKey, vapidPrivateKey],
+  allSecrets: [
+    twilioAccountSid, twilioAuthToken, twilioWhatsappFrom,
+    anthropicApiKey, vapidPublicKey, vapidPrivateKey,
+    openWeatherApiKey, alphaVantageApiKey,
+  ],
 };

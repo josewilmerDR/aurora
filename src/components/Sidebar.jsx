@@ -126,6 +126,8 @@ export const MODULES = [
       { label: 'Temporadas', to: '/strategy/temporadas', icon: FiCalendar, minRole: 'supervisor' },
       { label: 'Rotación — Restricciones', to: '/strategy/rotacion/restricciones', icon: FiLayers, minRole: 'supervisor' },
       { label: 'Rotación — Recomendador', to: '/strategy/rotacion/recomendador', icon: FiCpu, minRole: 'supervisor' },
+      { label: 'Señales — Fuentes', to: '/strategy/senales/fuentes', icon: FiDroplet, minRole: 'supervisor' },
+      { label: 'Señales — Observaciones', to: '/strategy/senales', icon: FiActivity, minRole: 'supervisor' },
     ],
   },
   {
