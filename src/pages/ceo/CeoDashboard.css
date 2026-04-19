@@ -1,0 +1,211 @@
+/* CEO Dashboard — Fase 6.5. Reusa el grid + widget base de finance.css. */
+@import '../finance/FinanceDashboard.css';
+
+.ceo-grid {
+  /* 5 widgets → primera fila 2+2, segunda fila widget ancho + 1 normal. */
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(240px, auto);
+}
+
+.ceo-grid > :nth-child(5) {
+  grid-column: span 2;
+}
+
+@media (max-width: 960px) {
+  .ceo-grid { grid-template-columns: 1fr; }
+  .ceo-grid > :nth-child(5) { grid-column: auto; }
+}
+
+.ceo-banner strong {
+  color: var(--aurora-magenta);
+}
+
+/* ── Urgency tier badges (shared across widgets) ────────────────────────── */
+.ceo-urgency-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.ceo-urgency-badge--critical { background: rgba(255, 77, 77, 0.15); color: #ff6b6b; border: 1px solid rgba(255, 77, 77, 0.3); }
+.ceo-urgency-badge--high     { background: rgba(245, 180, 0, 0.15); color: #f5b400; border: 1px solid rgba(245, 180, 0, 0.3); }
+.ceo-urgency-badge--medium   { background: rgba(51, 153, 255, 0.15); color: #6bb6ff; border: 1px solid rgba(51, 153, 255, 0.3); }
+.ceo-urgency-badge--low      { background: rgba(51, 255, 153, 0.12); color: var(--aurora-green); border: 1px solid rgba(51, 255, 153, 0.25); }
+.ceo-urgency-badge--none     { background: rgba(255, 255, 255, 0.05); color: var(--aurora-light); opacity: 0.6; }
+
+/* ── Domain chips (for trust widget + signals) ──────────────────────────── */
+.ceo-domain-chip {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(204, 51, 255, 0.1);
+  color: var(--aurora-magenta);
+  letter-spacing: 0.2px;
+}
+
+/* ── Score bars (trust + hit-rate) ──────────────────────────────────────── */
+.ceo-score-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 60px;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.82rem;
+  padding: 4px 0;
+}
+.ceo-score-row > .ceo-score-label {
+  color: var(--aurora-light);
+  opacity: 0.9;
+  text-transform: capitalize;
+}
+.ceo-score-bar {
+  position: relative;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ceo-score-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff6b6b 0%, #f5b400 40%, var(--aurora-green) 75%);
+  transition: width 0.2s ease;
+}
+.ceo-score-bar-fill--null {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ceo-score-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--aurora-light);
+  text-align: right;
+  font-weight: 600;
+}
+.ceo-score-value--null { color: var(--aurora-light); opacity: 0.4; }
+.ceo-score-meta {
+  font-size: 0.7rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+/* ── Chain rows ─────────────────────────────────────────────────────────── */
+.ceo-chain-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--aurora-border);
+  font-size: 0.82rem;
+}
+.ceo-chain-row:last-child { border-bottom: none; }
+.ceo-chain-objective {
+  color: var(--aurora-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ceo-chain-meta {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.ceo-status-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.ceo-status-badge--completed        { background: rgba(51, 255, 153, 0.12); color: var(--aurora-green); border: 1px solid rgba(51, 255, 153, 0.25); }
+.ceo-status-badge--executing        { background: rgba(51, 153, 255, 0.12); color: #6bb6ff; border: 1px solid rgba(51, 153, 255, 0.25); }
+.ceo-status-badge--planned,
+.ceo-status-badge--preflight_ok     { background: rgba(255, 255, 255, 0.06); color: var(--aurora-light); border: 1px solid var(--aurora-border); }
+.ceo-status-badge--preflight_blocked,
+.ceo-status-badge--failed,
+.ceo-status-badge--rolled_back,
+.ceo-status-badge--rolled_back_partial,
+.ceo-status-badge--invalid          { background: rgba(255, 77, 77, 0.12); color: #ff6b6b; border: 1px solid rgba(255, 77, 77, 0.25); }
+.ceo-status-badge--aborted,
+.ceo-status-badge--expired          { background: rgba(245, 180, 0, 0.12); color: #f5b400; border: 1px solid rgba(245, 180, 0, 0.25); }
+.ceo-status-badge--proposed         { background: rgba(204, 51, 255, 0.12); color: var(--aurora-magenta); border: 1px solid rgba(204, 51, 255, 0.25); }
+.ceo-status-badge--executed         { background: rgba(51, 255, 153, 0.12); color: var(--aurora-green); border: 1px solid rgba(51, 255, 153, 0.25); }
+.ceo-status-badge--rejected         { background: rgba(255, 77, 77, 0.08); color: var(--aurora-light); opacity: 0.7; border: 1px solid var(--aurora-border); }
+
+/* ── Guardrail proposals ────────────────────────────────────────────────── */
+.ceo-proposal-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--aurora-border);
+  font-size: 0.82rem;
+}
+.ceo-proposal-row:last-child { border-bottom: none; }
+.ceo-proposal-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.ceo-proposal-actions button {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+}
+.ceo-proposal-key {
+  color: var(--aurora-light);
+  font-weight: 500;
+}
+.ceo-proposal-change {
+  font-variant-numeric: tabular-nums;
+  color: var(--aurora-light);
+  opacity: 0.85;
+}
+.ceo-proposal-change--relax   { color: var(--aurora-green); }
+.ceo-proposal-change--tighten { color: #f5b400; }
+
+/* ── KPI table compacta ─────────────────────────────────────────────────── */
+.ceo-kpi-row {
+  display: grid;
+  grid-template-columns: 1.3fr auto auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.82rem;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--aurora-border);
+}
+.ceo-kpi-row:last-child { border-bottom: none; }
+.ceo-kpi-type { color: var(--aurora-light); }
+.ceo-kpi-count {
+  font-size: 0.72rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.ceo-kpi-rate {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ── Signal tiles ───────────────────────────────────────────────────────── */
+.ceo-signals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.ceo-signal-tile {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.ceo-signal-tile-domain {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
