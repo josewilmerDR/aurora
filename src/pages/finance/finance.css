@@ -1,5 +1,51 @@
 @import '../LoteManagement.css';
 
+/* ── Layout — mirror del patrón grupo-page--selected ────────────────────── */
+.budgets-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 769px) {
+  .budgets-page--selected .lote-management-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .budgets-page--selected .lote-list-panel {
+    position: sticky;
+    top: 0;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .budgets-page--selected .lote-list-panel,
+  .budgets-page--form .lote-list-panel {
+    display: none;
+  }
+}
+
+/* ── Secciones dentro de la lista de períodos ───────────────────────────── */
+.budgets-period-section + .budgets-period-section {
+  margin-top: 14px;
+}
+
+.budgets-period-section-title {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+
+
 .finance-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -37,6 +83,10 @@
 }
 
 .finance-field-full { grid-column: 1 / -1; }
+
+@media (max-width: 480px) {
+  .finance-form-grid { grid-template-columns: 1fr; }
+}
 
 .finance-pill {
   display: inline-block;
@@ -107,6 +157,15 @@
   font-size: 13px;
 }
 
+.finance-execution-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .finance-execution-table { min-width: 520px; }
+}
+
 .finance-execution-table th,
 .finance-execution-table td {
   text-align: left;
@@ -127,6 +186,98 @@
 
 .finance-row-over   { color: #ff8080; }
 .finance-row-nobudget { opacity: 0.6; }
+
+/* ── Filas expandibles con sub-presupuestos ─────────────────────────────── */
+.finance-execution-row-category {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finance-execution-row-chevron {
+  transition: transform 0.15s;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.finance-execution-row-chevron-placeholder {
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.finance-execution-row-expandable { cursor: pointer; }
+
+.finance-execution-row-expandable:hover td {
+  background: rgba(230, 242, 255, 0.04);
+}
+
+.finance-execution-row-expanded .finance-execution-row-chevron {
+  transform: rotate(90deg);
+  opacity: 0.9;
+  color: var(--aurora-green);
+}
+
+.finance-execution-row-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aurora-green);
+  margin-left: 4px;
+}
+
+.finance-execution-expanded > td {
+  padding: 0 !important;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.finance-execution-sub-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 10px 8px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.finance-execution-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+}
+
+.finance-execution-subrow-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--aurora-light);
+}
+
+.finance-execution-subrow-sub {
+  font-weight: 600;
+}
+
+.finance-execution-subrow-meta {
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+.finance-execution-subrow-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
 
 /* ── Progress bar por categoría ─────────────────────────────────────────── */
 .finance-progress {
