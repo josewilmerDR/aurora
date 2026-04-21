@@ -3,6 +3,7 @@ import { FiChevronRight, FiEdit, FiTrash2 } from 'react-icons/fi';
 import BudgetProgressBar from './BudgetProgressBar';
 import { useApiFetch } from '../../hooks/useApiFetch';
 import { formatPeriod } from '../../lib/periodFormat';
+import { formatMoney as fmt } from '../../lib/formatMoney';
 
 const CATEGORY_LABELS = {
   combustible:      'Combustible',
@@ -14,12 +15,6 @@ const CATEGORY_LABELS = {
   administrativo:   'Administrativo',
   otro:             'Otro',
 };
-
-function fmt(n, currency = 'USD') {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return `${currency} ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 // Panel que muestra la ejecución (asignado vs. ejecutado) del período.
 // Cada categoría es una fila desplegable que, al expandirse, muestra los

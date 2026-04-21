@@ -13,7 +13,7 @@ function checkBudgetCap({
   executed,
   maxConsumptionPct,
   category,
-  currency = 'USD',
+  currency = 'CRC',
 }) {
   const amount = Number(proposedAmount);
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -38,7 +38,7 @@ function checkBudgetCap({
   const maxAllowed = assignedNum * (cap / 100);
 
   if (projected > maxAllowed) {
-    const fmt = (n) => `${currency} ${Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    const fmt = (n) => `${currency} ${Number(n).toLocaleString('es-CR', { maximumFractionDigits: 0 })}`;
     const catLabel = category ? `"${category}"` : 'presupuestal';
     return {
       ok: false,

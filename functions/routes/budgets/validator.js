@@ -34,7 +34,19 @@ function buildBudgetDoc(body) {
     return { error: 'Assigned amount must be a non-negative number.' };
   }
 
-  const currency = VALID_CURRENCIES.has(body.currency) ? body.currency : 'USD';
+  const currency = VALID_CURRENCIES.has(body.currency) ? body.currency : 'CRC';
+
+  // Moneda funcional = CRC. Exigimos FX cuando el presupuesto está en otra
+  // moneda y congelamos el equivalente en `assignedAmountCRC`.
+  let exchangeRateToCRC = 1;
+  if (currency !== 'CRC') {
+    const fx = numberInRange(body.exchangeRateToCRC, 0.0001, 100000);
+    if (fx === null) {
+      return { error: 'exchangeRateToCRC is required and must be > 0 when currency is not CRC.' };
+    }
+    exchangeRateToCRC = fx;
+  }
+  const assignedAmountCRC = Math.round(assignedAmount * exchangeRateToCRC * 100) / 100;
 
   return {
     data: {
@@ -45,6 +57,8 @@ function buildBudgetDoc(body) {
       grupoId: str(body.grupoId, MAX_ID) || null,
       assignedAmount,
       currency,
+      exchangeRateToCRC,
+      assignedAmountCRC,
       notes: str(body.notes, MAX_NOTES),
     },
   };

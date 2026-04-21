@@ -14,6 +14,8 @@ const CATEGORY_OPTIONS = [
   { value: 'otro',             label: 'Otro' },
 ];
 
+const MAX_FX = 100000;
+
 const EMPTY = {
   id: null,
   period: '',
@@ -22,13 +24,15 @@ const EMPTY = {
   loteId: '',
   grupoId: '',
   assignedAmount: '',
-  currency: 'USD',
+  currency: 'CRC',
+  exchangeRateToCRC: '',
   notes: '',
 };
 
 function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(EMPTY);
   const [periodError, setPeriodError] = useState('');
+  const needsFx = form.currency !== 'CRC';
 
   useEffect(() => {
     // El input muestra formato en español (ej. "Abril 2026", "T2 2026").
@@ -52,6 +56,7 @@ function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
       ...form,
       period: canonical,
       assignedAmount: Number(form.assignedAmount),
+      exchangeRateToCRC: needsFx ? Number(form.exchangeRateToCRC) : 1,
     };
     onSubmit(payload);
   };
@@ -101,10 +106,25 @@ function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
         <div className="finance-field">
           <label>Moneda</label>
           <select value={form.currency} onChange={update('currency')}>
-            <option value="USD">USD</option>
             <option value="CRC">CRC</option>
+            <option value="USD">USD</option>
           </select>
         </div>
+        {needsFx && (
+          <div className="finance-field">
+            <label>Tipo de cambio a CRC *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max={MAX_FX}
+              value={form.exchangeRateToCRC}
+              onChange={update('exchangeRateToCRC')}
+              placeholder="ej. 520.00"
+              required
+            />
+          </div>
+        )}
         <div className="finance-field">
           <label>Lote (opcional)</label>
           <input type="text" maxLength={128} value={form.loteId} onChange={update('loteId')} />

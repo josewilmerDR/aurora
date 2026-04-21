@@ -1,4 +1,5 @@
 import { FiEdit, FiTrash2, FiCalendar } from 'react-icons/fi';
+import { formatMoney } from '../../lib/formatMoney';
 
 const STATUS_PILL = {
   pendiente: { label: 'Pendiente', cls: 'finance-pill--pending' },
@@ -6,11 +7,7 @@ const STATUS_PILL = {
   anulado:   { label: 'Anulado',   cls: 'finance-pill--void' },
 };
 
-function formatAmount(n, currency) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return `${currency || 'USD'} ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const formatAmount = (n, currency) => formatMoney(n, currency);
 
 function IncomeRow({ record, onEdit, onDelete }) {
   const { id, date, buyerName, quantity, unit, unitPrice, totalAmount, currency, collectionStatus, loteNombre, expectedCollectionDate } = record;

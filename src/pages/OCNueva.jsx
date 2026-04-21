@@ -51,7 +51,7 @@ const newRow = () => ({
   unidad: 'L',
   precioUnitario: '',
   iva: 0,
-  moneda: 'USD',
+  moneda: 'CRC',
 });
 
 // ─── AutocompleteInput ────────────────────────────────────────────────────────
@@ -281,7 +281,8 @@ const OrdenesList = () => {
   const [focusRowKey, setFocusRowKey] = useState(null);
   const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g', 'und']);
   const [ivaOpciones, setIvaOpciones] = useState([0, 1, 4, 8, 13, 15]);
-  const [monedas] = useState(['USD', 'CRC', 'EUR']);
+  const [monedas] = useState(['CRC', 'USD', 'EUR']);
+  const [exchangeRateToCRC, setExchangeRateToCRC, clearFxDraft] = useDraft('oc-exchange-rate-to-crc', '');
 
   // Sync _uid counter with any restored draft keys so new rows don't collide
   useEffect(() => {
@@ -296,6 +297,7 @@ const OrdenesList = () => {
     clearFechaOCDraft();
     clearFechaEntregaDraft();
     clearNotasDraft();
+    clearFxDraft();
     clearDraftActive('oc-nueva');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -358,7 +360,7 @@ const OrdenesList = () => {
               unidad:          p.unidad || cat?.unidad || 'L',
               precioUnitario:  cat?.precioUnitario != null ? String(cat.precioUnitario) : '',
               iva:             cat?.iva ?? 0,
-              moneda:          cat?.moneda || 'USD',
+              moneda:          cat?.moneda || 'CRC',
             };
           })
         : [newRow()]
@@ -397,6 +399,7 @@ const OrdenesList = () => {
     setFechaOC(new Date().toISOString().split('T')[0]);
     setFechaEntrega('');
     setNotas('');
+    setExchangeRateToCRC('');
     setLoadedSolicitudId(null);
   };
   const removeFila = (key) => setFilas(prev => prev.length > 1 ? prev.filter(f => f._key !== key) : prev);
@@ -422,6 +425,8 @@ const OrdenesList = () => {
   }, 0);
   const totalGeneral = subtotal + ivaTotal;
 
+  const hasNonCrcItem = filas.some(f => (f.moneda || 'CRC') !== 'CRC');
+
   const validateAndBuildPayload = () => {
     const validItems = filas.filter(f => f.nombreComercial.trim());
     if (validItems.length === 0) {
@@ -441,6 +446,12 @@ const OrdenesList = () => {
       showToast('La fecha de entrega no puede ser anterior a la de la orden.', 'error');
       return null;
     }
+    const ocHasNonCrc = validItems.some(f => (f.moneda || 'CRC') !== 'CRC');
+    const fxNum = parseFloat(exchangeRateToCRC);
+    if (ocHasNonCrc && (!isFinite(fxNum) || fxNum <= 0)) {
+      showToast('Ingresa el tipo de cambio a CRC para los ítems en otra moneda.', 'error');
+      return null;
+    }
     return {
       validItems,
       body: {
@@ -452,6 +463,7 @@ const OrdenesList = () => {
         notas,
         taskId: loadedSolicitudId || null,
         solicitudId: loadedSolicitudId || null,
+        exchangeRateToCRC: ocHasNonCrc ? fxNum : 1,
         items: validItems.map(f => ({
           productoId:      f.productoId     || null,
           nombreComercial: f.nombreComercial,
@@ -499,7 +511,7 @@ const OrdenesList = () => {
         unidad:          item.unidad           || 'L',
         precioUnitario:  String(item.precioUnitario ?? ''),
         iva:             item.iva              ?? 0,
-        moneda:          item.moneda           || 'USD',
+        moneda:          item.moneda           || 'CRC',
       })),
       proveedor:    orden.proveedor             || '',
       contacto:     orden.direccionProveedor    || '',
@@ -651,6 +663,20 @@ const OrdenesList = () => {
                   <label>Notas / Condiciones</label>
                   <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Condiciones de pago, urgencia…" maxLength={1000} />
                 </div>
+                {hasNonCrcItem && (
+                  <div className="ol-oc-field">
+                    <label>Tipo de cambio a CRC *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="100000"
+                      value={exchangeRateToCRC}
+                      onChange={e => setExchangeRateToCRC(e.target.value)}
+                      placeholder="ej. 520.00"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="ingreso-grid-wrapper">

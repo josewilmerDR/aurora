@@ -3,23 +3,28 @@ import { FiSave, FiX } from 'react-icons/fi';
 
 const MAX_AMOUNT = 1e12;
 const MAX_NOTE = 500;
+const MAX_FX = 100000;
 
 const makeEmpty = () => ({
   dateAsOf: new Date().toISOString().slice(0, 10),
   amount: '',
-  currency: 'USD',
+  currency: 'CRC',
+  exchangeRateToCRC: '',
   source: 'manual',
   note: '',
 });
 
 function CashBalanceForm({ onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(makeEmpty);
+  const needsFx = form.currency !== 'CRC';
 
   const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ ...form, amount: Number(form.amount) });
+    const payload = { ...form, amount: Number(form.amount) };
+    payload.exchangeRateToCRC = needsFx ? Number(form.exchangeRateToCRC) : 1;
+    onSubmit(payload);
   };
 
   return (
@@ -44,8 +49,8 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
         <div className="finance-field">
           <label>Moneda</label>
           <select value={form.currency} onChange={update('currency')}>
-            <option value="USD">USD</option>
             <option value="CRC">CRC</option>
+            <option value="USD">USD</option>
           </select>
         </div>
         <div className="finance-field">
@@ -55,6 +60,24 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
             <option value="bank">Bancario</option>
           </select>
         </div>
+        {needsFx && (
+          <div className="finance-field finance-field-full">
+            <label>Tipo de cambio a CRC *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max={MAX_FX}
+              value={form.exchangeRateToCRC}
+              onChange={update('exchangeRateToCRC')}
+              placeholder="ej. 520.00"
+              required
+            />
+            <small style={{ fontSize: 11, color: 'var(--aurora-light)', opacity: 0.6 }}>
+              1 {form.currency} = ? CRC. Se usa para convertir a la moneda funcional.
+            </small>
+          </div>
+        )}
         <div className="finance-field finance-field-full">
           <label>Nota</label>
           <textarea rows="2" maxLength={MAX_NOTE} value={form.note} onChange={update('note')} />
