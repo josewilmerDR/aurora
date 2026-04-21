@@ -1,50 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiActivity, FiAlertTriangle } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiPlus, FiActivity, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import Toast from '../../components/Toast';
 import CashBalanceModal from '../../components/finance/CashBalanceModal';
 import ProjectionChart from '../../components/finance/ProjectionChart';
 import ProjectionTable from '../../components/finance/ProjectionTable';
+import TreasuryStats from '../../components/finance/TreasuryStats';
+import HorizonSelector from '../../components/finance/HorizonSelector';
 import { useApiFetch } from '../../hooks/useApiFetch';
-import { formatMoney, DEFAULT_CURRENCY } from '../../lib/formatMoney';
+import { useTreasuryProjection, useIsMounted } from '../../hooks/useTreasuryProjection';
+import { DEFAULT_CURRENCY } from '../../lib/formatMoney';
 import './finance.css';
+
+const DEFAULT_HORIZON_WEEKS = 26;
+// La proyección se expresa siempre en CRC (moneda funcional).
+const PROJECTION_CURRENCY = DEFAULT_CURRENCY;
 
 function Treasury() {
   const apiFetch = useApiFetch();
-  const [weeks, setWeeks] = useState(26);
-  const [weeksInput, setWeeksInput] = useState('26');
-  const [projection, setProjection] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const isMounted = useIsMounted();
+  const [weeks, setWeeks] = useState(DEFAULT_HORIZON_WEEKS);
   const [showBalanceForm, setShowBalanceForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  const load = useCallback(() => setReloadKey(k => k + 1), []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setLoading(true);
-    apiFetch(`/api/treasury/projection?weeks=${weeks}`, { signal: controller.signal })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (cancelled) return;
-        if (!data || typeof data !== 'object' || !data.summary || !Array.isArray(data.series)) {
-          throw new Error('Respuesta inválida del servidor.');
-        }
-        setProjection(data);
-      })
-      .catch((e) => {
-        if (cancelled || e.name === 'AbortError') return;
-        setProjection(null);
-        setToast({ type: 'error', message: 'No se pudo cargar la proyección.' });
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; controller.abort(); };
-  }, [apiFetch, weeks, reloadKey]);
+  const { projection, loading, error, reload } = useTreasuryProjection(weeks);
 
   const handleSaveBalance = async (payload) => {
     setSaving(true);
@@ -55,22 +34,26 @@ function Treasury() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Error al guardar el saldo.');
+        const body = await res.json().catch(() => ({}));
+        const err = new Error(body.message || 'Error al guardar el saldo.');
+        err.status = res.status;
+        throw err;
       }
+      if (!isMounted.current) return;
       setToast({ type: 'success', message: 'Saldo registrado.' });
       setShowBalanceForm(false);
-      load();
+      reload();
     } catch (e) {
+      console.error('[Treasury] save balance failed', { status: e.status, err: e });
+      if (!isMounted.current) return;
       setToast({ type: 'error', message: e.message });
     } finally {
-      setSaving(false);
+      if (isMounted.current) setSaving(false);
     }
   };
 
   const hasSource = !!projection?.startingBalanceSource;
-  // La proyección siempre se expresa en CRC (moneda funcional).
-  const currency = DEFAULT_CURRENCY;
+  const hasProjection = !!projection;
 
   return (
     <div className="page-container">
@@ -83,10 +66,10 @@ function Treasury() {
         )}
       </div>
 
-      {!hasSource && !loading && (
+      {!hasSource && !loading && !error && (
         <div className="treasury-cash-banner">
           <span>
-            <FiAlertTriangle size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            <FiAlertTriangle size={14} className="treasury-cash-banner-icon" />
             No hay saldo de caja registrado. La proyección parte de 0.
           </span>
         </div>
@@ -101,67 +84,49 @@ function Treasury() {
       )}
 
       <div className="finance-filters">
-        <div className="finance-field">
-          <label>Horizonte (semanas)</label>
-          <input
-            type="number"
-            min="1"
-            max="104"
-            value={weeksInput}
-            onChange={(e) => {
-              const raw = e.target.value;
-              setWeeksInput(raw);
-              const n = Number(raw);
-              if (raw !== '' && Number.isFinite(n) && n >= 1 && n <= 104) {
-                setWeeks(n);
-              }
-            }}
-            onBlur={() => {
-              const n = Number(weeksInput);
-              if (weeksInput === '' || !Number.isFinite(n) || n < 1 || n > 104) {
-                setWeeks(26);
-                setWeeksInput('26');
-              } else {
-                setWeeksInput(String(n));
-              }
-            }}
-          />
-        </div>
+        <HorizonSelector
+          value={weeks}
+          onChange={setWeeks}
+          min={1}
+          max={104}
+          fallback={DEFAULT_HORIZON_WEEKS}
+        />
       </div>
 
-      {loading ? (
+      {loading && (
         <p className="finance-empty">Cargando proyección…</p>
-      ) : projection ? (
+      )}
+
+      {!loading && error && (
+        <div className="treasury-card treasury-error-state">
+          <p>{error.message}</p>
+          <button className="btn btn-secondary" onClick={reload}>
+            <FiRefreshCw /> Reintentar
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && hasProjection && (
         <>
           <div className="treasury-card">
-            <div className="treasury-stats" style={{ marginBottom: 12 }}>
-              <div>Saldo inicial: <strong>{formatMoney(projection.startingBalance, currency)}</strong></div>
-              <div>Entradas: <strong>{formatMoney(projection.summary.totalInflows, currency)}</strong></div>
-              <div>Salidas: <strong>{formatMoney(projection.summary.totalOutflows, currency)}</strong></div>
-              <div className={projection.summary.endingBalance < 0 ? 'treasury-stat--negative' : ''}>
-                Saldo final: <strong>{formatMoney(projection.summary.endingBalance, currency)}</strong>
-              </div>
-              <div className={projection.summary.minBalance < 0 ? 'treasury-stat--negative' : ''}>
-                Mínimo: <strong>{formatMoney(projection.summary.minBalance, currency)}</strong>
-                {projection.summary.minBalanceDate && ` (${projection.summary.minBalanceDate})`}
-              </div>
-              {projection.summary.negativeWeeks > 0 && (
-                <div className="treasury-stat--negative">
-                  <strong>{projection.summary.negativeWeeks} semanas en negativo</strong>
-                </div>
-              )}
-            </div>
+            <TreasuryStats
+              startingBalance={projection.startingBalance}
+              summary={projection.summary}
+              currency={PROJECTION_CURRENCY}
+            />
             <ProjectionChart series={projection.series} />
           </div>
 
           <div className="treasury-card">
-            <strong style={{ display: 'block', marginBottom: 10 }}>Serie semanal</strong>
+            <strong className="treasury-section-title">Serie semanal</strong>
             <div className="finance-execution-table-wrap">
-              <ProjectionTable series={projection.series} currency={currency} />
+              <ProjectionTable series={projection.series} currency={PROJECTION_CURRENCY} />
             </div>
           </div>
         </>
-      ) : (
+      )}
+
+      {!loading && !error && !hasProjection && (
         <p className="finance-empty">Sin datos.</p>
       )}
 
