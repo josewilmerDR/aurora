@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
 import BuyerSelector from './BuyerSelector';
 
+const MAX_FX = 100000;
+
 const EMPTY = {
   id: null,
   date: new Date().toISOString().slice(0, 10),
@@ -15,7 +17,8 @@ const EMPTY = {
   unit: 'kg',
   unitPrice: '',
   totalAmount: '',
-  currency: 'USD',
+  currency: 'CRC',
+  exchangeRateToCRC: '',
   collectionStatus: 'pendiente',
   expectedCollectionDate: '',
   actualCollectionDate: '',
@@ -24,6 +27,7 @@ const EMPTY = {
 
 function IncomeForm({ initial, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(EMPTY);
+  const needsFx = form.currency !== 'CRC';
 
   useEffect(() => { setForm(initial ? { ...EMPTY, ...initial } : EMPTY); }, [initial]);
 
@@ -47,6 +51,7 @@ function IncomeForm({ initial, onSubmit, onCancel, saving }) {
     } else {
       payload.totalAmount = Number(payload.totalAmount);
     }
+    payload.exchangeRateToCRC = needsFx ? Number(form.exchangeRateToCRC) : 1;
     onSubmit(payload);
   };
 
@@ -85,10 +90,25 @@ function IncomeForm({ initial, onSubmit, onCancel, saving }) {
         <div className="finance-field">
           <label>Moneda</label>
           <select value={form.currency} onChange={update('currency')}>
-            <option value="USD">USD</option>
             <option value="CRC">CRC</option>
+            <option value="USD">USD</option>
           </select>
         </div>
+        {needsFx && (
+          <div className="finance-field">
+            <label>Tipo de cambio a CRC *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max={MAX_FX}
+              value={form.exchangeRateToCRC}
+              onChange={update('exchangeRateToCRC')}
+              placeholder="ej. 520.00"
+              required
+            />
+          </div>
+        )}
         <div className="finance-field">
           <label>Estado de cobro</label>
           <select value={form.collectionStatus} onChange={update('collectionStatus')}>

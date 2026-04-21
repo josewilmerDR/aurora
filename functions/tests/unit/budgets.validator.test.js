@@ -15,7 +15,7 @@ describe('buildBudgetDoc', () => {
     expect(data.period).toBe('2026-04');
     expect(data.category).toBe('combustible');
     expect(data.assignedAmount).toBe(1000);
-    expect(data.currency).toBe('USD');
+    expect(data.currency).toBe('CRC');
     expect(data.loteId).toBeNull();
     expect(data.grupoId).toBeNull();
   });
@@ -57,12 +57,34 @@ describe('buildBudgetDoc', () => {
     expect(data.assignedAmount).toBe(0);
   });
 
-  test('unknown currency falls back to USD', () => {
-    expect(buildBudgetDoc({ ...base, currency: 'EUR' }).data.currency).toBe('USD');
+  test('unknown currency falls back to CRC', () => {
+    expect(buildBudgetDoc({ ...base, currency: 'EUR' }).data.currency).toBe('CRC');
   });
 
   test('accepts CRC currency', () => {
     expect(buildBudgetDoc({ ...base, currency: 'CRC' }).data.currency).toBe('CRC');
+  });
+
+  test('CRC budget gets exchangeRateToCRC=1 and assignedAmountCRC=assignedAmount', () => {
+    const { data } = buildBudgetDoc(base);
+    expect(data.exchangeRateToCRC).toBe(1);
+    expect(data.assignedAmountCRC).toBe(data.assignedAmount);
+  });
+
+  test('USD budget without exchangeRateToCRC is rejected', () => {
+    const { error } = buildBudgetDoc({ ...base, currency: 'USD' });
+    expect(error).toMatch(/exchangeRateToCRC/);
+  });
+
+  test('USD budget with exchangeRateToCRC computes assignedAmountCRC', () => {
+    const { data, error } = buildBudgetDoc({
+      ...base,
+      currency: 'USD',
+      exchangeRateToCRC: 520,
+    });
+    expect(error).toBeUndefined();
+    expect(data.exchangeRateToCRC).toBe(520);
+    expect(data.assignedAmountCRC).toBe(520000); // 1000 * 520
   });
 
   test('trims optional identifiers', () => {

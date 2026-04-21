@@ -28,7 +28,7 @@ async function draftFromDispatch(req, res) {
         despachoId,
         quantity: d.cantidad,
         unit: d.unidad || '',
-        currency: 'USD',
+        currency: 'CRC',
         collectionStatus: 'pendiente',
         note: d.nota || '',
       },

@@ -55,12 +55,37 @@ describe('buildIncomeDoc', () => {
     expect(data.totalAmount).toBe(225);
   });
 
-  test('defaults currency to USD', () => {
-    expect(buildIncomeDoc(baseValid, { buyerName: 'B' }).data.currency).toBe('USD');
+  test('defaults currency to CRC', () => {
+    expect(buildIncomeDoc(baseValid, { buyerName: 'B' }).data.currency).toBe('CRC');
   });
 
   test('accepts CRC currency', () => {
     expect(buildIncomeDoc({ ...baseValid, currency: 'CRC' }, { buyerName: 'B' }).data.currency).toBe('CRC');
+  });
+
+  test('CRC income gets exchangeRateToCRC=1 and totalAmountCRC=totalAmount', () => {
+    const { data } = buildIncomeDoc(baseValid, { buyerName: 'B' });
+    expect(data.exchangeRateToCRC).toBe(1);
+    expect(data.totalAmountCRC).toBe(data.totalAmount);
+  });
+
+  test('USD income without exchangeRateToCRC is rejected', () => {
+    const { error } = buildIncomeDoc(
+      { ...baseValid, currency: 'USD' },
+      { buyerName: 'B' },
+    );
+    expect(error).toMatch(/exchangeRateToCRC/);
+  });
+
+  test('USD income with exchangeRateToCRC computes totalAmountCRC', () => {
+    const { data, error } = buildIncomeDoc(
+      { ...baseValid, currency: 'USD', exchangeRateToCRC: 520 },
+      { buyerName: 'B' },
+    );
+    expect(error).toBeUndefined();
+    expect(data.exchangeRateToCRC).toBe(520);
+    // baseValid: qty 100 * unitPrice 2.5 = 250 USD -> 130000 CRC
+    expect(data.totalAmountCRC).toBe(130000);
   });
 
   test('defaults collectionStatus to pendiente', () => {

@@ -172,7 +172,7 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
           unidad: linea.unidad || 'L',
           stockActual: cantidad,
           stockMinimo: parseFloat(linea.stockMinimo) || 0,
-          moneda: linea.moneda || 'USD',
+          moneda: linea.moneda || 'CRC',
           tipoCambio: parseFloat(linea.tipoCambio) || 1,
           precioUnitario: parseFloat(linea.precioUnitario) || 0,
           proveedor: proveedor || '',
@@ -419,7 +419,7 @@ router.get('/api/ordenes-compra', authenticate, async (req, res) => {
 
 router.post('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
-    const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId } = req.body;
+    const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId, exchangeRateToCRC } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product is required.', 400);
     }
@@ -442,6 +442,29 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
       if (!isFinite(n)) return 0;
       return Math.min(Math.max(n, min), max);
     };
+
+    // Moneda funcional = CRC. Si algún ítem está en otra moneda, exigimos
+    // tipo de cambio y congelamos `totalCRC` al crear la OC.
+    const hasNonCrcItem = items.some(i => {
+      const m = typeof i.moneda === 'string' ? i.moneda.toUpperCase() : 'CRC';
+      return m && m !== 'CRC';
+    });
+    let fxRate = 1;
+    if (hasNonCrcItem) {
+      const fx = parseFloat(exchangeRateToCRC);
+      if (!isFinite(fx) || fx <= 0 || fx > 100000) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'exchangeRateToCRC is required and must be > 0 when any item is not in CRC.', 400);
+      }
+      fxRate = fx;
+    }
+    const totalCRC = items.reduce((sum, i) => {
+      const qty = num(i.cantidad, { min: 0, max: 1e9 });
+      const price = num(i.precioUnitario, { min: 0, max: 1e9 });
+      const moneda = (typeof i.moneda === 'string' ? i.moneda.toUpperCase() : 'CRC');
+      const lineTotal = qty * price;
+      return sum + (moneda !== 'CRC' ? lineTotal * fxRate : lineTotal);
+    }, 0);
+
     const counterRef = db.collection('counters').doc(`oc_${req.fincaId}`);
     let seq;
     await db.runTransaction(async (t) => {
@@ -470,8 +493,10 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
         unidad: str(i.unidad, 20),
         precioUnitario: num(i.precioUnitario, { min: 0, max: 1e9 }),
         iva: num(i.iva, { min: 0, max: 100 }),
-        moneda: str(i.moneda, 10) || 'USD',
+        moneda: str(i.moneda, 10) || 'CRC',
       })),
+      exchangeRateToCRC: fxRate,
+      totalCRC: Math.round(totalCRC * 100) / 100,
       createdAt: Timestamp.now(),
     });
     if (solicitudId) {

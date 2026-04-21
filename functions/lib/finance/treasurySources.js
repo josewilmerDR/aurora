@@ -13,6 +13,8 @@ const { parseISO, toISO, addDays } = require('./weekRanges');
 // ───────────────────────────────────────────────────────────────────────────
 
 // Ingresos pendientes de cobro, dentro del horizonte.
+// Usa `totalAmountCRC` si está presente (registros nuevos); fallback a
+// `totalAmount` para legacy.
 async function fetchIncomeInflows(fincaId, { fromISO, toISO: toStr }) {
   const snap = await db.collection('income_records')
     .where('fincaId', '==', fincaId)
@@ -24,9 +26,12 @@ async function fetchIncomeInflows(fincaId, { fromISO, toISO: toStr }) {
     const rec = doc.data();
     const date = rec.expectedCollectionDate || rec.date;
     if (!date || date < fromISO || date > toStr) continue;
+    const amountCRC = Number.isFinite(Number(rec.totalAmountCRC))
+      ? Number(rec.totalAmountCRC)
+      : Number(rec.totalAmount) || 0;
     events.push({
       date,
-      amount: Number(rec.totalAmount) || 0,
+      amount: amountCRC,
       type: 'inflow',
       source: 'income',
       label: rec.buyerName ? `Cobro — ${rec.buyerName}` : 'Cobro pendiente',
@@ -67,18 +72,27 @@ async function fetchPurchaseOrderOutflows(fincaId, { fromISO, toISO: toStr }) {
     const paymentISO = toISO(paymentDt);
     if (paymentISO < fromISO || paymentISO > toStr) continue;
 
-    // Monto total: suma items × precioUnitario.
-    const items = Array.isArray(oc.items) ? oc.items : [];
-    const total = items.reduce((s, it) => {
-      const qty = Number(it.cantidad) || 0;
-      const price = Number(it.precioUnitario) || 0;
-      return s + qty * price;
-    }, 0);
-    if (total <= 0) continue;
+    // Monto total en CRC: usa `totalCRC` si existe (OCs nuevas con FX
+    // congelado); si no, suma items × precioUnitario (legacy, asume CRC).
+    let totalCRC;
+    if (Number.isFinite(Number(oc.totalCRC))) {
+      totalCRC = Number(oc.totalCRC);
+    } else {
+      const items = Array.isArray(oc.items) ? oc.items : [];
+      const fx = Number.isFinite(Number(oc.exchangeRateToCRC)) ? Number(oc.exchangeRateToCRC) : 1;
+      totalCRC = items.reduce((s, it) => {
+        const qty = Number(it.cantidad) || 0;
+        const price = Number(it.precioUnitario) || 0;
+        const moneda = (typeof it.moneda === 'string' ? it.moneda.toUpperCase() : 'CRC');
+        const line = qty * price;
+        return s + (moneda !== 'CRC' ? line * fx : line);
+      }, 0);
+    }
+    if (totalCRC <= 0) continue;
 
     events.push({
       date: paymentISO,
-      amount: total,
+      amount: totalCRC,
       type: 'outflow',
       source: 'ordenes_compra',
       label: oc.poNumber ? `OC ${oc.poNumber}` : 'OC pendiente',
@@ -190,6 +204,8 @@ async function fetchUnitPayrollOutflows(fincaId, { fromISO, toISO: toStr }) {
 }
 
 // Último saldo de caja registrado ≤ fecha de referencia.
+// El saldo se expresa en CRC (moneda funcional). Registros nuevos traen
+// `amountCRC` pre-calculado; legacy sin ese campo caen al `amount` raw.
 async function fetchLatestCashBalance(fincaId) {
   const snap = await db.collection('cash_balance')
     .where('fincaId', '==', fincaId)
@@ -197,7 +213,9 @@ async function fetchLatestCashBalance(fincaId) {
   if (snap.empty) return null;
   const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   docs.sort((a, b) => (b.dateAsOf || '').localeCompare(a.dateAsOf || ''));
-  return docs[0];
+  const latest = docs[0];
+  const amount = Number.isFinite(Number(latest.amountCRC)) ? Number(latest.amountCRC) : Number(latest.amount);
+  return { ...latest, amount, currency: 'CRC' };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

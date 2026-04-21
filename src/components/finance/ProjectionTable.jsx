@@ -1,12 +1,8 @@
 // Tabla semanal con apertura, entradas, salidas, neto y cierre.
 
-function fmt(n, currency = 'USD') {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return `${currency} ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+import { formatMoney, DEFAULT_CURRENCY } from '../../lib/formatMoney';
 
-function ProjectionTable({ series, currency = 'USD' }) {
+function ProjectionTable({ series, currency = DEFAULT_CURRENCY }) {
   if (!series?.length) return null;
   return (
     <table className="finance-execution-table">
@@ -28,11 +24,11 @@ function ProjectionTable({ series, currency = 'USD' }) {
           return (
             <tr key={i} className={neg ? 'treasury-week-row-negative' : ''}>
               <td>{w.weekStart} → {w.weekEnd}</td>
-              <td className="finance-num">{fmt(w.openingBalance, currency)}</td>
-              <td className="finance-num">{inflowsSum > 0 ? fmt(inflowsSum, currency) : '—'}</td>
-              <td className="finance-num">{outflowsSum > 0 ? fmt(outflowsSum, currency) : '—'}</td>
-              <td className="finance-num">{fmt(w.netFlow, currency)}</td>
-              <td className="finance-num">{fmt(w.closingBalance, currency)}</td>
+              <td className="finance-num">{formatMoney(w.openingBalance, currency)}</td>
+              <td className="finance-num">{inflowsSum > 0 ? formatMoney(inflowsSum, currency) : '—'}</td>
+              <td className="finance-num">{outflowsSum > 0 ? formatMoney(outflowsSum, currency) : '—'}</td>
+              <td className="finance-num">{formatMoney(w.netFlow, currency)}</td>
+              <td className="finance-num">{formatMoney(w.closingBalance, currency)}</td>
             </tr>
           );
         })}

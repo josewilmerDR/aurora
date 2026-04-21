@@ -11,6 +11,7 @@ const MAX_UNIT = 32;
 const MAX_ID = 128;
 const MAX_QUANTITY = 1e9;
 const MAX_AMOUNT = 1e12;
+const MAX_FX = 100000;
 
 // ISO estricto — rechaza "2026-02-30" que new Date() normaliza.
 function isValidISODate(s) {
@@ -53,7 +54,20 @@ function buildIncomeDoc(body, { buyerName = '' } = {}) {
     return { error: 'Total amount out of range.' };
   }
 
-  const currency = VALID_CURRENCIES.has(body.currency) ? body.currency : 'USD';
+  const currency = VALID_CURRENCIES.has(body.currency) ? body.currency : 'CRC';
+
+  // Moneda funcional = CRC. Exigimos FX cuando la transacción no es CRC y
+  // congelamos el equivalente en `totalAmountCRC` para reportes consistentes.
+  let exchangeRateToCRC = 1;
+  if (currency !== 'CRC') {
+    const fx = numberInRange(body.exchangeRateToCRC, 0.0001, MAX_FX);
+    if (fx === null) {
+      return { error: 'exchangeRateToCRC is required and must be > 0 when currency is not CRC.' };
+    }
+    exchangeRateToCRC = fx;
+  }
+  const totalAmountCRC = Math.round(totalAmount * exchangeRateToCRC * 100) / 100;
+
   const collectionStatus = VALID_COLLECTION_STATUSES.has(body.collectionStatus)
     ? body.collectionStatus
     : 'pendiente';
@@ -90,6 +104,8 @@ function buildIncomeDoc(body, { buyerName = '' } = {}) {
       unitPrice,
       totalAmount,
       currency,
+      exchangeRateToCRC,
+      totalAmountCRC,
       collectionStatus,
       expectedCollectionDate,
       actualCollectionDate,

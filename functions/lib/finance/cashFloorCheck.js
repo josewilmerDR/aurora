@@ -22,7 +22,7 @@ function checkCashFloor({
   proposedOutflow,
   floor,
   horizonWeeks = 4,
-  currency = 'USD',
+  currency = 'CRC',
 }) {
   if (!Number.isFinite(Number(floor))) {
     // Piso no configurado → permisivo.
@@ -52,7 +52,7 @@ function checkCashFloor({
 
   const floorNum = Number(floor);
   if (simulated.summary.minBalance < floorNum) {
-    const fmt = (n) => `${currency} ${Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    const fmt = (n) => `${currency} ${Number(n).toLocaleString('es-CR', { maximumFractionDigits: 0 })}`;
     return {
       ok: false,
       reason: `La acción llevaría la caja proyectada a ${fmt(simulated.summary.minBalance)} hacia ${simulated.summary.minBalanceDate || 'el horizonte'}, por debajo del piso de ${fmt(floorNum)}.`,

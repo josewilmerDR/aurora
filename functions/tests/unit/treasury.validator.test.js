@@ -3,13 +3,43 @@
 const { buildCashBalanceDoc } = require('../../routes/treasury/validator');
 
 describe('buildCashBalanceDoc', () => {
-  test('accepts minimal valid payload', () => {
+  test('accepts minimal valid payload (defaults to CRC)', () => {
     const { data, error } = buildCashBalanceDoc({ dateAsOf: '2026-04-17', amount: 10000 });
     expect(error).toBeUndefined();
     expect(data.dateAsOf).toBe('2026-04-17');
     expect(data.amount).toBe(10000);
-    expect(data.currency).toBe('USD');
+    expect(data.currency).toBe('CRC');
+    expect(data.exchangeRateToCRC).toBe(1);
+    expect(data.amountCRC).toBe(10000);
     expect(data.source).toBe('manual');
+  });
+
+  test('rejects non-CRC currency without exchangeRateToCRC', () => {
+    const { error } = buildCashBalanceDoc({
+      dateAsOf: '2026-04-17',
+      amount: 100,
+      currency: 'USD',
+    });
+    expect(error).toMatch(/exchangeRateToCRC/);
+  });
+
+  test('computes amountCRC when currency is USD with FX rate', () => {
+    const { data, error } = buildCashBalanceDoc({
+      dateAsOf: '2026-04-17',
+      amount: 100,
+      currency: 'USD',
+      exchangeRateToCRC: 520.5,
+    });
+    expect(error).toBeUndefined();
+    expect(data.amount).toBe(100);
+    expect(data.currency).toBe('USD');
+    expect(data.exchangeRateToCRC).toBe(520.5);
+    expect(data.amountCRC).toBe(52050);
+  });
+
+  test('rejects null body', () => {
+    expect(buildCashBalanceDoc(null).error).toMatch(/body/i);
+    expect(buildCashBalanceDoc(undefined).error).toMatch(/body/i);
   });
 
   test('requires valid dateAsOf', () => {

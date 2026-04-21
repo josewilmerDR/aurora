@@ -5,13 +5,8 @@ import CashBalanceModal from '../../components/finance/CashBalanceModal';
 import ProjectionChart from '../../components/finance/ProjectionChart';
 import ProjectionTable from '../../components/finance/ProjectionTable';
 import { useApiFetch } from '../../hooks/useApiFetch';
+import { formatMoney, DEFAULT_CURRENCY } from '../../lib/formatMoney';
 import './finance.css';
-
-function fmt(n, currency = 'USD') {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return `${currency} ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function Treasury() {
   const apiFetch = useApiFetch();
@@ -74,7 +69,8 @@ function Treasury() {
   };
 
   const hasSource = !!projection?.startingBalanceSource;
-  const currency = projection?.startingBalanceSource?.currency || 'USD';
+  // La proyección siempre se expresa en CRC (moneda funcional).
+  const currency = DEFAULT_CURRENCY;
 
   return (
     <div className="page-container">
@@ -139,14 +135,14 @@ function Treasury() {
         <>
           <div className="treasury-card">
             <div className="treasury-stats" style={{ marginBottom: 12 }}>
-              <div>Saldo inicial: <strong>{fmt(projection.startingBalance, currency)}</strong></div>
-              <div>Entradas: <strong>{fmt(projection.summary.totalInflows, currency)}</strong></div>
-              <div>Salidas: <strong>{fmt(projection.summary.totalOutflows, currency)}</strong></div>
+              <div>Saldo inicial: <strong>{formatMoney(projection.startingBalance, currency)}</strong></div>
+              <div>Entradas: <strong>{formatMoney(projection.summary.totalInflows, currency)}</strong></div>
+              <div>Salidas: <strong>{formatMoney(projection.summary.totalOutflows, currency)}</strong></div>
               <div className={projection.summary.endingBalance < 0 ? 'treasury-stat--negative' : ''}>
-                Saldo final: <strong>{fmt(projection.summary.endingBalance, currency)}</strong>
+                Saldo final: <strong>{formatMoney(projection.summary.endingBalance, currency)}</strong>
               </div>
               <div className={projection.summary.minBalance < 0 ? 'treasury-stat--negative' : ''}>
-                Mínimo: <strong>{fmt(projection.summary.minBalance, currency)}</strong>
+                Mínimo: <strong>{formatMoney(projection.summary.minBalance, currency)}</strong>
                 {projection.summary.minBalanceDate && ` (${projection.summary.minBalanceDate})`}
               </div>
               {projection.summary.negativeWeeks > 0 && (
