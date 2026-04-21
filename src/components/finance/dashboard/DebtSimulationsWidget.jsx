@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 const fmtMoney = (n) => {
@@ -52,33 +53,53 @@ function DebtSimulationsWidget() {
       {!loading && !error && (
         <>
           {top.length === 0 ? (
-            <div className="fin-widget-empty">
-              Sin simulaciones. Elige un producto del catálogo y corre Monte Carlo contra el perfil financiero.
+            <div className="fin-widget-empty" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <span>Sin simulaciones. Elegí una oferta registrada y corré Monte Carlo contra el perfil financiero.</span>
+              <Link
+                to="/finance/financing/simulaciones"
+                className="btn btn-secondary"
+                style={{ textAlign: 'center' }}
+              >
+                Nueva simulación
+              </Link>
             </div>
           ) : (
-            <div className="fin-recent-list">
-              {top.map(s => {
-                const rec = RECOMMENDATION_LABELS[s.recommendation] || null;
-                const positive = Number(s.marginDelta) >= 0;
-                return (
-                  <div key={s.id} className="fin-recent-row">
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                      <strong>{fmtMoney(s.amount)} · {s.plazoMeses}m</strong>
-                      <span className="fin-widget-sub">
-                        {s.providerName || 'producto ' + (s.creditProductId || '').slice(0, 6)} · {fmtDate(s.createdAt)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className={positive ? 'fin-widget-primary' : 'fin-widget-primary--negative'}
-                            style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                        {positive ? <FiTrendingUp size={12} /> : <FiTrendingDown size={12} />} {fmtMoney(s.marginDelta)}
-                      </span>
-                      {rec && <span className={`fin-badge ${rec.cls}`}>{rec.label}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <div className="fin-recent-list">
+                {top.map(s => {
+                  const rec = RECOMMENDATION_LABELS[s.recommendation] || null;
+                  const positive = Number(s.marginDelta) >= 0;
+                  return (
+                    <Link
+                      key={s.id}
+                      to="/finance/financing/simulaciones"
+                      className="fin-recent-row fin-recent-row--link"
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <strong>{fmtMoney(s.amount)} · {s.plazoMeses}m</strong>
+                        <span className="fin-widget-sub">
+                          {s.providerName || 'producto ' + (s.creditProductId || '').slice(0, 6)} · {fmtDate(s.createdAt)}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className={positive ? 'fin-widget-primary' : 'fin-widget-primary--negative'}
+                              style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                          {positive ? <FiTrendingUp size={12} /> : <FiTrendingDown size={12} />} {fmtMoney(s.marginDelta)}
+                        </span>
+                        {rec && <span className={`fin-badge ${rec.cls}`}>{rec.label}</span>}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+              <Link
+                to="/finance/financing/simulaciones"
+                className="btn btn-secondary"
+                style={{ marginTop: 'auto', textAlign: 'center' }}
+              >
+                Ver todas / nueva simulación
+              </Link>
+            </>
           )}
         </>
       )}

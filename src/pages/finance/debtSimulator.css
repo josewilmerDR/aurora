@@ -1,0 +1,482 @@
+/* Estilos del simulador de deuda — Fase 5.4 UI.
+   Se carga además de finance.css y financing.css. */
+
+/* ── Form: resumen de la oferta seleccionada ─────────────────────────────── */
+.debt-sim-offer-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 12px;
+  background: rgba(51, 255, 153, 0.04);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.debt-sim-offer-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.debt-sim-offer-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.debt-sim-offer-summary strong {
+  font-size: 14px;
+  color: var(--aurora-light);
+}
+
+@media (max-width: 600px) {
+  .debt-sim-offer-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Form: hint text ─────────────────────────────────────────────────────── */
+.debt-sim-hint {
+  font-size: 11px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin-top: 2px;
+}
+
+/* ── Form: radio group para modelo de retorno ────────────────────────────── */
+.debt-sim-radio-group {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.debt-sim-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.debt-sim-radio:hover {
+  border-color: var(--aurora-green);
+  opacity: 0.95;
+}
+
+.debt-sim-radio--active {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+}
+
+.debt-sim-radio input[type="radio"] {
+  margin-top: 3px;
+}
+
+.debt-sim-radio strong {
+  display: block;
+  font-size: 13px;
+  color: var(--aurora-light);
+}
+
+.debt-sim-radio span {
+  display: block;
+  font-size: 11px;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .debt-sim-radio-group { grid-template-columns: 1fr; }
+}
+
+/* ── Form: advanced toggle ───────────────────────────────────────────────── */
+.debt-sim-advanced-toggle {
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.debt-sim-advanced-toggle:hover {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+/* ── List: block banner ──────────────────────────────────────────────────── */
+.debt-sim-block-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(245, 180, 0, 0.08);
+  border: 1px solid rgba(245, 180, 0, 0.25);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #f5b400;
+}
+
+/* ── List: delta colors ──────────────────────────────────────────────────── */
+.debt-sim-delta-positive {
+  color: var(--aurora-green);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.debt-sim-delta-negative {
+  color: #ff6b6b;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ── Detail ──────────────────────────────────────────────────────────────── */
+.debt-sim-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.debt-sim-detail-header {
+  display: flex;
+  align-items: center;
+}
+
+.debt-sim-back-btn {
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.debt-sim-back-btn:hover {
+  opacity: 1;
+  color: var(--aurora-green);
+}
+
+.debt-sim-detail-top {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 20px;
+  padding: 16px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+}
+
+.debt-sim-detail-title h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--aurora-light);
+}
+
+.debt-sim-detail-sub {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  opacity: 0.65;
+  color: var(--aurora-light);
+}
+
+.debt-sim-rec-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.debt-sim-rec-badge {
+  font-size: 12px !important;
+  padding: 4px 12px !important;
+}
+
+.debt-sim-rec-reason {
+  margin: 0;
+  font-size: 13px;
+  color: var(--aurora-light);
+  line-height: 1.4;
+}
+
+.debt-sim-rec-conditions {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--aurora-light);
+  opacity: 0.8;
+}
+
+.debt-sim-rec-risk {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: #f5b400;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 700px) {
+  .debt-sim-detail-top { grid-template-columns: 1fr; }
+}
+
+/* ── Detail: warnings ────────────────────────────────────────────────────── */
+.debt-sim-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debt-sim-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(245, 180, 0, 0.08);
+  border: 1px solid rgba(245, 180, 0, 0.25);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #f5b400;
+}
+
+/* ── Detail: section title ───────────────────────────────────────────────── */
+.debt-sim-section-title {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+/* ── Detail: metric cards ────────────────────────────────────────────────── */
+.debt-sim-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.debt-sim-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.debt-sim-metric-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.debt-sim-metric-value {
+  font-size: 18px;
+  color: var(--aurora-light);
+}
+
+.debt-sim-metric-delta {
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.debt-sim-metric-delta--positive { color: var(--aurora-green); }
+.debt-sim-metric-delta--negative { color: #ff6b6b; }
+
+/* ── Detail: cashflow chart ──────────────────────────────────────────────── */
+.cashflow-dual-chart {
+  padding: 16px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+}
+
+.cashflow-dual-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.cashflow-dual-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cashflow-dual-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.cashflow-dual-swatch--without { background: #8ba5bf; }
+.cashflow-dual-swatch--with    { background: var(--aurora-green); }
+
+.cashflow-dual-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.cashflow-dual-line--without { stroke: #8ba5bf; stroke-dasharray: 4 3; }
+.cashflow-dual-line--with    { stroke: var(--aurora-green); }
+
+.cashflow-dual-dot--without { fill: #8ba5bf; }
+.cashflow-dual-dot--with    { fill: var(--aurora-green); }
+
+/* ── Detail: scenario grid ───────────────────────────────────────────────── */
+.debt-sim-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 800px) {
+  .debt-sim-scenario-grid { grid-template-columns: 1fr; }
+}
+
+.debt-sim-scenario-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.debt-sim-scenario-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--aurora-light);
+}
+
+.debt-sim-scenario-header span {
+  opacity: 0.5;
+  cursor: help;
+}
+
+.debt-sim-scenario-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--aurora-light);
+}
+
+.debt-sim-scenario-row span:first-child {
+  opacity: 0.6;
+}
+
+.debt-sim-scenario-row--delta {
+  padding-top: 4px;
+  border-top: 1px dashed var(--aurora-border);
+}
+
+.debt-sim-scenario-row--delta.is-positive strong { color: var(--aurora-green); }
+.debt-sim-scenario-row--delta.is-negative strong { color: #ff6b6b; }
+
+.debt-sim-scenario-row--minor {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.debt-sim-scenario-divider {
+  height: 1px;
+  background: var(--aurora-border);
+  opacity: 0.6;
+  margin: 4px 0;
+}
+
+/* ── Detail: payments table ──────────────────────────────────────────────── */
+.debt-sim-payments-table-wrap {
+  overflow-x: auto;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+
+.debt-sim-payments-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.debt-sim-payments-table th,
+.debt-sim-payments-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+}
+
+.debt-sim-payments-table th {
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+.debt-sim-payments-table .td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.debt-sim-payments-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.debt-sim-net-positive { color: var(--aurora-green); font-weight: 600; }
+.debt-sim-net-negative { color: #ff6b6b; font-weight: 600; }
+
+/* ── Detail: footnote ────────────────────────────────────────────────────── */
+.debt-sim-footnote {
+  margin-top: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.debt-sim-footnote svg {
+  margin-top: 1px;
+  flex-shrink: 0;
+}

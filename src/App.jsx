@@ -63,6 +63,8 @@ import CentroCostos from './pages/CentroCostos';
 import Budgets from './pages/finance/Budgets';
 import FinanceDashboard from './pages/finance/FinanceDashboard';
 import FinancingDashboard from './pages/finance/FinancingDashboard';
+import CreditOffers from './pages/finance/CreditOffers';
+import DebtSimulations from './pages/finance/DebtSimulations';
 import CeoDashboard from './pages/ceo/CeoDashboard';
 import IncomeRecords from './pages/finance/IncomeRecords';
 import BuyersList from './pages/finance/BuyersList';
@@ -125,6 +127,8 @@ const ROUTE_MIN_ROLE = {
   '/hr/my-performance': 'trabajador',
   // Financing (phase 5.5) — supervisor+ can read; admin gates write ops at API layer
   '/finance/financing': 'supervisor',
+  '/finance/financing/ofertas': 'supervisor',
+  '/finance/financing/simulaciones': 'supervisor',
   // CEO Dashboard (phase 6.5) — admin only; reflects meta-agent state
   '/ceo': 'administrador',
   // Strategy (phase 4.1)
@@ -163,6 +167,8 @@ const routeTitles = {
   '/finance/ingresos': 'Ingresos',
   '/finance/compradores': 'Compradores',
   '/finance/financing': 'Financiamiento externo',
+  '/finance/financing/ofertas': 'Ofertas de crédito',
+  '/finance/financing/simulaciones': 'Simulador de deuda',
   '/ceo': 'CEO Dashboard',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/permisos': 'Permisos y Vacaciones',
@@ -585,6 +591,8 @@ function App() {
             <Route path="/finance/ingresos" element={<RoleRoute path="/finance/ingresos"><IncomeRecords /></RoleRoute>} />
             <Route path="/finance/compradores" element={<RoleRoute path="/finance/compradores"><BuyersList /></RoleRoute>} />
             <Route path="/finance/financing" element={<RoleRoute path="/finance/financing"><FinancingDashboard /></RoleRoute>} />
+            <Route path="/finance/financing/ofertas" element={<RoleRoute path="/finance/financing/ofertas"><CreditOffers /></RoleRoute>} />
+            <Route path="/finance/financing/simulaciones" element={<RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute>} />
             <Route path="/ceo" element={<RoleRoute path="/ceo"><CeoDashboard /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
