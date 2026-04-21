@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
 
-const EMPTY = {
+const MAX_AMOUNT = 1e12;
+const MAX_NOTE = 500;
+
+const makeEmpty = () => ({
   dateAsOf: new Date().toISOString().slice(0, 10),
   amount: '',
   currency: 'USD',
   source: 'manual',
   note: '',
-};
+});
 
 function CashBalanceForm({ onSubmit, onCancel, saving }) {
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] = useState(makeEmpty);
 
   const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
@@ -28,7 +31,15 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
         </div>
         <div className="finance-field">
           <label>Saldo *</label>
-          <input type="number" step="0.01" value={form.amount} onChange={update('amount')} required />
+          <input
+            type="number"
+            step="0.01"
+            min={-MAX_AMOUNT}
+            max={MAX_AMOUNT}
+            value={form.amount}
+            onChange={update('amount')}
+            required
+          />
         </div>
         <div className="finance-field">
           <label>Moneda</label>
@@ -46,14 +57,14 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
         </div>
         <div className="finance-field finance-field-full">
           <label>Nota</label>
-          <textarea rows="2" value={form.note} onChange={update('note')} />
+          <textarea rows="2" maxLength={MAX_NOTE} value={form.note} onChange={update('note')} />
         </div>
       </div>
       <div className="lote-form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={saving}>
           <FiX /> Cancelar
         </button>
-        <button type="submit" className="btn-primary" disabled={saving}>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
           <FiSave /> {saving ? 'Guardando…' : 'Guardar saldo'}
         </button>
       </div>
