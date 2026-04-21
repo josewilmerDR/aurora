@@ -127,6 +127,7 @@ describe('buildIncomeDoc', () => {
     const { data } = buildIncomeDoc(baseValid, { buyerName: 'B' });
     expect(data.loteId).toBeNull();
     expect(data.despachoId).toBeNull();
+    expect(data.despachoIds).toBeNull();
     expect(data.cosechaRegistroId).toBeNull();
   });
 
@@ -137,5 +138,45 @@ describe('buildIncomeDoc', () => {
     );
     expect(data.loteId).toBe('lote-9');
     expect(data.despachoId).toBe('dc-1');
+  });
+
+  test('accepts despachoIds[] with normalized items', () => {
+    const { data } = buildIncomeDoc(
+      {
+        ...baseValid,
+        despachoIds: [
+          { id: 'd1', consecutivo: 'DC-000001', cantidad: 100, unidad: 'kg' },
+          { id: 'd2', consecutivo: 'DC-000002', cantidad: 50, unidad: 'kg' },
+        ],
+      },
+      { buyerName: 'B' }
+    );
+    expect(data.despachoIds).toHaveLength(2);
+    expect(data.despachoIds[0]).toEqual({ id: 'd1', consecutivo: 'DC-000001', cantidad: 100, unidad: 'kg' });
+  });
+
+  test('rejects duplicate dispatch ids', () => {
+    const { error } = buildIncomeDoc(
+      { ...baseValid, despachoIds: [{ id: 'd1' }, { id: 'd1' }] },
+      { buyerName: 'B' }
+    );
+    expect(error).toMatch(/duplicate/i);
+  });
+
+  test('rejects dispatch item without id', () => {
+    const { error } = buildIncomeDoc(
+      { ...baseValid, despachoIds: [{ consecutivo: 'DC-1' }] },
+      { buyerName: 'B' }
+    );
+    expect(error).toMatch(/requires an id/i);
+  });
+
+  test('rejects more than MAX_DISPATCHES dispatches', () => {
+    const many = Array.from({ length: 51 }, (_, i) => ({ id: `d${i}` }));
+    const { error } = buildIncomeDoc(
+      { ...baseValid, despachoIds: many },
+      { buyerName: 'B' }
+    );
+    expect(error).toMatch(/may not exceed/i);
   });
 });

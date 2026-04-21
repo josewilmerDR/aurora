@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { FiX, FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../components/Toast';
+import BuyerSelector from '../components/finance/BuyerSelector';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
@@ -240,6 +241,7 @@ export default function CosechaDespachos() {
     fecha:                today,
     loteId:               '',
     loteNombre:           '',
+    buyerId:              '',
     operarioCamionNombre: '',
     placaCamion:          '',
     cantidad:             '',
@@ -327,6 +329,10 @@ export default function CosechaDespachos() {
       showToast('Fecha, lote y cantidad son obligatorios.', 'error');
       return;
     }
+    if (!form.buyerId) {
+      showToast('El comprador es obligatorio.', 'error');
+      return;
+    }
     if (form.fecha > today) {
       showToast('La fecha no puede ser futura.', 'error');
       return;
@@ -407,6 +413,17 @@ export default function CosechaDespachos() {
                   <option value="">— Seleccionar —</option>
                   {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                 </select>
+              </div>
+            </div>
+
+            <div className="hor-form-grid hor-grid-2">
+              <div className="hor-field">
+                <label>Comprador *</label>
+                <BuyerSelector
+                  value={form.buyerId}
+                  onChange={(v) => setForm(prev => ({ ...prev, buyerId: v }))}
+                  required
+                />
               </div>
             </div>
 

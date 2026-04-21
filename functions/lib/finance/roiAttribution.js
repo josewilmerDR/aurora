@@ -2,11 +2,34 @@
 //
 // Prioridad de atribución por cada income_record:
 //   1. `loteId` explícito → ese lote.
-//   2. `despachoId` → lote del despacho (vía despachoToLoteMap).
-//   3. Sin referencia → se marca como "unattributed" para prorrateo posterior.
+//   2. `despachoIds[]` → lotes de cada despacho, prorrateado por cantidad.
+//   3. `despachoId` (legacy) → lote del despacho (vía despachoToLoteMap).
+//   4. Sin referencia → se marca como "unattributed" para prorrateo posterior.
 //
 // Registros con `collectionStatus === 'anulado'` se ignoran completamente
 // (no son ingresos reales). Registros con monto ≤ 0 también se ignoran.
+
+function attributeFromDispatches(amount, despachoIds, despachoToLoteMap) {
+  const weights = {};
+  let totalWeight = 0;
+  let unknownCount = 0;
+  for (const item of despachoIds) {
+    const lote = despachoToLoteMap[item?.id];
+    if (!lote) { unknownCount += 1; continue; }
+    const w = Number(item?.cantidad) > 0 ? Number(item.cantidad) : 1;
+    weights[lote] = (weights[lote] || 0) + w;
+    totalWeight += w;
+  }
+  if (totalWeight <= 0) return { perLote: {}, unattributed: amount };
+  const perLote = {};
+  for (const [lote, w] of Object.entries(weights)) {
+    perLote[lote] = (w / totalWeight) * amount;
+  }
+  // Si algunos despachos no mapean, esa fracción se pierde en "unattributed".
+  const knownFraction = totalWeight / (totalWeight + unknownCount);
+  const unattributed = amount * (1 - knownFraction);
+  return { perLote, unattributed };
+}
 
 function attributeIncome(incomeRecords, despachoToLoteMap = {}) {
   const perLote = {};
@@ -18,13 +41,27 @@ function attributeIncome(incomeRecords, despachoToLoteMap = {}) {
     const amount = Number(rec?.totalAmount) || 0;
     if (amount <= 0) continue;
 
-    let loteId = typeof rec.loteId === 'string' && rec.loteId ? rec.loteId : null;
-    if (!loteId && rec.despachoId) {
-      loteId = despachoToLoteMap[rec.despachoId] || null;
+    const explicitLote = typeof rec.loteId === 'string' && rec.loteId ? rec.loteId : null;
+    if (explicitLote) {
+      perLote[explicitLote] = (perLote[explicitLote] || 0) + amount;
+      continue;
     }
 
-    if (loteId) {
-      perLote[loteId] = (perLote[loteId] || 0) + amount;
+    if (Array.isArray(rec.despachoIds) && rec.despachoIds.length > 0) {
+      const split = attributeFromDispatches(amount, rec.despachoIds, despachoToLoteMap);
+      for (const [lote, val] of Object.entries(split.perLote)) {
+        perLote[lote] = (perLote[lote] || 0) + val;
+      }
+      if (split.unattributed > 0) {
+        unattributedAmount += split.unattributed;
+        unattributedRecords.push(rec);
+      }
+      continue;
+    }
+
+    const legacyLote = rec.despachoId ? (despachoToLoteMap[rec.despachoId] || null) : null;
+    if (legacyLote) {
+      perLote[legacyLote] = (perLote[legacyLote] || 0) + amount;
     } else {
       unattributedAmount += amount;
       unattributedRecords.push(rec);
