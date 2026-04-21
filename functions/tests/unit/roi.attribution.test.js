@@ -68,6 +68,75 @@ describe('attributeIncome', () => {
     const out = attributeIncome(records, { D1: 'L5' });
     expect(out.perLote).toEqual({ L5: 100 });
   });
+
+  test('despachoIds[] splits proportionally by cantidad', () => {
+    const records = [{
+      despachoIds: [
+        { id: 'D1', cantidad: 100 },
+        { id: 'D2', cantidad: 300 },
+      ],
+      totalAmount: 1000,
+    }];
+    const out = attributeIncome(records, { D1: 'L1', D2: 'L2' });
+    expect(out.perLote.L1).toBeCloseTo(250); // 100/400 * 1000
+    expect(out.perLote.L2).toBeCloseTo(750); // 300/400 * 1000
+    expect(out.unattributedAmount).toBe(0);
+  });
+
+  test('despachoIds[] with same lote accumulates', () => {
+    const records = [{
+      despachoIds: [
+        { id: 'D1', cantidad: 100 },
+        { id: 'D2', cantidad: 100 },
+      ],
+      totalAmount: 500,
+    }];
+    const out = attributeIncome(records, { D1: 'LA', D2: 'LA' });
+    expect(out.perLote.LA).toBeCloseTo(500);
+  });
+
+  test('despachoIds[] with no cantidad falls back to equal weight', () => {
+    const records = [{
+      despachoIds: [{ id: 'D1' }, { id: 'D2' }],
+      totalAmount: 200,
+    }];
+    const out = attributeIncome(records, { D1: 'L1', D2: 'L2' });
+    expect(out.perLote.L1).toBeCloseTo(100);
+    expect(out.perLote.L2).toBeCloseTo(100);
+  });
+
+  test('despachoIds[] with unknown items sends that fraction to unattributed', () => {
+    const records = [{
+      despachoIds: [
+        { id: 'D1', cantidad: 100 },
+        { id: 'UNKNOWN', cantidad: 100 },
+      ],
+      totalAmount: 200,
+    }];
+    const out = attributeIncome(records, { D1: 'L1' });
+    expect(out.perLote.L1).toBeCloseTo(200); // known fraction gets full attribution inside its bucket
+    expect(out.unattributedAmount).toBeGreaterThan(0);
+  });
+
+  test('explicit loteId wins over despachoIds[]', () => {
+    const records = [{
+      loteId: 'LX',
+      despachoIds: [{ id: 'D1', cantidad: 100 }],
+      totalAmount: 300,
+    }];
+    const out = attributeIncome(records, { D1: 'L9' });
+    expect(out.perLote).toEqual({ LX: 300 });
+  });
+
+  test('despachoIds[] takes priority over legacy despachoId', () => {
+    const records = [{
+      despachoId: 'D_LEGACY',
+      despachoIds: [{ id: 'D1', cantidad: 50 }],
+      totalAmount: 100,
+    }];
+    const out = attributeIncome(records, { D_LEGACY: 'L_OLD', D1: 'L_NEW' });
+    expect(out.perLote).toEqual({ L_NEW: 100 });
+  });
 });
 
 describe('prorateByKg', () => {

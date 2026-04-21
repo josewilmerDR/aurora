@@ -12,6 +12,7 @@ const MAX_ID = 128;
 const MAX_QUANTITY = 1e9;
 const MAX_AMOUNT = 1e12;
 const MAX_FX = 100000;
+const MAX_DISPATCHES = 50;
 
 // ISO estricto — rechaza "2026-02-30" que new Date() normaliza.
 function isValidISODate(s) {
@@ -89,6 +90,34 @@ function buildIncomeDoc(body, { buyerName = '' } = {}) {
     return { error: 'Actual collection date is required when status is "cobrado".' };
   }
 
+  // `despachoIds[]` — nuevo formato (un ingreso agrega N despachos).
+  // Coexiste con el campo legacy `despachoId` (single string) para no migrar
+  // registros históricos. El frontend siempre escribe el nuevo.
+  let despachoIds = null;
+  if (Array.isArray(body.despachoIds)) {
+    if (body.despachoIds.length > MAX_DISPATCHES) {
+      return { error: `despachoIds may not exceed ${MAX_DISPATCHES} items.` };
+    }
+    despachoIds = [];
+    const seen = new Set();
+    for (const item of body.despachoIds) {
+      if (!item || typeof item !== 'object') {
+        return { error: 'Each despachoIds item must be an object.' };
+      }
+      const id = str(item.id, MAX_ID);
+      if (!id) return { error: 'Each despachoIds item requires an id.' };
+      if (seen.has(id)) return { error: 'despachoIds contains duplicate ids.' };
+      seen.add(id);
+      const qty = numberInRange(item.cantidad, 0, MAX_QUANTITY);
+      despachoIds.push({
+        id,
+        consecutivo: str(item.consecutivo, MAX_NAME),
+        cantidad: qty,
+        unidad: str(item.unidad, MAX_UNIT),
+      });
+    }
+  }
+
   return {
     data: {
       date: body.date,
@@ -97,6 +126,7 @@ function buildIncomeDoc(body, { buyerName = '' } = {}) {
       grupo: str(body.grupo, MAX_NAME) || null,
       cosechaRegistroId: str(body.cosechaRegistroId, MAX_ID) || null,
       despachoId: str(body.despachoId, MAX_ID) || null,
+      despachoIds,
       buyerId,
       buyerName: str(buyerName, MAX_NAME),
       quantity,

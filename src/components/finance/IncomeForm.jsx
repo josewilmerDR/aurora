@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
 import BuyerSelector from './BuyerSelector';
+import DispatchesSelect from './DispatchesSelect';
 
 const MAX_FX = 100000;
 
@@ -12,6 +13,7 @@ const EMPTY = {
   grupo: '',
   cosechaRegistroId: '',
   despachoId: '',
+  despachoIds: [],
   buyerId: '',
   quantity: '',
   unit: 'kg',
@@ -28,10 +30,39 @@ const EMPTY = {
 function IncomeForm({ initial, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(EMPTY);
   const needsFx = form.currency !== 'CRC';
+  const hasDispatches = Array.isArray(form.despachoIds) && form.despachoIds.length > 0;
 
-  useEffect(() => { setForm(initial ? { ...EMPTY, ...initial } : EMPTY); }, [initial]);
+  useEffect(() => {
+    if (!initial) { setForm(EMPTY); return; }
+    setForm({ ...EMPTY, ...initial, despachoIds: Array.isArray(initial.despachoIds) ? initial.despachoIds : [] });
+  }, [initial]);
 
   const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  const handleDispatchesChange = (dispatches) => {
+    setForm(prev => {
+      const qtySum = dispatches.reduce((acc, d) => acc + (Number(d.cantidad) || 0), 0);
+      const unit = dispatches[0]?.unidad || prev.unit;
+      return {
+        ...prev,
+        despachoIds: dispatches,
+        quantity: dispatches.length > 0 && qtySum > 0 ? String(qtySum) : prev.quantity,
+        unit: dispatches.length > 0 ? unit : prev.unit,
+      };
+    });
+  };
+
+  const handleBuyerChange = (buyerId) => {
+    setForm(prev => {
+      const changed = prev.buyerId !== buyerId;
+      return {
+        ...prev,
+        buyerId,
+        // Al cambiar de comprador, los despachos ya no aplican.
+        despachoIds: changed ? [] : prev.despachoIds,
+      };
+    });
+  };
 
   // Si el usuario no escribió un totalAmount manual, mostramos el calculado.
   const computedTotal = useMemo(() => {
@@ -64,15 +95,35 @@ function IncomeForm({ initial, onSubmit, onCancel, saving }) {
         </div>
         <div className="finance-field">
           <label>Comprador *</label>
-          <BuyerSelector value={form.buyerId} onChange={(v) => setForm(p => ({ ...p, buyerId: v }))} required />
+          <BuyerSelector value={form.buyerId} onChange={handleBuyerChange} required />
+        </div>
+        <div className="finance-field finance-field-full">
+          <label>Despachos de cosecha (opcional)</label>
+          <DispatchesSelect
+            buyerId={form.buyerId}
+            selected={form.despachoIds}
+            onChange={handleDispatchesChange}
+            excludeIncomeId={form.id}
+          />
         </div>
         <div className="finance-field">
-          <label>Cantidad *</label>
-          <input type="number" min="0" step="0.01" value={form.quantity} onChange={update('quantity')} required />
+          <label>Cantidad *{hasDispatches ? ' (suma de despachos)' : ''}</label>
+          <input
+            type="number" min="0" step="0.01"
+            value={form.quantity}
+            onChange={update('quantity')}
+            required
+            readOnly={hasDispatches}
+          />
         </div>
         <div className="finance-field">
           <label>Unidad</label>
-          <input type="text" value={form.unit} onChange={update('unit')} />
+          <input
+            type="text"
+            value={form.unit}
+            onChange={update('unit')}
+            readOnly={hasDispatches}
+          />
         </div>
         <div className="finance-field">
           <label>Precio unitario *</label>

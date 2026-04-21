@@ -267,6 +267,7 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
       'operarioCamionNombre', 'placaCamion',
       'cantidad', 'unidad', 'unidadId',
       'boletas',
+      'buyerId', 'buyerName',
       'despachadorId', 'despachadorNombre',
       'encargadoId', 'encargadoNombre',
       'nota',
@@ -274,6 +275,9 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
     const data = pick(req.body, allowed);
     if (!data.fecha || !data.loteId || data.cantidad == null) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fecha, loteId and cantidad are required.', 400);
+    }
+    if (!data.buyerId) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'buyerId is required.', 400);
     }
     // Validate date format (+1 day tolerance for frontend/backend TZ differences)
     if (typeof data.fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
@@ -318,6 +322,14 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
       }
       data.unidad = uniDoc.data().nombre || '';
     }
+    const buyerDoc = await db.collection('buyers').doc(data.buyerId).get();
+    if (!buyerDoc.exists) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'The specified buyer does not exist.', 400);
+    }
+    if (buyerDoc.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Buyer belongs to another finca.', 403);
+    }
+    data.buyerName = buyerDoc.data().name || '';
 
     // Truncate strings to max lengths
     const strLimits = { operarioCamionNombre: 48, placaCamion: 12, nota: 288 };
