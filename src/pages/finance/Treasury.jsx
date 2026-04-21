@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiRefreshCw, FiPlus, FiActivity, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiActivity, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../components/Toast';
-import CashBalanceForm from '../../components/finance/CashBalanceForm';
+import CashBalanceModal from '../../components/finance/CashBalanceModal';
 import ProjectionChart from '../../components/finance/ProjectionChart';
 import ProjectionTable from '../../components/finance/ProjectionTable';
 import { useApiFetch } from '../../hooks/useApiFetch';
@@ -16,22 +16,40 @@ function fmt(n, currency = 'USD') {
 function Treasury() {
   const apiFetch = useApiFetch();
   const [weeks, setWeeks] = useState(26);
+  const [weeksInput, setWeeksInput] = useState('26');
   const [projection, setProjection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showBalanceForm, setShowBalanceForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const load = useCallback(() => {
+  const load = useCallback(() => setReloadKey(k => k + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
-    apiFetch(`/api/treasury/projection?weeks=${weeks}`)
-      .then(r => r.json())
-      .then(setProjection)
-      .catch(() => setToast({ type: 'error', message: 'No se pudo cargar la proyección.' }))
-      .finally(() => setLoading(false));
-  }, [apiFetch, weeks]);
-
-  useEffect(() => { load(); }, [load]);
+    apiFetch(`/api/treasury/projection?weeks=${weeks}`, { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        if (!data || typeof data !== 'object' || !data.summary || !Array.isArray(data.series)) {
+          throw new Error('Respuesta inválida del servidor.');
+        }
+        setProjection(data);
+      })
+      .catch((e) => {
+        if (cancelled || e.name === 'AbortError') return;
+        setProjection(null);
+        setToast({ type: 'error', message: 'No se pudo cargar la proyección.' });
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; controller.abort(); };
+  }, [apiFetch, weeks, reloadKey]);
 
   const handleSaveBalance = async (payload) => {
     setSaving(true);
@@ -60,18 +78,13 @@ function Treasury() {
 
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h2><FiActivity /> Tesorería</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn-secondary" onClick={load} disabled={loading}>
-            <FiRefreshCw /> Refrescar
+      <div className="lote-page-header">
+        <h2 className="lote-page-title"><FiActivity /> Tesorería</h2>
+        {!showBalanceForm && (
+          <button className="btn btn-primary" onClick={() => setShowBalanceForm(true)}>
+            <FiPlus /> Registrar saldo
           </button>
-          {!showBalanceForm && (
-            <button className="btn-primary" onClick={() => setShowBalanceForm(true)}>
-              <FiPlus /> Registrar saldo
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {!hasSource && !loading && (
@@ -84,7 +97,7 @@ function Treasury() {
       )}
 
       {showBalanceForm && (
-        <CashBalanceForm
+        <CashBalanceModal
           onSubmit={handleSaveBalance}
           onCancel={() => setShowBalanceForm(false)}
           saving={saving}
@@ -98,8 +111,24 @@ function Treasury() {
             type="number"
             min="1"
             max="104"
-            value={weeks}
-            onChange={(e) => setWeeks(Number(e.target.value) || 26)}
+            value={weeksInput}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setWeeksInput(raw);
+              const n = Number(raw);
+              if (raw !== '' && Number.isFinite(n) && n >= 1 && n <= 104) {
+                setWeeks(n);
+              }
+            }}
+            onBlur={() => {
+              const n = Number(weeksInput);
+              if (weeksInput === '' || !Number.isFinite(n) || n < 1 || n > 104) {
+                setWeeks(26);
+                setWeeksInput('26');
+              } else {
+                setWeeksInput(String(n));
+              }
+            }}
           />
         </div>
       </div>
@@ -131,7 +160,9 @@ function Treasury() {
 
           <div className="treasury-card">
             <strong style={{ display: 'block', marginBottom: 10 }}>Serie semanal</strong>
-            <ProjectionTable series={projection.series} currency={currency} />
+            <div className="finance-execution-table-wrap">
+              <ProjectionTable series={projection.series} currency={currency} />
+            </div>
           </div>
         </>
       ) : (

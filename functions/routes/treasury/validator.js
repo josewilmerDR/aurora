@@ -24,6 +24,9 @@ function numberInRange(v, min, max) {
 }
 
 function buildCashBalanceDoc(body) {
+  if (!body || typeof body !== 'object') {
+    return { error: 'Request body is required.' };
+  }
   if (!isValidISODate(body.dateAsOf)) {
     return { error: 'dateAsOf must be YYYY-MM-DD.' };
   }
