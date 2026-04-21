@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../hooks/useApiFetch';
@@ -233,6 +233,51 @@ const ENTIDADES = [
       };
     },
     isValid: (r) => !!r.nombre,
+  },
+  {
+    key: 'compradores',
+    nombre: 'Lista de Compradores',
+    descripcion: 'Compradores de cosecha — idénticos al submódulo Compradores de Contabilidad y Finanzas.',
+    icon: FiShoppingCart,
+    endpoint: '/api/buyers',
+    adminPath: '/finance/compradores',
+    excelHeaders: [
+      'Nombre', 'Cédula / RUC', 'Teléfono', 'Email', 'Dirección',
+      'Tipo de Pago', 'Días de Crédito', 'Moneda',
+      'Contacto', 'WhatsApp', 'Sitio Web',
+      'País', 'Límite Crédito',
+      'Estado', 'Notas',
+    ],
+    sampleRow: [
+      'Comprador Ejemplo S.A.', '3-101-654321', '+506 2222-4444', 'compras@ejemplo.com', 'Heredia, Costa Rica',
+      'credito', 30, 'USD',
+      'Ana Soto', '+506 8888-6666', 'https://ejemplo.com',
+      'Costa Rica', 10000,
+      'activo', '',
+    ],
+    fileName:  'plantilla_compradores.xlsx',
+    sheetName: 'Compradores',
+    parseRow: (row) => {
+      const monedaRaw = String(row['Moneda'] || '').trim().toUpperCase();
+      return {
+        name:        String(row['Nombre']       || '').trim(),
+        taxId:       String(row['Cédula / RUC'] || '').trim(),
+        phone:       String(row['Teléfono']     || '').trim(),
+        email:       String(row['Email']        || '').trim(),
+        address:     String(row['Dirección']    || '').trim(),
+        paymentType: normalizeTipoPago(row['Tipo de Pago']),
+        creditDays:  row['Días de Crédito']     || 30,
+        currency:    ['USD', 'CRC'].includes(monedaRaw) ? monedaRaw : 'USD',
+        contact:     String(row['Contacto']     || '').trim(),
+        whatsapp:    String(row['WhatsApp']     || '').trim(),
+        website:     String(row['Sitio Web']    || '').trim(),
+        country:     String(row['País']         || '').trim(),
+        creditLimit: row['Límite Crédito']      || '',
+        status:      String(row['Estado'] || '').trim().toLowerCase() === 'inactivo' ? 'inactivo' : 'activo',
+        notes:       String(row['Notas']        || '').trim(),
+      };
+    },
+    isValid: (r) => !!r.name,
   },
 ];
 
