@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiFilter, FiX } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './HistorialAplicaciones.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../../../pages/HistorialAplicaciones.css';
 
 const PAGE_SIZE = 50;
 const COL_FILTER_MAX = 100;
@@ -21,7 +21,7 @@ const fmtMoney = (n) =>
 const fmtNum = (n) =>
   n == null ? '—' : Number(n).toLocaleString('es-CR');
 
-function HrHistorialPlanillaUnidad() {
+function UnitPayrollHistory() {
   const apiFetch = useApiFetch();
   const [rows,    setRows]    = useState([]);
   const [loading, setLoading] = useState(true);
@@ -289,4 +289,4 @@ function HrHistorialPlanillaUnidad() {
   );
 }
 
-export default HrHistorialPlanillaUnidad;
+export default UnitPayrollHistory;

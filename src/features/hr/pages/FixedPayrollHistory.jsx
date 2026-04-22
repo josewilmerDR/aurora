@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiEye, FiSearch, FiFileText } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './HR.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/hr.css';
 
 const SEARCH_MAX = 100;
 const fmt = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
 const initialChar = (s) => (s || '?').charAt(0).toUpperCase() || '?';
 
-function HrHistorialPlanillaSalarioFijo() {
+function FixedPayrollHistory() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
   const [users, setUsers]         = useState([]);
@@ -73,7 +73,7 @@ function HrHistorialPlanillaSalarioFijo() {
       sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/historial-pagos');
     } catch (err) {
       // Private mode / quota exceeded — navigation continues; the report will
-      // show the "no data" state handled in HrPlanillaReporteSalarioFijo.
+      // show the "no data" state handled in FixedPayrollReport.
       console.warn('Failed to persist report to sessionStorage:', err);
     }
     navigate('/hr/planilla/fijo/reporte');
@@ -226,4 +226,4 @@ function HrHistorialPlanillaSalarioFijo() {
   );
 }
 
-export default HrHistorialPlanillaSalarioFijo;
+export default FixedPayrollHistory;

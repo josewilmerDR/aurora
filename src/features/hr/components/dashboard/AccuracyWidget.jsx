@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { FiTarget } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Tracks the phase-3 exit-criterion KPI: of HR recommendations the
 // admin judged retrospectively, what fraction matched reality. Rows
 // without outcomeMatchedReality (still pending) are counted separately.
-function HrAccuracyWidget() {
+function AccuracyWidget() {
   const apiFetch = useApiFetch();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -73,4 +73,4 @@ function HrAccuracyWidget() {
   );
 }
 
-export default HrAccuracyWidget;
+export default AccuracyWidget;

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import './HR.css';
+import '../styles/hr.css';
 import { FiPlus, FiTrash2, FiCheck, FiX, FiClock } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../contexts/UserContext';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 
 const TIPOS = [
   { value: 'vacaciones',        label: 'Vacaciones',          conGoce: true  },
@@ -50,7 +50,7 @@ async function parseError(res, fallback) {
   }
 }
 
-function HrPermisos() {
+function LeaveRequests() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const userRole = currentUser?.rol || 'trabajador';
@@ -454,4 +454,4 @@ function HrPermisos() {
   );
 }
 
-export default HrPermisos;
+export default LeaveRequests;

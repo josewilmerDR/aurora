@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FiBarChart2 } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Stacked bars per week: demand (soft, estimatedPersonHours) vs baseline
 // capacity. Supervisor-only like the rest of the dashboard.

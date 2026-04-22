@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiUserPlus } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Lists autopilot_actions with type=sugerir_contratacion and status=proposed.
 // Supervisor-only. NEVER shows a "execute" button — hiring is arch-capped to
