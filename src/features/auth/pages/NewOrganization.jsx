@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../lib/apiFetch';
-import { useUser } from '../contexts/UserContext';
-import './Login.css';
+import { apiFetch } from '../../../lib/apiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/login.css';
 
 export default function NewOrganization() {
   const navigate = useNavigate();

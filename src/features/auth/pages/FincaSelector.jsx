@@ -1,6 +1,6 @@
-import { useUser } from '../contexts/UserContext';
-import { ROLE_LABELS } from '../contexts/UserContext';
-import './Login.css';
+import { useUser } from '../../../contexts/UserContext';
+import { ROLE_LABELS } from '../../../contexts/UserContext';
+import '../styles/login.css';
 
 export default function FincaSelector() {
   const { memberships, selectFinca } = useUser();
