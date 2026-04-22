@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiPause, FiPlay, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
-import { useUser, hasMinRole } from '../contexts/UserContext';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { translateApiError } from '../lib/errorMessages';
-import './AutopilotKillSwitch.css';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
+import '../styles/autopilot-kill-switch.css';
 
 /**
  * Visualizes the Autopilot pause status and exposes the pause / resume

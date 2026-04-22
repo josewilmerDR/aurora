@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiActivity, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { translateApiError } from '../lib/errorMessages';
-import './AutopilotHealthPanel.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
+import '../styles/autopilot-health-panel.css';
 
 const WINDOW_OPTIONS = [
   { hours: 1,  label: '1 h' },
