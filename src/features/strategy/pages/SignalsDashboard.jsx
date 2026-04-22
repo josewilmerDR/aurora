@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiActivity, FiRefreshCw, FiUpload } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import './strategy.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/strategy.css';
 
 const SIGNAL_TYPE_LABELS = {
   weather: 'Clima',

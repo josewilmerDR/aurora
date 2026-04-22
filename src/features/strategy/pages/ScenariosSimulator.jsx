@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiGitBranch, FiCpu, FiRefreshCw, FiEye, FiX } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import './strategy.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/strategy.css';
 
 // Paletas por escenario para consistencia visual.
 const SCENARIO_STYLE = {

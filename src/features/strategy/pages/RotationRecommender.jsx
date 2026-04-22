@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiCompass, FiCheck, FiX, FiAlertTriangle, FiShield, FiCpu } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import ConfirmModal from '../../components/ConfirmModal';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import './strategy.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/strategy.css';
 
 const LEVELS = [
   { value: 'nivel1', label: 'Nivel 1 — Recomendación', help: 'Claude propone; tú ejecutas manualmente.' },
