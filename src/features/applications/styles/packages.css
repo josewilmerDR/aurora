@@ -1,5 +1,5 @@
 /* Reutilizamos el layout de LoteManagement */
-@import url('./LoteManagement.css');
+@import url('../../../pages/LoteManagement.css');
 
 /* ── Page loading spinner ─────────────────────────────────────────────────── */
 .pkg-page-loading {

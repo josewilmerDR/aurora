@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './CedulasAplicacion.css';
-import './CedulaViewer.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/cedulas.css';
+import '../styles/cedula-viewer.css';
 
 const fmtDate = (iso) => {
   if (!iso) return '—';
