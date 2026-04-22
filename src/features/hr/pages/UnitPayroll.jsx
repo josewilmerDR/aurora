@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye, FiEdit2, FiThumbsUp, FiCheckCircle, FiFileText } from 'react-icons/fi';
-import { useUser } from '../contexts/UserContext';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import './HR.css';
-import './HrPlanillaPorUnidad.css';
+import { useUser } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import '../styles/hr.css';
+import '../styles/unit-payroll.css';
 
 const DRAFT_FORM_KEY = 'hr-planilla-unidad';
 
@@ -322,7 +322,7 @@ const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, uni
   );
 });
 
-function HrPlanillaPorUnidad() {
+function UnitPayroll() {
   const { currentUser } = useUser();
   const apiFetch = useApiFetch();
   const location = useLocation();
@@ -1889,4 +1889,4 @@ function HrPlanillaPorUnidad() {
   );
 }
 
-export default HrPlanillaPorUnidad;
+export default UnitPayroll;

@@ -23,13 +23,13 @@ import Profile from './pages/Profile';
 import FincaSelector from './pages/FincaSelector';
 import OrganizationSelector from './pages/OrganizationSelector';
 import NewOrganization from './pages/NewOrganization';
-import HrFicha from './pages/HrFicha';
-import HrPermisos from './pages/HrPermisos';
-import HrPlanillaSalarioFijo from './pages/HrPlanillaSalarioFijo';
-import HrPlanillaReporteSalarioFijo from './pages/HrPlanillaReporteSalarioFijo';
-import HrPlanillaPorUnidad from './pages/HrPlanillaPorUnidad';
-import HrHistorialPlanillaSalarioFijo from './pages/HrHistorialPlanillaSalarioFijo';
-import HrHistorialPlanillaUnidad from './pages/HrHistorialPlanillaUnidad';
+import EmployeeProfile from './features/hr/pages/EmployeeProfile';
+import LeaveRequests from './features/hr/pages/LeaveRequests';
+import FixedPayroll from './features/hr/pages/FixedPayroll';
+import FixedPayrollReport from './features/hr/pages/FixedPayrollReport';
+import UnitPayroll from './features/hr/pages/UnitPayroll';
+import FixedPayrollHistory from './features/hr/pages/FixedPayrollHistory';
+import UnitPayrollHistory from './features/hr/pages/UnitPayrollHistory';
 import MonitoreoHistorial from './pages/MonitoreoHistorial';
 import MonitoreoConfig from './pages/MonitoreoConfig';
 import MonitoreoPackages from './pages/MonitoreoPackages';
@@ -72,8 +72,8 @@ import Treasury from './pages/finance/Treasury';
 import AutopilotDashboard from './pages/AutopilotDashboard';
 import AutopilotConfig from './pages/AutopilotConfig';
 import ProcurementDashboard from './pages/procurement/ProcurementDashboard';
-import HrPerformanceDashboard from './pages/hr/HrPerformanceDashboard';
-import HrMyPerformance from './pages/hr/HrMyPerformance';
+import PerformanceDashboard from './features/hr/pages/PerformanceDashboard';
+import MyPerformance from './features/hr/pages/MyPerformance';
 import YieldHistory from './pages/strategy/YieldHistory';
 import TemporadasManager from './pages/strategy/TemporadasManager';
 import RotationConstraints from './pages/strategy/RotationConstraints';
@@ -549,7 +549,7 @@ function App() {
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<OCDesdeSolicitud />} />
-            <Route path="/hr/planilla/fijo/reporte" element={<HrPlanillaReporteSalarioFijo />} />
+            <Route path="/hr/planilla/fijo/reporte" element={<FixedPayrollReport />} />
           </Route>
 
           {/* Protected routes with sidebar */}
@@ -594,8 +594,8 @@ function App() {
             <Route path="/finance/financing/ofertas" element={<RoleRoute path="/finance/financing/ofertas"><CreditOffers /></RoleRoute>} />
             <Route path="/finance/financing/simulaciones" element={<RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute>} />
             <Route path="/ceo" element={<RoleRoute path="/ceo"><CeoDashboard /></RoleRoute>} />
-            <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><HrFicha /></RoleRoute>} />
-            <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><HrPermisos /></RoleRoute>} />
+            <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><EmployeeProfile /></RoleRoute>} />
+            <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><LeaveRequests /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
             <Route path="/aplicaciones/historial" element={<RoleRoute path="/aplicaciones/historial"><HistorialAplicaciones /></RoleRoute>} />
@@ -610,10 +610,10 @@ function App() {
             <Route path="/cosecha/historial-despachos" element={<RoleRoute path="/cosecha/historial-despachos"><CosechaHistorialDespacho /></RoleRoute>} />
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
-            <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><HrPlanillaSalarioFijo /></RoleRoute>} />
-            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><HrPlanillaPorUnidad /></RoleRoute>} />
-            <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><HrHistorialPlanillaUnidad /></RoleRoute>} />
-            <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><HrHistorialPlanillaSalarioFijo /></RoleRoute>} />
+            <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><FixedPayroll /></RoleRoute>} />
+            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><UnitPayroll /></RoleRoute>} />
+            <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><UnitPayrollHistory /></RoleRoute>} />
+            <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><FixedPayrollHistory /></RoleRoute>} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
             <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><MonitoreoPackages /></RoleRoute>} />
             <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MonitoreoOrdenes /></RoleRoute>} />
@@ -626,8 +626,8 @@ function App() {
             <Route path="/autopilot" element={<RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute>} />
             <Route path="/autopilot/configuracion" element={<RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute>} />
             <Route path="/procurement/dashboard" element={<RoleRoute path="/procurement/dashboard"><ProcurementDashboard /></RoleRoute>} />
-            <Route path="/hr/performance" element={<RoleRoute path="/hr/performance"><HrPerformanceDashboard /></RoleRoute>} />
-            <Route path="/hr/my-performance" element={<RoleRoute path="/hr/my-performance"><HrMyPerformance /></RoleRoute>} />
+            <Route path="/hr/performance" element={<RoleRoute path="/hr/performance"><PerformanceDashboard /></RoleRoute>} />
+            <Route path="/hr/my-performance" element={<RoleRoute path="/hr/my-performance"><MyPerformance /></RoleRoute>} />
             <Route path="/procurement/rfqs" element={<RoleRoute path="/procurement/rfqs"><RfqsList /></RoleRoute>} />
             {/* Strategy (phase 4.1) */}
             <Route path="/strategy/rendimiento" element={<RoleRoute path="/strategy/rendimiento"><YieldHistory /></RoleRoute>} />

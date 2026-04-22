@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
-import './HR.css';
+import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import '../styles/hr.css';
 import {
   FiSave, FiUserPlus, FiX, FiClipboard,
   FiEdit, FiTrash2, FiArrowLeft, FiMail, FiPhone, FiChevronRight,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser, ROLE_LABELS } from '../contexts/UserContext';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, ROLE_LABELS } from '../../../contexts/UserContext';
 
 const DIAS_SEMANA = [
   { key: 'lunes',     label: 'Lunes',     letra: 'L' },
@@ -138,7 +138,7 @@ function validateForms(userForm, fichaForm) {
 }
 
 // view: 'hub' | 'form'
-function HrFicha() {
+function EmployeeProfile() {
   const apiFetch = useApiFetch();
   const { currentUser, refreshCurrentUser } = useUser();
   const [allUsers, setAllUsers] = useState([]);
@@ -838,4 +838,4 @@ function HrFicha() {
   );
 }
 
-export default HrFicha;
+export default EmployeeProfile;

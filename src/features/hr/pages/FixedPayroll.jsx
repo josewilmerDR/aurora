@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './HR.css';
+import '../styles/hr.css';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
 
 const CCSS_RATE = 0.1083;
 // Default weekly hours if the ficha has no schedule configured
@@ -187,7 +187,7 @@ function recalcFila(fila) {
   };
 }
 
-function HrPlanillaSalarioFijo() {
+function FixedPayroll() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
   const { currentUser } = useUser();
@@ -1095,4 +1095,4 @@ function HrPlanillaSalarioFijo() {
   );
 }
 
-export default HrPlanillaSalarioFijo;
+export default FixedPayroll;

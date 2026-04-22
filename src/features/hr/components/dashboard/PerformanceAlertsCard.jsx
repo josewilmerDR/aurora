@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../../contexts/UserContext';
 
 // Lists performance review alerts. Reasoning (Claude thinking) is
 // visible only when the viewer is supervisor+ — enforced twice: once

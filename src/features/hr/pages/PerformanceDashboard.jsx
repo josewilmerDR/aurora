@@ -1,16 +1,16 @@
 import { FiUsers } from 'react-icons/fi';
-import PerformanceScoreTable from '../../components/hr/dashboard/PerformanceScoreTable';
-import ProductivityHeatmap from '../../components/hr/dashboard/ProductivityHeatmap';
-import WorkloadProjectionChart from '../../components/hr/dashboard/WorkloadProjectionChart';
-import HiringRecommendationsCard from '../../components/hr/dashboard/HiringRecommendationsCard';
-import PerformanceAlertsCard from '../../components/hr/dashboard/PerformanceAlertsCard';
-import HrAccuracyWidget from '../../components/hr/dashboard/HrAccuracyWidget';
-import './HrPerformanceDashboard.css';
+import PerformanceScoreTable from '../components/dashboard/PerformanceScoreTable';
+import ProductivityHeatmap from '../components/dashboard/ProductivityHeatmap';
+import WorkloadProjectionChart from '../components/dashboard/WorkloadProjectionChart';
+import HiringRecommendationsCard from '../components/dashboard/HiringRecommendationsCard';
+import PerformanceAlertsCard from '../components/dashboard/PerformanceAlertsCard';
+import AccuracyWidget from '../components/dashboard/AccuracyWidget';
+import '../styles/performance-dashboard.css';
 
 // Supervisor+ dashboard — 5 widgets. Role gating is applied upstream
 // via RoleRoute in App.jsx (path '/hr/performance' → 'supervisor').
 // This page makes no role decisions of its own.
-function HrPerformanceDashboard() {
+function PerformanceDashboard() {
   return (
     <div className="page-container">
       <div className="page-header">
@@ -28,10 +28,10 @@ function HrPerformanceDashboard() {
         <ProductivityHeatmap />
         <HiringRecommendationsCard />
         <PerformanceAlertsCard />
-        <HrAccuracyWidget />
+        <AccuracyWidget />
       </div>
     </div>
   );
 }
 
-export default HrPerformanceDashboard;
+export default PerformanceDashboard;

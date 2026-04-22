@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { FiUser } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import { useUser } from '../../contexts/UserContext';
-import './HrPerformanceDashboard.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/performance-dashboard.css';
 
 function currentPeriodYYYYMM() {
   const d = new Date();
@@ -13,7 +13,7 @@ function currentPeriodYYYYMM() {
 // backend (routes/hr.js) already redacts for non-supervisor roles —
 // weights and details are stripped. This page never shows a ranking
 // or peer comparison by design.
-function HrMyPerformance() {
+function MyPerformance() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [period, setPeriod] = useState(currentPeriodYYYYMM());
@@ -102,4 +102,4 @@ function HrMyPerformance() {
   );
 }
 
-export default HrMyPerformance;
+export default MyPerformance;
