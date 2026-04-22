@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
 import { FiArrowLeft, FiFilter, FiX, FiPackage } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './HistorialAplicaciones.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/historial.css';
 
 const PAGE_SIZE = 50;
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import '../../../pages/PackageManagement.css';
+import '../../applications/styles/packages.css';
 import {
   FiEdit2, FiTrash2, FiPlus, FiX, FiEye, FiCopy,
   FiChevronRight, FiArrowLeft, FiCheck, FiClipboard,

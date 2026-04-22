@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft, FiClock, FiEdit2 } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../contexts/UserContext';
-import CedulaNuevaModal from './CedulaNuevaModal';
-import MezclaListaModal from './MezclaListaModal';
-import './CedulasAplicacion.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import CedulaNuevaModal from '../components/CedulaNuevaModal';
+import MezclaListaModal from '../components/MezclaListaModal';
+import '../styles/cedulas.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const tsToDate = (ts) => {

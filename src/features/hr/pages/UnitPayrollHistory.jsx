@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiFilter, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../../../pages/HistorialAplicaciones.css';
+import '../../applications/styles/historial.css';
 
 const PAGE_SIZE = 50;
 const COL_FILTER_MAX = 100;
