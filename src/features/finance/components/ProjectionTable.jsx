@@ -1,6 +1,6 @@
 // Tabla semanal con apertura, entradas, salidas, neto y cierre.
 
-import { formatMoney, DEFAULT_CURRENCY } from '../../lib/formatMoney';
+import { formatMoney, DEFAULT_CURRENCY } from '../../../lib/formatMoney';
 
 function ProjectionTable({ series, currency = DEFAULT_CURRENCY }) {
   if (!series?.length) return null;

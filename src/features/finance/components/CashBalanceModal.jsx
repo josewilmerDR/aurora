@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { FiX } from 'react-icons/fi';
 import CashBalanceForm from './CashBalanceForm';
-import '../ConfirmModal.css';
+import '../../../components/ConfirmModal.css';
 
 function CashBalanceModal({ onSubmit, onCancel, saving }) {
   useEffect(() => {

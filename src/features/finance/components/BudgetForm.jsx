@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
-import { formatPeriod, parsePeriod } from '../../lib/periodFormat';
+import { formatPeriod, parsePeriod } from '../../../lib/periodFormat';
 
 // Keys iguales a las categorías en functions/lib/finance/categories.js.
 const CATEGORY_OPTIONS = [

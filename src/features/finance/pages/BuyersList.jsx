@@ -4,13 +4,13 @@ import {
   FiPlus, FiUsers, FiFilter, FiX, FiSliders,
   FiMoreVertical, FiEdit2, FiTrash2, FiPackage,
 } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import ConfirmModal from '../../components/ConfirmModal';
-import BuyerForm from '../../components/finance/BuyerForm';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import '../Siembra.css';
-import '../SiembraHistorial.css';
-import './finance.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import BuyerForm from '../components/BuyerForm';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../../../pages/Siembra.css';
+import '../../../pages/SiembraHistorial.css';
+import '../styles/finance.css';
 
 // ── Tabla: configuración de columnas ─────────────────────────────────────────
 const COLUMNS = [

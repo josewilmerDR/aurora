@@ -1,10 +1,10 @@
 import { FiBriefcase, FiShield } from 'react-icons/fi';
-import FinancialProfileWidget from '../../components/finance/dashboard/FinancialProfileWidget';
-import CreditCatalogWidget from '../../components/finance/dashboard/CreditCatalogWidget';
-import EligibilityWidget from '../../components/finance/dashboard/EligibilityWidget';
-import DebtSimulationsWidget from '../../components/finance/dashboard/DebtSimulationsWidget';
-import './FinanceDashboard.css';
-import './financing.css';
+import FinancialProfileWidget from '../components/dashboard/FinancialProfileWidget';
+import CreditCatalogWidget from '../components/dashboard/CreditCatalogWidget';
+import EligibilityWidget from '../components/dashboard/EligibilityWidget';
+import DebtSimulationsWidget from '../components/dashboard/DebtSimulationsWidget';
+import '../styles/finance-dashboard.css';
+import '../styles/financing.css';
 
 // Dashboard de Financiamiento Externo — Fase 5.5.
 //

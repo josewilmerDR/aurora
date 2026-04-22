@@ -1,6 +1,6 @@
 import { FiArrowLeft, FiAlertTriangle, FiInfo, FiDollarSign, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import CashflowDualChart from './CashflowDualChart';
-import { formatMoney, formatNumber } from '../../lib/formatMoney';
+import { formatMoney, formatNumber } from '../../../lib/formatMoney';
 
 const RECOMMENDATION_LABELS = {
   tomar: { label: 'Tomar', cls: 'fin-badge--ok' },

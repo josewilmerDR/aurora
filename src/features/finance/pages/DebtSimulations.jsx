@@ -5,16 +5,16 @@ import {
   FiPlus, FiTrendingUp, FiTrendingDown, FiFilter, FiX,
   FiSliders, FiPackage, FiArrowLeft,
 } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import DebtSimulatorForm from '../../components/finance/DebtSimulatorForm';
-import DebtSimulationDetail from '../../components/finance/DebtSimulationDetail';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import { formatMoney } from '../../lib/formatMoney';
-import '../Siembra.css';
-import '../SiembraHistorial.css';
-import './finance.css';
-import './financing.css';
-import './debtSimulator.css';
+import Toast from '../../../components/Toast';
+import DebtSimulatorForm from '../components/DebtSimulatorForm';
+import DebtSimulationDetail from '../components/DebtSimulationDetail';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { formatMoney } from '../../../lib/formatMoney';
+import '../../../pages/Siembra.css';
+import '../../../pages/SiembraHistorial.css';
+import '../styles/finance.css';
+import '../styles/financing.css';
+import '../styles/debt-simulator.css';
 
 const RECOMMENDATION_LABELS = {
   tomar: { label: 'Tomar', cls: 'fin-badge--ok' },

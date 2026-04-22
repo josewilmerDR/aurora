@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useApiFetch } from '../../hooks/useApiFetch';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 const SUB_TABS = [
   { id: 'general', label: 'General' },

@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { FiPlus, FiActivity, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import CashBalanceModal from '../../components/finance/CashBalanceModal';
-import ProjectionChart from '../../components/finance/ProjectionChart';
-import ProjectionTable from '../../components/finance/ProjectionTable';
-import TreasuryStats from '../../components/finance/TreasuryStats';
-import HorizonSelector from '../../components/finance/HorizonSelector';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import { useTreasuryProjection, useIsMounted } from '../../hooks/useTreasuryProjection';
-import { DEFAULT_CURRENCY } from '../../lib/formatMoney';
-import './finance.css';
+import Toast from '../../../components/Toast';
+import CashBalanceModal from '../components/CashBalanceModal';
+import ProjectionChart from '../components/ProjectionChart';
+import ProjectionTable from '../components/ProjectionTable';
+import TreasuryStats from '../components/TreasuryStats';
+import HorizonSelector from '../components/HorizonSelector';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useTreasuryProjection, useIsMounted } from '../../../hooks/useTreasuryProjection';
+import { DEFAULT_CURRENCY } from '../../../lib/formatMoney';
+import '../styles/finance.css';
 
 const DEFAULT_HORIZON_WEEKS = 26;
 // La proyección se expresa siempre en CRC (moneda funcional).

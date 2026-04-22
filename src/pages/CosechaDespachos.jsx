@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { FiX, FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../components/Toast';
-import BuyerSelector from '../components/finance/BuyerSelector';
+import BuyerSelector from '../features/finance/components/BuyerSelector';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { useUser } from '../contexts/UserContext';
 import './Horimetro.css';
