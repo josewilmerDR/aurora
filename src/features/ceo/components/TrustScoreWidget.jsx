@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FiTarget, FiRefreshCw } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 
 // Fase 6.5 — trust scores por dominio. Endpoint: GET /api/meta/trust/scores.
 // Admin puede disparar recompute manual (POST /api/meta/trust/recompute).

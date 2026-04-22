@@ -1,5 +1,5 @@
 /* CEO Dashboard — Fase 6.5. Reusa el grid + widget base de finance.css. */
-@import '../finance/FinanceDashboard.css';
+@import '../../../pages/finance/FinanceDashboard.css';
 
 .ceo-grid {
   /* 5 widgets → primera fila 2+2, segunda fila widget ancho + 1 normal. */

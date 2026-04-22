@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FiCheckCircle, FiRefreshCw } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // Fase 6.5 — hit-rate de observaciones KPI. Endpoint: GET /api/meta/kpi-accuracy.
 

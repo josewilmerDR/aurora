@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FiActivity, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { useApiFetch } from '../../hooks/useApiFetch';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // Fase 6.5 — último run del orquestador + urgencias detectadas por dominio.
 // Endpoint: GET /api/autopilot/orchestrator/runs (Fase 6.1).
