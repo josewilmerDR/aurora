@@ -59,7 +59,7 @@ import CosechaHistorial from './pages/CosechaHistorial';
 import CosechaRegistro from './pages/CosechaRegistro';
 import CosechaDespachos from './pages/CosechaDespachos';
 import CosechaHistorialDespacho from './pages/CosechaHistorialDespacho';
-import CentroCostos from './pages/CentroCostos';
+import CostCenter from './features/costs/pages/CostCenter';
 import Budgets from './features/finance/pages/Budgets';
 import FinanceDashboard from './features/finance/pages/FinanceDashboard';
 import FinancingDashboard from './features/finance/pages/FinancingDashboard';
@@ -584,7 +584,7 @@ function App() {
             <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OCNueva /></RoleRoute>} />
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OCHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
-            <Route path="/costos" element={<RoleRoute path="/costos"><CentroCostos /></RoleRoute>} />
+            <Route path="/costos" element={<RoleRoute path="/costos"><CostCenter /></RoleRoute>} />
             <Route path="/finance/dashboard" element={<RoleRoute path="/finance/dashboard"><FinanceDashboard /></RoleRoute>} />
             <Route path="/finance/presupuestos" element={<RoleRoute path="/finance/presupuestos"><Budgets /></RoleRoute>} />
             <Route path="/finance/tesoreria" element={<RoleRoute path="/finance/tesoreria"><Treasury /></RoleRoute>} />

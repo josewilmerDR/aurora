@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiCamera, FiTrash2, FiEye, FiColumns, FiPlus } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import RoiTable from '../features/finance/components/RoiTable';
-import './CentroCostos.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import RoiTable from '../../finance/components/RoiTable';
+import '../styles/cost-center.css';
 
 const TABS = [
   { id: 'general',      label: 'General' },
@@ -121,7 +121,7 @@ function SnapshotModal({ onClose, onSave }) {
 // ═══════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════
-export default function CentroCostos() {
+export default function CostCenter() {
   const apiFetch = useApiFetch();
 
   // Date range
