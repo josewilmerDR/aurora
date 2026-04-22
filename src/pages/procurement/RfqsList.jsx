@@ -34,8 +34,8 @@ function RfqsList() {
 
   const closeRfq = async (id, useClaude) => {
     const confirmMsg = useClaude
-      ? '¿Cerrar el RFQ usando razonamiento de IA?'
-      : '¿Cerrar el RFQ y elegir ganador?';
+      ? '¿Cerrar la cotización usando razonamiento de IA?'
+      : '¿Cerrar la cotización y elegir ganador?';
     if (!window.confirm(confirmMsg)) return;
     try {
       const url = useClaude ? `/api/rfqs/${id}/close?useClaude=1` : `/api/rfqs/${id}/close`;
@@ -50,7 +50,7 @@ function RfqsList() {
   };
 
   const cancelRfq = async (id) => {
-    if (!window.confirm('¿Eliminar el RFQ? No se puede deshacer.')) return;
+    if (!window.confirm('¿Eliminar la cotización? No se puede deshacer.')) return;
     try {
       const r = await apiFetch(`/api/rfqs/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await r.text());
@@ -64,7 +64,7 @@ function RfqsList() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2><FiSend /> RFQs — Cotizaciones a proveedores</h2>
+        <h2><FiSend /> Cotizaciones a proveedores</h2>
       </div>
 
       <div className="rfq-toolbar">
@@ -87,7 +87,7 @@ function RfqsList() {
       {!loading && !error && (
         rfqs.length === 0 ? (
           <div className="empty-state">
-            Sin RFQs. Los RFQs se crean vía <code>POST /api/rfqs</code> (la UI de creación se añade en una iteración posterior).
+            Sin cotizaciones. Se crean vía <code>POST /api/rfqs</code> (la UI de creación se añade en una iteración posterior).
           </div>
         ) : (
           <div className="rfq-list">

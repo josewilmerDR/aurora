@@ -20,7 +20,7 @@ function FinancingDashboard() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2><FiBriefcase /> Financiamiento externo</h2>
+        <h2><FiBriefcase /> Financiamiento</h2>
       </div>
 
       <div className="fin-policy-banner">

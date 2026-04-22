@@ -279,7 +279,7 @@ function DebtSimulations() {
       <div className="lote-page-header">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Link to="/finance/financing" className="finance-back-link">
-            <FiArrowLeft size={12} /> Financiamiento externo
+            <FiArrowLeft size={12} /> Financiamiento
           </Link>
           <h2 className="lote-page-title"><FiTrendingUp /> Simulador de deuda</h2>
         </div>

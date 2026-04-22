@@ -50,7 +50,7 @@ function PendingActionsWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiClock size={14} /> Aprobaciones procurement</span>
+        <span className="fin-widget-title"><FiClock size={14} /> Aprobaciones abastecimiento</span>
         <span className="fin-widget-sub">{actions.length} pendiente(s)</span>
       </div>
 

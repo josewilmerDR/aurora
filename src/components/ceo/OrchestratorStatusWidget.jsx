@@ -8,7 +8,7 @@ import { useApiFetch } from '../../hooks/useApiFetch';
 
 const DOMAIN_LABELS = {
   finance: 'Finanzas',
-  procurement: 'Procurement',
+  procurement: 'Abastecimiento',
   hr: 'RRHH',
   strategy: 'Estrategia',
   financing: 'Financiamiento',

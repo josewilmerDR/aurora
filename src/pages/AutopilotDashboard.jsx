@@ -39,7 +39,7 @@ const CATEGORIA_LABELS = {
   aplicaciones: 'Aplicaciones',
   monitoreo:    'Monitoreo',
   general:      'General',
-  procurement:  'Compras',
+  procurement:  'Abastecimiento',
   hr:           'RR.HH.',
   financiera:   'Finanzas',
   meta:         'Meta',
