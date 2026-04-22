@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FiArrowRight } from 'react-icons/fi';
-import { useUser } from '../contexts/UserContext';
-import './Login.css';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/login.css';
 
 export default function Login() {
   const { loginWithGoogle, isLoggedIn, needsSetup, needsOrgSelection } = useUser();

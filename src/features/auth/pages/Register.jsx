@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
-import { auth, googleProvider } from '../firebase';
-import { apiFetch } from '../lib/apiFetch';
-import { useUser } from '../contexts/UserContext';
-import './Login.css';
+import { auth, googleProvider } from '../../../firebase';
+import { apiFetch } from '../../../lib/apiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/login.css';
 
 const PASSWORD_RULES = [
   { id: 'length',    label: 'Mínimo 8 caracteres',        test: (p) => p.length >= 8 },
