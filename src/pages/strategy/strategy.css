@@ -1,5 +1,88 @@
 @import '../LoteManagement.css';
 
+/* ── Strategy — botones compartidos ──────────────────────────────────────── */
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.1s, opacity 0.15s;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #5affb0;
+}
+
+.primary-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: rgba(51, 255, 153, 0.06);
+  border-color: var(--aurora-green);
+}
+
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: color 0.15s, opacity 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.icon-button:hover {
+  opacity: 1;
+  color: var(--aurora-green);
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.06);
+}
+
+.icon-button.danger:hover {
+  color: var(--aurora-magenta);
+  border-color: var(--aurora-magenta);
+  background: rgba(204, 51, 255, 0.08);
+}
+
 /* ── Strategy — layout compartido ────────────────────────────────────────── */
 
 .strategy-filters {
