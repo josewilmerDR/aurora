@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu, FiChevronDown } from 'react-icons/fi';
-import './TaskTracking.css';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
+import '../styles/task-tracking.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);

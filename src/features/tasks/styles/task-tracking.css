@@ -1,5 +1,5 @@
 /* Importamos los botones y tarjetas base para reutilizar */
-@import url('./LoteManagement.css');
+@import url('../../../pages/LoteManagement.css');
 
 .task-tracking-header {
   display: flex;

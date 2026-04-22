@@ -4,9 +4,9 @@ import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigat
 import UserManagement from './pages/UserManagement';
 import PackageManagement from './features/applications/pages/PackageManagement';
 import LoteManagement from './pages/LoteManagement';
-import TaskTracking from './pages/TaskTracking';
+import TaskTracking from './features/tasks/pages/TaskTracking';
 import Dashboard from './pages/Dashboard';
-import TaskAction from './pages/TaskAction';
+import TaskAction from './features/tasks/pages/TaskAction';
 import ProductManagement from './pages/BodegaAgroquimicosProductManagement';
 import ProductCatalog from './pages/BodegaAgroquimicosProductCatalog';
 import ProductIngreso from './pages/BodegaAgroquimicosProductIngreso';
