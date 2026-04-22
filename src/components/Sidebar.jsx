@@ -127,14 +127,30 @@ export const MODULES = [
     nombre: 'Estrategia',
     icon: FiTrendingUp,
     items: [
-      { label: 'Rendimiento Histórico', to: '/strategy/rendimiento', icon: FiBarChart2, minRole: 'supervisor' },
-      { label: 'Temporadas', to: '/strategy/temporadas', icon: FiCalendar, minRole: 'supervisor' },
-      { label: 'Rotación — Restricciones', to: '/strategy/rotacion/restricciones', icon: FiLayers, minRole: 'supervisor' },
-      { label: 'Rotación — Recomendador', to: '/strategy/rotacion/recomendador', icon: FiCpu, minRole: 'supervisor' },
-      { label: 'Señales — Fuentes', to: '/strategy/senales/fuentes', icon: FiDroplet, minRole: 'supervisor' },
-      { label: 'Señales — Observaciones', to: '/strategy/senales', icon: FiActivity, minRole: 'supervisor' },
-      { label: 'Escenarios What-if', to: '/strategy/escenarios', icon: FiGrid, minRole: 'supervisor' },
-      { label: 'Plan Anual', to: '/strategy/plan-anual', icon: FiFileText, minRole: 'supervisor' },
+      {
+        label: 'Análisis', icon: FiBarChart2, minRole: 'supervisor', children: [
+          { label: 'Rendimiento Histórico', to: '/strategy/rendimiento', icon: FiBarChart2, minRole: 'supervisor' },
+          { label: 'Temporadas', to: '/strategy/temporadas', icon: FiCalendar, minRole: 'supervisor' },
+        ]
+      },
+      {
+        label: 'Rotación de Cultivos', icon: FiLayers, minRole: 'supervisor', children: [
+          { label: 'Restricciones', to: '/strategy/rotacion/restricciones', icon: FiLayers, minRole: 'supervisor' },
+          { label: 'Recomendador', to: '/strategy/rotacion/recomendador', icon: FiCpu, minRole: 'supervisor' },
+        ]
+      },
+      {
+        label: 'Señales', icon: FiActivity, minRole: 'supervisor', children: [
+          { label: 'Fuentes', to: '/strategy/senales/fuentes', icon: FiDroplet, minRole: 'supervisor' },
+          { label: 'Observaciones', to: '/strategy/senales', icon: FiActivity, minRole: 'supervisor' },
+        ]
+      },
+      {
+        label: 'Planificación', icon: FiFileText, minRole: 'supervisor', children: [
+          { label: 'Escenarios What-if', to: '/strategy/escenarios', icon: FiGrid, minRole: 'supervisor' },
+          { label: 'Plan Anual', to: '/strategy/plan-anual', icon: FiFileText, minRole: 'supervisor' },
+        ]
+      },
     ],
   },
   {

@@ -200,7 +200,7 @@ function TemporadasManager() {
             </div>
           )}
           <button
-            className="primary-button"
+            className="secondary-button"
             style={{ marginTop: 12 }}
             onClick={() => setProposals(null)}
           >
@@ -252,7 +252,7 @@ function TemporadasManager() {
               <button className="primary-button" onClick={handleSave} disabled={saving}>
                 <FiCheck /> {saving ? 'Guardando…' : 'Guardar'}
               </button>
-              <button className="primary-button" onClick={() => setForm(null)}>
+              <button className="secondary-button" onClick={() => setForm(null)}>
                 <FiX /> Cancelar
               </button>
             </div>
@@ -286,7 +286,8 @@ function TemporadasManager() {
               </div>
               <div className="temporada-actions">
                 <button
-                  className="primary-button"
+                  className="icon-button"
+                  title="Editar"
                   onClick={() => setForm({
                     id: t.id,
                     nombre: t.nombre,
@@ -298,7 +299,8 @@ function TemporadasManager() {
                   <FiEdit2 />
                 </button>
                 <button
-                  className="primary-button"
+                  className="icon-button danger"
+                  title={t.autoDetected ? 'Eliminar' : 'Archivar'}
                   onClick={() => setConfirmDelete(t)}
                 >
                   <FiTrash2 />
