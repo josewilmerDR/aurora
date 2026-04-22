@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiClipboard, FiChevronRight, FiArrowLeft, FiMove, FiLock } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Monitoreo.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/monitoring.css';
 
 const TIPO_OPTIONS = [
   { value: 'texto',  label: 'Texto' },
@@ -150,7 +150,7 @@ function CamposEditor({ campos, onChange, disabled }) {
   );
 }
 
-function MonitoreoConfig() {
+function TemplateConfig() {
   const apiFetch = useApiFetch();
   const [tipos, setTipos]               = useState([]);
   const [selectedTipo, setSelectedTipo] = useState(null);
@@ -431,4 +431,4 @@ function MonitoreoConfig() {
   );
 }
 
-export default MonitoreoConfig;
+export default TemplateConfig;

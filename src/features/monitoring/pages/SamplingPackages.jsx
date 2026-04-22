@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import './PackageManagement.css';
+import '../../../pages/PackageManagement.css';
 import {
   FiEdit2, FiTrash2, FiPlus, FiX, FiEye, FiCopy,
   FiChevronRight, FiArrowLeft, FiCheck, FiClipboard,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 const MAX_NOMBRE_PAQUETE = 40;
 const MAX_DESCRIPCION = 500;
@@ -259,7 +259,7 @@ function PackagePreview({ pkg, users }) {
   );
 }
 
-function MonitoreoPackages() {
+function SamplingPackages() {
   const apiFetch = useApiFetch();
   const [packages, setPackages]       = useState([]);
   const [users, setUsers]             = useState([]);
@@ -616,4 +616,4 @@ function MonitoreoPackages() {
   );
 }
 
-export default MonitoreoPackages;
+export default SamplingPackages;

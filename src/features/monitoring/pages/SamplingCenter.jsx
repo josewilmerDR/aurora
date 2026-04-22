@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import MonitoreoModalRegistro from './MonitoreoModalRegistro';
-import './MonitoreoOrdenes.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import SamplingRegisterModal from '../components/SamplingRegisterModal';
+import '../styles/sampling-center.css';
 
 const fmt = (iso) => {
   if (!iso) return '—';
@@ -14,7 +14,7 @@ const fmt = (iso) => {
 const STATUS_LABEL = { pending: 'Pendiente', completed_by_user: 'Completado', skipped: 'Omitido' };
 const STATUS_CLASS = { pending: 'badge-yellow', completed_by_user: 'badge-green', skipped: 'badge-gray' };
 
-export default function MonitoreoOrdenes() {
+export default function SamplingCenter() {
   const apiFetch = useApiFetch();
   const [ordenes, setOrdenes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +94,7 @@ export default function MonitoreoOrdenes() {
       )}
 
       {modalOrden && (
-        <MonitoreoModalRegistro
+        <SamplingRegisterModal
           orden={modalOrden}
           onClose={() => setModalOrden(null)}
           onComplete={async (id, formularioData, metadata) => {

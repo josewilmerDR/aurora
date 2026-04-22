@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
-import './MonitoreoModalRegistro.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/sampling-register-modal.css';
 
 const todayIso = () => new Date().toISOString().split('T')[0];
 
@@ -43,7 +43,7 @@ function compressImage(file) {
   });
 }
 
-export default function MonitoreoModalRegistro({ orden, onClose, onComplete }) {
+export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const fileInputRef = useRef(null);
