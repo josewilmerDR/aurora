@@ -74,9 +74,9 @@ function RfqsList() {
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2><FiSend /> Cotizaciones a proveedores</h2>
+    <div className="lote-page">
+      <div className="lote-page-header">
+        <h2 className="lote-page-title"><FiSend /> Cotizaciones a proveedores</h2>
         <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
           <FiPlus /> Nueva cotización
         </button>
