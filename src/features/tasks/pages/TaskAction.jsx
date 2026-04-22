@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import './TaskAction.css';
+import '../styles/task-action.css';
 
 const TaskAction = () => {
   const { taskId } = useParams();
