@@ -65,7 +65,7 @@ import FinanceDashboard from './pages/finance/FinanceDashboard';
 import FinancingDashboard from './pages/finance/FinancingDashboard';
 import CreditOffers from './pages/finance/CreditOffers';
 import DebtSimulations from './pages/finance/DebtSimulations';
-import CeoDashboard from './pages/ceo/CeoDashboard';
+import CeoDashboard from './features/ceo/pages/CeoDashboard';
 import IncomeRecords from './pages/finance/IncomeRecords';
 import BuyersList from './pages/finance/BuyersList';
 import Treasury from './pages/finance/Treasury';

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FiLink2, FiRefreshCw, FiChevronRight } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // Fase 6.5 — historial de cadenas cross-domain. Endpoint:
 // GET /api/autopilot/orchestrator/chains. Detalle expandible al click.

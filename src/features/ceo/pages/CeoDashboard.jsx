@@ -1,10 +1,10 @@
 import { FiCpu, FiShield } from 'react-icons/fi';
-import OrchestratorStatusWidget from '../../components/ceo/OrchestratorStatusWidget';
-import TrustScoreWidget from '../../components/ceo/TrustScoreWidget';
-import KpiAccuracyWidget from '../../components/ceo/KpiAccuracyWidget';
-import ChainHistoryWidget from '../../components/ceo/ChainHistoryWidget';
-import DynamicGuardrailsWidget from '../../components/ceo/DynamicGuardrailsWidget';
-import './CeoDashboard.css';
+import OrchestratorStatusWidget from '../components/OrchestratorStatusWidget';
+import TrustScoreWidget from '../components/TrustScoreWidget';
+import KpiAccuracyWidget from '../components/KpiAccuracyWidget';
+import ChainHistoryWidget from '../components/ChainHistoryWidget';
+import DynamicGuardrailsWidget from '../components/DynamicGuardrailsWidget';
+import '../styles/ceo-dashboard.css';
 
 // CEO Dashboard — Fase 6.5.
 //

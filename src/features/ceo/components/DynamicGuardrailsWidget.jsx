@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { FiSliders, FiRefreshCw, FiCheck, FiX } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 
 // Fase 6.5 — propuestas pendientes + corridor. Endpoints:
 // GET /api/meta/guardrails/proposals, GET /api/meta/trust/corridor,
