@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiBarChart2, FiRefreshCw } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import './strategy.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/strategy.css';
 
 // ─── Formateos ─────────────────────────────────────────────────────────────
 const fmtNumber = (n, digits = 0) => {

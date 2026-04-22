@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiCalendar, FiCompass, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import ConfirmModal from '../../components/ConfirmModal';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import './strategy.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/strategy.css';
 
 // Formateos compartidos.
 const fmtRange = (inicio, fin) => `${inicio} → ${fin}`;
