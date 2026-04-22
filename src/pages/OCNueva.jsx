@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
 import { createPortal } from 'react-dom';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import {
   FiFileText, FiPackage, FiShoppingCart, FiExternalLink,
   FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX, FiSave, FiShare2,
@@ -250,6 +250,7 @@ const OrdenesList = () => {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useUser();
   const elaboradoPor = currentUser?.nombre || '';
 
@@ -267,6 +268,7 @@ const OrdenesList = () => {
   const [savedPoNumber, setSavedPoNumber] = useState('');
   const [savedSnapshot, setSavedSnapshot] = useState(null);
   const [loadedSolicitudId, setLoadedSolicitudId] = useState(null);
+  const [loadedRfqId, setLoadedRfqId] = useState(null);
   const [catalogo, setCatalogo] = useState([]);
   const [proveedoresCatalog, setProveedoresCatalog] = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
@@ -379,6 +381,52 @@ const OrdenesList = () => {
     if (task) { autoLoadedRef.current = true; loadSolicitudIntoForm(task); }
   }, [location.state, loading, solicitudes]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-load RFQ when navigating from the Cotización flow (/ordenes-compra?fromRfq=id).
+  // Prefills the winner's price and supplier so the human only reviews and saves.
+  const autoLoadedRfqRef = useRef(false);
+  useEffect(() => {
+    const rfqId = searchParams.get('fromRfq');
+    if (!rfqId || loading || autoLoadedRfqRef.current) return;
+    autoLoadedRfqRef.current = true;
+    apiFetch(`/api/rfqs/${rfqId}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(rfq => loadRfqIntoForm(rfq))
+      .catch(() => showToast('No se pudo cargar la cotización.', 'error'));
+  }, [searchParams, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadRfqIntoForm = (rfq) => {
+    if (!rfq || rfq.estado !== 'closed' || !rfq.winner) {
+      showToast('La cotización no está cerrada o no tiene ganador elegible.', 'error');
+      return;
+    }
+    const winner = rfq.winner;
+    const supplier = proveedoresCatalog.find(p => p.id === winner.supplierId);
+    const productCat = catalogo.find(c => c.id === rfq.productoId);
+    setFilas([{
+      _key: ++_uid,
+      productoId:      rfq.productoId || '',
+      nombreComercial: rfq.nombreComercial || productCat?.nombreComercial || '',
+      cantidad:        rfq.cantidad != null ? String(rfq.cantidad) : '',
+      unidad:          rfq.unidad || productCat?.unidad || 'L',
+      precioUnitario:  winner.precioUnitario != null ? String(winner.precioUnitario) : '',
+      iva:             productCat?.iva ?? 0,
+      moneda:          winner.moneda || rfq.currency || 'CRC',
+    }]);
+    if (supplier) {
+      setProveedor(supplier.nombre || winner.supplierName || '');
+      const contactParts = [supplier.telefono, supplier.email].filter(Boolean);
+      if (contactParts.length) setContacto(contactParts.join(' · '));
+    } else {
+      setProveedor(winner.supplierName || '');
+    }
+    if (rfq.notas) setNotas(rfq.notas);
+    setLoadedRfqId(rfq.id);
+    setShowForm(true);
+    // Strip fromRfq from the URL so refreshing doesn't re-trigger.
+    setSearchParams({}, { replace: true });
+    showToast(`Cotización "${rfq.nombreComercial || 'sin nombre'}" cargada. Revisa y guarda la OC.`);
+  };
+
   const update = (key, field, val) =>
     setFilas(prev => prev.map(f => f._key === key ? { ...f, [field]: val } : f));
 
@@ -401,6 +449,7 @@ const OrdenesList = () => {
     setNotas('');
     setExchangeRateToCRC('');
     setLoadedSolicitudId(null);
+    setLoadedRfqId(null);
   };
   const removeFila = (key) => setFilas(prev => prev.length > 1 ? prev.filter(f => f._key !== key) : prev);
 
@@ -463,6 +512,7 @@ const OrdenesList = () => {
         notas,
         taskId: loadedSolicitudId || null,
         solicitudId: loadedSolicitudId || null,
+        rfqId: loadedRfqId || null,
         exchangeRateToCRC: ocHasNonCrc ? fxNum : 1,
         items: validItems.map(f => ({
           productoId:      f.productoId     || null,
@@ -493,6 +543,7 @@ const OrdenesList = () => {
       if (loadedSolicitudId) await refreshSolicitudes();
       clearFormDraft();
       setLoadedSolicitudId(null);
+      setLoadedRfqId(null);
     } catch {
       showToast('Error al guardar la orden.', 'error');
     } finally {
@@ -550,6 +601,7 @@ const OrdenesList = () => {
       if (loadedSolicitudId) await refreshSolicitudes();
       clearFormDraft();
       setLoadedSolicitudId(null);
+      setLoadedRfqId(null);
     } catch {
       showToast('Error al guardar la orden.', 'error');
     } finally {
