@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiSave, FiCheck, FiCpu, FiShield } from 'react-icons/fi';
-import Toast from '../components/Toast';
+import Toast from '../../../components/Toast';
 import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './AutopilotDashboard.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/autopilot-dashboard.css';
 
 const MODE_OPTIONS = [
   {

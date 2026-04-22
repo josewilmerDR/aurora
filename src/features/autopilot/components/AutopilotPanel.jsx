@@ -4,9 +4,9 @@ import {
   FiCpu, FiRefreshCw, FiZap, FiAlertTriangle, FiInfo,
   FiSend, FiMic, FiMicOff, FiX, FiSliders, FiArrowRight, FiClock,
 } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../contexts/UserContext';
-import './AutopilotPanel.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import '../styles/autopilot-panel.css';
 
 const MODE_LABELS = {
   off:    'Off',

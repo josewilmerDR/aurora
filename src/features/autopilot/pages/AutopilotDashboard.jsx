@@ -7,12 +7,12 @@ import {
   FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
   FiMic, FiMicOff, FiMessageSquare, FiRotateCcw, FiUsers,
 } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
 import AutopilotHealthPanel from '../components/AutopilotHealthPanel';
-import { translateApiError } from '../lib/errorMessages';
-import './AutopilotDashboard.css';
+import { translateApiError } from '../../../lib/errorMessages';
+import '../styles/autopilot-dashboard.css';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
