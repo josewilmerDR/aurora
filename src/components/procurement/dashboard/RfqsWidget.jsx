@@ -16,7 +16,7 @@ function RfqsWidget() {
     apiFetch('/api/rfqs?estado=sent&limit=20')
       .then(r => r.json())
       .then(data => setRows(Array.isArray(data) ? data : []))
-      .catch(() => setError('No se pudieron cargar los RFQs.'))
+      .catch(() => setError('No se pudieron cargar las cotizaciones.'))
       .finally(() => setLoading(false));
   }, [apiFetch]);
 
@@ -30,7 +30,7 @@ function RfqsWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiSend size={14} /> RFQs abiertos</span>
+        <span className="fin-widget-title"><FiSend size={14} /> Cotizaciones abiertas</span>
         <Link to="/procurement/rfqs" className="fin-widget-sub" style={{ textDecoration: 'underline' }}>
           Ver todos
         </Link>
@@ -55,7 +55,7 @@ function RfqsWidget() {
           </div>
 
           {openCount === 0 ? (
-            <div className="fin-widget-empty">Sin RFQs en curso.</div>
+            <div className="fin-widget-empty">Sin cotizaciones en curso.</div>
           ) : (
             <div className="fin-budget-rows">
               {rows.slice(0, 5).map(r => {

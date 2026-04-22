@@ -527,7 +527,7 @@ export default function AutopilotConfig() {
               </div>
             </div>
 
-            <h3 className="ap-guardrail-subheading">Dominio Financiamiento externo (Agente)</h3>
+            <h3 className="ap-guardrail-subheading">Dominio Financiamiento (Agente)</h3>
             <p className="ap-objectives-hint">
               Controles del agente de financiamiento (Fase 5). Por política permanente,
               este dominio es <strong>Nivel 1 únicamente</strong> — produce recomendaciones

@@ -8,7 +8,7 @@ import { useUser, hasMinRole } from '../../contexts/UserContext';
 
 const DOMAIN_LABELS = {
   finance: 'Finanzas',
-  procurement: 'Procurement',
+  procurement: 'Abastecimiento',
   hr: 'RRHH',
   strategy: 'Estrategia',
   meta: 'Orquestador',
