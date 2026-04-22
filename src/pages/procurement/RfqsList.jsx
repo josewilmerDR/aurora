@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FiSend, FiCheck, FiTrash2, FiChevronDown, FiChevronRight, FiCpu } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import {
+  FiSend, FiCheck, FiTrash2, FiChevronDown, FiChevronRight, FiCpu,
+  FiPlus, FiFileText, FiAward,
+} from 'react-icons/fi';
 import { useApiFetch } from '../../hooks/useApiFetch';
 import RfqResponseForm from '../../components/procurement/rfqs/RfqResponseForm';
+import RfqCreateForm from '../../components/procurement/rfqs/RfqCreateForm';
+import '../../components/ConfirmModal.css';
 import './RfqsList.css';
 
 const STATE_LABELS = {
@@ -13,12 +19,14 @@ const STATE_LABELS = {
 
 function RfqsList() {
   const apiFetch = useApiFetch();
+  const navigate = useNavigate();
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [closeResult, setCloseResult] = useState(null); // { rfqId, winner, ... }
+  const [showCreate, setShowCreate] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -61,10 +69,17 @@ function RfqsList() {
     }
   };
 
+  const goToCreateOc = (rfqId) => {
+    navigate(`/ordenes-compra?fromRfq=${encodeURIComponent(rfqId)}`);
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">
         <h2><FiSend /> Cotizaciones a proveedores</h2>
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <FiPlus /> Nueva cotización
+        </button>
       </div>
 
       <div className="rfq-toolbar">
@@ -87,7 +102,7 @@ function RfqsList() {
       {!loading && !error && (
         rfqs.length === 0 ? (
           <div className="empty-state">
-            Sin cotizaciones. Se crean vía <code>POST /api/rfqs</code> (la UI de creación se añade en una iteración posterior).
+            Sin cotizaciones. Usa <strong>Nueva cotización</strong> para solicitar precios a tus proveedores.
           </div>
         ) : (
           <div className="rfq-list">
@@ -100,20 +115,34 @@ function RfqsList() {
                 onClose={(useClaude) => closeRfq(r.id, useClaude)}
                 onCancel={() => cancelRfq(r.id)}
                 onResponseSaved={load}
+                onCreateOc={() => goToCreateOc(r.id)}
                 closeResult={closeResult?.rfqId === r.id ? closeResult : null}
               />
             ))}
           </div>
         )
       )}
+
+      {showCreate && (
+        <RfqCreateForm
+          onCreated={load}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
     </div>
   );
 }
 
-function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, closeResult }) {
+function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, onCreateOc, closeResult }) {
   const contacted = Array.isArray(rfq.suppliersContacted) ? rfq.suppliersContacted : [];
   const responses = Array.isArray(rfq.responses) ? rfq.responses : [];
   const isOpen = rfq.estado === 'sent' || rfq.estado === 'failed_send';
+  const isClosed = rfq.estado === 'closed';
+  // Show persistent winner from the doc when closed; prefer the fresh closeResult
+  // if the user just closed it in this session (has ephemeral fields like rationale).
+  const persistentWinner = isClosed ? rfq.winner : null;
+  const displayedWinner = closeResult?.winner || persistentWinner;
+  const hasOc = !!rfq.ocId;
 
   return (
     <div className={`rfq-card rfq-card--${rfq.estado}`}>
@@ -126,6 +155,7 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, c
           <span className="rfq-badge">{STATE_LABELS[rfq.estado] || rfq.estado}</span>
           <span className="fin-widget-sub">{responses.length}/{contacted.length} resp.</span>
           <span className="fin-widget-sub">cierre {rfq.deadline}</span>
+          {hasOc && <span className="rfq-badge rfq-badge--oc">{rfq.ocNumber || 'OC'}</span>}
           {expanded ? <FiChevronDown /> : <FiChevronRight />}
         </div>
       </div>
@@ -163,22 +193,33 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, c
               )}
           </div>
 
-          {closeResult && (
+          {isClosed && (
             <div className="rfq-section rfq-close-result">
-              <h4>Resultado del cierre</h4>
-              {closeResult.winner ? (
+              <h4><FiAward size={12} /> Ganador</h4>
+              {displayedWinner ? (
                 <>
                   <p>
-                    Ganador: <strong>{closeResult.winner.supplierName}</strong> ·
-                    {' '}{closeResult.winner.precioUnitario} {closeResult.winner.moneda || 'USD'}
-                    {closeResult.winner.leadTimeDays != null && ` · ${closeResult.winner.leadTimeDays}d`}
+                    <strong>{displayedWinner.supplierName}</strong> ·
+                    {' '}{displayedWinner.precioUnitario} {displayedWinner.moneda || rfq.currency || 'USD'}
+                    {displayedWinner.leadTimeDays != null && ` · ${displayedWinner.leadTimeDays}d`}
                   </p>
-                  {closeResult.decisionSource === 'claude' && (
+                  {closeResult?.decisionSource === 'claude' && (
                     <p className="fin-widget-sub">
                       Decisión con IA{closeResult.overrodeDeterministic ? ' (sobrescribió la determinista)' : ''}
                       {closeResult.rationale ? `: ${closeResult.rationale}` : ''}
                     </p>
                   )}
+                  <div className="rfq-card-actions">
+                    {hasOc ? (
+                      <span className="rfq-oc-link">
+                        <FiFileText size={12} /> OC ya creada: <strong>{rfq.ocNumber}</strong>
+                      </span>
+                    ) : (
+                      <button className="rfq-primary-btn" onClick={onCreateOc}>
+                        <FiFileText size={12} /> Crear OC desde esta cotización
+                      </button>
+                    )}
+                  </div>
                 </>
               ) : (
                 <p>Sin respuestas elegibles.</p>

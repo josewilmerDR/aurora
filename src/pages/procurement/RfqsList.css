@@ -163,3 +163,151 @@
   border-radius: 4px;
   padding: 6px 10px;
 }
+
+.rfq-badge--oc {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.rfq-oc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+/* ── Nueva cotización modal ───────────────────────────────────────────── */
+.rfq-create-card {
+  background-color: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: 640px;
+  width: 92%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: card-in 0.2s ease;
+}
+
+.rfq-create-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.rfq-create-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--aurora-light);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rfq-create-close {
+  background: transparent;
+  border: none;
+  color: var(--aurora-light);
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.7;
+}
+
+.rfq-create-close:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.rfq-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rfq-create-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rfq-create-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  flex: 1;
+  min-width: 140px;
+}
+
+.rfq-create-form input,
+.rfq-create-form select,
+.rfq-create-form textarea {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.rfq-create-form textarea {
+  resize: vertical;
+}
+
+.rfq-create-suppliers {
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.rfq-create-suppliers-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  margin-bottom: 8px;
+}
+
+.rfq-create-supplier-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rfq-create-supplier-list li label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-direction: row;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.rfq-create-supplier-list li label:hover {
+  background: rgba(51, 255, 153, 0.05);
+}
+
+.rfq-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.rfq-create-outcomes h4 {
+  margin: 0 0 8px 0;
+  color: var(--aurora-green);
+  font-size: 0.95rem;
+}

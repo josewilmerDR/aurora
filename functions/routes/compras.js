@@ -419,7 +419,7 @@ router.get('/api/ordenes-compra', authenticate, async (req, res) => {
 
 router.post('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
-    const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId, exchangeRateToCRC } = req.body;
+    const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId, rfqId, exchangeRateToCRC } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product is required.', 400);
     }
@@ -485,6 +485,7 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
       estado: 'activa',
       taskId: taskId || null,
       solicitudId: solicitudId || null,
+      rfqId: rfqId || null,
       items: items.map(i => ({
         productoId: i.productoId || null,
         nombreComercial: str(i.nombreComercial, 200),
@@ -505,6 +506,19 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
         completedAt: Timestamp.now(),
         ordenCompraId: docRef.id,
       });
+    }
+    if (rfqId) {
+      // Back-link the RFQ to this OC so the cotización UI can show "OC ya creada".
+      // Ownership-check to avoid cross-finca writes if an attacker spoofs rfqId.
+      const rfqRef = db.collection('rfqs').doc(rfqId);
+      const rfqSnap = await rfqRef.get();
+      if (rfqSnap.exists && rfqSnap.data().fincaId === req.fincaId) {
+        await rfqRef.update({
+          ocId: docRef.id,
+          ocNumber: poNumber,
+          ocCreatedAt: Timestamp.now(),
+        });
+      }
     }
     res.status(201).json({ id: docRef.id, poNumber, message: 'Purchase order saved.' });
   } catch (error) {
