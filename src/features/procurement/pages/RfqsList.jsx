@@ -4,11 +4,11 @@ import {
   FiSend, FiCheck, FiTrash2, FiChevronDown, FiChevronRight, FiCpu,
   FiPlus, FiFileText, FiAward,
 } from 'react-icons/fi';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import RfqResponseForm from '../../components/procurement/rfqs/RfqResponseForm';
-import RfqCreateForm from '../../components/procurement/rfqs/RfqCreateForm';
-import '../../components/ConfirmModal.css';
-import './RfqsList.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import RfqResponseForm from '../components/rfqs/RfqResponseForm';
+import RfqCreateForm from '../components/rfqs/RfqCreateForm';
+import '../../../components/ConfirmModal.css';
+import '../styles/rfqs-list.css';
 
 const STATE_LABELS = {
   sent: 'Enviado',

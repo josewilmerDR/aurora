@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiSend, FiX } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Modal form to create a new RFQ. Hits POST /api/rfqs which fans out a
 // WhatsApp message to every selected supplier. On success we show the

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FiSend } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Open RFQs overview. Clicking any row takes the user to the RFQs list
 // where responses can be logged and the RFQ closed.

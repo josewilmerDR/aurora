@@ -1,9 +1,9 @@
 import { FiShoppingCart } from 'react-icons/fi';
-import StockGapsWidget from '../../components/procurement/dashboard/StockGapsWidget';
-import SupplierRankingWidget from '../../components/procurement/dashboard/SupplierRankingWidget';
-import PendingActionsWidget from '../../components/procurement/dashboard/PendingActionsWidget';
-import RfqsWidget from '../../components/procurement/dashboard/RfqsWidget';
-import './ProcurementDashboard.css';
+import StockGapsWidget from '../components/dashboard/StockGapsWidget';
+import SupplierRankingWidget from '../components/dashboard/SupplierRankingWidget';
+import PendingActionsWidget from '../components/dashboard/PendingActionsWidget';
+import RfqsWidget from '../components/dashboard/RfqsWidget';
+import '../styles/procurement-dashboard.css';
 
 // Procurement dashboard — 4 autonomous widgets. Role is enforced upstream
 // by App.jsx via RoleRoute; this component does not re-check.

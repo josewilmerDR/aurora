@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FiClock, FiCheck, FiX } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Shows procurement autopilot actions awaiting approval (status=proposed
 // and categoria=procurement). Inline approve/reject — no modal — to keep

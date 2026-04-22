@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FiPlus } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 // Inline form to log a supplier response to an RFQ. Dedupes on supplierId
 // server-side so re-submitting replaces the prior entry.

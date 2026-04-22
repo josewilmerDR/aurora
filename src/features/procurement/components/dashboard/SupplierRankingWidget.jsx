@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiStar } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 function scoreColor(score) {
   if (score == null) return 'var(--aurora-light)';
