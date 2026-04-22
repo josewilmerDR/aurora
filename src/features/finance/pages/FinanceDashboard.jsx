@@ -1,9 +1,9 @@
 import { FiDollarSign } from 'react-icons/fi';
-import CashWidget from '../../components/finance/dashboard/CashWidget';
-import BudgetWidget from '../../components/finance/dashboard/BudgetWidget';
-import RoiWidget from '../../components/finance/dashboard/RoiWidget';
-import CommitmentsWidget from '../../components/finance/dashboard/CommitmentsWidget';
-import './FinanceDashboard.css';
+import CashWidget from '../components/dashboard/CashWidget';
+import BudgetWidget from '../components/dashboard/BudgetWidget';
+import RoiWidget from '../components/dashboard/RoiWidget';
+import CommitmentsWidget from '../components/dashboard/CommitmentsWidget';
+import '../styles/finance-dashboard.css';
 
 // Dashboard financiero ejecutivo — 4 widgets autocontenidos. El rol mínimo
 // (administrador) lo aplica la ruta en App.jsx vía RoleRoute, no aquí.

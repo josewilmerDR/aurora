@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FiPlus, FiDollarSign, FiChevronRight } from 'react-icons/fi';
-import Toast from '../../components/Toast';
-import ConfirmModal from '../../components/ConfirmModal';
-import BudgetForm from '../../components/finance/BudgetForm';
-import BudgetExecutionPanel from '../../components/finance/BudgetExecutionPanel';
-import { useApiFetch } from '../../hooks/useApiFetch';
-import { formatPeriod, shortPeriod } from '../../lib/periodFormat';
-import './finance.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import BudgetForm from '../components/BudgetForm';
+import BudgetExecutionPanel from '../components/BudgetExecutionPanel';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { formatPeriod, shortPeriod } from '../../../lib/periodFormat';
+import '../styles/finance.css';
 
 // Período por defecto: mes actual (YYYY-MM).
 function currentMonthPeriod() {

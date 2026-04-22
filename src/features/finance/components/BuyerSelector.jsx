@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useApiFetch } from '../../hooks/useApiFetch';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // Select reutilizable — carga compradores activos y emite el id seleccionado.
 function BuyerSelector({ value, onChange, required = false, disabled = false }) {

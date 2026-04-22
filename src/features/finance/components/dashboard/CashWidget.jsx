@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiActivity } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 const fmt = (n, currency = 'USD') => {
   const v = Number(n);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiTrendingUp } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 const CATEGORY_LABELS = {
   combustible:      'Combustible',

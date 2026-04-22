@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 const fmtMoney = (n) => {
   const v = Number(n);

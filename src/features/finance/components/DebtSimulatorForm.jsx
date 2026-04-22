@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiPlay, FiX, FiChevronDown, FiChevronRight } from 'react-icons/fi';
-import { formatMoney } from '../../lib/formatMoney';
+import { formatMoney } from '../../../lib/formatMoney';
 
 // Form del simulador de deuda. La oferta define amount/plazo/APR (min=max en
 // nuestra UI de ofertas personales) — acá el usuario solo aporta el useCase,

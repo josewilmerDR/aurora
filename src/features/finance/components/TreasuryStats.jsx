@@ -1,4 +1,4 @@
-import { formatMoney } from '../../lib/formatMoney';
+import { formatMoney } from '../../../lib/formatMoney';
 
 // Bloque de estadísticas de la proyección. Recibe datos ya validados —
 // asume que `summary` y `startingBalance` existen (validado en el hook).

@@ -1,4 +1,4 @@
-@import '../../../pages/finance/FinanceDashboard.css';
+@import '../../finance/styles/finance-dashboard.css';
 
 .rfq-toolbar {
   display: flex;

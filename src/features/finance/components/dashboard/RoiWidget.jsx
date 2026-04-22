@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { FiBarChart2 } from 'react-icons/fi';
-import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useApiFetch } from '../../../../hooks/useApiFetch';
 
 const fmt = (n) => {
   const v = Number(n);

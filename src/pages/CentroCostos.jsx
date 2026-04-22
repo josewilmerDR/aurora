@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiCamera, FiTrash2, FiEye, FiColumns, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
-import RoiTable from '../components/finance/RoiTable';
+import RoiTable from '../features/finance/components/RoiTable';
 import './CentroCostos.css';
 
 const TABS = [
