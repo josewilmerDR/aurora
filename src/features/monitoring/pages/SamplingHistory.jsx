@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiImage } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Monitoreo.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/monitoring.css';
 
-function MonitoreoHistorial() {
+function SamplingHistory() {
   const apiFetch = useApiFetch();
   const [allRegistros, setAllRegistros] = useState([]);
   const [lotes, setLotes]               = useState([]);
@@ -224,4 +224,4 @@ function MonitoreoHistorial() {
   );
 }
 
-export default MonitoreoHistorial;
+export default SamplingHistory;

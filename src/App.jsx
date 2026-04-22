@@ -30,10 +30,10 @@ import FixedPayrollReport from './features/hr/pages/FixedPayrollReport';
 import UnitPayroll from './features/hr/pages/UnitPayroll';
 import FixedPayrollHistory from './features/hr/pages/FixedPayrollHistory';
 import UnitPayrollHistory from './features/hr/pages/UnitPayrollHistory';
-import MonitoreoHistorial from './pages/MonitoreoHistorial';
-import MonitoreoConfig from './pages/MonitoreoConfig';
-import MonitoreoPackages from './pages/MonitoreoPackages';
-import MonitoreoOrdenes from './pages/MonitoreoOrdenes';
+import SamplingHistory from './features/monitoring/pages/SamplingHistory';
+import TemplateConfig from './features/monitoring/pages/TemplateConfig';
+import SamplingPackages from './features/monitoring/pages/SamplingPackages';
+import SamplingCenter from './features/monitoring/pages/SamplingCenter';
 import AccountSettings from './pages/AccountSettings';
 import Parameters from './pages/Parameters';
 import MaquinariaList from './pages/MaquinariaList';
@@ -596,7 +596,7 @@ function App() {
             <Route path="/ceo" element={<RoleRoute path="/ceo"><CeoDashboard /></RoleRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><EmployeeProfile /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><LeaveRequests /></RoleRoute>} />
-            <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><MonitoreoHistorial /></RoleRoute>} />
+            <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><SamplingHistory /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />
             <Route path="/aplicaciones/historial" element={<RoleRoute path="/aplicaciones/historial"><HistorialAplicaciones /></RoleRoute>} />
             <Route path="/aplicaciones/cedula/:id" element={<RoleRoute path="/aplicaciones/cedulas"><CedulaViewer /></RoleRoute>} />
@@ -614,9 +614,9 @@ function App() {
             <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><UnitPayroll /></RoleRoute>} />
             <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><UnitPayrollHistory /></RoleRoute>} />
             <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><FixedPayrollHistory /></RoleRoute>} />
-            <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><MonitoreoConfig /></RoleRoute>} />
-            <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><MonitoreoPackages /></RoleRoute>} />
-            <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><MonitoreoOrdenes /></RoleRoute>} />
+            <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><TemplateConfig /></RoleRoute>} />
+            <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><SamplingPackages /></RoleRoute>} />
+            <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><SamplingCenter /></RoleRoute>} />
             <Route path="/admin/config-inicial" element={<RoleRoute path="/admin/config-inicial"><InitialSetup /></RoleRoute>} />
             <Route path="/admin/maquinaria" element={<RoleRoute path="/admin/maquinaria"><MaquinariaList /></RoleRoute>} />
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />

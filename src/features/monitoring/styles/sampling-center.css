@@ -1,4 +1,4 @@
-@import './LoteManagement.css';
+@import '../../../pages/LoteManagement.css';
 
 .mo-wrap {
   display: flex;
