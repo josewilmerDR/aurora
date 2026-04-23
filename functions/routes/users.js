@@ -3,6 +3,7 @@ const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { MODULE_PREFIXES } = require('../lib/moduleMap');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -85,6 +86,23 @@ router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
       restrictedTo,
     };
     const docRef = await db.collection('users').add(user);
+
+    // Admin created an invitation. Severity `warning` when the invite grants
+    // a privileged role straight away, `info` otherwise.
+    const isPrivileged = clean.rol === 'administrador' || clean.rol === 'supervisor';
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.USER_CREATE,
+      target: { type: 'user', id: docRef.id },
+      metadata: {
+        email: clean.email,
+        rol: clean.rol,
+        restrictedTo,
+      },
+      severity: isPrivileged ? SEVERITY.WARNING : SEVERITY.INFO,
+    });
+
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear usuario.' });
@@ -151,6 +169,50 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
       }
     }
 
+    // Emit dedicated audit events for role and restriction changes — they are
+    // the most abuse-prone edits on this endpoint. A generic user.update is
+    // emitted when neither of those changed, so every PUT is traceable.
+    if (rolChanged) {
+      const escalating = (ROLES_VALIDOS.indexOf(clean.rol) > ROLES_VALIDOS.indexOf(current.rol || 'trabajador'));
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.USER_ROLE_CHANGE,
+        target: { type: 'user', id },
+        metadata: {
+          email: (current.email || '').toLowerCase(),
+          from: current.rol || null,
+          to: clean.rol,
+          escalating,
+        },
+        severity: escalating ? SEVERITY.WARNING : SEVERITY.INFO,
+      });
+    }
+    if (restrictedChanged) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.USER_RESTRICTED_TO_CHANGE,
+        target: { type: 'user', id },
+        metadata: {
+          email: (current.email || '').toLowerCase(),
+          from: Array.isArray(current.restrictedTo) ? current.restrictedTo : [],
+          to: updates.restrictedTo,
+        },
+        severity: SEVERITY.INFO,
+      });
+    }
+    if (!rolChanged && !restrictedChanged) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.USER_UPDATE,
+        target: { type: 'user', id },
+        metadata: { email: (current.email || '').toLowerCase(), fields: Object.keys(updates) },
+        severity: SEVERITY.INFO,
+      });
+    }
+
     res.status(200).json({ id, ...updates });
   } catch (error) {
     console.error('[users:put]', error);
@@ -163,11 +225,26 @@ router.delete('/api/users/:id', authenticate, requireAdmin, async (req, res) => 
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const targetEmail = (ownership.doc.data().email || '').toLowerCase();
+    const doomed = ownership.doc.data();
+    const targetEmail = (doomed.email || '').toLowerCase();
     if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
       return res.status(403).json({ message: 'No puedes eliminar tu propio usuario.' });
     }
     await db.collection('users').doc(id).delete();
+
+    // Deleting users is always worth flagging.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.USER_DELETE,
+      target: { type: 'user', id },
+      metadata: {
+        email: targetEmail,
+        rol: doomed.rol || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.status(200).json({ message: 'Usuario eliminado correctamente.' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar usuario.' });

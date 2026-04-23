@@ -13,6 +13,7 @@ const {
   boundedString,
   looksInjected,
 } = require('../lib/aiGuards');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 // Hard caps for invoice scanner output — any line exceeding these is rejected
 // instead of silently clamped, because an inflated quantity or subtotal flowing
@@ -213,6 +214,21 @@ Reglas:
     if (rejectedInjection > 0 || rejectedBounds > 0 || rejectedUnknownId > 0) {
       console.warn('[compras:scan] filtered output',
         { rejectedInjection, rejectedBounds, rejectedUnknownId, kept: lineas.length });
+    }
+
+    // Whenever the heuristic detector actually catches injection-looking text,
+    // raise a critical audit event. These are rare but high-signal: either a
+    // real attack or a bug in how we preprocess vendor PDFs, both worth
+    // looking at.
+    if (rejectedInjection > 0) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PROMPT_INJECTION_DETECTED,
+        target: { type: 'endpoint', id: '/api/compras/escanear' },
+        metadata: { rejectedLines: rejectedInjection, keptLines: lineas.length },
+        severity: SEVERITY.CRITICAL,
+      });
     }
 
     res.status(200).json({ lineas, catalogo });
