@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiTool, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiFilter, FiSliders, FiDroplet } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './MaquinariaList.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/maquinaria.css';
 
 const TIPOS = [
   'CARRETA DE SEMILLA',

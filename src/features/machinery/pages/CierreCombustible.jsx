@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { FiDroplet, FiPlay, FiCheck, FiChevronDown, FiChevronUp, FiAlertTriangle } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './CierreCombustible.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/cierre-combustible.css';
 
 const fmt  = (n) => (n ?? 0).toLocaleString('es-CR', { maximumFractionDigits: 0 });
 const fmtD = (n, d = 2) => (n ?? 0).toLocaleString('es-CR', { minimumFractionDigits: d, maximumFractionDigits: d });

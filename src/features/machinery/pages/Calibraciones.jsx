@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FiDroplet, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSliders } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Calibraciones.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/calibraciones.css';
 
 const today = () => new Date().toISOString().split('T')[0];
 
