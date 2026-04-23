@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
-import './Dashboard.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/dashboard.css';
 
 const EVENT_LABELS = {
   aplicacion: { text: 'completó una aplicación', icon: '🧪' },
