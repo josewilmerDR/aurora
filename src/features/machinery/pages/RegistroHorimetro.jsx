@@ -5,11 +5,11 @@ import {
   FiClock, FiPlus, FiX, FiCheck,
   FiCamera, FiUpload, FiCpu, FiSearch,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
-import './Horimetro.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../styles/horimetro.css';
 
 
 const DRAFT_KEY        = 'aurora_horimetro_draft';

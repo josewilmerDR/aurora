@@ -6,7 +6,7 @@ import Toast from '../../../components/Toast';
 import BuyerSelector from '../../finance/components/BuyerSelector';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
-import '../../../pages/Horimetro.css';
+import '../../machinery/styles/horimetro.css';
 import '../styles/cosecha-despachos.css';
 
 // ── Generic combobox ─────────────────────────────────────────────────────────

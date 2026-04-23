@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   FiClipboard, FiEdit, FiTrash2, FiFilter, FiSliders, FiX, FiPlus,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Horimetro.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/horimetro.css';
 
 const COLUMNS = [
   { id: 'fecha',            label: 'Fecha',             filterType: 'date'   },
