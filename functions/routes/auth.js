@@ -2,8 +2,40 @@ const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticateOnly, authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { ROLE_LEVELS_BE } = require('../lib/helpers');
 
 const router = Router();
+
+// --- CONSTRAINTS ---
+
+// Cap fincas a single user can own. Prevents storage/cost abuse from a stolen
+// or trial account creating an unbounded number of organizations.
+const MAX_FINCAS_PER_USER = 10;
+
+// Cap how many user docs we will iterate when claiming invitations. Prevents
+// amplified load if, by bug or malice, the users collection grows N rows for
+// a single email.
+const MAX_USER_DOCS_PER_CLAIM = 50;
+
+// Whitelist of roles accepted when a membership is materialized from a users
+// doc during invitation claim. Anything outside this set is downgraded to
+// 'trabajador' (the safest default). Kept in sync with ROLE_LEVELS_BE.
+const VALID_ROLES = new Set(Object.keys(ROLE_LEVELS_BE));
+
+// Deterministic membership ID: one membership per (uid, fincaId). Makes
+// concurrent claims idempotent — the second write hits the same doc.
+function membershipDocId(uid, fincaId) {
+  return `${uid}__${fincaId}`;
+}
+
+// Length-bounded string with trim. Returns null if the value is not a string
+// or becomes empty after trimming (so callers can reject missing fields).
+function cleanString(value, { maxLength }) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  return trimmed.slice(0, maxLength);
+}
 
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
@@ -63,6 +95,7 @@ router.get('/api/auth/me', authenticate, async (req, res) => {
       fincaNombre: fincaDoc.exists ? fincaDoc.data().nombre : '',
     });
   } catch (error) {
+    console.error('[AUTH] /me error:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch user profile.', 500);
   }
 });
@@ -70,10 +103,28 @@ router.get('/api/auth/me', authenticate, async (req, res) => {
 // POST /api/auth/register-finca — create a new finca and its initial admin
 router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
   try {
-    const { fincaNombre, nombreAdmin } = req.body;
+    const fincaNombre = cleanString(req.body?.fincaNombre, { maxLength: 120 });
+    const nombreAdmin = cleanString(req.body?.nombreAdmin, { maxLength: 80 });
     if (!fincaNombre || !nombreAdmin) {
-      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fincaNombre and nombreAdmin are required.', 400);
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fincaNombre and nombreAdmin are required (non-empty strings).', 400);
     }
+
+    // Per-user cap on owned fincas. Ownership is tracked by fincas.adminUid,
+    // which matches the uid that created the org. A user can still be member
+    // of many fincas they did not create — that is a different limit.
+    const ownedSnap = await db.collection('fincas')
+      .where('adminUid', '==', req.uid)
+      .limit(MAX_FINCAS_PER_USER + 1)
+      .get();
+    if (ownedSnap.size >= MAX_FINCAS_PER_USER) {
+      return sendApiError(
+        res,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Maximum of ${MAX_FINCAS_PER_USER} organizations per user reached.`,
+        429,
+      );
+    }
+
     const fincaRef = db.collection('fincas').doc();
     const batch = db.batch();
     batch.set(fincaRef, {
@@ -82,7 +133,7 @@ router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
       plan: 'basic',
       creadoEn: Timestamp.now(),
     });
-    const membershipRef = db.collection('memberships').doc();
+    const membershipRef = db.collection('memberships').doc(membershipDocId(req.uid, fincaRef.id));
     batch.set(membershipRef, {
       uid: req.uid,
       fincaId: fincaRef.id,
@@ -109,8 +160,12 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'No email found in token.', 400);
     }
 
-    // Find user records that match this email
-    const usersSnap = await db.collection('users').where('email', '==', userEmail).get();
+    // Find user records that match this email. Limit caps amplification if
+    // the users collection somehow ends up with many matches.
+    const usersSnap = await db.collection('users')
+      .where('email', '==', userEmail)
+      .limit(MAX_USER_DOCS_PER_CLAIM)
+      .get();
     if (usersSnap.empty) return res.status(200).json({ memberships: [] });
 
     const batch = db.batch();
@@ -121,24 +176,33 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       const { fincaId, nombre, rol, telefono } = userData;
       if (!fincaId) continue;
 
-      // Check if a membership already exists for this uid + finca
+      // Check for existing membership by query first, to stay compatible with
+      // pre-existing auto-id memberships. Only new memberships are created
+      // with a deterministic id (uid__fincaId) so concurrent claims cannot
+      // materialize duplicates.
       const existingSnap = await db.collection('memberships')
         .where('uid', '==', uid)
         .where('fincaId', '==', fincaId)
         .limit(1)
         .get();
-
       if (!existingSnap.empty) {
         newMemberships.push({ id: existingSnap.docs[0].id, ...existingSnap.docs[0].data() });
         continue;
       }
 
+      const membershipId = membershipDocId(uid, fincaId);
+      const membershipRef = db.collection('memberships').doc(membershipId);
+
       // Fetch finca name
       const fincaDoc = await db.collection('fincas').doc(fincaId).get();
       const fincaNombre = fincaDoc.exists ? fincaDoc.data().nombre : fincaId;
 
-      // Create the membership
-      const membershipRef = db.collection('memberships').doc();
+      // Whitelist-validate the role materialized from the users doc. Anything
+      // outside ROLE_LEVELS_BE is downgraded to the safest default. Without
+      // this, a bug elsewhere that writes an arbitrary string into users.rol
+      // would propagate into memberships.
+      const safeRol = typeof rol === 'string' && VALID_ROLES.has(rol) ? rol : 'trabajador';
+
       const membershipData = {
         uid,
         fincaId,
@@ -146,7 +210,7 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
         email: userEmail,
         nombre: nombre || '',
         telefono: telefono || '',
-        rol: rol || 'trabajador',
+        rol: safeRol,
         creadoEn: Timestamp.now(),
       };
       batch.set(membershipRef, membershipData);
@@ -154,7 +218,7 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       // Update the user doc with the uid for future reference
       batch.update(userDoc.ref, { uid });
 
-      newMemberships.push({ id: membershipRef.id, ...membershipData });
+      newMemberships.push({ id: membershipId, ...membershipData });
     }
 
     if (newMemberships.length > 0) await batch.commit();
