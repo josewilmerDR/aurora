@@ -1,5 +1,6 @@
 const { admin, db } = require('./firebase');
 const { sendApiError, ERROR_CODES } = require('./errors');
+const { checkModuleAccess } = require('./moduleMap');
 
 // Auth model: Firebase ID token verification + per-finca membership check.
 //
@@ -52,10 +53,28 @@ const authenticate = async (req, res, next) => {
       return sendApiError(res, ERROR_CODES.NO_FINCA_ACCESS, 'User is not a member of the requested finca.', 403);
     }
 
+    const membershipData = membershipSnap.docs[0].data();
     req.uid = uid;
     req.userEmail = decoded.email || '';
     req.fincaId = fincaId;
-    req.userRole = membershipSnap.docs[0].data().rol;
+    req.userRole = membershipData.rol;
+
+    // Module restriction (Ruta A of custom-roles design). When a membership
+    // pins the user to one or more modules, every request path must either be
+    // public or belong to an allowed module. Unmapped paths fall back to
+    // "allow + warn" until moduleMap.js is flipped to STRICT.
+    const restrictedTo = Array.isArray(membershipData.restrictedTo)
+      ? membershipData.restrictedTo
+      : null;
+    req.userRestrictedTo = restrictedTo;
+    if (restrictedTo && restrictedTo.length > 0) {
+      const decision = checkModuleAccess(req.path, restrictedTo);
+      if (decision === 'deny') {
+        console.warn('[restrictedTo] deny', uid, req.method, req.path, 'allowed=', restrictedTo);
+        return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You do not have access to this module.', 403);
+      }
+    }
+
     next();
   } catch (error) {
     console.error('[AUTH] Invalid token:', error.message);
