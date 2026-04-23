@@ -4,6 +4,7 @@ const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -547,7 +548,7 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
   }
 });
 
-router.post('/api/muestreos/escanear-formulario', authenticate, async (req, res) => {
+router.post('/api/muestreos/escanear-formulario', authenticate, rateLimit('monitoreo_scan', 'ai_medium'), async (req, res) => {
   try {
     const { imageBase64, mediaType, campos } = req.body || {};
     if (!imageBase64 || !mediaType) {

@@ -18,6 +18,7 @@ const {
   stripReasoning,
 } = require('../lib/autopilotReasoning');
 const { wrapUntrusted, INJECTION_GUARD_PREAMBLE } = require('../lib/aiGuards');
+const { rateLimit } = require('../lib/rateLimit');
 
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
@@ -393,7 +394,7 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
 });
 
 // POST /api/autopilot/analyze  (minRole: encargado)
-router.post('/api/autopilot/analyze', authenticate, assertAutopilotActive, async (req, res) => {
+router.post('/api/autopilot/analyze', authenticate, assertAutopilotActive, rateLimit('autopilot_analyze', 'ai_heavy'), async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'encargado')) {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Encargado role or higher required.', 403);
   }
@@ -1271,7 +1272,7 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
 // Intent-driven channel: user types or dictates a command; agent converts it to
 // proposed actions using the same tools as Nivel 2. Always proposes (never
 // executes), even if the user says "ejecuta" — the supervisor approves.
-router.post('/api/autopilot/command', authenticate, assertAutopilotActive, async (req, res) => {
+router.post('/api/autopilot/command', authenticate, assertAutopilotActive, rateLimit('autopilot_command', 'ai_heavy'), async (req, res) => {
   if (!hasMinRoleBE(req.userRole, 'encargado')) {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Encargado role or higher required.', 403);
   }

@@ -4,6 +4,7 @@ const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -186,7 +187,7 @@ router.delete('/api/horimetro/:id', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/horimetro/escanear', authenticate, async (req, res) => {
+router.post('/api/horimetro/escanear', authenticate, rateLimit('horimetro_scan', 'ai_medium'), async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Image is required.', 400);

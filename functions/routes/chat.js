@@ -13,6 +13,7 @@ const {
   isModuleAllowed,
   allowedCollections,
 } = require('../lib/moduleClassifier');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -428,7 +429,7 @@ async function chatToolEditarEmpleado({ empleadoId, nombre, email, telefono, rol
   return { ok: true, empleadoId, nombreActual: doc.data().nombre, cambios: updates };
 }
 
-router.post('/api/chat', authenticate, async (req, res) => {
+router.post('/api/chat', authenticate, rateLimit('chat', 'ai_heavy'), async (req, res) => {
   try {
     const { message, imageBase64, mediaType, userId, userName, history, clientTime, clientTzName, clientTzOffset } = req.body;
 

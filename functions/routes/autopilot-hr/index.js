@@ -7,10 +7,11 @@
 
 const { Router } = require('express');
 const { authenticate } = require('../../lib/middleware');
+const { rateLimit } = require('../../lib/rateLimit');
 const { analyze } = require('./analyze');
 
 const router = Router();
 
-router.post('/api/autopilot/hr/analyze', authenticate, analyze);
+router.post('/api/autopilot/hr/analyze', authenticate, rateLimit('autopilot_hr', 'ai_heavy'), analyze);
 
 module.exports = router;
