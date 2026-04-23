@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './LaborList.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/labor-list.css';
 
 const EMPTY_FORM = {
   id: null,

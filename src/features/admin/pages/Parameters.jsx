@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FiEdit2, FiSave, FiX, FiAlertTriangle } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Parameters.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/parameters.css';
 
 // ── Parameter definitions ────────────────────────────────────────────────────
 const SECTIONS = [
