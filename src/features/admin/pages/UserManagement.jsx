@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import './UserManagement.css';
+import '../styles/user-management.css';
 import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone } from 'react-icons/fi';
-import { ROLE_LABELS } from '../contexts/UserContext';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { markDraftActive, clearDraftActive } from '../hooks/useDraft';
+import { ROLE_LABELS } from '../../../contexts/UserContext';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador' };

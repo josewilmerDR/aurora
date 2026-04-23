@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FiPlus, FiEdit, FiTrash2, FiX, FiCheck, FiPackage } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import '../features/fields/styles/lote-management.css';
-import './UnidadesMedida.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../../fields/styles/lote-management.css';
+import '../styles/unidades-medida.css';
 
 // ── Combobox labor ────────────────────────────────────────────────────────────
 function LaborCombobox({ value, onChange, labores }) {

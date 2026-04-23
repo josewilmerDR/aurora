@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './InitialSetup.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/initial-setup.css';
 
 // ── Import guardrails ────────────────────────────────────────────────────────
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB

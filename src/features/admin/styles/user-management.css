@@ -1,5 +1,5 @@
 /* Reutilizamos el 100% de los estilos de LoteManagement. ¡Eficiencia! */
-@import url('../features/fields/styles/lote-management.css');
+@import url('../../fields/styles/lote-management.css');
 
 /* ── Page loading spinner ─────────────────────────────────────────────────── */
 .usr-page-loading {
