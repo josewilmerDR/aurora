@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { FiFilter, FiX, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
-import '../../../pages/Siembra.css';
-import '../../../pages/SiembraHistorial.css';
+import '../../planting/styles/siembra.css';
+import '../../planting/styles/siembra-historial.css';
 import '../styles/cosecha-historial.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────

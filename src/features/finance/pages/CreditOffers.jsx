@@ -10,8 +10,8 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import CreditOfferForm from '../components/CreditOfferForm';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
-import '../../../pages/Siembra.css';
-import '../../../pages/SiembraHistorial.css';
+import '../../planting/styles/siembra.css';
+import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
 import '../styles/financing.css';
 

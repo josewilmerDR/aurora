@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiClipboard, FiFilter, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../hooks/useApiFetch';
 import './BodegaAgroquimicosProductManagement.css';
-import './SiembraHistorial.css';
+import '../features/planting/styles/siembra-historial.css';
 
 const formatDate = (iso) => {
   if (!iso) return '—';

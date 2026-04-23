@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Siembra.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/siembra.css';
 
 const EMPTY = { nombre: '', rangoPesos: '', variedad: '' };
 

@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiFilter, FiX, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../../../pages/Siembra.css';
-import '../../../pages/SiembraHistorial.css';
+import '../../planting/styles/siembra.css';
+import '../../planting/styles/siembra-historial.css';
 import '../styles/cosecha-proyeccion.css';
 
 const PAGE_SIZE = 50;
