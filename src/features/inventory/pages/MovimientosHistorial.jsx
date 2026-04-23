@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiClipboard, FiFilter, FiSliders } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './BodegaAgroquimicosProductManagement.css';
-import '../features/planting/styles/siembra-historial.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/agroquimicos.css';
+import '../../planting/styles/siembra-historial.css';
 
 const formatDate = (iso) => {
   if (!iso) return '—';

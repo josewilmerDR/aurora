@@ -7,10 +7,10 @@ import {
   FiX, FiAlertTriangle, FiList, FiArchive, FiPaperclip,
   FiFilter, FiSliders,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './BodegaGenerica.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/bodega-generica.css';
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
 const ICON_MAP = { FiBox, FiTool, FiTruck, FiDroplet, FiPackage };

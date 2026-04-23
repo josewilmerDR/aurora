@@ -1,4 +1,4 @@
-@import url('./LoteManagement.css');
+@import url('../../../pages/LoteManagement.css');
 
 /* ── Botón volver atrás ───────────────────────────────────────────────────── */
 .lote-management-layout > .page-close-btn {

@@ -3,12 +3,12 @@ import {
   FiSearch, FiPlus, FiTrash2, FiEye, FiX, FiCheck,
   FiAlertTriangle, FiShoppingCart, FiUser
 } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './BodegaAgroquimicosPMSolicitudDeCompra.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/solicitud-de-compra.css';
 
 const DEPT_PROVEEDURIA = 'proveeduria';
 
-const PurchaseRequest = ({ onClose } = {}) => {
+const SolicitudDeCompra = ({ onClose } = {}) => {
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -392,4 +392,4 @@ const PurchaseRequest = ({ onClose } = {}) => {
   );
 };
 
-export default PurchaseRequest;
+export default SolicitudDeCompra;

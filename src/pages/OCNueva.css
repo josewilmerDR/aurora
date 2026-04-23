@@ -1,4 +1,4 @@
-@import './BodegaAgroquimicosProductManagement.css';
+@import '../features/inventory/styles/agroquimicos.css';
 
 .ol-wrap {
   padding: 0;

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiEdit, FiTrash2, FiArrowLeft } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './BodegaAgroquimicosProductManagement.css';
-import Toast from '../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/agroquimicos.css';
+import Toast from '../../../components/Toast';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 
@@ -11,7 +11,7 @@ function formatCurrency(value, moneda) {
   return `${Number(value).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda || ''}`;
 }
 
-function ProductCatalog() {
+function ProductosCatalogo() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
@@ -137,4 +137,4 @@ function ProductCatalog() {
   );
 }
 
-export default ProductCatalog;
+export default ProductosCatalogo;

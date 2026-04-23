@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { FiBox, FiTool, FiTruck, FiDroplet, FiPackage, FiEdit2, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './BodegasAdmin.css';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/bodegas-admin.css';
 
 const ICONOS = [
   { key: 'FiBox',     Icon: FiBox,     label: 'Caja'        },

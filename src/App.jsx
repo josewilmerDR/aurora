@@ -7,10 +7,10 @@ import LoteManagement from './pages/LoteManagement';
 import TaskTracking from './features/tasks/pages/TaskTracking';
 import Dashboard from './features/dashboard/pages/Dashboard';
 import TaskAction from './features/tasks/pages/TaskAction';
-import ProductManagement from './pages/BodegaAgroquimicosProductManagement';
-import ProductCatalog from './pages/BodegaAgroquimicosProductCatalog';
-import ProductIngreso from './pages/BodegaAgroquimicosProductIngreso';
-import MovimientosHistorial from './pages/BodegaAgroquimicosMovimientosHistorial';
+import Existencias from './features/inventory/pages/Existencias';
+import ProductosCatalogo from './features/inventory/pages/ProductosCatalogo';
+import Recepcion from './features/inventory/pages/Recepcion';
+import MovimientosHistorial from './features/inventory/pages/MovimientosHistorial';
 import OCDesdeSolicitud from './pages/OCDesdeSolicitud';
 import OCNueva from './pages/OCNueva';
 import OCHistorial from './pages/OCHistorial';
@@ -48,9 +48,9 @@ import GrupoManagement from './pages/GrupoManagement';
 import CedulasAplicacion from './features/applications/pages/CedulasAplicacion';
 import HistorialAplicaciones from './features/applications/pages/HistorialAplicaciones';
 import CedulaViewer from './features/applications/pages/CedulaViewer';
-import BodegasAdmin from './pages/BodegasAdmin';
+import BodegasAdmin from './features/inventory/pages/BodegasAdmin';
 import CierreCombustible from './pages/CierreCombustible';
-import BodegaGenerica from './pages/BodegaGenerica';
+import BodegaGenerica from './features/inventory/pages/BodegaGenerica';
 import Siembra from './features/planting/pages/Siembra';
 import SiembraMateriales from './features/planting/pages/SiembraMateriales';
 import SiembraHistorial from './features/planting/pages/SiembraHistorial';
@@ -572,15 +572,15 @@ function App() {
             <Route path="/lotes" element={<RoleRoute path="/lotes"><LoteManagement /></RoleRoute>} />
             <Route path="/grupos" element={<RoleRoute path="/grupos"><GrupoManagement /></RoleRoute>} />
             {/* Canonical bodega routes — pattern /bodega/:bodegaId/:submodule */}
-            <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><ProductManagement /></RoleRoute>} />
-            <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><ProductIngreso /></RoleRoute>} />
+            <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><Existencias /></RoleRoute>} />
+            <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><Recepcion /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
             <Route path="/bodega/:bodegaId" element={<RoleRoute path="/bodega/agroquimicos/existencias"><BodegaGenerica /></RoleRoute>} />
             {/* Legacy route redirects → canonical */}
             <Route path="/productos" element={<Navigate to="/bodega/agroquimicos/existencias" replace />} />
             <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
             <Route path="/productos/movimientos" element={<Navigate to="/bodega/agroquimicos/movimientos" replace />} />
-            <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductCatalog /></RoleRoute>} />
+            <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductosCatalogo /></RoleRoute>} />
             <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OCNueva /></RoleRoute>} />
             <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OCHistorial /></RoleRoute>} />
             <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
