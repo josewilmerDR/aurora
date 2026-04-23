@@ -3,6 +3,7 @@ const { db, Timestamp, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, enrichTask, writeFeedEvent, sendNotificationWithLink } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { taskTypeToModule, isModuleAllowed } = require('../lib/moduleClassifier');
 
 const router = Router();
 
@@ -24,6 +25,16 @@ router.get('/api/tasks', authenticate, async (req, res) => {
         .get();
       const userId = userSnap.empty ? null : userSnap.docs[0].id;
       enrichedTasks = enrichedTasks.filter(t => t.activity?.responsableId === userId);
+    }
+
+    // Module restriction: hide tasks whose type maps to a non-allowed module.
+    // Unknown types default to 'campo' (see moduleClassifier) so unfamiliar
+    // data does not silently leak; flip that default if a future module adds
+    // task types we should show to everyone.
+    if (Array.isArray(req.userRestrictedTo) && req.userRestrictedTo.length > 0) {
+      enrichedTasks = enrichedTasks.filter(
+        t => isModuleAllowed(taskTypeToModule(t.type), req.userRestrictedTo)
+      );
     }
 
     res.status(200).json(enrichedTasks);
@@ -92,6 +103,12 @@ router.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
         .get();
       const userId = userSnap.empty ? null : userSnap.docs[0].id;
       docs = docs.filter(doc => doc.data().activity?.responsableId === userId);
+    }
+
+    // Module restriction: exclude tasks from non-allowed modules so the
+    // overdue badge in the sidebar matches what the user can actually open.
+    if (Array.isArray(req.userRestrictedTo) && req.userRestrictedTo.length > 0) {
+      docs = docs.filter(doc => isModuleAllowed(taskTypeToModule(doc.data().type), req.userRestrictedTo));
     }
 
     res.status(200).json({ count: docs.length });

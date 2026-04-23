@@ -8,6 +8,11 @@ const {
   INJECTION_GUARD_PREAMBLE,
   stripCodeFence,
 } = require('../lib/aiGuards');
+const {
+  toolToModule,
+  isModuleAllowed,
+  allowedCollections,
+} = require('../lib/moduleClassifier');
 
 const router = Router();
 
@@ -123,11 +128,16 @@ async function chatToolRegistrarSiembras({ filas, fecha }, responsableId, respon
   return { registrados: results.length, detalles: results, skipped };
 }
 
-// Tool: generic Firestore query for reports and analysis
-async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }, fincaId) {
-  const allowedCollections = ['lotes', 'siembras', 'grupos', 'scheduled_tasks', 'productos', 'users', 'materiales_siembra', 'packages'];
-  if (!allowedCollections.includes(coleccion)) {
-    return { error: `Colección no permitida. Usa una de: ${allowedCollections.join(', ')}` };
+// Tool: generic Firestore query for reports and analysis.
+// `allowedCols` is passed in so a module-restricted member cannot query
+// collections outside their allow-list even if the tool schema is wrong.
+async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, limite = 20, campos }, fincaId, allowedCols) {
+  const allowedList = Array.isArray(allowedCols) ? allowedCols : [
+    'lotes', 'siembras', 'grupos', 'scheduled_tasks',
+    'productos', 'users', 'materiales_siembra', 'packages',
+  ];
+  if (!allowedList.includes(coleccion)) {
+    return { error: `Colección no permitida. Usa una de: ${allowedList.join(', ')}` };
   }
 
   let query = db.collection(coleccion).where('fincaId', '==', fincaId);
@@ -1039,6 +1049,34 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
       },
     ];
 
+    // Apply module-restriction filter to the tools the LLM can see. Tools
+    // classified into a non-allowed module are removed entirely; consultar_datos
+    // has its collection enum narrowed to the union of collections allowed by
+    // the user's restrictedTo list.
+    const restrictedTo = Array.isArray(req.userRestrictedTo) ? req.userRestrictedTo : null;
+    const allowedColsSet = allowedCollections(restrictedTo);
+    const allowedColsList = [...allowedColsSet];
+    const effectiveTools = (restrictedTo && restrictedTo.length > 0)
+      ? tools
+          .filter(t => isModuleAllowed(toolToModule(t.name), restrictedTo))
+          .map(t => {
+            if (t.name !== 'consultar_datos') return t;
+            return {
+              ...t,
+              input_schema: {
+                ...t.input_schema,
+                properties: {
+                  ...t.input_schema.properties,
+                  coleccion: {
+                    ...t.input_schema.properties.coleccion,
+                    enum: allowedColsList,
+                  },
+                },
+              },
+            };
+          })
+      : tools;
+
     // Build conversation history
     const messages = [];
     if (Array.isArray(history) && history.length > 0) {
@@ -1077,7 +1115,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         system: systemPrompt,
-        tools,
+        tools: effectiveTools,
         messages,
       });
 
@@ -1109,7 +1147,7 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
         let result;
         try {
           if (block.name === 'consultar_datos') {
-            result = await chatToolConsultarDatos(block.input, req.fincaId);
+            result = await chatToolConsultarDatos(block.input, req.fincaId, allowedColsList);
           } else if (block.name === 'crear_lote') {
             result = await chatToolCrearLote(block.input, req.fincaId);
             } else if (block.name === 'escanear_formulario_siembra') {
