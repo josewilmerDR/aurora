@@ -4,9 +4,9 @@ import {
   FiPhone, FiMail, FiMapPin, FiDollarSign, FiUser,
   FiArrowLeft, FiChevronRight, FiGlobe, FiClock, FiTag,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './ProveedoresList.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/proveedores.css';
 
 const EMPTY_FORM = {
   id: null,

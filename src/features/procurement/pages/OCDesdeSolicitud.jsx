@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiPrinter, FiArrowLeft, FiSearch, FiX } from 'react-icons/fi';
-import './OCDesdeSolicitud.css';
-import { useApiFetch } from '../hooks/useApiFetch';
+import '../styles/oc-desde-solicitud.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 const generatePoNumber = () => {
   const now = new Date();
