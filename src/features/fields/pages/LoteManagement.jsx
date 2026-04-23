@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import { createPortal } from 'react-dom';
-import './LoteManagement.css';
+import '../styles/lote-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Module helpers ───────────────────────────────────────────────────────────
 const formatDateLong = (date) => {

@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import './GrupoManagement.css';
+import '../styles/grupo-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useApiFetch } from '../hooks/useApiFetch';
+import Toast from '../../../components/Toast';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDateLong = (date) => {

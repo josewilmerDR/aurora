@@ -1,4 +1,4 @@
-@import './LoteManagement.css';
+@import '../features/fields/styles/lote-management.css';
 
 .ci-wrap {
   display: flex;
