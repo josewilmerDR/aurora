@@ -1,4 +1,4 @@
-@import '../../../pages/LoteManagement.css';
+@import '../../fields/styles/lote-management.css';
 
 /* ── Remove number input spinners ── */
 input[type="number"]::-webkit-inner-spin-button,

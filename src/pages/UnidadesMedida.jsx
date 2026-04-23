@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiPlus, FiEdit, FiTrash2, FiX, FiCheck, FiPackage } from 'react-icons/fi';
 import Toast from '../components/Toast';
 import { useApiFetch } from '../hooks/useApiFetch';
-import './LoteManagement.css';
+import '../features/fields/styles/lote-management.css';
 import './UnidadesMedida.css';
 
 // ── Combobox labor ────────────────────────────────────────────────────────────
