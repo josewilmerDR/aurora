@@ -3,8 +3,8 @@ import {
   FiCamera, FiX, FiCheck, FiAlertCircle,
   FiCpu, FiChevronLeft, FiChevronRight, FiPlus,
 } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './InvoiceScan.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/invoice-scan.css';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const UNIDADES = ['L', 'mL', 'kg', 'g'];
