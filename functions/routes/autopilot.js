@@ -19,6 +19,7 @@ const {
 } = require('../lib/autopilotReasoning');
 const { wrapUntrusted, INJECTION_GUARD_PREAMBLE } = require('../lib/aiGuards');
 const { rateLimit } = require('../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
@@ -386,6 +387,29 @@ router.put('/api/autopilot/config', authenticate, async (req, res) => {
     }
     if (!existing.exists) payload.createdAt = now;
     await ref.set(payload, { merge: true });
+
+    // Config change = leash length adjustment. The mode + guardrails keys
+    // determine how much the autopilot can do without human review, so any
+    // update is worth flagging. Severity is WARNING unless the mode is being
+    // set to nivel3 (most autonomous) — that gets CRITICAL because relaxing
+    // to the fully autonomous level is the single most consequential dial.
+    const prevData = existing.exists ? existing.data() : {};
+    const modeChanged = mode !== undefined && mode !== prevData.mode;
+    const escalating = modeChanged && mode === 'nivel3';
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.AUTOPILOT_CONFIG_UPDATE,
+      metadata: {
+        modeFrom: prevData.mode || null,
+        modeTo: mode !== undefined ? mode : prevData.mode || null,
+        modeChanged,
+        guardrailsChanged: guardrails !== undefined,
+        objectivesChanged: objectives !== undefined,
+      },
+      severity: escalating ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error al guardar config:', err);
@@ -1807,6 +1831,20 @@ router.put('/api/autopilot/actions/:id/approve', authenticate, assertAutopilotAc
       title: `Acción aprobada y ejecutada: ${action.titulo}`,
     });
 
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.AUTOPILOT_ACTION_APPROVE,
+      target: { type: 'autopilot_action', id: req.params.id },
+      metadata: {
+        tipo: action.type || null,
+        titulo: (action.titulo || '').slice(0, 200),
+        categoria: action.categoria || null,
+        prioridad: action.prioridad || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.json({ ok: true, status: 'executed', executionResult });
   } catch (err) {
     console.error('[AUTOPILOT] Failed to approve action:', err);
@@ -1836,6 +1874,19 @@ router.put('/api/autopilot/actions/:id/reject', authenticate, async (req, res) =
       reviewedByName: req.userEmail,
       reviewedAt: Timestamp.now(),
       rejectionReason: reason || null,
+    });
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.AUTOPILOT_ACTION_REJECT,
+      target: { type: 'autopilot_action', id: req.params.id },
+      metadata: {
+        tipo: action.type || null,
+        titulo: (action.titulo || '').slice(0, 200),
+        reason: reason ? String(reason).slice(0, 500) : null,
+      },
+      severity: SEVERITY.INFO,
     });
 
     res.json({ ok: true });

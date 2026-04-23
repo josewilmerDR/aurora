@@ -11,6 +11,7 @@ const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { getStatus, pause, resume } = require('../lib/autopilotKillSwitch');
 const { getHealthSummary, getRecentFailures } = require('../lib/autopilotMetrics');
 const { applyRollback, findByActionId } = require('../lib/autopilotCompensations');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -43,6 +44,15 @@ router.post('/api/autopilot/pause', authenticate, async (req, res) => {
     if (result.alreadyPaused) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Autopilot is already paused.', 409);
     }
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.AUTOPILOT_PAUSE,
+      metadata: { reason: reason ? String(reason).slice(0, 500) : null },
+      severity: SEVERITY.WARNING,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error pausing:', err);
@@ -63,6 +73,14 @@ router.post('/api/autopilot/resume', authenticate, async (req, res) => {
     if (result.notPaused) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Autopilot is not paused.', 409);
     }
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.AUTOPILOT_RESUME,
+      severity: SEVERITY.WARNING,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[AUTOPILOT] Error resuming:', err);
@@ -126,6 +144,16 @@ router.post('/api/autopilot/actions/:id/rollback', authenticate, async (req, res
       email: req.userEmail,
     });
     if (result.ok) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.AUTOPILOT_ACTION_ROLLBACK,
+        target: { type: 'autopilot_action', id: req.params.id },
+        metadata: {
+          rollbackResult: result.result || null,
+        },
+        severity: SEVERITY.WARNING,
+      });
       return res.json({ ok: true, result: result.result });
     }
     const status = ROLLBACK_HTTP_STATUS[result.code] || 400;

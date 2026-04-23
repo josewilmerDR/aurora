@@ -23,6 +23,7 @@ const { computeTrustScores } = require('./trustScorer');
 const { proposeGuardrailDelta } = require('./guardrailDelta');
 const { resolveMetaLevel, isMetaDomainActive } = require('../metaDomainGuards');
 const { executeAutopilotAction } = require('../../autopilotActions');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../auditLog');
 
 const OBSERVATIONS = 'meta_kpi_observations';
 const AUTOPILOT_ACTIONS = 'autopilot_actions';
@@ -136,6 +137,30 @@ async function dispatchAutoApply({ fincaId, proposal, actor, sessionId, effectiv
       fincaId,
       { actionDocRef, actionInitialDoc: baseDoc, level: effectiveLevel },
     );
+
+    // Audit the single most consequential autonomous event in the system:
+    // the trust manager loosened or tightened the leash without a human in
+    // the loop. Relaxations are CRITICAL (the agent gave itself more room);
+    // tightenings are WARNING (course correction, less risky).
+    writeAuditEvent({
+      fincaId,
+      actor: { uid: null, email: 'system:trust-manager', role: null },
+      action: ACTIONS.AUTOPILOT_GUARDRAIL_AUTO_APPLY,
+      target: { type: 'autopilot_action', id: actionDocRef.id },
+      metadata: {
+        key: proposal.key,
+        direction: proposal.direction,
+        previousValue: proposal.currentValue,
+        newValue: proposal.proposedValue,
+        effectiveLevel,
+        trust: proposal.trustInput?.trust ?? null,
+        confidence: proposal.trustInput?.confidence ?? null,
+        domains: Array.isArray(proposal.domains) ? proposal.domains : null,
+        sessionId: sessionId || null,
+      },
+      severity: proposal.direction === 'relax' ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+    });
+
     return { status: 'executed', actionId: actionDocRef.id, result };
   } catch (err) {
     // Fall back to "proposed" when execution fails — admins can still
