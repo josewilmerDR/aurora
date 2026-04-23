@@ -29,6 +29,12 @@
 
 const { db, Timestamp } = require('./firebase');
 
+// Retention for audit events. After this many days the Firestore TTL policy
+// (configured on the `expireAt` field in Google Cloud Console) deletes the
+// doc automatically. Long enough for forensic reviews and compliance,
+// short enough that the collection does not grow unboundedly.
+const AUDIT_TTL_DAYS = 365;
+
 const ACTIONS = Object.freeze({
   // Multi-tenant lifecycle
   FINCA_CREATE: 'finca.create',
@@ -79,6 +85,9 @@ async function writeAuditEvent({
     }
     const { uid, email, role } = normalizeActor(actor);
 
+    const nowMs = Date.now();
+    const expireAtMs = nowMs + AUDIT_TTL_DAYS * 24 * 60 * 60 * 1000;
+
     await db.collection('audit_events').add({
       fincaId,
       actorUid: uid,
@@ -88,7 +97,10 @@ async function writeAuditEvent({
       target: target || null,
       metadata: metadata || {},
       severity,
-      timestamp: Timestamp.now(),
+      timestamp: Timestamp.fromMillis(nowMs),
+      // Consumed by the Firestore TTL policy on audit_events.expireAt.
+      // See docs/security-hardening.md for the console setup step.
+      expireAt: Timestamp.fromMillis(expireAtMs),
     });
   } catch (err) {
     // Fail-open: never propagate to the caller. The primary request should
