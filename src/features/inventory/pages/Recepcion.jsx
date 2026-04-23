@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../styles/agroquimicos.css';
 import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera, FiMenu, FiArrowLeft } from 'react-icons/fi';
-import InvoiceScan from '../../../pages/InvoiceScan';
+import InvoiceScan from '../components/InvoiceScan';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
