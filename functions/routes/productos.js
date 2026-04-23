@@ -4,6 +4,7 @@ const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -210,7 +211,7 @@ router.put('/api/productos/:id/activar', authenticate, async (req, res) => {
 });
 
 // ── AI chat for editing productos ────────────────────────────────────────────
-router.post('/api/productos/ai-editar', authenticate, async (req, res) => {
+router.post('/api/productos/ai-editar', authenticate, rateLimit('productos_ai', 'ai_light'), async (req, res) => {
   try {
     const { mensaje } = req.body;
     if (!mensaje?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Message is required.', 400);

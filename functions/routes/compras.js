@@ -4,6 +4,7 @@ const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 const {
   wrapUntrusted,
   INJECTION_GUARD_PREAMBLE,
@@ -45,7 +46,7 @@ router.get('/api/compras', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/compras/escanear', authenticate, async (req, res) => {
+router.post('/api/compras/escanear', authenticate, rateLimit('compras_scan', 'ai_medium'), async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {

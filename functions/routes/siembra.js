@@ -3,6 +3,7 @@ const { db, Timestamp, FieldValue } = require('../lib/firebase');
 const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.delete('/api/materiales-siembra/:id', authenticate, async (req, res) => {
 });
 
 // ── Scan sowing form with AI ─────────────────────────────────────────────────
-router.post('/api/siembras/escanear', authenticate, async (req, res) => {
+router.post('/api/siembras/escanear', authenticate, rateLimit('siembras_scan', 'ai_medium'), async (req, res) => {
   try {
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
