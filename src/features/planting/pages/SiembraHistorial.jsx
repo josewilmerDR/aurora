@@ -6,11 +6,11 @@ import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
   FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2, FiEdit2, FiPackage, FiSliders,
 } from 'react-icons/fi';
-import { useUser, hasMinRole } from '../contexts/UserContext';
-import { useApiFetch } from '../hooks/useApiFetch';
-import Toast from '../components/Toast';
-import './Siembra.css';
-import './SiembraHistorial.css';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import Toast from '../../../components/Toast';
+import '../styles/siembra.css';
+import '../styles/siembra-historial.css';
 
 // ── Sort utilities (same as Siembra.jsx) ─────────────────────────────────────
 const SORT_FIELDS = [

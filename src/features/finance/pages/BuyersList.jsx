@@ -8,8 +8,8 @@ import Toast from '../../../components/Toast';
 import ConfirmModal from '../../../components/ConfirmModal';
 import BuyerForm from '../components/BuyerForm';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../../../pages/Siembra.css';
-import '../../../pages/SiembraHistorial.css';
+import '../../planting/styles/siembra.css';
+import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
 
 // ── Tabla: configuración de columnas ─────────────────────────────────────────

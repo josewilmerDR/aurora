@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { FiPlus, FiTrash2, FiAlertTriangle, FiClock, FiCpu, FiMoreVertical, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
-import { useUser, hasMinRole } from '../contexts/UserContext';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Siembra.css';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/siembra.css';
 
 const HOY = new Date().toISOString().slice(0, 10);
 

@@ -9,8 +9,8 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import IncomeForm from '../components/IncomeForm';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
-import '../../../pages/Siembra.css';
-import '../../../pages/SiembraHistorial.css';
+import '../../planting/styles/siembra.css';
+import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
 
 // ── Tabla: configuración de columnas ─────────────────────────────────────────
