@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership, sendNotificationWithLink } = require('../lib/helpers');
+const { verifyOwnership, sendNotificationWithLink, hasMinRoleBE } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
 const {
   wrapUntrusted,
@@ -10,6 +10,7 @@ const {
 } = require('../lib/aiGuards');
 const {
   toolToModule,
+  toolMinRole,
   isModuleAllowed,
   allowedCollections,
 } = require('../lib/moduleClassifier');
@@ -1050,33 +1051,38 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
       },
     ];
 
-    // Apply module-restriction filter to the tools the LLM can see. Tools
-    // classified into a non-allowed module are removed entirely; consultar_datos
-    // has its collection enum narrowed to the union of collections allowed by
-    // the user's restrictedTo list.
+    // Filter the tools the LLM can see. Two orthogonal filters:
+    //   1. Role: drop tools whose toolMinRole exceeds the user's role. Mirrors
+    //      HTTP-level guards like requireAdmin so the chat is not a bypass.
+    //   2. Module restriction: if the user is pinned to specific modules,
+    //      drop tools classified into a non-allowed module. consultar_datos
+    //      also gets its collection enum narrowed to the allowed subset.
     const restrictedTo = Array.isArray(req.userRestrictedTo) ? req.userRestrictedTo : null;
     const allowedColsSet = allowedCollections(restrictedTo);
     const allowedColsList = [...allowedColsSet];
-    const effectiveTools = (restrictedTo && restrictedTo.length > 0)
-      ? tools
-          .filter(t => isModuleAllowed(toolToModule(t.name), restrictedTo))
-          .map(t => {
-            if (t.name !== 'consultar_datos') return t;
-            return {
-              ...t,
-              input_schema: {
-                ...t.input_schema,
-                properties: {
-                  ...t.input_schema.properties,
-                  coleccion: {
-                    ...t.input_schema.properties.coleccion,
-                    enum: allowedColsList,
-                  },
+    let effectiveTools = tools.filter(
+      t => hasMinRoleBE(req.userRole, toolMinRole(t.name))
+    );
+    if (restrictedTo && restrictedTo.length > 0) {
+      effectiveTools = effectiveTools
+        .filter(t => isModuleAllowed(toolToModule(t.name), restrictedTo))
+        .map(t => {
+          if (t.name !== 'consultar_datos') return t;
+          return {
+            ...t,
+            input_schema: {
+              ...t.input_schema,
+              properties: {
+                ...t.input_schema.properties,
+                coleccion: {
+                  ...t.input_schema.properties.coleccion,
+                  enum: allowedColsList,
                 },
               },
-            };
-          })
-      : tools;
+            },
+          };
+        });
+    }
 
     // Build conversation history
     const messages = [];
@@ -1144,6 +1150,24 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
       const toolResults = [];
       for (const block of response.content) {
         if (block.type !== 'tool_use') continue;
+
+        // Runtime role gate. Effective tools are pre-filtered, so in the
+        // happy path Claude never sees a tool above the user's role — but
+        // this catches anything that slips through (stale schema cache, a
+        // prompt-injection sneaking a call to an unexposed tool, etc).
+        const requiredRole = toolMinRole(block.name);
+        if (!hasMinRoleBE(req.userRole, requiredRole)) {
+          console.warn('[chat] role-blocked tool', block.name, 'required', requiredRole, 'user has', req.userRole);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({
+              error: `Esta acción requiere rol "${requiredRole}" o superior.`,
+            }),
+            is_error: true,
+          });
+          continue;
+        }
 
         let result;
         try {
