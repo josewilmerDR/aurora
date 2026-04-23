@@ -21,6 +21,14 @@ const ACTION_OPTIONS = [
   { value: 'user.restrictedTo.change',      label: 'Cambio de restricciones' },
   { value: 'security.prompt_injection.detected', label: 'Inyección de prompt' },
   { value: 'security.token.rejected',       label: 'Token rechazado' },
+  { value: 'producto.delete',               label: 'Eliminación de producto' },
+  { value: 'lote.delete',                   label: 'Eliminación de lote' },
+  { value: 'stock.adjust',                  label: 'Ajuste manual de stock' },
+  { value: 'payroll.pay',                   label: 'Pago de planilla' },
+  { value: 'purchase_order.create',         label: 'Orden de compra creada' },
+  { value: 'purchase.receipt',              label: 'Recepción de mercancía' },
+  { value: 'income.create',                 label: 'Ingreso registrado' },
+  { value: 'income.delete',                 label: 'Ingreso eliminado' },
 ];
 
 const ACTION_LABEL = Object.fromEntries(ACTION_OPTIONS.filter(o => o.value).map(o => [o.value, o.label]));

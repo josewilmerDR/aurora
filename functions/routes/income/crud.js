@@ -4,6 +4,7 @@ const { db, FieldValue } = require('../../lib/firebase');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { buildIncomeDoc } = require('./validator');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 async function resolveBuyer(buyerId, fincaId) {
   if (!buyerId) return { error: 'Buyer is required.' };
@@ -44,6 +45,22 @@ async function createIncome(req, res) {
       createdByEmail: req.userEmail || '',
       createdAt: FieldValue.serverTimestamp(),
     });
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.INCOME_CREATE,
+      target: { type: 'income', id: doc.id },
+      metadata: {
+        buyerId: data.buyerId || null,
+        buyerName: data.buyerName || null,
+        amount: data.amount ?? null,
+        currency: data.currency || null,
+        date: data.date || null,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(201).json({ id: doc.id, ...data });
   } catch (error) {
     console.error('[INCOME] create failed:', error);
@@ -78,7 +95,24 @@ async function deleteIncome(req, res) {
   try {
     const ownership = await verifyOwnership('income_records', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    const prevData = ownership.doc.data();
     await db.collection('income_records').doc(req.params.id).delete();
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.INCOME_DELETE,
+      target: { type: 'income', id: req.params.id },
+      metadata: {
+        buyerId: prevData.buyerId || null,
+        buyerName: prevData.buyerName || null,
+        amount: prevData.amount ?? null,
+        currency: prevData.currency || null,
+        date: prevData.date || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.json({ ok: true });
   } catch (error) {
     console.error('[INCOME] delete failed:', error);

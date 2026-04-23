@@ -3,6 +3,7 @@ const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, writeFeedEvent, sendNotificationWithLink } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -214,6 +215,7 @@ router.delete('/api/lotes/:id', authenticate, async (req, res) => {
         if (!ownership.ok) {
             return sendApiError(res, ownership.code, ownership.message, ownership.status);
         }
+        const prevData = ownership.doc.data();
         const tasksQuery = db.collection('scheduled_tasks').where('loteId', '==', id);
         const tasksSnapshot = await tasksQuery.get();
         const batch = db.batch();
@@ -221,6 +223,22 @@ router.delete('/api/lotes/:id', authenticate, async (req, res) => {
         const loteRef = db.collection('lotes').doc(id);
         batch.delete(loteRef);
         await batch.commit();
+
+        writeAuditEvent({
+            fincaId: req.fincaId,
+            actor: req,
+            action: ACTIONS.LOTE_DELETE,
+            target: { type: 'lote', id },
+            metadata: {
+                codigoLote: prevData.codigoLote || null,
+                nombreLote: prevData.nombreLote || null,
+                hectareas: prevData.hectareas || null,
+                paqueteId: prevData.paqueteId || null,
+                tasksDeleted: tasksSnapshot.size,
+            },
+            severity: SEVERITY.WARNING,
+        });
+
         res.status(200).json({ ok: true });
     } catch (error) {
         console.error("Error deleting lote:", error);

@@ -19,6 +19,7 @@ const {
   cutoffForWindow,
   VALID_RESOLUTIONS,
 } = require('../lib/hr/accuracyCalculator');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -906,6 +907,22 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
       if (!taskSnap.empty) {
         await taskSnap.docs[0].ref.update({ status: 'completed_by_user' });
       }
+
+      // Payroll paid: real money out. Always audit with WARNING so it surfaces
+      // in the admin feed regardless of noise.
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_PAY,
+        target: { type: 'planilla_fijo', id: req.params.id },
+        metadata: {
+          tipo: 'fijo',
+          periodoLabel: currentDoc.periodoLabel || update.periodoLabel || null,
+          totalGeneral: update.totalGeneral ?? currentDoc.totalGeneral ?? null,
+          empleadosCount: (update.filas || currentDoc.filas || []).length,
+        },
+        severity: SEVERITY.WARNING,
+      });
     }
 
     res.status(200).json({ id: req.params.id });
@@ -1438,6 +1455,26 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
     }
 
     await db.collection('hr_planilla_unidad').doc(req.params.id).update(update);
+
+    // Payroll paid: real money out. Audit with WARNING. Mirrors the fijo
+    // handler so both payroll flows appear in the audit feed identically.
+    if (estado === 'pagada' && currentEstado !== 'pagada') {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_PAY,
+        target: { type: 'planilla_unidad', id: req.params.id },
+        metadata: {
+          tipo: 'unidad',
+          consecutivo: consecutivo || currentDoc.consecutivo || null,
+          encargadoNombre: currentDoc.encargadoNombre || null,
+          totalGeneral: update.totalGeneral ?? currentDoc.totalGeneral ?? null,
+          trabajadoresCount: (update.trabajadores || currentDoc.trabajadores || []).length,
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
+
     res.status(200).json({ message: 'Planilla updated.', consecutivo });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update planilla.', 500);

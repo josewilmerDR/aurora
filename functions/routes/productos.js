@@ -5,6 +5,7 @@ const { pick, verifyOwnership } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -173,11 +174,26 @@ router.delete('/api/productos/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
-    const stock = ownership.doc.data().stockActual ?? 0;
+    const prevData = ownership.doc.data();
+    const stock = prevData.stockActual ?? 0;
     if (stock > 0) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Only products with zero stock can be deleted.', 409);
     }
     await db.collection('productos').doc(id).delete();
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PRODUCTO_DELETE,
+      target: { type: 'producto', id },
+      metadata: {
+        idProducto: prevData.idProducto || null,
+        nombreComercial: prevData.nombreComercial || null,
+        tipo: prevData.tipo || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete producto.', 500);
@@ -356,6 +372,29 @@ router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
     }
 
     await batch.commit();
+
+    // Manual stock reconciliation is fraud-prone: an insider can hide a loss
+    // by "adjusting" stock downward with a vague nota. Log the full delta list
+    // so a reviewer can spot large or suspicious adjustments later.
+    const totalDelta = movimientosCreados.reduce((sum, m) => sum + Math.abs(m.cantidad || 0), 0);
+    writeAuditEvent({
+      fincaId,
+      actor: req,
+      action: ACTIONS.STOCK_ADJUST,
+      metadata: {
+        nota: notaTrimmed,
+        ajustesCount: movimientosCreados.length,
+        totalDelta: Math.round(totalDelta * 100) / 100,
+        items: movimientosCreados.slice(0, 20).map(m => ({
+          productoId: m.productoId,
+          stockAnterior: m.stockAnterior,
+          stockNuevo: m.stockNuevo,
+          cantidad: m.cantidad,
+        })),
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.status(200).json({ ajustados: movimientosCreados.length, movimientos: movimientosCreados });
   } catch (error) {
     console.error('Error in inventory adjustment:', error);

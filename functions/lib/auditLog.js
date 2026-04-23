@@ -50,6 +50,18 @@ const ACTIONS = Object.freeze({
   // Security signals
   PROMPT_INJECTION_DETECTED: 'security.prompt_injection.detected',
   TOKEN_REJECTED: 'security.token.rejected',
+
+  // High-value business operations — logged only where "who+when" has
+  // forensic or recovery value. Routine creates/updates are intentionally
+  // not audited to keep the stream focused on security + money + loss.
+  PRODUCTO_DELETE: 'producto.delete',
+  LOTE_DELETE: 'lote.delete',
+  STOCK_ADJUST: 'stock.adjust',
+  PAYROLL_PAY: 'payroll.pay',
+  PURCHASE_ORDER_CREATE: 'purchase_order.create',
+  PURCHASE_RECEIPT: 'purchase.receipt',
+  INCOME_CREATE: 'income.create',
+  INCOME_DELETE: 'income.delete',
 });
 
 const SEVERITY = Object.freeze({
