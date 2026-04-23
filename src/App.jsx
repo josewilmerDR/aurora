@@ -38,6 +38,7 @@ import AccountSettings from './features/account/pages/AccountSettings';
 import Parameters from './features/admin/pages/Parameters';
 import MaquinariaList from './features/machinery/pages/MaquinariaList';
 import InitialSetup from './features/admin/pages/InitialSetup';
+import AuditEvents from './features/admin/pages/AuditEvents';
 import Calibraciones from './features/machinery/pages/Calibraciones';
 import LaborList from './features/admin/pages/LaborList';
 import UnidadesMedida from './features/admin/pages/UnidadesMedida';
@@ -187,6 +188,7 @@ const routeTitles = {
   '/admin/labores': 'Lista de Labores',
   '/admin/unidades-medida': 'Unidades de Medida',
   '/admin/calibraciones': 'Calibraciones',
+  '/admin/auditoria': 'Registro de Auditoría',
   '/grupos': 'Grupos',
   '/aplicaciones/cedulas': 'Cédulas de Aplicación',
   '/aplicaciones/historial': 'Historial de Aplicaciones',
@@ -642,6 +644,7 @@ function App() {
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />
             <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parameters /></RoleRoute>} />
+            <Route path="/admin/auditoria" element={<RoleRoute path="/admin/auditoria"><AuditEvents /></RoleRoute>} />
           </Route>
         </Routes>
       </UserProvider>
