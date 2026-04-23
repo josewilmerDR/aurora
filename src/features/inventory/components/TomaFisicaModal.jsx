@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useApiFetch } from '../hooks/useApiFetch';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 function TomaFisicaModal({ productos, onClose, onSuccess }) {
   const apiFetch = useApiFetch();

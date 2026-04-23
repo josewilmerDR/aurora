@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import './BodegaAgroquimicosProductManagement.css';
+import '../styles/agroquimicos.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
-import TomaFisicaModal from './TomaFisicaModal';
-import EditProductoModal from './BodegaAgroquimicosEditProductoModal';
-import BodegaAgroquimicosPMSolicitudDeCompra from './BodegaAgroquimicosPMSolicitudDeCompra';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import TomaFisicaModal from '../components/TomaFisicaModal';
+import EditProductoModal from '../components/EditProductoModal';
+import SolicitudDeCompra from './SolicitudDeCompra';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];
@@ -59,7 +59,7 @@ function loadVisibleCols() {
   return new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
 }
 
-function ProductManagement() {
+function Existencias() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
@@ -875,7 +875,7 @@ function ProductManagement() {
             >
               <FiX size={18} />
             </button>
-            <BodegaAgroquimicosPMSolicitudDeCompra onClose={() => setShowSolicitud(false)} />
+            <SolicitudDeCompra onClose={() => setShowSolicitud(false)} />
           </div>
         </div>
       )}
@@ -883,4 +883,4 @@ function ProductManagement() {
   );
 }
 
-export default ProductManagement;
+export default Existencias;

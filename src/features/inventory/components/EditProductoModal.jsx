@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];

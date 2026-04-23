@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import './BodegaAgroquimicosProductManagement.css';
+import '../styles/agroquimicos.css';
 import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera, FiMenu, FiArrowLeft } from 'react-icons/fi';
-import InvoiceScan from './InvoiceScan';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
+import InvoiceScan from '../../../pages/InvoiceScan';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 const MAX_IMAGE_PX = 1600;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -352,7 +352,7 @@ const formatDate = (iso) => {
 };
 
 // ── Componente principal ───────────────────────────────────────────────────
-function ProductIngreso() {
+function Recepcion() {
   const apiFetch = useApiFetch();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1013,4 +1013,4 @@ function ProductIngreso() {
   );
 }
 
-export default ProductIngreso;
+export default Recepcion;
