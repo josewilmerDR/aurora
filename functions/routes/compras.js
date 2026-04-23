@@ -636,6 +636,23 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
         });
       }
     }
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PURCHASE_ORDER_CREATE,
+      target: { type: 'orden_compra', id: docRef.id },
+      metadata: {
+        poNumber,
+        proveedor: (proveedor || '').slice(0, 200),
+        totalCRC: Math.round(totalCRC * 100) / 100,
+        itemsCount: items.length,
+        solicitudId: solicitudId || null,
+        rfqId: rfqId || null,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(201).json({ id: docRef.id, poNumber, message: 'Purchase order saved.' });
   } catch (error) {
     console.error('[ordenes-compra:post]', error);
@@ -823,6 +840,26 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
     }
 
     await batch.commit();
+
+    // Goods received → inventory grew. Forensically useful when reconciling
+    // physical stock later: answers "when did we say this arrived and who
+    // accepted it".
+    const totalCantidad = recibidos.reduce((s, i) => s + (parseFloat(i.cantidadRecibida) || 0), 0);
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PURCHASE_RECEIPT,
+      target: { type: 'recepcion', id: recepcionRef.id },
+      metadata: {
+        ordenCompraId: ordenCompraId || null,
+        poNumber: poNumber || null,
+        proveedor: (proveedor || '').slice(0, 200),
+        itemsCount: recibidos.length,
+        totalCantidad: Math.round(totalCantidad * 100) / 100,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(201).json({ id: recepcionRef.id, message: 'Reception registered and stock updated.' });
   } catch (error) {
     console.error('[recepciones:post]', error);
