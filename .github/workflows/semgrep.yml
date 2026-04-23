@@ -1,0 +1,51 @@
+name: Security — Semgrep
+
+# Static analysis gate on PRs and pushes to main. Rule set targets the stack
+# (Node.js backend, React frontend, Firebase) plus OWASP Top Ten for general
+# security coverage. Findings are uploaded to the GitHub Security tab as SARIF
+# so they appear inline on PR review.
+#
+# Why soft-fail initially: we have no baseline yet, so the first PR run will
+# surface the historical footprint. Flip `continue-on-error` to `false` once
+# the baseline is triaged.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: semgrep scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    timeout-minutes: 15
+    # Skip bot PRs (dependabot, etc.) — they run their own security checks.
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        continue-on-error: true
+        run: |
+          semgrep scan \
+            --config p/default \
+            --config p/javascript \
+            --config p/nodejs \
+            --config p/react \
+            --config p/owasp-top-ten \
+            --sarif --output=semgrep.sarif \
+            --metrics=off \
+            --error
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep

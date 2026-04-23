@@ -1,0 +1,23 @@
+# Build outputs — no point scanning minified/bundled JS
+dist/
+build/
+coverage/
+
+# Dependencies — scanning node_modules is noise; Dependabot handles CVEs there
+node_modules/
+**/node_modules/
+
+# Firebase emulator state + cache
+.firebase/
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# PWA service worker generator output
+dev-dist/
+
+# Bundled static assets
+*.min.js
+*.bundle.js
+public/registerSW.js
