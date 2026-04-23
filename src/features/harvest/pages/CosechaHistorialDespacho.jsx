@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { FiFilter, FiX, FiSliders, FiDollarSign } from 'react-icons/fi';
-import { useApiFetch } from '../hooks/useApiFetch';
-import Toast from '../components/Toast';
-import './Siembra.css';
-import './SiembraHistorial.css';
-import './CosechaDespachos.css';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import Toast from '../../../components/Toast';
+import '../../../pages/Siembra.css';
+import '../../../pages/SiembraHistorial.css';
+import '../styles/cosecha-despachos.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────
 const COLUMNS = [
