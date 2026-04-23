@@ -1,9 +1,17 @@
-import { auth } from '../firebase';
+import { auth, appCheck } from '../firebase';
+import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { translateApiError } from './errorMessages';
 
 /**
- * Fetch wrapper that automatically attaches the Firebase Auth token and the
- * X-Finca-Id header to every request.
+ * Fetch wrapper that automatically attaches the Firebase Auth token, the
+ * X-Finca-Id header, and (when enabled) the App Check token to every request.
+ *
+ * App Check: if the App Check SDK was initialized in src/firebase.js, we fetch
+ * a short-lived token and pass it in the `X-Firebase-AppCheck` header. The
+ * backend verifies it in functions/lib/appcheck.js. Failures to obtain a token
+ * are swallowed intentionally — during rollout the backend runs in 'warn' mode
+ * and will accept requests without a token; once the backend flips to 'enforce'
+ * these requests will be rejected and the user will see a friendly error.
  *
  * Usage: const res = await apiFetch('/api/lotes', { method: 'POST', body: JSON.stringify(data) }, fincaId);
  */
@@ -11,10 +19,22 @@ export async function apiFetch(url, options = {}, fincaId) {
   const user = auth.currentUser;
   const token = user ? await user.getIdToken() : null;
 
+  let appCheckHeader = null;
+  if (appCheck) {
+    try {
+      const result = await getAppCheckToken(appCheck, /* forceRefresh */ false);
+      appCheckHeader = result?.token || null;
+    } catch {
+      // Token unavailable (network hiccup, missing config). The backend gate
+      // will reject in enforce mode; not our job to block here.
+    }
+  }
+
   const headers = {
     ...(options.body !== undefined && { 'Content-Type': 'application/json' }),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...(fincaId && { 'X-Finca-Id': fincaId }),
+    ...(appCheckHeader && { 'X-Firebase-AppCheck': appCheckHeader }),
     ...options.headers,
   };
 

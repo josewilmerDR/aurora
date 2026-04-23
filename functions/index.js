@@ -1,5 +1,6 @@
 // --- AURORA BACKEND — ENTRY POINT ---
 const { functions, allSecrets } = require('./lib/firebase');
+const { verifyAppCheck } = require('./lib/appcheck');
 const express = require('express');
 
 const app = express();
@@ -12,6 +13,11 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
+
+// --- APP CHECK (bot / unauthorized-client gate, runs before auth) ---
+// Controlled by APP_CHECK_MODE env var: 'enforce' | 'warn' | 'off'.
+// Always bypassed in the Functions emulator.
+app.use(verifyAppCheck);
 
 // --- MOUNT ROUTERS ---
 app.use(require('./routes/auth'));
