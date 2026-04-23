@@ -21,8 +21,13 @@
 // endpoints with similar cost profile (e.g. 'ai_heavy' for chat + autopilot
 // analyze). Users who hit the same bucket share their budget.
 
-const { db } = require('./firebase');
+const { db, Timestamp } = require('./firebase');
 const { sendApiError, ERROR_CODES } = require('./errors');
+
+// After this many days without any activity the doc is eligible for TTL
+// deletion. The expireAt is re-written on every check so an active user's
+// doc never becomes stale; only abandoned (uid, bucket) pairs get cleaned up.
+const RATE_LIMIT_TTL_DAYS = 30;
 
 // Preset tiers. Add new tiers rather than editing these in place, so
 // endpoints that depend on a preset do not shift limits silently.
@@ -77,6 +82,11 @@ async function checkRateLimit(uid, bucketKey, limits) {
         dayBucket,
         dayCount: dayCount + 1,
         updatedAt: now,
+        // Consumed by the Firestore TTL policy on rate_limits.expireAt. Re-
+        // written on every check, so active users never expire; only
+        // abandoned (uid, bucket) pairs get cleaned up after
+        // RATE_LIMIT_TTL_DAYS of inactivity.
+        expireAt: Timestamp.fromMillis(now + RATE_LIMIT_TTL_DAYS * 24 * 60 * 60 * 1000),
       });
       return { ok: true };
     });
