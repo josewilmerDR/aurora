@@ -55,7 +55,7 @@ const MODULE_PREFIXES = {
     '/api/users', '/api/maquinaria', '/api/labores', '/api/unidades',
     '/api/calibraciones', '/api/config', '/api/combustible',
     '/api/meta', '/api/autopilot', '/api/autopilot-control',
-    '/api/autopilot-orchestrator',
+    '/api/autopilot-orchestrator', '/api/audit',
   ],
 };
 

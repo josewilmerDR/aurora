@@ -4,6 +4,7 @@ const { authenticateOnly, authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { ROLE_LEVELS_BE } = require('../lib/helpers');
 const { MODULE_PREFIXES } = require('../lib/moduleMap');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -150,6 +151,19 @@ router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
       creadoEn: Timestamp.now(),
     });
     await batch.commit();
+
+    // Creating a finca is a high-trust event: it spawns an administrator
+    // membership from scratch. Severity `warning` so admin dashboards flag
+    // it without burying it in the info stream.
+    writeAuditEvent({
+      fincaId: fincaRef.id,
+      actor: { uid: req.uid, email: req.userEmail, role: 'administrador' },
+      action: ACTIONS.FINCA_CREATE,
+      target: { type: 'finca', id: fincaRef.id },
+      metadata: { nombre: fincaNombre, nombreAdmin },
+      severity: SEVERITY.WARNING,
+    });
+
     res.status(201).json({ fincaId: fincaRef.id, code: 'FINCA_CREATED' });
   } catch (error) {
     console.error('[AUTH] Error creating finca:', error);
@@ -232,10 +246,31 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       // Update the user doc with the uid for future reference
       batch.update(userDoc.ref, { uid });
 
-      newMemberships.push({ id: membershipId, ...membershipData });
+      newMemberships.push({ id: membershipId, ...membershipData, _isNew: true });
     }
 
     if (newMemberships.length > 0) await batch.commit();
+
+    // Audit each freshly materialized membership. Severity escalates when the
+    // claim grants a privileged role — administrador must always be easy to
+    // spot in the audit stream.
+    for (const m of newMemberships) {
+      if (!m._isNew) continue;
+      const isPrivileged = m.rol === 'administrador' || m.rol === 'supervisor';
+      writeAuditEvent({
+        fincaId: m.fincaId,
+        actor: { uid, email: userEmail, role: m.rol },
+        action: ACTIONS.MEMBERSHIP_CLAIM,
+        target: { type: 'membership', id: m.id },
+        metadata: {
+          rol: m.rol,
+          restrictedTo: Array.isArray(m.restrictedTo) ? m.restrictedTo : [],
+        },
+        severity: isPrivileged ? SEVERITY.WARNING : SEVERITY.INFO,
+      });
+      delete m._isNew;
+    }
+
     res.status(200).json({ memberships: newMemberships });
   } catch (error) {
     console.error('[AUTH] Error claiming invitations:', error);
