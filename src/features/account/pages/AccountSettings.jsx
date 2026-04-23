@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { FiUpload, FiSave, FiX } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './AccountSettings.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/account-settings.css';
 
 function AccountSettings() {
   const apiFetch = useApiFetch();
