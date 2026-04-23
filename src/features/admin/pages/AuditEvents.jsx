@@ -29,6 +29,15 @@ const ACTION_OPTIONS = [
   { value: 'purchase.receipt',              label: 'Recepción de mercancía' },
   { value: 'income.create',                 label: 'Ingreso registrado' },
   { value: 'income.delete',                 label: 'Ingreso eliminado' },
+  { value: 'autopilot.pause',               label: 'Autopilot pausado' },
+  { value: 'autopilot.resume',              label: 'Autopilot reanudado' },
+  { value: 'autopilot.config.update',       label: 'Autopilot — config cambiada' },
+  { value: 'autopilot.action.approve',      label: 'Autopilot — acción aprobada' },
+  { value: 'autopilot.action.reject',       label: 'Autopilot — acción rechazada' },
+  { value: 'autopilot.action.rollback',     label: 'Autopilot — rollback aplicado' },
+  { value: 'autopilot.guardrail.auto_apply', label: 'Autopilot — guardrail auto-aplicado' },
+  { value: 'autopilot.chain.execute',       label: 'Autopilot — cadena ejecutada' },
+  { value: 'autopilot.chain.abort',         label: 'Autopilot — cadena abortada' },
 ];
 
 const ACTION_LABEL = Object.fromEntries(ACTION_OPTIONS.filter(o => o.value).map(o => [o.value, o.label]));

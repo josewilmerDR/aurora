@@ -28,6 +28,7 @@ const { planChain } = require('../../lib/meta/chains/chainPlanner');
 const { validateChain, MAX_CHAIN_STEPS } = require('../../lib/meta/chains/chainValidator');
 const { preflightChain } = require('../../lib/meta/chains/chainPreflight');
 const { executeChain, abortChain } = require('../../lib/meta/chains/chainExecutor');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const COLLECTION = 'meta_chains';
 const MAX_LIST_LIMIT = 100;
@@ -170,6 +171,19 @@ async function executeHandler(req, res) {
       email: req.userEmail,
     });
     if (result.ok) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.AUTOPILOT_CHAIN_EXECUTE,
+        target: { type: 'meta_chain', id: req.params.id },
+        metadata: {
+          effectiveLevel,
+          stepCount: result.stepCount ?? null,
+          executedCount: result.executedCount ?? null,
+          status: result.status || null,
+        },
+        severity: SEVERITY.WARNING,
+      });
       return res.json(result);
     }
     const status =
@@ -198,7 +212,20 @@ async function abortHandler(req, res) {
       uid: req.uid,
       email: req.userEmail,
     }, { reason });
-    if (result.ok) return res.json(result);
+    if (result.ok) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.AUTOPILOT_CHAIN_ABORT,
+        target: { type: 'meta_chain', id: req.params.id },
+        metadata: {
+          reason: reason ? reason.slice(0, 500) : null,
+          rolledBackCount: result.rolledBackCount ?? null,
+        },
+        severity: SEVERITY.WARNING,
+      });
+      return res.json(result);
+    }
     const status =
       result.code === 'NOT_FOUND' ? 404 :
       result.code === 'FORBIDDEN' ? 403 :

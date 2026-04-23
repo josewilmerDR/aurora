@@ -62,6 +62,20 @@ const ACTIONS = Object.freeze({
   PURCHASE_RECEIPT: 'purchase.receipt',
   INCOME_CREATE: 'income.create',
   INCOME_DELETE: 'income.delete',
+
+  // Autopilot / CEO agent — state-changing or autonomous decisions. Propose
+  // stages are NOT audited: they're approved-or-rejected downstream and that
+  // is where the trail lives. Cron sweeps / orchestrator ticks also not
+  // audited (too noisy, no forensic value individually).
+  AUTOPILOT_PAUSE: 'autopilot.pause',
+  AUTOPILOT_RESUME: 'autopilot.resume',
+  AUTOPILOT_CONFIG_UPDATE: 'autopilot.config.update',
+  AUTOPILOT_ACTION_APPROVE: 'autopilot.action.approve',
+  AUTOPILOT_ACTION_REJECT: 'autopilot.action.reject',
+  AUTOPILOT_ACTION_ROLLBACK: 'autopilot.action.rollback',
+  AUTOPILOT_GUARDRAIL_AUTO_APPLY: 'autopilot.guardrail.auto_apply',
+  AUTOPILOT_CHAIN_EXECUTE: 'autopilot.chain.execute',
+  AUTOPILOT_CHAIN_ABORT: 'autopilot.chain.abort',
 });
 
 const SEVERITY = Object.freeze({
