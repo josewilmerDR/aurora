@@ -5,9 +5,10 @@ name: Security — Semgrep
 # security coverage. Findings are uploaded to the GitHub Security tab as SARIF
 # so they appear inline on PR review.
 #
-# Why soft-fail initially: we have no baseline yet, so the first PR run will
-# surface the historical footprint. Flip `continue-on-error` to `false` once
-# the baseline is triaged.
+# Hard-fail: the baseline pass from PR #344 flagged 18 findings, all false
+# positives. Four rule ids produce systemic FPs on this codebase (see the
+# --exclude-rule list below) so we drop them globally. With those out, the
+# baseline is clean — any new finding is a regression and should block merge.
 
 on:
   pull_request:
@@ -30,8 +31,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Excluded rules (all flagged FPs in the initial baseline):
+      #   unsafe-formatstring            — Node's console.* does NOT evaluate
+      #                                    %s specifiers in template literals,
+      #                                    which is what every hit used.
+      #   express-check-csurf-middleware — we are an API-only backend with
+      #                                    Bearer tokens and no cookie sessions;
+      #                                    CSRF does not apply.
+      #   express-data-exfiltration      — matches the idiomatic
+      #                                    `Object.assign(new Error, {statusCode})`
+      #                                    pattern where the target is a fresh
+      #                                    object, not a user-reachable surface.
+      #   remote-property-injection      — fires on whitelist-iteration patterns
+      #                                    (for key of ALLOWED) which are the
+      #                                    safe alternative the rule is meant
+      #                                    to recommend.
       - name: Run Semgrep
-        continue-on-error: true
         run: |
           semgrep scan \
             --config p/default \
@@ -39,6 +54,10 @@ jobs:
             --config p/nodejs \
             --config p/react \
             --config p/owasp-top-ten \
+            --exclude-rule javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring \
+            --exclude-rule javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage \
+            --exclude-rule javascript.express.security.express-data-exfiltration.express-data-exfiltration \
+            --exclude-rule javascript.express.security.audit.remote-property-injection.remote-property-injection \
             --sarif --output=semgrep.sarif \
             --metrics=off \
             --error
