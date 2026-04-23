@@ -21,3 +21,9 @@ dev-dist/
 *.min.js
 *.bundle.js
 public/registerSW.js
+
+# Unit tests — dynamic regex construction, crafted payloads and other patterns
+# that trip security audit rules are normal here and not exposed at runtime.
+functions/tests/
+**/*.test.js
+**/*.spec.js
