@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/task-action.css';
 
 const TaskAction = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
+  const apiFetch = useApiFetch();
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,7 +22,7 @@ const TaskAction = () => {
     const fetchTask = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/tasks/${taskId}`);
+        const response = await apiFetch(`/api/tasks/${taskId}`);
         if (!response.ok) throw new Error('La tarea no fue encontrada o no tienes acceso a ella.');
         const data = await response.json();
         setTask(data);
@@ -33,7 +35,7 @@ const TaskAction = () => {
 
     const fetchUsers = async () => {
       try {
-        const res = await fetch('/api/users');
+        const res = await apiFetch('/api/users');
         const data = await res.json();
         setUsers(Array.isArray(data) ? data : []);
       } catch (_) {}
@@ -41,14 +43,13 @@ const TaskAction = () => {
 
     fetchTask();
     fetchUsers();
-  }, [taskId]);
+  }, [taskId, apiFetch]);
 
   const handleCompleteTask = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
+      const response = await apiFetch(`/api/tasks/${taskId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed_by_user' }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar la tarea.');
@@ -65,9 +66,8 @@ const TaskAction = () => {
     if (!newDate) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/tasks/${taskId}/reschedule`, {
+      const res = await apiFetch(`/api/tasks/${taskId}/reschedule`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newDate }),
       });
       if (!res.ok) throw new Error('No se pudo reprogramar la tarea.');
@@ -84,9 +84,8 @@ const TaskAction = () => {
     if (!newUserId) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/tasks/${taskId}/reassign`, {
+      const res = await apiFetch(`/api/tasks/${taskId}/reassign`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newUserId }),
       });
       if (!res.ok) throw new Error('No se pudo reasignar la tarea.');
