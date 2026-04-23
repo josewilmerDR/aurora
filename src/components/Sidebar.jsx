@@ -7,7 +7,7 @@ import {
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
-  FiShoppingCart, FiSend, FiCpu,
+  FiShoppingCart, FiSend, FiCpu, FiShield,
 } from 'react-icons/fi';
 
 // Icon map for generic bodegas (string key → React component)
@@ -166,6 +166,7 @@ export const MODULES = [
       { label: 'Unidades de Medida', to: '/admin/unidades-medida', icon: FiPackage, minRole: 'supervisor' },
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
       { label: 'Calibraciones', to: '/admin/calibraciones', icon: FiDroplet, minRole: 'supervisor', draftKey: 'calibraciones' },
+      { label: 'Registro de Auditoría', to: '/admin/auditoria', icon: FiShield, minRole: 'administrador' },
       { label: 'CEO Dashboard', to: '/ceo', icon: FiCpu, minRole: 'administrador' },
     ],
   },
