@@ -191,6 +191,15 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   const uid = currentUser?.id || 'guest';
   const userRole = currentUser?.rol || 'trabajador';
+  // When a membership pins the user to specific modules (restrictedTo), only
+  // those module ids are shown in the sidebar. An empty or missing list means
+  // no restriction and every module the user's role grants remains visible.
+  const restrictedTo = Array.isArray(currentUser?.restrictedTo) && currentUser.restrictedTo.length > 0
+    ? currentUser.restrictedTo
+    : null;
+  const accessibleModules = restrictedTo
+    ? MODULES.filter(m => restrictedTo.includes(m.id))
+    : MODULES;
 
   const [activeTab, setActiveTab] = useState('favoritos');
   const [expandedMods, setExpandedMods] = useState(() => new Set());
@@ -281,7 +290,32 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     return () => window.removeEventListener('aurora-tasks-changed', refreshOverdueCount);
   }, [refreshOverdueCount]);
 
-  const canAccess = useCallback((item) => hasMinRole(userRole, item.minRole), [userRole]);
+  // Set of path strings allowed by the user's module restriction. Only built
+  // when restrictedTo is active; otherwise canAccess short-circuits the check.
+  const allowedPathsSet = useCallback(() => {
+    if (!restrictedTo) return null;
+    const set = new Set();
+    set.add(DASHBOARD_ITEM.to);
+    for (const mod of accessibleModules) {
+      for (const item of mod.items) {
+        if (item.to) set.add(item.to);
+        if (item.children) {
+          for (const child of item.children) {
+            if (child.to) set.add(child.to);
+          }
+        }
+      }
+    }
+    return set;
+  }, [restrictedTo, accessibleModules])();
+
+  const canAccess = useCallback((item) => {
+    if (!hasMinRole(userRole, item.minRole)) return false;
+    // Group items (with children) have no `to` — they pass the restriction
+    // check because their visible children will be filtered individually.
+    if (allowedPathsSet && item.to && !allowedPathsSet.has(item.to)) return false;
+    return true;
+  }, [userRole, allowedPathsSet]);
   const itemFor = (path) => ALL_ITEMS.find((i) => i.to === path);
   const badgeFor = (to) => {
     if (to === '/' && tareasVencidasCount > 0) return tareasVencidasCount;
@@ -425,7 +459,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
           <NavItem item={DASHBOARD_ITEM} showPinBtn />
         </div>
       )}
-      {MODULES.map((mod) => {
+      {accessibleModules.map((mod) => {
         const visibleItems = mod.items.filter(canAccess);
         if (visibleItems.length === 0) return null;
         const expanded = expandedMods.has(mod.id);
@@ -477,7 +511,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   // ── Collapsed icon-only nav ──────────────────────────────────────────────
   const CollapsedNav = () => {
-    const visibleModules = MODULES.filter(mod => mod.items.some(canAccess));
+    const visibleModules = accessibleModules.filter(mod => mod.items.some(canAccess));
     const dashBadge = badgeFor('/');
 
     const handleModuleClick = (modId) => {
