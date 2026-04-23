@@ -5,7 +5,7 @@ import UserManagement from './pages/UserManagement';
 import PackageManagement from './features/applications/pages/PackageManagement';
 import LoteManagement from './pages/LoteManagement';
 import TaskTracking from './features/tasks/pages/TaskTracking';
-import Dashboard from './pages/Dashboard';
+import Dashboard from './features/dashboard/pages/Dashboard';
 import TaskAction from './features/tasks/pages/TaskAction';
 import ProductManagement from './pages/BodegaAgroquimicosProductManagement';
 import ProductCatalog from './pages/BodegaAgroquimicosProductCatalog';
