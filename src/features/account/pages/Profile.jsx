@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { linkWithPopup, unlink, sendPasswordResetEmail } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
-import { useUser } from '../contexts/UserContext';
-import { useApiFetch } from '../hooks/useApiFetch';
+import { auth, googleProvider } from '../../../firebase';
+import { useUser } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 import { FiBell, FiTrash2 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import './Profile.css';
+import Toast from '../../../components/Toast';
+import '../styles/profile.css';
 
 const GOOGLE_PROVIDER_ID = 'google.com';
 const PASSWORD_PROVIDER_ID = 'password';
