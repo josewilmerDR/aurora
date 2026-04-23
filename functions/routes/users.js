@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
+const { MODULE_PREFIXES } = require('../lib/moduleMap');
 
 const router = Router();
 
@@ -9,6 +10,22 @@ const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'rrhh
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]+$/;
 const LIMITS = { nombre: 80, email: 120, telefono: 20 };
+// Whitelist of sidebar module ids that can appear in `restrictedTo`. Keeps
+// in sync with MODULE_PREFIXES automatically — adding a new module to the
+// moduleMap also exposes it here without any extra wiring.
+const MODULE_IDS = new Set(Object.keys(MODULE_PREFIXES));
+
+// Filters a raw restrictedTo array into clean module ids. Non-strings and
+// unknown ids are silently dropped (not an error — a stale client payload
+// should not block an admin's update). Returns an array sorted + deduped.
+function cleanRestrictedTo(raw) {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set();
+  for (const v of raw) {
+    if (typeof v === 'string' && MODULE_IDS.has(v)) seen.add(v);
+  }
+  return [...seen].sort();
+}
 
 function validateUserPayload(body) {
   const errs = [];
@@ -21,6 +38,13 @@ function validateUserPayload(body) {
   if (!EMAIL_RE.test(email) || email.length > LIMITS.email) errs.push('Email inválido.');
   if (telefono && (!PHONE_RE.test(telefono) || telefono.length > LIMITS.telefono)) errs.push('Teléfono inválido.');
   if (rol != null && !ROLES_VALIDOS.includes(rol)) errs.push('Rol inválido.');
+
+  // restrictedTo is optional. When present it must be an array of strings;
+  // unknown module ids are scrubbed, but if the caller clearly sent a non-
+  // array (e.g. a string or object) that is a client bug worth flagging.
+  if (body.restrictedTo !== undefined && !Array.isArray(body.restrictedTo)) {
+    errs.push('restrictedTo debe ser un arreglo.');
+  }
 
   return { errs, clean: { nombre, email, telefono, rol: rol || 'trabajador' } };
 }
@@ -51,7 +75,15 @@ router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
       .where('fincaId', '==', req.fincaId)
       .where('email', '==', clean.email).limit(1).get();
     if (!dup.empty) return res.status(409).json({ message: 'Ese email ya está registrado.' });
-    const user = { ...clean, empleadoPlanilla: req.body.empleadoPlanilla === true, fincaId: req.fincaId };
+
+    const restrictedTo = cleanRestrictedTo(req.body.restrictedTo) || [];
+
+    const user = {
+      ...clean,
+      empleadoPlanilla: req.body.empleadoPlanilla === true,
+      fincaId: req.fincaId,
+      restrictedTo,
+    };
     const docRef = await db.collection('users').add(user);
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
@@ -64,11 +96,19 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
     if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol', 'empleadoPlanilla']);
+    const userData = pick(req.body, ['nombre', 'email', 'telefono', 'rol', 'empleadoPlanilla', 'restrictedTo']);
     const current = ownership.doc.data();
     const isSelf = req.userEmail && current.email && current.email.toLowerCase() === req.userEmail.toLowerCase();
     if (isSelf && userData.rol !== undefined && userData.rol !== current.rol) {
       return res.status(403).json({ message: 'No puedes cambiar tu propio rol.' });
+    }
+    // Self-lockout guard: an admin must not be able to restrict themselves out
+    // of the admin module — otherwise they lose access to user management.
+    if (isSelf && userData.restrictedTo !== undefined) {
+      const cleaned = cleanRestrictedTo(userData.restrictedTo) || [];
+      if (cleaned.length > 0 && !cleaned.includes('admin')) {
+        return res.status(403).json({ message: 'No puedes restringir tu propio acceso al módulo de administración.' });
+      }
     }
     const { errs, clean } = validateUserPayload({ ...current, ...userData });
     if (errs.length) return res.status(400).json({ message: errs.join(' ') });
@@ -84,9 +124,36 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
     if (userData.telefono !== undefined) updates.telefono = clean.telefono;
     if (userData.rol !== undefined) updates.rol = clean.rol;
     if (userData.empleadoPlanilla !== undefined) updates.empleadoPlanilla = userData.empleadoPlanilla === true;
+    if (userData.restrictedTo !== undefined) updates.restrictedTo = cleanRestrictedTo(userData.restrictedTo) || [];
     await db.collection('users').doc(id).update(updates);
+
+    // Sync the mirror on memberships when rol or restrictedTo changed. Without
+    // this, an admin edit would never propagate to a user who has already
+    // logged in (the membership is the source of truth for authenticate).
+    // Match by email + fincaId — the uid is on memberships but not reliably
+    // cached on users until after claim-invitations runs the first time.
+    const rolChanged = userData.rol !== undefined && clean.rol !== current.rol;
+    const restrictedChanged = userData.restrictedTo !== undefined;
+    if (rolChanged || restrictedChanged) {
+      const targetEmail = (updates.email || current.email || '').toLowerCase();
+      if (targetEmail) {
+        const memSnap = await db.collection('memberships')
+          .where('fincaId', '==', req.fincaId)
+          .where('email', '==', targetEmail)
+          .limit(1)
+          .get();
+        if (!memSnap.empty) {
+          const membershipUpdate = {};
+          if (rolChanged) membershipUpdate.rol = clean.rol;
+          if (restrictedChanged) membershipUpdate.restrictedTo = updates.restrictedTo;
+          await memSnap.docs[0].ref.update(membershipUpdate);
+        }
+      }
+    }
+
     res.status(200).json({ id, ...updates });
   } catch (error) {
+    console.error('[users:put]', error);
     res.status(500).json({ message: 'Error al actualizar usuario.' });
   }
 });

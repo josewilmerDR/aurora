@@ -3,6 +3,7 @@ const { db, Timestamp } = require('../lib/firebase');
 const { authenticateOnly, authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { ROLE_LEVELS_BE } = require('../lib/helpers');
+const { MODULE_PREFIXES } = require('../lib/moduleMap');
 
 const router = Router();
 
@@ -21,6 +22,10 @@ const MAX_USER_DOCS_PER_CLAIM = 50;
 // doc during invitation claim. Anything outside this set is downgraded to
 // 'trabajador' (the safest default). Kept in sync with ROLE_LEVELS_BE.
 const VALID_ROLES = new Set(Object.keys(ROLE_LEVELS_BE));
+
+// Whitelist of sidebar module ids for the optional `restrictedTo` field.
+// Unknown ids are silently dropped during claim.
+const VALID_MODULE_IDS = new Set(Object.keys(MODULE_PREFIXES));
 
 // Deterministic membership ID: one membership per (uid, fincaId). Makes
 // concurrent claims idempotent — the second write hits the same doc.
@@ -203,6 +208,14 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       // would propagate into memberships.
       const safeRol = typeof rol === 'string' && VALID_ROLES.has(rol) ? rol : 'trabajador';
 
+      // Copy the module-restriction list (if any) from the users doc, but
+      // scrub it against the module whitelist so a corrupted users row cannot
+      // inject unknown ids into the membership.
+      const rawRestricted = Array.isArray(userData.restrictedTo) ? userData.restrictedTo : [];
+      const safeRestricted = [...new Set(
+        rawRestricted.filter(v => typeof v === 'string' && VALID_MODULE_IDS.has(v))
+      )].sort();
+
       const membershipData = {
         uid,
         fincaId,
@@ -211,6 +224,7 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
         nombre: nombre || '',
         telefono: telefono || '',
         rol: safeRol,
+        restrictedTo: safeRestricted,
         creadoEn: Timestamp.now(),
       };
       batch.set(membershipRef, membershipData);

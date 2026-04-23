@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import '../styles/user-management.css';
-import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone, FiLock } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
+import { MODULES } from '../../../components/Sidebar';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
-const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador' };
+const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', restrictedTo: [] };
 const LIMITS = { nombre: 80, email: 120, telefono: 20 };
 const VALID_ROLES = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]+$/;
+const VALID_MODULE_IDS = new Set(MODULES.map(m => m.id));
 
 const getInitials = (nombre) => {
   if (!nombre) return '?';
@@ -68,6 +70,9 @@ function UserManagement() {
         email: typeof f.email === 'string' ? f.email : '',
         telefono: typeof f.telefono === 'string' ? f.telefono : '',
         rol: VALID_ROLES.includes(f.rol) ? f.rol : 'trabajador',
+        restrictedTo: Array.isArray(f.restrictedTo)
+          ? f.restrictedTo.filter(id => VALID_MODULE_IDS.has(id))
+          : [],
       });
       setView('form');
       setIsEditing(false);
@@ -89,6 +94,16 @@ function UserManagement() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const toggleModule = (modId) => {
+    setFormData(prev => {
+      const has = prev.restrictedTo.includes(modId);
+      const next = has
+        ? prev.restrictedTo.filter(id => id !== modId)
+        : [...prev.restrictedTo, modId];
+      return { ...prev, restrictedTo: next };
+    });
   };
 
   const resetForm = () => {
@@ -115,7 +130,16 @@ function UserManagement() {
 
   const handleEdit = (user) => {
     setIsEditing(true);
-    setFormData({ id: user.id, nombre: user.nombre, email: user.email, telefono: user.telefono, rol: user.rol });
+    setFormData({
+      id: user.id,
+      nombre: user.nombre,
+      email: user.email,
+      telefono: user.telefono,
+      rol: user.rol,
+      restrictedTo: Array.isArray(user.restrictedTo)
+        ? user.restrictedTo.filter(id => VALID_MODULE_IDS.has(id))
+        : [],
+    });
     setView('form');
     window.scrollTo(0, 0);
   };
@@ -189,6 +213,10 @@ function UserManagement() {
   // ── Panel de detalle (solo lectura) ──────────────────────────────────────
   const renderHubPanel = () => {
     if (!selectedUser) return null;
+    const restricted = Array.isArray(selectedUser.restrictedTo) ? selectedUser.restrictedTo : [];
+    const restrictedLabels = restricted
+      .map(id => MODULES.find(m => m.id === id)?.nombre)
+      .filter(Boolean);
     return (
       <div className="lote-hub">
         <button className="lote-hub-back" onClick={() => setSelectedUser(null)}>
@@ -214,6 +242,13 @@ function UserManagement() {
           <span className="hub-pill"><FiMail size={13} />{selectedUser.email}</span>
           <span className="hub-pill"><FiPhone size={13} />{selectedUser.telefono}</span>
         </div>
+        {restrictedLabels.length > 0 && (
+          <div className="hub-info-pills">
+            <span className="hub-pill hub-pill--restricted" title="Acceso restringido a estos módulos">
+              <FiLock size={13} />Solo: {restrictedLabels.join(', ')}
+            </span>
+          </div>
+        )}
       </div>
     );
   };
@@ -299,6 +334,30 @@ function UserManagement() {
                     </select>
                   </div>
                 </div>
+
+                <div className="form-control form-control--full modules-section">
+                  <label>Acceso por módulo (opcional)</label>
+                  <p className="form-hint">
+                    Si no marcas ninguno, el usuario verá todos los módulos que su rol permita.
+                    Si marcas uno o más, solo verá esos.
+                  </p>
+                  <div className="module-checkboxes">
+                    {MODULES.map(mod => {
+                      const checked = formData.restrictedTo.includes(mod.id);
+                      return (
+                        <label key={mod.id} className={`module-checkbox${checked ? ' module-checkbox--on' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleModule(mod.id)}
+                          />
+                          <span>{mod.nombre}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="form-actions">
                   <button type="submit" className="btn btn-primary" disabled={submitting}>
                     <FiUserPlus />

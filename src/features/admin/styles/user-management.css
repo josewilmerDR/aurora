@@ -88,3 +88,52 @@
 .role-badge--supervisor  { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
 .role-badge--administrador { background: rgba(51,153,255,0.2); color: #5599ff; }
 
+
+/* Módulos permitidos (restrictedTo) — multi-select visual */
+.form-control--full {
+  grid-column: 1 / -1;
+}
+.modules-section {
+  margin-top: 12px;
+}
+.form-hint {
+  margin: 0 0 10px 0;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.module-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.module-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  transition: border-color 0.15s, background 0.15s;
+}
+.module-checkbox:hover {
+  border-color: var(--aurora-green);
+}
+.module-checkbox input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+}
+.module-checkbox--on {
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
+}
+
+.hub-pill--restricted {
+  background: rgba(51, 153, 255, 0.15);
+  color: #5599ff;
+}
