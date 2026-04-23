@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { FiX, FiCheck, FiClock } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import BuyerSelector from '../features/finance/components/BuyerSelector';
-import { useApiFetch } from '../hooks/useApiFetch';
-import { useUser } from '../contexts/UserContext';
-import './Horimetro.css';
-import './CosechaDespachos.css';
+import Toast from '../../../components/Toast';
+import BuyerSelector from '../../finance/components/BuyerSelector';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import '../../../pages/Horimetro.css';
+import '../styles/cosecha-despachos.css';
 
 // ── Generic combobox ─────────────────────────────────────────────────────────
 function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {

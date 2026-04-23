@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { FiCheck, FiClock } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './Horimetro.css';
+import Toast from '../../../components/Toast';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../../../pages/Horimetro.css';
 
 // ── Generic combobox ─────────────────────────────────────────────────────────
 function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
