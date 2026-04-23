@@ -4,12 +4,12 @@ import { createPortal } from 'react-dom';
 import {
   FiChevronLeft, FiFilter, FiX, FiEye, FiShare2, FiPrinter, FiPackage,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useUser } from '../contexts/UserContext';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './OCNueva.css';
-import './OCDesdeSolicitud.css';
-import './OCHistorial.css';
+import Toast from '../../../components/Toast';
+import { useUser } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/oc-nueva.css';
+import '../styles/oc-desde-solicitud.css';
+import '../styles/oc-historial.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ESTADO_LABELS = { activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada' };

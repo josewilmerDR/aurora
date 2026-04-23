@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useDraft, markDraftActive, clearDraftActive } from '../hooks/useDraft';
+import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import {
   FiFileText, FiPackage, FiShoppingCart, FiExternalLink,
   FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX, FiSave, FiShare2,
 } from 'react-icons/fi';
-import Toast from '../components/Toast';
-import { useUser } from '../contexts/UserContext';
-import { useApiFetch } from '../hooks/useApiFetch';
-import './OCNueva.css';
-import './OCDesdeSolicitud.css';
+import Toast from '../../../components/Toast';
+import { useUser } from '../../../contexts/UserContext';
+import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../styles/oc-nueva.css';
+import '../styles/oc-desde-solicitud.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ESTADO_LABELS = {
