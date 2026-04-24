@@ -114,18 +114,25 @@ export default function AutopilotPanel({ open, onClose }) {
     }
   };
 
+  // Core analyze call that throws on error. Used by both handleAnalyze (with
+  // its own error UI) and the level slider's "Activar y analizar" flow, which
+  // manages its own busy state.
+  const runAnalyze = async () => {
+    const res = await apiFetch('/api/autopilot/analyze', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Error al analizar');
+    setLastRun(data.timestamp);
+    if (Array.isArray(data.proposedActions)) {
+      setPendingCount(prev => prev + data.proposedActions.filter(a => a.status === 'proposed').length);
+    }
+    window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
+  };
+
   const handleAnalyze = async () => {
     setAnalyzing(true);
     setError(null);
     try {
-      const res = await apiFetch('/api/autopilot/analyze', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al analizar');
-      setLastRun(data.timestamp);
-      if (Array.isArray(data.proposedActions)) {
-        setPendingCount(prev => prev + data.proposedActions.filter(a => a.status === 'proposed').length);
-      }
-      window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
+      await runAnalyze();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -216,6 +223,7 @@ export default function AutopilotPanel({ open, onClose }) {
               mode={mode}
               disabled={!canConfig}
               onChange={handleModeChange}
+              onAnalyze={runAnalyze}
               onNavigate={onClose}
               objectives={config.objectives}
             />

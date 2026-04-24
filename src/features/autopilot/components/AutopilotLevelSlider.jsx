@@ -22,49 +22,51 @@ const LEVEL_COPY = {
     title: 'Activar Nivel 1 — Recomendaciones',
     intro: 'Vas a activar el Nivel 1 ("Recomendaciones") de Aurora Copilot.',
     body: 'Al hacerlo, Aurora leerá el estado actual del proyecto y generará recomendaciones sobre acciones específicas que podrían tomarse. Ten en cuenta en todo momento que en este nivel Aurora es sólo un sistema de recomendaciones: cualquier acción debe ser evaluada y ejecutada por ti o tu equipo de trabajo.',
-    confirmLabel: 'Activar Nivel 1',
+    confirmLabel: 'Activar',
     tone: 'info',
   },
   nivel2: {
     title: 'Activar Nivel 2 — Agencia Supervisada',
     intro: 'Vas a activar el Nivel 2 ("Agencia Supervisada") de Aurora Copilot.',
     body: 'En este nivel, Aurora no sólo recomienda: también propone acciones concretas (crear tareas, reprogramar, ajustar inventario, enviar notificaciones, etc.) que quedarán pendientes hasta que tú o un supervisor las aprueben. Ninguna acción se ejecuta sin tu visto bueno.',
-    confirmLabel: 'Activar Nivel 2',
+    confirmLabel: 'Activar',
     tone: 'info',
   },
   nivel3: {
     title: 'Activar Nivel 3 — Agencia Total',
     intro: 'Vas a activar el Nivel 3 ("Agencia Total") de Aurora Copilot.',
     body: 'Aurora ejecutará acciones de forma autónoma dentro de las barandillas de seguridad que hayas configurado, y te informará en tiempo real. Este es el nivel más consecuente: te recomendamos revisar las barandillas (límites por sesión, montos, lotes bloqueados, horarios) antes de continuar. Los dominios de RR.HH. y Financiamiento permanecen con revisión humana por política.',
-    confirmLabel: 'Activar Nivel 3',
+    confirmLabel: 'Activar',
     tone: 'warning',
   },
 };
 
-export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavigate, objectives }) {
+export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavigate, onAnalyze, objectives }) {
   const current = LEVEL_BY_ID[mode] || LEVELS[0];
   const [pendingId, setPendingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
 
   const copy = pendingId ? LEVEL_COPY[pendingId] : null;
   const fillPct = (current.index / (LEVELS.length - 1)) * 100;
+  const busy = saving || analyzing;
 
   const propose = (id) => {
-    if (disabled || saving) return;
+    if (disabled || busy) return;
     if (id === mode) return;
     setError(null);
     setPendingId(id);
   };
 
   const cancel = () => {
-    if (saving) return;
+    if (busy) return;
     setPendingId(null);
     setError(null);
   };
 
   const confirm = async () => {
-    if (!pendingId || saving) return;
+    if (!pendingId || busy) return;
     setSaving(true);
     setError(null);
     try {
@@ -77,13 +79,36 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
     }
   };
 
+  const confirmAndAnalyze = async () => {
+    if (!pendingId || busy || !onAnalyze) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onChange(pendingId);
+    } catch (err) {
+      setError(err?.message || 'No se pudo actualizar el nivel.');
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
+    setAnalyzing(true);
+    try {
+      await onAnalyze();
+      setPendingId(null);
+    } catch (err) {
+      setError(err?.message || 'Nivel activado, pero el análisis falló. Intenta desde "Analizar ahora".');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   useEffect(() => {
     if (!pendingId) return;
     const onKey = (e) => { if (e.key === 'Escape') cancel(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingId, saving]);
+  }, [pendingId, busy]);
 
   return (
     <div
@@ -146,7 +171,7 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                 type="button"
                 className="ap-level-modal-close"
                 onClick={cancel}
-                disabled={saving}
+                disabled={busy}
                 aria-label="Cancelar"
               >
                 <FiX size={16} />
@@ -199,7 +224,7 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                 type="button"
                 className="ap-level-modal-cancel"
                 onClick={cancel}
-                disabled={saving}
+                disabled={busy}
               >
                 Cancelar
               </button>
@@ -207,10 +232,21 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                 type="button"
                 className={`ap-level-modal-confirm ap-level-modal-confirm--${copy.tone}`}
                 onClick={confirm}
-                disabled={saving}
+                disabled={busy}
               >
                 {saving ? 'Guardando…' : copy.confirmLabel}
               </button>
+              {pendingId !== 'off' && onAnalyze && (
+                <button
+                  type="button"
+                  className={`ap-level-modal-confirm ap-level-modal-confirm--${copy.tone} ap-level-modal-confirm--analyze`}
+                  onClick={confirmAndAnalyze}
+                  disabled={busy}
+                  title="Guarda el nivel y genera un análisis inmediato"
+                >
+                  {analyzing ? 'Analizando…' : saving ? 'Guardando…' : 'Activar y analizar'}
+                </button>
+              )}
             </div>
           </div>
         </div>
