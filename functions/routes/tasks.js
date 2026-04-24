@@ -4,6 +4,7 @@ const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, enrichTask, writeFeedEvent, sendNotificationWithLink } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { taskTypeToModule, isModuleAllowed } = require('../lib/moduleClassifier');
+const { rateLimit, rateLimitByIp } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -48,7 +49,7 @@ const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isValidYmd = (s) => typeof s === 'string' && YMD_RE.test(s)
   && Number.isFinite(new Date(s).getTime());
 
-router.post('/api/tasks', authenticate, async (req, res) => {
+router.post('/api/tasks', authenticate, rateLimit('tasks_write', 'write'), async (req, res) => {
   if (req.userRole === 'trabajador') {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to create tasks.', 403);
   }
@@ -136,7 +137,7 @@ router.get('/api/tasks/overdue-count', authenticate, async (req, res) => {
   }
 });
 
-router.get('/api/tasks/:id', async (req, res) => {
+router.get('/api/tasks/:id', rateLimitByIp('tasks_public_read', 'public_read'), async (req, res) => {
   try {
     const { id } = req.params;
     const taskDoc = await db.collection('scheduled_tasks').doc(id).get();
@@ -151,7 +152,7 @@ router.get('/api/tasks/:id', async (req, res) => {
   }
 });
 
-router.put('/api/tasks/:id', authenticate, async (req, res) => {
+router.put('/api/tasks/:id', authenticate, rateLimit('tasks_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const VALID_STATUSES = ['pending', 'completed_by_user', 'skipped', 'notified'];
@@ -224,7 +225,7 @@ router.put('/api/tasks/:id', authenticate, async (req, res) => {
 
 // --- TASK ACTIONS ---
 
-router.post('/api/tasks/:id/reschedule', authenticate, async (req, res) => {
+router.post('/api/tasks/:id/reschedule', authenticate, rateLimit('tasks_write', 'write'), async (req, res) => {
     try {
         const { id } = req.params;
         const { newDate } = req.body;
@@ -247,7 +248,7 @@ router.post('/api/tasks/:id/reschedule', authenticate, async (req, res) => {
     }
 });
 
-router.post('/api/tasks/:id/reassign', authenticate, async (req, res) => {
+router.post('/api/tasks/:id/reassign', authenticate, rateLimit('tasks_notify', 'notify'), async (req, res) => {
     try {
         const { id } = req.params;
         const { newUserId } = req.body;
