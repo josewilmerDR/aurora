@@ -48,12 +48,15 @@
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 28px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .na-main-layout {
   display: flex;
   gap: 24px;
   align-items: flex-start;
+  min-width: 0;
 }
 
 .na-left-col {
@@ -84,6 +87,8 @@
 .na-form-grid .form-group {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
   gap: 6px;
 }
 
@@ -97,12 +102,27 @@
 
 .na-form-grid input,
 .na-form-grid select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background-color: var(--aurora-background);
   border: 1px solid var(--aurora-border);
   border-radius: 8px;
   color: var(--aurora-light);
   padding: 9px 12px;
   font-size: 0.95rem;
+  text-overflow: ellipsis;
+}
+
+/* iOS Safari ignora width:100% en inputs nativos (text/date/number) si
+   mantienen su apariencia intrínseca: el control usa un ancho menor que
+   el contenedor. Reseteamos la apariencia sólo en los inputs de texto —
+   el select se deja intacto para conservar su flecha nativa. */
+.na-form-grid input {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .na-form-grid input:focus,
@@ -167,6 +187,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   width: 100%;
   padding: 10px 14px;
   background: transparent;
@@ -177,6 +198,14 @@
   text-align: left;
   font-size: 0.9rem;
   transition: background 0.15s, color 0.15s;
+}
+
+.na-producto-option > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .na-producto-option:last-child {
@@ -265,9 +294,14 @@
 .na-form-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--aurora-border);
+}
+
+.na-form-actions-spacer {
+  flex: 1;
 }
 
 /* ── Plantillas guardadas ── */
@@ -699,7 +733,7 @@
   background: var(--aurora-green);
 }
 
-/* Nombre de la actividad */
+/* Nombre de la tarea */
 .task-row__name {
   font-size: 0.92rem;
   font-weight: 600;
@@ -793,6 +827,10 @@
   .btn-nueva-aplicacion { display: none; }
   .filter-pills         { display: none; }
 
+  /* En móvil los usuarios vuelven con el botón atrás del sistema; la X
+     duplica esa acción y quita espacio útil del header. */
+  .task-tracking-header .page-close-btn { display: none; }
+
   /* Mostrar barra unificada */
   .filter-bar {
     display: flex;
@@ -879,6 +917,10 @@
 
   .na-main-layout {
     flex-direction: column;
+    /* Con flex-direction: column + align-items: flex-start (base),
+       los hijos toman su ancho intrínseco en vez de estirarse. Forzamos
+       stretch para que .na-left-col y .na-right-col usen todo el ancho. */
+    align-items: stretch;
   }
 
   .na-right-col {
@@ -889,7 +931,70 @@
     padding-top: 16px;
   }
 
+  /* Forzar que toda la cadena de contenedores del form ocupe 100% del
+     ancho disponible en móvil. Sin estos anchos explícitos, los controles
+     nativos iOS/Android toman un ancho intrínseco menor. */
+  .na-left-col,
+  .na-form-grid,
+  .na-form-grid .form-group {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .na-form-grid input,
+  .na-form-grid select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* minmax(0, 1fr) permite que las columnas se recorten en vez de forzar
+     el ancho por el contenido intrínseco de los selects. */
   .na-form-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Tabla de productos: ancho fijo + wrap del contenido para que nunca
+     exceda el panel; el qty-input se vuelve fluido. */
+  .na-productos-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .na-productos-table th,
+  .na-productos-table td {
+    overflow-wrap: anywhere;
+    padding: 8px 6px;
+  }
+
+  .na-qty-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Acciones del formulario en móvil:
+     [📋 Guardar como plantilla]            (100% ancho)
+     [Cancelar (50%)]  [Crear Tarea (50%)]  */
+  .na-form-actions-spacer {
+    display: none;
+  }
+
+  .btn-guardar-plantilla {
+    width: 100%;
+  }
+
+  .na-form-actions .btn-secondary,
+  .na-form-actions .btn-primary {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+  }
+}
+
+/* Pantallas muy angostas (≤420px): el form grid colapsa a una sola columna */
+@media (max-width: 420px) {
+  .na-form-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

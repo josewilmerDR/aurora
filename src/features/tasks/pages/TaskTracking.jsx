@@ -31,7 +31,8 @@ function TaskTracking() {
   };
 
   // --- Estado del formulario de nueva tarea ---
-  const [showNewTask, setShowNewTask] = useState(false);
+  // Abrir automáticamente si llegamos con ?new=1 (ej: desde el dashboard).
+  const [showNewTask, setShowNewTask] = useState(urlQuery.get('new') === '1');
   const [formLotes, setFormLotes] = useState([]);
   const [formUsers, setFormUsers] = useState([]);
   const [formProductos, setFormProductos] = useState([]);
@@ -86,6 +87,18 @@ function TaskTracking() {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Si entramos con ?new=1 abrimos el form una vez y removemos el param
+  // de la URL para que al recargar no se vuelva a abrir solo.
+  useEffect(() => {
+    if (urlQuery.get('new') === '1') {
+      const params = new URLSearchParams(location.search);
+      params.delete('new');
+      const qs = params.toString();
+      navigate(qs ? `?${qs}` : location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const dismissTask = (taskId, e) => {
     e.stopPropagation();
@@ -232,7 +245,7 @@ function TaskTracking() {
     }
   };
 
-  const canSubmit = formData.nombre && formData.loteId && formData.responsableId && formData.fecha
+  const canSubmit = formData.nombre && formData.fecha
     && formData.productos.every(p => parseFloat(p.cantidad) > 0);
 
   const handleCreateTask = async () => {
@@ -248,9 +261,9 @@ function TaskTracking() {
       const newTask = await res.json();
       setTasks(prev => [...prev, newTask].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)));
       resetForm();
-      showToast('Actividad creada correctamente');
+      showToast('Tarea creada correctamente');
     } catch {
-      showToast('Error al crear la actividad. Intenta de nuevo.', 'error');
+      showToast('Error al crear la tarea. Intenta de nuevo.', 'error');
     } finally {
       setFormSaving(false);
     }
@@ -358,7 +371,7 @@ function TaskTracking() {
         : new Date(a.dueDate) - new Date(b.dueDate);
     });
 
-  if (loading) return <div className="empty-state">Cargando actividades...</div>;
+  if (loading) return <div className="empty-state">Cargando tareas...</div>;
   if (error) return <div className="empty-state">Error: {error}</div>;
 
   const availableProductos = formProductos.filter(p => !formData.productos.find(fp => fp.productoId === p.id));
@@ -376,7 +389,7 @@ function TaskTracking() {
             onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
           >
             {showNewTask ? <FiX size={15} /> : <FiPlus size={15} />}
-            {showNewTask ? 'Cancelar' : 'Nueva Actividad'}
+            {showNewTask ? 'Cancelar' : 'Nueva Tarea'}
           </button>
           <div className="filter-pills">
             <button onClick={() => handleFilterChange('all')} className={`pill-btn ${filter === 'all' ? 'active' : ''}`}>Todas</button>
@@ -399,7 +412,7 @@ function TaskTracking() {
             <button
               className="filter-bar__add-btn"
               onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
-              title={showNewTask ? 'Cancelar' : 'Nueva Actividad'}
+              title={showNewTask ? 'Cancelar' : 'Nueva Tarea'}
             >
               {showNewTask ? <FiX size={17} /> : <FiPlus size={17} />}
             </button>
@@ -428,7 +441,7 @@ function TaskTracking() {
             <div className="na-left-col">
               <div className="na-form-grid">
                 <div className="form-group">
-                  <label>Nombre de la actividad *</label>
+                  <label>Nombre de la tarea *</label>
                   <input
                     type="text"
                     placeholder="Ej: Fertilización Lote L2601"
@@ -437,16 +450,16 @@ function TaskTracking() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Lote *</label>
+                  <label>Lote</label>
                   <select value={formData.loteId} onChange={e => setFormData(prev => ({ ...prev, loteId: e.target.value }))}>
                     <option value="">-- Seleccionar lote --</option>
                     {formLotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Responsable *</label>
+                  <label>Responsable</label>
                   <select value={formData.responsableId} onChange={e => setFormData(prev => ({ ...prev, responsableId: e.target.value }))}>
-                    <option value="">-- Seleccionar responsable --</option>
+                    <option value="">-- Sin asignar --</option>
                     {formUsers.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                   </select>
                 </div>
@@ -564,46 +577,48 @@ function TaskTracking() {
             >
               {plantillaSaved ? '✓ Guardada' : savingPlantilla ? 'Guardando...' : '📋 Guardar como plantilla'}
             </button>
-            <div style={{ flex: 1 }} />
+            <div className="na-form-actions-spacer" />
             <button className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
             <button className="btn btn-primary" onClick={handleCreateTask} disabled={formSaving || !canSubmit}>
-              {formSaving ? 'Guardando...' : 'Crear Actividad'}
+              {formSaving ? 'Guardando...' : 'Crear Tarea'}
             </button>
           </div>
         </div>
       )}
 
-      {filter === 'all' ? (
-        <>
-          {archivedIds.size > 0 && (
-            <button className="archived-shortcut" onClick={() => handleFilterChange('archived')}>
-              <FiArchive size={14} />
-              <span>Archivadas</span>
-              <span className="archived-shortcut__count">{archivedIds.size}</span>
+      {!showNewTask && (
+        filter === 'all' ? (
+          <>
+            {archivedIds.size > 0 && (
+              <button className="archived-shortcut" onClick={() => handleFilterChange('archived')}>
+                <FiArchive size={14} />
+                <span>Archivadas</span>
+                <span className="archived-shortcut__count">{archivedIds.size}</span>
+              </button>
+            )}
+            {allTasksSorted.length === 0
+              ? <p className="empty-state">No hay tareas en esta categoría.</p>
+              : <div className="tasks-list">{allTasksSorted.map(renderTaskCard)}</div>
+            }
+          </>
+        ) : filter === 'archived' ? (
+          <>
+            <button className="archived-back" onClick={() => handleFilterChange('all')}>
+              ← Volver a Todas
             </button>
-          )}
-          {allTasksSorted.length === 0
-            ? <p className="empty-state">No hay actividades en esta categoría.</p>
-            : <div className="tasks-list">{allTasksSorted.map(renderTaskCard)}</div>
-          }
-        </>
-      ) : filter === 'archived' ? (
-        <>
-          <button className="archived-back" onClick={() => handleFilterChange('all')}>
-            ← Volver a Todas
-          </button>
-          {filteredTasks.length === 0
-            ? <p className="empty-state">No hay tareas archivadas.</p>
-            : <div className="tasks-list archived-grid">{filteredTasks.map(renderTaskCard)}</div>
-          }
-        </>
-      ) : (
-        <>
-          {filteredTasks.length === 0 && <p className="empty-state">No hay actividades en esta categoría.</p>}
-          <div className="tasks-list">
-            {filteredTasks.map(renderTaskCard)}
-          </div>
-        </>
+            {filteredTasks.length === 0
+              ? <p className="empty-state">No hay tareas archivadas.</p>
+              : <div className="tasks-list archived-grid">{filteredTasks.map(renderTaskCard)}</div>
+            }
+          </>
+        ) : (
+          <>
+            {filteredTasks.length === 0 && <p className="empty-state">No hay tareas en esta categoría.</p>}
+            <div className="tasks-list">
+              {filteredTasks.map(renderTaskCard)}
+            </div>
+          </>
+        )
       )}
     </div>
   );

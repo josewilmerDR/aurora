@@ -81,11 +81,15 @@
 .stat-card.completed .count {
   color: var(--aurora-green);
 }
-.stat-card.stock-bajo .count {
-  color: #f0ad4e;
+.stat-card.new-task .count {
+  color: var(--aurora-green);
+  font-weight: 400;
 }
-.stat-card.stock-bajo:has(.count:not(:empty)) {
-  border-color: rgba(240, 173, 78, 0.3);
+.stat-card.new-task {
+  border-color: rgba(51, 255, 153, 0.3);
+}
+.stat-card.new-task:hover {
+  border-color: var(--aurora-green);
 }
 
 .dashboard-columns-grid {

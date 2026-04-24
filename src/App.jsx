@@ -149,7 +149,7 @@ const routeTitles = {
   '/users': 'Gestión de Usuarios',
   '/packages': 'Paquetes de Aplicaciones',
   '/lotes': 'Gestión de Lotes',
-  '/tasks': 'Seguimiento de Actividades',
+  '/tasks': 'Seguimiento de Tareas',
   '/productos': 'Inventario Agroquímicos',
   '/productos/todos': 'Inventario Completo',
   '/ingreso-productos': 'Recepción de Mercancía',

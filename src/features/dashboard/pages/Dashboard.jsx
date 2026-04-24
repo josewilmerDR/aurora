@@ -51,7 +51,6 @@ function Dashboard() {
   const apiFetch = useApiFetch();
   const { firebaseUser } = useUser();
   const [stats, setStats] = useState({ overdue: 0, pending: 0 });
-  const [stockBajoCount, setStockBajoCount] = useState(0);
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -70,9 +69,8 @@ function Dashboard() {
     setLoading(true);
     Promise.all([
       apiFetch('/api/tasks').then(res => res.json()),
-      apiFetch('/api/productos').then(res => res.json()),
       apiFetch('/api/feed').then(res => res.json()),
-    ]).then(([tasksData, productosData, feedData]) => {
+    ]).then(([tasksData, feedData]) => {
       const archivedIds = new Set(
         JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')
       );
@@ -87,7 +85,6 @@ function Dashboard() {
         });
 
       setStats(taskStats);
-      setStockBajoCount(productosData.filter(p => p.activo !== false && p.stockActual <= p.stockMinimo).length);
       setFeed(Array.isArray(feedData) ? feedData : []);
       setLoading(false);
     }).catch(err => {
@@ -111,9 +108,9 @@ function Dashboard() {
           <div className="count">{stats.pending}</div>
           <div className="label">Tareas Pendientes</div>
         </Link>
-        <Link to="/productos" className="stat-card stock-bajo">
-          <div className="count">{stockBajoCount}</div>
-          <div className="label">Stock Bajo</div>
+        <Link to="/tasks?new=1" className="stat-card new-task">
+          <div className="count">+</div>
+          <div className="label">Nueva Tarea</div>
         </Link>
       </div>
 
