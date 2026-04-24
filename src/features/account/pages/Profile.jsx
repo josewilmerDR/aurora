@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { linkWithPopup, unlink, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, googleProvider } from '../../../firebase';
 import { useUser } from '../../../contexts/UserContext';
+import { useReminders } from '../../../contexts/RemindersContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { FiBell, FiTrash2 } from 'react-icons/fi';
+import { FiBell, FiTrash2, FiPlus, FiX, FiCheck, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import '../styles/profile.css';
 
@@ -19,34 +20,93 @@ function formatReminderDate(isoString) {
 export default function Profile() {
   const { firebaseUser, currentUser } = useUser();
   const apiFetch = useApiFetch();
+  const {
+    reminders, setReminders,
+    doneReminders, setDoneReminders,
+    loading: remindersLoading,
+  } = useReminders();
   const [loading, setLoading] = useState(null); // 'link' | 'unlink' | 'reset'
   const [toast, setToast] = useState(null);
-  const [reminders, setReminders] = useState([]);
-  const [remindersLoading, setRemindersLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [markingDoneId, setMarkingDoneId] = useState(null);
+  const [showCreateReminder, setShowCreateReminder] = useState(false);
+  const [newReminderText, setNewReminderText] = useState('');
+  const [creatingReminder, setCreatingReminder] = useState(false);
+  const [showDone, setShowDone] = useState(false);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  const loadReminders = useCallback(async () => {
-    setRemindersLoading(true);
-    try {
-      const res = await apiFetch('/api/reminders');
-      if (res.ok) setReminders(await res.json());
-    } catch { /* ignore */ } finally {
-      setRemindersLoading(false);
-    }
-  }, [apiFetch]);
+  const openCreateReminder = () => {
+    setNewReminderText('');
+    setShowCreateReminder(true);
+  };
 
-  useEffect(() => { loadReminders(); }, [loadReminders]);
+  const cancelCreateReminder = () => {
+    setShowCreateReminder(false);
+    setNewReminderText('');
+  };
+
+  const handleCreateReminder = async (e) => {
+    e.preventDefault();
+    const text = newReminderText.trim();
+    if (!text) return showToast('Describe tu recordatorio.', 'error');
+    setCreatingReminder(true);
+    try {
+      const now = new Date();
+      const res = await apiFetch('/api/reminders/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          clientTime: now.toISOString(),
+          clientTzName: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          clientTzOffset: now.getTimezoneOffset(),
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setReminders(prev => [...prev, created].sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt)));
+        cancelCreateReminder();
+        showToast(`Recordatorio creado para ${formatReminderDate(created.remindAt)}.`);
+      } else {
+        const err = await res.json().catch(() => null);
+        showToast(err?.message || 'No se pudo interpretar el recordatorio. Intenta reformular.', 'error');
+      }
+    } catch {
+      showToast('Error de conexión.', 'error');
+    } finally {
+      setCreatingReminder(false);
+    }
+  };
 
   const handleDeleteReminder = async (id) => {
     setDeletingId(id);
     try {
       const res = await apiFetch(`/api/reminders/${id}`, { method: 'DELETE' });
-      if (res.ok) setReminders(prev => prev.filter(r => r.id !== id));
-      else showToast('No se pudo eliminar el recordatorio.', 'error');
+      if (res.ok) {
+        setReminders(prev => prev.filter(r => r.id !== id));
+        setDoneReminders(prev => prev.filter(r => r.id !== id));
+      } else {
+        showToast('No se pudo eliminar el recordatorio.', 'error');
+      }
     } catch { showToast('Error de conexión.', 'error'); } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleMarkDone = async (id) => {
+    setMarkingDoneId(id);
+    try {
+      const res = await apiFetch(`/api/reminders/${id}/done`, { method: 'POST' });
+      if (res.ok) {
+        const completed = await res.json();
+        setReminders(prev => prev.filter(r => r.id !== id));
+        setDoneReminders(prev => [completed, ...prev]);
+      } else {
+        showToast('No se pudo marcar como hecho.', 'error');
+      }
+    } catch { showToast('Error de conexión.', 'error'); } finally {
+      setMarkingDoneId(null);
     }
   };
 
@@ -110,14 +170,148 @@ export default function Profile() {
 
         {/* Datos básicos */}
         <p className="form-section-title" style={{ marginTop: 0 }}>Información</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '2rem', color: 'var(--aurora-light)', fontSize: '0.9rem', opacity: 0.85 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--aurora-light)', fontSize: '0.9rem', opacity: 0.85 }}>
           <span><strong>Nombre:</strong> {currentUser?.nombre || '—'}</span>
           <span><strong>Correo:</strong> {firebaseUser?.email || '—'}</span>
           <span><strong>Rol:</strong> {currentUser?.rol || '—'}</span>
         </div>
+      </div>
 
-        {/* Métodos de acceso */}
-        <p className="form-section-title">Métodos de acceso</p>
+      {/* Mis Recordatorios */}
+      <div className="form-card" style={{ maxWidth: 520, marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <FiBell size={16} style={{ color: '#f59e0b' }} />
+          <h2 style={{ margin: 0 }}>Mis recordatorios</h2>
+          <button
+            type="button"
+            className="reminder-add-btn"
+            onClick={showCreateReminder ? cancelCreateReminder : openCreateReminder}
+            title={showCreateReminder ? 'Cancelar' : 'Crear recordatorio'}
+            style={{ marginLeft: 'auto' }}
+          >
+            {showCreateReminder ? <FiX size={16} /> : <FiPlus size={16} />}
+          </button>
+        </div>
+
+        {showCreateReminder && (
+          <form
+            onSubmit={handleCreateReminder}
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem', padding: '0.85rem', background: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 8 }}
+          >
+            <textarea
+              placeholder='Ej: "recuérdame hoy a las 12:30 pm revisar la fruta del lote 4"'
+              value={newReminderText}
+              onChange={e => setNewReminderText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleCreateReminder(e);
+                }
+              }}
+              rows={3}
+              maxLength={500}
+              autoFocus
+              disabled={creatingReminder}
+              style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--aurora-border)', background: 'var(--aurora-background)', color: 'var(--aurora-light)', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'inherit' }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--aurora-light)', opacity: 0.45 }}>
+                Aurora interpretará la fecha y hora
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={cancelCreateReminder} disabled={creatingReminder}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={creatingReminder}>
+                  {creatingReminder ? 'Creando…' : 'Crear'}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {remindersLoading ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', opacity: 0.5 }}>Cargando…</p>
+        ) : reminders.length === 0 ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', opacity: 0.5 }}>
+            No tienes recordatorios activos. Usa el botón + para crear uno o háblale a Aurora en el chat.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {reminders.map(r => (
+              <div key={r.id} className="provider-row" style={{ alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <span style={{ fontSize: '0.88rem', color: 'var(--aurora-light)', fontWeight: 500 }}>{r.message}</span>
+                  <span style={{ fontSize: '0.76rem', color: '#f59e0b', opacity: 0.85 }}>{formatReminderDate(r.remindAt)}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
+                  <button
+                    className="reminder-icon-btn reminder-icon-btn--done"
+                    onClick={() => handleMarkDone(r.id)}
+                    disabled={markingDoneId === r.id || deletingId === r.id}
+                    title="Marcar como hecho"
+                    aria-label="Marcar como hecho"
+                  >
+                    <FiCheck size={15} />
+                  </button>
+                  <button
+                    className="reminder-icon-btn reminder-icon-btn--delete"
+                    onClick={() => handleDeleteReminder(r.id)}
+                    disabled={deletingId === r.id || markingDoneId === r.id}
+                    title="Eliminar recordatorio"
+                    aria-label="Eliminar recordatorio"
+                  >
+                    <FiTrash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Sección colapsable: recordatorios hechos (solo visible si hay al menos uno) */}
+        {doneReminders.length > 0 && (
+          <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--aurora-border)', paddingTop: '0.85rem' }}>
+            <button
+              type="button"
+              onClick={() => setShowDone(v => !v)}
+              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--aurora-light)', opacity: 0.7, cursor: 'pointer', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              {showDone ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+              {showDone ? 'Ocultar hechos' : 'Mostrar hechos'}
+              <span style={{ opacity: 0.6 }}>({doneReminders.length})</span>
+            </button>
+
+            {showDone && (
+              <div style={{ marginTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {doneReminders.map(r => (
+                  <div key={r.id} className="provider-row" style={{ alignItems: 'flex-start', opacity: 0.65 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', fontWeight: 500, textDecoration: 'line-through' }}>{r.message}</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--aurora-light)', opacity: 0.6 }}>
+                        Programado para {formatReminderDate(r.remindAt)}
+                      </span>
+                    </div>
+                    <button
+                      className="reminder-icon-btn reminder-icon-btn--delete"
+                      onClick={() => handleDeleteReminder(r.id)}
+                      disabled={deletingId === r.id}
+                      title="Eliminar definitivamente"
+                      aria-label="Eliminar definitivamente"
+                    >
+                      <FiTrash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Métodos de acceso */}
+      <div className="form-card" style={{ maxWidth: 520, marginTop: '1.5rem' }}>
+        <p className="form-section-title" style={{ marginTop: 0 }}>Métodos de acceso</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
 
           {/* Email / contraseña */}
@@ -186,43 +380,6 @@ export default function Profile() {
           <p style={{ fontSize: '0.78rem', color: 'var(--aurora-light)', opacity: 0.5, lineHeight: 1.5 }}>
             Vincula tu cuenta de Google para poder iniciar sesión con ambos métodos sin necesidad de recordar tu contraseña.
           </p>
-        )}
-      </div>
-
-      {/* Mis Recordatorios */}
-      <div className="form-card" style={{ maxWidth: 520, marginTop: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-          <FiBell size={16} style={{ color: '#f59e0b' }} />
-          <h2 style={{ margin: 0 }}>Mis recordatorios</h2>
-        </div>
-
-        {remindersLoading ? (
-          <p style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', opacity: 0.5 }}>Cargando…</p>
-        ) : reminders.length === 0 ? (
-          <p style={{ fontSize: '0.85rem', color: 'var(--aurora-light)', opacity: 0.5 }}>
-            No tienes recordatorios activos. Puedes crear uno hablándole a Aurora en el chat.
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {reminders.map(r => (
-              <div key={r.id} className="provider-row" style={{ alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                  <span style={{ fontSize: '0.88rem', color: 'var(--aurora-light)', fontWeight: 500 }}>{r.message}</span>
-                  <span style={{ fontSize: '0.76rem', color: '#f59e0b', opacity: 0.85 }}>{formatReminderDate(r.remindAt)}</span>
-                </div>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleDeleteReminder(r.id)}
-                  disabled={deletingId === r.id}
-                  title="Eliminar recordatorio"
-                  style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}
-                >
-                  <FiTrash2 size={13} />
-                  {deletingId === r.id ? 'Eliminando…' : 'Eliminar'}
-                </button>
-              </div>
-            ))}
-          </div>
         )}
       </div>
     </div>

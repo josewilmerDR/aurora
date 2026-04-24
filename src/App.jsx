@@ -93,6 +93,7 @@ import ReminderNotification from './components/ReminderNotification';
 import { useReminderPoller } from './hooks/useReminderPoller';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
+import { RemindersProvider, useReminders } from './contexts/RemindersContext';
 import { MODULES, ALL_ITEMS } from './components/Sidebar';
 
 import './index.css';
@@ -257,6 +258,7 @@ const MainLayout = () => {
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [autopilotPendingCount, setAutopilotPendingCount] = useState(0);
   const { pendingReminders, dismissReminder } = useReminderPoller();
+  const { overdueCount, reload: reloadReminders } = useReminders();
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
     localStorage.getItem('aurora_push_prompt_dismissed') === 'true'
@@ -313,7 +315,13 @@ const MainLayout = () => {
   };
   const openProfile = () => {
     setAutopilotOpen(false);
-    setProfileOpen(o => !o);
+    setProfileOpen(o => {
+      const next = !o;
+      // Cuando se abre el panel, refresca recordatorios para captar cambios
+      // hechos en otros lugares (p.ej. creados desde el chat).
+      if (next) reloadReminders();
+      return next;
+    });
   };
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -477,10 +485,15 @@ const MainLayout = () => {
         <button
           className={`app-header-profile-btn${profileOpen ? ' active' : ''}`}
           onClick={openProfile}
-          title="Mi perfil"
+          title={overdueCount > 0 ? `Mi perfil — ${overdueCount} recordatorio(s) vencido(s)` : 'Mi perfil'}
         >
           <FiUser size={17} />
           <span className="app-header-profile-name">{currentUser?.nombre?.split(' ')[0] || 'Perfil'}</span>
+          {overdueCount > 0 && (
+            <span className="app-header-profile-badge" aria-label={`${overdueCount} recordatorios vencidos`}>
+              {overdueCount > 9 ? '9+' : overdueCount}
+            </span>
+          )}
         </button>
       </header>
 
@@ -558,7 +571,9 @@ function App() {
           <Route
             element={
               <ProtectedRoute>
-                <MainLayout />
+                <RemindersProvider>
+                  <MainLayout />
+                </RemindersProvider>
               </ProtectedRoute>
             }
           >
