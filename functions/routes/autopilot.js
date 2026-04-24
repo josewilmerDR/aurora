@@ -593,13 +593,46 @@ ${recentMonitoreos.length ? recentMonitoreos.slice(0, 10).map(m => `  - ${m.tipo
 ${catalogoProveedores.length ? catalogoProveedores.slice(0, 15).map(p => `  - "${p.nombre}"${p.categoria ? ` | ${p.categoria}` : ''}`).join('\n') : '  (sin proveedores registrados)'}
 `.trim();
 
+      // Tool-forced structured output. Replaces the previous free-text JSON
+      // approach, which occasionally failed to parse when Claude prepended
+      // commentary or hit max_tokens mid-array. With tool_use the SDK returns
+      // already-parsed JSON.
+      const VALID_CATS = ['inventario', 'tareas', 'aplicaciones', 'monitoreo', 'general'];
+      const VALID_PRIS = ['alta', 'media', 'baja'];
+      const nivel1Tool = {
+        name: 'generar_recomendaciones',
+        description: 'Registra una lista priorizada de recomendaciones para el productor basadas en el análisis del estado actual de la finca.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            recomendaciones: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 10,
+              items: {
+                type: 'object',
+                properties: {
+                  categoria: { type: 'string', enum: VALID_CATS, description: 'Categoría de la recomendación.' },
+                  prioridad: { type: 'string', enum: VALID_PRIS, description: 'Prioridad de la recomendación.' },
+                  titulo: { type: 'string', description: 'Título breve e imperativo (idealmente ≤ 60 caracteres, ej: "Reponer stock de Mancozeb").' },
+                  descripcion: { type: 'string', description: '1-2 oraciones explicando el problema detectado.' },
+                  contexto: { type: 'string', description: 'Dato específico del snapshot que motivó esta recomendación.' },
+                  accionSugerida: { type: 'string', description: 'Paso concreto a tomar, comenzando con un verbo.' },
+                },
+                required: ['categoria', 'prioridad', 'titulo', 'descripcion', 'contexto', 'accionSugerida'],
+              },
+            },
+          },
+          required: ['recomendaciones'],
+        },
+      };
+
       const systemPrompt = `Eres el analizador estratégico de Aurora, una plataforma de gestión agrícola inteligente.
 Tu tarea es analizar el estado actual de la finca y los objetivos del productor, y generar un conjunto de recomendaciones priorizadas, concretas y accionables.
 
 Reglas de respuesta:
-- Responde ÚNICAMENTE con un array JSON válido (sin texto adicional, sin markdown, sin bloques de código).
-- El array puede contener de 3 a 10 recomendaciones.
-- Ordena las recomendaciones de mayor a menor prioridad.
+- Usa la herramienta **generar_recomendaciones** para entregar las recomendaciones. Es la única forma válida de responder.
+- Entrega entre 3 y 10 recomendaciones, ordenadas de mayor a menor prioridad.
 - Sé específico: menciona los nombres de productos, tareas o lotes relevantes del contexto.
 - Evita recomendaciones genéricas; todas deben basarse en los datos reales proporcionados.
 - Si el estado es bueno en un área, puedes omitirla o generar una recomendación de baja prioridad.
@@ -608,66 +641,54 @@ Reglas específicas para BAJO STOCK:
 - La recomendación NUNCA debe ser "ajustar inventario" ni "actualizar stock" para reponer faltantes. "Ajustar inventario" es solo para corregir discrepancias con la realidad física (conteo, merma, pérdida documentada).
 - Si el producto tiene "Proveedor habitual" identificado → recomienda **emitir una orden de compra** a ese proveedor.
 - Si el producto no tiene proveedor habitual claro → recomienda **generar una solicitud de compra** para que proveeduría cotice.
-- Cantidad a reponer sugerida: al menos 2× el stockMinimo o lo suficiente para 30-60 días.
-
-Esquema de cada recomendación (JSON estricto):
-{
-  "id": "rec_1",
-  "categoria": "inventario | tareas | aplicaciones | monitoreo | general",
-  "prioridad": "alta | media | baja",
-  "titulo": "máx 60 caracteres, imperativo (ej: Reponer stock de Mancozeb)",
-  "descripcion": "1-2 oraciones explicando el problema detectado",
-  "contexto": "dato específico del snapshot que motivó esta recomendación",
-  "accionSugerida": "paso concreto a tomar, comenzando con un verbo"
-}`;
+- Cantidad a reponer sugerida: al menos 2× el stockMinimo o lo suficiente para 30-60 días.`;
 
       const userMessage = `${feedbackPrefix ? feedbackPrefix + '\n\n' : ''}**Objetivos del productor para este ciclo:**
 ${config.objectives?.trim() || 'No se han definido objetivos específicos.'}
 
 ${snapshotText}
 
-Genera las recomendaciones en formato JSON array.`;
+Analiza el estado y entrega las recomendaciones usando la herramienta generar_recomendaciones.`;
 
       const claudeResponse = await anthropicClient.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         system: systemPrompt,
+        tools: [nivel1Tool],
+        tool_choice: { type: 'tool', name: 'generar_recomendaciones' },
         messages: [{ role: 'user', content: userMessage }],
       });
 
-      const rawText = claudeResponse.content
-        .filter(b => b.type === 'text')
-        .map(b => b.text)
-        .join('');
-
-      const VALID_CATS = ['inventario', 'tareas', 'aplicaciones', 'monitoreo', 'general'];
-      const VALID_PRIS = ['alta', 'media', 'baja'];
-      let recommendations = [];
-      try {
-        const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const parsed = JSON.parse(cleaned);
-        recommendations = (Array.isArray(parsed) ? parsed : [])
-          .filter(r => r && typeof r === 'object')
-          .map((r, i) => ({
-            id: `rec_${i + 1}`,
-            categoria: VALID_CATS.includes(r.categoria) ? r.categoria : 'general',
-            prioridad: VALID_PRIS.includes(r.prioridad) ? r.prioridad : 'baja',
-            titulo: String(r.titulo || '').slice(0, 120),
-            descripcion: String(r.descripcion || ''),
-            contexto: String(r.contexto || ''),
-            accionSugerida: String(r.accionSugerida || ''),
-          }))
-          .slice(0, 10);
-      } catch (parseErr) {
-        console.error('[AUTOPILOT] Error al parsear respuesta de Claude:', parseErr.message, rawText.slice(0, 200));
+      const toolUse = claudeResponse.content.find(
+        (b) => b.type === 'tool_use' && b.name === 'generar_recomendaciones'
+      );
+      const toolRecs = toolUse?.input?.recomendaciones;
+      if (!toolUse || !Array.isArray(toolRecs)) {
+        console.error(
+          '[AUTOPILOT] Nivel 1: el modelo no llamó a generar_recomendaciones',
+          { stop_reason: claudeResponse.stop_reason, content_types: claudeResponse.content.map(b => b.type) }
+        );
         await db.collection('autopilot_sessions').add({
           fincaId: req.fincaId, timestamp: Timestamp.now(),
           triggeredBy: req.uid, triggeredByName: req.userEmail,
           snapshot, recommendations: [], status: 'error',
-          errorMessage: 'No se pudo interpretar la respuesta del modelo.',
+          errorMessage: 'El modelo no devolvió recomendaciones estructuradas.',
         });
         return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process recommendations. Please try again.', 500);
       }
+
+      const recommendations = toolRecs
+        .filter((r) => r && typeof r === 'object')
+        .map((r, i) => ({
+          id: `rec_${i + 1}`,
+          categoria: VALID_CATS.includes(r.categoria) ? r.categoria : 'general',
+          prioridad: VALID_PRIS.includes(r.prioridad) ? r.prioridad : 'baja',
+          titulo: String(r.titulo || '').slice(0, 120),
+          descripcion: String(r.descripcion || ''),
+          contexto: String(r.contexto || ''),
+          accionSugerida: String(r.accionSugerida || ''),
+        }))
+        .slice(0, 10);
 
       const sessionRef = await db.collection('autopilot_sessions').add({
         fincaId: req.fincaId, timestamp: Timestamp.now(),
