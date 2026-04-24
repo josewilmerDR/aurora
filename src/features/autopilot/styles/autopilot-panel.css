@@ -375,6 +375,27 @@
 }
 .ap-level-modal-warn-link:hover { filter: brightness(1.15); }
 
+.ap-level-modal-info {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(106, 176, 255, 0.08);
+  border: 1px solid rgba(106, 176, 255, 0.3);
+  border-radius: 6px;
+  color: #6ab0ff;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.ap-level-modal-info-link {
+  color: #6ab0ff;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ap-level-modal-info-link:hover { filter: brightness(1.15); }
+
 .ap-pause-reason {
   display: flex;
   flex-direction: column;
