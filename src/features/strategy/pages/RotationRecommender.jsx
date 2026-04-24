@@ -319,7 +319,7 @@ function RotationRecommender() {
       {confirmAccept && (
         <ConfirmModal
           title="Ejecutar recomendación"
-          message={`Se crearán ${confirmAccept.propuestas?.length || 0} siembras programadas y quedarán registradas como acciones del piloto automático (reversibles).`}
+          message={`Se crearán ${confirmAccept.propuestas?.length || 0} siembras programadas y quedarán registradas como acciones de Aurora Copilot (reversibles).`}
           confirmLabel="Sí, ejecutar"
           onConfirm={() => acceptRecommendation(confirmAccept)}
           onCancel={() => setConfirmAccept(null)}

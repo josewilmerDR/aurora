@@ -204,8 +204,8 @@ const routeTitles = {
   '/operaciones/horimetro': 'Horímetros',
   '/operaciones/horimetro/registro': 'Registro de Horímetro',
   '/operaciones/horimetro/historial': 'Historial de Horímetros',
-  '/autopilot': 'Piloto Automático',
-  '/autopilot/configuracion': 'Configuración — Piloto Automático',
+  '/autopilot': 'Aurora Copilot',
+  '/autopilot/configuracion': 'Configuración — Aurora Copilot',
   '/procurement/dashboard': 'Abastecimiento',
   '/procurement/rfqs': 'Cotizaciones',
   '/hr/performance': 'RR.HH. — Desempeño',
@@ -471,7 +471,7 @@ const MainLayout = () => {
           <button
             className={`app-header-autopilot-btn${autopilotOpen ? ' active' : ''}`}
             onClick={openAutopilot}
-            title="Piloto Automático"
+            title="Aurora Copilot"
           >
             <FiCpu size={17} />
             {autopilotPendingCount > 0 && (

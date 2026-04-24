@@ -1,15 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FiZap, FiRefreshCw, FiAlertTriangle, FiAlertCircle, FiInfo,
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
-  FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown, FiTrash2, FiPlus,
-  FiChevronDown, FiChevronUp, FiSliders, FiShoppingCart, FiFileText,
-  FiMic, FiMicOff, FiMessageSquare, FiRotateCcw, FiUsers,
+  FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown,
+  FiChevronDown, FiChevronUp, FiShoppingCart, FiFileText,
+  FiRotateCcw, FiUsers,
 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
-import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
 import AutopilotHealthPanel from '../components/AutopilotHealthPanel';
 import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/autopilot-dashboard.css';
@@ -518,236 +517,6 @@ function ReasoningPanel({ actionId }) {
   );
 }
 
-function DirectivesPanel({ directives, onAdd, onDelete, saving }) {
-  const [expanded, setExpanded] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  const handleAdd = async () => {
-    const text = draft.trim();
-    if (!text) return;
-    await onAdd(text);
-    setDraft('');
-  };
-
-  return (
-    <div className="ap-directives">
-      <button
-        type="button"
-        className="ap-directives-toggle"
-        onClick={() => setExpanded(e => !e)}
-      >
-        <FiSliders size={13} />
-        <span>Mis preferencias</span>
-        <span className="ap-directives-count">{directives.length}</span>
-        {expanded ? <FiChevronUp size={13} /> : <FiChevronDown size={13} />}
-      </button>
-      {expanded && (
-        <div className="ap-directives-body">
-          <p className="ap-directives-help">
-            Reglas firmes que Copilot respetará siempre. Úsalas solo para lo que quieres que deje de hacer — los 👎 por sí solos no generan reglas.
-          </p>
-          <div className="ap-directives-add">
-            <input
-              type="text"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
-              placeholder='Ej: "No recomendar compras si stockMinimo no está configurado"'
-              maxLength={300}
-              className="ap-directives-input"
-            />
-            <button
-              type="button"
-              className="ap-directives-add-btn"
-              onClick={handleAdd}
-              disabled={saving || !draft.trim()}
-            >
-              <FiPlus size={12} /> Añadir
-            </button>
-          </div>
-          {directives.length === 0 ? (
-            <p className="ap-directives-empty">Aún no tienes preferencias guardadas.</p>
-          ) : (
-            <ul className="ap-directives-list">
-              {directives.map(d => (
-                <li key={d.id} className="ap-directives-item">
-                  <span className="ap-directives-text">{d.text}</span>
-                  <button
-                    type="button"
-                    className="ap-directives-del"
-                    onClick={() => onDelete(d.id)}
-                    title="Eliminar"
-                    disabled={saving}
-                  >
-                    <FiTrash2 size={12} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Web Speech API — graceful fallback if not supported (Safari iOS < 14.5, Firefox)
-const SpeechRecognitionImpl =
-  typeof window !== 'undefined' &&
-  (window.SpeechRecognition || window.webkitSpeechRecognition);
-
-function CommandPanel({ onSubmit, sending, conversation, onReset }) {
-  const [expanded, setExpanded] = useState(false);
-  const [text, setText] = useState('');
-  const [listening, setListening] = useState(false);
-  const [micError, setMicError] = useState(null);
-  const recognitionRef = useRef(null);
-  const chatEndRef = useRef(null);
-
-  const voiceSupported = !!SpeechRecognitionImpl;
-  const hasConversation = conversation && conversation.length > 0;
-  const lastEntry = hasConversation ? conversation[conversation.length - 1] : null;
-  const awaitingReply = lastEntry?.role === 'assistant' && !sending;
-
-  // Auto-scroll chat to bottom when conversation updates
-  useEffect(() => {
-    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation?.length]);
-
-  useEffect(() => {
-    if (!voiceSupported) return;
-    const rec = new SpeechRecognitionImpl();
-    rec.lang = 'es-CR';
-    rec.interimResults = false;
-    rec.continuous = false;
-    rec.onresult = (e) => {
-      const transcript = Array.from(e.results).map(r => r[0].transcript).join(' ');
-      setText(prev => (prev ? prev + ' ' : '') + transcript);
-    };
-    rec.onerror = (e) => {
-      setMicError(e.error === 'not-allowed' ? 'Permiso de micrófono denegado.' : `Error de voz: ${e.error}`);
-      setListening(false);
-    };
-    rec.onend = () => setListening(false);
-    recognitionRef.current = rec;
-    return () => {
-      try { rec.abort(); } catch (_) { /* noop */ }
-    };
-  }, [voiceSupported]);
-
-  const toggleListening = () => {
-    if (!recognitionRef.current) return;
-    setMicError(null);
-    if (listening) {
-      recognitionRef.current.stop();
-      setListening(false);
-    } else {
-      try {
-        recognitionRef.current.start();
-        setListening(true);
-      } catch (err) {
-        setMicError(err.message || 'No se pudo iniciar el reconocimiento de voz.');
-      }
-    }
-  };
-
-  const handleSend = async () => {
-    const trimmed = text.trim();
-    if (!trimmed || sending) return;
-    const result = await onSubmit(trimmed);
-    if (result?.ok) setText('');
-  };
-
-  return (
-    <div className="ap-command">
-      <button
-        type="button"
-        className="ap-command-toggle"
-        onClick={() => setExpanded(e => !e)}
-      >
-        <FiMessageSquare size={13} />
-        <span>Comando / Instrucción</span>
-        {expanded ? <FiChevronUp size={13} /> : <FiChevronDown size={13} />}
-      </button>
-      {expanded && (
-        <div className="ap-command-body">
-          <p className="ap-command-help">
-            Dale una instrucción concreta al Piloto Automático. Ej: <i>"Genera una orden de compra de 20 kg de Mancozeb a Almacenes El Éxito"</i> o <i>"Notifícale a María que la tarea del lote Norte se reprograma para el viernes"</i>. Todas las acciones quedan como <strong>propuestas</strong> para aprobación.
-          </p>
-          <div className="ap-command-input-row">
-            <textarea
-              className="ap-command-textarea"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder={awaitingReply
-                ? 'Responde a la pregunta de Aurora…'
-                : voiceSupported
-                  ? 'Escribe o pulsa el micrófono para dictar…'
-                  : 'Escribe tu instrucción…'}
-              rows={3}
-              maxLength={2000}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend();
-              }}
-            />
-            <div className="ap-command-buttons">
-              {voiceSupported && (
-                <button
-                  type="button"
-                  className={`ap-command-mic ${listening ? 'ap-command-mic--on' : ''}`}
-                  onClick={toggleListening}
-                  disabled={sending}
-                  title={listening ? 'Detener dictado' : 'Dictar por voz'}
-                >
-                  {listening ? <FiMicOff size={14} /> : <FiMic size={14} />}
-                </button>
-              )}
-              <button
-                type="button"
-                className="ap-command-send"
-                onClick={handleSend}
-                disabled={sending || !text.trim()}
-              >
-                <FiSend size={13} />
-                {sending ? 'Enviando…' : 'Enviar'}
-              </button>
-            </div>
-          </div>
-          {micError && (
-            <div className="ap-command-mic-error">
-              <FiAlertTriangle size={11} /> {micError}
-            </div>
-          )}
-          {/* Multi-turn chat log */}
-          {hasConversation && (
-            <div className="ap-command-chat">
-              {conversation.map((entry, i) => (
-                <div key={i} className={`ap-chat-bubble ap-chat-bubble--${entry.role}`}>
-                  <span className="ap-chat-role">
-                    {entry.role === 'user' ? 'Tú' : 'Aurora'}
-                  </span>
-                  <p className="ap-chat-text">{entry.content}</p>
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-          )}
-          {hasConversation && (
-            <button
-              type="button"
-              className="ap-command-reset"
-              onClick={onReset}
-              disabled={sending}
-            >
-              Nueva conversación
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function AutopilotDashboard() {
@@ -757,16 +526,12 @@ export default function AutopilotDashboard() {
   const [config, setConfig] = useState(null);
   const [latestSession, setLatestSession] = useState(null);
   const [proposedActions, setProposedActions] = useState([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [executedActions, setExecutedActions] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [feedbackMap, setFeedbackMap] = useState({});
-  const [directives, setDirectives] = useState([]);
-  const [directiveSaving, setDirectiveSaving] = useState(false);
-  const [commandSending, setCommandSending] = useState(false);
-  const [commandSessionId, setCommandSessionId] = useState(null);
-  const [commandConversation, setCommandConversation] = useState([]);
 
   // Initial load: config + latest session
   useEffect(() => {
@@ -792,13 +557,21 @@ export default function AutopilotDashboard() {
           }
         }
       } catch (err) {
-        if (!cancelled) setError('No se pudo cargar la información del Piloto Automático.');
+        if (!cancelled) setError('No se pudo cargar la información de Aurora Copilot.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
+  }, [reloadKey]);
+
+  // Refresca cuando cambia el estado de Aurora Copilot desde el modal del header
+  // (nivel, pausa/reanudación, nuevas acciones propuestas).
+  useEffect(() => {
+    const handler = () => setReloadKey(k => k + 1);
+    window.addEventListener('aurora-autopilot-changed', handler);
+    return () => window.removeEventListener('aurora-autopilot-changed', handler);
   }, []);
 
   // Cargar acciones propuestas cuando el modo es nivel2
@@ -817,22 +590,6 @@ export default function AutopilotDashboard() {
     loadActions();
     return () => { cancelled = true; };
   }, [config?.mode]);
-
-  // Cargar directivas del usuario
-  useEffect(() => {
-    let cancelled = false;
-    async function loadDirectives() {
-      try {
-        const res = await apiFetch('/api/autopilot/directives');
-        if (!cancelled && res.ok) {
-          const data = await res.json();
-          setDirectives(Array.isArray(data) ? data : []);
-        }
-      } catch (_) { /* silent */ }
-    }
-    loadDirectives();
-    return () => { cancelled = true; };
-  }, []);
 
   // Load feedback for the current session (recommendations + actions)
   useEffect(() => {
@@ -967,72 +724,6 @@ export default function AutopilotDashboard() {
     }
   };
 
-  const handleSendCommand = async (text) => {
-    setCommandSending(true);
-    setError(null);
-    try {
-      const payload = { text };
-      if (commandSessionId) payload.sessionId = commandSessionId;
-
-      const res = await apiFetch('/api/autopilot/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al procesar el comando.');
-
-      setCommandSessionId(data.sessionId);
-      setCommandConversation(Array.isArray(data.conversationLog) ? data.conversationLog : []);
-
-      if (Array.isArray(data.proposedActions) && data.proposedActions.length > 0) {
-        setProposedActions(prev => [...data.proposedActions, ...prev]);
-      }
-      return { ok: true };
-    } catch (err) {
-      setError(err.message);
-      return { ok: false };
-    } finally {
-      setCommandSending(false);
-    }
-  };
-
-  const handleResetCommand = () => {
-    setCommandSessionId(null);
-    setCommandConversation([]);
-  };
-
-  const handleAddDirective = async (text) => {
-    setDirectiveSaving(true);
-    try {
-      const res = await apiFetch('/api/autopilot/directives', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'No se pudo guardar la preferencia.');
-      setDirectives(prev => [data, ...prev]);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setDirectiveSaving(false);
-    }
-  };
-
-  const handleDeleteDirective = async (id) => {
-    setDirectiveSaving(true);
-    try {
-      const res = await apiFetch(`/api/autopilot/directives/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('No se pudo eliminar la preferencia.');
-      setDirectives(prev => prev.filter(d => d.id !== id));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setDirectiveSaving(false);
-    }
-  };
-
   const mode = config?.mode || 'off';
   const canConfig = hasMinRole(currentUser?.rol, 'supervisor');
 
@@ -1047,10 +738,17 @@ export default function AutopilotDashboard() {
       {/* ── Header ── */}
       <div className="ap-header">
         <div className="ap-header-left">
-          <h1 className="ap-title"><FiCpu size={18} /> Piloto Automático</h1>
+          <h1 className="ap-title"><FiCpu size={18} /> Aurora Copilot</h1>
           <span className={`ap-mode-badge ap-mode-badge--${mode}`}>
             {MODE_LABELS[mode] || mode}
           </span>
+          {!loading && mode === 'off' && (
+            <span className="ap-header-off-hint">
+              {canConfig
+                ? 'Actívalo desde el slider del menú Copilot.'
+                : 'Pídele a un supervisor que lo active.'}
+            </span>
+          )}
         </div>
         <div className="ap-header-right">
           {latestSession?.timestamp && (
@@ -1075,49 +773,14 @@ export default function AutopilotDashboard() {
         </div>
       </div>
 
-      {/* ── Kill switch (visible siempre) ── */}
-      <AutopilotKillSwitch />
-
       {/* ── Panel de salud (supervisor+) ── */}
       {canConfig && <AutopilotHealthPanel />}
-
-      {/* ── Notice: modo OFF ── */}
-      {!loading && mode === 'off' && (
-        <div className="ap-notice ap-notice--off">
-          <FiInfo size={15} />
-          El Piloto Automático está desactivado.
-          {canConfig
-            ? <> Ve a <Link to="/autopilot/configuracion" style={{ color: 'inherit', textDecoration: 'underline' }}>Configuración</Link> para activarlo.</>
-            : ' Pídele a un Supervisor que lo active en Configuración.'
-          }
-        </div>
-      )}
 
       {/* ── Error ── */}
       {error && (
         <div className="ap-notice ap-notice--error">
           <FiAlertTriangle size={15} /> {error}
         </div>
-      )}
-
-      {/* ── Mis preferencias (directivas explícitas) ── */}
-      {!loading && mode !== 'off' && (
-        <DirectivesPanel
-          directives={directives}
-          onAdd={handleAddDirective}
-          onDelete={handleDeleteDirective}
-          saving={directiveSaving}
-        />
-      )}
-
-      {/* ── Comando / Instrucción (texto + voz) ── */}
-      {!loading && mode !== 'off' && (
-        <CommandPanel
-          onSubmit={handleSendCommand}
-          sending={commandSending}
-          conversation={commandConversation}
-          onReset={handleResetCommand}
-        />
       )}
 
       {/* ── Empty state ── */}

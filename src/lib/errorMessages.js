@@ -34,7 +34,7 @@ export const ERROR_MESSAGES = {
   RATE_LIMITED: 'Has alcanzado el límite de solicitudes. Espera un momento e intenta de nuevo.',
 
   // Autopilot
-  AUTOPILOT_PAUSED: 'El Piloto Automático está pausado. Reanúdalo para ejecutar acciones.',
+  AUTOPILOT_PAUSED: 'Aurora Copilot está pausado. Reanúdalo para ejecutar acciones.',
   COMPENSATION_NOT_AVAILABLE: 'No hay compensación registrada para esta acción.',
   COMPENSATION_NOT_COMPENSABLE: 'Esta acción no se puede revertir (efecto irreversible).',
   COMPENSATION_EXPIRED: 'La ventana para revertir esta acción ya expiró.',
