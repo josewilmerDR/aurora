@@ -1,41 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiSave, FiCheck, FiCpu, FiShield } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiSave, FiShield, FiCpu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import AutopilotKillSwitch from '../components/AutopilotKillSwitch';
+import DirectivesPanel from '../components/DirectivesPanel';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/autopilot-dashboard.css';
-
-const MODE_OPTIONS = [
-  {
-    id: 'off',
-    label: 'Desactivado',
-    description: 'El Piloto Automático no realiza ningún análisis.',
-    disabled: false,
-  },
-  {
-    id: 'nivel1',
-    label: 'Nivel 1 — Recomendaciones',
-    description: 'Analiza el estado de la finca y genera recomendaciones priorizadas cuando lo solicites.',
-    disabled: false,
-  },
-  {
-    id: 'nivel2',
-    label: 'Nivel 2 — Agencia Supervisada',
-    description: 'Propone acciones concretas y espera tu aprobación antes de ejecutarlas.',
-    disabled: false,
-  },
-  {
-    id: 'nivel3',
-    label: 'Nivel 3 — Agencia Total',
-    description: 'Ejecuta acciones autónomamente e informa al productor en tiempo real.',
-    disabled: false,
-  },
-];
 
 export default function AutopilotConfig() {
   const apiFetch = useApiFetch();
 
-  const [config, setConfig] = useState({ mode: 'off', objectives: '', guardrails: {} });
+  const [config, setConfig] = useState({ objectives: '', guardrails: {} });
   const [lotes, setLotes] = useState([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -47,7 +21,7 @@ export default function AutopilotConfig() {
       .then(r => r.json())
       .then(data => {
         if (!cancelled) {
-          setConfig({ mode: data.mode || 'off', objectives: data.objectives || '', guardrails: data.guardrails || {} });
+          setConfig({ objectives: data.objectives || '', guardrails: data.guardrails || {} });
           setLoading(false);
         }
       })
@@ -57,16 +31,16 @@ export default function AutopilotConfig() {
     return () => { cancelled = true; };
   }, []);
 
-  // Cargar lotes cuando el modo es nivel3 (para blockedLotes)
+  // Cargar lotes (para el selector de lotes bloqueados). Se cargan siempre
+  // porque las barandillas son visibles aun cuando el modo no es nivel3.
   useEffect(() => {
-    if (config.mode !== 'nivel3') return;
     let cancelled = false;
     apiFetch('/api/lotes')
       .then(r => r.json())
       .then(data => { if (!cancelled) setLotes(Array.isArray(data) ? data : []); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [config.mode]);
+  }, []);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -74,7 +48,7 @@ export default function AutopilotConfig() {
       const res = await apiFetch('/api/autopilot/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: config.mode, objectives: config.objectives, guardrails: config.guardrails }),
+        body: JSON.stringify({ objectives: config.objectives, guardrails: config.guardrails }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al guardar');
@@ -90,47 +64,28 @@ export default function AutopilotConfig() {
 
   return (
     <div className="ap-page">
+
+      {/* ── Header ── */}
+      <div className="ap-header">
+        <div className="ap-header-left">
+          <h1 className="ap-title"><FiCpu size={18} /> Configuración — Aurora Copilot</h1>
+        </div>
+        <div className="ap-header-right">
+          <Link to="/autopilot" className="ap-config-link">
+            Panel de Aurora Copilot
+          </Link>
+        </div>
+      </div>
+
       <div className="ap-config-layout">
 
-        {/* ── Kill switch (visible siempre) ── */}
-        <AutopilotKillSwitch />
-
-        {/* ── Selector de modo ── */}
+        {/* ── Objetivos ── */}
         <div className="form-card">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FiCpu size={16} /> Modo de Operación
-          </h2>
-          <div className="ap-mode-grid">
-            {MODE_OPTIONS.map(opt => (
-              <button
-                key={opt.id}
-                type="button"
-                className={[
-                  'ap-mode-card',
-                  config.mode === opt.id ? 'ap-mode-card--selected' : '',
-                  opt.disabled ? 'ap-mode-card--disabled' : '',
-                ].join(' ')}
-                onClick={() => !opt.disabled && setConfig(c => ({ ...c, mode: opt.id }))}
-                disabled={opt.disabled}
-              >
-                <span className={`ap-mode-badge ap-mode-badge--${opt.id}`}>
-                  {opt.disabled ? `${opt.label} — Próximamente` : opt.label}
-                </span>
-                <p className="ap-mode-desc">{opt.description}</p>
-                {config.mode === opt.id && <FiCheck size={16} className="ap-mode-check" />}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Objetivos del ciclo ── */}
-        <div className="form-card">
-          <h2>Objetivos del Ciclo</h2>
+          <h2>Objetivos</h2>
           <p className="ap-objectives-hint">
-            Describe qué esperas lograr en este ciclo de producción. Esto guía las recomendaciones del análisis.
+            Autopilot funciona mejor cuando tiene un objetivo definido, proporciónale uno o varios para mejorar las respuestas.
           </p>
           <div className="form-control">
-            <label>Objetivos del productor</label>
             <textarea
               rows={5}
               value={config.objectives}
@@ -140,18 +95,28 @@ export default function AutopilotConfig() {
           </div>
         </div>
 
-        {/* ── Barandillas de Seguridad (solo nivel3) ── */}
-        {config.mode === 'nivel3' && (
-          <div className="form-card">
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FiShield size={16} /> Barandillas de Seguridad
-            </h2>
-            <p className="ap-objectives-hint">
-              Configura los límites de las acciones autónomas. Las acciones que excedan estos límites serán escaladas para aprobación manual.
-            </p>
+        {/* ── Mis preferencias ── */}
+        <DirectivesPanel />
+
+        {/* ── Barandillas de Seguridad ── */}
+        <div className="form-card">
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FiShield size={16} /> Barandillas de Seguridad
+          </h2>
+          <p className="ap-objectives-hint" style={{ fontWeight: 600, opacity: 0.9 }}>
+            Estas barandillas sólo se aplican cuando Aurora Copilot opera en <strong>Nivel 3 — Agencia Total</strong>.
+            Puedes configurarlas en cualquier momento; los valores quedarán guardados y entrarán en vigor automáticamente
+            cuando actives el Nivel 3. En Niveles 1 y 2 no tienen efecto porque ninguna acción se ejecuta sin aprobación humana.
+          </p>
+          <p className="ap-objectives-hint">
+            Configura los límites de las acciones autónomas. Las acciones que excedan estos límites serán escaladas para aprobación manual.
+          </p>
 
             <div className="form-control">
-              <label>Máximo de acciones por sesión</label>
+              <label>Máximo de acciones por análisis</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Tope por cada ejecución del análisis autónomo. Para el acumulado por día, ver más abajo.
+              </p>
               <input
                 type="number" min={1} max={20}
                 value={config.guardrails.maxActionsPerSession ?? 5}
@@ -162,7 +127,13 @@ export default function AutopilotConfig() {
             </div>
 
             <div className="form-control">
-              <label>Cambio máximo de inventario por ajuste (%)</label>
+              <label>Cambio máximo en la cantidad en bodega de un producto (%)</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Cuando Aurora corrige la cantidad registrada de un producto (por pérdida, daño o error de conteo),
+                no podrá subir ni bajar esa cantidad más de este porcentaje en un solo movimiento.
+                Ejemplo con 30%: si hay 100 unidades, solo podrá dejarlas entre 70 y 130.
+                Cambios mayores se envían a un supervisor para aprobación.
+              </p>
               <input
                 type="number" min={1} max={100}
                 value={config.guardrails.maxStockAdjustPercent ?? 30}
@@ -174,6 +145,9 @@ export default function AutopilotConfig() {
 
             <div className="form-control">
               <label>Tipos de acción permitidos</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Marca los tipos de acción que Aurora puede hacer por su cuenta. Desmarca los que siempre deben pasar por revisión humana.
+              </p>
               <div className="ap-guardrail-checkboxes">
                 {[
                   { id: 'crear_tarea', label: 'Crear tarea' },
@@ -204,7 +178,10 @@ export default function AutopilotConfig() {
             </div>
 
             <div className="form-control">
-              <label>Lotes bloqueados (sin acciones autónomas)</label>
+              <label>Lotes bloqueados</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Marca los lotes donde Aurora no podrá actuar por su cuenta. Cualquier acción sobre estos lotes se enviará a un supervisor para aprobación.
+              </p>
               <div className="ap-guardrail-checkboxes">
                 {lotes.map(l => {
                   const blocked = config.guardrails.blockedLotes ?? [];
@@ -232,12 +209,15 @@ export default function AutopilotConfig() {
 
             <h3 className="ap-guardrail-subheading">Límites globales</h3>
             <p className="ap-objectives-hint">
-              Límites acumulados por finca (no por sesión). Las acciones que los excedan se escalan.
+              Estos límites se suman en toda la finca, no en un solo análisis. Si Aurora quiere hacer una acción que los supere, se envía a un supervisor para aprobación.
             </p>
 
             <div className="ap-guardrail-row">
               <div className="form-control">
-                <label>Máx. acciones por día</label>
+                <label>Máximo de acciones por día</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Total de acciones que Aurora puede hacer en un día, sumando todos los análisis. Al llegar a este tope se detiene hasta el día siguiente.
+                </p>
                 <input
                   type="number" min={1} max={500}
                   value={config.guardrails.maxActionsPerDay ?? 20}
@@ -247,7 +227,10 @@ export default function AutopilotConfig() {
                 />
               </div>
               <div className="form-control">
-                <label>Máx. OC por día</label>
+                <label>Máximo de órdenes de compra por día</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Cuántas compras diferentes puede generar Aurora en un mismo día. Evita que concentre muchas compras en una sola jornada.
+                </p>
                 <input
                   type="number" min={1} max={100}
                   value={config.guardrails.maxOrdenesCompraPerDay ?? 3}
@@ -260,7 +243,10 @@ export default function AutopilotConfig() {
 
             <div className="ap-guardrail-row">
               <div className="form-control">
-                <label>Monto máx. por OC (USD)</label>
+                <label>Precio máximo de una sola compra (USD)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Valor tope de una sola orden de compra. Si una compra cuesta más, se envía a un supervisor para aprobación.
+                </p>
                 <input
                   type="number" min={0}
                   value={config.guardrails.maxOrdenCompraMonto ?? 5000}
@@ -270,7 +256,10 @@ export default function AutopilotConfig() {
                 />
               </div>
               <div className="form-control">
-                <label>Monto máx. mensual de OC (USD)</label>
+                <label>Gasto máximo en compras al mes (USD)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Suma total que Aurora puede gastar en compras durante un mes. Al llegar a este tope no podrá generar más compras hasta el mes siguiente.
+                </p>
                 <input
                   type="number" min={0}
                   value={config.guardrails.maxOrdenesCompraMonthlyAmount ?? 30000}
@@ -282,7 +271,10 @@ export default function AutopilotConfig() {
             </div>
 
             <div className="form-control">
-              <label>Máx. notificaciones al mismo trabajador por día</label>
+              <label>Máximo de notificaciones al mismo trabajador por día</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Cuántos mensajes (WhatsApp, push, etc.) puede enviarle Aurora a una misma persona en un solo día, para no saturarla.
+              </p>
               <input
                 type="number" min={0} max={100}
                 value={config.guardrails.maxNotificationsPerUserPerDay ?? 3}
@@ -292,17 +284,21 @@ export default function AutopilotConfig() {
               />
             </div>
 
-            <h3 className="ap-guardrail-subheading">Presupuestos y caja</h3>
+            <h3 className="ap-guardrail-subheading">Dinero: presupuestos y caja</h3>
             <p className="ap-objectives-hint">
-              Guardrails financieros. Vacío = no enforcement. Aplican a órdenes y solicitudes de compra.
+              Son límites sobre el dinero de la finca. Los campos que dejes vacíos no se revisan.
+              Aplican cuando Aurora quiere crear una orden o una solicitud de compra.
             </p>
 
             <div className="ap-guardrail-row">
               <div className="form-control">
                 <label>Tope de consumo del presupuesto (%)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Si una compra haría que una categoría (combustible, insumos, planilla, etc.) gaste más de este porcentaje del presupuesto del mes, Aurora no la ejecutará y la enviará a un supervisor. Con 100%, la categoría no pasa de lo presupuestado.
+                </p>
                 <input
                   type="number" min={0} max={500}
-                  placeholder="Ej: 100 (no exceder el asignado)"
+                  placeholder="Ej: 100% (no exceder el asignado)"
                   value={config.guardrails.maxBudgetConsumptionPct ?? ''}
                   onChange={e => {
                     const v = e.target.value;
@@ -315,15 +311,15 @@ export default function AutopilotConfig() {
                     }));
                   }}
                 />
-                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                  Bloquea acciones que llevarían la categoría por encima de este porcentaje del asignado del mes.
-                </p>
               </div>
               <div className="form-control">
-                <label>Saldo mínimo de caja (USD)</label>
+                <label>Dinero mínimo que debe quedar en caja (USD)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Si una compra haría que el dinero en caja baje de este monto en las próximas semanas, Aurora no la ejecutará y la enviará a un supervisor.
+                </p>
                 <input
                   type="number"
-                  placeholder="Ej: 5000 (piso de caja)"
+                  placeholder="Ej: 5000 USD (no bajar de aquí)"
                   value={config.guardrails.minCajaProyectada ?? ''}
                   onChange={e => {
                     const v = e.target.value;
@@ -336,14 +332,16 @@ export default function AutopilotConfig() {
                     }));
                   }}
                 />
-                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                  La acción se bloquea si dejaría la caja proyectada por debajo del piso dentro del horizonte.
-                </p>
               </div>
             </div>
 
             <div className="form-control">
-              <label>Horizonte de caja (semanas)</label>
+              <label>Semanas que Aurora mira hacia adelante para proteger la caja</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Cuántas semanas a futuro revisa Aurora al decidir si una compra dejará la caja por debajo del mínimo.
+                Suma el saldo actual, los ingresos esperados, las compras ya pactadas y la planilla por pagar dentro de este plazo.
+                Más semanas = Aurora es más cuidadosa; menos semanas = más permisiva. El valor típico (4 semanas) cubre un mes de pagos.
+              </p>
               <input
                 type="number" min={1} max={52}
                 value={config.guardrails.cashFloorHorizonWeeks ?? 4}
@@ -356,6 +354,9 @@ export default function AutopilotConfig() {
 
             <div className="form-control">
               <label>Categorías bloqueadas</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Marca las categorías en las que Aurora no podrá gastar por su cuenta. Cualquier compra en una categoría marcada se enviará a un supervisor para aprobación.
+              </p>
               <div className="ap-guardrail-checklist">
                 {['combustible', 'depreciacion', 'planilla_directa', 'planilla_fija', 'insumos', 'mantenimiento', 'administrativo', 'otro'].map(cat => {
                   const blocked = config.guardrails.blockedBudgetCategories ?? [];
@@ -380,14 +381,11 @@ export default function AutopilotConfig() {
                   );
                 })}
               </div>
-              <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                Las categorías marcadas no pueden recibir acciones autónomas.
-              </p>
             </div>
 
-            <h3 className="ap-guardrail-subheading">Dominio financiero (Agente)</h3>
+            <h3 className="ap-guardrail-subheading">Agente de finanzas</h3>
             <p className="ap-objectives-hint">
-              Controles del agente financiero autónomo. El kill switch detiene solo este dominio; el resto del autopilot sigue funcionando.
+              Aquí controlas al agente que se ocupa del dinero de la finca (presupuestos, caja, compras). Puedes apagarlo por separado del resto: si lo desactivas, los demás agentes de Aurora siguen funcionando.
             </p>
 
             <label className="ap-guardrail-check">
@@ -408,12 +406,15 @@ export default function AutopilotConfig() {
                   },
                 }))}
               />
-              Dominio financiero activo
+              Agente de finanzas activo
             </label>
 
             <div className="ap-guardrail-row">
               <div className="form-control">
-                <label>Nivel del dominio (opcional)</label>
+                <label>Nivel de este agente (opcional)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Deja "usar nivel global" para que el agente funcione igual que Autopilot en general. Si eliges un nivel específico, solo puede ser igual o más cuidadoso que el global, nunca más agresivo.
+                </p>
                 <select
                   value={config.guardrails.dominios?.financiera?.nivel || ''}
                   onChange={e => {
@@ -433,20 +434,20 @@ export default function AutopilotConfig() {
                     }));
                   }}
                 >
-                  <option value="">Heredar del modo global</option>
+                  <option value="">Usar nivel global</option>
                   <option value="nivel1">Nivel 1 — solo recomendaciones</option>
                   <option value="nivel2">Nivel 2 — propuestas con aprobación</option>
                   <option value="nivel3">Nivel 3 — ejecución automática</option>
                 </select>
-                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                  Default recomendado: heredar. Si defines explícitamente, puede ser más conservador que el modo global (nunca más agresivo).
-                </p>
               </div>
               <div className="form-control">
-                <label>Tope por reasignación (% del source)</label>
+                <label>Cambio máximo al mover dinero entre presupuestos (%)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Cuando el agente mueve dinero de una categoría (ej: combustible) a otra (ej: insumos), no podrá mover más de este porcentaje del total que tiene asignado la categoría de origen en una sola operación.
+                </p>
                 <input
                   type="number" min={0} max={100}
-                  placeholder="Ej: 25"
+                  placeholder="Ej: 25%"
                   value={config.guardrails.maxDesviacionPresupuesto ?? 25}
                   onChange={e => {
                     const v = e.target.value;
@@ -459,17 +460,12 @@ export default function AutopilotConfig() {
                     }));
                   }}
                 />
-                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                  Una sola reasignación no puede mover más de este % del monto asignado del budget origen.
-                </p>
               </div>
             </div>
 
-            <h3 className="ap-guardrail-subheading">Dominio RR.HH. (Agente)</h3>
+            <h3 className="ap-guardrail-subheading">Agente de recursos humanos</h3>
             <p className="ap-objectives-hint">
-              Controles del agente de recursos humanos. Por diseño, el dominio RR.HH. no admite Nivel 3
-              — las decisiones sobre personas siempre requieren revisión humana. El backend rechaza
-              cualquier intento de configurar nivel3 aquí.
+              Este agente analiza asuntos de personal: productividad, alertas y sugerencias de contratación. Por regla permanente, las decisiones sobre personas nunca se ejecutan automáticamente: siempre pasan por revisión humana. Por eso aquí no existe la opción de Nivel 3.
             </p>
 
             <label className="ap-guardrail-check">
@@ -490,12 +486,15 @@ export default function AutopilotConfig() {
                   },
                 }))}
               />
-              Dominio RR.HH. activo
+              Agente de recursos humanos activo
             </label>
 
             <div className="ap-guardrail-row">
               <div className="form-control">
-                <label>Nivel del dominio (opcional)</label>
+                <label>Nivel de este agente (opcional)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Deja "usar nivel global" para que el agente use el mismo nivel que Autopilot en general (con tope en Nivel 2). Aunque elijas un nivel específico, todas las sugerencias sobre personal siempre quedan como propuestas que un supervisor debe aprobar.
+                </p>
                 <select
                   value={config.guardrails.dominios?.rrhh?.nivel || ''}
                   onChange={e => {
@@ -515,25 +514,17 @@ export default function AutopilotConfig() {
                     }));
                   }}
                 >
-                  <option value="">Heredar del modo global (cap a Nivel 2)</option>
+                  <option value="">Usar nivel global (máximo Nivel 2)</option>
                   <option value="nivel1">Nivel 1 — solo recomendaciones</option>
                   <option value="nivel2">Nivel 2 — propuestas con aprobación</option>
                   {/* Nivel 3 NO se ofrece — rechazado por PUT /api/autopilot/config */}
                 </select>
-                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                  Las acciones del agente (contratación, alertas) siempre quedan como propuestas,
-                  independiente del nivel elegido. Esta barrera es arquitectónica.
-                </p>
               </div>
             </div>
 
-            <h3 className="ap-guardrail-subheading">Dominio Financiamiento (Agente)</h3>
+            <h3 className="ap-guardrail-subheading">Agente de financiamiento</h3>
             <p className="ap-objectives-hint">
-              Controles del agente de financiamiento (Fase 5). Por política permanente,
-              este dominio es <strong>Nivel 1 únicamente</strong> — produce recomendaciones
-              pero nunca firma, aplica ni acepta crédito automáticamente. El backend
-              rechaza cualquier intento de configurar nivel2 o nivel3. Ver
-              <code>docs/financing-autonomy.md</code> para los fundamentos.
+              Este agente analiza oportunidades de crédito y financiamiento. Por regla permanente solo da recomendaciones: <strong>nunca firma, aplica ni acepta créditos por su cuenta</strong>. Este nivel no se puede cambiar en la configuración.
             </p>
 
             <label className="ap-guardrail-check">
@@ -554,30 +545,25 @@ export default function AutopilotConfig() {
                   },
                 }))}
               />
-              Dominio Financiamiento activo
+              Agente de financiamiento activo
             </label>
 
             <div className="form-control">
-              <label>Nivel del dominio</label>
+              <label>Nivel de este agente</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Siempre en Nivel 1 (solo recomendaciones). No se puede cambiar: las decisiones de crédito siempre requieren intervención humana.
+              </p>
               <select
                 value="nivel1"
                 disabled
               >
                 <option value="nivel1">Nivel 1 — solo recomendaciones (permanente)</option>
               </select>
-              <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                Fijo en Nivel 1. Revisar N2/N3 requiere revisión de política explícita con
-                evidencia acumulada ≥ 24 meses de decisiones validadas en Fases 1-4.
-              </p>
             </div>
 
-            <h3 className="ap-guardrail-subheading">Dominio Meta / Orquestador (Fase 6)</h3>
+            <h3 className="ap-guardrail-subheading">Agente orquestador</h3>
             <p className="ap-objectives-hint">
-              Controla al meta-agente: orquestador que delega a los especialistas (Fase 6.1),
-              trust manager que ajusta guardrails dinámicamente dentro del corredor (Fase 6.3),
-              y cadenas cross-domain (Fase 6.4). Los caps arquitectónicos de RRHH (N3 prohibido)
-              y financiamiento (N1-only) siguen enforzados en backend — este nivel sólo controla
-              al orquestador / ajuste de guardrails, no los permisos de los dominios downstream.
+              Este agente coordina al resto de los agentes (finanzas, compras, RR.HH., financiamiento). Las reglas permanentes de los otros agentes (por ejemplo, que RR.HH. nunca ejecute solo) siguen aplicando: aquí solo cambias cómo actúa el coordinador, no los permisos de cada agente por separado.
             </p>
 
             <label className="ap-guardrail-check">
@@ -598,12 +584,15 @@ export default function AutopilotConfig() {
                   },
                 }))}
               />
-              Dominio meta activo
+              Agente orquestador activo
             </label>
 
             <div className="ap-guardrail-row">
               <div className="form-control">
-                <label>Nivel del dominio (opcional)</label>
+                <label>Nivel de este agente (opcional)</label>
+                <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                  Deja "usar nivel global" para que el coordinador funcione como Autopilot en general. En niveles más altos puede coordinar acciones entre varios agentes a la vez y ajustar sus propios límites. Cualquier ajuste es reversible durante 7 días.
+                </p>
                 <select
                   value={config.guardrails.dominios?.meta?.nivel || ''}
                   onChange={e => {
@@ -623,15 +612,11 @@ export default function AutopilotConfig() {
                     }));
                   }}
                 >
-                  <option value="">Heredar del modo global</option>
-                  <option value="nivel1">Nivel 1 — sólo recomendaciones (planes, propuestas)</option>
-                  <option value="nivel2">Nivel 2 — fan-out del orquestador + tightening auto</option>
-                  <option value="nivel3">Nivel 3 — fan-out + ajuste bidireccional de guardrails + chains ejecutables</option>
+                  <option value="">Usar nivel global</option>
+                  <option value="nivel1">Nivel 1 — solo recomendaciones (planes y propuestas)</option>
+                  <option value="nivel2">Nivel 2 — delega a los agentes y ajusta sus límites cuando hace falta</option>
+                  <option value="nivel3">Nivel 3 — delega, ajusta límites en ambos sentidos y ejecuta cadenas de acciones coordinadas</option>
                 </select>
-                <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                  En N3 el trust manager aplica tanto relax como tighten dentro del corridor; cada
-                  relax queda compensable vía rollback estándar durante 7 días.
-                </p>
               </div>
             </div>
 
@@ -645,11 +630,14 @@ export default function AutopilotConfig() {
                   ...c, guardrails: { ...c.guardrails, weekendActions: e.target.checked },
                 }))}
               />
-              Permitir acciones autónomas en fin de semana
+              Permitir que Aurora actúe en fin de semana
             </label>
 
             <div className="form-control">
-              <label>Horario silencioso (HH:MM — HH:MM)</label>
+              <label>Horas en las que Aurora no envía notificaciones</label>
+              <p className="ap-objectives-hint" style={{ marginTop: 0, marginBottom: 6 }}>
+                Franja del día (por ejemplo, de 22:00 a 06:00) en la que Aurora no enviará notificaciones al personal, para no interrumpir el descanso. Deja los dos campos vacíos para permitir notificaciones a cualquier hora.
+              </p>
               <div className="ap-guardrail-time-row">
                 <input
                   type="time"
@@ -675,12 +663,8 @@ export default function AutopilotConfig() {
                   }))}
                 />
               </div>
-              <p className="ap-objectives-hint" style={{ marginTop: 4 }}>
-                Deja vacío para desactivar. Aplica por defecto a notificaciones; configura `enforce` por API para otros tipos.
-              </p>
             </div>
           </div>
-        )}
 
         {/* ── Guardar ── */}
         <div className="ap-config-actions">

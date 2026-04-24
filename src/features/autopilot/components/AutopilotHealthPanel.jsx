@@ -65,7 +65,7 @@ export default function AutopilotHealthPanel() {
   return (
     <div className="ap-health">
       <div className="ap-health-header">
-        <h3><FiActivity size={16} /> Salud del Piloto Automático</h3>
+        <h3><FiActivity size={16} /> Salud de Aurora Copilot</h3>
         <div className="ap-health-controls">
           <div className="ap-health-window">
             {WINDOW_OPTIONS.map(opt => (

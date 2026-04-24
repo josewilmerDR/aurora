@@ -6,14 +6,9 @@ import {
 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import AutopilotLevelSlider from './AutopilotLevelSlider';
+import AutopilotPauseButton from './AutopilotPauseButton';
 import '../styles/autopilot-panel.css';
-
-const MODE_LABELS = {
-  off:    'Off',
-  nivel1: 'Nivel 1',
-  nivel2: 'Nivel 2',
-  nivel3: 'Nivel 3',
-};
 
 // Graceful fallback if Web Speech API unsupported
 const SpeechRec = typeof window !== 'undefined' &&
@@ -172,6 +167,20 @@ export default function AutopilotPanel({ open, onClose }) {
     setConversation([]);
   };
 
+  const handleModeChange = async (nextMode) => {
+    const res = await apiFetch('/api/autopilot/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: nextMode }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || 'No se pudo actualizar el nivel.');
+    }
+    setConfig(prev => ({ ...(prev || {}), mode: nextMode }));
+    window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
+  };
+
   const mode = config?.mode || 'off';
 
   return (
@@ -179,28 +188,53 @@ export default function AutopilotPanel({ open, onClose }) {
       {open && <div className="autopilot-panel-backdrop" onClick={onClose} />}
       <div className={`autopilot-panel${open ? ' open' : ''}`}>
         <div className="ap-panel-header">
-          <div className="ap-panel-title">
-            <FiCpu size={18} />
-            <span>Piloto Automático</span>
-            <span className={`ap-panel-mode ap-panel-mode--${mode}`}>
-              {MODE_LABELS[mode] || mode}
-            </span>
+          <div className="ap-panel-header-row">
+            <div className="ap-panel-title">
+              <FiCpu size={18} />
+              <span>Aurora Copilot</span>
+            </div>
+            <div className="ap-panel-header-actions">
+              <AutopilotPauseButton open={open} mode={mode} />
+              {canConfig && (
+                <Link
+                  to="/autopilot/configuracion"
+                  onClick={onClose}
+                  className="ap-panel-config-icon"
+                  title="Configuración"
+                  aria-label="Configuración"
+                >
+                  <FiSliders size={15} />
+                </Link>
+              )}
+              <button className="ap-panel-close" onClick={onClose} title="Cerrar">
+                <FiX size={18} />
+              </button>
+            </div>
           </div>
-          <button className="ap-panel-close" onClick={onClose} title="Cerrar">
-            <FiX size={18} />
-          </button>
+          {config && (
+            <AutopilotLevelSlider
+              mode={mode}
+              disabled={!canConfig}
+              onChange={handleModeChange}
+              onNavigate={onClose}
+            />
+          )}
         </div>
 
         <div className="ap-panel-body">
-          {mode === 'off' && (
+          {mode === 'off' && canConfig && (
+            <div className="ap-panel-notice ap-panel-notice--cta">
+              <FiZap size={14} />
+              <span>
+                Aurora Copilot está apagado. Desliza el control de nivel de arriba para activarlo y elegir cuánta autonomía quieres darle.
+              </span>
+            </div>
+          )}
+
+          {mode === 'off' && !canConfig && (
             <div className="ap-panel-notice">
               <FiInfo size={14} />
-              <span>
-                El Piloto Automático está desactivado.{' '}
-                {canConfig ? (
-                  <Link to="/autopilot/configuracion" onClick={onClose}>Activar</Link>
-                ) : 'Pídele a un supervisor que lo active.'}
-              </span>
+              <span>Aurora Copilot está desactivado. Pídele a un supervisor que lo active.</span>
             </div>
           )}
 
@@ -239,6 +273,9 @@ export default function AutopilotPanel({ open, onClose }) {
 
               <div className="ap-panel-command">
                 <label className="ap-panel-label">Comando / instrucción</label>
+                <p className="ap-panel-command-help">
+                  Dale una instrucción concreta a Aurora Copilot. Ej: <i>"Genera una orden de compra de 20 kg de Mancozeb a Almacenes El Éxito"</i> o <i>"Notifícale a María que la tarea del lote Norte se reprograma para el viernes"</i>. Todas las acciones quedan como <strong>propuestas</strong> para aprobación.
+                </p>
                 <textarea
                   className="ap-panel-textarea"
                   value={text}
@@ -308,13 +345,8 @@ export default function AutopilotPanel({ open, onClose }) {
 
         <div className="ap-panel-footer">
           <Link to="/autopilot" onClick={onClose} className="ap-panel-footer-link">
-            Panel completo
+            Ver toda la actividad de Aurora Copilot
           </Link>
-          {canConfig && (
-            <Link to="/autopilot/configuracion" onClick={onClose} className="ap-panel-footer-link">
-              <FiSliders size={13} /> Configuración
-            </Link>
-          )}
         </div>
       </div>
     </>
