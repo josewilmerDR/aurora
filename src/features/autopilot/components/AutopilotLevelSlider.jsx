@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FiX, FiAlertTriangle } from 'react-icons/fi';
+import { FiX, FiAlertTriangle, FiInfo } from 'react-icons/fi';
 
 const LEVELS = [
   { id: 'off',    index: 0, short: 'Off',     label: 'Off' },
@@ -41,7 +41,7 @@ const LEVEL_COPY = {
   },
 };
 
-export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavigate }) {
+export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavigate, objectives }) {
   const current = LEVEL_BY_ID[mode] || LEVELS[0];
   const [pendingId, setPendingId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -171,6 +171,24 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                       Configuración
                     </Link>{' '}
                     antes de continuar.
+                  </span>
+                </p>
+              )}
+              {pendingId !== 'off' && !(objectives && String(objectives).trim()) && (
+                <p className="ap-level-modal-info">
+                  <FiInfo size={13} />
+                  <span>
+                    Aurora Copilot da mejores recomendaciones cuando tiene un objetivo definido. Define uno en{' '}
+                    <Link
+                      to="/autopilot/configuracion"
+                      className="ap-level-modal-info-link"
+                      onClick={() => {
+                        cancel();
+                        if (onNavigate) onNavigate();
+                      }}
+                    >
+                      Configuración
+                    </Link>.
                   </span>
                 </p>
               )}

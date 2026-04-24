@@ -217,6 +217,7 @@ export default function AutopilotPanel({ open, onClose }) {
               disabled={!canConfig}
               onChange={handleModeChange}
               onNavigate={onClose}
+              objectives={config.objectives}
             />
           )}
         </div>
