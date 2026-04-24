@@ -42,6 +42,12 @@ const LIMITS = {
   ai_light:  { perMinute: 30,  perDay: 500  },
   // Non-AI write endpoints that could still be spammed.
   write:     { perMinute: 120, perDay: 5000 },
+  // Write endpoints that fan out to paid external services (Twilio
+  // WhatsApp, SendGrid, etc.). One abused call = one billable message.
+  notify:    { perMinute: 10,  perDay: 100  },
+  // Public/unauthenticated GETs keyed by IP instead of uid. Tighter than
+  // 'write' because anyone on the internet can hit them.
+  public_read: { perMinute: 60, perDay: 1000 },
 };
 
 // Fixed-window counter update. Returns { ok, retryAfter }. Fail-open — a
@@ -120,4 +126,32 @@ function rateLimit(bucketKey, tier) {
   };
 }
 
-module.exports = { rateLimit, checkRateLimit, LIMITS };
+// Variant keyed by client IP, for endpoints that accept unauthenticated
+// traffic (e.g. the public deep-link GET /api/tasks/:id). Uses the same
+// Firestore-backed counter; the doc ID is `ip__<bucketKey>` instead of
+// `uid__<bucketKey>`. Falls back to 'unknown' when Cloud Run strips the IP.
+function rateLimitByIp(bucketKey, tier) {
+  const limits = typeof tier === 'string' ? LIMITS[tier] : tier;
+  if (!limits) throw new Error(`rateLimitByIp: unknown tier "${tier}"`);
+
+  return async (req, res, next) => {
+    const raw = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    // x-forwarded-for may be a CSV; the first entry is the origin client.
+    const ip = String(raw).split(',')[0].trim().slice(0, 64) || 'unknown';
+    const result = await checkRateLimit(`ip_${ip}`, bucketKey, limits);
+    if (!result.ok) {
+      res.set('Retry-After', String(Math.max(1, result.retryAfter || 60)));
+      console.warn('[rateLimit] blocked by ip',
+        ip, bucketKey, result.reason, 'retryAfter', result.retryAfter);
+      return sendApiError(
+        res,
+        ERROR_CODES.RATE_LIMITED,
+        `Rate limit exceeded (${result.reason}). Try again in ${result.retryAfter || 60}s.`,
+        429,
+      );
+    }
+    next();
+  };
+}
+
+module.exports = { rateLimit, rateLimitByIp, checkRateLimit, LIMITS };
