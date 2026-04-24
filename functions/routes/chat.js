@@ -1293,10 +1293,12 @@ Responde siempre en español, de forma concisa y amigable. Usa formato de lista 
               }
             }
           } else if (block.name === 'listar_recordatorios') {
+            // Match the REST list: both pending (future) and delivered
+            // (past-due but awaiting user resolution) count as active.
             const rSnap = await db.collection('reminders')
               .where('uid', '==', req.uid)
               .where('fincaId', '==', req.fincaId)
-              .where('status', '==', 'pending')
+              .where('status', 'in', ['pending', 'delivered'])
               .get();
             const rList = rSnap.docs
               .map(d => ({ id: d.id, message: d.data().message, remindAt: d.data().remindAt?.toDate?.()?.toISOString() }))

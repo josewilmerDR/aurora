@@ -90,10 +90,13 @@
 }
 
 .app-header-search {
-  flex: 1;
-  position: relative;
-  max-width: none;
-  margin-left: 48px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 50%;
+  min-width: 320px;
+  max-width: 760px;
 }
 
 /* ── Header search toggle & back (mobile only) ───────────────────────────── */
@@ -138,6 +141,7 @@
 
 /* ── Header profile button ───────────────────────────────────────────────── */
 .app-header-profile-btn {
+  position: relative;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -154,6 +158,26 @@
   transition: background 0.2s, border-color 0.2s;
 }
 
+.app-header-profile-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #ff4d4f;
+  color: #fff;
+  border: 2px solid var(--aurora-dark-blue);
+  border-radius: 9px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
 .app-header-profile-btn:hover {
   background: rgba(255, 255, 255, 0.11);
   border-color: rgba(230, 242, 255, 0.3);
@@ -163,6 +187,17 @@
   max-width: 110px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Al sacar el search del flujo flex (desktop), empujamos al primer botón visible
+   del lado derecho hacia el borde. Si autopilot está presente, solo él lleva
+   margin-left:auto; si no, lo lleva profile. */
+.app-header-autopilot-btn,
+.app-header-profile-btn {
+  margin-left: auto;
+}
+.app-header-autopilot-btn ~ .app-header-profile-btn {
+  margin-left: 0;
 }
 
 /* ── Body layout ─────────────────────────────────────────────────────────── */
@@ -348,11 +383,21 @@
 
   /* Barra de búsqueda siempre visible, ocupa el espacio libre */
   .app-header-search {
+    position: static;
+    transform: none;
     display: flex;
     flex: 1;
     align-items: center;
-    margin-left: 0;
+    width: auto;
     min-width: 0;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  /* En mobile los botones del header vuelven a su flujo flex normal */
+  .app-header-autopilot-btn,
+  .app-header-profile-btn {
+    margin-left: 0;
   }
   .app-header-search-back   { display: none; }
   .app-header-search-toggle { display: none; }

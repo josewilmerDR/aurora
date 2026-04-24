@@ -68,3 +68,59 @@
   color: var(--aurora-light);
   opacity: 0.5;
 }
+
+.reminder-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.10);
+  color: #f59e0b;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.reminder-add-btn:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.55);
+}
+
+.reminder-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--aurora-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--aurora-light);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.reminder-icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.reminder-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reminder-icon-btn--done:hover:not(:disabled) {
+  color: var(--aurora-green);
+  border-color: rgba(51, 255, 153, 0.45);
+  background: rgba(51, 255, 153, 0.10);
+}
+
+.reminder-icon-btn--delete:hover:not(:disabled) {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.45);
+  background: rgba(255, 107, 107, 0.10);
+}
