@@ -3,13 +3,26 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/task-action.css';
 
+// Today's date in the user's local timezone (YYYY-MM-DD). Using toISOString()
+// would give UTC, which shifts to tomorrow for UTC-negative zones after ~18:00
+// local and would block the user from scheduling for the current day.
+const localToday = () => {
+  const d = new Date();
+  const tzOffsetMs = d.getTimezoneOffset() * 60 * 1000;
+  return new Date(d.getTime() - tzOffsetMs).toISOString().split('T')[0];
+};
+
+const isValidYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
+  && Number.isFinite(new Date(s).getTime());
+
 const TaskAction = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
   const [action, setAction] = useState(null); // null | 'reschedule' | 'reassign'
@@ -19,17 +32,19 @@ const TaskAction = () => {
   const [newUserId, setNewUserId] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchTask = async () => {
       try {
         setLoading(true);
         const response = await apiFetch(`/api/tasks/${taskId}`);
         if (!response.ok) throw new Error('La tarea no fue encontrada o no tienes acceso a ella.');
         const data = await response.json();
-        setTask(data);
+        if (!cancelled) setTask(data);
       } catch (err) {
-        setError(err.message);
+        if (!cancelled) setLoadError(err.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -37,15 +52,19 @@ const TaskAction = () => {
       try {
         const res = await apiFetch('/api/users');
         const data = await res.json();
-        setUsers(Array.isArray(data) ? data : []);
-      } catch (_) {}
+        if (!cancelled) setUsers(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error fetching users for reassign dropdown:', err);
+      }
     };
 
     fetchTask();
     fetchUsers();
+    return () => { cancelled = true; };
   }, [taskId, apiFetch]);
 
   const handleCompleteTask = async () => {
+    setActionError(null);
     setSaving(true);
     try {
       const response = await apiFetch(`/api/tasks/${taskId}`, {
@@ -56,14 +75,18 @@ const TaskAction = () => {
       setTask(prev => ({ ...prev, status: 'completed_by_user' }));
       setSuccessMessage(`¡Tarea "${task.activityName}" marcada como hecha!`);
     } catch (err) {
-      setError(err.message);
+      setActionError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleReschedule = async () => {
-    if (!newDate) return;
+    if (!isValidYmd(newDate) || newDate < localToday()) {
+      setActionError('Selecciona una fecha válida igual o posterior a hoy.');
+      return;
+    }
+    setActionError(null);
     setSaving(true);
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/reschedule`, {
@@ -71,17 +94,23 @@ const TaskAction = () => {
         body: JSON.stringify({ newDate }),
       });
       if (!res.ok) throw new Error('No se pudo reprogramar la tarea.');
+      setTask(prev => prev ? ({ ...prev, dueDate: new Date(newDate).toISOString() }) : prev);
       setAction(null);
       setSuccessMessage(`Tarea reprogramada para el ${new Date(newDate).toLocaleDateString('es-ES', { timeZone: 'UTC' })}.`);
     } catch (err) {
-      setError(err.message);
+      setActionError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleReassign = async () => {
-    if (!newUserId) return;
+    const newUser = users.find(u => u.id === newUserId);
+    if (!newUser) {
+      setActionError('Selecciona un usuario válido.');
+      return;
+    }
+    setActionError(null);
     setSaving(true);
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/reassign`, {
@@ -89,20 +118,25 @@ const TaskAction = () => {
         body: JSON.stringify({ newUserId }),
       });
       if (!res.ok) throw new Error('No se pudo reasignar la tarea.');
-      const newUser = users.find(u => u.id === newUserId);
+      setTask(prev => prev ? ({
+        ...prev,
+        activity: { ...prev.activity, responsableId: newUserId },
+        responsableName: newUser.nombre,
+        responsableTel: newUser.telefono || '—',
+      }) : prev);
       setAction(null);
-      setSuccessMessage(`Tarea reasignada a ${newUser?.nombre || 'nuevo responsable'}. Se envió notificación por WhatsApp.`);
+      setSuccessMessage(`Tarea reasignada a ${newUser.nombre}. Se envió notificación por WhatsApp.`);
     } catch (err) {
-      setError(err.message);
+      setActionError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
 
   if (loading) return <div className="task-action-state">Cargando detalles de la tarea...</div>;
-  if (error) return <div className="task-action-state error">Error: {error}</div>;
+  if (loadError || !task) return <div className="task-action-state error">Error: {loadError || 'Tarea no disponible.'}</div>;
 
   const isCompleted = task.status === 'completed_by_user';
   const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
@@ -114,12 +148,12 @@ const TaskAction = () => {
     <div className="task-action-wrapper">
       <div className="task-action-card">
         <button className="btn-back-nav" onClick={() => navigate('/tasks')}>
-          ← Volver a Seguimiento de Actividades
+          ← Volver a Seguimiento de Tareas
         </button>
         <h1>Gestionar Tarea</h1>
 
         <div className="task-info-grid">
-          <span className="task-info-label">Actividad</span>
+          <span className="task-info-label">Tarea</span>
           <span className="task-info-value">{task.activityName}</span>
 
           {!isSolicitudCompra && (
@@ -244,6 +278,10 @@ const TaskAction = () => {
         {!successMessage && (
           <div className="task-actions-section">
             <h2>Acciones</h2>
+
+            {actionError && (
+              <div className="action-error" role="alert">{actionError}</div>
+            )}
 
             {!isCompleted && !isAplicacion && (
               <button className="btn-complete" onClick={handleCompleteTask} disabled={saving}>

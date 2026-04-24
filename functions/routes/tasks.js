@@ -44,16 +44,41 @@ router.get('/api/tasks', authenticate, async (req, res) => {
   }
 });
 
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidYmd = (s) => typeof s === 'string' && YMD_RE.test(s)
+  && Number.isFinite(new Date(s).getTime());
+
 router.post('/api/tasks', authenticate, async (req, res) => {
   if (req.userRole === 'trabajador') {
     return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to create tasks.', 403);
   }
   try {
     const { nombre, loteId, responsableId, fecha, productos } = req.body;
-    if (!nombre || !loteId || !responsableId || !fecha) {
-      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'nombre, loteId, responsableId and fecha are required.', 400);
+    if (!nombre || !fecha) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'nombre and fecha are required.', 400);
+    }
+    if (typeof nombre !== 'string' || nombre.length > 200) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'nombre must be a string up to 200 chars.', 400);
+    }
+    if (!isValidYmd(fecha)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'fecha must be a valid YYYY-MM-DD date.', 400);
     }
     const prodList = Array.isArray(productos) ? productos : [];
+    const mappedProductos = [];
+    for (const p of prodList) {
+      const cantidad = parseFloat(p.cantidad);
+      if (!Number.isFinite(cantidad) || cantidad < 0) {
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'productos[].cantidad must be a non-negative number.', 400);
+      }
+      mappedProductos.push({
+        productoId: p.productoId,
+        nombreComercial: p.nombreComercial,
+        cantidad,
+        unidad: p.unidad,
+        periodoReingreso: p.periodoReingreso || 0,
+        periodoACosecha: p.periodoACosecha || 0,
+      });
+    }
     const newTask = {
       type: 'MANUAL_APLICACION',
       executeAt: Timestamp.fromDate(new Date(fecha + 'T08:00:00')),
@@ -62,16 +87,9 @@ router.post('/api/tasks', authenticate, async (req, res) => {
       fincaId: req.fincaId,
       activity: {
         name: nombre,
-        type: prodList.length > 0 ? 'aplicacion' : 'notificacion',
+        type: mappedProductos.length > 0 ? 'aplicacion' : 'notificacion',
         responsableId,
-        productos: prodList.map(p => ({
-          productoId: p.productoId,
-          nombreComercial: p.nombreComercial,
-          cantidad: parseFloat(p.cantidad) || 0,
-          unidad: p.unidad,
-          periodoReingreso: p.periodoReingreso || 0,
-          periodoACosecha: p.periodoACosecha || 0,
-        })),
+        productos: mappedProductos,
       },
     };
     const docRef = await db.collection('scheduled_tasks').add(newTask);
@@ -141,6 +159,11 @@ router.put('/api/tasks/:id', authenticate, async (req, res) => {
     if (updateData.status && !VALID_STATUSES.includes(updateData.status)) {
       return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid task status.', 400);
     }
+    if (updateData.notas !== undefined) {
+      if (typeof updateData.notas !== 'string' || updateData.notas.length > 2000) {
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'notas must be a string up to 2000 chars.', 400);
+      }
+    }
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
     if (!ownership.ok) {
       return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -208,6 +231,9 @@ router.post('/api/tasks/:id/reschedule', authenticate, async (req, res) => {
         if (!newDate) {
           return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'New date is required.', 400);
         }
+        if (!isValidYmd(newDate)) {
+          return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'newDate must be a valid YYYY-MM-DD date.', 400);
+        }
         const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
         if (!ownership.ok) {
           return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -225,7 +251,7 @@ router.post('/api/tasks/:id/reassign', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { newUserId } = req.body;
-        if (!newUserId) {
+        if (!newUserId || typeof newUserId !== 'string') {
           return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'New assignee is required.', 400);
         }
 
@@ -235,6 +261,13 @@ router.post('/api/tasks/:id/reassign', authenticate, async (req, res) => {
           return sendApiError(res, ownership.code, ownership.message, ownership.status);
         }
         const taskDoc = ownership.doc;
+
+        // Verify the assignee exists and belongs to the same finca to avoid
+        // orphan responsableIds and cross-finca assignments.
+        const newUserDoc = await db.collection('users').doc(newUserId).get();
+        if (!newUserDoc.exists || newUserDoc.data().fincaId !== req.fincaId) {
+          return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Assignee not found in this finca.', 400);
+        }
 
         const taskData = taskDoc.data();
         const updatedActivity = { ...taskData.activity, responsableId: newUserId };

@@ -5,6 +5,7 @@
   align-items: flex-start;
   justify-content: center;
   padding: 40px 20px;
+  overflow-x: hidden;
 }
 
 .task-action-card {
@@ -14,6 +15,7 @@
   padding: 32px;
   width: 100%;
   max-width: 600px;
+  min-width: 0;
 }
 
 /* Back nav button */
@@ -67,6 +69,8 @@
 .task-info-value {
   font-size: 1rem;
   color: var(--aurora-light);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .task-status-badge-action {
@@ -93,14 +97,6 @@
   border-radius: 10px;
 }
 
-.recipe-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
 .recipe-title {
   font-size: 1rem;
   font-weight: 700;
@@ -110,31 +106,12 @@
   margin: 0;
 }
 
-.btn-generate-po {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background-color: var(--aurora-magenta);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.15s;
-}
-
-.btn-generate-po:hover {
-  opacity: 0.85;
-}
-
 .recipe-subtitle {
   font-size: 0.9rem;
   color: var(--aurora-light);
   opacity: 0.7;
   margin-bottom: 14px;
+  overflow-wrap: anywhere;
 }
 
 .recipe-table {
@@ -180,6 +157,7 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: #f0ad4e;
+  overflow-wrap: anywhere;
 }
 
 /* Actions section */
@@ -196,6 +174,17 @@
   margin-bottom: 16px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.action-error {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background-color: rgba(204, 51, 255, 0.1);
+  border: 1px solid var(--aurora-magenta);
+  border-radius: 6px;
+  color: var(--aurora-magenta);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 /* Buttons */
@@ -303,6 +292,8 @@
 .action-panel input[type="date"],
 .action-panel select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 10px 14px;
   background-color: var(--aurora-background);
   border: 1px solid var(--aurora-border);
@@ -312,6 +303,7 @@
   margin-bottom: 14px;
   outline: none;
   transition: border-color 0.2s;
+  text-overflow: ellipsis;
 }
 
 .action-panel input[type="date"]:focus,
@@ -407,9 +399,10 @@
     padding-bottom: 14px;
   }
 
-  /* Info grid: etiqueta encima del valor */
+  /* Info grid: etiqueta encima del valor. minmax(0, 1fr) permite que el
+     contenido se recorte/rompa en vez de forzar el ancho de la columna. */
   .task-info-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
     margin-bottom: 20px;
   }
@@ -430,14 +423,15 @@
     border-bottom: none;
   }
 
-  /* Tabla de receta: scroll horizontal */
+  /* Tabla de receta: scroll horizontal contenido dentro del panel */
   .recipe-panel {
     padding: 14px 12px;
     overflow-x: auto;
+    max-width: 100%;
   }
 
   .recipe-table {
-    min-width: 320px;
+    min-width: 280px;
     font-size: 0.83rem;
   }
 
