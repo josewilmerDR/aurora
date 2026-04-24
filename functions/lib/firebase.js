@@ -14,6 +14,9 @@ const vapidPrivateKey = defineSecret("VAPID_PRIVATE_KEY");
 // proveedor correspondiente queda deshabilitado hasta que se cargue.
 const openWeatherApiKey = defineSecret("OPENWEATHER_API_KEY");
 const alphaVantageApiKey = defineSecret("ALPHAVANTAGE_API_KEY");
+// HMAC signing key for /task/:id deep-links sent via WhatsApp. When
+// unset, task link tokens fall back to warn mode (see taskLinkToken.js).
+const taskLinkSecret = defineSecret("TASK_LINK_SECRET");
 
 // --- UNIVERSAL CLIENT INITIALIZATION ---
 admin.initializeApp();
@@ -39,10 +42,12 @@ module.exports = {
   vapidPrivateKey,
   openWeatherApiKey,
   alphaVantageApiKey,
+  taskLinkSecret,
   // All secrets array for Cloud Function config
   allSecrets: [
     twilioAccountSid, twilioAuthToken, twilioWhatsappFrom,
     anthropicApiKey, vapidPublicKey, vapidPrivateKey,
     openWeatherApiKey, alphaVantageApiKey,
+    taskLinkSecret,
   ],
 };

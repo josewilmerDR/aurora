@@ -63,6 +63,12 @@ const ACTIONS = Object.freeze({
   INCOME_CREATE: 'income.create',
   INCOME_DELETE: 'income.delete',
 
+  // Task operations that change ownership, timing, or stock — routine
+  // creation is not audited (too noisy), but these three are.
+  TASK_COMPLETE: 'task.complete',
+  TASK_RESCHEDULE: 'task.reschedule',
+  TASK_REASSIGN: 'task.reassign',
+
   // Autopilot / CEO agent — state-changing or autonomous decisions. Propose
   // stages are NOT audited: they're approved-or-rejected downstream and that
   // is where the trail lives. Cron sweeps / orchestrator ticks also not

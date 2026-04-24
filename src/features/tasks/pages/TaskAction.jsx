@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/task-action.css';
 
@@ -18,7 +18,11 @@ const isValidYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 const TaskAction = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const apiFetch = useApiFetch();
+  // Capability token from the WhatsApp deep-link; forwarded to the
+  // backend so the public GET can verify the signature.
+  const linkToken = new URLSearchParams(location.search).get('t');
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -37,7 +41,10 @@ const TaskAction = () => {
     const fetchTask = async () => {
       try {
         setLoading(true);
-        const response = await apiFetch(`/api/tasks/${taskId}`);
+        const url = linkToken
+          ? `/api/tasks/${taskId}?t=${encodeURIComponent(linkToken)}`
+          : `/api/tasks/${taskId}`;
+        const response = await apiFetch(url);
         if (!response.ok) throw new Error('La tarea no fue encontrada o no tienes acceso a ella.');
         const data = await response.json();
         if (!cancelled) setTask(data);
@@ -61,7 +68,7 @@ const TaskAction = () => {
     fetchTask();
     fetchUsers();
     return () => { cancelled = true; };
-  }, [taskId, apiFetch]);
+  }, [taskId, apiFetch, linkToken]);
 
   const handleCompleteTask = async () => {
     setActionError(null);
