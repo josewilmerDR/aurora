@@ -1,40 +1,12 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/siembra.css';
 
 const EMPTY = { nombre: '', rangoPesos: '', variedad: '' };
-
-// ── Confirm modal (.am-* shared) ────────────────────────────────────────────
-function ConfirmModal({ config, onCancel }) {
-  return createPortal(
-    <div className="am-backdrop" onPointerDown={onCancel}>
-      <div className="am-modal" onPointerDown={e => e.stopPropagation()}>
-        <div className="am-modal-header">
-          <span className={`am-modal-icon${config.danger ? ' am-modal-icon--danger' : ' am-modal-icon--warn'}`}>
-            <FiAlertTriangle size={16} />
-          </span>
-          <span className="am-modal-title">{config.title}</span>
-        </div>
-        <p className="am-modal-body">{config.body}</p>
-        <div className="am-modal-actions">
-          <button type="button" className="am-btn-text" onClick={onCancel}>Cancelar</button>
-          <button
-            type="button"
-            className={`am-btn-pill${config.danger ? ' am-btn-pill--danger' : ''}`}
-            onClick={config.onConfirm}
-          >
-            {config.confirmLabel || 'Confirmar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
 
 function SiembraMateriales() {
   const apiFetch = useApiFetch();
@@ -119,7 +91,7 @@ function SiembraMateriales() {
   return (
     <div className="sm-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      {confirmModal && <ConfirmModal config={confirmModal} onCancel={() => setConfirmModal(null)} />}
+      {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
 
       <div className="sm-page">
         <header className="sm-page-header">
