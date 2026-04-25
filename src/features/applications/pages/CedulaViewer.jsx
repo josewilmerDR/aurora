@@ -85,14 +85,18 @@ export default function CedulaViewer() {
   };
 
   if (loading) return (
-    <div className="cedula-viewer-state">
-      <span className="cedula-viewer-loading">Cargando cédula…</span>
+    <div className="aur-sheet aur-sheet--empty">
+      <p className="cv-state-text">Cargando cédula…</p>
     </div>
   );
   if (error) return (
-    <div className="cedula-viewer-state">
-      <span className="cedula-viewer-error">{error}</span>
-      <button className="btn btn-secondary" onClick={() => navigate(-1)}>Volver</button>
+    <div className="aur-sheet aur-sheet--empty">
+      <div className="cv-state">
+        <p className="cv-state-text cv-state-text--error">{error}</p>
+        <button type="button" className="aur-btn-pill" onClick={() => navigate(-1)}>
+          <FiArrowLeft size={14} /> Volver
+        </button>
+      </div>
     </div>
   );
 
@@ -114,29 +118,33 @@ export default function CedulaViewer() {
   return (
     <div className="cedula-viewer">
 
-      {/* ── Toolbar ── */}
-      <div className="ca-preview-toolbar cedula-viewer-toolbar">
-        <button className="btn btn-secondary ca-toolbar-icon-btn cedula-viewer-back-btn" onClick={() => navigate(-1)}>
-          <FiArrowLeft size={15} /> <span className="ca-toolbar-btn-text">Volver</span>
+      {/* ── Toolbar (chrome — Apple-styled) ── */}
+      <header className="cv-toolbar no-print">
+        <button
+          type="button"
+          className="aur-chip aur-chip--ghost cv-toolbar-back"
+          onClick={() => navigate(-1)}
+        >
+          <FiArrowLeft size={12} /> Volver
         </button>
-        <div className="cedula-viewer-toolbar-info">
-          <span className="ca-preview-toolbar-title">
-            Cédula de Aplicación — {cedula.snap_activityName || '—'}
-            <span className="ca-toolbar-consecutivo">{cedula.consecutivo}</span>
-          </span>
-          <span className="ca-toolbar-applied-badge">
-            <FiCheckCircle size={14} /> Aplicada
-          </span>
+        <div className="cv-toolbar-info">
+          <h2 className="cv-toolbar-title">{cedula.snap_activityName || 'Cédula de aplicación'}</h2>
+          <div className="cv-toolbar-meta">
+            <span className="cv-toolbar-consecutivo">{cedula.consecutivo}</span>
+            <span className="aur-badge aur-badge--green">
+              <FiCheckCircle size={11} /> Aplicada
+            </span>
+          </div>
         </div>
-        <div className="ca-preview-toolbar-actions">
-          <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={handleShare}>
-            <FiShare2 size={15} /> <span className="ca-toolbar-btn-text">Compartir</span>
+        <div className="cv-toolbar-actions">
+          <button type="button" className="aur-chip" onClick={handleShare}>
+            <FiShare2 size={12} /> Compartir
           </button>
-          <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={() => window.print()}>
-            <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
+          <button type="button" className="aur-chip" onClick={() => window.print()}>
+            <FiPrinter size={12} /> Imprimir
           </button>
         </div>
-      </div>
+      </header>
 
       {/* ── Documento ── */}
       <div className="ca-doc-wrap">
