@@ -1,323 +1,16 @@
 @import '../../fields/styles/lote-management.css';
 
-/* ── Lista de cédulas ─────────────────────────────────────────────────────── */
-.cedulas-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.cedula-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  padding: 12px 16px;
-  transition: border-color 0.15s;
-}
-
-.cedula-row.overdue {
-  border-left: 3px solid #ff4d4d;
-}
-
-.cedula-row--has-menu {
-  position: relative;
-}
-
-.cedula-row--has-menu .cedula-row-badges {
-  padding-right: 28px;
-}
-
-/* ── Kebab menu ───────────────────────────────────────────────────────────── */
-.cedula-kebab-wrap {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-}
-
-.cedula-kebab-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.45;
-  cursor: pointer;
-  padding: 4px 5px;
-  border-radius: 4px;
-  transition: opacity 0.15s, background 0.15s;
-  line-height: 1;
-}
-
-.cedula-kebab-btn:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.cedula-kebab-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
-  min-width: 160px;
-  overflow: hidden;
-  z-index: 200;
-}
-
-.cedula-kebab-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 14px;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s;
-}
-
-.cedula-kebab-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.cedula-kebab-item--danger {
-  color: #ff6b6b;
-}
-
-.cedula-kebab-item--danger:hover {
-  background: rgba(255, 77, 77, 0.1);
-}
-
-.cedula-row-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.cedula-row-name {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cedula-row-meta {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.6;
-}
-
-.cedula-row-badges {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.cedula-status-badge {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-}
-
-.cedula-status-badge.overdue {
-  background: rgba(255, 77, 77, 0.15);
-  color: #ff4d4d;
-}
-
-.cedula-due-date {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.65;
-  min-width: 80px;
-  text-align: right;
-}
-
-.cedula-btn-preview,
-.cedula-btn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-  padding: 6px 14px;
-  white-space: nowrap;
-}
-
-/* ── Acciones principales (top) ──────────────────────────────────────────── */
-.cedulas-top-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-/* ── Barra de filtro ──────────────────────────────────────────────────────── */
-.cedulas-filter-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  gap: 12px;
-}
-
-.cedulas-date-range {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.cedulas-date-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.75rem;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-
-.cedulas-date-input {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  padding: 5px 8px;
-  cursor: pointer;
-}
-
-.cedulas-date-input:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
-.cedulas-filter-count {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  flex: 1;
-  text-align: center;
-}
-
-
-
-/* ── Consecutivo en la fila ───────────────────────────────────────────────── */
-.cedula-consecutivo {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--aurora-magenta);
-  letter-spacing: 0.04em;
-}
-
-/* ── Badge "Adicional" para cédulas creadas manualmente ──────────────────── */
-.cedula-adicional-badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: rgba(204, 51, 255, 0.15);
-  color: var(--aurora-magenta);
-  border: 1px solid rgba(204, 51, 255, 0.4);
-  vertical-align: middle;
-  white-space: nowrap;
-}
-
-.cedula-row--manual {
-  border-left: 3px solid var(--aurora-magenta);
-}
-
-/* ── Badges de estado de la cédula ───────────────────────────────────────── */
-.cedula-flow-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-  letter-spacing: 0.02em;
-}
-
-.cedula-flow-badge.pendiente {
-  background: rgba(255, 193, 7, 0.15);
-  color: #ffc107;
-}
-
-.cedula-flow-badge.en-transito {
-  background: rgba(51, 153, 255, 0.15);
-  color: #3399ff;
-}
-
-.cedula-flow-badge.aplicada {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-}
-
-/* ── Multi-lote split rows ───────────────────────────────────────────────── */
-.cedula-row--split {
-  flex-wrap: wrap;
-}
-
-.cedula-split-rows {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0 4px;
-  border-top: 1px solid var(--aurora-border);
-}
-
-.cedula-split-sub-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
-  border: 1px solid var(--aurora-border);
-}
-
-.cedula-split-sub-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.cedula-split-lote {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.9;
-}
-
-.cedula-split-sub-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   CEDULAS APLICACION — feature-scoped CSS
+   El listing y los modales fueron migrados a primitivas .aur-* (aurora.css).
+   Aquí solo viven los pedazos únicos del dominio que aurora.css no cubre:
+     · Toolbar/consecutivo de la cédula (badges, draft, applied)
+     · Preview modal full-screen sobre overlay
+     · Documento PDF blanco (paper, header, datos grid, tablas, firmas, footer)
+     · Modal Nueva Cédula: chips de plantilla, grupos+bloques+productos table
+     · Modal Mezcla Lista: tabla de dosis ajustada
+     · Cards de cédula del listing (.ca-cedula-card y split multi-lote)
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Badge "Aplicada" en toolbar ─────────────────────────────────────────── */
 .ca-toolbar-applied-badge {
@@ -584,10 +277,6 @@
   flex-wrap: wrap;
 }
 
-.ca-dato-full {
-  grid-column: 1 / -1;
-}
-
 .ca-bloques-summary {
   display: flex;
   flex-direction: column;
@@ -674,11 +363,6 @@
   border-top: 2px solid #1a2a3a;
   border-bottom: none;
   padding-top: 5px;
-}
-
-.ca-table-sm td,
-.ca-table-sm th {
-  padding: 3px 6px;
 }
 
 .ca-col-num {
@@ -787,65 +471,6 @@
   color: #222;
 }
 
-/* ── Modal Aplicada en Campo ── */
-.aplicada-modal {
-  min-width: 340px;
-  max-width: 480px;
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  padding-bottom: 0;
-}
-
-.aplicada-modal .param-modal-actions {
-  position: sticky;
-  bottom: 0;
-  background: var(--aurora-background);
-  padding: 16px 0 4px;
-  margin-top: 4px;
-  border-top: 1px solid var(--aurora-border);
-}
-.aplicada-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-.aplicada-field label {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
-}
-.aplicada-field select,
-.aplicada-field input,
-.aplicada-field textarea {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 6px 10px;
-  font-size: 0.9rem;
-  width: 100%;
-  font-family: inherit;
-}
-.aplicada-textarea {
-  resize: vertical;
-  min-height: 60px;
-}
-.aplicada-toggle {
-  display: flex;
-  gap: 8px;
-}
-.aplicada-toggle .btn {
-  flex: 1;
-}
-.aplicada-field-row {
-  display: flex;
-  gap: 12px;
-}
-.aplicada-field-row .aplicada-field {
-  flex: 1;
-}
-
 /* Footer */
 .ca-doc-footer {
   text-align: center;
@@ -856,465 +481,13 @@
   border-top: 1px solid #eee;
 }
 
-/* ── Wrapper de botones ──────────────────────────────────────────────────── */
-.cedula-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-/* ── Botón "Nueva Cédula" ────────────────────────────────────────────────── */
-.cedulas-nueva-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-  padding: 5px 14px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 /* ── Modal Nueva Cédula ──────────────────────────────────────────────────── */
 .nca-modal {
   max-width: 760px;
 }
 
-/* ── Tabla de actividad estilo PackageManagement ── */
-.nca-activity-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 8px;
-}
-
-.nca-activity-table thead th {
-  text-align: left;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.7;
-  padding: 0 8px 6px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.nca-activity-table tbody td {
-  padding: 8px;
-  vertical-align: middle;
-}
-
-.nca-col-fecha       { width: 150px; }
-.nca-col-actividad   { width: auto; }
-.nca-col-calibracion { width: 190px; }
-.nca-col-tecnico     { width: 180px; }
-.nca-col-action      { width: 1%; white-space: nowrap; text-align: right; }
-
-.nca-sub-row > td {
-  padding: 12px 8px 4px;
-  border-top: 1px solid var(--aurora-border);
-}
-
-
-.nca-form {
-  padding: 20px 24px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  overflow-y: auto;
-  max-height: calc(90vh - 56px);
-}
-
 .nca-section {
   margin-bottom: 20px;
-}
-
-.nca-error {
-  background: rgba(255, 77, 77, 0.12);
-  border: 1px solid rgba(255, 77, 77, 0.4);
-  color: #ff6b6b;
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 0.82rem;
-  margin-bottom: 16px;
-}
-
-.nca-warn {
-  display: block;
-  margin-top: 4px;
-  color: #ffb347;
-  font-size: 0.72rem;
-  line-height: 1.3;
-}
-
-.nca-fields-row {
-  display: flex;
-  gap: 16px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.nca-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.nca-field-grow {
-  flex: 1;
-  min-width: 180px;
-}
-
-.nca-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-
-.nca-input {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 7px 10px;
-  font-size: 0.88rem;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.nca-input:focus {
-  border-color: var(--aurora-green);
-}
-
-.nca-input-num {
-  width: 80px;
-  text-align: right;
-}
-
-.nca-select {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 7px 10px;
-  font-size: 0.88rem;
-  outline: none;
-  cursor: pointer;
-  width: 100%;
-  margin-top: 10px;
-  transition: border-color 0.15s;
-}
-
-.nca-select:focus {
-  border-color: var(--aurora-green);
-}
-
-.nca-select-grow {
-  flex: 1;
-}
-
-.nca-lote-select {
-  width: 100%;
-  margin-top: 8px;
-}
-
-.nca-toggle-row {
-  display: flex;
-  gap: 0;
-  margin-top: 10px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  overflow: hidden;
-  width: fit-content;
-}
-
-.nca-toggle-btn {
-  background: transparent;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  padding: 6px 20px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
-}
-
-.nca-toggle-btn:first-child {
-  border-right: 1px solid var(--aurora-border);
-}
-
-.nca-toggle-btn.active {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-  opacity: 1;
-}
-
-.nca-bloques-grid {
-  margin-top: 10px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.nca-bloques-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.nca-bloques-toggle-all {
-  background: none;
-  border: none;
-  color: var(--aurora-green);
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-}
-
-.nca-bloques-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
-  padding: 4px 0;
-}
-
-.nca-bloque-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  cursor: pointer;
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  transition: background 0.12s;
-}
-
-.nca-bloque-check:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.nca-bloque-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nca-bloque-ha {
-  font-size: 0.75rem;
-  opacity: 0.55;
-  white-space: nowrap;
-}
-
-/* ── Combobox de búsqueda de productos ───────────────────────────────────── */
-.nca-prod-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  margin-top: 10px;
-  background: var(--aurora-dark-blue);
-  border: 1px dashed var(--aurora-border);
-  border-radius: 6px;
-  color: #64b5f6;
-  cursor: text;
-  width: 100%;
-  box-sizing: border-box;
-  transition: border-color 0.15s;
-}
-
-.nca-prod-input-wrap:focus-within {
-  border-style: solid;
-  border-color: var(--aurora-green);
-  color: var(--aurora-light);
-}
-
-.nca-prod-input-wrap input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--aurora-light);
-  font-size: 0.88rem;
-}
-
-.nca-prod-input-wrap input::placeholder {
-  color: #64b5f6;
-  opacity: 0.8;
-}
-
-.nca-prod-dropdown {
-  position: fixed;
-  max-height: 220px;
-  overflow-y: auto;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  z-index: 9999;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.nca-prod-option {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--aurora-border);
-  cursor: pointer;
-  gap: 2px;
-}
-
-.nca-prod-option:last-child { border-bottom: none; }
-.nca-prod-option:hover,
-.nca-prod-option.active { background: var(--aurora-background); }
-.nca-prod-option.active { outline: 1px solid var(--aurora-border); }
-
-.nca-prod-name {
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-}
-
-.nca-prod-ing {
-  font-size: 0.78rem;
-  color: #64b5f6;
-  opacity: 0.8;
-}
-
-.nca-prod-empty {
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  padding: 10px 12px;
-  margin: 0;
-}
-
-.nca-productos-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-  margin-top: 12px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.nca-productos-table th {
-  background: var(--aurora-dark-blue);
-  color: var(--aurora-light);
-  padding: 7px 10px;
-  text-align: left;
-  font-size: 0.73rem;
-  font-weight: 600;
-  opacity: 0.75;
-}
-
-.nca-productos-table td {
-  padding: 7px 10px;
-  border-top: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-}
-
-.nca-remove-btn {
-  padding: 4px 7px;
-  font-size: 0.75rem;
-}
-
-/* ── Botón peligroso (anular) ────────────────────────────────────────────── */
-.btn.btn-danger {
-  background: transparent;
-  border: 1px solid rgba(255, 77, 77, 0.45);
-  color: #ff6b6b;
-}
-
-.btn.btn-danger:hover:not(:disabled) {
-  background: rgba(255, 77, 77, 0.12);
-  border-color: #ff4d4d;
-  color: #ff4d4d;
-}
-
-.cedula-btn-anular {
-  font-size: 0.8rem;
-  padding: 5px 10px;
-}
-
-/* ── Panel de cédulas vencidas ───────────────────────────────────────────── */
-.cedulas-overdue-panel {
-  margin-bottom: 16px;
-  border: 1px solid rgba(255, 77, 77, 0.4);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.cedulas-overdue-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  background: rgba(255, 77, 77, 0.1);
-  border: none;
-  cursor: pointer;
-  color: var(--aurora-light);
-  font-size: 0.88rem;
-  font-weight: 600;
-  text-align: left;
-  transition: background 0.15s;
-}
-
-.cedulas-overdue-header:hover {
-  background: rgba(255, 77, 77, 0.18);
-}
-
-.cedulas-overdue-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #ff4d4d;
-}
-
-.cedulas-overdue-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
-  background: #ff4d4d;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.cedulas-overdue-chevron {
-  font-size: 0.75rem;
-  color: rgba(255, 77, 77, 0.7);
-}
-
-.cedulas-overdue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 8px;
-  background: rgba(255, 77, 77, 0.04);
-}
-
-.cedulas-overdue-list .cedula-row {
-  border-radius: 6px;
-  margin-bottom: 4px;
-}
-
-.cedulas-overdue-list .cedula-row:last-child {
-  margin-bottom: 0;
 }
 
 /* ── Plantillas de cédula ────────────────────────────────────────────────── */
@@ -1327,17 +500,6 @@
   background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid var(--aurora-border);
   margin-bottom: 4px;
-}
-
-.nca-plantillas-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--aurora-light);
-  opacity: 0.4;
-  white-space: nowrap;
-  margin-right: 2px;
 }
 
 .nca-plantilla-chip {
@@ -1383,43 +545,6 @@
   opacity: 1;
 }
 
-.nca-guardar-plantilla {
-  background: transparent;
-  border: 1.5px dashed rgba(230, 242, 255, 0.25);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  padding: 8px 14px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  width: 100%;
-  text-align: center;
-  margin-top: 8px;
-  transition: border-color 0.15s, color 0.15s, background 0.15s, opacity 0.15s;
-}
-
-.nca-guardar-plantilla:hover:not(:disabled) {
-  border-style: solid;
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.06);
-  opacity: 1;
-}
-
-.nca-guardar-plantilla:disabled {
-  cursor: default;
-  opacity: 0.2;
-}
-
-.nca-guardar-plantilla.saved {
-  border-style: solid;
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.06);
-  opacity: 1;
-}
-
 /* ── Grupos de bloques ───────────────────────────────────────────────────── */
 .nca-bloques-group {
   border-top: 1px solid var(--aurora-border);
@@ -1446,24 +571,6 @@
   background: rgba(51, 255, 153, 0.05);
 }
 
-.nca-grupo-check-icon {
-  font-size: 0.9rem;
-  color: var(--aurora-light);
-  opacity: 0.35;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.nca-grupo-check-icon.some {
-  color: var(--aurora-green);
-  opacity: 0.6;
-}
-
-.nca-grupo-check-icon.all {
-  color: var(--aurora-green);
-  opacity: 1;
-}
-
 .nca-grupo-name {
   flex: 1;
   font-size: 0.8rem;
@@ -1483,64 +590,82 @@
   font-weight: 600;
 }
 
+/* ── Bloques (lista de checkboxes) ──────────────────────────────────────── */
+.nca-bloques-grid {
+  margin-top: 10px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.nca-bloques-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0;
+  padding: 4px 0;
+}
+
+.nca-bloque-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  transition: background 0.12s;
+}
+
+.nca-bloque-check:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nca-bloque-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nca-bloque-ha {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+/* ── Tabla de productos seleccionados (Nueva Cédula) ────────────────────── */
+.nca-productos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin-top: 12px;
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.nca-productos-table th {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 0.73rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.nca-productos-table td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+}
+
 /* ── Modal Mezcla Lista (sustitución/ajuste de dosis) ────────────────────── */
 .mla-modal {
   max-width: 860px;
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-}
-.mla-body {
-  padding: 16px 20px 20px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.mla-info {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.85;
-  background: rgba(51, 255, 153, 0.06);
-  border: 1px solid rgba(51, 255, 153, 0.2);
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin: 0;
-  line-height: 1.4;
-}
-.mla-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.mla-label {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
-  font-weight: 600;
-}
-.mla-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  background: var(--aurora-dark-blue);
-  cursor: pointer;
-  font-size: 0.86rem;
-  color: var(--aurora-light);
-}
-.mla-toggle input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--aurora-green);
-  cursor: pointer;
-}
-.mla-productos-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 .mla-productos-table {
   width: 100%;
@@ -1566,9 +691,6 @@
 .mla-productos-table .ca-col-num {
   text-align: right;
 }
-.mla-row-changed td {
-  background: rgba(204, 51, 255, 0.08);
-}
 .mla-motivo-none {
   color: var(--aurora-light);
   opacity: 0.4;
@@ -1591,53 +713,11 @@
   background: rgba(51, 255, 153, 0.06);
   border-color: var(--aurora-green);
 }
-.mla-warn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: rgba(204, 51, 255, 0.08);
-  border: 1px solid rgba(204, 51, 255, 0.3);
-  border-radius: 6px;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-}
-.mla-textarea {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 8px 10px;
-  font-size: 0.9rem;
-  font-family: inherit;
-  width: 100%;
-  resize: vertical;
-  min-height: 60px;
-  max-height: 220px;
-  box-sizing: border-box;
-}
 
-/* ── Mobile (<=600px): modal Mezcla Lista / Editar ───────────────────────── */
+/* ── Mobile (<=600px): modal Mezcla Lista ────────────────────────────────── */
 @media (max-width: 600px) {
-  .mla-body {
-    padding: 12px 12px 16px;
-    gap: 12px;
-  }
-  .mla-info {
-    font-size: 0.78rem;
-    padding: 6px 10px;
-  }
-  .mla-toggle {
-    font-size: 0.78rem;
-    padding: 8px 10px;
-    gap: 8px;
-  }
   /* La tabla puede desbordar en pantallas de 360px: permitir scroll horizontal
      dentro de su sección contenedora y asegurar un ancho mínimo legible. */
-  .mla-productos-section {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
   .mla-productos-table {
     min-width: 480px;
     font-size: 0.78rem;
@@ -1646,111 +726,14 @@
   .mla-productos-table tbody td {
     padding: 6px 6px;
   }
-  .mla-productos-table .nca-input-num {
-    width: 70px;
-  }
   .mla-add-btn {
     align-self: stretch;
     justify-content: center;
   }
 }
 
-/* ── Mobile ───────────────────────────────────────────────────────────────── */
+/* ── Mobile: preview modal full-screen + Nueva Cédula compacto ───────────── */
 @media (max-width: 600px) {
-  /* Barra de filtro: apila en dos filas */
-  .cedulas-filter-bar {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .cedulas-date-range {
-    flex: 1 0 100%;
-    justify-content: center;
-  }
-  .cedulas-filter-count {
-    flex: 1 0 100%;
-    text-align: center;
-    margin: 0;
-  }
-
-  .cedulas-top-actions .btn {
-    flex: 1;
-    justify-content: center;
-    text-align: center;
-  }
-
-  /* Fila de cédula: apila info, badges y acciones */
-  .cedula-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .cedula-row-name {
-    white-space: normal;
-  }
-  .cedula-row-badges {
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-start;
-  }
-  .cedula-due-date {
-    min-width: 0;
-    text-align: left;
-  }
-  .cedula-btn-preview-text {
-    display: none;
-  }
-
-  /* Botones de acción: ocupan todo el ancho del card */
-  .cedula-row-actions {
-    gap: 8px;
-    width: 100%;
-  }
-  .cedula-row-actions .btn {
-    flex: 1;
-    justify-content: center;
-    min-width: 0;
-  }
-
-  /* Panel de vencidas: nombre+badges en fila, botones debajo 50/50 */
-  .cedulas-overdue-header {
-    padding: 10px 12px;
-  }
-  .cedulas-overdue-list .cedula-row {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .cedulas-overdue-list .cedula-row-info {
-    flex: 7;
-    min-width: 0;
-  }
-  .cedulas-overdue-list .cedula-row-info .cedula-row-name {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-  }
-  .cedulas-overdue-list .cedula-row-badges {
-    flex: 3;
-    min-width: 0;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    overflow: hidden;
-  }
-  .cedulas-overdue-list .cedula-row-badges .cedula-status-badge {
-    font-size: 0.68rem;
-    padding: 2px 6px;
-    white-space: nowrap;
-  }
-  .cedulas-overdue-list .cedula-row-badges .cedula-due-date {
-    font-size: 0.68rem;
-    white-space: nowrap;
-  }
-  .cedulas-overdue-list .cedula-row-actions {
-    flex: 1 1 100%;
-  }
-
   /* Preview modal: pantalla completa */
   .ca-preview-backdrop {
     padding: 0;
@@ -1816,17 +799,6 @@
     border-radius: 0;
     max-height: 100svh;
   }
-  .nca-form {
-    padding: 12px 12px 20px;
-    max-height: calc(100svh - 96px);
-  }
-  .nca-fields-row {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .nca-field-grow {
-    min-width: 0;
-  }
   .nca-bloques-list {
     grid-template-columns: 1fr;
   }
@@ -1835,53 +807,6 @@
   .nca-plantillas-section {
     padding: 8px 10px 10px;
     gap: 6px;
-  }
-
-  /* Fila principal: apilar en lugar de scrollear horizontalmente */
-  .nca-activity-table,
-  .nca-activity-table tbody,
-  .nca-activity-table tr {
-    display: block;
-    width: 100%;
-  }
-  .nca-activity-table thead,
-  .nca-activity-table colgroup {
-    display: none;
-  }
-  .nca-activity-table tbody td {
-    display: block;
-    width: 100%;
-    padding: 6px 0 10px;
-    border: none;
-  }
-  /* Label generado a partir de data-label */
-  .nca-activity-table tbody td[data-label]::before {
-    content: attr(data-label);
-    display: block;
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--aurora-light);
-    opacity: 0.65;
-    margin-bottom: 5px;
-  }
-  /* Inputs/selects al 100% y 16px para evitar zoom en iOS */
-  .nca-activity-table .nca-input,
-  .nca-activity-table .nca-select {
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 16px;
-    padding: 10px 12px;
-    margin-top: 0;
-  }
-  /* La sub-fila (productos + bloques) no necesita label */
-  .nca-sub-row > td[colspan] {
-    padding: 8px 0 4px;
-    border-top: 1px solid var(--aurora-border);
-  }
-  .nca-sub-row > td[colspan]::before {
-    display: none !important;
   }
 
   /* Tabla de productos: tarjetas apiladas */
@@ -1901,16 +826,8 @@
     margin-top: 10px;
   }
   .nca-productos-table tr {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "name   remove"
-      "dose   unit";
-    column-gap: 10px;
-    row-gap: 6px;
     padding: 10px 12px;
     border-top: 1px solid var(--aurora-border);
-    align-items: center;
   }
   .nca-productos-table tr:first-child {
     border-top: none;
@@ -1919,122 +836,12 @@
     padding: 0;
     border: none;
   }
-  .nca-prod-cell-name {
-    grid-area: name;
-    font-weight: 600;
-    font-size: 0.9rem;
-    word-break: break-word;
-  }
-  .nca-prod-cell-dose {
-    grid-area: dose;
-    text-align: left !important;
-  }
-  .nca-prod-cell-dose::before {
-    content: attr(data-label);
-    display: block;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    opacity: 0.55;
-    margin-bottom: 3px;
-  }
-  .nca-prod-cell-dose .nca-input-num {
-    width: 100%;
-    text-align: left;
-    font-size: 16px;
-    padding: 8px 10px;
-  }
-  .nca-prod-cell-unit {
-    grid-area: unit;
-    align-self: end;
-    font-size: 0.82rem;
-    opacity: 0.75;
-    padding-bottom: 8px !important;
-  }
-  .nca-prod-cell-action {
-    grid-area: remove;
-    justify-self: end;
-  }
 
-  /* Buscador de producto y select de lote */
-  .nca-prod-input-wrap {
-    padding: 10px 12px;
-  }
-  .nca-prod-input-wrap input {
-    font-size: 16px;
-  }
-  .nca-lote-select {
-    font-size: 16px;
-    padding: 10px 12px;
-  }
-
-  /* Dropdown de productos: no rebasar el viewport */
-  .nca-prod-dropdown {
-    max-width: calc(100vw - 16px);
-    max-height: 40vh;
-  }
-
-  /* Bloques: header con botón debajo si no cabe */
-  .nca-bloques-header {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
+  /* Bloques: más cómodo en táctil */
   .nca-bloque-check {
     padding: 10px 12px;
     font-size: 0.88rem;
   }
-}
-
-/* ── Modal de confirmación ────────────────────────────────────────────────── */
-.param-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-.param-modal {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 24px;
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.param-modal-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--aurora-light);
-}
-
-.param-modal-icon-warn {
-  color: #f5a623;
-  flex-shrink: 0;
-}
-
-.param-modal-body {
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
-  line-height: 1.55;
-  margin: 0;
-}
-
-.param-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 /* ── Print ────────────────────────────────────────────────────────────────── */
@@ -2082,23 +889,6 @@
   border-top-color: var(--aurora-green);
   border-radius: 50%;
   animation: app-loading-spin 0.75s linear infinite;
-}
-
-/* ── Page empty state ──────────────────────────────────────────────────────── */
-.cedulas-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 60vh;
-  color: rgba(230, 242, 255, 0.3);
-  text-align: center;
-}
-.cedulas-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.45);
-  margin: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
