@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiMoreVertical, FiAlertTriangle, FiArrowLeft, FiClock, FiEdit2 } from 'react-icons/fi';
+import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiAlertTriangle, FiArrowLeft, FiClock, FiEdit2 } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
@@ -75,22 +75,27 @@ const CEDULA_STATUS_LABEL = {
   aplicada_en_campo:  'Aplicada',
 };
 
-// Confirmation modal
+// Confirmation modal — usa primitivas .aur-modal-* del sistema Aurora
 function ConfirmModal({ config, onClose }) {
+  const iconClass = `aur-modal-icon${config.danger ? ' aur-modal-icon--danger' : ' aur-modal-icon--warn'}`;
+  const pillClass = `aur-btn-pill${config.danger ? ' aur-btn-pill--danger' : ''}`;
   return createPortal(
-    <div className="param-modal-backdrop" onClick={onClose}>
-      <div className="param-modal" onClick={e => e.stopPropagation()}>
-        <div className="param-modal-header">
-          <FiAlertTriangle size={18} className="param-modal-icon-warn" />
-          <span>{config.title}</span>
+    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+      <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
+        <div className="aur-modal-header">
+          <span className={iconClass}>
+            <FiAlertTriangle size={16} />
+          </span>
+          <span className="aur-modal-title">{config.title}</span>
         </div>
-        <p className="param-modal-body">{config.body}</p>
-        <div className="param-modal-actions">
+        <p className="aur-modal-body">{config.body}</p>
+        <div className="aur-modal-actions">
           {config.showCancel !== false && (
-            <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="button" className="aur-btn-text" onClick={onClose}>Cancelar</button>
           )}
           <button
-            className={`btn ${config.danger ? 'btn-danger' : 'btn-primary'}`}
+            type="button"
+            className={pillClass}
             onClick={() => { onClose(); config.onConfirm?.(); }}
           >
             {config.confirmLabel || 'Confirmar'}
@@ -200,101 +205,210 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
   };
 
   return createPortal(
-    <div className="param-modal-backdrop" onClick={onClose}>
-      <div className="param-modal aplicada-modal" onClick={e => e.stopPropagation()}>
-        <div className="param-modal-header">
-          <FaTractor size={16} />
-          <span>Confirmar Aplicación en Campo</span>
+    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+      <div className="aur-modal aur-modal--lg" onPointerDown={e => e.stopPropagation()}>
+        <div className="aur-modal-header">
+          <span className="aur-modal-icon">
+            <FaTractor size={14} />
+          </span>
+          <span className="aur-modal-title">Confirmar aplicación en campo</span>
         </div>
 
-        <div className="aplicada-field">
-          <label>¿Hubo sobrante de mezcla?</label>
-          <div className="aplicada-toggle">
-            <button className={`btn ${!sobrante ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSobrante(false)}>No</button>
-            <button className={`btn ${sobrante  ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSobrante(true)}>Sí</button>
+        <div className="aur-modal-content">
+          {formError && (
+            <div className="aur-banner aur-banner--danger">
+              <FiAlertTriangle size={14} />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          <div className="aur-list">
+            <div className="aur-row">
+              <span className="aur-row-label">¿Hubo sobrante de mezcla?</span>
+              <label className="aur-toggle">
+                <input
+                  type="checkbox"
+                  checked={sobrante}
+                  onChange={e => setSobrante(e.target.checked)}
+                />
+                <span className="aur-toggle-track">
+                  <span className="aur-toggle-thumb" />
+                </span>
+                <span className="aur-toggle-label">{sobrante ? 'Sí' : 'No'}</span>
+              </label>
+            </div>
+
+            {sobrante && (
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="apl-sobrante-lote">Lote del sobrante</label>
+                <select
+                  id="apl-sobrante-lote"
+                  className="aur-select"
+                  value={sobranteLoteId}
+                  onChange={e => setSobranteLoteId(e.target.value)}
+                >
+                  <option value="">— Seleccionar lote —</option>
+                  {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-tiempo">Condiciones del tiempo</label>
+              <select
+                id="apl-tiempo"
+                className="aur-select"
+                value={condicionesTiempo}
+                onChange={e => setCondicionesTiempo(e.target.value)}
+              >
+                <option value="">— Seleccionar —</option>
+                {CONDICIONES_TIEMPO.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-temp">
+                Temperatura (°C){fetchingWeather ? ' · obteniendo…' : ''}
+              </label>
+              <input
+                id="apl-temp"
+                type="number"
+                step="0.1"
+                min="-60"
+                max="70"
+                className="aur-input aur-input--num"
+                value={temperatura}
+                onChange={e => setTemperatura(e.target.value)}
+                placeholder="—"
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-hum">
+                Humedad relativa (%){fetchingWeather ? ' · obteniendo…' : ''}
+              </label>
+              <input
+                id="apl-hum"
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                className="aur-input aur-input--num"
+                value={humedadRelativa}
+                onChange={e => setHumedadRelativa(e.target.value)}
+                placeholder="—"
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-h-inicio">Hora inicio</label>
+              <input
+                id="apl-h-inicio"
+                type="time"
+                className="aur-input"
+                value={horaInicio}
+                onChange={e => setHoraInicio(e.target.value)}
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-h-fin">Hora final</label>
+              <input
+                id="apl-h-fin"
+                type="time"
+                className="aur-input"
+                value={horaFinal}
+                onChange={e => setHoraFinal(e.target.value)}
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-operario">Operario</label>
+              <input
+                id="apl-operario"
+                type="text"
+                maxLength={200}
+                className="aur-input"
+                value={operario}
+                onChange={e => setOperario(e.target.value)}
+                placeholder="Nombre del operario"
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-metodo">Método de aplicación</label>
+              <input
+                id="apl-metodo"
+                type="text"
+                maxLength={200}
+                className="aur-input"
+                value={metodoAplicacion}
+                onChange={e => setMetodoAplicacion(e.target.value)}
+                placeholder="Ej. Spray Boom, Drench…"
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-finca">Encargado de finca</label>
+              <input
+                id="apl-finca"
+                type="text"
+                maxLength={200}
+                className="aur-input"
+                value={encargadoFinca}
+                onChange={e => setEncargadoFinca(e.target.value)}
+                placeholder="Nombre del encargado de finca"
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-bodega">Encargado de bodega</label>
+              <input
+                id="apl-bodega"
+                type="text"
+                maxLength={200}
+                className="aur-input"
+                value={encargadoBodega}
+                onChange={e => setEncargadoBodega(e.target.value)}
+                placeholder="Nombre del encargado de bodega"
+              />
+            </div>
+
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="apl-sup">Sup. aplicaciones / Regente</label>
+              <input
+                id="apl-sup"
+                type="text"
+                maxLength={200}
+                className="aur-input"
+                value={supAplicaciones}
+                onChange={e => setSupAplicaciones(e.target.value)}
+                placeholder="Nombre del supervisor o regente"
+              />
+            </div>
+
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="apl-obs">
+                Observaciones (opcional)
+                <span className="aur-field-hint"> · {observacionesAplicacion.length}/500</span>
+              </label>
+              <textarea
+                id="apl-obs"
+                className="aur-textarea"
+                value={observacionesAplicacion}
+                onChange={e => setObservacionesAplicacion(e.target.value.slice(0, 500))}
+                rows={3}
+                placeholder="Ej. viento inesperado en el último bloque, se pausó 15 min. Novedades, incidentes, o cualquier detalle relevante para el auditor."
+              />
+            </div>
           </div>
         </div>
-        {sobrante && (
-          <div className="aplicada-field">
-            <label>Lote donde fue depositado el sobrante</label>
-            <select value={sobranteLoteId} onChange={e => setSobranteLoteId(e.target.value)}>
-              <option value="">— Seleccionar lote —</option>
-              {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-            </select>
-          </div>
-        )}
 
-        <div className="aplicada-field">
-          <label>Condiciones del tiempo</label>
-          <select value={condicionesTiempo} onChange={e => setCondicionesTiempo(e.target.value)}>
-            <option value="">— Seleccionar —</option>
-            {CONDICIONES_TIEMPO.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        <div className="aplicada-field-row">
-          <div className="aplicada-field">
-            <label>Temperatura (°C){fetchingWeather ? ' ⏳' : ''}</label>
-            <input type="number" step="0.1" min="-60" max="70" value={temperatura} onChange={e => setTemperatura(e.target.value)} placeholder="—" />
-          </div>
-          <div className="aplicada-field">
-            <label>% Humedad Relativa{fetchingWeather ? ' ⏳' : ''}</label>
-            <input type="number" step="1" min="0" max="100" value={humedadRelativa} onChange={e => setHumedadRelativa(e.target.value)} placeholder="—" />
-          </div>
-        </div>
-
-        <div className="aplicada-field-row">
-          <div className="aplicada-field">
-            <label>Hora inicio</label>
-            <input type="time" value={horaInicio} onChange={e => setHoraInicio(e.target.value)} />
-          </div>
-          <div className="aplicada-field">
-            <label>Hora final</label>
-            <input type="time" value={horaFinal} onChange={e => setHoraFinal(e.target.value)} />
-          </div>
-        </div>
-
-        <div className="aplicada-field">
-          <label>Operario</label>
-          <input type="text" maxLength={200} value={operario} onChange={e => setOperario(e.target.value)} placeholder="Nombre del operario" />
-        </div>
-
-        <div className="aplicada-field">
-          <label>Método de Aplicación</label>
-          <input type="text" maxLength={200} value={metodoAplicacion} onChange={e => setMetodoAplicacion(e.target.value)} placeholder="Ej: Spray Boom, Drench…" />
-        </div>
-
-        <div className="aplicada-field">
-          <label>Encargado de Finca</label>
-          <input type="text" maxLength={200} value={encargadoFinca} onChange={e => setEncargadoFinca(e.target.value)} placeholder="Nombre del encargado de finca" />
-        </div>
-
-        <div className="aplicada-field">
-          <label>Encargado de Bodega</label>
-          <input type="text" maxLength={200} value={encargadoBodega} onChange={e => setEncargadoBodega(e.target.value)} placeholder="Nombre del encargado de bodega" />
-        </div>
-
-        <div className="aplicada-field">
-          <label>Sup. Aplicaciones / Regente</label>
-          <input type="text" maxLength={200} value={supAplicaciones} onChange={e => setSupAplicaciones(e.target.value)} placeholder="Nombre del supervisor o regente" />
-        </div>
-
-        <div className="aplicada-field">
-          <label>Observaciones de aplicación (opcional) · {observacionesAplicacion.length}/500</label>
-          <textarea
-            className="aplicada-textarea"
-            value={observacionesAplicacion}
-            onChange={e => setObservacionesAplicacion(e.target.value.slice(0, 500))}
-            rows={3}
-            placeholder="Ej: viento inesperado en el último bloque, se pausó 15 min. Novedades, incidentes, o cualquier detalle relevante para el auditor."
-          />
-        </div>
-
-        {formError && <div className="nca-error">{formError}</div>}
-
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleConfirm}>Confirmar</button>
+        <div className="aur-modal-actions">
+          <button type="button" className="aur-btn-text" onClick={onClose}>Cancelar</button>
+          <button type="button" className="aur-btn-pill" onClick={handleConfirm}>
+            <FiCheckCircle size={14} /> Confirmar
+          </button>
         </div>
       </div>
     </div>,
@@ -322,20 +436,12 @@ function CedulasAplicacion() {
   const [dateTo,   setDateTo]   = useState('');
   const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
   const [showNuevaModal, setShowNuevaModal] = useState(false);
-  const [openMenuId,    setOpenMenuId]    = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
   const [mezclaModal,   setMezclaModal]   = useState(null); // cedulaId
   const [editModal,     setEditModal]     = useState(null); // { cedulaId }
   const [previewCedulaId, setPreviewCedulaId] = useState(null); // ID of cedula shown in preview modal
   const docRef = useRef(null);
-
-  useEffect(() => {
-    if (!openMenuId) return;
-    const close = () => setOpenMenuId(null);
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [openMenuId]);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -823,210 +929,237 @@ function CedulasAplicacion() {
   const renderCedulaRow = (task, { allowSkipTask = false } = {}) => {
     const allCedulas = cedulasByTaskId[task.id] || [];
     const isSplit    = allCedulas.length > 1;
+    const overdue    = isOverdue(task);
 
-    // ── Multi-lote split: one sub-row per cedula ───────────────────────────
+    // Status → badge variant del sistema Aurora
+    const statusBadge = (cedulaStatus) => {
+      if (cedulaStatus === 'aplicada_en_campo') return { cls: 'aur-badge--green',   label: 'Aplicada' };
+      if (cedulaStatus === 'en_transito')        return { cls: 'aur-badge--blue',    label: 'En Tránsito' };
+      return { cls: 'aur-badge--yellow', label: 'Pendiente' };
+    };
+
+    const openPreview = (cedulaId) => {
+      openedViaUrlRef.current = false;
+      savedScrollRef.current = window.scrollY;
+      setPreviewTask(task);
+      setPreviewCedulaId(cedulaId);
+    };
+
+    // ── Multi-lote split: una sub-fila por cédula ──────────────────────────
     if (isSplit) {
       return (
-        <div key={task.id} className={`cedula-row cedula-row--split${isOverdue(task) ? ' overdue' : ''}${isManualTask(task) ? ' cedula-row--manual' : ''}`}>
-          <div className="cedula-row-info">
-            <span className="cedula-row-name" title={task.activityName}>
-              {task.activityName}
-              {isManualTask(task) && <span className="cedula-adicional-badge" title="Cédula creada manualmente">Adicional</span>}
-            </span>
-            <span className="cedula-row-meta">
-              {task.loteName}
-              {task.responsableName ? ` · ${task.responsableName}` : ''}
-            </span>
+        <article key={task.id} className={`ca-cedula-card ca-cedula-card--split${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}`}>
+          <div className="ca-cedula-head">
+            <div className="ca-cedula-info">
+              <h4 className="ca-cedula-name" title={task.activityName}>
+                {task.activityName}
+                {isManualTask(task) && <span className="aur-badge aur-badge--magenta">Adicional</span>}
+              </h4>
+              <p className="ca-cedula-meta">
+                {task.loteName}
+                {task.responsableName ? ` · ${task.responsableName}` : ''}
+              </p>
+            </div>
+            <div className="ca-cedula-status">
+              <span className={`aur-badge ${overdue ? 'aur-badge--magenta' : 'aur-badge--yellow'}`}>
+                {overdue ? 'Vencida' : 'Pendiente'}
+              </span>
+              <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
+            </div>
           </div>
-          <div className="cedula-row-badges">
-            <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
-              {isOverdue(task) ? 'Vencida' : 'Pendiente'}
-            </span>
-            <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
-          </div>
-          <div className="cedula-split-rows">
+
+          <ul className="ca-split-list">
             {allCedulas.map(c => {
               const isLdg = actionLoading === c.id;
               const canAnular = c.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
+              const sb = statusBadge(c.status);
               return (
-                <div key={c.id} className="cedula-split-sub-row">
-                  <div className="cedula-split-sub-info">
-                    <span className="cedula-split-lote">{c.splitLoteNombre || '—'}</span>
-                    <span className="cedula-consecutivo">{c.consecutivo}</span>
-                    {c.status === 'pendiente'          && <span className="cedula-flow-badge pendiente">Pendiente</span>}
-                    {c.status === 'en_transito'        && <span className="cedula-flow-badge en-transito">En Tránsito</span>}
-                    {c.status === 'aplicada_en_campo'  && <span className="cedula-flow-badge aplicada">Aplicada</span>}
+                <li key={c.id} className="ca-split-row">
+                  <div className="ca-split-info">
+                    <span className="ca-split-lote">{c.splitLoteNombre || '—'}</span>
+                    <span className="ca-cedula-consecutivo">{c.consecutivo}</span>
+                    <span className={`aur-badge ${sb.cls}`}>{sb.label}</span>
                   </div>
-                  <div className="cedula-split-sub-actions">
+                  <div className="ca-split-actions">
                     {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-                      <button className="btn btn-secondary cedula-btn-action"
-                        onClick={() => handleEditarProductos(c.id)} disabled={isLdg}
-                        title="Editar productos y dosis">
-                        <FiEdit2 size={14} /> Editar
+                      <button
+                        type="button"
+                        className="aur-chip"
+                        onClick={() => handleEditarProductos(c.id)}
+                        disabled={isLdg}
+                        title="Editar productos y dosis"
+                      >
+                        <FiEdit2 size={12} /> Editar
                       </button>
                     )}
                     {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-                      <button className="btn btn-secondary cedula-btn-action"
-                        onClick={() => handleMezclaLista(c.id)} disabled={isLdg}>
-                        <FiCheckCircle size={14} />
-                        {isLdg ? 'Procesando…' : 'Mezcla Lista'}
+                      <button
+                        type="button"
+                        className="aur-btn-pill aur-btn-pill--sm"
+                        onClick={() => handleMezclaLista(c.id)}
+                        disabled={isLdg}
+                      >
+                        <FiCheckCircle size={12} />
+                        {isLdg ? 'Procesando…' : 'Mezcla lista'}
                       </button>
                     )}
                     {c.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
-                      <button className="btn btn-primary cedula-btn-action"
-                        onClick={() => handleAplicada(c.id)} disabled={isLdg}>
-                        <FaTractor size={14} />
-                        {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
+                      <button
+                        type="button"
+                        className="aur-btn-pill aur-btn-pill--sm"
+                        onClick={() => handleAplicada(c.id)}
+                        disabled={isLdg}
+                      >
+                        <FaTractor size={12} />
+                        {isLdg ? 'Registrando…' : 'Aplicada en campo'}
                       </button>
                     )}
-                    <button className="btn btn-secondary cedula-btn-preview"
-                      onClick={() => { openedViaUrlRef.current = false; savedScrollRef.current = window.scrollY; setPreviewTask(task); setPreviewCedulaId(c.id); }}
-                      title="Ver Cédula de Aplicación">
-                      <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
+                    <button
+                      type="button"
+                      className="aur-chip aur-chip--ghost"
+                      onClick={() => openPreview(c.id)}
+                      title="Ver cédula de aplicación"
+                    >
+                      <FiEye size={12} /> Ver
                     </button>
                     {canAnular && (
-                      <button className="btn btn-danger cedula-btn-action cedula-btn-anular"
-                        onClick={() => handleAnular(c.id)} disabled={isLdg}>
-                        <FiX size={13} /> Anular
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+                        onClick={() => handleAnular(c.id)}
+                        disabled={isLdg}
+                        title="Anular cédula"
+                      >
+                        <FiX size={13} />
                       </button>
                     )}
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
-        </div>
+          </ul>
+        </article>
       );
     }
 
-    // ── Single cedula ──────────────────────────────────────────────────────
+    // ── Cédula única ───────────────────────────────────────────────────────
     const cedula   = allCedulas[0] || null;
     const isLdg    = actionLoading === (cedula ? cedula.id : `new-${task.id}`)
                   || actionLoading === `skip-${task.id}`;
-    const showKebab = cedula && cedula.status !== 'aplicada_en_campo'
-                   && hasMinRole(currentUser?.rol, 'encargado');
+    const canAnular = cedula && cedula.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
+
     return (
-      <div key={task.id} className={`cedula-row${isOverdue(task) ? ' overdue' : ''}${showKebab ? ' cedula-row--has-menu' : ''}${isManualTask(task) ? ' cedula-row--manual' : ''}`}>
-        <div className="cedula-row-info">
-          <span className="cedula-row-name" title={task.activityName}>
-            {task.activityName}
-            {isManualTask(task) && <span className="cedula-adicional-badge" title="Cédula creada manualmente">Adicional</span>}
-          </span>
-          <span className="cedula-row-meta">
-            {task.loteName}
-            {task.responsableName ? ` · ${task.responsableName}` : ''}
-          </span>
-          {cedula && (
-            <span className="cedula-consecutivo">{cedula.consecutivo}</span>
-          )}
+      <article key={task.id} className={`ca-cedula-card${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}`}>
+        <div className="ca-cedula-head">
+          <div className="ca-cedula-info">
+            <h4 className="ca-cedula-name" title={task.activityName}>
+              {task.activityName}
+              {isManualTask(task) && <span className="aur-badge aur-badge--magenta">Adicional</span>}
+            </h4>
+            <p className="ca-cedula-meta">
+              {task.loteName}
+              {task.responsableName ? ` · ${task.responsableName}` : ''}
+              {cedula && <span className="ca-cedula-consecutivo">{cedula.consecutivo}</span>}
+            </p>
+          </div>
+          <div className="ca-cedula-status">
+            <span className={`aur-badge ${overdue ? 'aur-badge--magenta' : 'aur-badge--yellow'}`}>
+              {overdue ? 'Vencida' : 'Pendiente'}
+            </span>
+            <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
+            {cedula?.status === 'pendiente' && <span className="aur-badge aur-badge--yellow">Pendiente</span>}
+            {cedula?.status === 'en_transito' && <span className="aur-badge aur-badge--blue">En Tránsito</span>}
+          </div>
         </div>
-        {showKebab && (
-          <div className="cedula-kebab-wrap">
+
+        <div className="ca-cedula-actions">
+          {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
             <button
-              className="cedula-kebab-btn"
-              onClick={(e) => { e.stopPropagation(); setOpenMenuId(id => id === task.id ? null : task.id); }}
-              title="Más acciones"
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => handleGenerarCedula(task.id)}
+              disabled={isLdg}
+              title="Generar cédula de aplicación"
             >
-              <FiMoreVertical size={16} />
+              <FiPlusCircle size={12} />
+              {isLdg ? 'Generando…' : 'Generar cédula'}
             </button>
-            {openMenuId === task.id && (
-              <div className="cedula-kebab-menu" onClick={e => e.stopPropagation()}>
-                <button
-                  className="cedula-kebab-item cedula-kebab-item--danger"
-                  onClick={() => { handleAnular(cedula.id); setOpenMenuId(null); }}
-                  disabled={isLdg}
-                >
-                  <FiX size={13} /> Anular cédula
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="cedula-row-badges">
-          <span className={`cedula-status-badge${isOverdue(task) ? ' overdue' : ''}`}>
-            {isOverdue(task) ? 'Vencida' : 'Pendiente'}
-          </span>
-          <span className="cedula-due-date">{formatShortDate(task.dueDate)}</span>
-          {cedula?.status === 'pendiente' && (
-            <span className="cedula-flow-badge pendiente">Pendiente</span>
           )}
-          {cedula?.status === 'en_transito' && (
-            <span className="cedula-flow-badge en-transito">En Tránsito</span>
+
+          {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
+            <button
+              type="button"
+              className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+              onClick={() => handleOmitirTarea(task.id)}
+              disabled={isLdg}
+              title="Omitir esta tarea sin generar cédula"
+            >
+              <FiX size={13} />
+            </button>
+          )}
+
+          {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
+            <button
+              type="button"
+              className="aur-chip"
+              onClick={() => handleEditarProductos(cedula.id)}
+              disabled={isLdg}
+              title="Editar productos y dosis"
+            >
+              <FiEdit2 size={12} /> Editar
+            </button>
+          )}
+
+          {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => handleMezclaLista(cedula.id)}
+              disabled={isLdg}
+              title="Confirmar que la mezcla está lista"
+            >
+              <FiCheckCircle size={12} />
+              {isLdg ? 'Procesando…' : 'Mezcla lista'}
+            </button>
+          )}
+
+          {cedula?.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => handleAplicada(cedula.id)}
+              disabled={isLdg}
+              title="Confirmar aplicación en campo"
+            >
+              <FaTractor size={12} />
+              {isLdg ? 'Registrando…' : 'Aplicada en campo'}
+            </button>
+          )}
+
+          {cedula && (
+            <button
+              type="button"
+              className="aur-chip aur-chip--ghost"
+              onClick={() => openPreview(cedula.id)}
+              title="Ver cédula de aplicación"
+            >
+              <FiEye size={12} /> Ver cédula
+            </button>
+          )}
+
+          {canAnular && (
+            <button
+              type="button"
+              className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+              onClick={() => handleAnular(cedula.id)}
+              disabled={isLdg}
+              title="Anular cédula"
+            >
+              <FiX size={13} />
+            </button>
           )}
         </div>
-
-        <div className="cedula-row-actions">
-            {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
-              <button
-                className="btn btn-secondary cedula-btn-action"
-                onClick={() => handleGenerarCedula(task.id)}
-                disabled={isLdg}
-                title="Generar Cédula de Aplicación"
-              >
-                <FiPlusCircle size={14} />
-                {isLdg ? 'Generando…' : 'Generar Cédula'}
-              </button>
-            )}
-
-            {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
-              <button
-                className="btn btn-danger cedula-btn-action cedula-btn-anular"
-                onClick={() => handleOmitirTarea(task.id)}
-                disabled={isLdg}
-                title="Omitir esta tarea sin generar cédula"
-              >
-                <FiX size={14} />
-                {isLdg ? 'Omitiendo…' : 'Omitir Tarea'}
-              </button>
-            )}
-
-            {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-              <button
-                className="btn btn-secondary cedula-btn-action"
-                onClick={() => handleEditarProductos(cedula.id)}
-                disabled={isLdg}
-                title="Editar productos y dosis"
-              >
-                <FiEdit2 size={14} /> Editar
-              </button>
-            )}
-
-            {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-              <button
-                className="btn btn-secondary cedula-btn-action"
-                onClick={() => handleMezclaLista(cedula.id)}
-                disabled={isLdg}
-                title="Confirmar que la mezcla está lista"
-              >
-                <FiCheckCircle size={14} />
-                {isLdg ? 'Procesando…' : 'Mezcla Lista'}
-              </button>
-            )}
-
-            {cedula?.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
-              <button
-                className="btn btn-primary cedula-btn-action"
-                onClick={() => handleAplicada(cedula.id)}
-                disabled={isLdg}
-                title="Confirmar aplicación en campo"
-              >
-                <FaTractor size={14} />
-                {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
-              </button>
-            )}
-
-            {cedula && (
-              <button
-                className="btn btn-secondary cedula-btn-preview"
-                onClick={() => { openedViaUrlRef.current = false; savedScrollRef.current = window.scrollY; setPreviewTask(task); setPreviewCedulaId(cedula.id); }}
-                title="Ver Cédula de Aplicación"
-              >
-                <FiEye size={15} /> <span className="cedula-btn-preview-text">Ver Cédula</span>
-              </button>
-            )}
-          </div>
-      </div>
+      </article>
     );
   };
 
@@ -1038,70 +1171,90 @@ function CedulasAplicacion() {
 
       {/* ── Estado vacío ── */}
       {!loading && aplicacionTasks.length === 0 && (
-        <div className="cedulas-empty-state">
-          <FiFileText size={36} />
-          <p>No hay cédulas de aplicación aún.</p>
-          {hasMinRole(currentUser?.rol, 'encargado') && (
-            <button className="btn btn-primary" onClick={() => setShowNuevaModal(true)}>
-              <FiPlusCircle size={14} /> Crear la primera
-            </button>
-          )}
+        <div className="aur-sheet aur-sheet--empty">
+          <div className="ca-empty">
+            <FiFileText size={36} />
+            <p>No hay cédulas de aplicación aún.</p>
+            {hasMinRole(currentUser?.rol, 'encargado') && (
+              <button type="button" className="aur-btn-pill" onClick={() => setShowNuevaModal(true)}>
+                <FiPlusCircle size={14} /> Crear la primera
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {/* ── Contenido principal ── */}
       {!loading && aplicacionTasks.length > 0 && (
-        <>
-          {/* ── Acciones principales ── */}
-          <div className="cedulas-top-actions">
-            <Link to="/aplicaciones/historial" className="btn btn-secondary">
-              <FiClock size={14} /> Historial
-            </Link>
-            {hasMinRole(currentUser?.rol, 'encargado') && (
-              <button
-                className="btn btn-primary cedulas-nueva-btn"
-                onClick={() => setShowNuevaModal(true)}
-              >
-                <FiPlusCircle size={14} /> Nueva Cédula
-              </button>
-            )}
-          </div>
+        <div className="aur-sheet">
+          <header className="aur-sheet-header">
+            <div className="aur-sheet-header-text">
+              <h2 className="aur-sheet-title">Cédulas de aplicación</h2>
+              <p className="aur-sheet-subtitle">Genera, prepara y aplica las cédulas pendientes del período.</p>
+            </div>
+            <div className="aur-sheet-header-actions">
+              <Link to="/aplicaciones/historial" className="aur-chip aur-chip--ghost">
+                <FiClock size={12} /> Historial
+              </Link>
+              {hasMinRole(currentUser?.rol, 'encargado') && (
+                <button
+                  type="button"
+                  className="aur-btn-pill"
+                  onClick={() => setShowNuevaModal(true)}
+                >
+                  <FiPlusCircle size={14} /> Nueva cédula
+                </button>
+              )}
+            </div>
+          </header>
 
-          {/* ── Barra de filtro ── */}
-          <div className="cedulas-filter-bar">
-            <div className="cedulas-date-range">
-              <label className="cedulas-date-label">
-                Fecha inicial
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">01</span>
+              <h3>Periodo</h3>
+            </div>
+            <div className="aur-list">
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="ca-from">Desde</label>
                 <input
+                  id="ca-from"
                   type="date"
-                  className="cedulas-date-input"
+                  className="aur-input"
                   value={dateFrom}
                   onChange={e => setDateFrom(e.target.value)}
                 />
-              </label>
-              <label className="cedulas-date-label">
-                Fecha final
+              </div>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="ca-to">Hasta</label>
                 <input
+                  id="ca-to"
                   type="date"
-                  className="cedulas-date-input"
+                  className="aur-input"
                   value={dateTo}
                   onChange={e => setDateTo(e.target.value)}
                 />
-              </label>
+              </div>
             </div>
-            <span className="cedulas-filter-count">{visibleTasks.length} tarea(s)</span>
-          </div>
+          </section>
 
-          {visibleTasks.length === 0 ? (
-            <div className="empty-state">
-              No hay aplicaciones programadas para este período.
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">02</span>
+              <h3>Cédulas</h3>
+              <span className="aur-section-count">{visibleTasks.length}</span>
             </div>
-          ) : (
-            <div className="cedulas-list">
-              {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
-            </div>
-          )}
-        </>
+            {visibleTasks.length === 0 ? (
+              <div className="aur-banner">
+                <FiFileText size={14} />
+                <span>No hay aplicaciones programadas para este período.</span>
+              </div>
+            ) : (
+              <div className="ca-cedula-list">
+                {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
+              </div>
+            )}
+          </section>
+        </div>
       )}
 
       {/* ── PREVIEW MODAL ── */}
