@@ -1368,3 +1368,149 @@ select.aur-chip option {
     justify-content: center;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIME PICKER (.aur-tp-*) — input de hora + dropdown portaled de atajos
+
+   Component: src/components/AuroraTimePicker.jsx
+
+   HTML esperado (en flujo):
+     <div class="aur-tp">
+       <input type="time" class="aur-input aur-tp-input" />
+       <button class="aur-tp-trigger [is-open]"><FiClock /></button>
+     </div>
+
+   Y portaled a body:
+     <div class="aur-tp-dropdown">
+       <button class="aur-tp-item aur-tp-item--accent">Hora actual</button>
+       <div class="aur-tp-divider"/>
+       <button class="aur-tp-item aur-tp-item--pos">+1m</button>
+       ...
+     </div>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-tp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.aur-tp-input {
+  flex: 1;
+  min-width: 0;
+}
+.aur-tp-trigger {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  color: var(--aur-text-2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s var(--aur-ease);
+  font-family: inherit;
+  outline: none;
+}
+.aur-tp-trigger:hover:not(:disabled) {
+  background: var(--aur-bg-hover);
+  border-color: var(--aur-divider-2);
+  color: var(--aur-text);
+}
+.aur-tp-trigger:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.aur-tp-trigger:focus-visible {
+  border-color: var(--aur-accent);
+  box-shadow: var(--aur-ring);
+}
+.aur-tp-trigger.is-open {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-2);
+  color: var(--aur-accent);
+}
+.aur-tp-trigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Dropdown portaled (absolute fijo en viewport) */
+.aur-tp-dropdown {
+  min-width: 140px;
+  background: rgba(13, 26, 38, 0.96);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: var(--aur-shadow-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: aur-slide-up 0.18s var(--aur-ease);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+.aur-tp-item {
+  background: transparent;
+  border: none;
+  color: var(--aur-text);
+  font-family: inherit;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s var(--aur-ease);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  width: 100%;
+}
+.aur-tp-item:hover {
+  background: var(--aur-bg-hover);
+}
+.aur-tp-item:active {
+  transform: scale(0.97);
+}
+.aur-tp-item:focus-visible {
+  background: var(--aur-bg-hover);
+  box-shadow: 0 0 0 2px var(--aur-accent-tint-2);
+}
+
+.aur-tp-item--accent {
+  color: var(--aur-accent);
+  font-weight: 600;
+}
+.aur-tp-item--accent:hover {
+  background: var(--aur-accent-tint);
+}
+
+.aur-tp-item--pos {
+  color: var(--aur-text-2);
+}
+.aur-tp-item--pos:hover {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+
+.aur-tp-item--neg {
+  color: var(--aur-text-2);
+}
+.aur-tp-item--neg:hover {
+  background: var(--aur-warn-tint);
+  color: var(--aur-warn);
+}
+
+.aur-tp-divider {
+  height: 1px;
+  background: var(--aur-divider);
+  margin: 3px 4px;
+}
