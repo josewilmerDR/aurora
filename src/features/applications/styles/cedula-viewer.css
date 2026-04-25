@@ -164,10 +164,4 @@
   .no-print {
     display: none !important;
   }
-
-  /* Documento limpio, sin sombra ni margen extra */
-  .ca-doc-paper {
-    box-shadow: none !important;
-    margin: 0 !important;
-  }
 }
