@@ -1,38 +1,29 @@
-/* ── Icon wrapper (for draft badge overlay) ───────────────────────────────── */
-.icon-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR — Apple-inspired redesign
+   Tipografía 11/13/15/17/22 · sheet translúcida · rows tipo source list
+   con active fill rounded · single chevron rotando · acento único verde.
+   Class names preservados; el estilo se actualiza in-place.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Draft indicator dot — overlaid on top-right of icon ──────────────────── */
-.draft-dot {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--aurora-green);
-  box-shadow: 0 0 5px var(--aurora-green);
-  border: 1.5px solid var(--aurora-background);
-}
-
-/* On active (green bg) links the dot turns dark to stay visible */
-.sidebar-link.active .draft-dot {
-  background: var(--aurora-dark-blue);
-  box-shadow: none;
-  border-color: var(--aurora-green);
-}
-
-/* Module header dot — slightly larger offset to clear the icon */
-.module-header .draft-dot {
-  border-color: var(--aurora-background);
-}
-
-/* ── Base sidebar ─────────────────────────────────────────────────────────── */
 .sidebar {
+  /* Tokens locales */
+  --sb-bg:            rgba(13, 26, 38, 0.78);
+  --sb-bg-input:      rgba(255, 255, 255, 0.04);
+  --sb-bg-hover:      rgba(255, 255, 255, 0.06);
+  --sb-divider:       rgba(255, 255, 255, 0.06);
+  --sb-divider-2:     rgba(255, 255, 255, 0.10);
+  --sb-text:          rgba(255, 255, 255, 0.92);
+  --sb-text-2:        rgba(255, 255, 255, 0.55);
+  --sb-text-3:        rgba(255, 255, 255, 0.35);
+  --sb-accent:        var(--aurora-green);
+  --sb-accent-tint:   rgba(51, 255, 153, 0.12);
+  --sb-accent-tint-2: rgba(51, 255, 153, 0.20);
+  --sb-danger:        #ff6b6b;
+  --sb-danger-tint:   rgba(255, 107, 107, 0.14);
+  --sb-r-pill:        999px;
+  --sb-r-rect:        10px;
+  --sb-ease:          cubic-bezier(0.2, 0.8, 0.2, 1);
+
   display: flex;
   flex-direction: column;
   width: 260px;
@@ -40,322 +31,349 @@
   position: fixed;
   top: 62px;
   left: 0;
-  background-color: var(--aurora-background);
-  border-right: 1px solid var(--aurora-border);
-  transition: width 0.3s ease;
+  background: var(--sb-bg);
+  border-right: 1px solid var(--sb-divider);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  transition: width 0.3s var(--sb-ease);
   overflow: hidden;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--sb-text);
 }
 
-/* ── Collapsed sidebar ───────────────────────────────────────────────────── */
 .sidebar.collapsed {
   width: 64px;
 }
 
-
-/* ── Collapsed icon-only nav ─────────────────────────────────────────────── */
-.collapsed-nav {
-  padding: 8px 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.collapsed-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  color: var(--aurora-light);
-  transition: background 0.15s, color 0.15s;
+/* ── Icon wrapper (draft badge holder) ──────────────────────────────────── */
+.icon-wrap {
   position: relative;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.collapsed-link:hover {
-  background: rgba(51, 255, 153, 0.08);
-}
-
-.collapsed-link.active {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-}
-
-.collapsed-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: var(--aurora-magenta);
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 700;
-  border-radius: 8px;
-  padding: 1px 4px;
-  min-width: 14px;
-  text-align: center;
-  line-height: 1.4;
-}
-
-/* ── Collapsed footer ────────────────────────────────────────────────────── */
-.sidebar-user--collapsed {
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 0;
+  flex-shrink: 0;
 }
 
-/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+/* Draft dot — overlaid top-right of any icon */
+.draft-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sb-accent);
+  box-shadow: 0 0 6px var(--sb-accent);
+  border: 1.5px solid var(--aurora-dark-blue);
+}
+.sidebar-link.active .draft-dot {
+  background: var(--aurora-dark-blue);
+  box-shadow: none;
+  border-color: var(--sb-accent);
+}
+
+/* ── Tabs: segmented control con thumb ──────────────────────────────────── */
 .sidebar-tabs {
+  position: relative;
   display: flex;
-  border-bottom: 1px solid var(--aurora-border);
+  margin: 12px 12px 6px 12px;
+  padding: 3px;
+  background: var(--sb-bg-input);
+  border-radius: 12px;
   flex-shrink: 0;
+  isolation: isolate;
+}
+
+.sidebar-tabs-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  background: rgba(51, 255, 153, 0.16);
+  border-radius: 9px;
+  transition: transform 0.3s var(--sb-ease);
+  z-index: 0;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.sidebar-tabs.is-todas .sidebar-tabs-thumb {
+  transform: translateX(100%);
 }
 
 .sidebar-tab {
   flex: 1;
-  padding: 10px 6px;
+  position: relative;
+  z-index: 1;
+  padding: 7px 6px;
   background: none;
   border: none;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  font-size: 0.78rem;
-  font-weight: 600;
+  color: var(--sb-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  letter-spacing: 0.3px;
-  transition: opacity 0.2s, color 0.2s;
+  border-radius: 9px;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: inherit;
+  transition: color 0.2s var(--sb-ease);
 }
-
 .sidebar-tab:hover {
-  opacity: 0.85;
+  color: var(--sb-text);
 }
-
 .sidebar-tab.active {
-  opacity: 1;
-  color: var(--aurora-green);
-  border-bottom: 2px solid var(--aurora-green);
+  color: var(--sb-accent);
+  font-weight: 600;
 }
 
-/* ── Scrollable link area ─────────────────────────────────────────────────── */
+/* ── Scrollable link area ──────────────────────────────────────────────── */
 .sidebar-links {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 0 8px;
 }
-
 .sidebar-links::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 .sidebar-links::-webkit-scrollbar-track {
   background: transparent;
 }
 .sidebar-links::-webkit-scrollbar-thumb {
-  background: var(--aurora-border);
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+.sidebar-links::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .tab-content {
-  padding: 8px 0;
+  padding: 8px 0 16px 0;
 }
 
-/* ── Sections (Fijados / Recientes) ──────────────────────────────────────── */
+/* ── Section headers (Fijados / Recientes) ──────────────────────────────── */
 .sidebar-section {
-  margin-bottom: 4px;
+  margin-bottom: 12px;
 }
-
 .sidebar-section-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 18px 6px;
-  font-size: 0.7rem;
-  font-weight: 700;
+  padding: 12px 12px 6px;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--aurora-light);
-  opacity: 0.4;
+  letter-spacing: 0.10em;
+  color: var(--sb-text-3);
+}
+.sidebar-section-header svg {
+  opacity: 0.8;
 }
 
 .sidebar-empty-hint {
-  padding: 6px 18px 12px;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  padding: 4px 12px 8px;
+  font-size: 12px;
+  color: var(--sb-text-3);
   line-height: 1.5;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 .inline-link {
   background: none;
   border: none;
-  color: var(--aurora-green);
+  color: var(--sb-accent);
   font-size: inherit;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
-  opacity: 0.85;
+  text-underline-offset: 2px;
+  font-family: inherit;
 }
 
-/* ── Top-level item (Panel de Control) ───────────────────────────────────── */
+/* ── Top-level item (Home) ─────────────────────────────────────────────── */
 .sidebar-toplevel {
-  border-bottom: 1px solid var(--aurora-border);
-  margin-bottom: 6px;
-  padding-bottom: 6px;
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--sb-divider);
 }
 
-/* ── Modules (Todas las funciones) ───────────────────────────────────────── */
+/* ── Modules (Todas las funciones) ─────────────────────────────────────── */
 .sidebar-module {
   margin-bottom: 2px;
 }
-
 .module-header-row {
   display: flex;
   align-items: center;
 }
-
 .module-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
-  padding: 10px 18px;
+  padding: 9px 12px;
   background: none;
   border: none;
-  color: var(--aurora-light);
-  font-size: 0.72rem;
-  font-weight: 700;
+  color: var(--sb-text-3);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.7px;
+  letter-spacing: 0.10em;
   cursor: pointer;
   text-align: left;
-  transition: opacity 0.2s;
+  border-radius: var(--sb-r-rect);
+  transition: background 0.15s ease, color 0.15s ease;
+  font-family: inherit;
 }
-
 .module-header:hover {
-  opacity: 0.75;
+  background: var(--sb-bg-hover);
+  color: var(--sb-text-2);
 }
-
-.module-header svg:last-child {
+.module-header > span:nth-child(2) {
+  flex: 1;
+  letter-spacing: 0.10em;
+}
+.module-header svg.sidebar-chevron {
   margin-left: auto;
 }
 
-/* ── Icon swap on hover (bodega add) ────────────────────────────────────── */
+/* Bodega add icon swap (preserved behavior, rounded affordance) */
 .icon-wrap--has-action {
-  position: relative;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.2s, color 0.2s;
+  border-radius: 6px;
+  padding: 2px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-
-.icon-wrap--has-action .icon-hover {
-  display: none;
-}
-
-.module-header:hover .icon-wrap--has-action .icon-default {
-  display: none;
-}
-
-.module-header:hover .icon-wrap--has-action .icon-hover {
-  display: inline;
-}
-
+.icon-wrap--has-action .icon-hover { display: none; }
+.module-header:hover .icon-wrap--has-action .icon-default { display: none; }
+.module-header:hover .icon-wrap--has-action .icon-hover { display: inline; }
 .module-header:hover .icon-wrap--has-action {
-  color: var(--aurora-green);
+  color: var(--sb-accent);
+  background: var(--sb-accent-tint);
 }
 
 .module-items {
-  /* indent */
+  padding: 2px 0 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-/* ── Sub-group (collapsible within a module) ─────────────────────────────── */
+/* ── Sub-group (collapsible nested) ─────────────────────────────────────── */
 .sidebar-subgroup {
-  margin: 1px 0;
+  margin: 0;
 }
-
 .sidebar-subgroup-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 7px 12px 7px 20px;
+  padding: 8px 10px 8px 14px;
   background: none;
   border: none;
-  color: var(--aurora-light);
-  font-size: 0.83rem;
+  color: var(--sb-text);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  border-radius: 7px;
-  transition: background 0.15s, opacity 0.15s;
+  border-radius: var(--sb-r-rect);
+  transition: background 0.15s ease, color 0.15s ease;
   text-align: left;
+  font-family: inherit;
+  letter-spacing: -0.01em;
 }
-
 .sidebar-subgroup-header:hover {
-  background: rgba(255, 255, 255, 0.04);
-  opacity: 0.9;
+  background: var(--sb-bg-hover);
 }
-
 .sidebar-subgroup-header .link-text {
   flex: 1;
 }
-
-.sidebar-subgroup-header svg:last-child {
-  opacity: 0.5;
+.sidebar-subgroup-header svg {
   flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+.sidebar-subgroup-header:hover svg {
+  opacity: 0.85;
 }
 
 .subgroup-child-active {
+  color: var(--sb-accent) !important;
+  background: var(--sb-accent-tint);
+}
+.subgroup-child-active svg {
   opacity: 1 !important;
-  color: var(--aurora-green) !important;
 }
 
 .sidebar-subgroup-items {
-  padding-left: 14px;
+  padding: 2px 0 4px 0;
+  margin-left: 6px;
+  border-left: 1px solid var(--sb-divider);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-/* ── Nav item row ─────────────────────────────────────────────────────────── */
+/* ── Chevron (single icon, rotates) ─────────────────────────────────────── */
+.sidebar-chevron {
+  flex-shrink: 0;
+  transition: transform 0.25s var(--sb-ease);
+}
+.sidebar-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+/* ── Nav item row ───────────────────────────────────────────────────────── */
 .sidebar-item-row {
   display: flex;
   align-items: center;
   position: relative;
+  border-radius: var(--sb-r-rect);
+  transition: background 0.15s ease;
 }
-
 .sidebar-item-row:hover .pin-btn {
-  opacity: 1;
+  opacity: 0.85;
+}
+.sidebar-item-row:focus-within .pin-btn {
+  opacity: 0.85;
 }
 
-/* ── Nav link ─────────────────────────────────────────────────────────────── */
+/* ── Nav link ───────────────────────────────────────────────────────────── */
 .sidebar-link {
   display: flex;
   align-items: center;
   flex: 1;
-  padding: 11px 18px;
-  color: var(--aurora-light);
-  font-size: 0.875rem;
-  transition: background-color 0.15s, color 0.15s;
+  padding: 8px 10px;
+  color: var(--sb-text);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  border-radius: var(--sb-r-rect);
+  transition: background 0.15s ease, color 0.15s ease;
   white-space: nowrap;
   overflow: hidden;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
-
 .sidebar-link:hover {
-  background-color: rgba(51, 255, 153, 0.08);
+  background: var(--sb-bg-hover);
 }
-
 .sidebar-link.active {
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
+  background: var(--sb-accent-tint);
+  color: var(--sb-accent);
   font-weight: 600;
 }
-
+.sidebar-link.active:hover {
+  background: var(--sb-accent-tint-2);
+}
 .sidebar-link svg {
   flex-shrink: 0;
+  opacity: 0.85;
+}
+.sidebar-link.active svg {
+  opacity: 1;
 }
 
 .link-text {
@@ -366,63 +384,159 @@
   min-width: 0;
 }
 
-/* ── Badge ────────────────────────────────────────────────────────────────── */
+/* ── Badge ──────────────────────────────────────────────────────────────── */
 .sidebar-badge {
   margin-left: auto;
-  background-color: var(--aurora-magenta);
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  border-radius: 10px;
-  padding: 2px 7px;
+  background: var(--aurora-magenta);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--sb-r-pill);
+  padding: 1px 7px;
   min-width: 18px;
   text-align: center;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  box-shadow: 0 2px 6px rgba(204, 51, 255, 0.25);
 }
-
 .sidebar-link.active .sidebar-badge {
-  background-color: var(--aurora-dark-blue);
+  background: var(--aurora-dark-blue);
   color: var(--aurora-magenta);
+  box-shadow: none;
 }
 
-/* ── Pin button ───────────────────────────────────────────────────────────── */
+/* ── Pin button (visible solo on hover/focus) ───────────────────────────── */
 .pin-btn {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
+  background: transparent;
   border: none;
-  color: var(--aurora-light);
+  color: var(--sb-text-2);
   opacity: 0;
   cursor: pointer;
-  border-radius: 4px;
-  margin-right: 6px;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  border-radius: 6px;
+  margin-right: 4px;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.12s ease;
 }
-
 .pin-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.pin-btn.pinned {
-  color: var(--aurora-green);
+  background: var(--sb-bg-hover);
+  color: var(--sb-text);
   opacity: 1;
 }
+.pin-btn:active {
+  transform: scale(0.92);
+}
+.pin-btn.pinned {
+  color: var(--sb-accent);
+  opacity: 1;
+}
+.pin-btn.pinned:hover {
+  background: var(--sb-accent-tint);
+  color: var(--sb-accent);
+}
 
-/* ── Footer / user chip ───────────────────────────────────────────────────── */
+/* ── Collapsed dock (icon-only nav) ─────────────────────────────────────── */
+.collapsed-nav {
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.collapsed-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--sb-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.collapsed-link:hover {
+  background: var(--sb-bg-hover);
+}
+.collapsed-link:active {
+  transform: scale(0.94);
+}
+.collapsed-link.active {
+  background: var(--sb-accent-tint);
+  color: var(--sb-accent);
+}
+.collapsed-link.active:hover {
+  background: var(--sb-accent-tint-2);
+}
+
+.collapsed-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--aurora-magenta);
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: var(--sb-r-pill);
+  padding: 1px 5px;
+  min-width: 14px;
+  text-align: center;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgba(204, 51, 255, 0.25);
+}
+
+/* ── Footer / user chip ─────────────────────────────────────────────────── */
 .sidebar-footer {
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--sb-divider);
   flex-shrink: 0;
+  padding: 8px;
 }
 
 .sidebar-user {
   display: flex;
   align-items: center;
-  padding: 12px 14px;
   gap: 10px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+.sidebar-user:hover {
+  background: var(--sb-bg-hover);
+}
+
+.sidebar-user--collapsed {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 4px;
+}
+
+.sidebar-user-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sb-accent-tint);
+  color: var(--sb-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border: 1px solid var(--sb-accent-tint-2);
 }
 
 .sidebar-user-info {
@@ -431,45 +545,49 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  gap: 1px;
 }
-
 .sidebar-user-name {
-  font-size: 0.85rem;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--sb-text);
+  letter-spacing: -0.01em;
 }
-
 .sidebar-user-role {
-  font-size: 0.7rem;
-  color: var(--aurora-green);
-  opacity: 0.85;
-  margin-top: 1px;
+  font-size: 11px;
+  color: var(--sb-text-3);
   text-transform: capitalize;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .sidebar-logout-btn {
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  color: var(--aurora-light);
-  opacity: 0.6;
+  background: transparent;
+  border: none;
+  color: var(--sb-text-2);
   cursor: pointer;
-  transition: opacity 0.2s, border-color 0.2s, color 0.2s;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
-
 .sidebar-logout-btn:hover {
-  opacity: 1;
-  border-color: #ff6b6b;
-  color: #ff6b6b;
+  background: var(--sb-bg-hover);
+  color: var(--sb-text);
+}
+.sidebar-logout-btn:active {
+  transform: scale(0.92);
+}
+.sidebar-logout-btn--danger:hover {
+  background: var(--sb-danger-tint);
+  color: var(--sb-danger);
 }
 
-/* ── Mobile: sidebar hidden (replaced by MobileNav bottom bar) ────────────── */
+/* ── Mobile: sidebar hidden (replaced by MobileNav bottom bar) ──────────── */
 @media (max-width: 768px) {
   .sidebar {
     display: none;
