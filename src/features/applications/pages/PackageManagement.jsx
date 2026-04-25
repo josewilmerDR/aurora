@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiChevronDown, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -127,7 +127,6 @@ function PackageManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [expandedActivities, setExpandedActivities] = useState(new Set());
-  const [focusedActivity, setFocusedActivity] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const carouselRef = useRef(null);
@@ -533,9 +532,9 @@ function PackageManagement() {
         </div>
       )}
 
-      {!loading && (packages.length > 0 || isFormOpen) && <div className="pkg-page-header">
+      {!loading && (packages.length > 0 || isFormOpen) && !(isFormOpen && !selectedPkg) && <div className="pkg-page-header">
         <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
-        {packages.length > 0 && !(isFormOpen && !selectedPkg && !isEditing) && (
+        {packages.length > 0 && (
           <button className="btn btn-primary" onClick={handleNew}>
             <FiPlus /> Nuevo Paquete
           </button>
@@ -570,255 +569,291 @@ function PackageManagement() {
       )}
 
       {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
-      {isFormOpen && !selectedPkg && <div className="form-card">
-          <h2>{isEditing ? 'Editando Paquete' : 'Nuevo Paquete de Aplicaciones'}</h2>
-          <form onSubmit={handleSubmit} className="lote-form">
-          <div className="form-grid">
-            <div className="form-control">
-              <label htmlFor="nombrePaquete">Nombre del Paquete</label>
-              <input id="nombrePaquete" name="nombrePaquete" value={formData.nombrePaquete} onChange={handleInputChange} maxLength={19} required />
-            </div>
-            <div className="form-control form-control--full">
-              <label htmlFor="descripcion">Descripción del Paquete</label>
-              <textarea
-                id="descripcion"
-                name="descripcion"
-                value={formData.descripcion}
-                onChange={handleInputChange}
-                placeholder="Ej: Paquete para la etapa inicial de desarrollo, incluye aplicaciones preventivas contra hongos y fertilización base."
-                rows={3}
-                maxLength={1024}
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="tipoCosecha">Tipo de Cosecha</label>
-              <select id="tipoCosecha" name="tipoCosecha" value={formData.tipoCosecha} onChange={handleInputChange} required>
-                <option value="">-- Seleccionar --</option>
-                <option value="I Cosecha">I Cosecha</option>
-                <option value="II Cosecha">II Cosecha</option>
-                <option value="III Cosecha">III Cosecha</option>
-                <option value="Semillero">Semillero</option>
-              </select>
-            </div>
-            <div className="form-control">
-              <label htmlFor="etapaCultivo">Etapa del Cultivo</label>
-              <select id="etapaCultivo" name="etapaCultivo" value={formData.etapaCultivo} onChange={handleInputChange} required>
-                <option value="">-- Seleccionar --</option>
-                <option value="Desarrollo">Desarrollo</option>
-                <option value="Postforza">Postforza</option>
-                <option value="N/A">N/A</option>
-              </select>
-            </div>
-            <div className="form-control">
-              <label htmlFor="tecnicoResponsable">Técnico responsable</label>
-              <input
-                id="tecnicoResponsable"
-                name="tecnicoResponsable"
-                value={formData.tecnicoResponsable}
-                onChange={handleInputChange}
-                placeholder="Nombre del técnico responsable"
-                maxLength={48}
-              />
-            </div>
-          </div>
+      {isFormOpen && !selectedPkg && (
+        <form onSubmit={handleSubmit} className="pkg-form" noValidate>
+          <header className="pkg-form-header">
+            <h2 className="pkg-form-title">{isEditing ? 'Editar paquete' : 'Nuevo paquete'}</h2>
+            <p className="pkg-form-subtitle">
+              {isEditing
+                ? 'Modifica la información del paquete y su programa de actividades.'
+                : 'Define un programa de aplicaciones reutilizable para tus lotes.'}
+            </p>
+          </header>
 
-          <h3>Actividades Programadas</h3>
-          <div className="activities-table-wrapper">
-            <table className="activities-table">
-              <thead>
-                <tr>
-                  <th className="col-day">Día</th>
-                  <th className="col-name">Actividad</th>
-                  <th className="col-cal">Volumen/Calibración</th>
-                  <th className="col-user">Responsable</th>
-                  <th className="col-cost">Costo total</th>
-                  <th className="col-action"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {formData.activities.map((activity, index) => (
-                  <Fragment key={`act-${index}`}>
-                    <tr>
-                      <td><input value={activity.day} onChange={(e) => handleActivityChange(index, 'day', e.target.value)} type="number" min={0} max={1825} step={1} required /></td>
-                      <td>
-                        <div
-                          className="activity-name-cell"
-                          onBlur={(e) => {
-                            if (!e.currentTarget.contains(e.relatedTarget)) {
-                              setFocusedActivity(null);
-                            }
-                          }}
-                        >
-                          {plantillas.length > 0 && focusedActivity === index && (
+          <section className="pkg-form-section">
+            <div className="pkg-form-section-header">
+              <span className="pkg-form-section-num">01</span>
+              <h3>Identidad</h3>
+            </div>
+            <div className="pkg-form-list">
+              <div className="pkg-form-row">
+                <label htmlFor="nombrePaquete">Nombre</label>
+                <input
+                  id="nombrePaquete"
+                  name="nombrePaquete"
+                  value={formData.nombrePaquete}
+                  onChange={handleInputChange}
+                  maxLength={19}
+                  placeholder="Ej. Postforza Premium"
+                  required
+                />
+              </div>
+              <div className="pkg-form-row pkg-form-row--multiline">
+                <label htmlFor="descripcion">Descripción</label>
+                <textarea
+                  id="descripcion"
+                  name="descripcion"
+                  value={formData.descripcion}
+                  onChange={handleInputChange}
+                  placeholder="Resumen breve del propósito del paquete..."
+                  rows={3}
+                  maxLength={1024}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="pkg-form-section">
+            <div className="pkg-form-section-header">
+              <span className="pkg-form-section-num">02</span>
+              <h3>Clasificación</h3>
+            </div>
+            <div className="pkg-form-list">
+              <div className="pkg-form-row">
+                <label htmlFor="tipoCosecha">Tipo de cosecha</label>
+                <select id="tipoCosecha" name="tipoCosecha" value={formData.tipoCosecha} onChange={handleInputChange} required>
+                  <option value="">Seleccionar...</option>
+                  <option value="I Cosecha">I Cosecha</option>
+                  <option value="II Cosecha">II Cosecha</option>
+                  <option value="III Cosecha">III Cosecha</option>
+                  <option value="Semillero">Semillero</option>
+                </select>
+              </div>
+              <div className="pkg-form-row">
+                <label htmlFor="etapaCultivo">Etapa del cultivo</label>
+                <select id="etapaCultivo" name="etapaCultivo" value={formData.etapaCultivo} onChange={handleInputChange} required>
+                  <option value="">Seleccionar...</option>
+                  <option value="Desarrollo">Desarrollo</option>
+                  <option value="Postforza">Postforza</option>
+                  <option value="N/A">N/A</option>
+                </select>
+              </div>
+              <div className="pkg-form-row">
+                <label htmlFor="tecnicoResponsable">Técnico responsable</label>
+                <input
+                  id="tecnicoResponsable"
+                  name="tecnicoResponsable"
+                  value={formData.tecnicoResponsable}
+                  onChange={handleInputChange}
+                  placeholder="Opcional"
+                  maxLength={48}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="pkg-form-section">
+            <div className="pkg-form-section-header">
+              <span className="pkg-form-section-num">03</span>
+              <h3>Programa de actividades</h3>
+              <span className="pkg-form-section-count">{formData.activities.length}</span>
+            </div>
+            <ul className="pkg-act-list">
+              {formData.activities.map((activity, index) => {
+                const expanded = expandedActivities.has(index);
+                const totals = {};
+                (activity.productos || []).forEach(p => {
+                  const cat = productos.find(cp => cp.id === p.productoId);
+                  const precio = parseFloat(cat?.precioUnitario) || 0;
+                  if (precio <= 0) return;
+                  const mon = cat?.moneda || 'USD';
+                  const qty = parseFloat(p.cantidadPorHa) || 0;
+                  totals[mon] = (totals[mon] || 0) + qty * precio;
+                });
+                const costEntries = Object.entries(totals);
+                return (
+                  <li key={`act-${index}`} className="pkg-act-card">
+                    <div className="pkg-act-row">
+                      <div className="pkg-act-day">
+                        <input
+                          type="number"
+                          min={0}
+                          max={1825}
+                          step={1}
+                          value={activity.day}
+                          onChange={(e) => handleActivityChange(index, 'day', e.target.value)}
+                          aria-label="Día"
+                          required
+                        />
+                        <span className="pkg-act-day-suffix">día</span>
+                      </div>
+
+                      <div className="pkg-act-body">
+                        <input
+                          type="text"
+                          className="pkg-act-name"
+                          value={activity.name}
+                          onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
+                          placeholder="Nombre de la actividad"
+                          required
+                          maxLength={120}
+                          aria-label="Nombre de la actividad"
+                        />
+                        <div className="pkg-act-meta">
+                          <select
+                            className="pkg-chip"
+                            value={activity.responsableId}
+                            onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}
+                            aria-label="Responsable"
+                          >
+                            <option value="">Responsable</option>
+                            {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
+                          </select>
+                          <select
+                            className="pkg-chip"
+                            value={activity.calibracionId || ''}
+                            onChange={(e) => handleActivityChange(index, 'calibracionId', e.target.value)}
+                            aria-label="Calibración"
+                          >
+                            <option value="">Calibración</option>
+                            {calibraciones.map(cal => <option key={cal.id} value={cal.id}>{cal.nombre}</option>)}
+                          </select>
+                          {plantillas.length > 0 && (
                             <select
-                              className="plantilla-inline-select"
+                              className="pkg-chip pkg-chip--ghost"
                               value=""
                               onChange={(e) => {
-                                if (e.target.value) {
-                                  aplicarPlantillaAActividad(index, e.target.value);
-                                  setFocusedActivity(null);
-                                }
+                                if (e.target.value) aplicarPlantillaAActividad(index, e.target.value);
                               }}
+                              aria-label="Cargar desde plantilla"
                             >
-                              <option value="">-- Cargar desde plantilla --</option>
-                              {plantillas.map(p => (
-                                <option key={p.id} value={p.id}>{p.nombre}</option>
-                              ))}
+                              <option value="">+ Plantilla</option>
+                              {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                             </select>
                           )}
-                          <input
-                            value={activity.name}
-                            onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
-                            placeholder="Nombre de la actividad"
-                            required
-                            maxLength={120}
-                            onFocus={() => setFocusedActivity(index)}
+                        </div>
+                      </div>
+
+                      <div className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}>
+                        {costEntries.length === 0 ? '—' : costEntries.map(([mon, total]) => (
+                          <div key={mon}>
+                            {total.toFixed(2)}
+                            <span className="pkg-act-cost-mon">{mon}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pkg-act-actions">
+                        {pendingDeleteIdx === index ? (
+                          <div className="pkg-act-confirm">
+                            <span>¿Eliminar?</span>
+                            <button type="button" className="pkg-act-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
+                            <button type="button" className="pkg-act-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="pkg-act-icon-btn"
+                              onClick={() => duplicateActivity(index)}
+                              title="Duplicar actividad"
+                            >
+                              <FiCopy size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="pkg-act-icon-btn pkg-act-icon-btn--danger"
+                              onClick={() => setPendingDeleteIdx(index)}
+                              title="Eliminar actividad"
+                            >
+                              <FiX size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className={`pkg-act-icon-btn pkg-act-expand${expanded ? ' is-open' : ''}`}
+                              onClick={() => toggleActivityExpand(index)}
+                              title={expanded ? 'Ocultar productos' : 'Productos de mezcla'}
+                            >
+                              <FiChevronDown size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {expanded && (
+                      <div className="pkg-act-products">
+                        <span className="pkg-act-products-label">Productos de mezcla</span>
+                        <div className="pkg-act-products-list">
+                          {(activity.productos || []).map(p => {
+                            const catProd = productos.find(cp => cp.id === p.productoId);
+                            const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
+                            const moneda = catProd?.moneda || '';
+                            const qty = parseFloat(p.cantidadPorHa) || 0;
+                            const precioTotal = qty * precioUnitario;
+                            return (
+                              <div key={p.productoId} className="pkg-prod-row">
+                                <span className="pkg-prod-row-name">{p.nombreComercial}</span>
+                                <div className="pkg-prod-row-qty">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    max="1023.99"
+                                    value={p.cantidadPorHa}
+                                    onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
+                                    data-prod-qty={`${index}-${p.productoId}`}
+                                    title="Cantidad por Ha"
+                                  />
+                                  <span className="pkg-prod-row-unit">{p.unidad}/Ha</span>
+                                </div>
+                                {precioUnitario > 0 ? (
+                                  <span className="pkg-prod-row-cost">
+                                    {precioTotal.toFixed(2)}
+                                    <span className="pkg-prod-row-mon">{moneda}</span>
+                                  </span>
+                                ) : <span />}
+                                <button
+                                  type="button"
+                                  className="pkg-prod-row-remove"
+                                  onClick={() => removeProductFromActivity(index, p.productoId)}
+                                  title="Quitar producto"
+                                >
+                                  <FiX size={12} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          <ProdCombobox
+                            productos={productos}
+                            excludeIds={(activity.productos || []).map(p => p.productoId)}
+                            onSelect={(productoId) => {
+                              addProductToActivity(index, productoId);
+                              setTimeout(() => {
+                                const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
+                                if (el) { el.focus(); el.select(); }
+                              }, 0);
+                            }}
                           />
                         </div>
-                      </td>
-                      <td>
-                        <select value={activity.calibracionId || ''} onChange={(e) => handleActivityChange(index, 'calibracionId', e.target.value)}>
-                          <option value="">-- Ninguna --</option>
-                          {calibraciones.map(cal => (
-                            <option key={cal.id} value={cal.id}>{cal.nombre}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select value={activity.responsableId} onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}>
-                          <option value="">-- Asignar --</option>
-                          {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
-                        </select>
-                      </td>
-                      <td className="activity-cost-cell">
-                        {(() => {
-                          const totals = {};
-                          (activity.productos || []).forEach(p => {
-                            const cat = productos.find(cp => cp.id === p.productoId);
-                            const precio = parseFloat(cat?.precioUnitario) || 0;
-                            if (precio <= 0) return;
-                            const mon = cat?.moneda || 'USD';
-                            const qty = parseFloat(p.cantidadPorHa) || 0;
-                            totals[mon] = (totals[mon] || 0) + qty * precio;
-                          });
-                          const entries = Object.entries(totals);
-                          if (entries.length === 0) return <span className="activity-cost-empty">—</span>;
-                          return entries.map(([mon, total]) => (
-                            <span key={mon} className="activity-cost-value">
-                              {total.toFixed(2)} <span className="activity-cost-mon">{mon}</span>
-                            </span>
-                          ));
-                        })()}
-                      </td>
-                      <td>
-                        <div className="activity-row-actions">
-                          {pendingDeleteIdx === index ? (
-                            <div className="activity-delete-confirm">
-                              <span>¿Eliminar?</span>
-                              <button type="button" className="btn-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
-                              <button type="button" className="btn-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
-                            </div>
-                          ) : (
-                            <>
-                              <button type="button" onClick={() => setPendingDeleteIdx(index)} className="icon-btn pkg-action-btn" title="Eliminar Actividad">
-                                <FiX size={16} />
-                              </button>
-                              <button type="button" onClick={() => duplicateActivity(index)} className="icon-btn pkg-action-btn" title="Duplicar Actividad">
-                                <FiCopy size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleActivityExpand(index)}
-                                className={`icon-btn pkg-action-btn${expandedActivities.has(index) ? ' expanded' : ''}`}
-                                title={expandedActivities.has(index) ? 'Ocultar productos' : 'Agregar productos'}
-                              >
-                                <FiEye size={16} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedActivities.has(index) && (
-                      <tr className="products-subrow-tr">
-                        <td colSpan="6">
-                          <div className="products-subrow">
-                            <div className="products-subrow-header">
-                              <span className="products-subrow-label">Productos de mezcla:</span>
-                            </div>
-                            <div className="products-tags">
-                              {(activity.productos || []).map(p => {
-                                const catProd = productos.find(cp => cp.id === p.productoId);
-                                const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
-                                const moneda = catProd?.moneda || '';
-                                const qty = parseFloat(p.cantidadPorHa) || 0;
-                                const precioTotal = qty * precioUnitario;
-                                return (
-                                  <span key={p.productoId} className="product-tag">
-                                    <strong>{p.nombreComercial}</strong>
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      min="0.01"
-                                      max="1023.99"
-                                      value={p.cantidadPorHa}
-                                      onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
-                                      className="product-tag-qty"
-                                      title="Cantidad por Ha (> 0 y < 1024)"
-                                      data-prod-qty={`${index}-${p.productoId}`}
-                                    />
-                                    <span className="product-tag-unit">{p.unidad}/Ha</span>
-                                    {precioUnitario > 0 && (
-                                      <>
-                                        <span className="product-tag-price">P.U.: {precioUnitario.toFixed(2)} {moneda}</span>
-                                        <span className="product-tag-price product-tag-price--total">Total: {precioTotal.toFixed(2)} {moneda}</span>
-                                      </>
-                                    )}
-                                    <button
-                                      type="button"
-                                      className="product-tag-remove"
-                                      onClick={() => removeProductFromActivity(index, p.productoId)}
-                                      title="Quitar producto"
-                                    >
-                                      <FiX size={12} />
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                              <ProdCombobox
-                                productos={productos}
-                                excludeIds={(activity.productos || []).map(p => p.productoId)}
-                                onSelect={(productoId) => {
-                                  addProductToActivity(index, productoId);
-                                  setTimeout(() => {
-                                    const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
-                                    if (el) { el.focus(); el.select(); }
-                                  }, 0);
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
+                      </div>
                     )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="add-activity-btn-container">
-            <button type="button" onClick={addActivity} className="btn btn-secondary">
-              <FiPlus />
-              Añadir Actividad
+                  </li>
+                );
+              })}
+            </ul>
+            <button type="button" onClick={addActivity} className="pkg-add-activity">
+              <FiPlus size={14} />
+              Añadir actividad
             </button>
-          </div>
+          </section>
 
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary">{isEditing ? 'Actualizar Paquete' : 'Guardar Paquete'}</button>
-            <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
-          </div>
+          <footer className="pkg-form-actions">
+            <button type="button" onClick={resetForm} className="pkg-btn-text">Cancelar</button>
+            <button type="submit" className="pkg-btn-pill">{isEditing ? 'Actualizar paquete' : 'Guardar paquete'}</button>
+          </footer>
         </form>
-      </div>}
+      )}
 
       {isFormOpen && selectedPkg && (
         <div className="lote-hub">
