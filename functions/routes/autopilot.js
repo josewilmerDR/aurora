@@ -652,7 +652,12 @@ Analiza el estado y entrega las recomendaciones usando la herramienta generar_re
 
       const claudeResponse = await anthropicClient.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
+        // 2048 was tight: 10 recomendaciones × ~6 fields × prose descriptions
+        // can hit `stop_reason: 'max_tokens'` mid-tool-call. Tool input then
+        // arrives truncated and our defensive guard rejects it as a 500.
+        // 6000 is generous headroom and only costs whatever the model
+        // actually generates.
+        max_tokens: 6000,
         system: systemPrompt,
         tools: [nivel1Tool],
         tool_choice: { type: 'tool', name: 'generar_recomendaciones' },
