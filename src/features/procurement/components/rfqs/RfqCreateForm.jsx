@@ -106,8 +106,8 @@ function RfqCreateForm({ onCreated, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={busy ? undefined : onClose}>
-      <div className="rfq-create-card" onClick={e => e.stopPropagation()}>
+    <div className="aur-modal-backdrop" onPointerDown={busy ? undefined : onClose}>
+      <div className="rfq-create-card" onPointerDown={e => e.stopPropagation()}>
         <div className="rfq-create-header">
           <h3><FiSend /> Nueva cotización</h3>
           <button className="rfq-create-close" onClick={onClose} disabled={busy} aria-label="Cerrar">
@@ -206,7 +206,7 @@ function RfqCreateForm({ onCreated, onClose }) {
             {error && <div className="fin-widget-error">{error}</div>}
 
             <div className="rfq-create-actions">
-              <button type="button" className="btn-modal-cancel" onClick={onClose} disabled={busy}>
+              <button type="button" className="aur-btn-text" onClick={onClose} disabled={busy}>
                 Cancelar
               </button>
               <button type="submit" className="rfq-primary-btn" disabled={busy}>

@@ -92,8 +92,8 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content toma-fisica-modal" onClick={e => e.stopPropagation()}>
+    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+      <div className="modal-content toma-fisica-modal" onPointerDown={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Toma Física de Inventario</h2>
           <button className="modal-close-btn" onClick={onClose}>✕</button>

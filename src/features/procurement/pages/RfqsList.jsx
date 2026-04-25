@@ -7,7 +7,6 @@ import {
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import RfqResponseForm from '../components/rfqs/RfqResponseForm';
 import RfqCreateForm from '../components/rfqs/RfqCreateForm';
-import '../../../components/ConfirmModal.css';
 import '../styles/rfqs-list.css';
 
 const STATE_LABELS = {

@@ -436,8 +436,8 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
   const fieldErr = (key) => fieldErrors[key] ? <span className="ep-field-error">{fieldErrors[key]}</span> : null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content edit-producto-modal" onClick={e => e.stopPropagation()}>
+    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+      <div className="modal-content edit-producto-modal" onPointerDown={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{isNew ? 'Nuevo Producto' : 'Editar producto'}</h2>
           <button className="modal-close-btn" onClick={onClose}>✕</button>

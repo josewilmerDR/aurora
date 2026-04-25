@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { FiX } from 'react-icons/fi';
 import CashBalanceForm from './CashBalanceForm';
-import '../../../components/ConfirmModal.css';
 
 function CashBalanceModal({ onSubmit, onCancel, saving }) {
   useEffect(() => {
@@ -11,30 +10,35 @@ function CashBalanceModal({ onSubmit, onCancel, saving }) {
   }, [onCancel, saving]);
 
   return (
-    <div className="modal-overlay" onClick={() => !saving && onCancel?.()}>
+    <div
+      className="aur-modal-backdrop"
+      onPointerDown={() => !saving && onCancel?.()}
+    >
       <div
-        className="modal-card"
-        style={{ maxWidth: 620, width: '92%', padding: 24 }}
-        onClick={(e) => e.stopPropagation()}
+        className="aur-modal aur-modal--lg"
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h3 className="modal-title" style={{ margin: 0 }}>Registrar saldo</h3>
+        <div className="aur-modal-header">
+          <span className="aur-modal-title">Registrar saldo</span>
           <button
             type="button"
+            className="aur-modal-close aur-btn-text"
             onClick={onCancel}
             disabled={saving}
             title="Cerrar"
-            style={{ background: 'transparent', border: 'none', color: 'var(--aurora-light)', opacity: 0.7, cursor: 'pointer', padding: 4, borderRadius: 4 }}
+            aria-label="Cerrar"
           >
             <FiX size={18} />
           </button>
         </div>
 
-        <CashBalanceForm
-          onSubmit={onSubmit}
-          onCancel={onCancel}
-          saving={saving}
-        />
+        <div className="aur-modal-content">
+          <CashBalanceForm
+            onSubmit={onSubmit}
+            onCancel={onCancel}
+            saving={saving}
+          />
+        </div>
       </div>
     </div>
   );
