@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiAlertTriangle, FiClock, FiCpu, FiMoreVertical, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiAlertTriangle, FiClock, FiCpu, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -457,7 +457,6 @@ function Siembra() {
 
 const fileInputRef                = useRef(null);
   const swipeState                  = useRef({});
-  const [rowMenu, setRowMenu]           = useState(null);
   const [histRowMenu, setHistRowMenu]   = useState(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [editRecord, setEditRecord]     = useState(null);
@@ -468,12 +467,6 @@ const fileInputRef                = useRef(null);
     return next;
   });
 
-  useEffect(() => {
-    if (rowMenu === null) return;
-    const close = () => setRowMenu(null);
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [rowMenu]);
   useEffect(() => {
     if (histRowMenu === null) return;
     const close = () => setHistRowMenu(null);
@@ -528,8 +521,8 @@ const fileInputRef                = useRef(null);
       e.currentTarget.setPointerCapture(e.pointerId);
       swipeState.current[idx] = {
         startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,
-        hintLeft:  e.currentTarget.querySelector('.swipe-hint-left'),
-        hintRight: e.currentTarget.querySelector('.swipe-hint-right'),
+        hintLeft:  e.currentTarget.querySelector('.sb-row-hint-left'),
+        hintRight: e.currentTarget.querySelector('.sb-row-hint-right'),
       };
     },
     onPointerMove(e) {
@@ -990,190 +983,231 @@ const fileInputRef                = useRef(null);
         />
       )}
 
-      {/* ── Barra superior ───────────────────────────────────────────── */}
-      <div className="siembra-top-bar">
-        <h2 className="siembra-page-title">Registro de siembra</h2>
-        <Link to="/siembra/historial" className="btn btn-secondary">
-          <FiClock size={14} /> Historial
-        </Link>
-      </div>
-
       {/* ── Spinner de carga inicial ──────────────────────────────────── */}
       {loading && <div className="siembra-page-loading" />}
 
-
-      {/* ── Contenido principal ──────────────────────────────────────── */}
-      {!loading && (registros.length > 0 || showForm) && <>
-
-      {draftRestored && (
-        <div className="siembra-draft-banner">
-          <FiClock size={13} />
-          <span>Borrador restaurado — tienes cambios sin guardar.</span>
-          <button className="siembra-draft-discard" onClick={() => setDraftRestored(false)}>Cerrar</button>
-        </div>
-      )}
-
-      {/* ── Formulario de entrada ─────────────────────────────────────── */}
-      <div className="form-card siembra-form-card">
-        <div className="siembra-header-row">
-          <div className="siembra-fecha-group">
-            <label htmlFor="fecha">Fecha de siembra</label>
-            <div className="siembra-fecha-controls">
-              <input id="fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+      {!loading && (registros.length > 0 || showForm) && (
+        <form
+          className="sb-form"
+          noValidate
+          onSubmit={(e) => { e.preventDefault(); handleGuardar(); }}
+        >
+          <header className="sb-form-header">
+            <div className="sb-form-header-text">
+              <h2 className="sb-form-title">Registro de siembra</h2>
+              <p className="sb-form-subtitle">Captura las filas del día y guárdalas en lote.</p>
             </div>
-          </div>
-          <button className="btn btn-ia" style={{ alignSelf: 'flex-end', marginLeft: 'auto' }} onClick={() => fileInputRef.current?.click()} disabled={scanning || saving}>
-            <FiCpu size={15} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            style={{ display: 'none' }}
-            onChange={handleScanFile}
-          />
-        </div>
+            <Link to="/siembra/historial" className="sb-chip sb-chip--link">
+              <FiClock size={12} /> Historial
+            </Link>
+          </header>
 
-        {/* Tabla de filas */}
-        <div className="siembra-table-wrapper">
-          <table className="siembra-table siembra-table-entrada">
-            <thead>
-              <tr>
-                <th>Lote</th>
-                <th>Bloque</th>
-                <th>Plantas</th>
-                <th>Densidad<span className="th-hint">(pl/ha)</span></th>
-                <th>Área calc.</th>
-                <th>Material</th>
-                <th className="th-center">Cerrado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => {
-                const mat = materialFor(row.materialId);
-                return (
-                  <tr key={idx} {...getSwipeHandlers(idx)}>
-                    <td className="swipe-hint swipe-hint-left"  aria-hidden="true"><FiTrash2 size={18} /></td>
-                    <td className="swipe-hint swipe-hint-right" aria-hidden="true"><FiCopy   size={18} /></td>
-                    {/* Lote */}
-                    <td className="td-lote" data-col="lote" data-label="Lote">
+          {draftRestored && (
+            <div className="sb-draft-banner">
+              <FiClock size={12} />
+              <span>Borrador restaurado · tienes cambios sin guardar.</span>
+              <button type="button" className="sb-draft-discard" onClick={() => setDraftRestored(false)}>
+                Cerrar
+              </button>
+            </div>
+          )}
+
+          <section className="sb-form-section">
+            <div className="sb-form-section-header">
+              <span className="sb-form-section-num">01</span>
+              <h3>Fecha y origen</h3>
+            </div>
+            <div className="sb-form-list">
+              <div className="sb-form-row">
+                <label htmlFor="sb-fecha">Fecha de siembra</label>
+                <input
+                  id="sb-fecha"
+                  type="date"
+                  value={fecha}
+                  onChange={e => setFecha(e.target.value)}
+                />
+              </div>
+              <div className="sb-form-row sb-form-row--action">
+                <label>Escaneo con IA</label>
+                <div className="sb-form-row-action-content">
+                  <span className="sb-form-row-hint">Carga una foto del formulario y se extraen las filas.</span>
+                  <button
+                    type="button"
+                    className="sb-chip sb-chip--ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={scanning || saving}
+                  >
+                    <FiCpu size={12} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={handleScanFile}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="sb-form-section">
+            <div className="sb-form-section-header">
+              <span className="sb-form-section-num">02</span>
+              <h3>Filas de siembra</h3>
+              <span className="sb-form-section-count">{rows.length}</span>
+            </div>
+
+            <ul className="sb-row-list">
+              {rows.map((row, idx) => (
+                <li key={idx} className="sb-row-card" {...getSwipeHandlers(idx)}>
+                  <span className="sb-row-hint sb-row-hint-left" aria-hidden="true">
+                    <FiTrash2 size={16} />
+                  </span>
+                  <span className="sb-row-hint sb-row-hint-right" aria-hidden="true">
+                    <FiCopy size={16} />
+                  </span>
+
+                  <div className="sb-row-head">
+                    <div className="sb-row-num">
+                      <span className="sb-row-num-val">{idx + 1}</span>
+                      <span className="sb-row-num-suffix">fila</span>
+                    </div>
+                    <div className="sb-row-lote">
                       <LoteCombobox
                         value={row.loteId}
                         onChange={v => updateRow(idx, 'loteId', v)}
                         lotes={lotes}
                       />
-                    </td>
-
-                    {/* Bloque */}
-                    <td data-col="bloque" data-label="Bloque">
-                      <input className="td-input" placeholder="Ej: A" value={row.bloque}
-                        maxLength={4}
-                        onChange={e => updateRow(idx, 'bloque', e.target.value)} />
-                    </td>
-
-                    {/* Plantas */}
-                    <td data-col="plantas" data-label="Plantas">
-                      <input className={`td-input td-num${rowPlantasInvalid(row) ? ' td-input-error' : ''}`} type="number" min="0" max="199999" placeholder="0"
-                        value={row.plantas} onChange={e => updateRow(idx, 'plantas', e.target.value)} />
-                      {rowPlantasInvalid(row) && <span className="td-error-hint">0 – 199 999</span>}
-                    </td>
-
-                    {/* Densidad */}
-                    <td data-col="densidad" data-label="Densidad">
-                      <input className={`td-input td-num${rowDensidadInvalid(row) ? ' td-input-error' : ''}`} type="number" min="0" max="199999" placeholder="65000"
-                        value={row.densidad} onChange={e => updateRow(idx, 'densidad', e.target.value)} />
-                      {rowDensidadInvalid(row) && <span className="td-error-hint">0 – 199 999</span>}
-                    </td>
-
-                    {/* Área calculada */}
-                    <td className="td-calc" data-col="area" data-label="Área calc.">{areaCalc(row)}</td>
-
-                    {/* Material */}
-                    <td className="td-mat" data-col="mat" data-label="Material">
-                      <select
-                        className="td-select"
-                        value={row.materialId}
-                        onChange={e => {
-                          if (e.target.value === '__nuevo__') {
-                            setMatModal({ idx, nombre: '', rango: '', variedad: '' });
-                          } else {
-                            updateRow(idx, 'materialId', e.target.value);
-                          }
-                        }}
+                    </div>
+                    <div className="sb-row-actions">
+                      <button
+                        type="button"
+                        className="sb-row-icon-btn"
+                        title="Duplicar fila"
+                        onClick={() => setRows(prev => { const next = [...prev]; next.splice(idx + 1, 0, { ...prev[idx], bloque: '', cerrado: false }); return next; })}
                       >
-                        <option value="">-- Material --</option>
-                        {materiales.map(m => {
-                          const extra = [m.rangoPesos, m.variedad].filter(Boolean).join(' · ');
-                          return <option key={m.id} value={m.id}>{m.nombre}{extra ? ` — ${extra}` : ''}</option>;
-                        })}
-                        <option value="__nuevo__">＋ Nuevo material</option>
-                      </select>
-                    </td>
+                        <FiCopy size={14} />
+                      </button>
+                      {rows.length > 1 && (
+                        <button
+                          type="button"
+                          className="sb-row-icon-btn sb-row-icon-btn--danger"
+                          title="Eliminar fila"
+                          onClick={() => removeRow(idx)}
+                        >
+                          <FiTrash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                    {/* Cerrado */}
-                    <td className="td-center" data-col="cerrado" data-label="Cerrado">
-                      <input type="checkbox" checked={row.cerrado}
+                  <div className="sb-row-grid">
+                    <div className="sb-row-field">
+                      <label>Bloque</label>
+                      <input
+                        className="sb-row-input"
+                        placeholder="A"
+                        value={row.bloque}
+                        maxLength={4}
+                        onChange={e => updateRow(idx, 'bloque', e.target.value)}
+                      />
+                    </div>
+                    <div className="sb-row-field">
+                      <label>Plantas</label>
+                      <input
+                        className={`sb-row-input sb-row-input--num${rowPlantasInvalid(row) ? ' sb-row-input--error' : ''}`}
+                        type="number"
+                        min="0"
+                        max="199999"
+                        placeholder="0"
+                        value={row.plantas}
+                        onChange={e => updateRow(idx, 'plantas', e.target.value)}
+                      />
+                      {rowPlantasInvalid(row) && <span className="sb-row-error">0 – 199 999</span>}
+                    </div>
+                    <div className="sb-row-field">
+                      <label>Densidad <span className="sb-row-hint-text">pl/ha</span></label>
+                      <input
+                        className={`sb-row-input sb-row-input--num${rowDensidadInvalid(row) ? ' sb-row-input--error' : ''}`}
+                        type="number"
+                        min="0"
+                        max="199999"
+                        placeholder="65000"
+                        value={row.densidad}
+                        onChange={e => updateRow(idx, 'densidad', e.target.value)}
+                      />
+                      {rowDensidadInvalid(row) && <span className="sb-row-error">0 – 199 999</span>}
+                    </div>
+                    <div className="sb-row-field sb-row-field--readonly">
+                      <label>Área</label>
+                      <div className="sb-row-area">{areaCalc(row)}</div>
+                    </div>
+                  </div>
+
+                  <div className="sb-row-foot">
+                    <select
+                      className="sb-chip sb-chip--material"
+                      value={row.materialId}
+                      onChange={e => {
+                        if (e.target.value === '__nuevo__') {
+                          setMatModal({ idx, nombre: '', rango: '', variedad: '' });
+                        } else {
+                          updateRow(idx, 'materialId', e.target.value);
+                        }
+                      }}
+                      aria-label="Material"
+                    >
+                      <option value="">Material</option>
+                      {materiales.map(m => {
+                        const extra = [m.rangoPesos, m.variedad].filter(Boolean).join(' · ');
+                        return <option key={m.id} value={m.id}>{m.nombre}{extra ? ` — ${extra}` : ''}</option>;
+                      })}
+                      <option value="__nuevo__">+ Nuevo material</option>
+                    </select>
+                    <label
+                      className={`sb-toggle${!Number(row.plantas) ? ' sb-toggle--disabled' : ''}${row.cerrado ? ' sb-toggle--on' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={row.cerrado}
                         disabled={!Number(row.plantas)}
-                        onChange={e => handleCerradoChange(idx, e.target.checked)} />
-                    </td>
+                        onChange={e => handleCerradoChange(idx, e.target.checked)}
+                      />
+                      <span className="sb-toggle-track"><span className="sb-toggle-thumb" /></span>
+                      <span className="sb-toggle-label">Cerrado</span>
+                    </label>
+                  </div>
+                </li>
+              ))}
+            </ul>
 
-                    {/* Acciones de fila */}
-                    <td data-col="del">
-                      {/* Desktop: duplicar + eliminar */}
-                      <div className="row-actions-desktop">
-                        <button className="sm-btn-icon" title="Duplicar fila"
-                          onClick={() => setRows(prev => { const next = [...prev]; next.splice(idx + 1, 0, { ...prev[idx], bloque: '', cerrado: false }); return next; })}>
-                          <FiCopy size={14} />
-                        </button>
-                        {rows.length > 1 && (
-                          <button className="sm-btn-icon sm-btn-danger" title="Eliminar fila" onClick={() => removeRow(idx)}>
-                            <FiTrash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                      {/* Mobile: menú ⋮ */}
-                      <div className="row-menu-wrap" onPointerDown={e => e.stopPropagation()}>
-                        <button className="row-menu-btn" onClick={() => setRowMenu(rowMenu === idx ? null : idx)}>
-                          <FiMoreVertical size={16} />
-                        </button>
-                        {rowMenu === idx && (
-                          <div className="row-menu-dropdown">
-                            <button className="row-menu-item" onClick={() => { setRows(prev => { const next = [...prev]; next.splice(idx + 1, 0, { ...prev[idx], bloque: '', cerrado: false }); return next; }); setRowMenu(null); }}>
-                              <FiCopy size={13} /> Duplicar
-                            </button>
-                            {rows.length > 1 && (
-                              <button className="row-menu-item row-menu-item-danger" onClick={() => { removeRow(idx); setRowMenu(null); }}>
-                                <FiTrash2 size={13} /> Eliminar
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            <button
+              type="button"
+              onClick={addRow}
+              disabled={scanning}
+              className="sb-add-row"
+            >
+              <FiPlus size={14} />
+              Agregar fila
+            </button>
+          </section>
 
-        <div className="siembra-form-actions">
-          <button className="btn btn-secondary" onClick={addRow} disabled={scanning}>
-            <FiPlus size={15} /> Agregar fila
-          </button>
-          <button className="btn btn-primary" onClick={handleGuardar} disabled={saving || scanning}>
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-          <Link to="/siembra/materiales" className="siembra-materiales-link" style={{ marginLeft: 'auto' }}>
-            <FiSettings size={11} />
-            Gestionar materiales
-          </Link>
-        </div>
-      </div>
-
-      </>}
+          <footer className="sb-form-actions">
+            <Link to="/siembra/materiales" className="sb-btn-text-link">
+              <FiSettings size={11} /> Gestionar materiales
+            </Link>
+            <button
+              type="submit"
+              className="sb-btn-pill"
+              disabled={saving || scanning}
+            >
+              {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </footer>
+        </form>
+      )}
     </div>
   );
 }
