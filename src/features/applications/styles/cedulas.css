@@ -2100,3 +2100,198 @@
   color: rgba(230, 242, 255, 0.45);
   margin: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CEDULAS APLICACION — page-specific card layout (consume .aur-* primitivas)
+   Las cards de cédula son piezas únicas del dominio applications. Las
+   primitivas comunes (sheet, section, chip, pill, badge, modal) vienen de
+   aurora.css. Aquí solo viven la composición y el split-layout multi-lote.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ca-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  color: var(--aur-text-2);
+}
+.ca-empty > svg {
+  color: var(--aur-text-3);
+}
+.ca-empty > p {
+  font-size: 14px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* Lista de cédulas */
+.ca-cedula-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Card de cédula */
+.ca-cedula-card {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ca-cedula-card:hover {
+  border-color: var(--aur-divider-2);
+}
+
+/* Estados visuales */
+.ca-cedula-card.is-overdue {
+  background: rgba(204, 51, 255, 0.04);
+  box-shadow: inset 2px 0 0 var(--aur-danger);
+}
+.ca-cedula-card.is-manual {
+  /* sutil ribbon magenta a la izquierda para tareas manuales */
+  background: linear-gradient(to right, rgba(204, 51, 255, 0.04), transparent 200px), var(--aur-bg-input);
+}
+.ca-cedula-card.is-overdue.is-manual {
+  background: rgba(204, 51, 255, 0.05);
+}
+
+/* Header del card: info + status badges */
+.ca-cedula-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ca-cedula-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ca-cedula-name {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+  margin: 0 0 4px 0;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ca-cedula-meta {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  margin: 0;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ca-cedula-consecutivo {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--aur-text-3);
+  background: var(--aur-bg-hover);
+  padding: 1px 8px;
+  border-radius: var(--aur-r-pill);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ca-cedula-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ca-cedula-due {
+  font-size: 12px;
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Acciones del card */
+.ca-cedula-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ── Split (multi-lote) ─────────────────────────────────────────────────── */
+.ca-split-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--aur-divider);
+  padding-top: 10px;
+}
+
+.ca-split-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--aur-bg-hover);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.ca-split-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ca-split-lote {
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+
+.ca-split-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .ca-cedula-head {
+    flex-direction: column;
+  }
+  .ca-cedula-status {
+    justify-content: flex-start;
+  }
+  .ca-cedula-actions {
+    justify-content: flex-start;
+  }
+  .ca-split-row {
+    align-items: flex-start;
+  }
+  .ca-split-actions {
+    width: 100%;
+  }
+}
