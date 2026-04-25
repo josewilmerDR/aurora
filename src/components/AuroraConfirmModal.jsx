@@ -5,8 +5,11 @@ import { FiAlertTriangle } from 'react-icons/fi';
  * AuroraConfirmModal — confirmation dialog usando primitivas .aur-modal-*.
  *
  * Reemplaza:
- *   - El componente local `ConfirmModal` que vive en SiembraHistorial.jsx y
- *     SiembraMateriales.jsx (duplicado).
+ *   - El componente compartido viejo `src/components/ConfirmModal.jsx`
+ *     (ya borrado; ConfirmModal.css sobrevive como utility .modal-*
+ *     usada por algunos form-modals no-confirm — migrarlo es follow-up).
+ *   - Las copias locales que vivían en SiembraHistorial.jsx,
+ *     SiembraMateriales.jsx y Siembra.jsx (.am-* / .param-modal-*).
  *   - Cualquier `window.confirm()` nativo en el codebase.
  *
  * Props:
@@ -16,6 +19,9 @@ import { FiAlertTriangle } from 'react-icons/fi';
  *   - cancelLabel    string  · texto del botón cancelar (default: "Cancelar")
  *   - danger         bool    · estilo destructivo (icono + pill magenta)
  *   - icon           ReactNode · icono custom (default: FiAlertTriangle)
+ *   - loading        bool    · deshabilita ambos botones y backdrop, y
+ *                              reemplaza el label de confirmar por loadingLabel
+ *   - loadingLabel   string  · texto del confirmar mientras loading (default: "Procesando…")
  *   - onConfirm      fn      · callback al confirmar
  *   - onCancel       fn      · callback al cancelar (también al click fuera)
  *
@@ -25,6 +31,7 @@ import { FiAlertTriangle } from 'react-icons/fi';
  *     title="¿Eliminar registro?"
  *     body="Esta acción no se puede deshacer."
  *     confirmLabel="Eliminar"
+ *     loading={deleting}
  *     onConfirm={() => doDelete(id)}
  *     onCancel={() => setConfirm(null)}
  *   />
@@ -36,14 +43,21 @@ export default function AuroraConfirmModal({
   cancelLabel = 'Cancelar',
   danger = false,
   icon,
+  loading = false,
+  loadingLabel = 'Procesando…',
   onConfirm,
   onCancel,
 }) {
   const iconClass = `aur-modal-icon${danger ? ' aur-modal-icon--danger' : ' aur-modal-icon--warn'}`;
   const pillClass = `aur-btn-pill${danger ? ' aur-btn-pill--danger' : ''}`;
 
+  const handleBackdrop = () => {
+    if (loading) return;
+    onCancel?.();
+  };
+
   return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={onCancel}>
+    <div className="aur-modal-backdrop" onPointerDown={handleBackdrop}>
       <div className="aur-modal" onPointerDown={(e) => e.stopPropagation()}>
         <div className="aur-modal-header">
           <span className={iconClass}>
@@ -53,11 +67,21 @@ export default function AuroraConfirmModal({
         </div>
         {body && <p className="aur-modal-body">{body}</p>}
         <div className="aur-modal-actions">
-          <button type="button" className="aur-btn-text" onClick={onCancel}>
+          <button
+            type="button"
+            className="aur-btn-text"
+            onClick={onCancel}
+            disabled={loading}
+          >
             {cancelLabel}
           </button>
-          <button type="button" className={pillClass} onClick={onConfirm}>
-            {confirmLabel}
+          <button
+            type="button"
+            className={pillClass}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? loadingLabel : confirmLabel}
           </button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FiPlus, FiDollarSign, FiChevronRight } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import BudgetForm from '../components/BudgetForm';
 import BudgetExecutionPanel from '../components/BudgetExecutionPanel';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -229,11 +229,13 @@ function Budgets() {
       </div>
 
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar presupuesto"
-          message="Esta acción no se puede deshacer."
+          body="Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
           onConfirm={handleDelete}
-          onCancel={() => !deleting && setConfirmDelete(null)}
+          onCancel={() => setConfirmDelete(null)}
           loading={deleting}
         />
       )}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiBookOpen, FiCpu, FiCheck, FiX, FiClock, FiLayers, FiRefreshCw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
@@ -232,18 +232,18 @@ function AnnualPlan() {
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmActivate && (
-        <ConfirmModal
+        <AuroraConfirmModal
           title="Activar versión"
-          message={`Se activará la versión ${confirmActivate.version}. La versión activa actual quedará como 'superseded' (no se elimina).`}
+          body={`Se activará la versión ${confirmActivate.version}. La versión activa actual quedará como 'superseded' (no se elimina).`}
           confirmLabel="Activar"
           onConfirm={() => activate(confirmActivate)}
           onCancel={() => setConfirmActivate(null)}
         />
       )}
       {confirmCancel && (
-        <ConfirmModal
+        <AuroraConfirmModal
           title="Cancelar activación programada"
-          message={`La versión ${confirmCancel.version} pasará a 'cancelled' y no se activará. Podrás generar una nueva propuesta en su lugar.`}
+          body={`La versión ${confirmCancel.version} pasará a 'cancelled' y no se activará. Podrás generar una nueva propuesta en su lugar.`}
           confirmLabel="Cancelar activación"
           onConfirm={() => cancelScheduled(confirmCancel)}
           onCancel={() => setConfirmCancel(null)}

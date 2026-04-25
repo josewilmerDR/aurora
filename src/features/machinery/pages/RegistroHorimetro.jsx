@@ -6,7 +6,7 @@ import {
   FiCamera, FiUpload, FiCpu, FiSearch,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import '../styles/horimetro.css';
@@ -779,18 +779,18 @@ function RegistroHorimetro() {
     <div className="hor-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {rangeConfirm && (
-        <ConfirmModal
+        <AuroraConfirmModal
           title={rangeConfirm.title}
-          message={rangeConfirm.message}
+          body={rangeConfirm.message}
           confirmLabel="Sí, es correcto"
           onConfirm={rangeConfirm.onConfirm}
           onCancel={() => setRangeConfirm(null)}
         />
       )}
       {horimetroConfirm && (
-        <ConfirmModal
+        <AuroraConfirmModal
           title="Horímetro inicial distinto al anterior"
-          message={`El horímetro inicial ingresado (${parseFloat(form.horimetroInicial)}) es distinto al último horímetro final registrado para este activo (${lastHorimetroFinal}). ¿Desea continuar de todas formas?`}
+          body={`El horímetro inicial ingresado (${parseFloat(form.horimetroInicial)}) es distinto al último horímetro final registrado para este activo (${lastHorimetroFinal}). ¿Desea continuar de todas formas?`}
           confirmLabel="Aceptar"
           onConfirm={horimetroConfirm.onConfirm}
           onCancel={() => setHorimetroConfirm(null)}

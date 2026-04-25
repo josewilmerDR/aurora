@@ -8,7 +8,7 @@ import {
   FiFilter, FiSliders,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/bodega-generica.css';
 
@@ -1109,9 +1109,11 @@ function BodegaGenerica() {
       )}
 
       {confirmDel && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar producto"
-          message={`¿Eliminar "${confirmDel.label}"? Solo es posible si no tiene movimientos registrados.`}
+          body={`¿Eliminar "${confirmDel.label}"? Solo es posible si no tiene movimientos registrados.`}
+          confirmLabel="Eliminar"
           onConfirm={() => { handleDeleteItem(confirmDel.id); setConfirmDel(null); }}
           onCancel={() => setConfirmDel(null)}
         />

@@ -5,7 +5,7 @@ import {
   FiMoreVertical, FiEdit2, FiTrash2, FiPackage,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import IncomeForm from '../components/IncomeForm';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
@@ -496,9 +496,11 @@ function IncomeRecords() {
       })()}
 
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar ingreso"
-          message="Esta acción no se puede deshacer."
+          body="Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
         />

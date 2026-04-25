@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Module helpers ───────────────────────────────────────────────────────────
@@ -595,13 +595,15 @@ function LoteManagement() {
     <div className={`lote-page${selectedLote && view === 'hub' ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title={`¿Eliminar "${confirmModal.loteName}"?`}
-          message={
+          body={
             confirmModal.taskCount > 0
               ? `Esta acción eliminará permanentemente el lote y sus ${confirmModal.taskCount} tarea(s) programada(s). No se puede deshacer.`
               : 'Este lote no tiene tareas asociadas. Solo se eliminará el registro del lote. No se puede deshacer.'
           }
+          confirmLabel="Eliminar"
           onConfirm={handleDeleteConfirm}
           onCancel={() => setConfirmModal(null)}
           loading={deleting}
