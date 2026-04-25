@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FiBox, FiTool, FiTruck, FiDroplet, FiPackage, FiEdit2, FiTrash2, FiPlus, FiX, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/bodegas-admin.css';
 
@@ -204,9 +204,11 @@ function BodegasAdmin() {
       )}
 
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar bodega"
-          message={`¿Eliminar la bodega "${confirmDelete.nombre}"? Solo es posible si no tiene productos registrados.`}
+          body={`¿Eliminar la bodega "${confirmDelete.nombre}"? Solo es posible si no tiene productos registrados.`}
+          confirmLabel="Eliminar"
           onConfirm={() => { handleDelete(confirmDelete); setConfirmDelete(null); }}
           onCancel={() => setConfirmDelete(null)}
         />

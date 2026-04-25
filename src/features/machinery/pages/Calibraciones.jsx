@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FiDroplet, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSliders } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/calibraciones.css';
 
@@ -438,9 +438,11 @@ function Calibraciones() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar calibración"
-          message={`¿Eliminar la calibración "${confirmDelete.nombre}"? Esta acción no se puede deshacer.`}
+          body={`¿Eliminar la calibración "${confirmDelete.nombre}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
           onConfirm={confirmDoDelete}
           onCancel={() => setConfirmDelete(null)}
           loading={saving}

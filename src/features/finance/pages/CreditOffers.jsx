@@ -6,7 +6,7 @@ import {
   FiMoreVertical, FiEdit2, FiTrash2, FiPackage, FiArrowLeft,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import CreditOfferForm from '../components/CreditOfferForm';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
@@ -496,9 +496,11 @@ function CreditOffers() {
       })()}
 
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar oferta"
-          message="Esta acción no se puede deshacer. Las simulaciones existentes que referencien esta oferta quedarán huérfanas."
+          body="Esta acción no se puede deshacer. Las simulaciones existentes que referencien esta oferta quedarán huérfanas."
+          confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
         />

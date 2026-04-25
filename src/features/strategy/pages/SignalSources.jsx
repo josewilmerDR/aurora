@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiRadio, FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiPlay, FiCloudOff, FiCloud } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
@@ -400,9 +400,11 @@ function SignalSources() {
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar fuente"
-          message={`Se eliminará "${confirmDelete.name}" y sus próximas ingestas. Las observaciones ya registradas quedan en el historial.`}
+          body={`Se eliminará "${confirmDelete.name}" y sus próximas ingestas. Las observaciones ya registradas quedan en el historial.`}
+          confirmLabel="Eliminar"
           onConfirm={() => handleDelete(confirmDelete.id)}
           onCancel={() => setConfirmDelete(null)}
         />

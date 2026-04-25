@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiShield, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
@@ -237,9 +237,11 @@ function RotationConstraints() {
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar restricción"
-          message={`Se eliminará la restricción para "${confirmDelete.cultivo}".`}
+          body={`Se eliminará la restricción para "${confirmDelete.cultivo}".`}
+          confirmLabel="Eliminar"
           onConfirm={() => handleDelete(confirmDelete.id)}
           onCancel={() => setConfirmDelete(null)}
         />

@@ -5,7 +5,7 @@ import {
   FiMoreVertical, FiEdit2, FiTrash2, FiPackage,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import BuyerForm from '../components/BuyerForm';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../../planting/styles/siembra.css';
@@ -477,9 +477,11 @@ function BuyersList() {
       })()}
 
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title="Eliminar comprador"
-          message="Esta acción no se puede deshacer."
+          body="Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
         />

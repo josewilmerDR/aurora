@@ -5,7 +5,7 @@ import { useUser } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../styles/hr.css';
 import '../styles/unit-payroll.css';
 
@@ -1018,9 +1018,9 @@ function UnitPayroll() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {showAprobarConfirm && (
-        <ConfirmModal
+        <AuroraConfirmModal
           title="Aprobar planilla"
-          message="Esta planilla será aprobada para pago. ¿Desea continuar?"
+          body="Esta planilla será aprobada para pago. ¿Desea continuar?"
           confirmLabel="Aprobar"
           loadingLabel="Aprobando…"
           loading={guardando}

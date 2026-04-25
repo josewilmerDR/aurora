@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -865,9 +865,11 @@ function GrupoManagement() {
         />
       )}
       {confirmModal && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title={`¿Eliminar "${confirmModal.grupoName}"?`}
-          message="Al eliminar este grupo, sus bloques quedarán libres y podrán asignarse a otros grupos. Ten en cuenta que los registros históricos (cédulas de aplicación y actividades completadas) que hacen referencia a este grupo seguirán mostrando su nombre. Esta acción no se puede deshacer."
+          body="Al eliminar este grupo, sus bloques quedarán libres y podrán asignarse a otros grupos. Ten en cuenta que los registros históricos (cédulas de aplicación y actividades completadas) que hacen referencia a este grupo seguirán mostrando su nombre. Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
           onConfirm={handleDeleteConfirm}
           onCancel={() => setConfirmModal(null)}
           loading={deleting}

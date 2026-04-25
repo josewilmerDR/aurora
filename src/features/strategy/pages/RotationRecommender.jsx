@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiCompass, FiCheck, FiX, FiAlertTriangle, FiShield, FiCpu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
@@ -317,9 +317,9 @@ function RotationRecommender() {
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmAccept && (
-        <ConfirmModal
+        <AuroraConfirmModal
           title="Ejecutar recomendación"
-          message={`Se crearán ${confirmAccept.propuestas?.length || 0} siembras programadas y quedarán registradas como acciones de Aurora Copilot (reversibles).`}
+          body={`Se crearán ${confirmAccept.propuestas?.length || 0} siembras programadas y quedarán registradas como acciones de Aurora Copilot (reversibles).`}
           confirmLabel="Sí, ejecutar"
           onConfirm={() => acceptRecommendation(confirmAccept)}
           onCancel={() => setConfirmAccept(null)}

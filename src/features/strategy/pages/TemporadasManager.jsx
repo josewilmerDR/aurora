@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiCalendar, FiCompass, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import ConfirmModal from '../../../components/ConfirmModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
@@ -313,13 +313,15 @@ function TemporadasManager() {
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmDelete && (
-        <ConfirmModal
+        <AuroraConfirmModal
+          danger
           title={confirmDelete.autoDetected ? 'Eliminar temporada' : 'Archivar temporada'}
-          message={
+          body={
             confirmDelete.autoDetected
               ? `Se eliminará "${confirmDelete.nombre}". Puedes volver a detectarla cuando quieras.`
               : `Se archivará "${confirmDelete.nombre}" (preserva el historial de decisiones que la referenciaron).`
           }
+          confirmLabel={confirmDelete.autoDetected ? 'Eliminar' : 'Archivar'}
           onConfirm={() => handleDelete(confirmDelete.id)}
           onCancel={() => setConfirmDelete(null)}
         />
