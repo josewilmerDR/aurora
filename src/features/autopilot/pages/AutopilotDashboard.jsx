@@ -303,7 +303,22 @@ function ActionParamsSummary({ type, params }) {
   );
 }
 
-function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRollback, canSeeReasoning, feedback, onFeedback }) {
+// Returns null if the action can be acted on at the current level, or an
+// object { requiredMode, requiredLabel } when it was originated at a higher
+// level than current. 'command'-sourced actions are never level-locked
+// (commands are explicit user requests). Legacy actions without sourceMode
+// also pass through unlocked for backwards compat.
+const LEVEL_RANK = { off: 0, nivel1: 1, nivel2: 2, nivel3: 3 };
+const LEVEL_LABELS = { nivel1: 'Nivel 1', nivel2: 'Nivel 2', nivel3: 'Nivel 3' };
+function getActionLevelLock(sourceMode, currentMode) {
+  if (!sourceMode || sourceMode === 'command') return null;
+  const sourceRank = LEVEL_RANK[sourceMode] ?? 0;
+  const currentRank = LEVEL_RANK[currentMode] ?? 0;
+  if (sourceRank <= currentRank) return null;
+  return { requiredMode: sourceMode, requiredLabel: LEVEL_LABELS[sourceMode] || sourceMode };
+}
+
+function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRollback, canSeeReasoning, feedback, onFeedback, levelLock }) {
   const [confirming, setConfirming] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -361,8 +376,8 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
         </div>
       )}
 
-      {/* Botones aprobar/rechazar */}
-      {isActionable && !confirming && (
+      {/* Botones aprobar/rechazar (o aviso de nivel insuficiente) */}
+      {isActionable && !confirming && !levelLock && (
         <div className="ap-action-buttons">
           <button className="ap-action-btn ap-action-btn--approve" onClick={() => setConfirming('approve')}>
             <FiCheck size={13} /> Aprobar y Ejecutar
@@ -370,6 +385,21 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
           <button className="ap-action-btn ap-action-btn--reject" onClick={() => setConfirming('reject')}>
             <FiX size={13} /> Rechazar
           </button>
+        </div>
+      )}
+      {isActionable && !confirming && levelLock && (
+        <div className="ap-action-locked">
+          <div className="ap-action-buttons">
+            <button className="ap-action-btn ap-action-btn--approve" disabled>
+              <FiCheck size={13} /> Aprobar y Ejecutar
+            </button>
+            <button className="ap-action-btn ap-action-btn--reject" disabled>
+              <FiX size={13} /> Rechazar
+            </button>
+          </div>
+          <p className="ap-action-locked-notice">
+            <FiInfo size={12} /> Activa <strong>{levelLock.requiredLabel}</strong> para poder aprobar o rechazar esta propuesta.
+          </p>
         </div>
       )}
 
@@ -574,9 +604,12 @@ export default function AutopilotDashboard() {
     return () => window.removeEventListener('aurora-autopilot-changed', handler);
   }, []);
 
-  // Cargar acciones propuestas cuando el modo es nivel2
+  // Cargar acciones propuestas. Antes solo se cargaba en N2/N3, lo que hacía
+  // que al cambiar de nivel las acciones desaparecieran de la UI aunque
+  // siguieran existiendo en la DB. Ahora se cargan siempre y la UI marca
+  // como "bloqueadas" las que requieren un nivel superior al actual.
   useEffect(() => {
-    if (!config || (config.mode !== 'nivel2' && config.mode !== 'nivel3')) return;
+    if (!config) return;
     let cancelled = false;
     async function loadActions() {
       try {
@@ -860,8 +893,8 @@ export default function AutopilotDashboard() {
         </div>
       )}
 
-      {/* ── Acciones Propuestas (nivel2) ── */}
-      {mode === 'nivel2' && proposedActions.length > 0 && (
+      {/* ── Acciones Propuestas (todas las que no son escaladas N3) ── */}
+      {proposedActions.filter(a => !a.escalated).length > 0 && (
         <div className="ap-actions-section">
           <h2 className="ap-actions-title">
             <FiZap size={14} /> Acciones Propuestas
@@ -870,7 +903,7 @@ export default function AutopilotDashboard() {
             )}
           </h2>
           {['alta', 'media', 'baja'].map(prioridad => {
-            const group = actionsByPriority(prioridad);
+            const group = actionsByPriority(prioridad).filter(a => !a.escalated);
             if (!group.length) return null;
             const PrioIcon = PRIORIDAD_ICONS[prioridad];
             return (
@@ -889,6 +922,7 @@ export default function AutopilotDashboard() {
                     canSeeReasoning={canConfig}
                     feedback={feedbackMap[action.id]}
                     onFeedback={handleFeedback}
+                    levelLock={getActionLevelLock(action.sourceMode, mode)}
                   />
                 ))}
               </div>
@@ -897,8 +931,8 @@ export default function AutopilotDashboard() {
         </div>
       )}
 
-      {/* ── Nivel 3: Acciones Ejecutadas ── */}
-      {mode === 'nivel3' && executedActions.length > 0 && (
+      {/* ── Acciones Ejecutadas (N3) ── */}
+      {executedActions.length > 0 && (
         <div className="ap-actions-section">
           <h2 className="ap-actions-title ap-actions-title--n3">
             <FiZap size={14} /> Acciones Ejecutadas
@@ -923,16 +957,16 @@ export default function AutopilotDashboard() {
         </div>
       )}
 
-      {/* ── Nivel 3: Acciones Escaladas ── */}
-      {mode === 'nivel3' && proposedActions.length > 0 && (
+      {/* ── Acciones Escaladas (propuestas con escalated=true, típicamente N3) ── */}
+      {proposedActions.filter(a => a.escalated).length > 0 && (
         <div className="ap-actions-section">
           <h2 className="ap-actions-title ap-actions-title--escalated">
             <FiAlertTriangle size={14} /> Acciones Escaladas
             <span className="ap-actions-count">
-              {proposedActions.filter(a => a.status === 'proposed').length} pendiente{proposedActions.filter(a => a.status === 'proposed').length !== 1 ? 's' : ''}
+              {proposedActions.filter(a => a.status === 'proposed' && a.escalated).length} pendiente{proposedActions.filter(a => a.status === 'proposed' && a.escalated).length !== 1 ? 's' : ''}
             </span>
           </h2>
-          {proposedActions.map(action => (
+          {proposedActions.filter(a => a.escalated).map(action => (
             <ActionCard
               key={action.id}
               action={action}
@@ -942,6 +976,7 @@ export default function AutopilotDashboard() {
               canSeeReasoning={canConfig}
               feedback={feedbackMap[action.id]}
               onFeedback={handleFeedback}
+              levelLock={getActionLevelLock(action.sourceMode, mode)}
             />
           ))}
         </div>
