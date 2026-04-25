@@ -484,3 +484,169 @@
   color: rgba(230, 242, 255, 0.45);
   margin: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HISTORIAL APLICACIONES — page-specific overrides on top of .aur-* primitives
+   El sheet, secciones, settings list, table, badge, chip, filter popover
+   vienen de aurora.css. Aquí solo viven los pedazos únicos de la página:
+   tabla muy ancha (41 columnas → min-width 3400px), helpers de celdas,
+   filas marcadas como cambiadas, y cell de observaciones con toggle.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ha-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  color: var(--aur-text-2);
+}
+.ha-empty > svg {
+  color: var(--aur-text-3);
+}
+.ha-empty > p {
+  font-size: 14px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.ha-count {
+  font-size: 12px;
+  color: var(--aur-text-3);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
+}
+
+/* ── Tabla ancha (override de .aur-table para 41 columnas) ──────────────── */
+.ha-table-wrap {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  overflow-x: auto;
+  overflow-y: visible;
+  margin: 0;
+}
+.ha-table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+.ha-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--aur-divider-2);
+  border-radius: 999px;
+}
+
+.ha-table {
+  min-width: 3400px;
+}
+.ha-table th,
+.ha-table td {
+  padding: 10px 12px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Primeras 2 columnas (consecutivo + estado) ligeramente destacadas */
+.ha-table .historial-th-group {
+  background: var(--aur-bg-hover);
+}
+
+/* Filas marcadas como cambiadas — left-border tinted en lugar de opacity */
+.historial-row-changed td:first-child {
+  box-shadow: inset 2px 0 0 var(--aur-accent);
+}
+
+/* Consecutivo */
+.historial-consecutivo {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.historial-cedula-link {
+  color: var(--aur-accent);
+  text-decoration: none;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.15s ease;
+}
+.historial-cedula-link:hover {
+  border-bottom-color: var(--aur-accent);
+}
+
+/* Helpers de celda */
+.ha-table .historial-td-nowrap {
+  white-space: nowrap;
+}
+.ha-table .historial-td-bloques {
+  max-width: 220px;
+  white-space: normal;
+  font-size: 12px;
+  color: var(--aur-text-2);
+  letter-spacing: -0.01em;
+}
+.ha-table .historial-td-producto {
+  max-width: 280px;
+  white-space: normal;
+  letter-spacing: -0.01em;
+}
+
+/* Cell de observaciones con toggle "ver más" */
+.historial-td-obs {
+  max-width: 320px;
+  vertical-align: top;
+}
+.historial-obs-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.historial-obs-text {
+  font-size: 12px;
+  color: var(--aur-text-2);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+.historial-obs-cell.is-expanded .historial-obs-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.historial-obs-toggle {
+  background: none;
+  border: none;
+  color: var(--aur-accent);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  align-self: flex-start;
+  letter-spacing: -0.01em;
+  transition: opacity 0.15s ease;
+}
+.historial-obs-toggle:hover {
+  opacity: 0.75;
+}
+
+/* Load more */
+.ha-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+/* Mobile: la tabla sigue requiriendo scroll horizontal — solo ajustamos padding */
+@media (max-width: 640px) {
+  .ha-table-wrap {
+    border-radius: 12px;
+  }
+  .ha-table th,
+  .ha-table td {
+    padding: 8px 10px;
+  }
+}

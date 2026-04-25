@@ -23,9 +23,9 @@ const STATUS_LABEL = {
 };
 
 const STATUS_CLASS = {
-  pendiente:         'badge-yellow',
-  en_transito:       'badge-blue',
-  aplicada_en_campo: 'badge-green',
+  pendiente:         'aur-badge--yellow',
+  en_transito:       'aur-badge--blue',
+  aplicada_en_campo: 'aur-badge--green',
 };
 
 const fmt = (iso) => {
@@ -48,11 +48,11 @@ const fmtCosto = (v, moneda) => {
 };
 
 const CAMBIO_BADGE_CLASS = {
-  'Sustitución':     'badge-blue',
-  'Ajuste de dosis': 'badge-yellow',
-  'Añadido':         'badge-green',
-  'Retirado':        'badge-gray',
-  'Otro':            'badge-violet',
+  'Sustitución':     'aur-badge--blue',
+  'Ajuste de dosis': 'aur-badge--yellow',
+  'Añadido':         'aur-badge--green',
+  'Retirado':        'aur-badge--gray',
+  'Otro':            'aur-badge--violet',
 };
 
 // Character threshold: if the text is longer, the "see more" button appears.
@@ -323,14 +323,20 @@ function HistorialAplicaciones() {
     const hasFilter = !!(colFilters[field]?.trim());
     return (
       <th
-        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}${className ? ' ' + className : ''}`}
+        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}${className ? ' ' + className : ''}`}
         onClick={() => handleThSort(field)}
         onContextMenu={e => openFilter(e, field)}
       >
-        {children}
-        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`} onClick={e => openFilter(e, field)} title="Filtrar columna (o click derecho)">
-          <FiFilter size={10} />
+        <span className="aur-th-content">
+          {children}
+          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+          <span
+            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
+            onClick={e => openFilter(e, field)}
+            title="Filtrar columna (o click derecho)"
+          >
+            <FiFilter size={10} />
+          </span>
         </span>
       </th>
     );
@@ -345,31 +351,49 @@ function HistorialAplicaciones() {
 
       {/* ── Estado vacío ── */}
       {!loading && cedulas.length === 0 && (
-        <div className="historial-empty-state">
-          <FiPackage size={36} />
-          <p>No hay cédulas aplicadas aún. Crea la primera en Cédulas de Aplicación.</p>
-          <Link to="/aplicaciones/cedulas" state={{ openModal: true }} className="btn btn-primary">
-            Ir a Cédulas de Aplicación
-          </Link>
+        <div className="aur-sheet aur-sheet--empty">
+          <div className="ha-empty">
+            <FiPackage size={36} />
+            <p>No hay cédulas aplicadas aún. Crea la primera en Cédulas de Aplicación.</p>
+            <Link to="/aplicaciones/cedulas" state={{ openModal: true }} className="aur-btn-pill">
+              Ir a Cédulas de Aplicación
+            </Link>
+          </div>
         </div>
       )}
 
       {/* ── Contenido principal ── */}
       {!loading && cedulas.length > 0 && (
-    <div className="historial-wrap">
+    <div className="aur-sheet">
 
-      <button className="historial-back-btn" onClick={() => navigate(-1)}>
-        <FiArrowLeft size={15} /> Volver
-      </button>
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title">Historial de aplicaciones</h2>
+          <p className="aur-sheet-subtitle">Cédulas aplicadas con detalle por producto, cambios respecto al plan original y condiciones de campo.</p>
+        </div>
+        <button type="button" className="aur-chip aur-chip--ghost" onClick={() => navigate(-1)}>
+          <FiArrowLeft size={12} /> Volver
+        </button>
+      </header>
 
-      {/* ── Panel de controles ── */}
-      <div className="historial-controls">
-
-        <div className="historial-control-block">
-          <div className="historial-control-row">
-            <label className="historial-ctrl-label">Filtrar por</label>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">01</span>
+          <h3>Filtros</h3>
+          {(filterFrom || filterTo) && (
+            <div className="aur-section-actions">
+              <button type="button" className="aur-chip aur-chip--ghost" onClick={clearFilters}>
+                <FiX size={11} /> Limpiar periodo
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="ha-field">Filtrar por</label>
             <select
-              className="historial-select"
+              id="ha-field"
+              className="aur-select"
               value={filterDateField}
               onChange={e => { setFilterDateField(e.target.value); setPage(1); }}
             >
@@ -377,52 +401,60 @@ function HistorialAplicaciones() {
                 <option key={f.value} value={f.value}>{f.label}</option>
               ))}
             </select>
-
-            <label className="historial-ctrl-label">De</label>
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="ha-from">Desde</label>
             <input
+              id="ha-from"
               type="date"
-              className="historial-date-input"
+              className="aur-input"
               value={filterFrom}
               onChange={e => { setFilterFrom(e.target.value); setPage(1); }}
             />
-
-            <label className="historial-ctrl-label">A</label>
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="ha-to">Hasta</label>
             <input
+              id="ha-to"
               type="date"
-              className="historial-date-input"
+              className="aur-input"
               value={filterTo}
               onChange={e => { setFilterTo(e.target.value); setPage(1); }}
             />
-
-            {(filterFrom || filterTo) && (
-              <button className="btn btn-secondary historial-clear-btn" onClick={clearFilters}>
-                Limpiar
-              </button>
-            )}
           </div>
         </div>
+      </section>
 
-      </div>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">02</span>
+          <h3>Historial</h3>
+          <span className="aur-section-count">{sorted.length}</span>
+          {Object.values(colFilters).some(v => v.trim()) && (
+            <div className="aur-section-actions">
+              <button
+                type="button"
+                className="aur-chip aur-chip--ghost"
+                onClick={() => { setColFilters({}); setPage(1); }}
+              >
+                <FiX size={11} /> Limpiar filtros de columna
+              </button>
+            </div>
+          )}
+        </div>
 
-      {/* ── Contador + aviso filtros de columna ── */}
-      <div className="historial-count">
-        {sorted.length === 0
-          ? 'Sin resultados para los filtros aplicados.'
-          : `Mostrando ${visible.length} de ${sorted.length} fila${sorted.length !== 1 ? 's' : ''} (${cedulas.length} cédula${cedulas.length !== 1 ? 's' : ''})`
-        }
-        {Object.values(colFilters).some(v => v.trim()) && (
-          <button className="historial-clear-col-filters" onClick={() => { setColFilters({}); setPage(1); }}>
-            <FiX size={11} />
-            Limpiar filtros de columna
-          </button>
-        )}
-      </div>
+        <div className="ha-count">
+          {sorted.length === 0
+            ? 'Sin resultados para los filtros aplicados.'
+            : `Mostrando ${visible.length} de ${sorted.length} fila${sorted.length !== 1 ? 's' : ''} · ${cedulas.length} cédula${cedulas.length !== 1 ? 's' : ''}`
+          }
+        </div>
 
       {/* ── Tabla ── */}
       {sorted.length > 0 && (
         <>
-          <div className="historial-table-wrap">
-            <table className="historial-table historial-table--wide">
+          <div className="ha-table-wrap">
+            <table className="aur-table ha-table">
               <thead>
                 <tr>
                   {/* Identificación */}
@@ -499,7 +531,7 @@ function HistorialAplicaciones() {
                           : row.consecutivo}
                       </td>
                       <td>
-                        <span className={`historial-badge ${STATUS_CLASS[row.status] || ''}`}>
+                        <span className={`aur-badge ${STATUS_CLASS[row.status] || ''}`}>
                           {STATUS_LABEL[row.status] || row.status}
                         </span>
                       </td>
@@ -536,7 +568,7 @@ function HistorialAplicaciones() {
                       {/* Cambios respecto al plan original */}
                       <td>
                         {row._prodCambio
-                          ? <span className={`historial-badge ${cambioClass}`}>{row._prodCambio}</span>
+                          ? <span className={`aur-badge ${cambioClass}`}>{row._prodCambio}</span>
                           : '—'}
                       </td>
                       <td>{row._prodOrigIdProducto || '—'}</td>
@@ -579,9 +611,10 @@ function HistorialAplicaciones() {
           </div>
 
           {hasMore && (
-            <div className="historial-load-more">
+            <div className="ha-load-more">
               <button
-                className="btn btn-secondary"
+                type="button"
+                className="aur-chip aur-chip--ghost"
                 onClick={() => setPage(p => p + 1)}
               >
                 Ver más — {sorted.length - visible.length} restante{sorted.length - visible.length !== 1 ? 's' : ''}
@@ -590,6 +623,7 @@ function HistorialAplicaciones() {
           )}
         </>
       )}
+      </section>
 
     </div>
       )}
@@ -597,19 +631,24 @@ function HistorialAplicaciones() {
     {/* ── Popover filtro de columna ── */}
     {filterPopover && createPortal(
       <>
-        <div className="historial-filter-backdrop" onClick={() => setFilterPopover(null)} />
-        <div className="historial-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
-          <FiFilter size={13} className="historial-filter-popover-icon" />
+        <div className="aur-filter-backdrop" onClick={() => setFilterPopover(null)} />
+        <div className="aur-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
+          <FiFilter size={13} className="aur-filter-icon" />
           <input
             autoFocus
-            className="historial-filter-input"
+            className="aur-filter-input"
             placeholder="Filtrar…"
             value={colFilters[filterPopover.field] || ''}
             onChange={e => setColFilter(filterPopover.field, e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
           />
           {colFilters[filterPopover.field] && (
-            <button className="historial-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, ''); setFilterPopover(null); }}>
+            <button
+              type="button"
+              className="aur-filter-clear"
+              title="Limpiar filtro"
+              onClick={() => { setColFilter(filterPopover.field, ''); setFilterPopover(null); }}
+            >
               <FiX size={13} />
             </button>
           )}
