@@ -797,8 +797,8 @@ function Existencias() {
 
       {/* Modal de confirmación de cambios */}
       {showConfirm && (
-        <div className="modal-overlay" onClick={() => !saving && setShowConfirm(false)}>
-          <div className="modal-content pg-confirm-modal" onClick={e => e.stopPropagation()}>
+        <div className="aur-modal-backdrop" onPointerDown={() => !saving && setShowConfirm(false)}>
+          <div className="modal-content pg-confirm-modal" onPointerDown={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Confirmar cambios</h2>
               <button className="modal-close-btn" onClick={() => setShowConfirm(false)} disabled={saving}>✕</button>
