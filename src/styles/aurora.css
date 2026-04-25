@@ -636,6 +636,12 @@ select.aur-chip option {
 .aur-modal--wide {
   max-width: 520px;
 }
+.aur-modal--lg {
+  max-width: 720px;
+}
+.aur-modal--xl {
+  max-width: 920px;
+}
 
 .aur-modal-header {
   display: flex;
@@ -691,6 +697,24 @@ select.aur-chip option {
   gap: 14px;
   padding: 4px 22px 18px 22px;
 }
+
+/* Scrollable content area (entre header y actions) para modales grandes */
+.aur-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 22px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.aur-modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+.aur-modal-content::-webkit-scrollbar-thumb {
+  background: var(--aur-divider-2);
+  border-radius: 999px;
+}
 .aur-modal-grid--full {
   grid-template-columns: 1fr;
 }
@@ -706,6 +730,130 @@ select.aur-chip option {
   padding: 12px 22px 18px 22px;
   border-top: 1px solid var(--aur-divider);
   background: rgba(0, 0, 0, 0.18);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOGGLE — switch iOS-style (track + thumb deslizante)
+
+   HTML esperado:
+     <label class="aur-toggle [aur-toggle--disabled]">
+       <input type="checkbox" />
+       <span class="aur-toggle-track"><span class="aur-toggle-thumb" /></span>
+       <span class="aur-toggle-label">Texto</span>
+     </label>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+}
+.aur-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.aur-toggle-track {
+  position: relative;
+  width: 36px;
+  height: 22px;
+  background: var(--aur-bg-strong);
+  border-radius: 999px;
+  transition: background 0.2s var(--aur-ease);
+  flex-shrink: 0;
+}
+.aur-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.22s var(--aur-ease), background 0.2s var(--aur-ease);
+}
+.aur-toggle-label {
+  font-size: 13px;
+  color: var(--aur-text-2);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.aur-toggle input:checked ~ .aur-toggle-track {
+  background: var(--aur-accent);
+}
+.aur-toggle input:checked ~ .aur-toggle-track .aur-toggle-thumb {
+  transform: translateX(14px);
+  background: var(--aurora-dark-blue);
+}
+.aur-toggle input:checked ~ .aur-toggle-label {
+  color: var(--aur-accent);
+}
+.aur-toggle--disabled,
+.aur-toggle input:disabled ~ * {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.aur-toggle input:focus-visible ~ .aur-toggle-track {
+  box-shadow: var(--aur-ring);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BANNER — bloque inline para mensajes (info / warn / danger)
+
+   Para errores cortos prefiere usar la variante --danger; para texto largo
+   informativo, la --info; para advertencias destacadas, --warn.
+
+   HTML esperado:
+     <div class="aur-banner aur-banner--info">
+       <icon /> <span>Texto informativo o de error...</span>
+     </div>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--aur-r-input);
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  background: var(--aur-bg-input);
+  color: var(--aur-text-2);
+  border: 1px solid var(--aur-divider);
+}
+.aur-banner > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.aur-banner--info {
+  background: var(--aur-accent-tint);
+  color: var(--aur-text);
+  border-color: transparent;
+}
+.aur-banner--info > svg {
+  color: var(--aur-accent);
+}
+.aur-banner--warn {
+  background: var(--aur-warn-tint);
+  color: var(--aur-text);
+  border-color: transparent;
+}
+.aur-banner--warn > svg {
+  color: var(--aur-warn);
+}
+.aur-banner--danger {
+  background: var(--aur-danger-tint);
+  color: var(--aur-text);
+  border-color: transparent;
+}
+.aur-banner--danger > svg {
+  color: var(--aur-danger);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FiX, FiCheckCircle, FiTrash2, FiPlusCircle, FiAlertTriangle } from 'react-icons/fi';
+import { FiX, FiCheckCircle, FiTrash2, FiPlusCircle, FiAlertTriangle, FiInfo, FiEdit2 } from 'react-icons/fi';
 
 const MAX_NOMBRE_LEN = 48;
 const MAX_OBS_LEN = 288;
@@ -233,81 +233,88 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   };
 
   return createPortal(
-    <div className="ca-preview-backdrop" onClick={submitting ? undefined : onClose}>
-      <div className="ca-preview-container mla-modal" onClick={e => e.stopPropagation()}>
-        <div className="ca-preview-toolbar">
-          <span className="ca-preview-toolbar-title">
-            {isEditMode ? 'Editar Cédula' : 'Mezcla Lista'} · {cedula?.consecutivo || ''}
+    <div className="aur-modal-backdrop" onPointerDown={submitting ? undefined : onClose}>
+      <div className="aur-modal aur-modal--lg mla-modal" onPointerDown={e => e.stopPropagation()}>
+
+        <div className="aur-modal-header">
+          <span className={`aur-modal-icon${isEditMode ? ' aur-modal-icon--warn' : ''}`}>
+            {isEditMode ? <FiEdit2 size={14} /> : <FiCheckCircle size={14} />}
           </span>
-          <div className="ca-preview-toolbar-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              <FiCheckCircle size={14} />
-              {submitting
-                ? 'Procesando…'
-                : isEditMode ? 'Guardar cambios' : 'Confirmar mezcla'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              disabled={submitting}
-            >
-              <FiX size={15} /> Cancelar
-            </button>
-          </div>
+          <span className="aur-modal-title">
+            {isEditMode ? 'Editar cédula' : 'Mezcla lista'}
+            {cedula?.consecutivo && <span className="mla-modal-subtitle"> · {cedula.consecutivo}</span>}
+          </span>
         </div>
 
-        <div className="mla-body">
-          <p className="mla-info">
-            {isEditMode
-              ? 'Los cambios se guardarán en la cédula y quedará registro de quién los realizó. El inventario se descontará más adelante, al marcar la mezcla como lista.'
-              : 'Al confirmar, se descontará del inventario la cantidad de cada producto según las hectáreas a aplicar. Si un producto no está disponible en bodega o es necesario ajustar la dosis, activá la edición antes de confirmar.'}
-          </p>
-
-          {error && <div className="nca-error">{error}</div>}
-
-          <label className="mla-field">
-            <span className="mla-label">
-              {isEditMode ? 'Nombre de quien edita' : 'Nombre de quien prepara la mezcla'}
-              {' · '}{nombre.length}/{MAX_NOMBRE_LEN}
+        <div className="aur-modal-content">
+          <div className="aur-banner aur-banner--info">
+            <FiInfo size={14} />
+            <span>
+              {isEditMode
+                ? 'Los cambios se guardarán en la cédula y quedará registro de quién los realizó. El inventario se descontará más adelante, al marcar la mezcla como lista.'
+                : 'Al confirmar, se descontará del inventario la cantidad de cada producto según las hectáreas a aplicar. Si un producto no está disponible o es necesario ajustar la dosis, activá la edición antes de confirmar.'}
             </span>
-            <input
-              type="text"
-              className="nca-input"
-              value={nombre}
-              onChange={e => setNombre(e.target.value.slice(0, MAX_NOMBRE_LEN))}
-              maxLength={MAX_NOMBRE_LEN}
-              placeholder="Nombre"
-              autoComplete="off"
-            />
-          </label>
+          </div>
 
-          {!isEditMode && (
-            <label className="mla-toggle">
-              <input
-                type="checkbox"
-                checked={hayCambios}
-                onChange={e => setHayCambios(e.target.checked)}
-              />
-              <span>Se realizaron cambios respecto al programa (sustitución o ajuste de dosis)</span>
-            </label>
+          {error && (
+            <div className="aur-banner aur-banner--danger">
+              <FiAlertTriangle size={14} />
+              <span>{error}</span>
+            </div>
           )}
 
-          <div className="mla-productos-section">
-            <span className="mla-label">Productos {hayCambios ? '(editables)' : ''}</span>
-            <table className="mla-productos-table">
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="mla-nombre">
+                {isEditMode ? 'Nombre de quien edita' : 'Nombre de quien prepara'}
+              </label>
+              <input
+                id="mla-nombre"
+                type="text"
+                className="aur-input"
+                value={nombre}
+                onChange={e => setNombre(e.target.value.slice(0, MAX_NOMBRE_LEN))}
+                maxLength={MAX_NOMBRE_LEN}
+                placeholder="Nombre"
+                autoComplete="off"
+              />
+            </div>
+
+            {!isEditMode && (
+              <div className="aur-row">
+                <span className="aur-row-label">Cambios al programa</span>
+                <label className="aur-toggle">
+                  <input
+                    type="checkbox"
+                    checked={hayCambios}
+                    onChange={e => setHayCambios(e.target.checked)}
+                  />
+                  <span className="aur-toggle-track">
+                    <span className="aur-toggle-thumb" />
+                  </span>
+                  <span className="aur-toggle-label">
+                    {hayCambios ? 'Se hicieron cambios' : 'Sin cambios respecto al programa'}
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          <section className="mla-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">⚗</span>
+              <h3>Productos {hayCambios ? '· editables' : ''}</h3>
+              <span className="aur-section-count">{productosEdit.length}</span>
+            </div>
+
+            <table className="aur-table mla-productos-table">
               <thead>
                 <tr>
                   <th>Producto</th>
-                  <th className="ca-col-num">Dosis / Ha</th>
+                  <th className="aur-td-num">Dosis / Ha</th>
                   <th>Unidad</th>
                   {hayCambios && <th>Motivo (si cambió)</th>}
-                  {hayCambios && <th></th>}
+                  {hayCambios && <th aria-hidden="true"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -318,7 +325,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                       <td>
                         {hayCambios ? (
                           <select
-                            className="nca-select"
+                            className="aur-select"
                             value={row.productoId}
                             onChange={e => onChangeProducto(idx, e.target.value)}
                           >
@@ -334,11 +341,11 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                           <span>{row.nombreComercial || '—'}</span>
                         )}
                       </td>
-                      <td className="ca-col-num">
+                      <td className="aur-td-num">
                         {hayCambios ? (
                           <input
                             type="number"
-                            className="nca-input nca-input-num"
+                            className="aur-input aur-input--num"
                             min="0"
                             max={MAX_CANTIDAD_POR_HA}
                             step="any"
@@ -354,7 +361,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                         <td>
                           {changed ? (
                             <select
-                              className="nca-select"
+                              className="aur-select"
                               value={row.motivoCambio}
                               onChange={e => updateRow(idx, { motivoCambio: e.target.value })}
                             >
@@ -372,7 +379,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                         <td>
                           <button
                             type="button"
-                            className="btn btn-danger nca-remove-btn"
+                            className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
                             onClick={() => removeRow(idx)}
                             title="Quitar producto"
                           >
@@ -385,32 +392,57 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                 })}
               </tbody>
             </table>
+
             {hayCambios && productosEdit.length < MAX_PRODUCTOS && (
-              <button type="button" className="mla-add-btn" onClick={addRow}>
+              <button type="button" className="aur-chip aur-chip--ghost mla-add-btn" onClick={addRow}>
                 <FiPlusCircle size={13} /> Agregar producto
               </button>
             )}
             {hayCambios && huboCambiosReal && (
-              <div className="mla-warn">
+              <div className="aur-banner aur-banner--warn">
                 <FiAlertTriangle size={13} />
                 <span>Se registrarán los cambios en el documento auditable de la cédula.</span>
               </div>
             )}
-          </div>
+          </section>
 
-          <label className="mla-field">
-            <span className="mla-label">
-              Observaciones de mezcla (opcional) · {observaciones.length}/{MAX_OBS_LEN}
-            </span>
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="mla-obs">
+              Observaciones de mezcla (opcional)
+              <span className="aur-field-hint">{observaciones.length}/{MAX_OBS_LEN}</span>
+            </label>
             <textarea
-              className="mla-textarea"
+              id="mla-obs"
+              className="aur-textarea"
               value={observaciones}
               onChange={e => setObservaciones(e.target.value.slice(0, MAX_OBS_LEN))}
               maxLength={MAX_OBS_LEN}
               rows={3}
-              placeholder="Ej: Producto X agotado en bodega, se sustituyó por Y. Dosis aumentada por alta población de plaga."
+              placeholder="Ej. Producto X agotado en bodega, se sustituyó por Y. Dosis aumentada por alta población de plaga."
             />
-          </label>
+          </div>
+        </div>
+
+        <div className="aur-modal-actions">
+          <button
+            type="button"
+            className="aur-btn-text"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="aur-btn-pill"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            <FiCheckCircle size={14} />
+            {submitting
+              ? 'Procesando…'
+              : isEditMode ? 'Guardar cambios' : 'Confirmar mezcla'}
+          </button>
         </div>
       </div>
     </div>,

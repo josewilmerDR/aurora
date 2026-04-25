@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye } from 'react-icons/fi';
+import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye, FiAlertTriangle } from 'react-icons/fi';
 
 // Frontend validation limits
 const MAX_ACTIVITY_LEN = 64;
@@ -161,7 +161,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
 
   useEffect(() => {
     if (!prodOpen || activeIdx < 0 || !dropdownRef.current) return;
-    const items = dropdownRef.current.querySelectorAll('.nca-prod-option');
+    const items = dropdownRef.current.querySelectorAll('.aur-combo-option');
     items[activeIdx]?.scrollIntoView({ block: 'nearest' });
   }, [activeIdx, prodOpen]);
 
@@ -169,7 +169,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
     if (!prodOpen) return;
     const close = () => { setProdOpen(false); setActiveIdx(-1); };
     const handler = (e) => {
-      if (!e.target.closest('.nca-prod-input-wrap') && !e.target.closest('.nca-prod-dropdown')) close();
+      if (!e.target.closest('.aur-combo-input-wrap') && !e.target.closest('.aur-combo-dropdown')) close();
     };
     document.addEventListener('mousedown', handler);
     window.addEventListener('scroll', close, true);
@@ -241,7 +241,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     setError('');
     const activityName = form.activityName.trim();
     if (!activityName) { setError('El nombre de la aplicación es requerido.'); return; }
@@ -297,20 +297,18 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
     const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
     const diff = Math.round((sel - hoy) / 86400000);
     if (diff > MAX_FUTURE_DAYS) {
-      // Exceeds the cap: button disabled, submission blocked
-      return { warning: `⚠ Fecha inusual. ${diff} días en el futuro. Excede el máximo permitido (${MAX_FUTURE_DAYS} días).`, isExceeded: true };
+      return { warning: `Fecha inusual: ${diff} días en el futuro. Excede el máximo permitido (${MAX_FUTURE_DAYS} días).`, isExceeded: true };
     }
     if (diff > WARN_FUTURE_DAYS) {
-      // Inusual pero permitido: aviso informativo
-      return { warning: `⚠ Fecha inusual. ${diff} días en el futuro. Continúa si es correcto.`, isExceeded: false };
+      return { warning: `Fecha inusual: ${diff} días en el futuro. Continúa si es correcto.`, isExceeded: false };
     }
     return { warning: '', isExceeded: false };
   }, [form.fecha]);
   const activityWarning = form.activityName.length >= MAX_ACTIVITY_LEN
-    ? `⚠ Máximo ${MAX_ACTIVITY_LEN} caracteres alcanzado.`
+    ? `Máximo ${MAX_ACTIVITY_LEN} caracteres alcanzado.`
     : '';
   const tecnicoWarning = form.tecnicoResponsable.length >= MAX_TECNICO_LEN
-    ? `⚠ Máximo ${MAX_TECNICO_LEN} caracteres alcanzado.`
+    ? `Máximo ${MAX_TECNICO_LEN} caracteres alcanzado.`
     : '';
 
   const productosDisponibles = productos.filter(
@@ -324,40 +322,21 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
   );
 
   return createPortal(
-    <div className="ca-preview-backdrop" onClick={onClose}>
-      <div className="ca-preview-container nca-modal" onClick={e => e.stopPropagation()}>
+    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+      <div className="aur-modal aur-modal--xl nca-modal" onPointerDown={e => e.stopPropagation()}>
 
-        {/* Toolbar */}
-        <div className="ca-preview-toolbar">
-          <span className="ca-preview-toolbar-title">Nueva Cédula de Aplicación</span>
-          <div className="ca-preview-toolbar-actions">
-            {onPreviewDraft && (
-              <button
-                type="button"
-                className="btn btn-secondary ca-toolbar-icon-btn"
-                onClick={() => onPreviewDraft({ ...form })}
-                disabled={submitting}
-                title="Ver borrador de la cédula"
-              >
-                <FiEye size={15} /> <span className="ca-toolbar-btn-text">Vista previa</span>
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || fechaInfo.isExceeded}>
-              <FiPlusCircle size={14} />
-              {submitting ? 'Generando…' : 'Generar Cédula'}
-            </button>
-            <button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
-              <FiX size={15} /> Cancelar
-            </button>
-          </div>
+        <div className="aur-modal-header">
+          <span className="aur-modal-icon">
+            <FiPlusCircle size={16} />
+          </span>
+          <span className="aur-modal-title">Nueva cédula de aplicación</span>
         </div>
 
-        {/* Form */}
-        <form className="nca-form" onSubmit={handleSubmit}>
-          {/* Plantillas */}
+        <form className="aur-modal-content" onSubmit={handleSubmit}>
+
           {plantillas.length > 0 && (
             <div className="nca-plantillas-section">
-              <span className="nca-plantillas-label">Plantillas</span>
+              <span className="aur-field-label">Plantillas</span>
               {plantillas.map(p => (
                 <div key={p.id} className="nca-plantilla-chip">
                   <button
@@ -381,250 +360,266 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
             </div>
           )}
 
-          {error && <div className="nca-error">{error}</div>}
+          {error && (
+            <div className="aur-banner aur-banner--danger">
+              <FiAlertTriangle size={14} />
+              <span>{error}</span>
+            </div>
+          )}
 
-          {/* Fila principal estilo PackageManagement */}
-          <table className="nca-activity-table">
-            <colgroup>
-              <col className="nca-col-fecha" />
-              <col className="nca-col-actividad" />
-              <col className="nca-col-calibracion" />
-              <col className="nca-col-tecnico" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Actividad</th>
-                <th>Calibración</th>
-                <th>Técnico responsable</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td data-label="Fecha">
-                  <input
-                    className="nca-input"
-                    type="date"
-                    max={maxFechaStr}
-                    value={form.fecha}
-                    onChange={e => setForm(prev => ({ ...prev, fecha: e.target.value }))}
-                  />
-                  {fechaInfo.warning && <span className="nca-warn">{fechaInfo.warning}</span>}
-                </td>
-                <td data-label="Actividad">
-                  <input
-                    className="nca-input"
-                    type="text"
-                    maxLength={MAX_ACTIVITY_LEN}
-                    placeholder="Ej: Fungicida preventivo"
-                    value={form.activityName}
-                    onChange={e => setForm(prev => ({ ...prev, activityName: e.target.value.slice(0, MAX_ACTIVITY_LEN) }))}
-                  />
-                  {activityWarning && <span className="nca-warn">{activityWarning}</span>}
-                </td>
-                <td data-label="Calibración">
-                  <select
-                    className="nca-select"
-                    value={form.calibracionId}
-                    onChange={e => setForm(prev => ({ ...prev, calibracionId: e.target.value }))}
-                  >
-                    <option value="">— Ninguna —</option>
-                    {(calibraciones || []).map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.nombre}{c.volumen ? ` (${c.volumen} lt/ha)` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td data-label="Técnico responsable">
-                  <input
-                    className="nca-input"
-                    type="text"
-                    maxLength={MAX_TECNICO_LEN}
-                    placeholder="Nombre del técnico"
-                    value={form.tecnicoResponsable}
-                    onChange={e => setForm(prev => ({ ...prev, tecnicoResponsable: e.target.value.slice(0, MAX_TECNICO_LEN) }))}
-                  />
-                  {tecnicoWarning && <span className="nca-warn">{tecnicoWarning}</span>}
-                </td>
-              </tr>
+          {/* Settings list: campos del encabezado */}
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="nca-fecha">Fecha</label>
+              <div>
+                <input
+                  id="nca-fecha"
+                  className="aur-input"
+                  type="date"
+                  max={maxFechaStr}
+                  value={form.fecha}
+                  onChange={e => setForm(prev => ({ ...prev, fecha: e.target.value }))}
+                />
+                {fechaInfo.warning && <span className="aur-field-error">{fechaInfo.warning}</span>}
+              </div>
+            </div>
 
-              {/* Sub-fila: productos (siempre visible) */}
-              <tr className="nca-sub-row">
-                <td colSpan="4">
-                  {form.productos.length > 0 && (
-                    <table className="nca-productos-table">
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th className="ca-col-num">Dosis / Ha</th>
-                          <th>Unidad</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {form.productos.map(p => (
-                          <tr key={p.productoId}>
-                            <td className="nca-prod-cell-name">{p.nombreComercial}</td>
-                            <td className="ca-col-num nca-prod-cell-dose" data-label="Dosis / Ha">
-                              <input
-                                ref={el => { if (el) cantidadRefs.current[p.productoId] = el; else delete cantidadRefs.current[p.productoId]; }}
-                                className="nca-input nca-input-num"
-                                type="number"
-                                min="0"
-                                max="100000"
-                                step="any"
-                                value={p.cantidadPorHa}
-                                onChange={e => updateCantidad(p.productoId, e.target.value)}
-                                onKeyDown={handleCantidadKeyDown}
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="nca-prod-cell-unit" data-label="Unidad">{p.unidad}</td>
-                            <td className="nca-prod-cell-action">
-                              <button
-                                type="button"
-                                className="btn btn-danger nca-remove-btn"
-                                onClick={() => removeProducto(p.productoId)}
-                                title="Quitar producto"
-                              >
-                                <FiTrash2 size={13} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="nca-actividad">Actividad</label>
+              <div>
+                <input
+                  id="nca-actividad"
+                  className="aur-input"
+                  type="text"
+                  maxLength={MAX_ACTIVITY_LEN}
+                  placeholder="Ej. Fungicida preventivo"
+                  value={form.activityName}
+                  onChange={e => setForm(prev => ({ ...prev, activityName: e.target.value.slice(0, MAX_ACTIVITY_LEN) }))}
+                />
+                {activityWarning && <span className="aur-field-error">{activityWarning}</span>}
+              </div>
+            </div>
 
-                  {/* Combobox de búsqueda */}
-                  <div
-                    className="nca-prod-input-wrap"
-                    ref={prodInputWrapRef}
-                    onClick={() => { prodInputRef.current?.focus(); openProdCombo(); }}
-                  >
-                    <FiSearch size={13} />
-                    <input
-                      ref={prodInputRef}
-                      type="text"
-                      placeholder={form.productos.length === 0 ? 'Buscar y agregar producto…' : '+ Agregar otro producto…'}
-                      value={prodSearch}
-                      onChange={e => { setProdSearch(e.target.value); openProdCombo(); }}
-                      onFocus={() => openProdCombo()}
-                      onKeyDown={handleSearchKeyDown}
-                    />
-                  </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="nca-calibracion">Calibración</label>
+              <select
+                id="nca-calibracion"
+                className="aur-select"
+                value={form.calibracionId}
+                onChange={e => setForm(prev => ({ ...prev, calibracionId: e.target.value }))}
+              >
+                <option value="">— Ninguna —</option>
+                {(calibraciones || []).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}{c.volumen ? ` (${c.volumen} lt/ha)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                  {/* Selector de lote */}
-                  <select
-                    className="nca-select nca-lote-select"
-                    value={form.loteId}
-                    onChange={e => setForm(prev => ({ ...prev, loteId: e.target.value, selectedBloques: [] }))}
-                  >
-                    <option value="">— Seleccione un lote —</option>
-                    {lotes.map(l => (
-                      <option key={l.id} value={l.id}>{l.nombreLote}</option>
-                    ))}
-                  </select>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="nca-tecnico">Técnico responsable</label>
+              <div>
+                <input
+                  id="nca-tecnico"
+                  className="aur-input"
+                  type="text"
+                  maxLength={MAX_TECNICO_LEN}
+                  placeholder="Opcional"
+                  value={form.tecnicoResponsable}
+                  onChange={e => setForm(prev => ({ ...prev, tecnicoResponsable: e.target.value.slice(0, MAX_TECNICO_LEN) }))}
+                />
+                {tecnicoWarning && <span className="aur-field-error">{tecnicoWarning}</span>}
+              </div>
+            </div>
 
-                  {prodOpen && createPortal(
-                    <div
-                      ref={dropdownRef}
-                      className="nca-prod-dropdown"
-                      style={{ top: prodDropdownPos.top, left: prodDropdownPos.left, minWidth: prodDropdownPos.width }}
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="nca-lote">Lote</label>
+              <select
+                id="nca-lote"
+                className="aur-select"
+                value={form.loteId}
+                onChange={e => setForm(prev => ({ ...prev, loteId: e.target.value, selectedBloques: [] }))}
+              >
+                <option value="">— Seleccione un lote —</option>
+                {lotes.map(l => (
+                  <option key={l.id} value={l.id}>{l.nombreLote}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Productos */}
+          <section className="nca-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">+</span>
+              <h3>Productos</h3>
+              <span className="aur-section-count">{form.productos.length}</span>
+            </div>
+
+            {form.productos.length > 0 && (
+              <table className="aur-table nca-productos-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th className="aur-td-num">Dosis / Ha</th>
+                    <th>Unidad</th>
+                    <th aria-hidden="true"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.productos.map(p => (
+                    <tr key={p.productoId}>
+                      <td>{p.nombreComercial}</td>
+                      <td className="aur-td-num">
+                        <input
+                          ref={el => { if (el) cantidadRefs.current[p.productoId] = el; else delete cantidadRefs.current[p.productoId]; }}
+                          className="aur-input aur-input--num"
+                          type="number"
+                          min="0"
+                          max="100000"
+                          step="any"
+                          value={p.cantidadPorHa}
+                          onChange={e => updateCantidad(p.productoId, e.target.value)}
+                          onKeyDown={handleCantidadKeyDown}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td>{p.unidad}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+                          onClick={() => removeProducto(p.productoId)}
+                          title="Quitar producto"
+                        >
+                          <FiTrash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* Combobox de productos */}
+            <div className="aur-combo nca-prod-combo">
+              <div
+                className="aur-combo-input-wrap"
+                ref={prodInputWrapRef}
+                onClick={() => { prodInputRef.current?.focus(); openProdCombo(); }}
+              >
+                <FiSearch size={13} />
+                <input
+                  ref={prodInputRef}
+                  className="aur-combo-input"
+                  type="text"
+                  placeholder={form.productos.length === 0 ? 'Buscar y agregar producto…' : '+ Agregar otro producto…'}
+                  value={prodSearch}
+                  onChange={e => { setProdSearch(e.target.value); openProdCombo(); }}
+                  onFocus={() => openProdCombo()}
+                  onKeyDown={handleSearchKeyDown}
+                />
+              </div>
+            </div>
+
+            {prodOpen && createPortal(
+              <div
+                ref={dropdownRef}
+                className="aur-combo-dropdown"
+                style={{ top: prodDropdownPos.top, left: prodDropdownPos.left, minWidth: prodDropdownPos.width }}
+              >
+                {productosFiltrados.length === 0 ? (
+                  <p className="aur-combo-empty">Sin resultados</p>
+                ) : (
+                  productosFiltrados.map((p, i) => (
+                    <button
+                      type="button"
+                      key={p.id}
+                      className={`aur-combo-option${i === activeIdx ? ' aur-combo-option--active' : ''}`}
+                      onMouseDown={e => { e.preventDefault(); addProducto(p); }}
+                      onMouseEnter={() => setActiveIdx(i)}
                     >
-                      {productosFiltrados.map((p, i) => (
-                        <button
-                          type="button"
-                          key={p.id}
-                          className={`nca-prod-option${i === activeIdx ? ' active' : ''}`}
-                          onMouseDown={e => { e.preventDefault(); addProducto(p); }}
-                          onMouseEnter={() => setActiveIdx(i)}
-                        >
-                          <span className="nca-prod-name">{p.nombreComercial}</span>
-                          {p.ingredienteActivo && <span className="nca-prod-ing">{p.ingredienteActivo}</span>}
-                        </button>
-                      ))}
-                      {productosFiltrados.length === 0 && (
-                        <p className="nca-prod-empty">Sin resultados</p>
-                      )}
-                    </div>,
-                    document.body
-                  )}
-                </td>
-              </tr>
+                      <span className="aur-combo-name">{p.nombreComercial}</span>
+                      {p.ingredienteActivo && <span className="aur-combo-meta">{p.ingredienteActivo}</span>}
+                    </button>
+                  ))
+                )}
+              </div>,
+              document.body
+            )}
+          </section>
 
-              {/* Sub-fila: bloques */}
-              {bloquesByGrupo.length > 0 && (
-                <tr className="nca-sub-row">
-                  <td colSpan="4">
-                    <div className="nca-bloques-grid">
-                      <div className="nca-bloques-header">
-                        <span className="nca-label">Bloques (opcional)</span>
-                        <button
-                          type="button"
-                          className="nca-bloques-toggle-all"
-                          onClick={() => setForm(prev => ({
-                            ...prev,
-                            selectedBloques: prev.selectedBloques.length === loteBloques.length
-                              ? []
-                              : loteBloques.map(b => b.id),
-                          }))}
-                        >
-                          {form.selectedBloques.length === loteBloques.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
-                        </button>
+          {/* Bloques (page-specific accordion checkbox) */}
+          {bloquesByGrupo.length > 0 && (
+            <section className="nca-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">⚑</span>
+                <h3>Bloques</h3>
+                <span className="aur-section-count">{form.selectedBloques.length}</span>
+                <div className="aur-section-actions">
+                  <button
+                    type="button"
+                    className="aur-chip aur-chip--ghost"
+                    onClick={() => setForm(prev => ({
+                      ...prev,
+                      selectedBloques: prev.selectedBloques.length === loteBloques.length
+                        ? []
+                        : loteBloques.map(b => b.id),
+                    }))}
+                  >
+                    {form.selectedBloques.length === loteBloques.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                  </button>
+                </div>
+              </div>
+              <div className="nca-bloques-grid">
+                {bloquesByGrupo.map(grupo => {
+                  const ids = grupo.bloques.map(b => b.id);
+                  const selCount = ids.filter(id => form.selectedBloques.includes(id)).length;
+                  const allSel = selCount === ids.length;
+                  const someSel = selCount > 0 && !allSel;
+                  return (
+                    <div key={grupo.id} className="nca-bloques-group">
+                      <button
+                        type="button"
+                        className="nca-bloques-group-header"
+                        onClick={() => toggleGrupo(grupo.id)}
+                        title={allSel ? 'Deseleccionar grupo' : 'Seleccionar grupo'}
+                      >
+                        <span className={`nca-grupo-check-icon${allSel ? ' all' : someSel ? ' some' : ''}`}>
+                          {allSel ? '▣' : someSel ? '▪' : '▢'}
+                        </span>
+                        <span className="nca-grupo-name">{grupo.nombre}</span>
+                        {selCount > 0 && (
+                          <span className="nca-grupo-count">{selCount}/{ids.length}</span>
+                        )}
+                      </button>
+                      <div className="nca-bloques-list">
+                        {grupo.bloques.map(b => (
+                          <label key={b.id} className="nca-bloque-check">
+                            <input
+                              type="checkbox"
+                              checked={form.selectedBloques.includes(b.id)}
+                              onChange={() => toggleBloque(b.id)}
+                            />
+                            <span className="nca-bloque-name">{b.bloque || b.id}</span>
+                            {b.areaCalculada != null && (
+                              <span className="nca-bloque-ha">{b.areaCalculada} ha</span>
+                            )}
+                          </label>
+                        ))}
                       </div>
-                      {bloquesByGrupo.map(grupo => {
-                        const ids = grupo.bloques.map(b => b.id);
-                        const selCount = ids.filter(id => form.selectedBloques.includes(id)).length;
-                        const allSel = selCount === ids.length;
-                        const someSel = selCount > 0 && !allSel;
-                        return (
-                          <div key={grupo.id} className="nca-bloques-group">
-                            <button
-                              type="button"
-                              className="nca-bloques-group-header"
-                              onClick={() => toggleGrupo(grupo.id)}
-                              title={allSel ? 'Deseleccionar grupo' : 'Seleccionar grupo'}
-                            >
-                              <span className={`nca-grupo-check-icon${allSel ? ' all' : someSel ? ' some' : ''}`}>
-                                {allSel ? '▣' : someSel ? '▪' : '▢'}
-                              </span>
-                              <span className="nca-grupo-name">{grupo.nombre}</span>
-                              {selCount > 0 && (
-                                <span className="nca-grupo-count">{selCount}/{ids.length}</span>
-                              )}
-                            </button>
-                            <div className="nca-bloques-list">
-                              {grupo.bloques.map(b => (
-                                <label key={b.id} className="nca-bloque-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={form.selectedBloques.includes(b.id)}
-                                    onChange={() => toggleBloque(b.id)}
-                                  />
-                                  <span className="nca-bloque-name">{b.bloque || b.id}</span>
-                                  {b.areaCalculada != null && (
-                                    <span className="nca-bloque-ha">{b.areaCalculada} ha</span>
-                                  )}
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
-                  </td>
-                </tr>
-              )}
-
-            </tbody>
-          </table>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Guardar como plantilla */}
           <button
             type="button"
-            className={`nca-guardar-plantilla${plantillaSaved ? ' saved' : ''}`}
+            className={`aur-chip aur-chip--ghost nca-guardar-plantilla${plantillaSaved ? ' saved' : ''}`}
             onClick={guardarComoPlantilla}
             disabled={savingPlantilla || !form.activityName.trim()}
             title="Guardar nombre y productos como plantilla reutilizable"
@@ -632,6 +627,37 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
             {plantillaSaved ? '✓ Plantilla guardada' : savingPlantilla ? 'Guardando…' : '📋 Guardar como plantilla'}
           </button>
         </form>
+
+        <div className="aur-modal-actions">
+          {onPreviewDraft && (
+            <button
+              type="button"
+              className="aur-btn-text"
+              onClick={() => onPreviewDraft({ ...form })}
+              disabled={submitting}
+              title="Ver borrador de la cédula"
+            >
+              <FiEye size={14} /> Vista previa
+            </button>
+          )}
+          <button
+            type="button"
+            className="aur-btn-text"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="aur-btn-pill"
+            onClick={handleSubmit}
+            disabled={submitting || fechaInfo.isExceeded}
+          >
+            <FiPlusCircle size={14} />
+            {submitting ? 'Generando…' : 'Generar cédula'}
+          </button>
+        </div>
       </div>
     </div>,
     document.body
