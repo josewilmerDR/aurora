@@ -56,14 +56,6 @@
   }
 }
 
-/* ── List panel action icons (duplicate + delete per row) ────────────────── */
-.pkg-list-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
 .pkg-page-header {
   display: flex;
   align-items: center;
@@ -74,24 +66,6 @@
   font-size: 1.4rem;
   font-weight: 600;
   color: var(--aurora-light);
-  margin: 0;
-}
-
-.pkg-form-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  min-height: 200px;
-  text-align: center;
-  color: var(--aurora-light);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-
-.pkg-form-placeholder p {
-  opacity: 0.45;
   margin: 0;
 }
 
@@ -186,78 +160,13 @@
 /* Ajustamos el ancho de las columnas */
 .activities-table .col-day { width: 100px; }
 .activities-table .col-name { width: auto; }
-.activities-table .col-cal { width: 170px; }
 .activities-table .col-user { width: 140px; }
-.activities-table .col-cost { width: 120px; white-space: nowrap; }
 .activities-table .col-action { width: 1%; white-space: nowrap; text-align: right; }
-
-.activity-cost-cell {
-  text-align: right;
-  padding-right: 16px;
-}
-
-.activity-cost-value {
-  display: block;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--aurora-green);
-  white-space: nowrap;
-}
 
 .activity-cost-mon {
   font-size: 0.7rem;
   font-weight: 400;
   opacity: 0.7;
-}
-
-.activity-cost-empty {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.25;
-}
-
-/* Celda de nombre de actividad — select de plantilla + input editable */
-.activity-name-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.activity-name-cell input {
-  width: 100%;
-  padding: 7px 8px;
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  font-size: 0.9rem;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-
-.activity-name-cell input:focus {
-  border-color: var(--aurora-green);
-  outline: none;
-}
-
-.plantilla-inline-select {
-  width: 100%;
-  padding: 4px 8px;
-  font-size: 0.8rem;
-  background-color: var(--aurora-dark-blue);
-  border: 1px dashed rgba(100, 181, 246, 0.5);
-  border-radius: 6px;
-  color: #64b5f6;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-
-.plantilla-inline-select:hover,
-.plantilla-inline-select:focus {
-  border-style: solid;
-  border-color: #64b5f6;
-  outline: none;
 }
 
 .activities-table-wrapper {
@@ -274,16 +183,6 @@
   margin-top: 15px;
   display: flex;
   justify-content: flex-end;
-}
-
-/* Tipo de actividad selector */
-.type-select {
-  font-size: 0.85rem;
-}
-
-.type-select.type-aplicacion {
-  color: #64b5f6;
-  border-color: #64b5f6;
 }
 
 /* Fila de productos de una actividad de aplicación */
@@ -315,25 +214,6 @@
   white-space: nowrap;
 }
 
-/* Selector "Cargar desde plantilla" */
-.load-template-select {
-  padding: 4px 8px;
-  font-size: 0.82rem;
-  background-color: var(--aurora-dark-blue);
-  border: 1px dashed rgba(100, 181, 246, 0.5);
-  border-radius: 6px;
-  color: #64b5f6;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.load-template-select:hover,
-.load-template-select:focus {
-  border-style: solid;
-  border-color: #64b5f6;
-  outline: none;
-}
-
 .products-tags {
   display: flex;
   flex-direction: column;
@@ -356,43 +236,6 @@
 
 .product-tag strong {
   color: #64b5f6;
-}
-
-.product-tag-qty {
-  width: 60px;
-  padding: 2px 4px;
-  font-size: 0.85rem;
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 4px;
-  color: var(--aurora-light);
-  text-align: center;
-  -moz-appearance: textfield;
-}
-
-.product-tag-qty::-webkit-outer-spin-button,
-.product-tag-qty::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.product-tag-unit {
-  font-size: 0.78rem;
-  opacity: 0.7;
-}
-
-.product-tag-price {
-  font-size: 0.75rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  white-space: nowrap;
-  margin-left: 2px;
-}
-
-.product-tag-price--total {
-  color: var(--aurora-green);
-  opacity: 0.85;
-  font-weight: 600;
 }
 
 .product-tag-remove {
@@ -524,14 +367,6 @@
   opacity: 0.8;
 }
 
-.pkg-prod-empty {
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  padding: 10px 12px;
-  margin: 0;
-}
-
 /* Confirmación inline de eliminación de actividad */
 .activity-delete-confirm {
   display: flex;
@@ -572,63 +407,12 @@
 
 .btn-confirm-no:hover { opacity: 0.8; }
 
-/* Estilos para el listado de paquetes */
-.package-sub-info {
-    font-size: 0.9em;
-    color: var(--aurora-light);
-    opacity: 0.6;
-}
-
 .pkg-list-total-cost {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--aurora-green);
   opacity: 0.8;
 }
-
-/* ── Adjunto Excel por actividad ──────────────────────────────────────────── */
-.excel-file-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  background: rgba(51, 255, 153, 0.07);
-  border: 1px solid rgba(51, 255, 153, 0.3);
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-.excel-file-icon { color: var(--aurora-green); flex-shrink: 0; }
-
-.excel-file-name {
-  color: var(--aurora-green);
-  text-decoration: none;
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.excel-file-name:hover { text-decoration: underline; }
-
-.excel-upload-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: none;
-  border: 1px dashed rgba(51, 255, 153, 0.4);
-  border-radius: 6px;
-  color: var(--aurora-green);
-  font-size: 0.82rem;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s, border-color 0.15s;
-  user-select: none;
-}
-
-.excel-upload-btn:hover { opacity: 1; border-color: var(--aurora-green); }
-.excel-upload-btn--loading { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Mobile carousel ─────────────────────────────────────────────────────── */
 .pkg-carousel {
@@ -816,18 +600,6 @@
   opacity: 0.5;
 }
 
-.pkg-hub-activity-badge {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #64b5f6;
-  background: rgba(100, 181, 246, 0.1);
-  border: 1px solid rgba(100, 181, 246, 0.3);
-  border-radius: 10px;
-  padding: 2px 7px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .pkg-hub-activity-detail {
   display: flex;
   flex-direction: column;
@@ -973,16 +745,6 @@
   }
 
   /* Field labels via ::before */
-  .activities-table-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--aurora-light);
-    opacity: 0.45;
-    display: block;
-    margin-bottom: 2px;
-  }
-
   .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(1)::before { content: "Día"; }
   .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(2)::before { content: "Actividad"; }
   .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(3)::before { content: "Volumen / Calibración"; }
@@ -1011,11 +773,6 @@
   /* Day input: keep compact */
   .activities-table tbody tr:not(.products-subrow-tr) td:nth-child(1) input {
     width: 80px;
-  }
-
-  /* Costo: right-aligned text */
-  .activity-cost-cell {
-    text-align: right;
   }
 
   /* Form action buttons: same row, 50/50 */
@@ -1048,62 +805,18 @@
     box-sizing: border-box;
   }
 
-  /* ── Product tags → 2×2 grid on mobile ─── */
-  /*
-     Col 1 (1fr)        Col 2 (auto)
-     ┌──────────────────┬────────────┐
-     │ nombre producto  │ [qty] unit │  row 1
-     ├──────────────────┼────────────┤
-     │ precio unitario  │ total      │  row 2 (only if price exists)
-     └──────────────────┴────────────┘
-     [×] pinned absolute top-right
-  */
+  /* Product tag: stacked on mobile with remove pinned top-right */
   .product-tag {
     position: relative;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    row-gap: 4px;
-    column-gap: 8px;
     padding: 8px 32px 8px 10px;
-    align-items: center;
   }
 
-  /* Row 1, col 1: product name */
   .product-tag strong {
-    grid-column: 1;
-    grid-row: 1;
     min-width: 0;
     white-space: normal;
     word-break: break-word;
   }
 
-  /* Row 1, col 2: qty input */
-  .product-tag-qty {
-    grid-column: 2;
-    grid-row: 1;
-    width: 72px;
-  }
-
-  /* Unit label hidden on mobile — not enough space in 2-col layout */
-  .product-tag-unit {
-    display: none;
-  }
-
-  /* Row 2, col 1: unit price */
-  .product-tag-price:not(.product-tag-price--total) {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  /* Row 2, col 2: total */
-  .product-tag-price--total {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: end;
-    text-align: right;
-  }
-
-  /* Remove button: pinned absolute top-right */
   .product-tag-remove {
     position: absolute;
     top: 6px;
