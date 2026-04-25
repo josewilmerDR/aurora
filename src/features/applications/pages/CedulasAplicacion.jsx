@@ -7,6 +7,7 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import CedulaNuevaModal from '../components/CedulaNuevaModal';
 import MezclaListaModal from '../components/MezclaListaModal';
+import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import '../styles/cedulas.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -302,24 +303,27 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
 
             <div className="aur-row">
               <label className="aur-row-label" htmlFor="apl-h-inicio">Hora inicio</label>
-              <input
+              <AuroraTimePicker
                 id="apl-h-inicio"
-                type="time"
-                className="aur-input"
                 value={horaInicio}
-                onChange={e => setHoraInicio(e.target.value)}
+                onChange={setHoraInicio}
               />
             </div>
 
             <div className="aur-row">
               <label className="aur-row-label" htmlFor="apl-h-fin">Hora final</label>
-              <input
-                id="apl-h-fin"
-                type="time"
-                className="aur-input"
-                value={horaFinal}
-                onChange={e => setHoraFinal(e.target.value)}
-              />
+              <div>
+                <AuroraTimePicker
+                  id="apl-h-fin"
+                  value={horaFinal}
+                  onChange={setHoraFinal}
+                  min={horaInicio || undefined}
+                  hasError={!!horaInicio && !!horaFinal && horaFinal <= horaInicio}
+                />
+                {!!horaInicio && !!horaFinal && horaFinal <= horaInicio && (
+                  <span className="aur-field-error">La hora final debe ser mayor que la inicial</span>
+                )}
+              </div>
             </div>
 
             <div className="aur-row">
