@@ -33,6 +33,16 @@ export default function AutopilotPanel({ open, onClose }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
 
+  // Latest analysis output: text recommendations (N1) and/or proposed
+  // actions (N2/N3). Both render below the command panel as a "result of
+  // last analysis" list, so the user sees evidence the analysis ran without
+  // navigating to the dashboard.
+  const [recommendations, setRecommendations] = useState([]);
+  const [proposedActions, setProposedActions] = useState([]);
+  // Dismissed IDs persist per user so "acting on" an item removes it from
+  // the modal permanently (it stays available in the dashboard).
+  const [dismissed, setDismissed] = useState(() => new Set());
+
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [conversation, setConversation] = useState([]);
@@ -44,7 +54,40 @@ export default function AutopilotPanel({ open, onClose }) {
   const chatEndRef = useRef(null);
   const voiceSupported = !!SpeechRec;
 
-  // Refresh config + counts each time the panel opens
+  // Hydrate dismissed-IDs from localStorage once the user is known.
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    try {
+      const raw = localStorage.getItem(`aurora_copilot_dismissed_${currentUser.uid}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setDismissed(new Set(parsed));
+      }
+    } catch { /* noop */ }
+  }, [currentUser?.uid]);
+
+  const dismiss = (id) => {
+    if (!id) return;
+    setDismissed(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      // Cap to 200 most-recent IDs so localStorage doesn't grow unbounded.
+      const arr = Array.from(next);
+      const capped = arr.length > 200 ? arr.slice(-200) : arr;
+      try {
+        if (currentUser?.uid) {
+          localStorage.setItem(
+            `aurora_copilot_dismissed_${currentUser.uid}`,
+            JSON.stringify(capped),
+          );
+        }
+      } catch { /* quota / private mode — best effort */ }
+      return new Set(capped);
+    });
+  };
+
+  // Refresh config + counts + latest analysis each time the panel opens.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -64,9 +107,26 @@ export default function AutopilotPanel({ open, onClose }) {
         setConfig(configData);
         if (Array.isArray(sessionsData) && sessionsData.length > 0) {
           setLastRun(sessionsData[0].timestamp);
+          // Pull the latest session in full only if it actually has recs to render.
+          const head = sessionsData[0];
+          if (head?.id && (head.recommendationsCount || 0) > 0) {
+            const sessionRes = await apiFetch(`/api/autopilot/sessions/${head.id}`);
+            if (!cancelled && sessionRes.ok) {
+              const sessionData = await sessionRes.json().catch(() => null);
+              if (sessionData && Array.isArray(sessionData.recommendations)) {
+                setRecommendations(sessionData.recommendations);
+              }
+            }
+          } else {
+            setRecommendations([]);
+          }
+        } else {
+          setRecommendations([]);
         }
         if (Array.isArray(actionsData)) {
-          setPendingCount(actionsData.filter(a => a.status === 'proposed').length);
+          const proposed = actionsData.filter(a => a.status === 'proposed');
+          setProposedActions(proposed);
+          setPendingCount(proposed.length);
         }
       } catch (_) { /* silent */ }
     })();
@@ -122,8 +182,14 @@ export default function AutopilotPanel({ open, onClose }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Error al analizar');
     setLastRun(data.timestamp);
+    // N1 returns `recommendations`; N2/N3 return `proposedActions`.
+    if (Array.isArray(data.recommendations)) {
+      setRecommendations(data.recommendations);
+    }
     if (Array.isArray(data.proposedActions)) {
-      setPendingCount(prev => prev + data.proposedActions.filter(a => a.status === 'proposed').length);
+      const proposed = data.proposedActions.filter(a => a.status === 'proposed');
+      setProposedActions(prev => [...proposed, ...prev]);
+      setPendingCount(prev => prev + proposed.length);
     }
     window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
   };
@@ -158,7 +224,9 @@ export default function AutopilotPanel({ open, onClose }) {
       setSessionId(data.sessionId);
       setConversation(Array.isArray(data.conversationLog) ? data.conversationLog : []);
       if (Array.isArray(data.proposedActions) && data.proposedActions.length > 0) {
-        setPendingCount(c => c + data.proposedActions.length);
+        const proposed = data.proposedActions.filter(a => a.status === 'proposed');
+        setProposedActions(prev => [...proposed, ...prev]);
+        setPendingCount(c => c + proposed.length);
         window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
       }
       setText('');
@@ -348,6 +416,86 @@ export default function AutopilotPanel({ open, onClose }) {
                   </button>
                 </>
               )}
+
+              {(() => {
+                const visibleRecs = recommendations
+                  .filter(r => r && !dismissed.has(r.id))
+                  .slice(0, 5);
+                const visibleActions = proposedActions
+                  .filter(a => a && a.status === 'proposed' && !dismissed.has(a.id))
+                  .slice(0, 5);
+                if (visibleRecs.length === 0 && visibleActions.length === 0) return null;
+                return (
+                  <div className="ap-panel-recs">
+                    <div className="ap-panel-recs-header">
+                      <FiZap size={13} />
+                      <span>Resultado del último análisis</span>
+                    </div>
+                    <ul className="ap-panel-recs-list">
+                      {visibleRecs.map(r => (
+                        <li key={r.id} className={`ap-panel-rec ap-panel-rec--${r.prioridad || 'baja'}`}>
+                          <div className="ap-panel-rec-head">
+                            <span className={`ap-panel-rec-prio ap-panel-rec-prio--${r.prioridad || 'baja'}`}>
+                              {r.prioridad || 'baja'}
+                            </span>
+                            <strong className="ap-panel-rec-title">{r.titulo || '(sin título)'}</strong>
+                            <button
+                              type="button"
+                              className="ap-panel-rec-dismiss"
+                              onClick={() => dismiss(r.id)}
+                              title="Descartar"
+                              aria-label="Descartar recomendación"
+                            >
+                              <FiX size={12} />
+                            </button>
+                          </div>
+                          {r.descripcion && <p className="ap-panel-rec-desc">{r.descripcion}</p>}
+                          {r.accionSugerida && (
+                            <p className="ap-panel-rec-action">→ {r.accionSugerida}</p>
+                          )}
+                        </li>
+                      ))}
+                      {visibleActions.map(a => (
+                        <li key={a.id} className={`ap-panel-rec ap-panel-rec--accion ap-panel-rec--${a.prioridad || 'media'}`}>
+                          <div className="ap-panel-rec-head">
+                            <span className="ap-panel-rec-prio ap-panel-rec-prio--accion">
+                              propuesta
+                            </span>
+                            <strong className="ap-panel-rec-title">{a.titulo || a.type || '(sin título)'}</strong>
+                            <button
+                              type="button"
+                              className="ap-panel-rec-dismiss"
+                              onClick={() => dismiss(a.id)}
+                              title="Descartar"
+                              aria-label="Descartar propuesta"
+                            >
+                              <FiX size={12} />
+                            </button>
+                          </div>
+                          {a.descripcion && <p className="ap-panel-rec-desc">{a.descripcion}</p>}
+                          <Link
+                            to="/autopilot"
+                            onClick={() => { dismiss(a.id); onClose(); }}
+                            className="ap-panel-rec-link"
+                          >
+                            Aprobar o rechazar <FiArrowRight size={11} />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    {(recommendations.filter(r => !dismissed.has(r.id)).length > 5
+                      || proposedActions.filter(a => a.status === 'proposed' && !dismissed.has(a.id)).length > 5) && (
+                      <Link
+                        to="/autopilot"
+                        onClick={onClose}
+                        className="ap-panel-recs-more"
+                      >
+                        Ver todas en el panel <FiArrowRight size={11} />
+                      </Link>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
