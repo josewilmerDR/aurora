@@ -207,3 +207,26 @@
   color: #ff6b6b;
   word-break: break-word;
 }
+
+.ap-health-detail-link-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px dashed var(--aurora-border);
+}
+
+.ap-health-detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--aurora-green);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.ap-health-detail-link:hover {
+  background: rgba(51, 255, 153, 0.08);
+}

@@ -5,10 +5,20 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 // Fase 6.5 — historial de cadenas cross-domain. Endpoint:
 // GET /api/autopilot/orchestrator/chains. Detalle expandible al click.
 
+const STATUS_LABELS = {
+  planned: 'planeada',
+  executing: 'en curso',
+  executed: 'hecha',
+  partial: 'a medias',
+  aborted: 'cancelada',
+  rolled_back: 'deshecha',
+};
+
 function StatusBadge({ status }) {
+  const key = status || 'planned';
   return (
-    <span className={`ceo-status-badge ceo-status-badge--${status || 'planned'}`}>
-      {(status || 'planned').replace(/_/g, ' ')}
+    <span className={`ceo-status-badge ceo-status-badge--${key}`}>
+      {STATUS_LABELS[key] || key.replace(/_/g, ' ')}
     </span>
   );
 }
@@ -36,7 +46,7 @@ function ChainHistoryWidget() {
     apiFetch('/api/autopilot/orchestrator/chains?limit=10')
       .then(r => r.json())
       .then(data => setRows(Array.isArray(data) ? data : []))
-      .catch(() => setError('No se pudieron cargar las cadenas.'))
+      .catch(() => setError('No se pudieron cargar las tareas en cadena.'))
       .finally(() => setLoading(false));
   }, [apiFetch]);
 
@@ -65,7 +75,7 @@ function ChainHistoryWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiLink2 size={14} /> Cadenas recientes</span>
+        <span className="fin-widget-title"><FiLink2 size={14} /> Tareas en cadena recientes</span>
         <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
           <FiRefreshCw size={12} />
         </button>
@@ -77,8 +87,8 @@ function ChainHistoryWidget() {
       {!loading && !error && (
         rows.length === 0 ? (
           <div className="fin-widget-empty">
-            Sin cadenas todavía. Crea una con
-            <code> POST /api/autopilot/orchestrator/chains/plan</code>.
+            Aún no hay tareas en cadena. Una cadena es cuando el Copilot une varias acciones para resolver algo grande
+            (ejemplo: si la caja baja → revisa gastos, posterga compras y reasigna personal).
           </div>
         ) : (
           <div style={{ overflowY: 'auto', maxHeight: 280 }}>
@@ -90,10 +100,10 @@ function ChainHistoryWidget() {
                   style={{ cursor: 'pointer' }}
                 >
                   <div>
-                    <div className="ceo-chain-objective">{r.objective || '(sin objetivo)'}</div>
+                    <div className="ceo-chain-objective">{r.objective || '(sin meta definida)'}</div>
                     <div className="ceo-chain-meta">
                       {fmtDate(r.createdAt)} · {r.stepCount} pasos · nivel {r.effectiveLevel || 'n/a'}
-                      {r.usedClaude ? ' · Claude' : ''}
+                      {r.usedClaude ? ' · revisado por IA' : ''}
                     </div>
                   </div>
                   <StatusBadge status={r.status} />
@@ -135,8 +145,8 @@ function ChainHistoryWidget() {
                         })}
                         {detail.execution?.rollback && (
                           <div style={{ marginTop: 8, color: '#ff8080' }}>
-                            Rollback {detail.execution.rollback.fullyApplied ? 'completo' : 'parcial'} —
-                            triggered por <code>{detail.execution.rollback.triggeredByStepId || 'abort'}</code>
+                            Pasos deshechos: {detail.execution.rollback.fullyApplied ? 'todos' : 'parcialmente'} —
+                            disparado por <code>{detail.execution.rollback.triggeredByStepId || 'cancelación'}</code>
                           </div>
                         )}
                       </>

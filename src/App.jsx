@@ -171,7 +171,7 @@ const routeTitles = {
   '/finance/financing': 'Financiamiento',
   '/finance/financing/ofertas': 'Ofertas de crédito',
   '/finance/financing/simulaciones': 'Simulador de deuda',
-  '/ceo': 'CEO Dashboard',
+  '/ceo': 'Resumen del Copilot',
   '/hr/ficha': 'Ficha del Trabajador',
   '/hr/permisos': 'Permisos y Vacaciones',
   '/hr/planilla': 'Cálculo de Planilla',

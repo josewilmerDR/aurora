@@ -11,7 +11,7 @@ const DOMAIN_LABELS = {
   procurement: 'Abastecimiento',
   hr: 'RRHH',
   strategy: 'Estrategia',
-  meta: 'Orquestador',
+  meta: 'Plan automático',
 };
 
 function ScoreBar({ score }) {
@@ -42,7 +42,7 @@ function TrustScoreWidget() {
     apiFetch('/api/meta/trust/scores')
       .then(r => r.json())
       .then(setScores)
-      .catch(() => setError('No se pudieron cargar los scores de trust.'))
+      .catch(() => setError('No se pudieron cargar los aciertos por área.'))
       .finally(() => setLoading(false));
   }, [apiFetch]);
 
@@ -59,7 +59,7 @@ function TrustScoreWidget() {
       if (!res.ok) throw new Error();
       await load();
     } catch {
-      setError('No se pudo recomputar el trust.');
+      setError('No se pudo recalcular.');
     } finally {
       setRecomputing(false);
     }
@@ -71,7 +71,7 @@ function TrustScoreWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiTarget size={14} /> Trust por dominio</span>
+        <span className="fin-widget-title"><FiTarget size={14} /> Aciertos por área</span>
         <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
           <FiRefreshCw size={12} />
         </button>
@@ -85,8 +85,8 @@ function TrustScoreWidget() {
           <div>
             <div className="fin-widget-sub">
               {observationCount > 0
-                ? `${observationCount} observaciones en ${scores.sinceDays || 365}d · half-life ${scores.halfLifeDays}d`
-                : 'Sin observaciones todavía. Corre la sweep para generar la primera tanda.'}
+                ? `${observationCount} decisiones evaluadas en los últimos ${scores.sinceDays || 365} días · da más peso a las recientes`
+                : 'Aún no hay datos. El Copilot revisa cada día qué tan acertadas fueron sus decisiones.'}
             </div>
           </div>
 
@@ -101,7 +101,7 @@ function TrustScoreWidget() {
                     {d.score == null ? '—' : d.score.toFixed(2)}
                   </span>
                   <span className="ceo-score-meta" style={{ gridColumn: '1 / -1' }}>
-                    confianza {(d.confidence || 0).toFixed(2)} · {d.sampleSize || 0} muestras
+                    confianza {(d.confidence || 0).toFixed(2)} · basado en {d.sampleSize || 0} decisiones
                   </span>
                 </div>
               );
@@ -117,7 +117,7 @@ function TrustScoreWidget() {
                 disabled={recomputing}
                 style={{ width: '100%' }}
               >
-                {recomputing ? 'Recomputando…' : 'Recomputar trust + proponer'}
+                {recomputing ? 'Calculando…' : 'Recalcular y sugerir ajustes'}
               </button>
             </div>
           )}

@@ -510,7 +510,7 @@ export default function AutopilotPanel({ open, onClose }) {
 
         <div className="ap-panel-footer">
           <Link to="/autopilot" onClick={onClose} className="ap-panel-footer-link">
-            Ver toda la actividad de Aurora Copilot
+            Ver más en el Panel de Aurora Copilot
           </Link>
         </div>
       </div>

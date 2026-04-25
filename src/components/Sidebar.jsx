@@ -167,7 +167,6 @@ export const MODULES = [
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
       { label: 'Calibraciones', to: '/admin/calibraciones', icon: FiDroplet, minRole: 'supervisor', draftKey: 'calibraciones' },
       { label: 'Registro de Auditoría', to: '/admin/auditoria', icon: FiShield, minRole: 'administrador' },
-      { label: 'CEO Dashboard', to: '/ceo', icon: FiCpu, minRole: 'administrador' },
     ],
   },
 ];
