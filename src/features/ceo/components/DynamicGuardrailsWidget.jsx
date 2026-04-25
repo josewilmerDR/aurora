@@ -40,7 +40,7 @@ function DynamicGuardrailsWidget() {
       setCorridor(Array.isArray(c.entries) ? c.entries : []);
       setError(null);
     } catch {
-      setError('No se pudieron cargar las propuestas.');
+      setError('No se pudieron cargar los cambios propuestos.');
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ function DynamicGuardrailsWidget() {
       if (!res.ok) throw new Error();
       await load();
     } catch {
-      setError(`No se pudo ${action === 'approve' ? 'aprobar' : 'rechazar'} la propuesta.`);
+      setError(`No se pudo ${action === 'approve' ? 'aprobar' : 'rechazar'} el cambio.`);
     } finally {
       setActingId(null);
     }
@@ -71,7 +71,7 @@ function DynamicGuardrailsWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiSliders size={14} /> Guardrails dinámicos</span>
+        <span className="fin-widget-title"><FiSliders size={14} /> Ajustes propuestos a las reglas</span>
         <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
           <FiRefreshCw size={12} />
         </button>
@@ -87,7 +87,7 @@ function DynamicGuardrailsWidget() {
               {pending.length}
             </div>
             <div className="fin-widget-sub">
-              Propuestas pendientes · {executed.length} ejecutadas reciente · corridor con {corridor.length} knobs
+              Cambios pendientes · {executed.length} aplicados recientemente · {corridor.length} reglas configurables
             </div>
           </div>
 
@@ -95,11 +95,11 @@ function DynamicGuardrailsWidget() {
             {/* Pending proposals */}
             <div style={{ overflowY: 'auto', maxHeight: 200 }}>
               <div className="ceo-score-meta" style={{ marginBottom: 6, textTransform: 'uppercase' }}>
-                Propuestas pendientes
+                Cambios pendientes
               </div>
               {pending.length === 0 ? (
                 <div className="fin-widget-empty" style={{ padding: '8px 0' }}>
-                  Sin propuestas pendientes.
+                  Sin cambios propuestos por ahora.
                 </div>
               ) : (
                 pending.map(p => (
@@ -110,7 +110,7 @@ function DynamicGuardrailsWidget() {
                         {fmtValue(p.currentValue, p.unit)} → {fmtValue(p.proposedValue, p.unit)}
                       </div>
                       <div className="ceo-score-meta">
-                        trust {p.trustInput?.trust?.toFixed?.(2) ?? '—'} · confianza {p.trustInput?.confidence?.toFixed?.(2) ?? '—'}
+                        aciertos {p.trustInput?.trust?.toFixed?.(2) ?? '—'} · confianza {p.trustInput?.confidence?.toFixed?.(2) ?? '—'}
                       </div>
                       {canActOnProposals && (
                         <div className="ceo-proposal-actions">
@@ -141,7 +141,7 @@ function DynamicGuardrailsWidget() {
             {/* Corridor reference */}
             <div style={{ overflowY: 'auto', maxHeight: 200 }}>
               <div className="ceo-score-meta" style={{ marginBottom: 6, textTransform: 'uppercase' }}>
-                Corridor (floor / default / ceiling)
+                Rangos permitidos (mín / actual / máx)
               </div>
               {corridor.map(c => (
                 <div key={c.key} style={{ fontSize: '0.76rem', padding: '4px 0', borderBottom: '1px dashed var(--aurora-border)' }}>

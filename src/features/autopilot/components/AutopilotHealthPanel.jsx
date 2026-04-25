@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiActivity, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiActivity, FiRefreshCw, FiAlertCircle, FiArrowRight } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/autopilot-health-panel.css';
 
@@ -31,6 +33,8 @@ const TYPE_LABELS = {
 
 export default function AutopilotHealthPanel() {
   const apiFetch = useApiFetch();
+  const { currentUser } = useUser();
+  const isAdmin = hasMinRole(currentUser?.rol || 'trabajador', 'administrador');
   const [windowHours, setWindowHours] = useState(24);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -140,6 +144,14 @@ export default function AutopilotHealthPanel() {
           </ul>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="ap-health-detail-link-row">
+          <Link to="/ceo" className="ap-health-detail-link">
+            Ver resumen completo del Copilot <FiArrowRight size={12} />
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,16 +20,17 @@ function CeoDashboard() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2><FiCpu /> CEO Dashboard</h2>
+        <h2><FiCpu /> Resumen del Copilot</h2>
       </div>
 
       <div className="fin-policy-banner ceo-banner">
         <FiShield size={14} />
         <span>
-          <strong>Vista del meta-agente:</strong> orquestador, trust por dominio, hit-rate
-          de decisiones, historial de cadenas cross-domain y propuestas de guardrails
-          pendientes. Los caps arquitectónicos (HR forbidden N3, financing N1-only)
-          siguen enforzados en backend; esta página solo los refleja.
+          <strong>¿Cómo está trabajando el Copilot por usted?</strong> Aquí ve qué revisa
+          cada cierto tiempo, qué tan acertadas han sido sus decisiones, qué tareas
+          encadenó y qué ajustes le sugiere a sus reglas. Las protecciones de seguridad
+          de su finca siempre siguen activas: hay decisiones que el Copilot nunca toma
+          solo, sin importar el nivel que usted le dé.
         </span>
       </div>
 

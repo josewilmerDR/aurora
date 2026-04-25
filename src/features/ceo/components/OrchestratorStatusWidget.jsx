@@ -14,10 +14,18 @@ const DOMAIN_LABELS = {
   financing: 'Financiamiento',
 };
 
+const URGENCY_LABELS = {
+  none: 'sin urgencia',
+  low: 'baja',
+  medium: 'media',
+  high: 'alta',
+  critical: 'urgente',
+};
+
 function UrgencyBadge({ urgency }) {
-  const label = urgency || 'none';
+  const key = urgency || 'none';
   return (
-    <span className={`ceo-urgency-badge ceo-urgency-badge--${label}`}>{label}</span>
+    <span className={`ceo-urgency-badge ceo-urgency-badge--${key}`}>{URGENCY_LABELS[key] || key}</span>
   );
 }
 
@@ -44,7 +52,7 @@ function OrchestratorStatusWidget() {
       }
       setError(null);
     } catch {
-      setError('No se pudo cargar el estado del orquestador.');
+      setError('No se pudo cargar el plan automático.');
     } finally {
       setLoading(false);
     }
@@ -57,7 +65,7 @@ function OrchestratorStatusWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiActivity size={14} /> Orquestador</span>
+        <span className="fin-widget-title"><FiActivity size={14} /> Plan automático</span>
         <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
           <FiRefreshCw size={12} />
         </button>
@@ -70,25 +78,25 @@ function OrchestratorStatusWidget() {
         <>
           {!latest ? (
             <div className="fin-widget-empty">
-              Aún no hay runs del orquestador. Ejecuta <code>POST /api/autopilot/orchestrator/analyze</code> para generar el primero.
+              El Copilot todavía no ha hecho su revisión automática. La hace cada 6 horas.
             </div>
           ) : (
             <>
               <div>
                 <div className="fin-widget-primary" style={{ fontSize: '1rem' }}>
-                  {latest.status === 'dispatched' ? 'Ejecutado' : latest.status === 'partial' ? 'Parcial' : 'Propuesto'}
+                  {latest.status === 'dispatched' ? 'Acciones realizadas' : latest.status === 'partial' ? 'Acciones a medias' : 'Solo recomendación'}
                 </div>
                 <div className="fin-widget-sub">
                   {latest.topUrgency ? (
-                    <>Urgencia tope: <UrgencyBadge urgency={latest.topUrgency} /> — {latest.stepCount} pasos</>
-                  ) : 'Sin urgencias'}
+                    <>Lo más urgente: <UrgencyBadge urgency={latest.topUrgency} /> · {latest.stepCount} pasos en el plan</>
+                  ) : 'Todo bajo control'}
                 </div>
                 <div className="ceo-score-meta" style={{ marginTop: 4 }}>
                   {latest.createdAt
                     ? new Date(latest.createdAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
                     : ''}
                   {' · '}nivel {latest.effectiveLevel || 'n/a'}
-                  {latest.usedClaude ? ' · Claude' : ''}
+                  {latest.usedClaude ? ' · revisado por IA' : ''}
                 </div>
               </div>
 
@@ -109,7 +117,7 @@ function OrchestratorStatusWidget() {
 
               <div style={{ marginTop: 'auto' }}>
                 <Link to="/autopilot" className="btn btn-secondary" style={{ width: '100%', textAlign: 'center' }}>
-                  Ver acciones del autopilot
+                  Ver acciones del Copilot
                 </Link>
               </div>
             </>

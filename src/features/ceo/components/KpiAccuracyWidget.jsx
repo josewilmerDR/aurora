@@ -15,8 +15,8 @@ const ACTION_TYPE_LABELS = {
   sugerir_sancion:            'Sugerir sanción',
   sugerir_memorando:          'Sugerir memorando',
   sugerir_revision_desempeno: 'Revisión de desempeño',
-  orchestrator_run:           'Plan del orquestador',
-  ajustar_guardrails:         'Ajustar guardrails',
+  orchestrator_run:           'Plan automático del Copilot',
+  ajustar_guardrails:         'Ajustar reglas',
 };
 
 function fmtHitRate(v) {
@@ -45,7 +45,7 @@ function KpiAccuracyWidget() {
     apiFetch(`/api/meta/kpi-accuracy${qs}`)
       .then(r => r.json())
       .then(setData)
-      .catch(() => setError('No se pudo cargar el hit-rate.'))
+      .catch(() => setError('No se pudieron cargar los aciertos.'))
       .finally(() => setLoading(false));
   }, [apiFetch, window]);
 
@@ -59,16 +59,16 @@ function KpiAccuracyWidget() {
   return (
     <div className="fin-widget">
       <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiCheckCircle size={14} /> Hit-rate (KPI)</span>
+        <span className="fin-widget-title"><FiCheckCircle size={14} /> Aciertos del Copilot</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <select
             value={window}
             onChange={e => setWindow(e.target.value)}
             style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'transparent', color: 'var(--aurora-light)', border: '1px solid var(--aurora-border)', borderRadius: 4 }}
           >
-            <option value="30">30d</option>
-            <option value="90">90d</option>
-            <option value="365">365d</option>
+            <option value="30">30 días</option>
+            <option value="90">90 días</option>
+            <option value="365">1 año</option>
           </select>
           <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
             <FiRefreshCw size={12} />
@@ -86,17 +86,16 @@ function KpiAccuracyWidget() {
               {fmtHitRate(data.overall?.hitRate)}
             </div>
             <div className="fin-widget-sub">
-              Hit-rate global · {data.overall?.decidedCount || 0} decisiones evaluadas
+              Aciertos en general · {data.overall?.decidedCount || 0} decisiones evaluadas
               {data.observationCount > 0
-                ? ` · ${data.observationCount} observaciones ${data.truncated ? '(truncado)' : ''}`
+                ? ` · basado en ${data.observationCount} registros${data.truncated ? ' (limitado)' : ''}`
                 : ''}
             </div>
           </div>
 
           {rows.length === 0 ? (
             <div className="fin-widget-empty">
-              Sin observaciones aún. La sweep se corre cada día a las 04:00 UTC, o puedes disparar manualmente
-              <code> POST /api/meta/kpi-sweep/run</code>.
+              Todavía no hay datos para evaluar. El Copilot revisa los resultados cada día.
             </div>
           ) : (
             <div style={{ overflowY: 'auto', maxHeight: 180 }}>
@@ -106,7 +105,7 @@ function KpiAccuracyWidget() {
                     {ACTION_TYPE_LABELS[r.type] || r.type}
                   </span>
                   <span className="ceo-kpi-count">
-                    {r.match}/{r.decidedCount} · {r.pending} pending
+                    {r.match} aciertos de {r.decidedCount} · {r.pending} por evaluar
                   </span>
                   <span className={`ceo-kpi-rate ${hitRateClass(r.hitRate)}`}>
                     {fmtHitRate(r.hitRate)}
