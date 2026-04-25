@@ -1,93 +1,128 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CEDULA VIEWER — chrome (toolbar, loading/error) consume primitivas .aur-*
+   El documento (.ca-document, .ca-doc-*) sigue intacto en cedulas.css y
+   debe permanecer así: es PDF imprimible sobre fondo blanco oficial.
+
+   Convención: .cv-* para el page-specific shell. La sticky toolbar aprende
+   del lenguaje Aurora (translucent + blur) pero no es una primitiva
+   reutilizable porque su layout 3-zonas (back · info · actions) es propio
+   del viewer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .cedula-viewer {
   display: flex;
   flex-direction: column;
   min-height: 100%;
 }
 
-.cedula-viewer-toolbar {
+/* ── Toolbar (chrome translúcida sticky) ───────────────────────────────── */
+.cv-toolbar {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(13, 26, 38, 0.78);
+  border-bottom: 1px solid var(--aur-divider);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Zona central: título + badge — ocupa el espacio sobrante en desktop */
-.cedula-viewer-toolbar-info {
+.cv-toolbar-back {
+  flex-shrink: 0;
+}
+
+.cv-toolbar-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cv-toolbar-title {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--aur-text);
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-toolbar-meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
-  min-width: 0;
   flex-wrap: wrap;
 }
 
-.cedula-viewer-state {
+.cv-toolbar-consecutivo {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--aur-text-3);
+  background: var(--aur-bg-hover);
+  padding: 1px 8px;
+  border-radius: var(--aur-r-pill);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.cv-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Loading / error states ─────────────────────────────────────────────── */
+.cv-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 80px 24px;
-  color: var(--aurora-light);
+  text-align: center;
+  gap: 14px;
+  color: var(--aur-text-2);
 }
 
-.cedula-viewer-loading {
-  opacity: 0.6;
-  font-size: 0.95rem;
+.cv-state-text {
+  font-size: 14px;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--aur-text-2);
 }
 
-.cedula-viewer-error {
-  color: #ff6b6b;
-  font-size: 0.95rem;
+.cv-state-text--error {
+  color: var(--aur-danger);
 }
 
+/* ── Mobile (≤600px) ────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  /* Grid de 3 columnas exactamente iguales */
-  .cedula-viewer-toolbar {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr 1fr;
-    padding: 0 !important;
+  .cv-toolbar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
   }
-
-  /* Zona de título/badge: fuera del flujo */
-  .cedula-viewer-toolbar-info {
-    display: none;
-  }
-
-  /* El wrapper de acciones desaparece: sus hijos pasan a ser celdas del grid */
-  .cedula-viewer-toolbar .ca-preview-toolbar-actions {
-    display: contents;
-  }
-
-  /* Estilo uniforme para los tres botones-celda */
-  .cedula-viewer-toolbar .cedula-viewer-back-btn,
-  .cedula-viewer-toolbar .ca-preview-toolbar-actions .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px 4px;
-    border-radius: 0;
-    border: none !important;
-    border-right: 1px solid var(--aurora-border) !important;
-    background: transparent;
-    font-size: 0.78rem;
+  .cv-toolbar-info {
+    order: 3;
     width: 100%;
   }
-
-  .cedula-viewer-toolbar .ca-preview-toolbar-actions .btn:last-child {
-    border-right: none !important;
+  .cv-toolbar-title {
+    font-size: var(--aur-fs-body);
   }
-
-  .cedula-viewer-toolbar .cedula-viewer-back-btn .ca-toolbar-btn-text,
-  .ca-toolbar-btn-text {
-    display: none;
+  .cv-toolbar-actions {
+    margin-left: auto;
   }
 }
 
+/* ── Print: el chrome desaparece, queda solo el documento ───────────────── */
 @media print {
   /* Eliminar encabezados/pies de página nativos del navegador */
   @page {
@@ -124,8 +159,9 @@
     background: none !important;
   }
 
-  /* Ocultar barra de herramientas del viewer */
-  .cedula-viewer-toolbar {
+  /* Ocultar la toolbar del viewer en impresión */
+  .cv-toolbar,
+  .no-print {
     display: none !important;
   }
 
