@@ -282,7 +282,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
 
             {!isEditMode && (
               <div className="aur-row">
-                <span className="aur-row-label">Cambios al programa</span>
+                <span className="aur-row-label">Cambiar dosis</span>
                 <label className="aur-toggle">
                   <input
                     type="checkbox"
@@ -293,7 +293,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                     <span className="aur-toggle-thumb" />
                   </span>
                   <span className="aur-toggle-label">
-                    {hayCambios ? 'Se hicieron cambios' : 'Sin cambios respecto al programa'}
+                    {hayCambios ? 'Dosis ajustada' : 'Dosis original'}
                   </span>
                 </label>
               </div>
