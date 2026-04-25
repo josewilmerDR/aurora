@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   FiHome, FiGrid, FiPackage, FiUsers, FiArchive,
   FiDroplet, FiFileText, FiTruck, FiLogOut, FiPlusCircle,
-  FiLayers, FiBox, FiSettings, FiChevronDown, FiChevronRight,
+  FiLayers, FiBox, FiSettings, FiChevronRight,
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
@@ -364,7 +364,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             {groupHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
           </span>
           <span className="link-text">{item.label}</span>
-          {expanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+          <FiChevronRight size={12} className={`sidebar-chevron${expanded ? ' is-open' : ''}`} />
         </button>
         {expanded && (
           <div className="sidebar-subgroup-items">
@@ -485,7 +485,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
                   {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
                 </span>
                 <span>{mod.nombre}</span>
-                {expanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
+                <FiChevronRight size={13} className={`sidebar-chevron${expanded ? ' is-open' : ''}`} />
               </button>
             </div>
             {expanded && (
@@ -571,14 +571,17 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         </div>
       ) : (
         <>
-          <div className="sidebar-tabs">
+          <div className={`sidebar-tabs${activeTab === 'todas' ? ' is-todas' : ''}`}>
+            <span className="sidebar-tabs-thumb" aria-hidden="true" />
             <button
+              type="button"
               className={`sidebar-tab${activeTab === 'favoritos' ? ' active' : ''}`}
               onClick={() => setActiveTab('favoritos')}
             >
               Favoritos
             </button>
             <button
+              type="button"
               className={`sidebar-tab${activeTab === 'todas' ? ' active' : ''}`}
               onClick={() => setActiveTab('todas')}
             >
@@ -594,6 +597,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
       {/* ── Footer ── */}
       <div className="sidebar-footer">
         <div className={`sidebar-user${isCollapsed ? ' sidebar-user--collapsed' : ''}`}>
+          <div className="sidebar-user-avatar" aria-hidden="true">
+            {(currentUser?.nombre || 'U').slice(0, 1).toUpperCase()}
+          </div>
           {!isCollapsed && (
             <div className="sidebar-user-info">
               <span className="sidebar-user-name link-text">{currentUser?.nombre || 'Usuario'}</span>
@@ -612,11 +618,11 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             </button>
           )}
           <button
-            className="sidebar-logout-btn"
+            className="sidebar-logout-btn sidebar-logout-btn--danger"
             onClick={() => navigate('/logout')}
             title="Cerrar sesión"
           >
-            <FiLogOut size={18} />
+            <FiLogOut size={16} />
           </button>
         </div>
       </div>
