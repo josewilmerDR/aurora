@@ -1,0 +1,1195 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AURORA DESIGN PRIMITIVES (.aur-*)
+
+   Sistema de diseño compartido inspirado en Apple HIG. Provee tokens y
+   primitivas reutilizables para construir páginas con un lenguaje visual
+   consistente sin duplicar tokens ni clases por archivo.
+
+   Principios:
+     · Tipografía estricta 11/13/15/17/22/28 px, pesos 400/500/600
+     · Acento único (verde Aurora) + magenta SOLO para destructivo
+     · `font-variant-numeric: tabular-nums` en cualquier dato numérico
+     · Sheets translúcidas (backdrop-filter blur + saturate)
+     · Hairlines `rgba(255,255,255,.06)` en lugar de bordes opacos
+     · Microinteracciones cubic-bezier(.2,.8,.2,1)
+
+   Uso: cada página consume las clases `.aur-*` directamente. No requiere
+   scope padre. Tokens accesibles desde cualquier componente.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Surfaces (dark theme) ─────────────────────────────────────────────── */
+  --aur-bg:            rgba(255, 255, 255, 0.025);
+  --aur-bg-input:      rgba(255, 255, 255, 0.04);
+  --aur-bg-hover:      rgba(255, 255, 255, 0.06);
+  --aur-bg-strong:     rgba(255, 255, 255, 0.10);
+  --aur-bg-overlay:    rgba(0, 0, 0, 0.55);
+  --aur-bg-modal:      rgba(13, 26, 38, 0.92);
+
+  /* ── Dividers ──────────────────────────────────────────────────────────── */
+  --aur-divider:       rgba(255, 255, 255, 0.06);
+  --aur-divider-2:     rgba(255, 255, 255, 0.10);
+  --aur-divider-3:     rgba(255, 255, 255, 0.14);
+
+  /* ── Text ──────────────────────────────────────────────────────────────── */
+  --aur-text:          rgba(255, 255, 255, 0.95);
+  --aur-text-2:        rgba(255, 255, 255, 0.60);
+  --aur-text-3:        rgba(255, 255, 255, 0.40);
+
+  /* ── Accent: verde Aurora ──────────────────────────────────────────────── */
+  --aur-accent:        var(--aurora-green);
+  --aur-accent-tint:   rgba(51, 255, 153, 0.12);
+  --aur-accent-tint-2: rgba(51, 255, 153, 0.20);
+  --aur-accent-tint-3: rgba(51, 255, 153, 0.30);
+
+  /* ── Danger: magenta (acciones destructivas) ───────────────────────────── */
+  --aur-danger:        var(--aurora-magenta);
+  --aur-danger-tint:   rgba(204, 51, 255, 0.14);
+  --aur-danger-tint-2: rgba(204, 51, 255, 0.22);
+
+  /* ── Warn: amber (avisos no destructivos) ──────────────────────────────── */
+  --aur-warn:          #ffb84d;
+  --aur-warn-tint:     rgba(255, 184, 77, 0.14);
+
+  /* ── Badges (paleta de estados) ────────────────────────────────────────── */
+  --aur-badge-green-bg:    rgba(51, 255, 153, 0.14);
+  --aur-badge-green-fg:    var(--aurora-green);
+  --aur-badge-yellow-bg:   rgba(255, 184, 77, 0.14);
+  --aur-badge-yellow-fg:   #ffb84d;
+  --aur-badge-blue-bg:     rgba(100, 181, 246, 0.14);
+  --aur-badge-blue-fg:     #64b5f6;
+  --aur-badge-magenta-bg:  rgba(204, 51, 255, 0.14);
+  --aur-badge-magenta-fg:  var(--aurora-magenta);
+  --aur-badge-gray-bg:     rgba(255, 255, 255, 0.08);
+  --aur-badge-gray-fg:     rgba(255, 255, 255, 0.65);
+
+  /* ── Type scale (Apple SF inspired) ────────────────────────────────────── */
+  --aur-fs-caption:  11px;
+  --aur-fs-footnote: 13px;
+  --aur-fs-body:     15px;
+  --aur-fs-callout:  17px;
+  --aur-fs-title3:   22px;
+  --aur-fs-title1:   28px;
+
+  /* ── Radii ─────────────────────────────────────────────────────────────── */
+  --aur-r-sheet: 22px;
+  --aur-r-card:  16px;
+  --aur-r-input: 10px;
+  --aur-r-pill:  999px;
+
+  /* ── Shadows ───────────────────────────────────────────────────────────── */
+  --aur-shadow-sheet: 0 24px 64px rgba(0, 0, 0, 0.45),
+                      0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --aur-shadow-modal: 0 32px 80px rgba(0, 0, 0, 0.55),
+                      0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --aur-shadow-popover: 0 20px 50px rgba(0, 0, 0, 0.55),
+                        0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --aur-shadow-pill:  0 4px 14px rgba(51, 255, 153, 0.25),
+                      0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  --aur-shadow-pill-hover: 0 6px 22px rgba(51, 255, 153, 0.38),
+                           0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  --aur-shadow-pill-danger: 0 4px 14px rgba(204, 51, 255, 0.30),
+                            0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  --aur-shadow-pill-danger-hover: 0 6px 22px rgba(204, 51, 255, 0.42),
+                                  0 1px 0 rgba(255, 255, 255, 0.20) inset;
+
+  /* ── Focus rings ───────────────────────────────────────────────────────── */
+  --aur-ring:        0 0 0 3px rgba(51, 255, 153, 0.22);
+  --aur-ring-danger: 0 0 0 3px rgba(204, 51, 255, 0.22);
+
+  /* ── Easing ────────────────────────────────────────────────────────────── */
+  --aur-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes aur-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes aur-slide-up {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes aur-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHEET — superficie translúcida principal (página o card grande)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-sheet {
+  background: var(--aur-bg);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-sheet);
+  padding: 32px;
+  box-shadow: var(--aur-shadow-sheet);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  color: var(--aur-text);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.aur-sheet--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+/* Header del sheet */
+.aur-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0 0 24px 0;
+}
+.aur-sheet-header-text {
+  flex: 1;
+  min-width: 0;
+}
+.aur-sheet-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.aur-sheet-title {
+  font-size: var(--aur-fs-title1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+  color: var(--aur-text);
+  line-height: 1.15;
+}
+.aur-sheet-subtitle {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  margin: 0;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION — bloque numerado dentro de un sheet
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-section {
+  margin-bottom: 28px;
+}
+.aur-section:last-of-type {
+  margin-bottom: 0;
+}
+
+.aur-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+.aur-section-num {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.aur-section-header h3,
+.aur-section-title {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--aur-text);
+}
+.aur-section-count {
+  font-size: 12px;
+  color: var(--aur-text-2);
+  background: var(--aur-bg-input);
+  padding: 3px 10px;
+  border-radius: var(--aur-r-pill);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: center;
+}
+.aur-section-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIST + ROW — agrupación tipo iOS Settings (label izq · control der)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-list {
+  background: var(--aur-bg-input);
+  border-radius: var(--aur-r-card);
+  border: 1px solid var(--aur-divider);
+  overflow: hidden;
+}
+
+.aur-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--aur-divider);
+  transition: background 0.15s ease;
+}
+.aur-row:last-child {
+  border-bottom: none;
+}
+.aur-row:hover {
+  background: var(--aur-bg-hover);
+}
+.aur-row--multiline {
+  align-items: start;
+}
+.aur-row--multiline > .aur-row-label {
+  padding-top: 10px;
+}
+.aur-row--action .aur-row-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.aur-row-label {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUTS — input / textarea / select estilo "filled" con focus ring
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-input,
+.aur-textarea,
+.aur-select {
+  width: 100%;
+  background: var(--aur-bg-input);
+  border: 1px solid transparent;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
+  padding: 9px 12px;
+  border-radius: var(--aur-r-input);
+  outline: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+.aur-input::placeholder,
+.aur-textarea::placeholder {
+  color: var(--aur-text-3);
+}
+.aur-input:focus,
+.aur-textarea:focus,
+.aur-select:focus {
+  background: var(--aur-bg-hover);
+  box-shadow: var(--aur-ring);
+}
+.aur-input:disabled,
+.aur-textarea:disabled,
+.aur-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.aur-textarea {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.5;
+}
+
+.aur-input--readonly {
+  color: var(--aur-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.aur-input--error {
+  box-shadow: 0 0 0 1px var(--aur-danger);
+}
+.aur-input--error:focus {
+  box-shadow: var(--aur-ring-danger);
+}
+.aur-input--num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.aur-input--num::-webkit-outer-spin-button,
+.aur-input--num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.aur-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff80' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+.aur-select option {
+  background: var(--aurora-dark-blue);
+  color: var(--aur-text);
+}
+
+/* Field wrappers (label + input + hint/error) */
+.aur-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.aur-field-label {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--aur-text-3);
+}
+.aur-field-hint {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  opacity: 0.7;
+  margin-left: 2px;
+  font-weight: 500;
+}
+.aur-field-error {
+  font-size: 10px;
+  color: var(--aur-danger);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTONS — pill primario, pill destructivo, text plain
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+  border: none;
+  padding: 10px 24px;
+  border-radius: var(--aur-r-pill);
+  font-size: var(--aur-fs-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  box-shadow: var(--aur-shadow-pill);
+  transition: transform 0.15s var(--aur-ease), box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.aur-btn-pill:hover:not(:disabled) {
+  box-shadow: var(--aur-shadow-pill-hover);
+}
+.aur-btn-pill:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.aur-btn-pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.aur-btn-pill--danger {
+  background: var(--aur-danger);
+  color: white;
+  box-shadow: var(--aur-shadow-pill-danger);
+}
+.aur-btn-pill--danger:hover:not(:disabled) {
+  box-shadow: var(--aur-shadow-pill-danger-hover);
+}
+.aur-btn-pill--sm {
+  padding: 8px 18px;
+  font-size: var(--aur-fs-footnote);
+}
+
+.aur-btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--aur-text-2);
+  padding: 8px 16px;
+  border-radius: var(--aur-r-pill);
+  font-size: var(--aur-fs-body);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.aur-btn-text:hover:not(:disabled) {
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+.aur-btn-text:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHIPS — pill compacto para acciones secundarias / metadata
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  color: var(--aur-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--aur-r-pill);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s var(--aur-ease);
+  outline: none;
+  white-space: nowrap;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.aur-chip:hover:not(:disabled) {
+  border-color: var(--aur-divider-2);
+  color: var(--aur-text);
+}
+.aur-chip:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.aur-chip:focus-visible {
+  border-color: var(--aur-accent);
+  box-shadow: var(--aur-ring);
+}
+.aur-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.aur-chip--ghost {
+  background: transparent;
+  border-style: dashed;
+}
+.aur-chip--ghost:hover:not(:disabled) {
+  border-style: solid;
+  background: var(--aur-bg-hover);
+}
+
+/* Chip como <select> con chevron SVG inline */
+select.aur-chip {
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23ffffff80' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  max-width: 240px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+select.aur-chip option {
+  background: var(--aurora-dark-blue);
+  color: var(--aur-text);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ICON BUTTONS — botón de icono ghost con variants success/danger
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--aur-text-2);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s var(--aur-ease);
+  font-family: inherit;
+  outline: none;
+}
+.aur-icon-btn:hover:not(:disabled) {
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+.aur-icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.aur-icon-btn:focus-visible {
+  box-shadow: var(--aur-ring);
+}
+.aur-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.aur-icon-btn--sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+.aur-icon-btn--success {
+  color: var(--aur-accent);
+}
+.aur-icon-btn--success:hover:not(:disabled) {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+.aur-icon-btn--danger:hover:not(:disabled) {
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BADGES — pill compacto para estados (verde / amarillo / azul / magenta / gris)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: var(--aur-r-pill);
+  background: var(--aur-badge-gray-bg);
+  color: var(--aur-badge-gray-fg);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  border: none;
+  text-transform: none;
+}
+.aur-badge--green   { background: var(--aur-badge-green-bg);   color: var(--aur-badge-green-fg); }
+.aur-badge--yellow  { background: var(--aur-badge-yellow-bg);  color: var(--aur-badge-yellow-fg); }
+.aur-badge--blue    { background: var(--aur-badge-blue-bg);    color: var(--aur-badge-blue-fg); }
+.aur-badge--magenta { background: var(--aur-badge-magenta-bg); color: var(--aur-badge-magenta-fg); }
+.aur-badge--gray    { background: var(--aur-badge-gray-bg);    color: var(--aur-badge-gray-fg); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL — sheet flotante con backdrop blur (portaled a body)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--aur-bg-overlay);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: aur-fade-in 0.2s var(--aur-ease);
+}
+
+.aur-modal {
+  background: var(--aur-bg-modal);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--aur-shadow-modal);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  color: var(--aur-text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: aur-slide-up 0.22s var(--aur-ease);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+.aur-modal--wide {
+  max-width: 520px;
+}
+
+.aur-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 22px 12px 22px;
+}
+.aur-modal-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+  flex-shrink: 0;
+}
+.aur-modal-icon--warn {
+  background: var(--aur-warn-tint);
+  color: var(--aur-warn);
+}
+.aur-modal-icon--danger {
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
+}
+.aur-modal-title {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+}
+.aur-modal-close {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.aur-modal-body {
+  padding: 0 22px 18px 22px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  line-height: 1.55;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.aur-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 4px 22px 18px 22px;
+}
+.aur-modal-grid--full {
+  grid-template-columns: 1fr;
+}
+.aur-modal-grid > .aur-field--full {
+  grid-column: 1 / -1;
+}
+
+.aur-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 22px 18px 22px;
+  border-top: 1px solid var(--aur-divider);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMBOBOX — input de búsqueda + dropdown portaled (autocomplete)
+
+   HTML esperado:
+     <div class="aur-combo">
+       <div class="aur-combo-input-wrap">
+         <icon /> <input class="aur-combo-input" />
+       </div>
+       <!-- portaled to body -->
+       <ul class="aur-combo-dropdown" style="top/left/width">
+         <li class="aur-combo-option [aur-combo-option--active]">
+           <span class="aur-combo-name">...</span>
+           <span class="aur-combo-meta">...</span>
+         </li>
+       </ul>
+     </div>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-combo {
+  display: inline-block;
+  position: relative;
+}
+
+.aur-combo-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--aur-bg-input);
+  border: 1px dashed var(--aur-divider-2);
+  border-radius: var(--aur-r-input);
+  color: var(--aur-text-2);
+  cursor: text;
+  min-width: 180px;
+  transition: background 0.15s ease, border-color 0.15s ease, border-style 0.15s ease;
+}
+.aur-combo-input-wrap:focus-within {
+  border-style: solid;
+  border-color: var(--aur-accent);
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+.aur-combo-input-wrap > svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.aur-combo-input-wrap:focus-within > svg {
+  opacity: 1;
+  color: var(--aur-accent);
+}
+
+.aur-combo-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--aur-text);
+  font-size: 13px;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  min-width: 100px;
+}
+.aur-combo-input::placeholder {
+  color: var(--aur-text-3);
+}
+
+.aur-combo-dropdown {
+  position: absolute;
+  z-index: 1200;
+  min-width: 240px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: rgba(13, 26, 38, 0.96);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: 12px;
+  box-shadow: var(--aur-shadow-popover);
+  list-style: none;
+  padding: 4px;
+  margin: 0;
+  animation: aur-slide-up 0.18s var(--aur-ease);
+  font-feature-settings: 'ss01', 'cv11';
+}
+.aur-combo-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+.aur-combo-dropdown::-webkit-scrollbar-thumb {
+  background: var(--aur-divider-2);
+  border-radius: 999px;
+}
+
+.aur-combo-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+.aur-combo-option:hover,
+.aur-combo-option--active {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+.aur-combo-name {
+  font-size: 13px;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+  font-weight: 500;
+}
+.aur-combo-option:hover .aur-combo-name,
+.aur-combo-option--active .aur-combo-name {
+  color: var(--aur-accent);
+}
+.aur-combo-meta {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  letter-spacing: 0;
+}
+.aur-combo-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--aur-text-3);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLE — tabla refinada con sortable headers + filter funnel
+
+   HTML esperado:
+     <table class="aur-table">
+       <thead>
+         <tr>
+           <th class="aur-th-sortable [is-sorted] [has-filter]">
+             <span class="aur-th-content">
+               Nombre
+               <span class="aur-th-arrow">↓</span>
+               <span class="aur-th-funnel"><Funnel /></span>
+             </span>
+           </th>
+         </tr>
+       </thead>
+       <tbody>
+         <tr>
+           <td>Valor</td>
+         </tr>
+       </tbody>
+     </table>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+  font-feature-settings: 'ss01', 'cv11';
+}
+.aur-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--aur-bg-input);
+}
+.aur-table th {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--aur-text-3);
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--aur-divider-2);
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+}
+.aur-table td {
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--aur-divider);
+  vertical-align: middle;
+  color: var(--aur-text);
+}
+.aur-table tbody tr {
+  transition: background 0.15s ease;
+}
+.aur-table tbody tr:hover {
+  background: var(--aur-bg-hover);
+}
+.aur-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.aur-td-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.aur-td-readonly {
+  color: var(--aur-text-2);
+}
+.aur-td-strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--aur-accent);
+  white-space: nowrap;
+}
+
+/* Sortable header */
+.aur-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.aur-th-sortable:hover {
+  color: var(--aur-text-2);
+}
+.aur-th-sortable.is-sorted {
+  color: var(--aur-accent);
+}
+.aur-th-sortable.has-filter {
+  border-bottom-color: var(--aur-accent);
+}
+.aur-th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.aur-th-arrow {
+  font-size: 10px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+.aur-th-sortable:hover .aur-th-arrow {
+  opacity: 0.8;
+}
+.aur-th-sortable.is-sorted .aur-th-arrow {
+  opacity: 1;
+}
+.aur-th-funnel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--aur-text-3);
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.aur-th-sortable:hover .aur-th-funnel {
+  opacity: 0.55;
+}
+.aur-th-funnel:hover {
+  opacity: 1 !important;
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+.aur-th-funnel.is-active {
+  opacity: 1 !important;
+  color: var(--aur-accent);
+  background: var(--aur-accent-tint);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FILTER POPOVER — flotante anclado a un column header (portaled)
+
+   HTML esperado:
+     <div class="aur-filter-backdrop" />
+     <div class="aur-filter-popover" style="left/top">
+       <icon class="aur-filter-icon" />
+       <input class="aur-filter-input" />
+       <button class="aur-filter-clear"><X /></button>
+     </div>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: transparent;
+}
+
+.aur-filter-popover {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 240px;
+  background: rgba(13, 26, 38, 0.96);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: 12px;
+  box-shadow: var(--aur-shadow-popover);
+  letter-spacing: -0.01em;
+  animation: aur-slide-up 0.18s var(--aur-ease);
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+.aur-filter-icon {
+  color: var(--aur-text-3);
+  flex-shrink: 0;
+}
+
+.aur-filter-input {
+  flex: 1;
+  background: var(--aur-bg-input);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  color-scheme: dark;
+  min-width: 0;
+}
+.aur-filter-input::placeholder {
+  color: var(--aur-text-3);
+}
+.aur-filter-input:focus {
+  background: var(--aur-bg-hover);
+  box-shadow: 0 0 0 2px var(--aur-accent-tint-3);
+}
+
+.aur-filter-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.aur-filter-range-label {
+  font-size: var(--aur-fs-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--aur-text-3);
+  font-weight: 600;
+}
+.aur-filter-input--range {
+  flex: 1;
+  min-width: 90px;
+}
+
+.aur-filter-clear {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--aur-text-3);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.aur-filter-clear:hover {
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INLINE CONFIRM — micro-prompt "¿Eliminar?" con Sí/No inline
+
+   HTML esperado:
+     <div class="aur-inline-confirm">
+       <span class="aur-inline-confirm-text">¿Eliminar?</span>
+       <button class="aur-inline-confirm-yes">Sí</button>
+       <button class="aur-inline-confirm-no">No</button>
+     </div>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aur-inline-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  background: var(--aur-danger-tint);
+  border-radius: var(--aur-r-pill);
+  padding: 4px 4px 4px 12px;
+  white-space: nowrap;
+}
+.aur-inline-confirm-text {
+  color: var(--aur-danger);
+  font-weight: 500;
+}
+.aur-inline-confirm-yes,
+.aur-inline-confirm-no {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--aur-r-pill);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease, transform 0.12s var(--aur-ease);
+}
+.aur-inline-confirm-yes {
+  background: var(--aur-danger);
+  color: white;
+}
+.aur-inline-confirm-no {
+  background: var(--aur-bg-strong);
+  color: var(--aur-text);
+}
+.aur-inline-confirm-yes:active,
+.aur-inline-confirm-no:active {
+  transform: scale(0.94);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE (≤768px) — adaptaciones responsive de las primitivas
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .aur-sheet {
+    padding: 20px 16px;
+    border-radius: 18px;
+  }
+  .aur-sheet-title {
+    font-size: 24px;
+  }
+  .aur-sheet-header {
+    flex-wrap: wrap;
+  }
+  .aur-sheet-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .aur-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 14px;
+  }
+  .aur-row-label {
+    font-size: var(--aur-fs-footnote);
+  }
+  .aur-row--multiline {
+    align-items: stretch;
+  }
+  .aur-row--multiline > .aur-row-label {
+    padding-top: 0;
+  }
+  .aur-row--action .aur-row-content {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .aur-modal {
+    max-width: 100%;
+    border-radius: 16px;
+  }
+  .aur-modal-grid {
+    grid-template-columns: 1fr;
+    padding: 4px 18px 16px 18px;
+  }
+  .aur-modal-header {
+    padding: 16px 18px 10px 18px;
+  }
+  .aur-modal-body {
+    padding: 0 18px 14px 18px;
+  }
+  .aur-modal-actions {
+    padding: 12px 18px 14px 18px;
+    flex-direction: column-reverse;
+  }
+  .aur-modal-actions .aur-btn-text,
+  .aur-modal-actions .aur-btn-pill {
+    width: 100%;
+    justify-content: center;
+  }
+}
