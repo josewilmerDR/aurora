@@ -248,16 +248,22 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
 
 function ConfirmModal({ config, onCancel }) {
   return createPortal(
-    <div className="param-modal-backdrop">
-      <div className="param-modal">
-        <div className="param-modal-header">
-          <FiAlertTriangle size={18} className="param-modal-icon-warn" />
-          <span>{config.title}</span>
+    <div className="am-backdrop" onPointerDown={onCancel}>
+      <div className="am-modal" onPointerDown={e => e.stopPropagation()}>
+        <div className="am-modal-header">
+          <span className={`am-modal-icon${config.danger ? ' am-modal-icon--danger' : ' am-modal-icon--warn'}`}>
+            <FiAlertTriangle size={16} />
+          </span>
+          <span className="am-modal-title">{config.title}</span>
         </div>
-        <p className="param-modal-body">{config.body}</p>
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
-          <button className="btn btn-primary" onClick={config.onConfirm}>
+        <p className="am-modal-body">{config.body}</p>
+        <div className="am-modal-actions">
+          <button type="button" className="am-btn-text" onClick={onCancel}>Cancelar</button>
+          <button
+            type="button"
+            className={`am-btn-pill${config.danger ? ' am-btn-pill--danger' : ''}`}
+            onClick={config.onConfirm}
+          >
             {config.confirmLabel || 'Confirmar'}
           </button>
         </div>
@@ -304,52 +310,59 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
   };
 
   return createPortal(
-    <div className="param-modal-backdrop" onPointerDown={onCancel}>
-      <div className="param-modal" style={{ maxWidth: 480 }} onPointerDown={e => e.stopPropagation()}>
-        <div className="param-modal-header">
-          <FiEdit2 size={16} style={{ flexShrink: 0 }} />
-          <span>Editar registro de siembra</span>
+    <div className="am-backdrop" onPointerDown={onCancel}>
+      <div className="am-modal am-modal--wide" onPointerDown={e => e.stopPropagation()}>
+        <div className="am-modal-header">
+          <span className="am-modal-icon">
+            <FiEdit2 size={14} />
+          </span>
+          <span className="am-modal-title">Editar registro de siembra</span>
         </div>
-        <div className="edit-siembra-grid">
-          <label className="mat-modal-label">
-            Fecha
-            <input className="mat-modal-input" type="date" value={fecha}
+        <div className="am-modal-grid">
+          <label className="am-field">
+            <span className="am-field-label">Fecha</span>
+            <input className="am-field-input" type="date" value={fecha}
               onChange={e => setFecha(e.target.value)} disabled={saving} />
           </label>
-          <label className="mat-modal-label">
-            Lote
-            <select className="mat-modal-input" value={loteId}
+          <label className="am-field">
+            <span className="am-field-label">Lote</span>
+            <select className="am-field-input" value={loteId}
               onChange={e => setLoteId(e.target.value)} disabled={saving}>
               <option value="">— seleccionar —</option>
               {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
             </select>
           </label>
-          <label className="mat-modal-label">
-            Bloque
-            <input className="mat-modal-input" placeholder="Ej: A" value={bloque}
+          <label className="am-field">
+            <span className="am-field-label">Bloque</span>
+            <input className="am-field-input" placeholder="Ej: A" value={bloque}
               maxLength={4}
               onChange={e => setBloque(e.target.value)} disabled={saving} />
           </label>
-          <label className="mat-modal-label">
-            Plantas
-            <input className={`mat-modal-input${plantasInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={plantas}
-              onChange={e => setPlantas(e.target.value)} disabled={saving} />
-            {plantasInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
+          <label className="am-field">
+            <span className="am-field-label">Plantas</span>
+            <input
+              className={`am-field-input${plantasInvalid ? ' am-field-input--error' : ''}`}
+              type="number" min="0" max="199999" value={plantas}
+              onChange={e => setPlantas(e.target.value)} disabled={saving}
+            />
+            {plantasInvalid && <span className="am-field-error">Debe ser entre 0 y 199 999</span>}
           </label>
-          <label className="mat-modal-label">
-            Densidad <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>(pl/ha)</span>
-            <input className={`mat-modal-input${densidadInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={densidad}
-              onChange={e => setDensidad(e.target.value)} disabled={saving} />
-            {densidadInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
+          <label className="am-field">
+            <span className="am-field-label">Densidad <span className="am-field-hint">pl/ha</span></span>
+            <input
+              className={`am-field-input${densidadInvalid ? ' am-field-input--error' : ''}`}
+              type="number" min="0" max="199999" value={densidad}
+              onChange={e => setDensidad(e.target.value)} disabled={saving}
+            />
+            {densidadInvalid && <span className="am-field-error">Debe ser entre 0 y 199 999</span>}
           </label>
-          <label className="mat-modal-label">
-            Área calculada
-            <input className="mat-modal-input" value={area ? area + ' ha' : '—'} readOnly disabled
-              style={{ opacity: 0.55 }} />
+          <label className="am-field">
+            <span className="am-field-label">Área calculada</span>
+            <input className="am-field-input am-field-input--readonly" value={area ? area + ' ha' : '—'} readOnly disabled />
           </label>
-          <label className="mat-modal-label" style={{ gridColumn: '1 / -1' }}>
-            Material
-            <select className="mat-modal-input" value={materialId}
+          <label className="am-field am-field--full">
+            <span className="am-field-label">Material</span>
+            <select className="am-field-input" value={materialId}
               onChange={e => setMaterialId(e.target.value)} disabled={saving}>
               <option value="">— sin material —</option>
               {materiales.map(m => (
@@ -360,9 +373,14 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
             </select>
           </label>
         </div>
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!fecha || !loteId || saving || plantasInvalid || densidadInvalid} onClick={handleSave}>
+        <div className="am-modal-actions">
+          <button type="button" className="am-btn-text" onClick={onCancel} disabled={saving}>Cancelar</button>
+          <button
+            type="button"
+            className="am-btn-pill"
+            disabled={!fecha || !loteId || saving || plantasInvalid || densidadInvalid}
+            onClick={handleSave}
+          >
             {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -561,6 +579,7 @@ function SiembraHistorial() {
 
   const handleDelete = (id) => {
     setConfirmModal({
+      danger: true,
       title: '¿Eliminar este registro?',
       body: 'Esta acción no se puede deshacer.',
       confirmLabel: 'Eliminar',
@@ -683,72 +702,89 @@ function SiembraHistorial() {
       {loading ? (
         <div className="siembra-page-loading" />
       ) : registros.length === 0 ? (
-        <div className="siembra-empty-state">
-          <FiPackage size={36} />
-          <p>No hay registros aún. Crea el primero en Registro de Siembra.</p>
-          <Link to="/siembra" state={{ openForm: true }} className="btn btn-primary">Ir a Registro de Siembra</Link>
+        <div className="sh-page sh-page--empty">
+          <div className="sh-page-empty">
+            <FiPackage size={36} />
+            <p>No hay registros aún. Crea el primero en Registro de Siembra.</p>
+            <Link to="/siembra" state={{ openForm: true }} className="sh-btn-pill">
+              Ir a Registro de Siembra
+            </Link>
+          </div>
         </div>
       ) : (
-        <>
+        <div className="sh-page">
 
-      {/* ── Toolbar ────────────────────────────────────────────────────────── */}
-      <div className="sh-toolbar">
-        <Link to="/siembra" className="sh-back-link">
-          <FiChevronLeft size={15} /> Registro de Siembra
+      <header className="sh-page-header">
+        <div className="sh-page-header-text">
+          <h2 className="sh-page-title">Historial de siembra</h2>
+          <p className="sh-page-subtitle">Consulta, filtra, exporta y comparte los registros guardados.</p>
+        </div>
+        <Link to="/siembra" className="sh-chip sh-chip--ghost sh-page-back">
+          <FiChevronLeft size={12} /> Registro
         </Link>
+      </header>
 
-        <div className="sh-toolbar-actions">
-          <button className="btn btn-secondary sh-export-btn" onClick={exportXLSX} title="Exportar a Excel">
-            <FiDownload size={14} /> Exportar Excel
-          </button>
-          <button className="btn btn-secondary sh-export-btn" onClick={exportCSV} title="Exportar a CSV">
-            <FiDownload size={14} /> Exportar CSV
-          </button>
-          <button className="btn btn-secondary print-hide" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
-            <FiShare2 size={14} /> Compartir
-          </button>
+      <section className="sh-page-section">
+        <div className="sh-page-section-header">
+          <span className="sh-page-section-num">01</span>
+          <h3>Resumen</h3>
         </div>
-      </div>
+        <div className="sh-stats-bar">
+          <div className="sh-stat sh-stat-hide-mobile">
+            <span className="sh-stat-value">{displayData.length}</span>
+            <span className="sh-stat-label">Registros</span>
+          </div>
+          <div className="sh-stat-divider sh-stat-hide-mobile" />
+          <div className="sh-stat">
+            <span className="sh-stat-value">{stats.totalPlantas.toLocaleString()}</span>
+            <span className="sh-stat-label">Plantas totales</span>
+          </div>
+          <div className="sh-stat-divider" />
+          <div className="sh-stat">
+            <span className="sh-stat-value">{stats.totalArea} ha</span>
+            <span className="sh-stat-label">Área calculada</span>
+          </div>
+          <div className="sh-stat-divider sh-stat-hide-mobile" />
+          <div className="sh-stat sh-stat-hide-mobile">
+            <span className="sh-stat-value sh-stat-green">{stats.cerrados}</span>
+            <span className="sh-stat-label">Bloques cerrados</span>
+          </div>
+        </div>
+      </section>
 
-      {/* ── Stats bar ──────────────────────────────────────────────────────── */}
-      <div className="sh-stats-bar">
-        <div className="sh-stat sh-stat-hide-mobile">
-          <span className="sh-stat-value">{displayData.length}</span>
-          <span className="sh-stat-label">Registros</span>
-        </div>
-        <div className="sh-stat-divider sh-stat-hide-mobile" />
-        <div className="sh-stat">
-          <span className="sh-stat-value">{stats.totalPlantas.toLocaleString()}</span>
-          <span className="sh-stat-label">Plantas totales</span>
-        </div>
-        <div className="sh-stat-divider" />
-        <div className="sh-stat">
-          <span className="sh-stat-value">{stats.totalArea} ha</span>
-          <span className="sh-stat-label">Área calculada</span>
-        </div>
-        <div className="sh-stat-divider sh-stat-hide-mobile" />
-        <div className="sh-stat sh-stat-hide-mobile">
-          <span className="sh-stat-value sh-stat-green">{stats.cerrados}</span>
-          <span className="sh-stat-label">Bloques cerrados</span>
-        </div>
-      </div>
-
-      {/* ── Table card ─────────────────────────────────────────────────────── */}
-      <div className="siembra-historial sh-table-card">
-        <div className="historial-top-row">
-          <span className="sh-result-count print-hide">
-            {displayData.length === registros.length
-              ? `${registros.length} registros`
-              : `${displayData.length} de ${registros.length} registros`}
-          </span>
-          {Object.keys(colFilters).length > 0 && (
-            <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-              <FiX size={11} /> Limpiar filtros de columna
+      <section className="sh-page-section">
+        <div className="sh-page-section-header">
+          <span className="sh-page-section-num">02</span>
+          <h3>Registros</h3>
+          <span className="sh-page-section-count">{displayData.length}</span>
+          <div className="sh-page-section-actions print-hide">
+            <button type="button" className="sh-chip" onClick={exportXLSX} title="Exportar a Excel">
+              <FiDownload size={12} /> Excel
             </button>
-          )}
+            <button type="button" className="sh-chip" onClick={exportCSV} title="Exportar a CSV">
+              <FiDownload size={12} /> CSV
+            </button>
+            <button type="button" className="sh-chip" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
+              <FiShare2 size={12} /> Compartir
+            </button>
+          </div>
         </div>
 
-        {displayData.length === 0 ? (
+        <div className="siembra-historial sh-table-card">
+          <div className="historial-top-row">
+            <span className="sh-result-count print-hide">
+              {displayData.length === registros.length
+                ? `${registros.length} registros`
+                : `${displayData.length} de ${registros.length} registros`}
+            </span>
+            {Object.keys(colFilters).length > 0 && (
+              <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
+                <FiX size={11} /> Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          {displayData.length === 0 ? (
           <p className="empty-state">No hay registros con los filtros aplicados.</p>
         ) : (
           <div className="siembra-table-wrapper">
@@ -814,14 +850,15 @@ function SiembraHistorial() {
           </div>
         )}
 
-        {displayData.some(r => r.cerrado) && (
-          <p className="siembra-cerrado-hint print-hide">
-            <FiAlertCircle size={13} />
-            Los bloques cerrados están listos para iniciar aplicaciones.
-          </p>
-        )}
-      </div>
-        </>
+          {displayData.some(r => r.cerrado) && (
+            <p className="siembra-cerrado-hint print-hide">
+              <FiAlertCircle size={13} />
+              Los bloques cerrados están listos para iniciar aplicaciones.
+            </p>
+          )}
+        </div>
+      </section>
+        </div>
       )}
 
       {/* ── Column visibility menu portal ─────────────────────────────────── */}

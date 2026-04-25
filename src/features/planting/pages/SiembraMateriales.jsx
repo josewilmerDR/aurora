@@ -1,11 +1,40 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/siembra.css';
 
 const EMPTY = { nombre: '', rangoPesos: '', variedad: '' };
+
+// ── Confirm modal (.am-* shared) ────────────────────────────────────────────
+function ConfirmModal({ config, onCancel }) {
+  return createPortal(
+    <div className="am-backdrop" onPointerDown={onCancel}>
+      <div className="am-modal" onPointerDown={e => e.stopPropagation()}>
+        <div className="am-modal-header">
+          <span className={`am-modal-icon${config.danger ? ' am-modal-icon--danger' : ' am-modal-icon--warn'}`}>
+            <FiAlertTriangle size={16} />
+          </span>
+          <span className="am-modal-title">{config.title}</span>
+        </div>
+        <p className="am-modal-body">{config.body}</p>
+        <div className="am-modal-actions">
+          <button type="button" className="am-btn-text" onClick={onCancel}>Cancelar</button>
+          <button
+            type="button"
+            className={`am-btn-pill${config.danger ? ' am-btn-pill--danger' : ''}`}
+            onClick={config.onConfirm}
+          >
+            {config.confirmLabel || 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 function SiembraMateriales() {
   const apiFetch = useApiFetch();
@@ -15,6 +44,7 @@ function SiembraMateriales() {
   const [editingId, setEditingId]   = useState(null);
   const [editData, setEditData]     = useState({ ...EMPTY });
   const [toast, setToast]           = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
@@ -60,8 +90,18 @@ function SiembraMateriales() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar este material?')) return;
+  const askDelete = (m) => {
+    setConfirmModal({
+      danger: true,
+      title: '¿Eliminar este material?',
+      body: `"${m.nombre}" se quitará del catálogo. Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: () => doDelete(m.id),
+    });
+  };
+
+  const doDelete = async (id) => {
+    setConfirmModal(null);
     try {
       await apiFetch(`/api/materiales-siembra/${id}`, { method: 'DELETE' });
       setMateriales(prev => prev.filter(m => m.id !== id));
@@ -71,125 +111,155 @@ function SiembraMateriales() {
     }
   };
 
+  const cancelCreate = () => {
+    setShowForm(false);
+    setForm({ ...EMPTY });
+  };
+
   return (
     <div className="sm-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {confirmModal && <ConfirmModal config={confirmModal} onCancel={() => setConfirmModal(null)} />}
 
-      {/* ── Header ── */}
-      <div className="sm-header">
-        <Link to="/siembra" className="btn btn-secondary">
-          <FiArrowLeft size={15} /> Volver al registro
-        </Link>
-        <div className="sm-title-block">
-          <h2 className="sm-title">Materiales de Siembra</h2>
-          {materiales.length > 0 && (
-            <span className="sm-count">{materiales.length}</span>
-          )}
-        </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} disabled={showForm}>
-          <FiPlus size={15} /> Nuevo material
-        </button>
-      </div>
-
-      {/* ── Formulario creación ── */}
-      {showForm && (
-        <div className="sm-form-card">
-          <div className="sm-form-header">
-            <span>Nuevo material</span>
-            <button className="sm-close-btn" onClick={() => { setShowForm(false); setForm({ ...EMPTY }); }}>
-              <FiX size={15} />
-            </button>
+      <div className="sm-page">
+        <header className="sm-page-header">
+          <div className="sm-page-header-text">
+            <h2 className="sm-page-title">Materiales de siembra</h2>
+            <p className="sm-page-subtitle">Catálogo de variedades y rangos de peso usados en los registros.</p>
           </div>
-          <form onSubmit={handleCreate} className="sm-form">
-            <div className="sm-form-grid">
-              <div className="sm-field">
-                <label>Nombre <span className="sm-required">*</span></label>
-                <input
-                  value={form.nombre}
-                  onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-                  placeholder="Ej: CM, MD2, Cayena Lisa"
-                  autoFocus
-                />
-              </div>
-              <div className="sm-field">
-                <label>Rango de pesos</label>
-                <input
-                  value={form.rangoPesos}
-                  onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
-                  placeholder="Ej: 200g – 300g"
-                />
-              </div>
-              <div className="sm-field">
-                <label>Variedad</label>
-                <input
-                  value={form.variedad}
-                  onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
-                  placeholder="Ej: Amarilla, Roja"
-                />
-              </div>
-            </div>
-            <div className="sm-form-actions">
-              <button type="button" className="btn btn-secondary"
-                onClick={() => { setShowForm(false); setForm({ ...EMPTY }); }}>
-                Cancelar
+          <div className="sm-page-header-actions">
+            <Link to="/siembra" className="sm-chip sm-chip--ghost">
+              <FiArrowLeft size={12} /> Registro
+            </Link>
+            {!showForm && (
+              <button type="button" className="sm-btn-pill" onClick={() => setShowForm(true)}>
+                <FiPlus size={14} /> Nuevo material
               </button>
-              <button type="submit" className="btn btn-primary">Crear material</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ── Lista ── */}
-      <div className="sm-list">
-        {materiales.length === 0 && (
-          <div className="sm-empty">
-            <p>No hay materiales registrados.</p>
-            <p className="sm-empty-hint">Crea el primero con el botón "Nuevo material".</p>
-          </div>
-        )}
-        {materiales.map(m => (
-          <div key={m.id} className={`sm-item${editingId === m.id ? ' sm-item--editing' : ''}`}>
-            {editingId === m.id ? (
-              <div className="sm-item-edit">
-                <input className="sm-edit-input" placeholder="Nombre"
-                  value={editData.nombre}
-                  onChange={e => setEditData(p => ({ ...p, nombre: e.target.value }))} />
-                <input className="sm-edit-input" placeholder="Rango de pesos"
-                  value={editData.rangoPesos}
-                  onChange={e => setEditData(p => ({ ...p, rangoPesos: e.target.value }))} />
-                <input className="sm-edit-input" placeholder="Variedad"
-                  value={editData.variedad}
-                  onChange={e => setEditData(p => ({ ...p, variedad: e.target.value }))} />
-                <div className="sm-item-actions">
-                  <button className="sm-btn-icon sm-btn-success" onClick={saveEdit} title="Guardar">
-                    <FiCheck size={15} />
-                  </button>
-                  <button className="sm-btn-icon" onClick={() => setEditingId(null)} title="Cancelar">
-                    <FiX size={15} />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="sm-item-view">
-                <div className="sm-item-info">
-                  <span className="sm-item-name">{m.nombre}</span>
-                  <div className="sm-item-chips">
-                    {m.rangoPesos && <span className="material-chip">{m.rangoPesos}</span>}
-                    {m.variedad   && <span className="material-chip material-chip-var">{m.variedad}</span>}
-                  </div>
-                </div>
-                <div className="sm-item-actions">
-                  <button className="sm-btn-icon" onClick={() => startEdit(m)} title="Editar">
-                    <FiEdit2 size={15} />
-                  </button>
-                  <button className="sm-btn-icon sm-btn-danger" onClick={() => handleDelete(m.id)} title="Eliminar">
-                    <FiTrash2 size={15} />
-                  </button>
-                </div>
-              </div>
             )}
           </div>
-        ))}
+        </header>
+
+        {showForm && (
+          <section className="sm-page-section">
+            <div className="sm-page-section-header">
+              <span className="sm-page-section-num">+</span>
+              <h3>Nuevo material</h3>
+              <button type="button" className="sm-page-section-close" onClick={cancelCreate} title="Cerrar">
+                <FiX size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div className="sm-page-form-list">
+                <div className="sm-page-form-row">
+                  <label htmlFor="sm-nombre">Nombre <span className="sm-required">*</span></label>
+                  <input
+                    id="sm-nombre"
+                    value={form.nombre}
+                    onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Ej. CM, MD2, Cayena Lisa"
+                    autoFocus
+                  />
+                </div>
+                <div className="sm-page-form-row">
+                  <label htmlFor="sm-rango">Rango de pesos</label>
+                  <input
+                    id="sm-rango"
+                    value={form.rangoPesos}
+                    onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
+                    placeholder="Ej. 200g – 300g"
+                  />
+                </div>
+                <div className="sm-page-form-row">
+                  <label htmlFor="sm-variedad">Variedad</label>
+                  <input
+                    id="sm-variedad"
+                    value={form.variedad}
+                    onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
+                    placeholder="Ej. Amarilla, Roja"
+                  />
+                </div>
+              </div>
+              <div className="sm-page-form-actions">
+                <button type="button" className="sm-btn-text" onClick={cancelCreate}>Cancelar</button>
+                <button type="submit" className="sm-btn-pill">Crear material</button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        <section className="sm-page-section">
+          <div className="sm-page-section-header">
+            <span className="sm-page-section-num">{showForm ? '02' : '01'}</span>
+            <h3>Catálogo</h3>
+            <span className="sm-page-section-count">{materiales.length}</span>
+          </div>
+
+          {materiales.length === 0 ? (
+            <div className="sm-empty">
+              <p>No hay materiales registrados.</p>
+              <p className="sm-empty-hint">Crea el primero con el botón "Nuevo material".</p>
+            </div>
+          ) : (
+            <ul className="sm-item-list">
+              {materiales.map(m => (
+                <li key={m.id} className={`sm-item-card${editingId === m.id ? ' sm-item-card--editing' : ''}`}>
+                  {editingId === m.id ? (
+                    <>
+                      <div className="sm-item-edit">
+                        <input
+                          className="sm-item-input"
+                          placeholder="Nombre"
+                          value={editData.nombre}
+                          onChange={e => setEditData(p => ({ ...p, nombre: e.target.value }))}
+                        />
+                        <input
+                          className="sm-item-input"
+                          placeholder="Rango de pesos"
+                          value={editData.rangoPesos}
+                          onChange={e => setEditData(p => ({ ...p, rangoPesos: e.target.value }))}
+                        />
+                        <input
+                          className="sm-item-input"
+                          placeholder="Variedad"
+                          value={editData.variedad}
+                          onChange={e => setEditData(p => ({ ...p, variedad: e.target.value }))}
+                        />
+                      </div>
+                      <div className="sm-item-actions">
+                        <button type="button" className="sm-icon-btn sm-icon-btn--success" onClick={saveEdit} title="Guardar">
+                          <FiCheck size={14} />
+                        </button>
+                        <button type="button" className="sm-icon-btn" onClick={() => setEditingId(null)} title="Cancelar">
+                          <FiX size={14} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="sm-item-info">
+                        <span className="sm-item-name">{m.nombre}</span>
+                        {(m.rangoPesos || m.variedad) && (
+                          <div className="sm-item-chips">
+                            {m.rangoPesos && <span className="sm-mat-chip">{m.rangoPesos}</span>}
+                            {m.variedad && <span className="sm-mat-chip sm-mat-chip--var">{m.variedad}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="sm-item-actions">
+                        <button type="button" className="sm-icon-btn" onClick={() => startEdit(m)} title="Editar">
+                          <FiEdit2 size={14} />
+                        </button>
+                        <button type="button" className="sm-icon-btn sm-icon-btn--danger" onClick={() => askDelete(m)} title="Eliminar">
+                          <FiTrash2 size={14} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );

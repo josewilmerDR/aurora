@@ -829,3 +829,753 @@
   opacity: 0.8;
 }
 .sh-clear-col-filters:hover { opacity: 1; border-color: var(--aurora-magenta); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIEMBRA HISTORIAL — Apple-inspired redesign (scoped to .sh-page)
+   Sheet translúcida · secciones numeradas · stats como mini-cards · tabla
+   refinada con hairlines · acento único verde · chips para acciones.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sh-page {
+  /* Tokens locales */
+  --shp-bg:            rgba(255, 255, 255, 0.025);
+  --shp-bg-input:      rgba(255, 255, 255, 0.04);
+  --shp-bg-hover:      rgba(255, 255, 255, 0.06);
+  --shp-divider:       rgba(255, 255, 255, 0.06);
+  --shp-divider-2:     rgba(255, 255, 255, 0.10);
+  --shp-text:          rgba(255, 255, 255, 0.95);
+  --shp-text-2:        rgba(255, 255, 255, 0.60);
+  --shp-text-3:        rgba(255, 255, 255, 0.40);
+  --shp-accent:        var(--aurora-green);
+  --shp-accent-tint:   rgba(51, 255, 153, 0.12);
+  --shp-accent-tint-2: rgba(51, 255, 153, 0.20);
+  --shp-danger:        var(--aurora-magenta);
+  --shp-danger-tint:   rgba(204, 51, 255, 0.14);
+  --shp-r-sheet:       22px;
+  --shp-r-card:        16px;
+  --shp-r-input:       10px;
+  --shp-r-pill:        999px;
+  --shp-shadow:        0 24px 64px rgba(0, 0, 0, 0.45),
+                       0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shp-ring:          0 0 0 3px rgba(51, 255, 153, 0.22);
+  --shp-ease:          cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  background: var(--shp-bg);
+  border: 1px solid var(--shp-divider);
+  border-radius: var(--shp-r-sheet);
+  padding: 32px;
+  box-shadow: var(--shp-shadow);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  color: var(--shp-text);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.sh-page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0 0 24px 0;
+}
+.sh-page-header-text {
+  flex: 1;
+  min-width: 0;
+}
+.sh-page-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+  color: var(--shp-text);
+  line-height: 1.15;
+}
+.sh-page-subtitle {
+  font-size: 13px;
+  color: var(--shp-text-2);
+  margin: 0;
+  line-height: 1.5;
+}
+.sh-page-back {
+  flex-shrink: 0;
+}
+
+/* ── Section ────────────────────────────────────────────────────────────── */
+.sh-page-section {
+  margin-bottom: 28px;
+}
+.sh-page-section:last-of-type {
+  margin-bottom: 0;
+}
+.sh-page-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+.sh-page-section-num {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  color: var(--shp-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.sh-page-section-header h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--shp-text);
+}
+.sh-page-section-count {
+  font-size: 12px;
+  color: var(--shp-text-2);
+  background: var(--shp-bg-input);
+  padding: 3px 10px;
+  border-radius: var(--shp-r-pill);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: center;
+}
+.sh-page-section-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Chips ──────────────────────────────────────────────────────────────── */
+.sh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--shp-bg-hover);
+  border: 1px solid var(--shp-divider);
+  color: var(--shp-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--shp-r-pill);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s var(--shp-ease);
+  outline: none;
+  white-space: nowrap;
+}
+.sh-chip:hover {
+  border-color: var(--shp-divider-2);
+  color: var(--shp-text);
+}
+.sh-chip:active {
+  transform: scale(0.96);
+}
+.sh-chip:focus-visible {
+  border-color: var(--shp-accent);
+  box-shadow: var(--shp-ring);
+}
+.sh-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sh-chip--ghost {
+  background: transparent;
+  border-style: dashed;
+}
+.sh-chip--ghost:hover {
+  border-style: solid;
+  background: var(--shp-bg-hover);
+}
+
+/* ── Pill button (empty state) ──────────────────────────────────────────── */
+.sh-btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--shp-accent);
+  color: var(--aurora-dark-blue);
+  border: none;
+  padding: 10px 24px;
+  border-radius: var(--shp-r-pill);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(51, 255, 153, 0.25),
+              0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  transition: transform 0.15s var(--shp-ease), box-shadow 0.15s ease;
+}
+.sh-btn-pill:hover {
+  box-shadow: 0 6px 22px rgba(51, 255, 153, 0.38),
+              0 1px 0 rgba(255, 255, 255, 0.20) inset;
+}
+.sh-btn-pill:active {
+  transform: scale(0.97);
+}
+
+/* ── Empty state (sheet) ────────────────────────────────────────────────── */
+.sh-page--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+.sh-page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  color: var(--shp-text-2);
+}
+.sh-page-empty > svg {
+  color: var(--shp-text-3);
+}
+.sh-page-empty > p {
+  font-size: 14px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* ── Stats: mini-cards (override .sh-stats-bar dentro de .sh-page) ──────── */
+.sh-page .sh-stats-bar {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  flex-wrap: wrap;
+}
+.sh-page .sh-stat {
+  flex: 1;
+  min-width: 130px;
+  background: var(--shp-bg-input);
+  border: 1px solid var(--shp-divider);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.sh-page .sh-stat:hover {
+  border-color: var(--shp-divider-2);
+  background: var(--shp-bg-hover);
+}
+.sh-page .sh-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--shp-text-3);
+  font-weight: 500;
+  padding: 0;
+  opacity: 1;
+}
+.sh-page .sh-stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--shp-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  padding: 0;
+  margin: 0;
+  opacity: 1;
+}
+.sh-page .sh-stat-green {
+  color: var(--shp-accent);
+}
+.sh-page .sh-stat-divider {
+  display: none;
+}
+
+/* ── Table card (override .sh-table-card dentro de .sh-page) ────────────── */
+.sh-page .sh-table-card,
+.sh-page .siembra-historial {
+  background: var(--shp-bg-input);
+  border: 1px solid var(--shp-divider);
+  border-radius: var(--shp-r-card);
+  padding: 14px 16px;
+  margin: 0;
+  overflow: visible;
+}
+
+.sh-page .historial-top-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  padding: 0;
+}
+.sh-page .sh-result-count {
+  font-size: 12px;
+  color: var(--shp-text-3);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.sh-page .sh-clear-col-filters {
+  background: transparent;
+  border: 1px dashed var(--shp-danger);
+  color: var(--shp-danger);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--shp-r-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-style 0.15s ease;
+  font-family: inherit;
+  opacity: 1;
+  margin-left: auto;
+}
+.sh-page .sh-clear-col-filters:hover {
+  background: var(--shp-danger-tint);
+  border-style: solid;
+}
+
+/* Tabla refinada */
+.sh-page .siembra-table-historial {
+  font-size: 13px;
+  border-collapse: separate;
+  border-spacing: 0;
+  letter-spacing: -0.01em;
+}
+.sh-page .siembra-table-historial thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--shp-bg-input);
+}
+.sh-page .siembra-table-historial th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--shp-text-3);
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--shp-divider-2);
+  background: transparent;
+  opacity: 1;
+}
+.sh-page .siembra-table-historial td {
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--shp-divider);
+  vertical-align: middle;
+  color: var(--shp-text);
+}
+.sh-page .siembra-table-historial tbody tr {
+  transition: background 0.15s ease;
+}
+.sh-page .siembra-table-historial tbody tr:hover {
+  background: var(--shp-bg-hover);
+}
+.sh-page .siembra-table-historial tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Numerics tabular */
+.sh-page .td-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.sh-page .td-calc {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--shp-accent);
+  text-align: right;
+  white-space: nowrap;
+}
+.sh-page .td-readonly {
+  color: var(--shp-text-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Sortable header refinado */
+.sh-page .sh-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.sh-page .sh-th-sortable:hover {
+  background: transparent;
+  color: var(--shp-text-2);
+}
+.sh-page .sh-th-sortable.is-sorted {
+  color: var(--shp-accent);
+}
+.sh-page .sh-th-sortable.has-col-filter {
+  border-bottom-color: var(--shp-accent);
+}
+.sh-page .sh-th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sh-page .sh-th-arrow {
+  font-size: 10px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+.sh-page .sh-th-sortable:hover .sh-th-arrow {
+  opacity: 0.8;
+}
+.sh-page .sh-th-sortable.is-sorted .sh-th-arrow {
+  opacity: 1;
+}
+.sh-page .sh-th-funnel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--shp-text-3);
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.sh-page .sh-th-sortable:hover .sh-th-funnel {
+  opacity: 0.55;
+}
+.sh-page .sh-th-funnel:hover {
+  opacity: 1 !important;
+  background: var(--shp-bg-hover);
+  color: var(--shp-text);
+}
+.sh-page .sh-th-funnel.is-active {
+  opacity: 1 !important;
+  color: var(--shp-accent);
+  background: var(--shp-accent-tint);
+}
+
+/* Settings (col toggle) */
+.sh-page .sh-th-settings {
+  width: 36px;
+  text-align: right;
+}
+.sh-page .sh-col-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--shp-text-3);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sh-page .sh-col-toggle-btn:hover,
+.sh-page .sh-col-toggle-btn--active {
+  background: var(--shp-bg-hover);
+  color: var(--shp-text);
+}
+.sh-page .sh-col-toggle-btn--active {
+  color: var(--shp-accent);
+  background: var(--shp-accent-tint);
+}
+.sh-page .sh-col-hidden-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: var(--shp-accent);
+  color: var(--aurora-dark-blue);
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 4px;
+  min-width: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+/* Cerrado: tint sutil + border-left verde, sin opacidad agresiva */
+.sh-page .row-cerrado td:not([data-col="menu"]) {
+  opacity: 1;
+  color: var(--shp-text-2);
+}
+.sh-page .row-cerrado {
+  background: rgba(51, 255, 153, 0.04);
+}
+.sh-page .row-cerrado:hover {
+  background: rgba(51, 255, 153, 0.08);
+}
+.sh-page .row-cerrado td:first-child {
+  box-shadow: inset 2px 0 0 var(--shp-accent);
+}
+
+/* Kebab refinado */
+.sh-page .hist-kebab-btn {
+  background: transparent;
+  border: none;
+  color: var(--shp-text-3);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 1;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s var(--shp-ease);
+}
+.sh-page .hist-kebab-btn:hover {
+  background: var(--shp-bg-hover);
+  color: var(--shp-text);
+}
+.sh-page .hist-kebab-btn:active {
+  transform: scale(0.92);
+}
+
+/* Hint cerrado */
+.sh-page .siembra-cerrado-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--shp-accent);
+  background: var(--shp-accent-tint);
+  border-radius: var(--shp-r-pill);
+  letter-spacing: -0.01em;
+  opacity: 1;
+}
+
+/* Empty in-table state */
+.sh-page .empty-state {
+  font-size: 13px;
+  color: var(--shp-text-3);
+  padding: 28px 0;
+  text-align: center;
+}
+
+/* ── Mobile (≤768px) ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sh-page {
+    padding: 20px 16px;
+    border-radius: 18px;
+  }
+  .sh-page-title {
+    font-size: 24px;
+  }
+  .sh-page-header {
+    flex-wrap: wrap;
+  }
+  .sh-page-section-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .sh-page .sh-stat {
+    min-width: 110px;
+    padding: 12px 14px;
+  }
+  .sh-page .sh-stat-value {
+    font-size: 18px;
+  }
+  .sh-page .sh-table-card,
+  .sh-page .siembra-historial {
+    padding: 10px 8px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COL MENU + FILTER POPOVER — armonización con el lenguaje del sheet
+   Override de las clases existentes (portaled a body, sin parent scope).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sh-col-menu {
+  position: fixed;
+  z-index: 1200;
+  background: rgba(13, 26, 38, 0.96);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  padding: 6px;
+  min-width: 200px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55),
+              0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.01em;
+  animation: am-slide-up 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+.sh-col-menu-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: rgba(255, 255, 255, 0.40);
+  padding: 8px 12px 4px 12px;
+  border-bottom: none;
+}
+
+.sh-col-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  user-select: none;
+  font-weight: 500;
+}
+.sh-col-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.sh-col-menu-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.30);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  margin: 0;
+}
+.sh-col-menu-item input[type="checkbox"]:checked {
+  background: var(--aurora-green);
+  border-color: var(--aurora-green);
+}
+.sh-col-menu-item input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--aurora-dark-blue);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.sh-col-menu-item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sh-col-menu-item--disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+/* ── Filter popover ─────────────────────────────────────────────────────── */
+.sh-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: transparent;
+}
+
+.sh-filter-popover {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 240px;
+  background: rgba(13, 26, 38, 0.96);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55),
+              0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  letter-spacing: -0.01em;
+  animation: am-slide-up 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+.sh-filter-icon {
+  color: rgba(255, 255, 255, 0.40);
+  flex-shrink: 0;
+}
+
+.sh-filter-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  color-scheme: dark;
+  min-width: 0;
+}
+.sh-filter-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+.sh-filter-input:focus {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 2px rgba(51, 255, 153, 0.30);
+}
+.sh-filter-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+.sh-filter-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.sh-filter-range-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: rgba(255, 255, 255, 0.40);
+  font-weight: 600;
+}
+.sh-filter-input-range {
+  flex: 1;
+  min-width: 90px;
+}
+
+.sh-filter-clear {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.40);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.sh-filter-clear:hover {
+  background: rgba(204, 51, 255, 0.14);
+  color: var(--aurora-magenta);
+  opacity: 1;
+}
