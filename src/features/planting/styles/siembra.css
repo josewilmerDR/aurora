@@ -1173,3 +1173,740 @@
   .sm-edit-input { flex: unset; }
   .sm-item-edit .sm-item-actions { align-self: flex-end; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIEMBRA FORM — Apple-inspired redesign (scoped to .sb-form)
+   Tipografía 11/13/15/17/22/28 · sheet translúcida · secciones tipo Settings
+   · cards de fila con badge numerado · acento único verde Aurora.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sb-form {
+  --pf-bg:            rgba(255, 255, 255, 0.025);
+  --pf-bg-input:      rgba(255, 255, 255, 0.04);
+  --pf-bg-hover:      rgba(255, 255, 255, 0.06);
+  --pf-divider:       rgba(255, 255, 255, 0.06);
+  --pf-divider-2:     rgba(255, 255, 255, 0.10);
+  --pf-text:          rgba(255, 255, 255, 0.95);
+  --pf-text-2:        rgba(255, 255, 255, 0.60);
+  --pf-text-3:        rgba(255, 255, 255, 0.40);
+  --pf-accent:        var(--aurora-green);
+  --pf-accent-tint:   rgba(51, 255, 153, 0.12);
+  --pf-accent-tint-2: rgba(51, 255, 153, 0.20);
+  --pf-danger:        var(--aurora-magenta);
+  --pf-danger-tint:   rgba(204, 51, 255, 0.14);
+  --pf-r-sheet:       22px;
+  --pf-r-card:        16px;
+  --pf-r-input:       10px;
+  --pf-r-pill:        999px;
+  --pf-shadow:        0 24px 64px rgba(0, 0, 0, 0.45),
+                      0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --pf-ring:          0 0 0 3px rgba(51, 255, 153, 0.22);
+
+  background: var(--pf-bg);
+  border: 1px solid var(--pf-divider);
+  border-radius: var(--pf-r-sheet);
+  padding: 32px;
+  box-shadow: var(--pf-shadow);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  color: var(--pf-text);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.sb-form-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0 0 24px 0;
+}
+.sb-form-header-text {
+  flex: 1;
+  min-width: 0;
+}
+.sb-form-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+  color: var(--pf-text);
+  line-height: 1.15;
+}
+.sb-form-subtitle {
+  font-size: 13px;
+  color: var(--pf-text-2);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Draft banner (pill interno) ───────────────────────────────────────── */
+.sb-draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 14px;
+  background: var(--pf-accent-tint);
+  border: 1px solid var(--pf-accent-tint-2);
+  border-radius: var(--pf-r-pill);
+  margin: 0 0 20px 0;
+  font-size: 12px;
+  color: var(--pf-text-2);
+}
+.sb-draft-banner > svg {
+  color: var(--pf-accent);
+  flex-shrink: 0;
+}
+.sb-draft-banner > span {
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.sb-draft-discard {
+  background: transparent;
+  border: none;
+  color: var(--pf-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--pf-r-pill);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sb-draft-discard:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--pf-text);
+}
+
+/* ── Section ────────────────────────────────────────────────────────────── */
+.sb-form-section {
+  margin-bottom: 28px;
+}
+.sb-form-section:last-of-type {
+  margin-bottom: 0;
+}
+.sb-form-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+.sb-form-section-num {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  color: var(--pf-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.sb-form-section-header h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--pf-text);
+}
+.sb-form-section-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--pf-text-2);
+  background: var(--pf-bg-input);
+  padding: 3px 10px;
+  border-radius: var(--pf-r-pill);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* ── Settings-style grouped list ────────────────────────────────────────── */
+.sb-form-list {
+  background: var(--pf-bg-input);
+  border-radius: var(--pf-r-card);
+  border: 1px solid var(--pf-divider);
+  overflow: hidden;
+}
+.sb-form-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--pf-divider);
+  transition: background 0.15s ease;
+}
+.sb-form-row:last-child {
+  border-bottom: none;
+}
+.sb-form-row:hover {
+  background: var(--pf-bg-hover);
+}
+.sb-form-row > label {
+  font-size: 15px;
+  color: var(--pf-text-2);
+  font-weight: 500;
+}
+.sb-form-row input[type="date"] {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--pf-text);
+  font-size: 15px;
+  padding: 8px 12px;
+  border-radius: var(--pf-r-input);
+  outline: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+.sb-form-row input[type="date"]:focus {
+  background: var(--pf-bg-hover);
+  box-shadow: var(--pf-ring);
+}
+
+.sb-form-row--action .sb-form-row-action-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.sb-form-row-hint {
+  font-size: 12px;
+  color: var(--pf-text-3);
+  letter-spacing: -0.01em;
+}
+
+/* ── Chips (Historial, IA, Material) ────────────────────────────────────── */
+.sb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--pf-bg-hover);
+  border: 1px solid var(--pf-divider);
+  color: var(--pf-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--pf-r-pill);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+.sb-chip:hover {
+  border-color: var(--pf-divider-2);
+  color: var(--pf-text);
+  background: var(--pf-bg-hover);
+}
+.sb-chip:active {
+  transform: scale(0.96);
+}
+.sb-chip:focus-visible {
+  border-color: var(--pf-accent);
+  box-shadow: var(--pf-ring);
+}
+.sb-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sb-chip--ghost {
+  background: transparent;
+  border-style: dashed;
+  color: var(--pf-text-2);
+}
+.sb-chip--ghost:hover {
+  border-style: solid;
+  background: var(--pf-bg-hover);
+  color: var(--pf-text);
+}
+.sb-chip--link {
+  flex-shrink: 0;
+}
+
+.sb-chip--material {
+  padding: 6px 28px 6px 12px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23ffffff80' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  max-width: 280px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.sb-chip--material option {
+  background: var(--aurora-dark-blue);
+  color: var(--pf-text);
+}
+
+/* ── Row card ───────────────────────────────────────────────────────────── */
+.sb-row-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sb-row-card {
+  position: relative;
+  background: var(--pf-bg-input);
+  border: 1px solid var(--pf-divider);
+  border-radius: var(--pf-r-card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  touch-action: pan-y;
+}
+.sb-row-card:hover {
+  border-color: var(--pf-divider-2);
+}
+.sb-row-card:focus-within {
+  border-color: var(--pf-accent-tint-2);
+  box-shadow: 0 0 0 1px var(--pf-accent-tint);
+}
+
+/* Swipe hints superpuestos (sin afectar el flujo del card) */
+.sb-row-hint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sb-row-hint-left {
+  left: 12px;
+  background: rgba(220, 60, 60, 0.18);
+  color: #ff7b7b;
+}
+.sb-row-hint-right {
+  right: 12px;
+  background: var(--pf-accent-tint);
+  color: var(--pf-accent);
+}
+
+/* Header: badge | lote | actions */
+.sb-row-head {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.sb-row-num {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--pf-accent-tint);
+  border-radius: 12px;
+  padding: 6px 4px;
+  min-height: 50px;
+}
+.sb-row-num-val {
+  color: var(--pf-accent);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.sb-row-num-suffix {
+  font-size: 9px;
+  color: var(--pf-accent);
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+/* Lote combobox dentro de la card */
+.sb-row-lote {
+  min-width: 0;
+}
+.sb-row-lote .td-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--pf-text);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  padding: 6px 0;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+.sb-row-lote .td-input:focus {
+  border-bottom-color: var(--pf-accent);
+}
+.sb-row-lote .td-input::placeholder {
+  color: var(--pf-text-3);
+}
+
+.sb-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sb-row-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--pf-text-2);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.sb-row-icon-btn:hover {
+  background: var(--pf-bg-hover);
+  color: var(--pf-text);
+}
+.sb-row-icon-btn:active {
+  transform: scale(0.92);
+}
+.sb-row-icon-btn--danger:hover {
+  background: var(--pf-danger-tint);
+  color: var(--pf-danger);
+}
+
+/* Métricas grid: bloque | plantas | densidad | área */
+.sb-row-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.9fr);
+  gap: 10px;
+}
+.sb-row-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sb-row-field > label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pf-text-3);
+}
+.sb-row-hint-text {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+.sb-row-input {
+  width: 100%;
+  background: var(--pf-bg-input);
+  border: 1px solid transparent;
+  color: var(--pf-text);
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: var(--pf-r-input);
+  outline: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  box-sizing: border-box;
+}
+.sb-row-input::placeholder {
+  color: var(--pf-text-3);
+}
+.sb-row-input:focus {
+  background: var(--pf-bg-hover);
+  box-shadow: var(--pf-ring);
+}
+.sb-row-input--num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.sb-row-input--num::-webkit-outer-spin-button,
+.sb-row-input--num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.sb-row-input--error {
+  box-shadow: 0 0 0 1px var(--pf-danger);
+}
+.sb-row-error {
+  font-size: 10px;
+  color: var(--pf-danger);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.sb-row-field--readonly .sb-row-area {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--pf-divider);
+  color: var(--pf-text-2);
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: var(--pf-r-input);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* Foot: material + cerrado toggle */
+.sb-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Toggle "Cerrado" tipo iOS ─────────────────────────────────────────── */
+.sb-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.sb-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.sb-toggle-track {
+  position: relative;
+  width: 36px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  transition: background 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  flex-shrink: 0;
+}
+.sb-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sb-toggle-label {
+  font-size: 12px;
+  color: var(--pf-text-2);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.sb-toggle--on .sb-toggle-track {
+  background: var(--pf-accent);
+}
+.sb-toggle--on .sb-toggle-thumb {
+  transform: translateX(14px);
+  background: var(--aurora-dark-blue);
+}
+.sb-toggle--on .sb-toggle-label {
+  color: var(--pf-accent);
+}
+.sb-toggle--disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* ── Lote dropdown (combobox) — armoniza con tokens del form ────────────── */
+.sb-form .lote-dropdown {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--pf-accent-tint-2);
+  border-radius: var(--pf-r-input);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.sb-form .lote-dropdown-item {
+  font-size: 14px;
+  padding: 8px 12px;
+  color: var(--pf-text);
+}
+.sb-form .lote-dropdown-item:hover,
+.sb-form .lote-dropdown-item--active {
+  background: var(--pf-accent-tint);
+  color: var(--pf-accent);
+}
+
+/* ── Add row (botón ghost) ──────────────────────────────────────────────── */
+.sb-add-row {
+  margin-top: 10px;
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--pf-divider-2);
+  color: var(--pf-text-2);
+  padding: 12px;
+  border-radius: var(--pf-r-card);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  font-family: inherit;
+}
+.sb-add-row:hover:not(:disabled) {
+  background: var(--pf-accent-tint);
+  border-color: var(--pf-accent);
+  border-style: solid;
+  color: var(--pf-accent);
+}
+.sb-add-row:active:not(:disabled) {
+  transform: scale(0.995);
+}
+.sb-add-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Form actions ───────────────────────────────────────────────────────── */
+.sb-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--pf-divider);
+}
+.sb-btn-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--pf-text-2);
+  padding: 8px 14px;
+  border-radius: var(--pf-r-pill);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sb-btn-text-link:hover {
+  background: var(--pf-bg-hover);
+  color: var(--pf-text);
+}
+.sb-btn-pill {
+  background: var(--pf-accent);
+  color: var(--aurora-dark-blue);
+  border: none;
+  padding: 10px 24px;
+  border-radius: var(--pf-r-pill);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(51, 255, 153, 0.25),
+              0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.15s ease,
+              opacity 0.15s ease;
+}
+.sb-btn-pill:hover:not(:disabled) {
+  box-shadow: 0 6px 22px rgba(51, 255, 153, 0.38),
+              0 1px 0 rgba(255, 255, 255, 0.20) inset;
+}
+.sb-btn-pill:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.sb-btn-pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Mobile (≤768px) ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sb-form {
+    padding: 20px 16px;
+    border-radius: 18px;
+  }
+  .sb-form-title {
+    font-size: 24px;
+  }
+  .sb-form-header {
+    flex-wrap: wrap;
+  }
+  .sb-form-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 14px;
+  }
+  .sb-form-row > label {
+    font-size: 13px;
+  }
+  .sb-form-row--action .sb-form-row-action-content {
+    justify-content: flex-start;
+  }
+
+  .sb-row-head {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .sb-row-num {
+    min-height: 44px;
+  }
+  .sb-row-num-val {
+    font-size: 18px;
+  }
+  .sb-row-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .sb-row-lote .td-input {
+    font-size: 16px;
+  }
+  .sb-row-foot {
+    justify-content: space-between;
+  }
+  .sb-chip--material {
+    flex: 1;
+    max-width: none;
+  }
+
+  .sb-form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .sb-btn-pill,
+  .sb-btn-text-link {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .sb-row-grid {
+    grid-template-columns: 1fr;
+  }
+}
