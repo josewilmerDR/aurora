@@ -829,6 +829,10 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
           prioridad: action.prioridad,
           categoria: action.categoria,
           status: 'proposed',
+          // Mode that originated this action — used by the UI to decide if
+          // approve/reject buttons should be enabled at the current level.
+          // 'nivel2' here because we're inside the N2 analyze branch.
+          sourceMode: 'nivel2',
           proposedBy: req.uid,
           proposedByName: req.userEmail,
           createdAt: nowTs,
@@ -1164,6 +1168,10 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
             descripcion: String(razon || ''),
             prioridad: ['alta', 'media', 'baja'].includes(prioridad) ? prioridad : 'media',
             categoria: catMap[actionType] || 'general',
+            // N3 path. Even when guardrails escalate the action to 'proposed'
+            // status, the source mode is still N3 — that's what the UI uses
+            // to decide whether the current level can act on it.
+            sourceMode: 'nivel3',
             autonomous: true,
             escalated: false,
             guardrailViolations: null,
@@ -1635,6 +1643,10 @@ Jerarquía de compras (igual que en modo análisis):
         prioridad: action.prioridad,
         categoria: action.categoria,
         status: 'proposed',
+        // Commands are an explicit user request and always propose. They are
+        // approvable from N2+ regardless of the global level — the UI treats
+        // 'command' as never-locked.
+        sourceMode: 'command',
         proposedBy: req.uid,
         proposedByName: req.userEmail,
         viaCommand: true,
@@ -1760,6 +1772,11 @@ function serializeAction(doc, { includeReasoning } = {}) {
     categoria: d.categoria,
     status: d.status,
     sessionId: d.sessionId,
+    // Mode that originated the action. The UI compares this against the
+    // current finca mode to decide whether approve/reject buttons render
+    // enabled. Legacy actions without the field default to null on the wire
+    // and the UI treats them as not locked.
+    sourceMode: d.sourceMode || null,
     createdAt: d.createdAt?.toDate?.()?.toISOString() ?? null,
     reviewedByName: d.reviewedByName || null,
     reviewedAt: d.reviewedAt?.toDate?.()?.toISOString() ?? null,

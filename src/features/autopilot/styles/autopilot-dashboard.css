@@ -452,6 +452,23 @@
   gap: 8px;
   padding: 8px 14px 12px;
 }
+.ap-action-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ap-action-locked .ap-action-buttons { padding-bottom: 4px; }
+.ap-action-locked-notice {
+  margin: 0;
+  padding: 8px 14px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #6ab0ff;
+  line-height: 1.4;
+}
+.ap-action-locked-notice strong { color: #6ab0ff; }
 .ap-action-btn {
   display: inline-flex;
   align-items: center;

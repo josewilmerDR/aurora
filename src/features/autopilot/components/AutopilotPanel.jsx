@@ -14,6 +14,19 @@ import '../styles/autopilot-panel.css';
 const SpeechRec = typeof window !== 'undefined' &&
   (window.SpeechRecognition || window.webkitSpeechRecognition);
 
+// Helpers to mark actions as level-locked when their sourceMode is higher
+// than the current finca mode. Duplicated here (rather than imported) to
+// keep the modal self-contained — same logic lives in AutopilotDashboard.
+const LEVEL_RANK = { off: 0, nivel1: 1, nivel2: 2, nivel3: 3 };
+const LEVEL_LABELS = { nivel1: 'Nivel 1', nivel2: 'Nivel 2', nivel3: 'Nivel 3' };
+function getActionLevelLock(sourceMode, currentMode) {
+  if (!sourceMode || sourceMode === 'command') return null;
+  const sourceRank = LEVEL_RANK[sourceMode] ?? 0;
+  const currentRank = LEVEL_RANK[currentMode] ?? 0;
+  if (sourceRank <= currentRank) return null;
+  return { requiredMode: sourceMode, requiredLabel: LEVEL_LABELS[sourceMode] || sourceMode };
+}
+
 function formatTimestamp(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('es-CR', {
@@ -29,7 +42,6 @@ export default function AutopilotPanel({ open, onClose }) {
 
   const [config, setConfig] = useState(null);
   const [lastRun, setLastRun] = useState(null);
-  const [pendingCount, setPendingCount] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
 
@@ -126,7 +138,6 @@ export default function AutopilotPanel({ open, onClose }) {
         if (Array.isArray(actionsData)) {
           const proposed = actionsData.filter(a => a.status === 'proposed');
           setProposedActions(proposed);
-          setPendingCount(proposed.length);
         }
       } catch (_) { /* silent */ }
     })();
@@ -189,7 +200,6 @@ export default function AutopilotPanel({ open, onClose }) {
     if (Array.isArray(data.proposedActions)) {
       const proposed = data.proposedActions.filter(a => a.status === 'proposed');
       setProposedActions(prev => [...proposed, ...prev]);
-      setPendingCount(prev => prev + proposed.length);
     }
     window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
   };
@@ -226,7 +236,6 @@ export default function AutopilotPanel({ open, onClose }) {
       if (Array.isArray(data.proposedActions) && data.proposedActions.length > 0) {
         const proposed = data.proposedActions.filter(a => a.status === 'proposed');
         setProposedActions(prev => [...proposed, ...prev]);
-        setPendingCount(c => c + proposed.length);
         window.dispatchEvent(new CustomEvent('aurora-autopilot-changed'));
       }
       setText('');
@@ -338,16 +347,6 @@ export default function AutopilotPanel({ open, onClose }) {
                 </button>
               </div>
 
-              {pendingCount > 0 && (
-                <Link to="/autopilot" onClick={onClose} className="ap-panel-pending-card">
-                  <FiZap size={14} />
-                  <div className="ap-panel-pending-text">
-                    <strong>{pendingCount}</strong> acción{pendingCount !== 1 ? 'es' : ''} pendiente{pendingCount !== 1 ? 's' : ''} de aprobar
-                  </div>
-                  <FiArrowRight size={14} />
-                </Link>
-              )}
-
               <div className="ap-panel-command">
                 <label className="ap-panel-label">Comando / instrucción</label>
                 <p className="ap-panel-command-help">
@@ -455,33 +454,42 @@ export default function AutopilotPanel({ open, onClose }) {
                           )}
                         </li>
                       ))}
-                      {visibleActions.map(a => (
-                        <li key={a.id} className={`ap-panel-rec ap-panel-rec--accion ap-panel-rec--${a.prioridad || 'media'}`}>
-                          <div className="ap-panel-rec-head">
-                            <span className="ap-panel-rec-prio ap-panel-rec-prio--accion">
-                              propuesta
-                            </span>
-                            <strong className="ap-panel-rec-title">{a.titulo || a.type || '(sin título)'}</strong>
-                            <button
-                              type="button"
-                              className="ap-panel-rec-dismiss"
-                              onClick={() => dismiss(a.id)}
-                              title="Descartar"
-                              aria-label="Descartar propuesta"
-                            >
-                              <FiX size={12} />
-                            </button>
-                          </div>
-                          {a.descripcion && <p className="ap-panel-rec-desc">{a.descripcion}</p>}
-                          <Link
-                            to="/autopilot"
-                            onClick={() => { dismiss(a.id); onClose(); }}
-                            className="ap-panel-rec-link"
-                          >
-                            Aprobar o rechazar <FiArrowRight size={11} />
-                          </Link>
-                        </li>
-                      ))}
+                      {visibleActions.map(a => {
+                        const lock = getActionLevelLock(a.sourceMode, mode);
+                        return (
+                          <li key={a.id} className={`ap-panel-rec ap-panel-rec--accion ap-panel-rec--${a.prioridad || 'media'}`}>
+                            <div className="ap-panel-rec-head">
+                              <span className="ap-panel-rec-prio ap-panel-rec-prio--accion">
+                                propuesta
+                              </span>
+                              <strong className="ap-panel-rec-title">{a.titulo || a.type || '(sin título)'}</strong>
+                              <button
+                                type="button"
+                                className="ap-panel-rec-dismiss"
+                                onClick={() => dismiss(a.id)}
+                                title="Descartar"
+                                aria-label="Descartar propuesta"
+                              >
+                                <FiX size={12} />
+                              </button>
+                            </div>
+                            {a.descripcion && <p className="ap-panel-rec-desc">{a.descripcion}</p>}
+                            {lock ? (
+                              <p className="ap-panel-rec-locked">
+                                <FiInfo size={11} /> Activa <strong>{lock.requiredLabel}</strong> para aprobar o rechazar.
+                              </p>
+                            ) : (
+                              <Link
+                                to="/autopilot"
+                                onClick={() => { dismiss(a.id); onClose(); }}
+                                className="ap-panel-rec-link"
+                              >
+                                Aprobar o rechazar <FiArrowRight size={11} />
+                              </Link>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                     {(recommendations.filter(r => !dismissed.has(r.id)).length > 5
                       || proposedActions.filter(a => a.status === 'proposed' && !dismissed.has(a.id)).length > 5) && (
