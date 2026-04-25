@@ -60,6 +60,8 @@
   --aur-badge-blue-fg:     #64b5f6;
   --aur-badge-magenta-bg:  rgba(204, 51, 255, 0.14);
   --aur-badge-magenta-fg:  var(--aurora-magenta);
+  --aur-badge-violet-bg:   rgba(149, 100, 232, 0.16);
+  --aur-badge-violet-fg:   #b48bff;
   --aur-badge-gray-bg:     rgba(255, 255, 255, 0.08);
   --aur-badge-gray-fg:     rgba(255, 255, 255, 0.65);
 
@@ -594,6 +596,7 @@ select.aur-chip option {
 .aur-badge--yellow  { background: var(--aur-badge-yellow-bg);  color: var(--aur-badge-yellow-fg); }
 .aur-badge--blue    { background: var(--aur-badge-blue-bg);    color: var(--aur-badge-blue-fg); }
 .aur-badge--magenta { background: var(--aur-badge-magenta-bg); color: var(--aur-badge-magenta-fg); }
+.aur-badge--violet  { background: var(--aur-badge-violet-bg);  color: var(--aur-badge-violet-fg); }
 .aur-badge--gray    { background: var(--aur-badge-gray-bg);    color: var(--aur-badge-gray-fg); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
