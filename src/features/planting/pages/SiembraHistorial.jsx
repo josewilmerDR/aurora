@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
-  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiAlertTriangle, FiShare2, FiEdit2, FiPackage, FiSliders,
+  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiShare2, FiEdit2, FiPackage, FiSliders,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../styles/siembra.css';
 import '../styles/siembra-historial.css';
 
@@ -239,33 +240,6 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
           <div className="sh-preview-footer">
             Generado por Aurora · {fechaEmision}
           </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function ConfirmModal({ config, onCancel }) {
-  return createPortal(
-    <div className="am-backdrop" onPointerDown={onCancel}>
-      <div className="am-modal" onPointerDown={e => e.stopPropagation()}>
-        <div className="am-modal-header">
-          <span className={`am-modal-icon${config.danger ? ' am-modal-icon--danger' : ' am-modal-icon--warn'}`}>
-            <FiAlertTriangle size={16} />
-          </span>
-          <span className="am-modal-title">{config.title}</span>
-        </div>
-        <p className="am-modal-body">{config.body}</p>
-        <div className="am-modal-actions">
-          <button type="button" className="am-btn-text" onClick={onCancel}>Cancelar</button>
-          <button
-            type="button"
-            className={`am-btn-pill${config.danger ? ' am-btn-pill--danger' : ''}`}
-            onClick={config.onConfirm}
-          >
-            {config.confirmLabel || 'Confirmar'}
-          </button>
         </div>
       </div>
     </div>,
@@ -679,7 +653,7 @@ function SiembraHistorial() {
   return (
     <div className="sh-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      {confirmModal && <ConfirmModal config={confirmModal} onCancel={() => setConfirmModal(null)} />}
+      {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
       {editRecord && (
         <EditSiembraModal
           record={editRecord}

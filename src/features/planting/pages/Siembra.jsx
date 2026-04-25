@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiAlertTriangle, FiClock, FiCpu, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/siembra.css';
 
@@ -289,28 +290,6 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
             onClick={handleConfirm}
           >
             {saving ? 'Guardando…' : 'Agregar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ── Close/reopen confirmation modal ──────────────────────────────────────────
-function ConfirmCerrarModal({ config, onCancel }) {
-  return createPortal(
-    <div className="param-modal-backdrop">
-      <div className="param-modal">
-        <div className="param-modal-header">
-          <FiAlertTriangle size={18} className="param-modal-icon-warn" />
-          <span>{config.title}</span>
-        </div>
-        <p className="param-modal-body">{config.body}</p>
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
-          <button className="btn btn-primary" onClick={config.onConfirm}>
-            {config.confirmLabel || 'Confirmar'}
           </button>
         </div>
       </div>
@@ -970,7 +949,7 @@ const fileInputRef                = useRef(null);
   return (
     <div className="siembra-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      {confirmModal && <ConfirmCerrarModal config={confirmModal} onCancel={() => setConfirmModal(null)} />}
+      {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
       {matModal && <NuevoMaterialModal initial={matModal} onConfirm={handleMatModalConfirm} onCancel={handleMatModalCancel} />}
       {editRecord && (
         <EditSiembraModal
