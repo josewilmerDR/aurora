@@ -623,6 +623,10 @@ select.aur-chip option {
   border-radius: 20px;
   width: 100%;
   max-width: 420px;
+  /* max-height del backdrop (con su padding 20px ya descontado por el flex
+     parent) para que el contenido largo no se desborde y .aur-modal-content
+     pueda scrollear verticalmente entre header y actions */
+  max-height: 100%;
   box-shadow: var(--aur-shadow-modal);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
@@ -952,6 +956,17 @@ select.aur-chip option {
 }
 
 .aur-combo-option {
+  /* Resets para cuando se aplica sobre <button>: sin estos, el browser
+     pinta fondo blanco-grisáceo y bordes default que hacen el texto
+     ilegible sobre el dropdown oscuro. */
+  background: transparent;
+  border: none;
+  color: var(--aur-text);
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: -0.01em;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -960,6 +975,7 @@ select.aur-chip option {
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
   user-select: none;
+  outline: none;
 }
 .aur-combo-option:hover,
 .aur-combo-option--active {
