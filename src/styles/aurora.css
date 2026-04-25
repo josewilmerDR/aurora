@@ -238,7 +238,9 @@
   background: var(--aur-bg-input);
   border-radius: var(--aur-r-card);
   border: 1px solid var(--aur-divider);
-  overflow: hidden;
+  /* No `overflow: hidden` aquí: clipearía focus rings y box-shadows de
+     children (toggles, inputs, chips) cerca de los bordes. La apariencia
+     redondeada se logra aplicando border-radius a la primera y última row. */
 }
 
 .aur-row {
@@ -250,8 +252,14 @@
   border-bottom: 1px solid var(--aur-divider);
   transition: background 0.15s ease;
 }
+.aur-row:first-child {
+  border-top-left-radius: calc(var(--aur-r-card) - 1px);
+  border-top-right-radius: calc(var(--aur-r-card) - 1px);
+}
 .aur-row:last-child {
   border-bottom: none;
+  border-bottom-left-radius: calc(var(--aur-r-card) - 1px);
+  border-bottom-right-radius: calc(var(--aur-r-card) - 1px);
 }
 .aur-row:hover {
   background: var(--aur-bg-hover);
