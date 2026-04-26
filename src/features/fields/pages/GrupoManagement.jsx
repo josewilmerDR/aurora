@@ -2,10 +2,6 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
-// Legacy: .hor-table-wrap, .hor-table, .hor-th-settings, .hor-col-menu* desde
-// horimetro.css. Migrar a .aur-table-wrap + .aur-col-menu* de aurora.css cuando
-// GrupoManagement se rediseñe a .aur-*.
-import '../../machinery/styles/horimetro.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -801,8 +797,8 @@ function GrupoManagement() {
         {selectedBloques.length === 0 ? (
           <p className="empty-state">Este grupo no tiene bloques asignados.</p>
         ) : (
-          <div className="hor-table-wrap">
-            <table className="hor-table grupo-hub-table">
+          <div className="aur-table-wrap">
+            <table className="aur-table grupo-hub-table">
               <thead>
                 <tr>
                   {!bloqueHiddenCols.has('loteNombre') && <BloqueSortTh field="loteNombre">Lote</BloqueSortTh>}
@@ -811,14 +807,14 @@ function GrupoManagement() {
                   {!bloqueHiddenCols.has('plantas')    && <BloqueSortTh field="plantas" filterType="number">Plantas</BloqueSortTh>}
                   {!bloqueHiddenCols.has('material')   && <BloqueSortTh field="material">Material</BloqueSortTh>}
                   {!bloqueHiddenCols.has('kg')         && <BloqueSortTh field="kg" filterType="number">Kg Est.</BloqueSortTh>}
-                  <th className="hor-th-settings">
+                  <th className="aur-th-col-menu">
                     <button
-                      className={`hor-col-toggle-btn${bloqueHiddenCols.size > 0 ? ' hor-col-toggle-btn--active' : ''}`}
+                      className={`aur-col-menu-trigger${bloqueHiddenCols.size > 0 ? ' is-active' : ''}`}
                       onClick={handleBloqueColBtnClick}
                       title="Personalizar columnas visibles"
                     >
                       <FiSliders size={12} />
-                      {bloqueHiddenCols.size > 0 && <span className="hor-col-hidden-badge">{bloqueHiddenCols.size}</span>}
+                      {bloqueHiddenCols.size > 0 && <span className="aur-col-hidden-badge">{bloqueHiddenCols.size}</span>}
                     </button>
                   </th>
                 </tr>
@@ -828,10 +824,10 @@ function GrupoManagement() {
                   <tr key={b.id}>
                     {!bloqueHiddenCols.has('loteNombre') && <td>{b.loteNombre || '—'}</td>}
                     {!bloqueHiddenCols.has('bloque')     && <td>{b.bloque || '—'}</td>}
-                    {!bloqueHiddenCols.has('ha')         && <td className="hor-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
-                    {!bloqueHiddenCols.has('plantas')    && <td className="hor-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
+                    {!bloqueHiddenCols.has('ha')         && <td className="aur-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
+                    {!bloqueHiddenCols.has('plantas')    && <td className="aur-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
                     {!bloqueHiddenCols.has('material')   && <td>{b.material || '—'}</td>}
-                    {!bloqueHiddenCols.has('kg')         && <td className="hor-td-num">{b.kg ? b.kg.toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>}
+                    {!bloqueHiddenCols.has('kg')         && <td className="aur-td-num">{b.kg ? b.kg.toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>}
                     <td />
                   </tr>
                 ))}
@@ -841,10 +837,10 @@ function GrupoManagement() {
                   <tr>
                     {!bloqueHiddenCols.has('loteNombre') && <td><strong>Totales</strong></td>}
                     {!bloqueHiddenCols.has('bloque')     && <td />}
-                    {!bloqueHiddenCols.has('ha')         && <td className="hor-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
-                    {!bloqueHiddenCols.has('plantas')    && <td className="hor-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
+                    {!bloqueHiddenCols.has('ha')         && <td className="aur-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
+                    {!bloqueHiddenCols.has('plantas')    && <td className="aur-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
                     {!bloqueHiddenCols.has('material')   && <td />}
-                    {!bloqueHiddenCols.has('kg')         && <td className="hor-td-num"><strong>{filtTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>}
+                    {!bloqueHiddenCols.has('kg')         && <td className="aur-td-num"><strong>{filtTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>}
                     <td />
                   </tr>
                 </tfoot>
@@ -1199,25 +1195,25 @@ function GrupoManagement() {
       {/* ── Column menu (tabla de bloques) ── */}
       {bloqueColMenu && createPortal(
         <>
-          <div className="hor-col-menu-backdrop" onClick={() => setBloqueColMenu(null)} />
-          <div className="hor-col-menu" style={{ left: bloqueColMenu.x, top: bloqueColMenu.y }}>
-            <div className="hor-col-menu-title">Columnas visibles</div>
+          <div className="aur-filter-backdrop" onClick={() => setBloqueColMenu(null)} />
+          <div className="aur-col-menu" style={{ left: bloqueColMenu.x, top: bloqueColMenu.y }}>
+            <div className="aur-col-menu-title">Columnas visibles</div>
             {BLOQUE_COLS.map(col => (
-              <button
-                key={col.id}
-                className={`hor-col-menu-item${bloqueHiddenCols.has(col.id) ? ' is-hidden' : ''}`}
-                onClick={() => setBloqueHiddenCols(prev => {
-                  const next = new Set(prev);
-                  next.has(col.id) ? next.delete(col.id) : next.add(col.id);
-                  return next;
-                })}
-              >
-                <span className="hor-col-menu-check" />
-                {col.label}
-              </button>
+              <label key={col.id} className="aur-col-menu-item">
+                <input
+                  type="checkbox"
+                  checked={!bloqueHiddenCols.has(col.id)}
+                  onChange={() => setBloqueHiddenCols(prev => {
+                    const next = new Set(prev);
+                    next.has(col.id) ? next.delete(col.id) : next.add(col.id);
+                    return next;
+                  })}
+                />
+                <span>{col.label}</span>
+              </label>
             ))}
             {bloqueHiddenCols.size > 0 && (
-              <button className="hor-col-menu-reset" onClick={() => { setBloqueHiddenCols(new Set()); setBloqueColMenu(null); }}>
+              <button className="aur-col-menu-reset" onClick={() => { setBloqueHiddenCols(new Set()); setBloqueColMenu(null); }}>
                 Mostrar todas
               </button>
             )}

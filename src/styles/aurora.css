@@ -1446,6 +1446,54 @@ select.aur-chip option {
 }
 .aur-col-menu-item--disabled input { cursor: not-allowed; }
 
+/* Wrapper de items dentro del col-menu — transparente por defecto, se vuelve
+   grid para variante multi-columna. */
+.aur-col-menu-items {
+  display: contents;
+}
+
+/* Variante multi-columna — popover ancho con items en grid wrap. Usado en
+   tablas con muchas columnas (ej. Existencias). Aplicar al .aur-col-menu y
+   sus items: <div class="aur-col-menu aur-col-menu--multi">
+     <div class="aur-col-menu-items aur-col-menu-items--multi">…</div>. */
+.aur-col-menu--multi {
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.aur-col-menu-items--multi {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.aur-col-menu-items--multi .aur-col-menu-item {
+  width: 190px;
+  box-sizing: border-box;
+}
+
+/* Botón "Restablecer" del col-menu — magenta sutil, opcional. */
+.aur-col-menu-reset {
+  margin: 6px 4px 2px;
+  background: transparent;
+  border: 1px solid rgba(204, 51, 255, 0.35);
+  border-radius: 8px;
+  color: var(--aurora-magenta);
+  font-size: var(--aur-fs-caption);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+  opacity: 0.85;
+}
+.aur-col-menu-reset:hover {
+  opacity: 1;
+  border-color: var(--aurora-magenta);
+}
+
 .aur-pagination-footer {
   display: flex;
   justify-content: center;
