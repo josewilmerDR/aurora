@@ -106,12 +106,12 @@ function BodegasAdmin() {
   return (
     <div className="lm-container">
       {loading ? (
-        <div className="lm-loading" />
+        <div className="aur-page-loading" />
       ) : bodegas.length === 0 ? (
         <div className="ba-empty-state">
           <FiBox size={36} />
           <p>No hay bodegas adicionales configuradas.</p>
-          <button className="lm-btn-primary" onClick={openCreate}>
+          <button className="aur-btn-pill" onClick={openCreate}>
             <FiPlus size={14} /> Crear bodega adicional
           </button>
         </div>
@@ -124,7 +124,7 @@ function BodegasAdmin() {
                 Crea y gestiona almacenes secundarios de la finca u organización
               </p>
             </div>
-            <button className="lm-btn-primary" onClick={openCreate}>
+            <button className="aur-btn-pill" onClick={openCreate}>
               <FiPlus size={16} /> Nueva Bodega
             </button>
           </div>
@@ -159,44 +159,51 @@ function BodegasAdmin() {
 
       {/* Modal crear/editar */}
       {showForm && (
-        <div className="lm-modal-backdrop" onClick={closeForm}>
-          <div className="lm-modal" onClick={e => e.stopPropagation()}>
-            <div className="lm-modal-header">
-              <h3>{editingId ? 'Editar Bodega' : 'Nueva Bodega'}</h3>
-              <button className="lm-modal-close" onClick={closeForm}><FiX size={18} /></button>
-            </div>
-            <div className="lm-modal-body">
-              <label className="lm-label">Nombre *</label>
-              <input
-                className="lm-input"
-                value={form.nombre}
-                onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                placeholder="Ej: Bodega de Combustibles"
-                autoFocus
-                onKeyDown={e => e.key === 'Enter' && handleSave()}
-              />
+        <div className="aur-modal-backdrop" onPointerDown={closeForm}>
+          <div className="aur-modal aur-modal--wide" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header">
+              <h2 className="aur-modal-title">{editingId ? 'Editar Bodega' : 'Nueva Bodega'}</h2>
+              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={closeForm}>
+                <FiX size={16} />
+              </button>
+            </header>
+            <div className="aur-modal-content">
+              <div className="aur-field">
+                <label className="aur-field-label" htmlFor="bodega-nombre">Nombre</label>
+                <input
+                  id="bodega-nombre"
+                  className="aur-input"
+                  value={form.nombre}
+                  onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                  placeholder="Ej: Bodega de Combustibles"
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                />
+              </div>
 
-              <label className="lm-label" style={{ marginTop: '1.2rem' }}>Ícono</label>
-              <div className="ba-icon-picker">
-                {ICONOS.map(({ key, Icon, label }) => (
-                  <button
-                    key={key}
-                    className={`ba-icon-option${form.icono === key ? ' selected' : ''}`}
-                    onClick={() => setForm(f => ({ ...f, icono: key }))}
-                    title={label}
-                    type="button"
-                  >
-                    <Icon size={22} />
-                    <span>{label}</span>
-                    {form.icono === key && <FiCheck size={12} className="ba-icon-check" />}
-                  </button>
-                ))}
+              <div className="aur-field">
+                <label className="aur-field-label">Ícono</label>
+                <div className="ba-icon-picker">
+                  {ICONOS.map(({ key, Icon, label }) => (
+                    <button
+                      key={key}
+                      className={`ba-icon-option${form.icono === key ? ' selected' : ''}`}
+                      onClick={() => setForm(f => ({ ...f, icono: key }))}
+                      title={label}
+                      type="button"
+                    >
+                      <Icon size={22} />
+                      <span>{label}</span>
+                      {form.icono === key && <FiCheck size={12} className="ba-icon-check" />}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="lm-modal-footer">
-              <button className="lm-btn-secondary" onClick={closeForm} disabled={saving}>Cancelar</button>
-              <button className="lm-btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Guardando...' : (editingId ? 'Guardar cambios' : 'Crear bodega')}
+            <div className="aur-modal-actions">
+              <button className="aur-btn-text" onClick={closeForm} disabled={saving}>Cancelar</button>
+              <button className="aur-btn-pill" onClick={handleSave} disabled={saving}>
+                {saving ? 'Guardando…' : (editingId ? 'Guardar cambios' : 'Crear bodega')}
               </button>
             </div>
           </div>

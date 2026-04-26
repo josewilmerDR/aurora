@@ -132,7 +132,7 @@ function UnidadCombobox({ value, onChange }) {
     <>
       <input
         ref={inputRef}
-        className="lm-input"
+        className="aur-input"
         value={text}
         autoComplete="off"
         placeholder="Ej: litros, kg, unidades"
@@ -563,7 +563,7 @@ function BodegaGenerica() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [fichas, usuarios]);
 
-  if (loading) return <div className="lm-loading">Cargando bodega...</div>;
+  if (loading) return <div className="aur-page-loading">Cargando bodega...</div>;
   if (!bodega) return null;
 
   const itemForMov = movModal ? items.find(i => i.id === movModal.itemId) : null;
@@ -586,7 +586,7 @@ function BodegaGenerica() {
           </div>
         </div>
         {tab === 'existencias' && (
-          <button className="lm-btn-primary" onClick={() => setItemModal({ mode: 'create', data: { ...EMPTY_ITEM } })}>
+          <button className="aur-btn-pill" onClick={() => setItemModal({ mode: 'create', data: { ...EMPTY_ITEM } })}>
             <FiPlus size={16} /> Agregar producto
           </button>
         )}
@@ -608,7 +608,7 @@ function BodegaGenerica() {
           <div className="empty-state">
             <FiBox size={36} />
             <p>Esta bodega no tiene productos registrados.</p>
-            <button className="lm-btn-primary" onClick={() => setItemModal({ mode: 'create', data: { ...EMPTY_ITEM } })}>
+            <button className="aur-btn-pill" onClick={() => setItemModal({ mode: 'create', data: { ...EMPTY_ITEM } })}>
               <FiPlus size={14} /> Agregar primer producto
             </button>
           </div>
@@ -809,34 +809,36 @@ function BodegaGenerica() {
 
       {/* ── Modal Ítem ── */}
       {itemModal && (
-        <div className="lm-modal-backdrop" onClick={() => setItemModal(null)}>
-          <div className="lm-modal" onClick={e => e.stopPropagation()}>
-            <div className="lm-modal-header">
-              <h3>{itemModal.mode === 'edit' ? 'Editar producto' : 'Agregar producto'}</h3>
-              <button className="lm-modal-close" onClick={() => setItemModal(null)}><FiX size={18} /></button>
-            </div>
-            <div className="lm-modal-body">
-              <label className="lm-label">Nombre *</label>
-              <input
-                className="lm-input"
-                value={itemModal.data.nombre}
-                onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, nombre: e.target.value } }))}
-                placeholder="Ej: Diesel"
-                maxLength={200}
-                autoFocus
-              />
+        <div className="aur-modal-backdrop" onPointerDown={() => setItemModal(null)}>
+          <div className="aur-modal aur-modal--wide" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header">
+              <h2 className="aur-modal-title">{itemModal.mode === 'edit' ? 'Editar producto' : 'Agregar producto'}</h2>
+              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setItemModal(null)}><FiX size={16} /></button>
+            </header>
+            <div className="aur-modal-content">
+              <div className="aur-field">
+                <label className="aur-field-label">Nombre</label>
+                <input
+                  className="aur-input"
+                  value={itemModal.data.nombre}
+                  onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, nombre: e.target.value } }))}
+                  placeholder="Ej: Diesel"
+                  maxLength={200}
+                  autoFocus
+                />
+              </div>
               <div className="bg-form-row">
-                <div>
-                  <label className="lm-label">Unidad</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Unidad</label>
                   <UnidadCombobox
                     value={itemModal.data.unidad}
                     onChange={v => setItemModal(m => ({ ...m, data: { ...m.data, unidad: v } }))}
                   />
                 </div>
-                <div>
-                  <label className="lm-label">Stock actual</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Stock actual</label>
                   <input
-                    className="lm-input"
+                    className="aur-input"
                     type="number"
                     min="0"
                     value={itemModal.data.stockActual}
@@ -844,10 +846,10 @@ function BodegaGenerica() {
                     placeholder="0"
                   />
                 </div>
-                <div>
-                  <label className="lm-label">Stock mínimo</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Stock mínimo</label>
                   <input
-                    className="lm-input"
+                    className="aur-input"
                     type="number"
                     min="0"
                     value={itemModal.data.stockMinimo}
@@ -856,39 +858,45 @@ function BodegaGenerica() {
                   />
                 </div>
               </div>
-              <label className="lm-label">Moneda</label>
-              <select
-                className="lm-input"
-                value={itemModal.data.moneda || 'CRC'}
-                onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, moneda: e.target.value } }))}
-              >
-                <option value="USD">USD</option>
-                <option value="CRC">CRC</option>
-                <option value="EUR">EUR</option>
-              </select>
-              <label className="lm-label">Total (valor inventario)</label>
-              <input
-                className="lm-input"
-                type="number"
-                min="0"
-                step="0.01"
-                value={itemModal.data.total}
-                onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, total: e.target.value } }))}
-                placeholder="0.00"
-              />
-              <label className="lm-label">Descripción (opcional)</label>
-              <input
-                className="lm-input"
-                value={itemModal.data.descripcion}
-                onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, descripcion: e.target.value } }))}
-                placeholder="Notas adicionales"
-                maxLength={500}
-              />
+              <div className="aur-field">
+                <label className="aur-field-label">Moneda</label>
+                <select
+                  className="aur-select"
+                  value={itemModal.data.moneda || 'CRC'}
+                  onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, moneda: e.target.value } }))}
+                >
+                  <option value="USD">USD</option>
+                  <option value="CRC">CRC</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+              <div className="aur-field">
+                <label className="aur-field-label">Total (valor inventario)</label>
+                <input
+                  className="aur-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={itemModal.data.total}
+                  onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, total: e.target.value } }))}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="aur-field">
+                <label className="aur-field-label">Descripción <span className="aur-field-hint">(opcional)</span></label>
+                <input
+                  className="aur-input"
+                  value={itemModal.data.descripcion}
+                  onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, descripcion: e.target.value } }))}
+                  placeholder="Notas adicionales"
+                  maxLength={500}
+                />
+              </div>
             </div>
-            <div className="lm-modal-footer">
-              <button className="lm-btn-secondary" onClick={() => setItemModal(null)} disabled={saving}>Cancelar</button>
-              <button className="lm-btn-primary" onClick={handleSaveItem} disabled={saving}>
-                {saving ? 'Guardando...' : (itemModal.mode === 'edit' ? 'Guardar' : 'Agregar')}
+            <div className="aur-modal-actions">
+              <button className="aur-btn-text" onClick={() => setItemModal(null)} disabled={saving}>Cancelar</button>
+              <button className="aur-btn-pill" onClick={handleSaveItem} disabled={saving}>
+                {saving ? 'Guardando…' : (itemModal.mode === 'edit' ? 'Guardar' : 'Agregar')}
               </button>
             </div>
           </div>
@@ -897,21 +905,21 @@ function BodegaGenerica() {
 
       {/* ── Modal Entrada ── */}
       {movModal?.tipo === 'entrada' && (
-        <div className="lm-modal-backdrop" onClick={() => setMovModal(null)}>
-          <div className="lm-modal lm-modal--sm" onClick={e => e.stopPropagation()}>
-            <div className="lm-modal-header">
-              <h3>
+        <div className="aur-modal-backdrop" onPointerDown={() => setMovModal(null)}>
+          <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header">
+              <h2 className="aur-modal-title">
                 <FiArrowDown size={16} /> Registrar Entrada
                 {itemForMov && <span className="bg-modal-item"> — {itemForMov.nombre}</span>}
-              </h3>
-              <button className="lm-modal-close" onClick={() => setMovModal(null)}><FiX size={18} /></button>
-            </div>
-            <div className="lm-modal-body">
+              </h2>
+              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setMovModal(null)}><FiX size={16} /></button>
+            </header>
+            <div className="aur-modal-content">
               <div className="bg-form-row">
-                <div>
-                  <label className="lm-label">Factura</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Factura</label>
                   <input
-                    className="lm-input"
+                    className="aur-input"
                     value={entradaForm.factura}
                     onChange={e => setEntradaForm(f => ({ ...f, factura: e.target.value }))}
                     placeholder="Nº de factura"
@@ -919,10 +927,10 @@ function BodegaGenerica() {
                     autoFocus
                   />
                 </div>
-                <div>
-                  <label className="lm-label">OC</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">OC</label>
                   <input
-                    className="lm-input"
+                    className="aur-input"
                     value={entradaForm.oc}
                     onChange={e => setEntradaForm(f => ({ ...f, oc: e.target.value }))}
                     placeholder="Orden de compra"
@@ -931,12 +939,12 @@ function BodegaGenerica() {
                 </div>
               </div>
               <div className="bg-form-row">
-                <div>
-                  <label className="lm-label">
-                    Cantidad{itemForMov?.unidad ? ` (${itemForMov.unidad})` : ''} *
+                <div className="aur-field">
+                  <label className="aur-field-label">
+                    Cantidad{itemForMov?.unidad ? ` (${itemForMov.unidad})` : ''}
                   </label>
                   <input
-                    className="lm-input"
+                    className="aur-input"
                     type="number"
                     min="0.01"
                     step="0.01"
@@ -945,10 +953,10 @@ function BodegaGenerica() {
                     placeholder="0"
                   />
                 </div>
-                <div>
-                  <label className="lm-label">Total</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Total</label>
                   <input
-                    className="lm-input"
+                    className="aur-input"
                     type="number"
                     min="0"
                     step="0.01"
@@ -963,31 +971,33 @@ function BodegaGenerica() {
                   Stock actual: <strong>{fmt(itemForMov.stockActual)} {itemForMov.unidad}</strong>
                 </p>
               )}
-              <label className="lm-label">Adjuntar factura</label>
-              <label className="bg-file-label">
-                <FiPaperclip size={15} />
-                {facturaFile ? facturaFile.name : 'Seleccionar archivo…'}
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  style={{ display: 'none' }}
-                  onChange={e => setFacturaFile(e.target.files[0] || null)}
-                />
-              </label>
-              {facturaFile && (
-                <button
-                  className="bg-file-clear"
-                  type="button"
-                  onClick={() => setFacturaFile(null)}
-                >
-                  <FiX size={13} /> Quitar archivo
-                </button>
-              )}
+              <div className="aur-field">
+                <label className="aur-field-label">Adjuntar factura</label>
+                <label className="bg-file-label">
+                  <FiPaperclip size={15} />
+                  {facturaFile ? facturaFile.name : 'Seleccionar archivo…'}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={e => setFacturaFile(e.target.files[0] || null)}
+                  />
+                </label>
+                {facturaFile && (
+                  <button
+                    className="bg-file-clear"
+                    type="button"
+                    onClick={() => setFacturaFile(null)}
+                  >
+                    <FiX size={13} /> Quitar archivo
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="lm-modal-footer">
-              <button className="lm-btn-secondary" onClick={() => setMovModal(null)} disabled={saving}>Cancelar</button>
-              <button className="lm-btn-primary" onClick={handleSaveEntrada} disabled={saving}>
-                {saving ? 'Guardando...' : 'Registrar entrada'}
+            <div className="aur-modal-actions">
+              <button className="aur-btn-text" onClick={() => setMovModal(null)} disabled={saving}>Cancelar</button>
+              <button className="aur-btn-pill" onClick={handleSaveEntrada} disabled={saving}>
+                {saving ? 'Guardando…' : 'Registrar entrada'}
               </button>
             </div>
           </div>
@@ -996,29 +1006,31 @@ function BodegaGenerica() {
 
       {/* ── Modal Salida ── */}
       {movModal?.tipo === 'salida' && (
-        <div className="lm-modal-backdrop" onClick={() => setMovModal(null)}>
-          <div className="lm-modal lm-modal--sm" onClick={e => e.stopPropagation()}>
-            <div className="lm-modal-header">
-              <h3>
+        <div className="aur-modal-backdrop" onPointerDown={() => setMovModal(null)}>
+          <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header">
+              <h2 className="aur-modal-title">
                 <FiArrowUp size={16} /> Registrar Salida
                 {itemForMov && <span className="bg-modal-item"> — {itemForMov.nombre}</span>}
-              </h3>
-              <button className="lm-modal-close" onClick={() => setMovModal(null)}><FiX size={18} /></button>
-            </div>
-            <div className="lm-modal-body">
-              <label className="lm-label">
-                Cantidad{itemForMov?.unidad ? ` (${itemForMov.unidad})` : ''} *
-              </label>
-              <input
-                className="lm-input"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={movForm.cantidad}
-                onChange={e => setMovForm(f => ({ ...f, cantidad: e.target.value }))}
-                placeholder="0"
-                autoFocus
-              />
+              </h2>
+              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setMovModal(null)}><FiX size={16} /></button>
+            </header>
+            <div className="aur-modal-content">
+              <div className="aur-field">
+                <label className="aur-field-label">
+                  Cantidad{itemForMov?.unidad ? ` (${itemForMov.unidad})` : ''}
+                </label>
+                <input
+                  className="aur-input"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={movForm.cantidad}
+                  onChange={e => setMovForm(f => ({ ...f, cantidad: e.target.value }))}
+                  placeholder="0"
+                  autoFocus
+                />
+              </div>
               {itemForMov && (
                 <p className="bg-stock-hint">
                   Stock actual: <strong>{fmt(itemForMov.stockActual)} {itemForMov.unidad}</strong>
@@ -1026,10 +1038,10 @@ function BodegaGenerica() {
               )}
 
               <div className="bg-form-row">
-                <div>
-                  <label className="lm-label">Activo *</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Activo</label>
                   <select
-                    className="lm-input"
+                    className="aur-select"
                     value={movForm.activoId}
                     onChange={e => setMovForm(f => ({ ...f, activoId: e.target.value }))}
                   >
@@ -1043,10 +1055,10 @@ function BodegaGenerica() {
                       ))}
                   </select>
                 </div>
-                <div>
-                  <label className="lm-label">Operario *</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Operario</label>
                   <select
-                    className="lm-input"
+                    className="aur-select"
                     value={movForm.operarioId}
                     onChange={e => setMovForm(f => ({ ...f, operarioId: e.target.value }))}
                   >
@@ -1059,10 +1071,10 @@ function BodegaGenerica() {
               </div>
 
               <div className="bg-form-row">
-                <div>
-                  <label className="lm-label">Lote</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Lote</label>
                   <select
-                    className="lm-input"
+                    className="aur-select"
                     value={movForm.loteId}
                     onChange={e => setMovForm(f => ({ ...f, loteId: e.target.value }))}
                   >
@@ -1072,10 +1084,10 @@ function BodegaGenerica() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="lm-label">Labor</label>
+                <div className="aur-field">
+                  <label className="aur-field-label">Labor</label>
                   <select
-                    className="lm-input"
+                    className="aur-select"
                     value={movForm.laborId}
                     onChange={e => setMovForm(f => ({ ...f, laborId: e.target.value }))}
                   >
@@ -1089,19 +1101,21 @@ function BodegaGenerica() {
                 </div>
               </div>
 
-              <label className="lm-label">Nota (opcional)</label>
-              <input
-                className="lm-input"
-                value={movForm.nota}
-                onChange={e => setMovForm(f => ({ ...f, nota: e.target.value }))}
-                placeholder="Motivo, proveedor, etc."
-                maxLength={500}
-              />
+              <div className="aur-field">
+                <label className="aur-field-label">Nota <span className="aur-field-hint">(opcional)</span></label>
+                <input
+                  className="aur-input"
+                  value={movForm.nota}
+                  onChange={e => setMovForm(f => ({ ...f, nota: e.target.value }))}
+                  placeholder="Motivo, proveedor, etc."
+                  maxLength={500}
+                />
+              </div>
             </div>
-            <div className="lm-modal-footer">
-              <button className="lm-btn-secondary" onClick={() => setMovModal(null)} disabled={saving}>Cancelar</button>
-              <button className="lm-btn-primary" onClick={handleSaveMov} disabled={saving}>
-                {saving ? 'Guardando...' : 'Registrar salida'}
+            <div className="aur-modal-actions">
+              <button className="aur-btn-text" onClick={() => setMovModal(null)} disabled={saving}>Cancelar</button>
+              <button className="aur-btn-pill" onClick={handleSaveMov} disabled={saving}>
+                {saving ? 'Guardando…' : 'Registrar salida'}
               </button>
             </div>
           </div>

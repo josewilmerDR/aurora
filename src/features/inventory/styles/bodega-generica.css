@@ -136,8 +136,6 @@
 .bg-btn-mov.salida:hover { background: rgba(255,107,107,0.18); }
 
 /* ── Movimiento modal ── */
-.lm-modal--sm { max-width: 420px; }
-
 .bg-tipo-toggle {
   display: flex;
   gap: 0.6rem;
@@ -365,7 +363,6 @@
 /* ── Responsive: 360px+ ──────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .bg-form-row { grid-template-columns: 1fr; }
-  .lm-modal--sm { max-width: 95vw; }
   .bg-tabs { flex-wrap: wrap; }
   .bg-tabs button { font-size: 0.75rem; padding: 0.4rem 0.6rem; }
   .bgm-filter-popover { left: 8px !important; right: 8px; min-width: unset; max-width: calc(100vw - 16px); }
