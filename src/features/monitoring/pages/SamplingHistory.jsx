@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiImage } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/monitoring.css';
 
@@ -13,6 +14,7 @@ function SamplingHistory() {
   const [loading, setLoading]           = useState(false);
   const [toast, setToast]               = useState(null);
   const [tipoCampos, setTipoCampos]     = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
@@ -76,10 +78,8 @@ function SamplingHistory() {
 
   const handleFiltro = (e) => setFiltros(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleDeleteRegistro = async (monId, regIdx, regTotal) => {
+  const doDeleteRegistro = async (monId, regIdx, regTotal) => {
     const esTodo = regTotal <= 1 || regIdx === null;
-    const msg = esTodo ? '¿Eliminar este registro completo?' : '¿Eliminar esta línea?';
-    if (!confirm(msg)) return;
     try {
       if (esTodo) {
         const res = await apiFetch(`/api/monitoreo/${monId}`, { method: 'DELETE' });
@@ -206,8 +206,9 @@ function SamplingHistory() {
                         </a>
                       )}
                       <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDeleteRegistro(r.id, regIdx, regTotal)}
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                        onClick={() => setConfirmDelete({ monId: r.id, regIdx, regTotal })}
                         title={regTotal > 1 && regIdx !== null ? 'Eliminar esta línea' : 'Eliminar registro'}
                       >
                         <FiTrash2 size={13} />
@@ -219,6 +220,24 @@ function SamplingHistory() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title={confirmDelete.regTotal > 1 && confirmDelete.regIdx !== null
+            ? 'Eliminar línea'
+            : 'Eliminar registro'}
+          body={confirmDelete.regTotal > 1 && confirmDelete.regIdx !== null
+            ? '¿Eliminar esta línea del registro de muestreo?'
+            : '¿Eliminar este registro completo? No se puede deshacer.'}
+          confirmLabel="Eliminar"
+          onConfirm={() => {
+            doDeleteRegistro(confirmDelete.monId, confirmDelete.regIdx, confirmDelete.regTotal);
+            setConfirmDelete(null);
+          }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

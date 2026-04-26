@@ -250,15 +250,6 @@
   color: var(--aurora-light);
 }
 
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 0.8rem;
-}
-
-.btn-success {
-  color: var(--aurora-green);
-}
-
 /* ── Historial: tabla principal ──────────────────────────────────────────── */
 .mh-outer {
   overflow-x: auto;
