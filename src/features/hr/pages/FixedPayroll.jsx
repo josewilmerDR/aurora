@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/hr.css';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 
@@ -616,7 +617,7 @@ function FixedPayroll() {
               onChange={e => setEditarFechas(e.target.checked)} />
             Editar fechas
           </label>
-          <button className="btn btn-primary planilla-config-btn" onClick={handleCargar}
+          <button className="aur-btn-pill planilla-config-btn" onClick={handleCargar}
             disabled={loading || !users.length || !fechasValidas}>
             <FiRefreshCw /> {loading ? 'Cargando...' : 'Previsualizar'}
           </button>
@@ -640,16 +641,16 @@ function FixedPayroll() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <span className="form-section-title" style={{ margin: 0 }}>Planilla — {periodoLabel}</span>
               <div className="planilla-header-actions-bar" style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-secondary" title="Descartar y cerrar" onClick={() => {
+                <button className="aur-btn-text" title="Descartar y cerrar" onClick={() => {
                   setLoaded(false); setFilas([]); setDetalleId(null); setEditingId(null);
                   sessionStorage.removeItem('aurora_planilla_fijo_state');
                 }}>
                   <FiXCircle size={15} /> Cancelar
                 </button>
-                <button className="btn btn-secondary" onClick={handleGenerarReporte}>
+                <button className="aur-btn-text" onClick={handleGenerarReporte}>
                   <FiFileText /> Previsualizar Planilla
                 </button>
-                <button className="btn btn-primary" onClick={() => setSaveConfirmModal(true)} disabled={saving}>
+                <button className="aur-btn-pill" onClick={() => setSaveConfirmModal(true)} disabled={saving}>
                   <FiSave /> {saving ? 'Guardando...' : editingId ? 'Actualizar planilla' : 'Guardar planilla'}
                 </button>
               </div>
@@ -691,10 +692,10 @@ function FixedPayroll() {
                       <div className="planilla-sum-ded">({fmt(f.totalDeducciones)})</div>
                       <div className="planilla-sum-neto">{fmt(f.totalNeto)}</div>
                       <div className="planilla-sum-actions">
-                        <button className="icon-btn" title="Modificar" onClick={() => setDetalleId(f.trabajadorId)}>
+                        <button className="aur-icon-btn" title="Modificar" onClick={() => setDetalleId(f.trabajadorId)}>
                           <FiEdit2 size={16} />
                         </button>
-                        <button className="icon-btn delete" title="Eliminar de planilla" onClick={() => handleEliminar(f.trabajadorId)}>
+                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar de planilla" onClick={() => handleEliminar(f.trabajadorId)}>
                           <FiTrash2 size={16} />
                         </button>
                       </div>
@@ -714,7 +715,7 @@ function FixedPayroll() {
       {/* ── Vista detalle de un empleado ── */}
       {loaded && detalleId && filaDetalle && (
         <div className="form-card">
-          <button className="btn btn-secondary planilla-detalle-back" onClick={() => setDetalleId(null)}>
+          <button className="aur-btn-text planilla-detalle-back" onClick={() => setDetalleId(null)}>
             <FiArrowLeft /> Volver a la planilla
           </button>
 
@@ -837,7 +838,7 @@ function FixedPayroll() {
                   />
                   <span style={{ opacity: 0.5 }}>)</span>
                   <button onClick={() => removeDeduccion(detalleId, idx)}
-                    className="icon-btn delete" title="Quitar">
+                    className="aur-icon-btn aur-icon-btn--danger" title="Quitar">
                     <FiTrash2 size={14} />
                   </button>
                 </div>
@@ -862,7 +863,7 @@ function FixedPayroll() {
           </div>
 
           <div className="form-actions" style={{ marginTop: 24 }}>
-            <button className="btn btn-secondary" onClick={() => setDetalleId(null)}>
+            <button className="aur-btn-text" onClick={() => setDetalleId(null)}>
               <FiArrowLeft /> Volver
             </button>
           </div>
@@ -871,162 +872,106 @@ function FixedPayroll() {
 
       {/* ── Aprobar confirmation modal ── */}
       {aprobarConfirmId && (
-        <div className="planilla-modal-overlay" onClick={() => setAprobarConfirmId(null)}>
-          <div className="planilla-modal" onClick={e => e.stopPropagation()}>
-            <div className="planilla-modal-icon" style={{ color: '#5599ff' }}><FiThumbsUp size={36} /></div>
-            <h3>Aprobar planilla</h3>
-            <p>¿Confirma que desea aprobar esta planilla?</p>
-            <p className="planilla-modal-sub">Una vez aprobada, quedará lista para que se procese el pago.</p>
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button className="btn btn-secondary" onClick={() => setAprobarConfirmId(null)}>Cancelar</button>
-              <button className="btn" style={{ background: 'rgba(51,153,255,0.15)', color: '#5599ff', border: '1px solid rgba(51,153,255,0.4)' }}
-                onClick={handleAprobarPlanilla}>
-                <FiThumbsUp size={14} /> Aprobar
-              </button>
-            </div>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          title="Aprobar planilla"
+          body="¿Confirma que desea aprobar esta planilla? Una vez aprobada, quedará lista para que se procese el pago."
+          confirmLabel="Aprobar"
+          icon={<FiThumbsUp size={16} />}
+          onConfirm={handleAprobarPlanilla}
+          onCancel={() => setAprobarConfirmId(null)}
+        />
       )}
 
       {/* ── Delete confirmation modal ── */}
       {deleteConfirmId && (
-        <div className="planilla-modal-overlay" onClick={() => setDeleteConfirmId(null)}>
-          <div className="planilla-modal" onClick={e => e.stopPropagation()}>
-            <div className="planilla-modal-icon" style={{ color: '#ff8080' }}><FiXCircle size={36} /></div>
-            <h3>Eliminar planilla</h3>
-            <p>¿Está seguro de que desea eliminar esta planilla?</p>
-            <p className="planilla-modal-sub">Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button className="btn btn-secondary" onClick={() => setDeleteConfirmId(null)}>Cancelar</button>
-              <button className="btn" style={{ background: 'rgba(255,128,128,0.15)', color: '#ff8080', border: '1px solid rgba(255,128,128,0.4)' }}
-                onClick={handleEliminarPlanilla}>
-                <FiTrash2 /> Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          danger
+          title="Eliminar planilla"
+          body="¿Está seguro de que desea eliminar esta planilla? Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
+          onConfirm={handleEliminarPlanilla}
+          onCancel={() => setDeleteConfirmId(null)}
+        />
       )}
 
       {/* ── Pagar confirmation modal ── */}
-      {pagarConfirmId && (() => {
-        const planilla = planillas.find(p => p.id === pagarConfirmId);
-        const numEmpleados = planilla?.filas?.length || 0;
-        return (
-          <div className="planilla-modal-overlay" onClick={() => setPagarConfirmId(null)}>
-            <div className="planilla-modal" onClick={e => e.stopPropagation()}>
-              <div className="planilla-modal-icon" style={{ color: 'var(--aurora-green)' }}><FiCheckCircle size={36} /></div>
-              <h3>Confirmar pago de planilla</h3>
-              <p>
-                Al confirmar, esta planilla pasará a estado <strong>Pagada</strong>.
-              </p>
-              <p className="planilla-modal-sub">
-                Se registrará la fecha de pago y se marcará la tarea de aprobación como completada.
-              </p>
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button className="btn btn-secondary" onClick={() => setPagarConfirmId(null)}>Cancelar</button>
-                <button className="btn btn-primary" onClick={handleMarcarPagado}>
-                  <FiCheckCircle size={14} /> Confirmar pago
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {pagarConfirmId && (
+        <AuroraConfirmModal
+          title="Confirmar pago de planilla"
+          body={<>Al confirmar, esta planilla pasará a estado <strong>Pagada</strong>. Se registrará la fecha de pago y se marcará la tarea de aprobación como completada.</>}
+          confirmLabel="Confirmar pago"
+          icon={<FiCheckCircle size={16} />}
+          onConfirm={handleMarcarPagado}
+          onCancel={() => setPagarConfirmId(null)}
+        />
+      )}
 
       {/* ── Save confirmation modal ── */}
       {saveConfirmModal && (
-        <div className="planilla-modal-overlay" onClick={() => setSaveConfirmModal(false)}>
-          <div className="planilla-modal" onClick={e => e.stopPropagation()}>
-            <div className="planilla-modal-icon" style={{ color: '#ffc107' }}><FiSave size={36} /></div>
-            <h3>{editingId ? 'Actualizar planilla' : 'Guardar planilla'}</h3>
-            <p>
-              {editingId
-                ? 'Se actualizarán los datos de esta planilla pendiente de pago.'
-                : `¿Confirma que desea guardar la planilla del período ${periodoLabel}?`}
-            </p>
-            <p className="planilla-modal-sub">
-              {editingId
-                ? 'Esta acción sobrescribirá los montos actuales.'
-                : 'La planilla pasará a estado Pendiente y se notificará a los supervisores.'}
-            </p>
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button className="btn btn-secondary" onClick={() => setSaveConfirmModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" disabled={saving} onClick={() => { setSaveConfirmModal(false); handleGuardar(); }}>
-                <FiSave /> {editingId ? 'Actualizar' : 'Confirmar y guardar'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          title={editingId ? 'Actualizar planilla' : 'Guardar planilla'}
+          body={editingId
+            ? 'Se actualizarán los datos de esta planilla pendiente de pago. Esta acción sobrescribirá los montos actuales.'
+            : `¿Confirma que desea guardar la planilla del período ${periodoLabel}? La planilla pasará a estado Pendiente y se notificará a los supervisores.`}
+          confirmLabel={editingId ? 'Actualizar' : 'Confirmar y guardar'}
+          icon={<FiSave size={16} />}
+          loading={saving}
+          onConfirm={() => { setSaveConfirmModal(false); handleGuardar(); }}
+          onCancel={() => setSaveConfirmModal(false)}
+        />
       )}
 
       {/* ── Success confirmation modal ── */}
       {confirmModal && (
-        <div className="planilla-modal-overlay" onClick={() => setConfirmModal(false)}>
-          <div className="planilla-modal" onClick={e => e.stopPropagation()}>
-            <div className="planilla-modal-icon"><FiCheckCircle size={36} /></div>
-            <h3>Planilla guardada</h3>
-            <p>La planilla ha quedado en estado <strong>Pendiente</strong>.</p>
-            <p className="planilla-modal-sub">Se ha enviado una notificación a los supervisores para su aprobación.</p>
-            <button className="btn btn-primary" onClick={() => setConfirmModal(false)}>Entendido</button>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          showCancel={false}
+          title="Planilla guardada"
+          body={<>La planilla ha quedado en estado <strong>Pendiente</strong>. Se ha enviado una notificación a los supervisores para su aprobación.</>}
+          confirmLabel="Entendido"
+          icon={<FiCheckCircle size={16} />}
+          onConfirm={() => setConfirmModal(false)}
+          onCancel={() => setConfirmModal(false)}
+        />
       )}
 
       {/* ── Solapamiento warning modal ── */}
       {solapamientos && (
-        <div className="planilla-modal-overlay">
-          <div className="planilla-modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <div className="planilla-modal-icon" style={{ color: '#ffc107' }}>
-              <FiAlertTriangle size={36} />
-            </div>
-            <h3>Empleados ya incluidos en planilla activa</h3>
-            <p>Los siguientes empleados ya han sido incluidos en una planilla para este período o días del período:</p>
-            <ul style={{ textAlign: 'left', margin: '8px 0 12px', padding: '0 0 0 18px', fontSize: '0.9rem', lineHeight: 1.9, color: 'var(--aurora-light)' }}>
+        <AuroraConfirmModal
+          size="wide"
+          title="Empleados ya incluidos en planilla activa"
+          body={<>Los siguientes empleados ya han sido incluidos en una planilla para este período o días del período. Su inclusión implicará un pago adicional por los mismos días. Si está seguro de continuar, escriba su correo de usuario y haga clic en <strong>Aceptar</strong>.</>}
+          confirmLabel="Aceptar de todas formas"
+          confirmDisabled={!confirmEmailSolap.trim()}
+          onConfirm={handleConfirmarSolapamiento}
+          onCancel={() => { setSolapamientos(null); setPendingFilas(null); setConfirmEmailSolap(''); }}
+        >
+          <div className="planilla-solap-detail">
+            <ul className="planilla-solap-list">
               {solapamientos.map(c => (
                 <li key={c.trabajadorId}>
                   <strong>{c.trabajadorNombre}</strong>:{' '}
                   {c.detalle.map((d, i) => (
                     <span key={i}>
                       {i > 0 && '; '}
-                      planilla en estado <em style={{ color: '#ffc107' }}>{ESTADO_LABELS[d.estado] || d.estado}</em>
+                      planilla en estado <em>{ESTADO_LABELS[d.estado] || d.estado}</em>
                       {d.consecutivo ? ` (${d.consecutivo})` : ''}, días: {d.diasLabel}
                     </span>
                   ))}
                 </li>
               ))}
             </ul>
-            <p className="planilla-modal-sub">
-              Su inclusión en esta planilla implicará un pago adicional por los mismos días. Si está seguro de continuar, escriba su correo de usuario y haga clic en <strong>Aceptar</strong>.
-            </p>
             <input
               type="email"
+              className="aur-input planilla-solap-input"
               placeholder="Su correo de usuario"
               maxLength={120}
               autoComplete="off"
               value={confirmEmailSolap}
               onChange={e => setConfirmEmailSolap(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleConfirmarSolapamiento()}
-              style={{
-                width: '100%', boxSizing: 'border-box', padding: '8px 12px',
-                borderRadius: 6, border: '1px solid var(--aurora-border)',
-                background: 'var(--aurora-dark-blue)', color: 'var(--aurora-light)',
-                fontSize: '0.95rem', marginBottom: 12,
-              }}
             />
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button className="btn btn-secondary" onClick={() => { setSolapamientos(null); setPendingFilas(null); setConfirmEmailSolap(''); }}>
-                Cancelar
-              </button>
-              <button
-                className="btn"
-                style={{ background: 'rgba(255,193,7,0.15)', color: '#ffc107', border: '1px solid rgba(255,193,7,0.4)' }}
-                onClick={handleConfirmarSolapamiento}
-              >
-                <FiAlertTriangle size={14} /> Aceptar de todas formas
-              </button>
-            </div>
           </div>
-        </div>
+        </AuroraConfirmModal>
       )}
 
       {/* ── Historial de planillas ── */}
@@ -1057,12 +1002,12 @@ function FixedPayroll() {
                     {!isPendiente && !isAprobada && !isPagada && <span className="planilla-badge planilla-badge--otro">{p.estado}</span>}
                   </div>
                   <div className="planilla-hist-actions">
-                    <button className="icon-btn" title="Ver planilla" onClick={() => handleVerPlanilla(p)}>
+                    <button className="aur-icon-btn" title="Ver planilla" onClick={() => handleVerPlanilla(p)}>
                       <FiEye size={16} />
                     </button>
                     {isPendiente && (
                       <>
-                        <button className="icon-btn" title="Editar planilla" onClick={() => handleEditarPlanilla(p)}>
+                        <button className="aur-icon-btn" title="Editar planilla" onClick={() => handleEditarPlanilla(p)}>
                           <FiEdit2 size={16} />
                         </button>
                         {canAprobar && (
@@ -1072,7 +1017,7 @@ function FixedPayroll() {
                             <FiThumbsUp size={14} /> Aprobar
                           </button>
                         )}
-                        <button className="icon-btn delete" title="Eliminar planilla"
+                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar planilla"
                           onClick={() => setDeleteConfirmId(p.id)}>
                           <FiXCircle size={16} />
                         </button>
