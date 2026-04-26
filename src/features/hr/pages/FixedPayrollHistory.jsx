@@ -148,8 +148,7 @@ function FixedPayrollHistory() {
                       </div>
                       <div className="planilla-hist-actions">
                         <button
-                          className="btn btn-secondary"
-                          style={{ fontSize: '0.82rem', padding: '5px 13px', whiteSpace: 'nowrap' }}
+                          className="aur-btn-text"
                           onClick={() => handleVerPlanilla(p)}
                         >
                           <FiEye size={14} /> Ver planilla

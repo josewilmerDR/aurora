@@ -1640,49 +1640,28 @@ button.collapsible-section-header:hover { opacity: 1; }
   border: 1px solid var(--aurora-border);
 }
 
-/* ── Confirmation modal ── */
-.planilla-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 500;
-}
-
-.planilla-modal {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 36px 40px;
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
+/* ── Solapamiento modal: lista de empleados + email gate ── */
+.planilla-solap-detail {
+  padding: 0 22px 4px;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 12px;
 }
-
-.planilla-modal-icon { color: var(--aurora-green); }
-
-.planilla-modal h3 {
-  font-size: 1.2rem;
-  color: var(--aurora-light);
+.planilla-solap-list {
   margin: 0;
-}
-
-.planilla-modal p {
-  font-size: 0.9rem;
+  padding-left: 18px;
+  font-size: 0.88rem;
+  line-height: 1.7;
   color: var(--aurora-light);
-  margin: 0;
-  opacity: 0.85;
 }
-
-.planilla-modal-sub {
-  font-size: 0.8rem !important;
-  opacity: 0.55 !important;
+.planilla-solap-list em {
+  color: #ffc107;
+  font-style: normal;
+  font-weight: 600;
+}
+.planilla-solap-input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1700,7 +1679,7 @@ button.collapsible-section-header:hover { opacity: 1; }
 
   /* ── Botones de acción (Cancelar / Previsualizar / Guardar) ─ */
   .planilla-header-actions-bar { flex-wrap: wrap !important; gap: 8px !important; }
-  .planilla-header-actions-bar .btn { flex: 1; justify-content: center; font-size: 0.82rem; min-width: 0; }
+  .planilla-header-actions-bar > button { flex: 1; justify-content: center; font-size: 0.82rem; min-width: 0; }
 
   /* ── Tabla resumen → tarjetas ─────────────────────────────── */
   .planilla-sum-header { display: none; }
