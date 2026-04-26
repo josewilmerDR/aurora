@@ -8,6 +8,7 @@ import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import CedulaNuevaModal from '../components/CedulaNuevaModal';
 import MezclaListaModal from '../components/MezclaListaModal';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../styles/cedulas.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,37 +77,6 @@ const CEDULA_STATUS_LABEL = {
   aplicada_en_campo:  'Aplicada',
 };
 
-// Confirmation modal — usa primitivas .aur-modal-* del sistema Aurora
-function ConfirmModal({ config, onClose }) {
-  const iconClass = `aur-modal-icon${config.danger ? ' aur-modal-icon--danger' : ' aur-modal-icon--warn'}`;
-  const pillClass = `aur-btn-pill${config.danger ? ' aur-btn-pill--danger' : ''}`;
-  return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={onClose}>
-      <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
-        <div className="aur-modal-header">
-          <span className={iconClass}>
-            <FiAlertTriangle size={16} />
-          </span>
-          <span className="aur-modal-title">{config.title}</span>
-        </div>
-        <p className="aur-modal-body">{config.body}</p>
-        <div className="aur-modal-actions">
-          {config.showCancel !== false && (
-            <button type="button" className="aur-btn-text" onClick={onClose}>Cancelar</button>
-          )}
-          <button
-            type="button"
-            className={pillClass}
-            onClick={() => { onClose(); config.onConfirm?.(); }}
-          >
-            {config.confirmLabel || 'Confirmar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
 
 // ── Modal Aplicada en Campo ───────────────────────────────────────────────────
 const CONDICIONES_TIEMPO = ['Soleado', 'Despejado', 'Parcialmente nublado', 'Nublado', 'Llovizna', 'Lluvia', 'Ventoso', 'Niebla', 'Tormenta'];
@@ -658,7 +628,11 @@ function CedulasAplicacion() {
   };
 
   const showError = (msg) => setConfirmModal({
-    title: 'Error', body: msg, confirmLabel: 'Entendido', showCancel: false,
+    title: 'Error',
+    body: msg,
+    confirmLabel: 'Entendido',
+    showCancel: false,
+    onConfirm: () => setConfirmModal(null),
   });
 
   const handleMezclaLista = (cedulaId) => {
@@ -800,6 +774,7 @@ function CedulasAplicacion() {
       confirmLabel: 'Anular',
       danger: true,
       onConfirm: async () => {
+        setConfirmModal(null);
         setActionLoading(cedulaId);
         try {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
@@ -830,6 +805,7 @@ function CedulasAplicacion() {
       confirmLabel: 'Omitir',
       danger: true,
       onConfirm: async () => {
+        setConfirmModal(null);
         setActionLoading(`skip-${taskId}`);
         try {
           const res = await apiFetch(`/api/tasks/${taskId}`, {
@@ -1787,7 +1763,7 @@ function CedulasAplicacion() {
 
       {/* ── Confirm Modal ── */}
       {confirmModal && (
-        <ConfirmModal config={confirmModal} onClose={() => setConfirmModal(null)} />
+        <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />
       )}
       {/* ── Aplicada Modal ── */}
       {aplicadaModal && (
