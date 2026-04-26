@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import '../../applications/styles/packages.css';
 import '../styles/sampling-register-modal.css';
 
 const todayIso = () => new Date().toISOString().split('T')[0];
@@ -256,208 +257,218 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
         {/* Body */}
         <div className="aur-modal-content fmm-body">
 
-          <div className="fmm-meta-divider"><span>Datos generales</span></div>
+          {/* Datos generales — settings list */}
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <h3>Datos generales</h3>
+            </div>
+            <div className="aur-list">
+              <div className="aur-row">
+                <span className="aur-row-label">F. Programada</span>
+                <span className="fmm-meta-value">{fmtDate(orden.fechaProgramada)}</span>
+              </div>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="fmm-fecha">F. Muestreo</label>
+                <input
+                  id="fmm-fecha"
+                  type="date"
+                  className="aur-input"
+                  value={fechaCarga}
+                  onChange={e => setFechaCarga(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+              <div className="aur-row">
+                <span className="aur-row-label">Muestreador</span>
+                <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
+              </div>
+              <div className="aur-row">
+                <span className="aur-row-label">Supervisor</span>
+                <span className="fmm-meta-value">
+                  {supervisorLoading ? '...' : (supervisorNombre || '—')}
+                </span>
+              </div>
+              <div className="aur-row">
+                <span className="aur-row-label">Lote</span>
+                <span className="fmm-meta-value">{orden.loteNombre || '—'}</span>
+              </div>
+              <div className="aur-row">
+                <span className="aur-row-label">Grupo</span>
+                <span className="fmm-meta-value">{orden.grupoNombre || '—'}</span>
+              </div>
+              <div className="aur-row aur-row--multiline">
+                <label className="aur-row-label" htmlFor="fmm-notas">Notas</label>
+                <textarea
+                  id="fmm-notas"
+                  className="aur-textarea"
+                  value={observaciones}
+                  onChange={e => setObservaciones(e.target.value)}
+                  disabled={submitting}
+                  placeholder="Observaciones del muestreo..."
+                  maxLength={MAX_OBSERVACIONES}
+                  rows={2}
+                />
+              </div>
+            </div>
+          </section>
 
-          {/* Metadata */}
-          <div className="fmm-meta-grid">
-            <div className="fmm-meta-field">
-              <span className="fmm-meta-label">F. Programada</span>
-              <span className="fmm-meta-value">{fmtDate(orden.fechaProgramada)}</span>
+          {/* Datos del muestreo — registros + scan */}
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <h3>Datos del muestreo</h3>
+              {state === 'ready' && <span className="aur-section-count">{registros.length}</span>}
             </div>
-            <div className="fmm-meta-field">
-              <span className="fmm-meta-label">F. Muestreo</span>
-              <input
-                type="date"
-                className="fmm-meta-input"
-                value={fechaCarga}
-                onChange={e => setFechaCarga(e.target.value)}
-                disabled={submitting}
-              />
-            </div>
-            <div className="fmm-meta-field">
-              <span className="fmm-meta-label">Muestreador</span>
-              <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
-            </div>
-            <div className="fmm-meta-field">
-              <span className="fmm-meta-label">Supervisor</span>
-              <span className="fmm-meta-value">
-                {supervisorLoading ? '...' : (supervisorNombre || '—')}
-              </span>
-            </div>
-            <div className="fmm-meta-field">
-              <span className="fmm-meta-label">Lote</span>
-              <span className="fmm-meta-value">{orden.loteNombre || '—'}</span>
-            </div>
-            <div className="fmm-meta-field">
-              <span className="fmm-meta-label">Grupo</span>
-              <span className="fmm-meta-value">{orden.grupoNombre || '—'}</span>
-            </div>
-            <div className="fmm-meta-field fmm-meta-field--full">
-              <span className="fmm-meta-label">Notas</span>
-              <textarea
-                className="fmm-meta-textarea"
-                value={observaciones}
-                onChange={e => setObservaciones(e.target.value)}
-                disabled={submitting}
-                placeholder="Observaciones del muestreo..."
-                maxLength={MAX_OBSERVACIONES}
-                rows={2}
-              />
-            </div>
-          </div>
 
-          <div className="fmm-meta-divider"><span>Datos del muestreo</span></div>
+            {state === 'loading' && <div className="fmm-state">Cargando plantilla...</div>}
 
-          {state === 'loading' && <div className="fmm-state">Cargando plantilla...</div>}
+            {state === 'error' && (
+              <div className="fmm-state fmm-state--error">
+                <FiAlertCircle size={20} />
+                <span>{errorMsg}</span>
+                <span className="fmm-state-hint">Puedes marcar la orden como hecha sin llenar el formulario.</span>
+              </div>
+            )}
 
-          {state === 'error' && (
-            <div className="fmm-state fmm-state--error">
-              <FiAlertCircle size={20} />
-              <span>{errorMsg}</span>
-              <span className="fmm-state-hint">Puedes marcar la orden como hecha sin llenar el formulario.</span>
-            </div>
-          )}
+            {state === 'no-formulario' && (
+              <div className="fmm-state fmm-state--empty">
+                <FiFileText size={20} />
+                <span>No hay campos definidos para esta plantilla.</span>
+                <span className="fmm-state-hint">
+                  Puedes marcar la orden como hecha directamente, o definir los campos en la configuración de Plantillas.
+                </span>
+              </div>
+            )}
 
-          {state === 'no-formulario' && (
-            <div className="fmm-state fmm-state--empty">
-              <FiFileText size={20} />
-              <span>No hay campos definidos para esta plantilla.</span>
-              <span className="fmm-state-hint">
-                Puedes marcar la orden como hecha directamente, o definir los campos en la configuración de Plantillas.
-              </span>
-            </div>
-          )}
-
-          {state === 'ready' && (
-            <>
-              {/* Scan toolbar */}
-              <div className="fmm-scan-bar">
-                <div className="fmm-scan-bar-left">
-                  <button
-                    className="btn btn-ia"
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={scanning || submitting}
-                    title="Leer con IA — agrega o rellena la última fila vacía"
-                  >
-                    <FiCpu size={15} />
-                    {scanImage ? 'Cambiar imagen' : 'Leer con IA'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    style={{ display: 'none' }}
-                    onChange={handleImagePick}
-                  />
-                  {scanImage && (
-                    <div className="fmm-scan-preview">
-                      <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
-                      <button
-                        className="fmm-scan-extract-btn"
-                        type="button"
-                        onClick={handleScan}
-                        disabled={scanning || submitting}
-                      >
-                        <FiCpu size={13} />
-                        {scanning ? 'Leyendo…' : 'Leer con IA'}
-                      </button>
-                      <button
-                        className="fmm-scan-clear-btn"
-                        type="button"
-                        onClick={() => { setScanImage(null); setScanMsg(null); }}
-                        disabled={scanning || submitting}
-                        title="Quitar imagen"
-                      >
-                        <FiX size={13} />
-                      </button>
-                    </div>
+            {state === 'ready' && (
+              <>
+                {/* Scan toolbar — brand-specific decorative (magenta accent for AI) */}
+                <div className="fmm-scan-bar">
+                  <div className="fmm-scan-bar-left">
+                    <button
+                      className="btn btn-ia"
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={scanning || submitting}
+                      title="Leer con IA — agrega o rellena la última fila vacía"
+                    >
+                      <FiCpu size={15} />
+                      {scanImage ? 'Cambiar imagen' : 'Leer con IA'}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      style={{ display: 'none' }}
+                      onChange={handleImagePick}
+                    />
+                    {scanImage && (
+                      <div className="fmm-scan-preview">
+                        <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
+                        <button
+                          className="fmm-scan-extract-btn"
+                          type="button"
+                          onClick={handleScan}
+                          disabled={scanning || submitting}
+                        >
+                          <FiCpu size={13} />
+                          {scanning ? 'Leyendo…' : 'Leer con IA'}
+                        </button>
+                        <button
+                          type="button"
+                          className="aur-icon-btn aur-icon-btn--sm"
+                          onClick={() => { setScanImage(null); setScanMsg(null); }}
+                          disabled={scanning || submitting}
+                          title="Quitar imagen"
+                        >
+                          <FiX size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {scanMsg && (
+                    <span className={`fmm-scan-msg fmm-scan-msg--${scanMsg.type}`}>
+                      {scanMsg.text}
+                    </span>
                   )}
                 </div>
-                {scanMsg && (
-                  <span className={`fmm-scan-msg fmm-scan-msg--${scanMsg.type}`}>
-                    {scanMsg.text}
-                  </span>
+
+                {/* Imagen adjunta al registro */}
+                {capturedImage && (
+                  <div className="fmm-captured-bar">
+                    <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
+                    <span className="fmm-captured-label">Imagen adjunta — se guardará con el registro</span>
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm"
+                      onClick={() => setCapturedImage(null)}
+                      disabled={submitting}
+                      title="Quitar imagen adjunta"
+                    >
+                      <FiX size={13} />
+                    </button>
+                  </div>
                 )}
-              </div>
 
-              {/* Imagen adjunta al registro */}
-              {capturedImage && (
-                <div className="fmm-captured-bar">
-                  <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
-                  <span className="fmm-captured-label">Imagen adjunta — se guardará con el registro</span>
-                  <button
-                    type="button"
-                    className="fmm-scan-clear-btn"
-                    onClick={() => setCapturedImage(null)}
-                    disabled={submitting}
-                    title="Quitar imagen adjunta"
-                  >
-                    <FiX size={13} />
-                  </button>
-                </div>
-              )}
-
-              {/* Multi-registro table */}
-              <div className="fmm-registros-wrap">
-                <table className="fmm-registros-table">
-                  <thead>
-                    <tr>
-                      <th className="fmm-reg-num">#</th>
-                      {campos.map(c => (
-                        <th key={c.nombre} className="fmm-reg-th">
-                          {c.nombre}
-                        </th>
-                      ))}
-                      <th className="fmm-reg-del-col" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {registros.map((reg, rIdx) => (
-                      <tr key={rIdx} className="fmm-reg-row">
-                        <td className="fmm-reg-num">{rIdx + 1}</td>
-                        {campos.map((c, cIdx) => (
-                          <td key={c.nombre} className="fmm-reg-td">
-                            <input
-                              ref={rIdx === 0 && cIdx === 0 ? firstCellRef : null}
-                              className="fmm-reg-input"
-                              type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
-                              value={reg[c.nombre] ?? ''}
-                              onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
-                              maxLength={MAX_REGISTRO_VALUE}
-                              disabled={submitting}
-                            />
-                          </td>
+                {/* Multi-registro table */}
+                <div className="aur-table-wrap">
+                  <table className="aur-table fmm-registros-table">
+                    <thead>
+                      <tr>
+                        <th className="fmm-reg-num">#</th>
+                        {campos.map(c => (
+                          <th key={c.nombre}>{c.nombre}</th>
                         ))}
-                        <td className="fmm-reg-del-col">
-                          {registros.length > 1 && (
-                            <button
-                              type="button"
-                              className="fmm-reg-del-btn"
-                              onClick={() => removeRegistro(rIdx)}
-                              disabled={submitting}
-                              title="Eliminar fila"
-                            >
-                              <FiTrash2 size={12} />
-                            </button>
-                          )}
-                        </td>
+                        <th className="fmm-reg-del-col" aria-hidden="true" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {registros.map((reg, rIdx) => (
+                        <tr key={rIdx}>
+                          <td className="fmm-reg-num">{rIdx + 1}</td>
+                          {campos.map((c, cIdx) => (
+                            <td key={c.nombre} className="fmm-reg-td">
+                              <input
+                                ref={rIdx === 0 && cIdx === 0 ? firstCellRef : null}
+                                className="fmm-reg-input"
+                                type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
+                                value={reg[c.nombre] ?? ''}
+                                onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
+                                maxLength={MAX_REGISTRO_VALUE}
+                                disabled={submitting}
+                                aria-label={`${c.nombre} fila ${rIdx + 1}`}
+                              />
+                            </td>
+                          ))}
+                          <td className="fmm-reg-del-col">
+                            {registros.length > 1 && (
+                              <button
+                                type="button"
+                                className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                                onClick={() => removeRegistro(rIdx)}
+                                disabled={submitting}
+                                title="Eliminar fila"
+                              >
+                                <FiTrash2 size={12} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              <button
-                type="button"
-                className="fmm-add-reg-btn"
-                onClick={addRegistro}
-                disabled={submitting}
-              >
-                <FiPlus size={13} /> Agregar registro
-              </button>
-            </>
-          )}
+                <button
+                  type="button"
+                  className="pkg-add-activity"
+                  onClick={addRegistro}
+                  disabled={submitting}
+                >
+                  <FiPlus size={14} /> Agregar registro
+                </button>
+              </>
+            )}
+          </section>
         </div>
 
         {/* Footer */}

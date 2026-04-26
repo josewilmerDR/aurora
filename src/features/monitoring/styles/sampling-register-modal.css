@@ -1,10 +1,22 @@
-/* ── Header overrides ─────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   SAMPLING REGISTER MODAL — modificadores slim sobre primitivas aur-modal-*
+   El shell (backdrop, modal, header, content, actions, btn-pill, btn-text,
+   icon-btn) viene de aurora.css. Aquí sólo lo brand-specific:
+     · Header: título dual (main + sub) + border-bottom separator
+     · Body: gap:0 (los hijos manejan su propio espaciado)
+     · Footer: flex-wrap para que submit-error se repliegue en mobile
+     · Scan toolbar: bandeja magenta con AI button (decorativo)
+     · Captured bar: bandeja verde con thumbnail
+     · Registros table: spreadsheet-style con cell-input borderless
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
 /* aur-modal-header provee display/align/gap/padding base; añadimos border-
    bottom (separador con el body) y align-items: flex-start porque el título
    ocupa 2 líneas y el botón cierre debe alinearse al tope. */
 .fmm-header {
   align-items: flex-start;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
 }
 
 /* aur-modal-title es text-only; aquí lo convertimos a stack vertical para
@@ -16,57 +28,61 @@
 }
 
 .fmm-title-main {
-  font-size: 0.975rem;
-  font-weight: 700;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
 }
 
 .fmm-title-sub {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
 }
 
-/* ── Body overrides ───────────────────────────────────────────────────────── */
+/* ── Body ─────────────────────────────────────────────────────────────────── */
 /* aur-modal-content provee flex/overflow/padding base; neutralizamos el gap
-   porque los hijos (meta-divider, scan-bar, registros-wrap, etc.) ya manejan
-   sus propios márgenes. */
+   porque las dos secciones ya tienen su propio margin-bottom (28px de
+   aur-section). */
 .fmm-body {
   gap: 0;
   min-height: 120px;
 }
 
-/* ── States ───────────────────────────────────────────────────────────────── */
+/* ── Read-only metadata value (right column de aur-row) ───────────────────── */
+.fmm-meta-value {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ── States (loading / error / empty) ─────────────────────────────────────── */
 .fmm-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 48px 20px;
+  padding: 36px 20px;
   text-align: center;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  font-size: 0.9rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
 }
 
 .fmm-state--error {
-  color: #ff6b6b;
-  opacity: 1;
+  color: var(--aur-danger);
 }
 
 .fmm-state--empty {
-  color: var(--aurora-green);
-  opacity: 0.75;
+  color: var(--aur-accent);
 }
 
 .fmm-state-hint {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   margin-top: 2px;
 }
 
-/* ── Scan toolbar ─────────────────────────────────────────────────────────── */
+/* ── Scan toolbar — bandeja magenta con AI button (decorativo brand) ─────── */
 .fmm-scan-bar {
   display: flex;
   align-items: center;
@@ -76,8 +92,8 @@
   padding: 10px 12px;
   background: rgba(204, 51, 255, 0.05);
   border: 1px solid rgba(204, 51, 255, 0.2);
-  border-radius: 8px;
-  margin-bottom: 14px;
+  border-radius: var(--aur-r-card);
+  margin-bottom: 12px;
 }
 
 .fmm-scan-bar-left {
@@ -86,26 +102,6 @@
   gap: 10px;
   flex-wrap: wrap;
 }
-
-.fmm-scan-pick-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  background: rgba(51, 255, 153, 0.08);
-  border: 1px dashed rgba(51, 255, 153, 0.55);
-  border-radius: 6px;
-  color: var(--aurora-green);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  opacity: 0.9;
-  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-
-.fmm-scan-pick-btn:hover:not(:disabled) { opacity: 1; border-style: solid; background: rgba(51, 255, 153, 0.14); }
-.fmm-scan-pick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .fmm-scan-preview {
   display: flex;
@@ -118,7 +114,7 @@
   height: 40px;
   object-fit: cover;
   border-radius: 4px;
-  border: 1px solid var(--aurora-border);
+  border: 1px solid var(--aur-divider);
   flex-shrink: 0;
 }
 
@@ -129,238 +125,48 @@
   padding: 5px 14px;
   background: var(--aurora-magenta);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--aur-r-pill);
   color: #fff;
-  font-size: 0.82rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s;
+  font-family: inherit;
+  transition: opacity 0.15s ease, transform 0.12s var(--aur-ease);
   white-space: nowrap;
 }
 
 .fmm-scan-extract-btn:hover:not(:disabled) { opacity: 0.85; }
+.fmm-scan-extract-btn:active:not(:disabled) { transform: scale(0.96); }
 .fmm-scan-extract-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.fmm-scan-clear-btn {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.4;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 2px;
-  transition: opacity 0.15s;
-}
-
-.fmm-scan-clear-btn:hover:not(:disabled) { opacity: 1; }
-.fmm-scan-clear-btn:disabled { cursor: not-allowed; }
-
 .fmm-scan-msg {
-  font-size: 0.8rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.fmm-scan-msg--success { color: var(--aurora-green); }
-.fmm-scan-msg--error   { color: #ff6b6b; }
+.fmm-scan-msg--success { color: var(--aur-accent); }
+.fmm-scan-msg--error   { color: var(--aur-danger); }
 
+/* ── Captured image bar — bandeja verde con thumbnail (decorativo brand) ──── */
 .fmm-captured-bar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: rgba(51, 255, 153, 0.05);
+  background: var(--aur-accent-tint);
   border: 1px solid rgba(51, 255, 153, 0.2);
-  border-radius: 8px;
+  border-radius: var(--aur-r-card);
   margin-bottom: 12px;
 }
 
 .fmm-captured-label {
   flex: 1;
-  font-size: 0.8rem;
-  color: var(--aurora-green);
-  opacity: 0.85;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-accent);
 }
 
-/* ── Sheet label ──────────────────────────────────────────────────────────── */
-.fmm-sheet-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.35;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 10px;
-}
-
-/* ── Table wrapper ────────────────────────────────────────────────────────── */
-.fmm-table-wrap {
-  overflow: auto;
-}
-
-/* ── Table ────────────────────────────────────────────────────────────────── */
-.fmm-table {
-  border-collapse: collapse;
-  font-size: 0.84rem;
-  width: max-content;
-  min-width: 100%;
-}
-
-/* Row number column */
-.fmm-row-num {
-  border: 1px solid var(--aurora-border);
-  padding: 0 8px;
-  text-align: center;
-  color: var(--aurora-light);
-  opacity: 0.25;
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  background: var(--aurora-dark-blue);
-  width: 32px;
-  min-width: 32px;
-  user-select: none;
-}
-
-/* Data cells */
-.fmm-cell-td {
-  border: 1px solid var(--aurora-border);
-  padding: 0;
-  min-width: 130px;
-  max-width: 300px;
-}
-
-/* Header row (row 0) */
-.fmm-row-header .fmm-cell-td {
-  background: var(--aurora-background);
-}
-
-.fmm-row-header .fmm-row-num {
-  background: var(--aurora-background);
-}
-
-/* Cell input */
-.fmm-cell-input {
-  display: block;
-  width: 100%;
-  padding: 6px 9px;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--aurora-light);
-  font-size: 0.84rem;
-  box-sizing: border-box;
-}
-
-.fmm-row-header .fmm-cell-input {
-  font-weight: 600;
-  color: #64b5f6;
-}
-
-.fmm-cell-input:focus {
-  background: rgba(51, 255, 153, 0.07);
-  outline: 2px solid var(--aurora-green);
-  outline-offset: -2px;
-}
-
-/* ── Metadata grid ────────────────────────────────────────────────────────── */
-.fmm-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-  gap: 10px 14px;
-  padding-bottom: 14px;
-}
-
-.fmm-meta-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.fmm-meta-field--full {
-  grid-column: 1 / -1;
-}
-
-.fmm-meta-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--aurora-green);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
-}
-
-.fmm-meta-value {
-  font-size: 0.875rem;
-  color: var(--aurora-light);
-  font-weight: 500;
-  padding: 5px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.fmm-meta-input {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  color: var(--aurora-light);
-  padding: 5px 8px;
-  font-size: 0.84rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.fmm-meta-input:focus {
-  border-color: var(--aurora-green);
-  outline: none;
-}
-
-.fmm-meta-input:disabled { opacity: 0.5; }
-
-.fmm-meta-textarea {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  color: var(--aurora-light);
-  padding: 6px 8px;
-  font-size: 0.84rem;
-  resize: vertical;
-  min-height: 56px;
-  width: 100%;
-  box-sizing: border-box;
-  font-family: inherit;
-}
-
-.fmm-meta-textarea:focus {
-  border-color: var(--aurora-green);
-  outline: none;
-}
-
-.fmm-meta-textarea:disabled { opacity: 0.5; }
-
-.fmm-meta-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 4px 0 14px;
-  color: var(--aurora-light);
-  opacity: 0.3;
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.fmm-meta-divider::before,
-.fmm-meta-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--aurora-border);
-}
-
-/* ── Footer overrides ─────────────────────────────────────────────────────── */
+/* ── Footer ───────────────────────────────────────────────────────────────── */
 /* aur-modal-actions provee display/align/justify/padding/border-top/bg base;
    añadimos flex-wrap para que el submit-error (margin-right:auto) pueda
    replegarse en pantallas estrechas sin desbordar la fila. */
@@ -373,135 +179,84 @@
   align-items: center;
   gap: 6px;
   margin-right: auto;
-  color: #ff6b6b;
-  font-size: 0.82rem;
+  color: var(--aur-danger);
+  font-size: var(--aur-fs-caption);
 }
 
-/* ── Multi-registro table ─────────────────────────────────────────────────── */
-.fmm-registros-wrap {
-  overflow-x: auto;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--aurora-border);
-  border-radius: 7px;
-  margin-bottom: 10px;
-  min-height: 126px;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-}
-
+/* ═══════════════════════════════════════════════════════════════════════════
+   REGISTROS TABLE — spreadsheet-style con cell-input borderless
+   Modificadores slim sobre aur-table. La estructura (border, padding,
+   thead bg) viene de aurora.css; aquí sólo lo específico:
+     · width: max-content para scroll horizontal con muchos campos
+     · thead con tint magenta (señaliza columnas dinámicas de la plantilla)
+     · #col + del-col compactas
+     · cells con padding 0 (el input fill toma el espacio completo)
+   ═══════════════════════════════════════════════════════════════════════════ */
 .fmm-registros-table {
-  border-collapse: collapse;
   width: max-content;
   min-width: 100%;
-  font-size: 0.83rem;
+  margin-bottom: 8px;
 }
 
-.fmm-reg-th {
-  background: rgba(204, 51, 255, 0.06);
+/* thead tint magenta para distinguir columnas dinámicas */
+.fmm-registros-table thead th {
   color: var(--aurora-magenta);
-  font-weight: 600;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 7px 10px;
-  text-align: left;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--aurora-border);
-  border-right: 1px solid rgba(204, 51, 255, 0.12);
+  background: rgba(204, 51, 255, 0.06);
 }
 
-.fmm-reg-th-unit {
-  font-weight: 400;
-  opacity: 0.65;
-  text-transform: none;
+.fmm-registros-table thead .fmm-reg-num,
+.fmm-registros-table thead .fmm-reg-del-col {
+  background: var(--aur-bg-input);
+  color: var(--aur-text-3);
 }
 
+/* Numero de fila — cell delgada, no editable */
 .fmm-reg-num {
-  width: 32px;
-  min-width: 32px;
+  width: 36px;
+  min-width: 36px;
   text-align: center;
-  font-size: 0.7rem;
-  color: var(--aurora-light);
-  opacity: 0.3;
-  padding: 0 6px;
-  border-bottom: 1px solid var(--aurora-border);
-  border-right: 1px solid var(--aurora-border);
-  background: rgba(0,0,0,0.12);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
   user-select: none;
+  padding: 6px 8px !important;
 }
 
-.fmm-reg-row td {
-  border-bottom: 1px solid rgba(42, 74, 106, 0.5);
-}
-
-.fmm-registros-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
+/* Cell para input — sin padding (el input fill toma el espacio) */
 .fmm-reg-td {
-  padding: 0;
-  border-right: 1px solid rgba(42, 74, 106, 0.35);
-  min-width: 110px;
+  padding: 0 !important;
+  min-width: 120px;
 }
 
+/* Cell-input — borderless, fills cell */
 .fmm-reg-input {
   display: block;
   width: 100%;
-  padding: 6px 8px;
+  padding: 9px 12px;
   background: transparent;
   border: none;
   outline: none;
-  color: var(--aurora-light);
-  font-size: 0.83rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
+  font-family: inherit;
+  letter-spacing: -0.01em;
   box-sizing: border-box;
 }
 
 .fmm-reg-input:focus {
-  background: rgba(51, 255, 153, 0.06);
-  outline: 2px solid var(--aurora-green);
-  outline-offset: -2px;
+  background: var(--aur-accent-tint);
+  box-shadow: inset 0 0 0 2px var(--aur-accent);
 }
 
+.fmm-reg-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Delete column — compacta, centrada */
 .fmm-reg-del-col {
-  width: 30px;
-  min-width: 30px;
+  width: 36px;
+  min-width: 36px;
   text-align: center;
-  padding: 0 4px;
-  border-bottom: 1px solid var(--aurora-border);
+  padding: 4px !important;
 }
-
-.fmm-reg-del-btn {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.3;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  margin: 0 auto;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.fmm-reg-del-btn:hover:not(:disabled) { opacity: 1; color: #ff6b6b; }
-.fmm-reg-del-btn:disabled { cursor: not-allowed; }
-
-/* Add registro button */
-.fmm-add-reg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  background: none;
-  border: 1px dashed rgba(51, 255, 153, 0.35);
-  border-radius: 6px;
-  color: var(--aurora-green);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  opacity: 0.75;
-  transition: opacity 0.15s;
-  margin-bottom: 4px;
-}
-
-.fmm-add-reg-btn:hover:not(:disabled) { opacity: 1; }
-.fmm-add-reg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
