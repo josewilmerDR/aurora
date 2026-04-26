@@ -11,9 +11,9 @@
    Tokens: usa --aur-* heredados de aurora.css. Sin variables locales.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Reutilizamos el layout de LoteManagement (lote-management-layout, lote-hub,
-   hub-*, lote-list*, hub-pill, icon-btn, lote-hub-back). */
-@import url('../../fields/styles/lote-management.css');
+/* El layout (lote-management-layout, lote-hub, hub-*, lote-list*, hub-pill,
+   icon-btn, lote-hub-back) viene de src/styles/legacy-globals.css, cargado
+   globalmente desde main.jsx. */
 
 /* ── Page wrapper + chrome ────────────────────────────────────────────────── */
 .pkg-page-wrapper {

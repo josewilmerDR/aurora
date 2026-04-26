@@ -1,4 +1,3 @@
-@import url('../../fields/styles/lote-management.css');
 
 /* ── Remove number input spinners ─────────────────────────────────────────── */
 .ficha-page-layout input[type=number]::-webkit-outer-spin-button,
