@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import '../../applications/styles/packages.css';
 import {
-  FiEdit2, FiTrash2, FiPlus, FiX, FiEye, FiCopy,
-  FiChevronRight, FiArrowLeft, FiCheck, FiClipboard,
+  FiEdit2, FiTrash2, FiPlus, FiX, FiCopy,
+  FiChevronRight, FiChevronDown, FiArrowLeft, FiCheck, FiClipboard,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -82,134 +82,144 @@ function ActivitiesEditor({
   };
 
   return (
-    <>
-      <h3>Actividades de Muestreo</h3>
-      <div className="activities-table-wrapper">
-        <table className="activities-table">
-          <thead>
-            <tr>
-              <th className="col-day">Día</th>
-              <th className="col-name">Actividad</th>
-              <th className="col-user">Responsable</th>
-              <th className="col-action"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {activities.map((activity, index) => (
-              <Fragment key={index}>
-                <tr>
-                  <td>
-                    <input
-                      value={activity.day}
-                      onChange={(e) => update(index, 'day', e.target.value)}
-                      type="number"
-                      min={0}
-                      max={MAX_DAY}
-                      step={1}
-                      required
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={activity.name}
-                      onChange={(e) => update(index, 'name', e.target.value)}
-                      placeholder="Nombre de la actividad"
-                      maxLength={MAX_ACTIVITY_NAME}
-                      required
-                    />
-                  </td>
-                  <td>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num">⊞</span>
+        <h3>Actividades de muestreo</h3>
+        <span className="aur-section-count">{activities.length}</span>
+      </div>
+      <ul className="pkg-act-list">
+        {activities.map((activity, index) => {
+          const expandedNow = expanded.has(index);
+          const availablePlantillas = plantillas.filter(
+            t => !(activity.formularios || []).find(f => f.tipoId === t.id)
+          );
+          return (
+            <li key={index} className="pkg-act-card">
+              <div className="pkg-act-row">
+                <div className="pkg-act-day">
+                  <input
+                    type="number"
+                    min={0}
+                    max={MAX_DAY}
+                    step={1}
+                    value={activity.day}
+                    onChange={(e) => update(index, 'day', e.target.value)}
+                    aria-label="Día"
+                    required
+                  />
+                  <span className="pkg-act-day-suffix">día</span>
+                </div>
+
+                <div className="pkg-act-body">
+                  <input
+                    type="text"
+                    className="pkg-act-name"
+                    value={activity.name}
+                    onChange={(e) => update(index, 'name', e.target.value)}
+                    placeholder="Nombre de la actividad"
+                    maxLength={MAX_ACTIVITY_NAME}
+                    aria-label="Nombre de la actividad"
+                    required
+                  />
+                  <div className="pkg-act-meta">
                     <select
+                      className="aur-chip"
                       value={activity.responsableId}
                       onChange={(e) => update(index, 'responsableId', e.target.value)}
+                      aria-label="Responsable"
                     >
-                      <option value="">-- Asignar --</option>
+                      <option value="">Responsable</option>
                       {users.map(user => (
                         <option key={user.id} value={user.id}>{user.nombre}</option>
                       ))}
                     </select>
-                  </td>
-                  <td>
-                    <div className="activity-row-actions">
-                      {pendingDeleteIdx === index ? (
-                        <div className="activity-delete-confirm">
-                          <span>¿Eliminar?</span>
-                          <button type="button" className="btn-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
-                          <button type="button" className="btn-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
-                        </div>
-                      ) : (
-                        <>
-                          <button type="button" onClick={() => setPendingDeleteIdx(index)} className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger pkg-action-btn" title="Eliminar Actividad">
-                            <FiX size={16} />
-                          </button>
-                          <button type="button" onClick={() => duplicateActivity(index)} className="aur-icon-btn aur-icon-btn--sm pkg-action-btn" title="Duplicar Actividad">
-                            <FiCopy size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleExpand(index)}
-                            className={`aur-icon-btn aur-icon-btn--sm pkg-action-btn${expanded.has(index) ? ' expanded' : ''}`}
-                            title={expanded.has(index) ? 'Ocultar formularios' : 'Ver formularios'}
-                          >
-                            <FiEye size={16} />
-                          </button>
-                        </>
-                      )}
+                  </div>
+                </div>
+
+                <div className="pkg-act-actions">
+                  {pendingDeleteIdx === index ? (
+                    <div className="aur-inline-confirm">
+                      <span className="aur-inline-confirm-text">¿Eliminar?</span>
+                      <button type="button" className="aur-inline-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
+                      <button type="button" className="aur-inline-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
                     </div>
-                  </td>
-                </tr>
-                {expanded.has(index) && (
-                  <tr className="products-subrow-tr">
-                    <td colSpan="4">
-                      <div className="products-subrow">
-                        <div className="products-subrow-header">
-                          <span className="products-subrow-label">Plantillas de muestreo:</span>
-                        </div>
-                        <div className="products-tags">
-                          {(activity.formularios || []).map(f => (
-                            <span key={f.tipoId} className="product-tag">
-                              <strong>{f.tipoNombre}</strong>
-                              <button
-                                type="button"
-                                className="product-tag-remove"
-                                onClick={() => removePlantilla(index, f.tipoId)}
-                                title="Quitar plantilla"
-                              >
-                                <FiX size={12} />
-                              </button>
-                            </span>
-                          ))}
-                          {plantillas.filter(t => !(activity.formularios || []).find(f => f.tipoId === t.id)).length > 0 && (
-                            <select
-                              className="add-product-select"
-                              value=""
-                              onChange={(e) => { if (e.target.value) addPlantilla(index, e.target.value); }}
-                            >
-                              <option value="">+ Agregar plantilla...</option>
-                              {plantillas
-                                .filter(t => !(activity.formularios || []).find(f => f.tipoId === t.id))
-                                .map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)
-                              }
-                            </select>
-                          )}
-                        </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="aur-icon-btn"
+                        onClick={() => duplicateActivity(index)}
+                        title="Duplicar actividad"
+                      >
+                        <FiCopy size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--danger"
+                        onClick={() => setPendingDeleteIdx(index)}
+                        title="Eliminar actividad"
+                      >
+                        <FiX size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`aur-icon-btn pkg-act-expand${expandedNow ? ' is-open' : ''}`}
+                        onClick={() => toggleExpand(index)}
+                        title={expandedNow ? 'Ocultar plantillas' : 'Plantillas de muestreo'}
+                      >
+                        <FiChevronDown size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
 
+              {expandedNow && (
+                <div className="pkg-act-products">
+                  <span className="pkg-act-products-label">Plantillas de muestreo</span>
+                  <div className="pkg-act-products-list">
+                    {(activity.formularios || []).map(f => (
+                      <div key={f.tipoId} className="pkg-prod-row">
+                        <span className="pkg-prod-row-name">{f.tipoNombre}</span>
+                        <span aria-hidden="true" />
+                        <span aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="pkg-prod-row-remove"
+                          onClick={() => removePlantilla(index, f.tipoId)}
+                          title="Quitar plantilla"
+                        >
+                          <FiX size={13} />
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    ))}
+                    {availablePlantillas.length > 0 && (
+                      <select
+                        className="aur-chip aur-chip--ghost"
+                        value=""
+                        onChange={(e) => { if (e.target.value) addPlantilla(index, e.target.value); }}
+                        aria-label="Agregar plantilla"
+                        style={{ alignSelf: 'flex-start', marginTop: 6 }}
+                      >
+                        <option value="">+ Agregar plantilla</option>
+                        {availablePlantillas.map(t => (
+                          <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
-      <div className="add-activity-btn-container">
-        <button type="button" onClick={addActivity} className="aur-btn-text">
-          <FiPlus /> Añadir Actividad
-        </button>
-      </div>
-    </>
+      <button type="button" onClick={addActivity} className="pkg-add-activity">
+        <FiPlus size={14} /> Añadir actividad
+      </button>
+    </section>
   );
 }
 
