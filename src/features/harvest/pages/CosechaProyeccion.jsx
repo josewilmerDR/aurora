@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import HarvestDataTable from '../components/HarvestDataTable';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import '../styles/harvest.css';
 
 const PAGE_SIZE = 50;
@@ -161,7 +161,7 @@ export default function CosechaProyeccion() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="harvest-page-loading" />;
+    return <div className="aur-page-loading" />;
   }
 
   const renderRow = (row, visibleCols) => (
@@ -198,7 +198,7 @@ export default function CosechaProyeccion() {
             <p>Las proyecciones se generan automáticamente desde el módulo Grupos.</p>
           </div>
         ) : (
-          <HarvestDataTable
+          <AuroraDataTable
             columns={COLUMNS}
             data={rows}
             getColVal={getColVal}

@@ -5,7 +5,7 @@ import Toast from '../../../components/Toast';
 import BuyerSelector from '../../finance/components/BuyerSelector';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
-import HarvestCombobox from '../components/HarvestCombobox';
+import AuroraCombobox from '../../../components/AuroraCombobox';
 import HarvestBoletasSelect from '../components/HarvestBoletasSelect';
 import '../styles/harvest.css';
 
@@ -178,7 +178,7 @@ export default function CosechaDespachos() {
   };
 
   if (loading) {
-    return <div className="harvest-page-loading" />;
+    return <div className="aur-page-loading" />;
   }
 
   return (
@@ -316,7 +316,7 @@ export default function CosechaDespachos() {
             </div>
             <div className="aur-row">
               <label className="aur-row-label">Unidad</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.unidadId}
                 onChange={handleUnidadChange}
                 items={unidades}
@@ -335,7 +335,7 @@ export default function CosechaDespachos() {
           <div className="aur-list">
             <div className="aur-row">
               <label className="aur-row-label">Despachador</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.despachadorId}
                 onChange={handleDespachador}
                 items={usuarios}
@@ -345,7 +345,7 @@ export default function CosechaDespachos() {
             </div>
             <div className="aur-row">
               <label className="aur-row-label">Encargado de cosecha</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.encargadoId}
                 onChange={handleEncargado}
                 items={usuarios}
@@ -378,7 +378,7 @@ export default function CosechaDespachos() {
           </div>
         </section>
 
-        <div className="harvest-form-actions">
+        <div className="aur-form-actions">
           <button type="button" className="aur-btn-text" onClick={resetForm}>
             Limpiar
           </button>

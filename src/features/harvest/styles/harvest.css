@@ -2,18 +2,17 @@
    HARVEST — estilos específicos del dominio cosecha
 
    Las primitivas Apple-inspired (sheet/section/list/row/input/btn/chip/combo/
-   table/th-sortable/th-funnel/filter-popover/icon-btn/modal) vienen de
-   src/styles/aurora.css. Este archivo contiene únicamente lo que es propio
-   del dominio harvest:
+   table/th-sortable/th-funnel/filter-popover/icon-btn/modal/col-menu/
+   table-toolbar/table-wrap/pagination-footer/page-loading/form-actions)
+   vienen de src/styles/aurora.css. Este archivo contiene únicamente lo que
+   es propio del dominio harvest:
 
      · Layout de página (.harvest-page)
-     · Toolbar de tabla (.harvest-table-toolbar / -result-count)
-     · Col-menu (toggle de columnas visibles)
      · Boletas multi-select (CosechaDespachos)
      · Inline-edit "cantidad recibida en planta" (CosechaHistorial)
      · Nota expandible
      · Badges de estado de despacho
-     · Acciones de form
+     · Cell helpers (consec, empty, na)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Layout de página ──────────────────────────────────────────────────── */
@@ -22,175 +21,6 @@
   flex-direction: column;
   gap: 18px;
 }
-
-.harvest-page-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 50vh;
-}
-.harvest-page-loading::after {
-  content: '';
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--aur-divider-2);
-  border-top-color: var(--aur-accent);
-  border-radius: 50%;
-  animation: aur-spin 0.8s linear infinite;
-}
-
-/* ── Tabla: toolbar + scroll wrapper ───────────────────────────────────── */
-.harvest-table-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 4px 14px;
-  flex-wrap: wrap;
-}
-.harvest-result-count {
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-3);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-.harvest-table-wrap {
-  overflow-x: auto;
-  border-radius: var(--aur-r-card);
-  background: var(--aur-bg-input);
-  border: 1px solid var(--aur-divider);
-}
-.harvest-table-wrap::-webkit-scrollbar { height: 8px; }
-.harvest-table-wrap::-webkit-scrollbar-thumb {
-  background: var(--aur-divider-2);
-  border-radius: 999px;
-}
-
-.harvest-table {
-  /* La tabla vive dentro de .harvest-table-wrap; quitamos sticky thead aquí
-     porque el scroll horizontal lo rompe en mobile. */
-}
-.harvest-table thead {
-  position: static;
-}
-.harvest-table th,
-.harvest-table td {
-  padding: 9px 12px;
-  font-size: var(--aur-fs-footnote);
-  white-space: nowrap;
-  line-height: 1.4;
-}
-.harvest-table th:first-child,
-.harvest-table td:first-child {
-  padding-left: 16px;
-}
-.harvest-table th:last-child,
-.harvest-table td:last-child {
-  padding-right: 16px;
-}
-
-.harvest-th-col-menu {
-  width: 44px;
-  text-align: right;
-}
-
-/* ── Col-menu (popover de visibilidad de columnas) ─────────────────────── */
-.harvest-col-menu-trigger {
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid var(--aur-divider);
-  border-radius: 8px;
-  color: var(--aur-text-3);
-  cursor: pointer;
-  position: relative;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s var(--aur-ease);
-}
-.harvest-col-menu-trigger:hover {
-  background: var(--aur-bg-hover);
-  border-color: var(--aur-divider-2);
-  color: var(--aur-text);
-}
-.harvest-col-menu-trigger:active {
-  transform: scale(0.92);
-}
-.harvest-col-menu-trigger.is-active {
-  background: var(--aur-accent-tint);
-  border-color: var(--aur-accent-tint-2);
-  color: var(--aur-accent);
-}
-.harvest-col-hidden-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: var(--aur-accent);
-  color: var(--aurora-dark-blue);
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.harvest-col-menu {
-  position: fixed;
-  z-index: 1200;
-  min-width: 200px;
-  background: rgba(13, 26, 38, 0.96);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid var(--aur-divider-2);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow: var(--aur-shadow-popover);
-  animation: aur-slide-up 0.18s var(--aur-ease);
-  font-feature-settings: 'ss01', 'cv11';
-  letter-spacing: -0.01em;
-}
-.harvest-col-menu-title {
-  font-size: var(--aur-fs-caption);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
-  color: var(--aur-text-3);
-  padding: 8px 10px 6px;
-}
-.harvest-col-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-2);
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.harvest-col-menu-item:hover {
-  background: var(--aur-bg-hover);
-  color: var(--aur-text);
-}
-.harvest-col-menu-item input[type="checkbox"] {
-  accent-color: var(--aur-accent);
-  cursor: pointer;
-  flex-shrink: 0;
-  margin: 0;
-}
-.harvest-col-menu-item--disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.harvest-col-menu-item--disabled input { cursor: not-allowed; }
 
 /* ── Boletas multi-select (CosechaDespachos) ───────────────────────────── */
 .harvest-boletas {
@@ -441,24 +271,6 @@
   cursor: default !important;
 }
 
-/* ── Form actions (footer del form) ────────────────────────────────────── */
-.harvest-form-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--aur-divider);
-}
-
-/* ── Pagination footer (.aur-chip "Ver más") ───────────────────────────── */
-.harvest-pagination-footer {
-  display: flex;
-  justify-content: center;
-  padding: 16px 0 0;
-}
-
 /* ── Combobox dentro de aur-row: ocupa todo el ancho ───────────────────── */
 .aur-row .aur-combo {
   width: 100%;
@@ -485,25 +297,6 @@
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .harvest-table-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  .harvest-table th,
-  .harvest-table td {
-    padding: 8px 10px;
-    font-size: 12px;
-  }
-  .harvest-form-actions {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
-  .harvest-form-actions .aur-btn-pill,
-  .harvest-form-actions .aur-btn-text {
-    width: 100%;
-    justify-content: center;
-  }
   .harvest-nota {
     max-width: 220px;
   }

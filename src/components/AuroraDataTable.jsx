@@ -2,16 +2,18 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiFilter, FiX, FiSliders } from 'react-icons/fi';
 
-// Maquinaria de tabla compartida por las páginas del dominio harvest:
+// Data table compartido cross-domain. Encapsula:
 // - sort tri-estado por columna
 // - filter popover por columna (text/number/date)
-// - menú de visibilidad de columnas
-// - paginación opcional
+// - menú de visibilidad de columnas (col-menu portaled)
+// - paginación opcional ("Ver más")
 //
-// Renderiza un .aur-section que contiene la toolbar + .aur-table. Las celdas
-// del body las provee la página vía `renderRow(row, visibleCols)`.
+// Renderiza un .aur-section que contiene la toolbar + .aur-table dentro de
+// .aur-table-wrap (con scroll horizontal). Las celdas del body las provee la
+// página vía `renderRow(row, visibleCols)`. Todas las clases vienen de
+// src/styles/aurora.css (no requiere CSS scoped por dominio).
 
-export default function HarvestDataTable({
+export default function AuroraDataTable({
   columns,
   data,
   getColVal,
@@ -148,8 +150,8 @@ export default function HarvestDataTable({
 
   return (
     <section className="aur-section">
-      <div className="harvest-table-toolbar">
-        <span className="harvest-result-count">
+      <div className="aur-table-toolbar">
+        <span className="aur-table-result-count">
           {resultLabel
             ? resultLabel(filteredCount, total)
             : (filteredCount === total ? `${total} registros` : `${filteredCount} de ${total} registros`)}
@@ -169,8 +171,8 @@ export default function HarvestDataTable({
         <p className="empty-state">{emptyText}</p>
       ) : (
         <>
-          <div className="harvest-table-wrap">
-            <table className="aur-table harvest-table">
+          <div className="aur-table-wrap">
+            <table className="aur-table">
               <thead>
                 <tr>
                   {columns.map(col => {
@@ -201,16 +203,16 @@ export default function HarvestDataTable({
                     );
                   })}
                   {trailingHead}
-                  <th className="harvest-th-col-menu">
+                  <th className="aur-th-col-menu">
                     <button
                       type="button"
-                      className={`harvest-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
+                      className={`aur-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
                       onClick={handleColBtnClick}
                       title="Personalizar columnas"
                     >
                       <FiSliders size={12} />
                       {hiddenCount > 0 && (
-                        <span className="harvest-col-hidden-badge">{hiddenCount}</span>
+                        <span className="aur-col-hidden-badge">{hiddenCount}</span>
                       )}
                     </button>
                   </th>
@@ -232,7 +234,7 @@ export default function HarvestDataTable({
           </div>
 
           {hasMore && (
-            <div className="harvest-pagination-footer">
+            <div className="aur-pagination-footer">
               <button
                 type="button"
                 className="aur-chip"
@@ -340,15 +342,15 @@ function ColMenu({ x, y, columns, visibleCols, onToggle, onClose }) {
   const visibleCount = Object.values(visibleCols).filter(Boolean).length;
 
   return createPortal(
-    <div ref={menuRef} className="harvest-col-menu" style={{ position: 'fixed', top: y, left: x }}>
-      <div className="harvest-col-menu-title">Columnas visibles</div>
+    <div ref={menuRef} className="aur-col-menu" style={{ position: 'fixed', top: y, left: x }}>
+      <div className="aur-col-menu-title">Columnas visibles</div>
       {columns.map(col => {
         const checked = visibleCols[col.key];
         const isLast  = checked && visibleCount === 1;
         return (
           <label
             key={col.key}
-            className={`harvest-col-menu-item${isLast ? ' harvest-col-menu-item--disabled' : ''}`}
+            className={`aur-col-menu-item${isLast ? ' aur-col-menu-item--disabled' : ''}`}
           >
             <input
               type="checkbox"

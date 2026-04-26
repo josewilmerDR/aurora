@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
-import HarvestDataTable from '../components/HarvestDataTable';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import '../styles/harvest.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export default function CosechaHistorial() {
             <p>Los registros aparecen aquí una vez creados desde Registro de Cosecha.</p>
           </div>
         ) : (
-          <HarvestDataTable
+          <AuroraDataTable
             columns={COLUMNS}
             data={registros}
             getColVal={getColVal}

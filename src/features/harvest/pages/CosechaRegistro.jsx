@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import HarvestCombobox from '../components/HarvestCombobox';
+import AuroraCombobox from '../../../components/AuroraCombobox';
 import '../styles/harvest.css';
 
 // Fecha local en formato YYYY-MM-DD (sin shift por UTC).
@@ -248,7 +248,7 @@ export default function CosechaRegistro() {
   };
 
   if (loading) {
-    return <div className="harvest-page-loading" />;
+    return <div className="aur-page-loading" />;
   }
 
   return (
@@ -361,7 +361,7 @@ export default function CosechaRegistro() {
             </div>
             <div className="aur-row">
               <label className="aur-row-label">Unidad</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.unidadId}
                 onChange={handleUnidadChange}
                 items={unidades}
@@ -380,7 +380,7 @@ export default function CosechaRegistro() {
           <div className="aur-list">
             <div className="aur-row">
               <label className="aur-row-label">Operario</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.operarioId}
                 onChange={handleOperarioChange}
                 items={usuarios}
@@ -390,7 +390,7 @@ export default function CosechaRegistro() {
             </div>
             <div className="aur-row">
               <label className="aur-row-label">Activo</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.activoId}
                 onChange={handleActivoChange}
                 items={activos}
@@ -400,7 +400,7 @@ export default function CosechaRegistro() {
             </div>
             <div className="aur-row">
               <label className="aur-row-label">Implemento</label>
-              <HarvestCombobox
+              <AuroraCombobox
                 value={form.implementoId}
                 onChange={handleImplementoChange}
                 items={implementos}
@@ -433,7 +433,7 @@ export default function CosechaRegistro() {
           </div>
         </section>
 
-        <div className="harvest-form-actions">
+        <div className="aur-form-actions">
           <button type="button" className="aur-btn-text" onClick={resetForm}>
             Cancelar
           </button>

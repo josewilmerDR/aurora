@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiPlus, FiDollarSign } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
-import HarvestDataTable from '../components/HarvestDataTable';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import '../styles/harvest.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ export default function CosechaHistorialDespacho() {
             <p>Los despachos aparecen aquí una vez creados desde Despacho de Cosecha.</p>
           </div>
         ) : (
-          <HarvestDataTable
+          <AuroraDataTable
             columns={COLUMNS}
             data={despachos}
             getColVal={getColVal}
