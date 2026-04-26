@@ -670,7 +670,7 @@ export default function AutopilotConfig() {
         <div className="ap-config-actions">
           <button
             type="button"
-            className="btn btn-primary"
+            className="aur-btn-pill"
             onClick={handleSave}
             disabled={saving}
           >
