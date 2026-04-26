@@ -71,28 +71,33 @@ function NuevoCatalogModal({ field, onConfirm, onCancel }) {
   const label = field === 'cosecha' ? 'cosecha' : 'etapa';
   const placeholder = field === 'cosecha' ? 'Ej. Cosecha I 2024' : 'Ej. Desarrollo';
   return createPortal(
-    <div className="grupo-catalog-backdrop">
-      <div className="grupo-catalog-modal">
-        <div className="grupo-catalog-header">
-          <FiPlus size={16} />
-          <span>Nueva {label}</span>
+    <div className="aur-modal-backdrop" onPointerDown={onCancel}>
+      <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
+        <header className="aur-modal-header">
+          <span className="aur-modal-icon"><FiPlus size={16} /></span>
+          <h2 className="aur-modal-title">Nueva {label}</h2>
+        </header>
+        <div className="aur-modal-content">
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="catalog-nombre">
+              Nombre
+            </label>
+            <input
+              id="catalog-nombre"
+              className="aur-input"
+              placeholder={placeholder}
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
+              maxLength={32}
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
+            />
+          </div>
         </div>
-        <label className="grupo-catalog-label">
-          Nombre <span className="grupo-catalog-required">*</span>
-          <input
-            className="grupo-catalog-input"
-            placeholder={placeholder}
-            value={nombre}
-            onChange={e => setNombre(e.target.value)}
-            maxLength={32}
-            autoFocus
-            onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
-          />
-        </label>
-        <div className="grupo-catalog-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
+        <div className="aur-modal-actions">
+          <button className="aur-btn-text" onClick={onCancel}>Cancelar</button>
           <button
-            className="btn btn-primary"
+            className="aur-btn-pill"
             disabled={!nombre.trim()}
             onClick={() => onConfirm(nombre.trim())}
           >
@@ -327,27 +332,29 @@ function GrupoManagement() {
     const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
     return (
       <th
-        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
         onClick={() => setBloqueSorts(prev => {
           const next = [...prev];
           next[0] = next[0].field === field ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' };
           return next;
         })}
       >
-        {children}
-        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span
-          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
-          title="Filtrar columna"
-          onClick={e => {
-            e.stopPropagation();
-            if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
-            const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-            const rect = th.getBoundingClientRect();
-            setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
-          }}
-        >
-          <FiFilter size={10} />
+        <span className="aur-th-content">
+          {children}
+          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+          <span
+            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
+            title="Filtrar columna"
+            onClick={e => {
+              e.stopPropagation();
+              if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
+              const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+              const rect = th.getBoundingClientRect();
+              setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
+            }}
+          >
+            <FiFilter size={10} />
+          </span>
         </span>
       </th>
     );
@@ -563,77 +570,131 @@ function GrupoManagement() {
   const renderPanel = () => {
     if (showForm) {
       return (
-        <div className="form-card">
-          <h2>{isEditing ? 'Editar Grupo' : 'Crear Nuevo Grupo'}</h2>
-          <form onSubmit={handleSubmit} className="lote-form">
-            <div className="form-grid">
-              <div className="form-control">
-                <label htmlFor="nombreGrupo">Nombre de Grupo</label>
-                <input id="nombreGrupo" name="nombreGrupo" value={formData.nombreGrupo} onChange={handleInputChange} required maxLength={16} />
-              </div>
-              <div className="form-control">
-                <label htmlFor="fechaCreacion">Fecha de Creación</label>
-                <input id="fechaCreacion" name="fechaCreacion" type="date" value={formData.fechaCreacion} onChange={handleInputChange} required max={(() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()} />
-              </div>
-              <div className="form-control">
-                <label htmlFor="cosecha">Cosecha</label>
-                <select
-                  id="cosecha"
-                  name="cosecha"
-                  value={formData.cosecha}
-                  onChange={e => {
-                    if (e.target.value === '__nueva__') {
-                      setCatalogModal({ field: 'cosecha' });
-                    } else {
-                      handleInputChange(e);
-                    }
-                  }}
-                >
-                  <option value="">-- Seleccionar --</option>
-                  {cosechasCatalog.map(c => <option key={c} value={c}>{c}</option>)}
-                  <option value="__nueva__">＋ Nueva cosecha</option>
-                </select>
-              </div>
-              <div className="form-control">
-                <label htmlFor="etapa">Etapa</label>
-                <select
-                  id="etapa"
-                  name="etapa"
-                  value={formData.etapa}
-                  onChange={e => {
-                    if (e.target.value === '__nueva__') {
-                      setCatalogModal({ field: 'etapa' });
-                    } else {
-                      handleInputChange(e);
-                    }
-                  }}
-                >
-                  <option value="">-- Seleccionar --</option>
-                  {etapasCatalog.map(e => <option key={e} value={e}>{e}</option>)}
-                  <option value="__nueva__">＋ Nueva etapa</option>
-                </select>
-              </div>
-              <div className="form-control" style={{ gridColumn: '1 / -1' }}>
-                <label htmlFor="paqueteId">Paquete de Aplicaciones</label>
-                <select id="paqueteId" name="paqueteId" value={formData.paqueteId} onChange={handleInputChange} disabled={filteredPackages.length === 0}>
-                  <option value="">{filteredPackages.length === 0 ? '-- Sin paquetes para esta cosecha/etapa --' : '-- Seleccionar Paquete --'}</option>
-                  {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
-                </select>
-              </div>
-              <div className="form-control" style={{ gridColumn: '1 / -1' }}>
-                <label htmlFor="paqueteMuestreoId">Paquete de Muestreos</label>
-                <select id="paqueteMuestreoId" name="paqueteMuestreoId" value={formData.paqueteMuestreoId} onChange={handleInputChange} disabled={monitoreoPackages.length === 0}>
-                  <option value="">{monitoreoPackages.length === 0 ? '-- Sin paquetes de muestreo --' : '-- Seleccionar Paquete --'}</option>
-                  {monitoreoPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
-                </select>
-              </div>
+        <div className="aur-sheet">
+          <header className="aur-sheet-header">
+            <div className="aur-sheet-header-text">
+              <h1 className="aur-sheet-title">{isEditing ? 'Editar Grupo' : 'Crear Nuevo Grupo'}</h1>
             </div>
+          </header>
+          <form onSubmit={handleSubmit} noValidate>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">01</span>
+                <h3 className="aur-section-title">Identificación</h3>
+              </div>
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="nombreGrupo">Nombre de Grupo</label>
+                  <input
+                    id="nombreGrupo"
+                    name="nombreGrupo"
+                    className="aur-input"
+                    value={formData.nombreGrupo}
+                    onChange={handleInputChange}
+                    placeholder="Ej. G-04-26"
+                    required
+                    maxLength={16}
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="fechaCreacion">Fecha de Creación</label>
+                  <input
+                    id="fechaCreacion"
+                    name="fechaCreacion"
+                    className="aur-input"
+                    type="date"
+                    value={formData.fechaCreacion}
+                    onChange={handleInputChange}
+                    required
+                    max={(() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()}
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="cosecha">Cosecha</label>
+                  <select
+                    id="cosecha"
+                    name="cosecha"
+                    className="aur-select"
+                    value={formData.cosecha}
+                    onChange={e => {
+                      if (e.target.value === '__nueva__') {
+                        setCatalogModal({ field: 'cosecha' });
+                      } else {
+                        handleInputChange(e);
+                      }
+                    }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {cosechasCatalog.map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value="__nueva__">＋ Nueva cosecha</option>
+                  </select>
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="etapa">Etapa</label>
+                  <select
+                    id="etapa"
+                    name="etapa"
+                    className="aur-select"
+                    value={formData.etapa}
+                    onChange={e => {
+                      if (e.target.value === '__nueva__') {
+                        setCatalogModal({ field: 'etapa' });
+                      } else {
+                        handleInputChange(e);
+                      }
+                    }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {etapasCatalog.map(e => <option key={e} value={e}>{e}</option>)}
+                    <option value="__nueva__">＋ Nueva etapa</option>
+                  </select>
+                </div>
+              </div>
+            </section>
 
-            {/* ── Sección 1: Bloques del grupo ── */}
-            <div className="bloques-section">
-              <div className="bloques-header">
-                <span className="bloques-title">Bloques del grupo</span>
-                <span className="bloques-count">{selectedBlockCount} bloque(s) asignado(s)</span>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">02</span>
+                <h3 className="aur-section-title">Paquetes</h3>
+              </div>
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="paqueteId">Aplicaciones</label>
+                  <select
+                    id="paqueteId"
+                    name="paqueteId"
+                    className="aur-select"
+                    value={formData.paqueteId}
+                    onChange={handleInputChange}
+                    disabled={filteredPackages.length === 0}
+                  >
+                    <option value="">{filteredPackages.length === 0 ? '— Sin paquetes para esta cosecha/etapa —' : '— Seleccionar Paquete —'}</option>
+                    {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
+                  </select>
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="paqueteMuestreoId">Muestreos</label>
+                  <select
+                    id="paqueteMuestreoId"
+                    name="paqueteMuestreoId"
+                    className="aur-select"
+                    value={formData.paqueteMuestreoId}
+                    onChange={handleInputChange}
+                    disabled={monitoreoPackages.length === 0}
+                  >
+                    <option value="">{monitoreoPackages.length === 0 ? '— Sin paquetes de muestreo —' : '— Seleccionar Paquete —'}</option>
+                    {monitoreoPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* ── Sección 3: Bloques del grupo ── */}
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">03</span>
+                <h3 className="aur-section-title">Bloques del grupo</h3>
+                <span className="aur-section-count">{selectedBlockCount} asignado(s)</span>
               </div>
 
               {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
@@ -647,7 +708,7 @@ function GrupoManagement() {
                         {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
                         {s.variedad ? ` · ${s.variedad}` : ''}
                       </span>
-                      <button type="button" className="bloque-btn-quitar" onClick={() => toggleBloque(s.ids)}>
+                      <button type="button" className="aur-btn-text" onClick={() => toggleBloque(s.ids)}>
                         Quitar
                       </button>
                     </div>
@@ -667,7 +728,7 @@ function GrupoManagement() {
                   {Object.keys(byLoteLibres).length > 0 && (
                     <button
                       type="button"
-                      className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
+                      className="aur-chip"
                       onClick={() => setShowLibres(v => !v)}
                     >
                       <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
@@ -675,26 +736,27 @@ function GrupoManagement() {
                   )}
                 </div>
               )}
-            </div>
 
-            {selectedBlockCount > 0 && Object.keys(byLoteLibres).length > 0 && (
-              <div className="bloques-agregar-wrap">
-                <button
-                  type="button"
-                  className={`btn bloques-agregar-btn${showLibres ? ' bloques-agregar-btn--open' : ''}`}
-                  onClick={() => setShowLibres(v => !v)}
-                >
-                  <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
-                </button>
-              </div>
-            )}
+              {selectedBlockCount > 0 && Object.keys(byLoteLibres).length > 0 && (
+                <div className="bloques-agregar-wrap">
+                  <button
+                    type="button"
+                    className="aur-chip"
+                    onClick={() => setShowLibres(v => !v)}
+                  >
+                    <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
+                  </button>
+                </div>
+              )}
+            </section>
 
-            {/* ── Sección 2: Lotes y bloques sin agrupar (condicional) ── */}
+            {/* ── Sección 4: Lotes y bloques sin agrupar (condicional) ── */}
             {showLibres && Object.keys(byLoteLibres).length > 0 && (
-              <div className="bloques-section bloques-section--libres">
-                <div className="bloques-header bloques-header--muted">
-                  <span className="bloques-title">Lotes y bloques sin agrupar</span>
-                  <span className="bloques-count">
+              <section className="aur-section">
+                <div className="aur-section-header">
+                  <span className="aur-section-num">04</span>
+                  <h3 className="aur-section-title">Lotes y bloques sin agrupar</h3>
+                  <span className="aur-section-count">
                     {Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0)} disponible(s)
                   </span>
                 </div>
@@ -710,21 +772,21 @@ function GrupoManagement() {
                           {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
                           {s.variedad ? ` · ${s.variedad}` : ''}
                         </span>
-                        <button type="button" className="bloque-btn-agregar" onClick={() => toggleBloque(s.ids)}>
+                        <button type="button" className="aur-btn-text" onClick={() => toggleBloque(s.ids)}>
                           Agregar
                         </button>
                       </div>
                     ))}
                   </div>
                 ))}
-              </div>
+              </section>
             )}
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                <FiPlus /> {isEditing ? 'Actualizar Grupo' : 'Crear Grupo'}
+            <div className="aur-form-actions">
+              <button type="button" onClick={resetForm} className="aur-btn-text">Cancelar</button>
+              <button type="submit" className="aur-btn-pill">
+                <FiPlus size={14} /> {isEditing ? 'Actualizar Grupo' : 'Crear Grupo'}
               </button>
-              <button type="button" onClick={resetForm} className="btn btn-secondary">Cancelar</button>
             </div>
           </form>
         </div>
@@ -743,45 +805,45 @@ function GrupoManagement() {
             <h2 className="hub-lote-code">{selectedGrupo.nombreGrupo}</h2>
           </div>
           <div className="hub-header-actions">
-            <button onClick={() => setPreviewGrupo(selectedGrupo)} className="icon-btn" title="Vista previa / PDF">
+            <button onClick={() => setPreviewGrupo(selectedGrupo)} className="aur-icon-btn" title="Vista previa / PDF">
               <FiEye size={16} />
             </button>
-            <button onClick={() => handleEdit(selectedGrupo)} className="icon-btn" title="Editar">
+            <button onClick={() => handleEdit(selectedGrupo)} className="aur-icon-btn" title="Editar">
               <FiEdit size={16} />
             </button>
-            <button onClick={() => handleDeleteClick(selectedGrupo)} className="icon-btn delete" title="Eliminar">
+            <button onClick={() => handleDeleteClick(selectedGrupo)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar">
               <FiTrash2 size={16} />
             </button>
           </div>
         </div>
 
         <div className="hub-info-pills">
-          <span className="hub-pill">
+          <span className="aur-badge">
             <FiCalendar size={13} />
             {formatDateLong(tsToDate(selectedGrupo.fechaCreacion))}
           </span>
-          {selectedGrupo.cosecha && <span className="hub-pill">{selectedGrupo.cosecha}</span>}
-          {selectedGrupo.etapa   && <span className="hub-pill">{selectedGrupo.etapa}</span>}
+          {selectedGrupo.cosecha && <span className="aur-badge aur-badge--violet">{selectedGrupo.cosecha}</span>}
+          {selectedGrupo.etapa   && <span className="aur-badge aur-badge--blue">{selectedGrupo.etapa}</span>}
           {selectedBloques.length > 0 && (
-            <span className="hub-pill">
+            <span className="aur-badge aur-badge--green">
               <FiLayers size={13} />
               {selectedBloques.length} bloque(s)
             </span>
           )}
           {selectedGrupo.paqueteId && (
-            <span className="hub-pill">
+            <span className="aur-badge">
               <FiPackage size={13} />
               {getPackageName(selectedGrupo.paqueteId)}
             </span>
           )}
           {selectedGrupo.paqueteMuestreoId && (
-            <span className="hub-pill">
+            <span className="aur-badge">
               <FiPackage size={13} />
               {getMonitoreoPackageName(selectedGrupo.paqueteMuestreoId)}
             </span>
           )}
           {selectedFechaCosecha && (
-            <span className="hub-pill hub-pill-muted">
+            <span className="aur-badge aur-badge--yellow">
               Cosecha est.: {formatDateLong(selectedFechaCosecha)}
             </span>
           )}
@@ -790,7 +852,7 @@ function GrupoManagement() {
         <div className="grupo-hub-bloques-header">
           <p className="grupo-hub-bloques-title">Bloques</p>
           {Object.values(bloqueColFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
-            <button className="historial-clear-col-filters" onClick={() => setBloqueColFilters({})}>
+            <button className="aur-btn-text" onClick={() => setBloqueColFilters({})}>
               <FiX size={11} /> Limpiar filtros
             </button>
           )}
@@ -878,54 +940,62 @@ function GrupoManagement() {
       )}
 
       {deleteModal && (
-        <div className="grupo-delete-overlay" onClick={() => !deleting && setDeleteModal(null)}>
-          <div className="grupo-delete-modal" onClick={e => e.stopPropagation()}>
+        <div className="aur-modal-backdrop" onPointerDown={() => !deleting && setDeleteModal(null)}>
+          <div className="aur-modal aur-modal--wide" onPointerDown={e => e.stopPropagation()}>
             {deleteModal.type === 'aplicada' ? (
               <>
-                <h3 className="grupo-delete-modal__title grupo-delete-modal__title--block">
-                  No es posible eliminar este grupo
-                </h3>
-                <p>
-                  El grupo <strong>"{deleteModal.grupoName}"</strong> tiene cédulas ya <strong>aplicadas en campo</strong>.
-                  Estas forman parte del registro fitosanitario y no pueden eliminarse.
-                </p>
-                <p className="grupo-delete-modal__section-label">Cédulas aplicadas</p>
-                <ul className="grupo-delete-modal__list">
-                  {deleteModal.cedulasAplicadas.map(c => (
-                    <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
-                  ))}
-                </ul>
-                <div className="grupo-delete-modal__actions">
-                  <button className="btn btn-secondary" onClick={() => setDeleteModal(null)}>Entendido</button>
+                <header className="aur-modal-header">
+                  <span className="aur-modal-icon aur-modal-icon--danger">
+                    <FiX size={18} />
+                  </span>
+                  <h2 className="aur-modal-title">No es posible eliminar este grupo</h2>
+                </header>
+                <div className="aur-modal-body">
+                  <p>
+                    El grupo <strong>"{deleteModal.grupoName}"</strong> tiene cédulas ya <strong>aplicadas en campo</strong>.
+                    Estas forman parte del registro fitosanitario y no pueden eliminarse.
+                  </p>
+                  <p className="grupo-delete-modal__section-label">Cédulas aplicadas</p>
+                  <ul className="grupo-delete-modal__list">
+                    {deleteModal.cedulasAplicadas.map(c => (
+                      <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="aur-modal-actions">
+                  <button className="aur-btn-pill" onClick={() => setDeleteModal(null)}>Entendido</button>
                 </div>
               </>
             ) : (
               <>
-                <h3 className="grupo-delete-modal__title grupo-delete-modal__title--warn">
-                  Hay cédulas pendientes de resolución
-                </h3>
-                <p>
-                  Las siguientes cédulas del grupo <strong>"{deleteModal.grupoName}"</strong> están en estado <strong>Mezcla lista</strong>.
-                  Debes resolverlas antes de poder eliminar el grupo.
-                </p>
-                <p className="grupo-delete-modal__section-label">Cédulas en Mezcla lista</p>
-                <ul className="grupo-delete-modal__list">
-                  {deleteModal.cedulasEnTransito.map(c => (
-                    <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
-                  ))}
-                </ul>
-                <p className="grupo-delete-modal__hint">
-                  Puedes anularlas ahora (se revertirá el inventario descontado) o ir a Cédulas de Aplicación para marcarlas como aplicadas en campo.
-                </p>
-                <div className="grupo-delete-modal__actions">
-                  <button className="btn btn-danger" onClick={handleAnularYEliminar} disabled={deleting}>
-                    {deleting ? 'Anulando...' : 'Anular cédulas y eliminar grupo'}
-                  </button>
-                  <button className="btn btn-secondary" onClick={() => { setDeleteModal(null); navigate('/aplicaciones/cedulas'); }} disabled={deleting}>
-                    Ir a Cédulas de Aplicación
-                  </button>
-                  <button className="btn btn-ghost" onClick={() => setDeleteModal(null)} disabled={deleting}>
+                <header className="aur-modal-header">
+                  <span className="aur-modal-icon aur-modal-icon--warn">!</span>
+                  <h2 className="aur-modal-title">Hay cédulas pendientes de resolución</h2>
+                </header>
+                <div className="aur-modal-body">
+                  <p>
+                    Las siguientes cédulas del grupo <strong>"{deleteModal.grupoName}"</strong> están en estado <strong>Mezcla lista</strong>.
+                    Debes resolverlas antes de poder eliminar el grupo.
+                  </p>
+                  <p className="grupo-delete-modal__section-label">Cédulas en Mezcla lista</p>
+                  <ul className="grupo-delete-modal__list">
+                    {deleteModal.cedulasEnTransito.map(c => (
+                      <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
+                    ))}
+                  </ul>
+                  <p className="grupo-delete-modal__hint">
+                    Puedes anularlas ahora (se revertirá el inventario descontado) o ir a Cédulas de Aplicación para marcarlas como aplicadas en campo.
+                  </p>
+                </div>
+                <div className="aur-modal-actions">
+                  <button className="aur-btn-text" onClick={() => setDeleteModal(null)} disabled={deleting}>
                     Cancelar
+                  </button>
+                  <button className="aur-btn-text" onClick={() => { setDeleteModal(null); navigate('/aplicaciones/cedulas'); }} disabled={deleting}>
+                    Ir a Cédulas
+                  </button>
+                  <button className="aur-btn-pill aur-btn-pill--danger" onClick={handleAnularYEliminar} disabled={deleting}>
+                    {deleting ? 'Anulando…' : 'Anular y eliminar'}
                   </button>
                 </div>
               </>
@@ -942,7 +1012,7 @@ function GrupoManagement() {
         <div className="grupo-empty-state">
           <FiLayers size={36} />
           <p>No hay grupos de producción creados aún.</p>
-          <button className="btn btn-primary" onClick={handleNewGrupo}>
+          <button className="aur-btn-pill" onClick={handleNewGrupo}>
             <FiPlus size={15} /> Crear el primero
           </button>
         </div>
@@ -970,10 +1040,10 @@ function GrupoManagement() {
 
       {/* ── Page header ── */}
       {!loading && grupos.length > 0 && !showForm && (
-        <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>Grupos</h2>
-          <button className="btn btn-primary" onClick={handleNewGrupo}>
-            <FiPlus size={15} /> Nuevo Grupo
+        <div className="lote-page-header">
+          <h2 className="lote-page-title">Grupos</h2>
+          <button className="aur-btn-pill" onClick={handleNewGrupo}>
+            <FiPlus size={14} /> Nuevo Grupo
           </button>
         </div>
       )}
@@ -993,7 +1063,7 @@ function GrupoManagement() {
                 Organiza los bloques de siembra cerrados en grupos de producción
                 para gestionar aplicaciones, cosechas y reportes.
               </p>
-              <button className="btn btn-primary btn-full" onClick={handleNewGrupo}>
+              <button className="aur-btn-pill grupo-cta-btn" onClick={handleNewGrupo}>
                 <FiPlus size={15} /> Crear primer grupo
               </button>
             </div>
@@ -1025,15 +1095,15 @@ function GrupoManagement() {
         <div className="gp-preview-backdrop">
 
           <div className="gp-preview-toolbar">
-            <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => setPreviewGrupo(null)}>
+            <button className="aur-chip gp-toolbar-icon-btn" onClick={() => setPreviewGrupo(null)}>
               <FiArrowLeft size={15} /> <span className="gp-toolbar-btn-text">Volver</span>
             </button>
             <span className="gp-preview-toolbar-title">Grupo — {previewGrupo.nombreGrupo}</span>
             <div className="gp-preview-toolbar-actions">
-              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={handleCompartir}>
+              <button className="aur-chip gp-toolbar-icon-btn" onClick={handleCompartir}>
                 <FiShare2 size={15} /> <span className="gp-toolbar-btn-text">Compartir</span>
               </button>
-              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => window.print()}>
+              <button className="aur-chip gp-toolbar-icon-btn" onClick={() => window.print()}>
                 <FiPrinter size={15} /> <span className="gp-toolbar-btn-text">Imprimir</span>
               </button>
             </div>

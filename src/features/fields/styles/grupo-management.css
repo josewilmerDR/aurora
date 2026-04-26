@@ -105,190 +105,72 @@
   max-width: 280px;
 }
 
-/* ── Modal eliminación de grupo ─────────────────────────────────────────── */
-.grupo-delete-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
+/* ── CTA dentro de panel lateral ─────────────────────────────────────────── */
+.grupo-cta-btn {
+  width: 100%;
   justify-content: center;
-  z-index: 1000;
 }
 
-.grupo-delete-modal {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 28px;
-  max-width: 460px;
-  width: 90%;
-  color: var(--aurora-light);
-}
-
-.grupo-delete-modal__title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-.grupo-delete-modal__title--block { color: #ff6b6b; }
-.grupo-delete-modal__title--warn  { color: #ffb347; }
-
-.grupo-delete-modal p {
-  font-size: 0.9rem;
-  line-height: 1.6;
-  margin-bottom: 12px;
-  opacity: 0.85;
-}
-
+/* ── Modal eliminación: detalles del cuerpo ──────────────────────────────── */
+/* El chrome del modal (backdrop, sheet, header, actions) usa .aur-modal*
+   de aurora.css. Aquí sólo viven el listado de cédulas y el hint, que
+   son específicos del flujo de eliminación. */
 .grupo-delete-modal__section-label {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.5;
-  margin-bottom: 6px !important;
+  letter-spacing: 0.10em;
+  color: rgba(230, 242, 255, 0.4);
+  margin: 12px 0 6px;
 }
 
 .grupo-delete-modal__list {
   list-style: none;
   padding: 0;
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .grupo-delete-modal__list li {
-  padding: 8px 14px;
-  font-size: 0.9rem;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
   border-bottom: 1px solid var(--aurora-border);
 }
 
 .grupo-delete-modal__list li:last-child { border-bottom: none; }
 
 .grupo-delete-modal__hint {
-  font-size: 0.82rem !important;
-  opacity: 0.55 !important;
-  font-style: italic;
-}
-
-.grupo-delete-modal__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-
-.btn-ghost {
-  background: none;
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-}
-
-.btn-ghost:hover { background: rgba(255,255,255,0.05); }
-
-/* ── Bloques section ── */
-.bloques-section {
-  margin-top: 24px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.bloques-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
-  background-color: rgba(51, 255, 153, 0.06);
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.bloques-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--aurora-green);
-}
-
-.bloques-count {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
+  font-size: 0.78rem;
   opacity: 0.6;
+  font-style: italic;
+  margin-top: 8px;
 }
 
+/* ── Bloques selector: estados vacíos y wrappers de agregar ──────────────── */
 .bloques-empty {
-  padding: 16px 14px;
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
+  padding: 14px 4px;
+  font-size: 0.82rem;
+  color: rgba(230, 242, 255, 0.5);
+  text-align: center;
   margin: 0;
 }
 
-/* Botón "Agregar bloques" */
 .bloques-empty-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 16px 14px;
-}
-
-.bloques-empty-wrap .bloques-empty {
-  padding: 0;
-  text-align: center;
+  gap: 10px;
+  padding: 12px 4px;
 }
 
 .bloques-agregar-wrap {
   display: flex;
   justify-content: flex-end;
-  padding: 2px 0;
-}
-
-.bloques-agregar-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  font-size: 0.82rem;
-  border: 1px dashed rgba(51, 255, 153, 0.4);
-  color: var(--aurora-green);
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
-}
-
-.bloques-agregar-btn:hover {
-  background: rgba(51, 255, 153, 0.07);
-  border-color: rgba(51, 255, 153, 0.65);
-}
-
-.bloques-agregar-btn--open {
-  border-style: solid;
-  border-color: rgba(51, 255, 153, 0.3);
-  color: rgba(230, 242, 255, 0.5);
-}
-
-.bloques-agregar-btn--open:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(230, 242, 255, 0.25);
-}
-
-/* Segunda sección: sin agrupar — borde y cabecera atenuados */
-.bloques-section--libres {
-  border-color: rgba(42, 74, 106, 0.5);
-}
-
-.bloques-header--muted {
-  background-color: rgba(255, 255, 255, 0.02);
-  border-bottom-color: rgba(42, 74, 106, 0.5);
-}
-
-.bloques-header--muted .bloques-title {
-  color: rgba(230, 242, 255, 0.45);
-  font-weight: 500;
+  padding: 8px 0 0;
 }
 
 /* Lote group header inside bloques */
@@ -335,37 +217,6 @@
   color: var(--aurora-light);
   opacity: 0.5;
   flex: 1;
-}
-
-/* Botones Quitar / Agregar */
-.bloque-btn-quitar,
-.bloque-btn-agregar {
-  flex-shrink: 0;
-  padding: 3px 11px;
-  border-radius: 5px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid;
-  transition: background-color 0.15s;
-}
-
-.bloque-btn-quitar {
-  color: #ff6b6b;
-  border-color: rgba(255, 107, 107, 0.35);
-  background: rgba(255, 107, 107, 0.08);
-}
-.bloque-btn-quitar:hover {
-  background: rgba(255, 107, 107, 0.2);
-}
-
-.bloque-btn-agregar {
-  color: var(--aurora-green);
-  border-color: rgba(51, 255, 153, 0.35);
-  background: rgba(51, 255, 153, 0.08);
-}
-.bloque-btn-agregar:hover {
-  background: rgba(51, 255, 153, 0.2);
 }
 
 /* ── Preview modal ── */
@@ -621,73 +472,6 @@
   border-top: 1px solid #e0e0e0;
   padding-top: 14px;
   margin-top: 8px;
-}
-
-/* ── Modal nuevo valor de catálogo (cosecha / etapa) ── */
-.grupo-catalog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-}
-
-.grupo-catalog-modal {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 24px;
-  width: 90%;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  color: var(--aurora-light);
-}
-
-.grupo-catalog-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--aurora-green);
-}
-
-.grupo-catalog-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-}
-
-.grupo-catalog-required {
-  color: #ff6b6b;
-}
-
-.grupo-catalog-input {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  color: var(--aurora-light);
-  font-size: 0.9rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.grupo-catalog-input:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
-.grupo-catalog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 /* ── Hub del grupo ───────────────────────────────────────────────────────── */
