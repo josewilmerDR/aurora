@@ -228,43 +228,59 @@ function PackagePreview({ pkg, users }) {
   const userNameById = (id) => users.find(u => u.id === id)?.nombre || '—';
 
   return (
-    <div className="tipo-campos-preview" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-      {pkg.descripcion && (
-        <>
-          <span className="campos-section-divider" style={{ width: '100%' }}>Descripción</span>
-          <p style={{ margin: '0 0 0.5rem', color: 'var(--aurora-light)', fontSize: '0.88rem' }}>{pkg.descripcion}</p>
-        </>
-      )}
-
-      {pkg.tecnicoResponsable && (
-        <>
-          <span className="campos-section-divider" style={{ width: '100%' }}>Técnico responsable</span>
-          <p style={{ margin: '0 0 0.5rem', color: 'var(--aurora-light)', fontSize: '0.88rem' }}>{pkg.tecnicoResponsable}</p>
-        </>
-      )}
-
-      <span className="campos-section-divider" style={{ width: '100%' }}>Actividades ({activities.length})</span>
-      {activities.length === 0 ? (
-        <span className="label-optional">Sin actividades</span>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {activities.map((a, i) => (
-            <li key={i} style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 600, color: 'var(--aurora-light)' }}>Día {a.day} · {a.name}</span>
-                <span className="label-optional">{userNameById(a.responsableId)}</span>
+    <div className="spk-preview">
+      {(pkg.descripcion || pkg.tecnicoResponsable) && (
+        <section className="aur-section">
+          <div className="aur-list">
+            {pkg.descripcion && (
+              <div className="aur-row aur-row--multiline">
+                <span className="aur-row-label">Descripción</span>
+                <span className="spk-preview-text">{pkg.descripcion}</span>
               </div>
-              {(a.formularios || []).length > 0 && (
-                <div className="products-tags" style={{ marginTop: 6 }}>
-                  {a.formularios.map(f => (
-                    <span key={f.tipoId} className="campo-chip">{f.tipoNombre}</span>
-                  ))}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+            )}
+            {pkg.tecnicoResponsable && (
+              <div className="aur-row">
+                <span className="aur-row-label">Técnico responsable</span>
+                <span className="spk-preview-text">{pkg.tecnicoResponsable}</span>
+              </div>
+            )}
+          </div>
+        </section>
       )}
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">⊞</span>
+          <h3>Actividades</h3>
+          <span className="aur-section-count">{activities.length}</span>
+        </div>
+        {activities.length === 0 ? (
+          <div className="spk-preview-empty">Sin actividades</div>
+        ) : (
+          <ul className="spk-preview-acts">
+            {activities.map((a, i) => (
+              <li key={i} className="spk-preview-act">
+                <div className="spk-preview-act-row">
+                  <span className="spk-preview-act-name">
+                    <span className="spk-preview-act-day">Día {a.day}</span>
+                    {a.name}
+                  </span>
+                  <span className="spk-preview-act-user">{userNameById(a.responsableId)}</span>
+                </div>
+                {(a.formularios || []).length > 0 && (
+                  <div className="spk-preview-act-chips">
+                    {a.formularios.map(f => (
+                      <span key={f.tipoId} className="aur-badge aur-badge--magenta">
+                        {f.tipoNombre}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
