@@ -3,6 +3,7 @@ import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, F
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import '../../applications/styles/packages.css';
 import '../styles/monitoring.css';
 
 const TIPO_OPTIONS = [
@@ -75,79 +76,101 @@ function CamposEditor({ campos, onChange, disabled }) {
   const handleDragEnd = () => { dragIdx.current = null; setDragOverIdx(null); };
 
   return (
-    <div className="campos-editor">
-      <div className="campos-default-section">
-        <p className="campos-section-divider">Campos predeterminados</p>
-        {DEFAULT_CAMPOS.map((campo, i) => (
-          <div key={`def-${i}`} className="campo-row campo-row--default">
-            <span className="campo-drag-handle" style={{ visibility: 'hidden' }}>
-              <FiMove size={13} />
-            </span>
-            <input className="campo-nombre-input" value={campo.nombre} disabled readOnly />
-            <select value={campo.tipo} disabled>
-              {TIPO_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <span className="campo-lock-icon" title="Campo predeterminado del sistema">
-              <FiLock size={12} />
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <p className="campos-section-divider">Campos personalizados</p>
-      {campos.map((campo, i) => (
-        <div
-          key={i}
-          className={`campo-row${dragOverIdx === i ? ' campo-row--over' : ''}`}
-          draggable={!disabled}
-          onDragStart={e => handleDragStart(e, i)}
-          onDragEnter={() => handleDragEnter(i)}
-          onDragOver={handleDragOver}
-          onDrop={e => handleDrop(e, i)}
-          onDragEnd={handleDragEnd}
-        >
-          <span className="campo-drag-handle" title="Arrastrar para reordenar">
-            <FiMove size={13} />
-          </span>
-          <input
-            className="campo-nombre-input"
-            value={campo.nombre}
-            onChange={e => updateCampo(i, 'nombre', e.target.value)}
-            placeholder="Nombre del campo"
-            maxLength={MAX_NOMBRE_CAMPO}
-            disabled={disabled}
-          />
-          <select
-            value={campo.tipo}
-            onChange={e => updateCampo(i, 'tipo', e.target.value)}
-            disabled={disabled}
-          >
-            {TIPO_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-            onClick={() => removeCampo(i)}
-            disabled={disabled}
-            title="Eliminar campo"
-          >
-            <FiTrash2 size={13} />
-          </button>
+    <>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">⚐</span>
+          <h3>Campos predeterminados</h3>
+          <span className="aur-section-count">{DEFAULT_CAMPOS.length}</span>
         </div>
-      ))}
-      <button
-        type="button"
-        className="btn-add-campo"
-        onClick={addCampo}
-        disabled={disabled}
-      >
-        <FiPlus size={13} /> Agregar campo
-      </button>
-    </div>
+        <ul className="tpl-campos-list">
+          {DEFAULT_CAMPOS.map((campo, i) => (
+            <li key={`def-${i}`} className="tpl-campo-card tpl-campo-card--default">
+              <span className="tpl-campo-handle" title="Campo predeterminado del sistema" aria-hidden="true">
+                <FiLock size={12} />
+              </span>
+              <input
+                className="aur-input tpl-campo-name"
+                value={campo.nombre}
+                disabled
+                readOnly
+                aria-label="Nombre del campo"
+              />
+              <select className="aur-chip" value={campo.tipo} disabled aria-label="Tipo">
+                {TIPO_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">+</span>
+          <h3>Campos personalizados</h3>
+          <span className="aur-section-count">{campos.length}</span>
+        </div>
+        {campos.length > 0 && (
+          <ul className="tpl-campos-list">
+            {campos.map((campo, i) => (
+              <li
+                key={i}
+                className={`tpl-campo-card${dragOverIdx === i ? ' is-dragover' : ''}`}
+                draggable={!disabled}
+                onDragStart={e => handleDragStart(e, i)}
+                onDragEnter={() => handleDragEnter(i)}
+                onDragOver={handleDragOver}
+                onDrop={e => handleDrop(e, i)}
+                onDragEnd={handleDragEnd}
+              >
+                <span className="tpl-campo-handle" title="Arrastrar para reordenar">
+                  <FiMove size={13} />
+                </span>
+                <input
+                  className="aur-input tpl-campo-name"
+                  value={campo.nombre}
+                  onChange={e => updateCampo(i, 'nombre', e.target.value)}
+                  placeholder="Nombre del campo"
+                  maxLength={MAX_NOMBRE_CAMPO}
+                  disabled={disabled}
+                  aria-label="Nombre del campo"
+                />
+                <select
+                  className="aur-chip"
+                  value={campo.tipo}
+                  onChange={e => updateCampo(i, 'tipo', e.target.value)}
+                  disabled={disabled}
+                  aria-label="Tipo"
+                >
+                  {TIPO_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                  onClick={() => removeCampo(i)}
+                  disabled={disabled}
+                  title="Eliminar campo"
+                >
+                  <FiTrash2 size={13} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          type="button"
+          className="pkg-add-activity"
+          onClick={addCampo}
+          disabled={disabled}
+        >
+          <FiPlus size={14} /> Agregar campo
+        </button>
+      </section>
+    </>
   );
 }
 
@@ -352,31 +375,48 @@ function TemplateConfig() {
                 </div>
 
                 {editingId === selectedTipo.id ? (
-                  <div className="tipo-campos-edit">
-                    <p className="campos-edit-label">Campos del formulario</p>
-                    <CamposEditor
-                      campos={editData.campos}
-                      onChange={campos => setEditData(prev => ({ ...prev, campos }))}
-                    />
-                  </div>
+                  <CamposEditor
+                    campos={editData.campos}
+                    onChange={campos => setEditData(prev => ({ ...prev, campos }))}
+                  />
                 ) : (
-                  <div className="tipo-campos-preview">
-                    <span className="campos-section-divider" style={{ width: '100%' }}>Campos predeterminados</span>
-                    {DEFAULT_CAMPOS.map((c, i) => (
-                      <span key={`def-${i}`} className="campo-chip campo-chip--default" title="Campo predeterminado del sistema">
-                        {c.nombre}
-                      </span>
-                    ))}
-                    <span className="campos-section-divider" style={{ width: '100%', marginTop: '0.5rem' }}>Campos personalizados</span>
-                    {(selectedTipo.campos || []).length === 0 ? (
-                      <span className="label-optional">Sin campos adicionales</span>
-                    ) : (
-                      (selectedTipo.campos || []).map((c, i) => (
-                        <span key={i} className="campo-chip">
-                          {c.nombre}
-                        </span>
-                      ))
-                    )}
+                  <div className="tpl-preview">
+                    <section className="aur-section">
+                      <div className="aur-section-header">
+                        <span className="aur-section-num">⚐</span>
+                        <h3>Campos predeterminados</h3>
+                        <span className="aur-section-count">{DEFAULT_CAMPOS.length}</span>
+                      </div>
+                      <div className="tpl-chips">
+                        {DEFAULT_CAMPOS.map((c, i) => (
+                          <span
+                            key={`def-${i}`}
+                            className="aur-badge aur-badge--gray"
+                            title="Campo predeterminado del sistema"
+                          >
+                            {c.nombre}
+                          </span>
+                        ))}
+                      </div>
+                    </section>
+                    <section className="aur-section">
+                      <div className="aur-section-header">
+                        <span className="aur-section-num">+</span>
+                        <h3>Campos personalizados</h3>
+                        <span className="aur-section-count">{(selectedTipo.campos || []).length}</span>
+                      </div>
+                      {(selectedTipo.campos || []).length === 0 ? (
+                        <div className="tpl-empty">Sin campos adicionales</div>
+                      ) : (
+                        <div className="tpl-chips">
+                          {selectedTipo.campos.map((c, i) => (
+                            <span key={i} className="aur-badge aur-badge--magenta">
+                              {c.nombre}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </section>
                   </div>
                 )}
               </div>
@@ -402,13 +442,10 @@ function TemplateConfig() {
                       </div>
                     </div>
                   </section>
-                  <div className="tipo-campos-edit">
-                    <p className="campos-edit-label">Campos del formulario</p>
-                    <CamposEditor
-                      campos={newTipo.campos}
-                      onChange={campos => setNewTipo(prev => ({ ...prev, campos }))}
-                    />
-                  </div>
+                  <CamposEditor
+                    campos={newTipo.campos}
+                    onChange={campos => setNewTipo(prev => ({ ...prev, campos }))}
+                  />
                   <div className="aur-form-actions">
                     <button type="button" className="aur-btn-text" onClick={() => setShowNew(false)}>Cancelar</button>
                     <button type="button" className="aur-btn-pill" onClick={saveNew}>Crear plantilla</button>
