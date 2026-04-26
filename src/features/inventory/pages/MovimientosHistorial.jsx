@@ -389,7 +389,7 @@ function MovimientosHistorial() {
 
   return (
     <div className="lote-management-layout">
-      <div className="list-card">
+      <div className="aur-sheet">
 
         {/* ── Encabezado + filtros ── */}
         <div className="mhist-header">

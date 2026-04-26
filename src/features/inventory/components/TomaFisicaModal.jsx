@@ -186,11 +186,11 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
         {error && <p className="toma-error">{error}</p>}
 
         <div className="toma-fisica-footer">
-          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>
+          <button className="aur-btn-text" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
           <button
-            className="btn btn-primary"
+            className="aur-btn-pill"
             onClick={handleSubmit}
             disabled={saving || cambios.length === 0}
           >
