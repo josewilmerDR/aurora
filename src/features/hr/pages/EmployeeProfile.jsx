@@ -6,6 +6,7 @@ import {
   FiEdit, FiTrash2, FiArrowLeft, FiMail, FiPhone, FiChevronRight,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, ROLE_LABELS } from '../../../contexts/UserContext';
 
@@ -158,6 +159,7 @@ function EmployeeProfile() {
   const [horarioCollapsed, setHorarioCollapsed] = useState(true);
   const [horarioDefault, setHorarioDefault] = useState({ inicio: '06:00', fin: '14:00' });
   const [errors, setErrors] = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const formRef = useRef(null);
   const carouselRef = useRef(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
@@ -259,7 +261,6 @@ function EmployeeProfile() {
   };
 
   const handleDelete = async (userId) => {
-    if (!window.confirm('¿Seguro que quieres eliminar a este empleado?')) return;
     try {
       const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
@@ -485,10 +486,10 @@ function EmployeeProfile() {
             </div>
           </div>
           <div className="hub-header-actions">
-            <button onClick={handleEdit} className="icon-btn" title="Editar ficha">
+            <button onClick={handleEdit} className="aur-icon-btn" title="Editar ficha">
               <FiEdit size={16} />
             </button>
-            <button onClick={() => handleDelete(selectedId)} className="icon-btn delete" title="Eliminar empleado">
+            <button onClick={() => setConfirmDelete(selectedUser)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar empleado">
               <FiTrash2 size={16} />
             </button>
           </div>
@@ -574,7 +575,7 @@ function EmployeeProfile() {
         <div className="ficha-empty-state">
           <FiClipboard size={36} />
           <p>No hay empleados registrados aún</p>
-          <button className="btn btn-primary" onClick={handleNew}>Crear el primero</button>
+          <button className="aur-btn-pill" onClick={handleNew}>Crear el primero</button>
         </div>
       )}
 
@@ -604,7 +605,7 @@ function EmployeeProfile() {
       {planillaUsers.length > 0 && view !== 'form' && (
         <div className="ficha-page-header">
           <h2 className="ficha-page-title">Ficha del Trabajador</h2>
-          <button className="btn btn-primary" onClick={handleNew}>
+          <button className="aur-btn-pill" onClick={handleNew}>
             <FiUserPlus /> Nuevo Empleado
           </button>
         </div>
@@ -787,11 +788,11 @@ function EmployeeProfile() {
                 </div>
 
                 <div className="form-actions">
-                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <button type="submit" className="aur-btn-pill" disabled={saving}>
                     <FiSave />
                     {saving ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Empleado'}
                   </button>
-                  <button type="button" className="btn btn-secondary" onClick={handleCancel}>
+                  <button type="button" className="aur-btn-text" onClick={handleCancel}>
                     <FiX /> Cancelar
                   </button>
                 </div>
@@ -833,6 +834,17 @@ function EmployeeProfile() {
           )}
 
         </div>
+      )}
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar empleado"
+          body={`¿Eliminar a "${confirmDelete.nombre}" del sistema? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

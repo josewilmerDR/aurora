@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import '../styles/hr.css';
 import { FiPlus, FiTrash2, FiCheck, FiX, FiClock } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 
@@ -66,6 +67,7 @@ function LeaveRequests() {
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [pendingId, setPendingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const [esParcial, setEsParcial] = useState(false);
@@ -199,7 +201,6 @@ function LeaveRequests() {
 
   const handleDelete = async (id) => {
     if (pendingId) return;
-    if (!window.confirm('¿Eliminar este permiso? Esta acción no se puede deshacer.')) return;
     setPendingId(id);
     try {
       const res = await apiFetch(`/api/hr/permisos/${id}`, { method: 'DELETE' });
@@ -332,7 +333,7 @@ function LeaveRequests() {
           </div>
 
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <button type="submit" className="aur-btn-pill" disabled={submitting}>
               <FiPlus /> {submitting ? 'Registrando…' : 'Registrar'}
             </button>
           </div>
@@ -421,14 +422,14 @@ function LeaveRequests() {
                       <button
                         onClick={() => handleEstado(p.id, 'aprobado')}
                         disabled={busy}
-                        className="icon-btn btn-approve" title="Aprobar"
+                        className="aur-icon-btn aur-icon-btn--success" title="Aprobar"
                       >
                         <FiCheck size={16} />
                       </button>
                       <button
                         onClick={() => handleEstado(p.id, 'rechazado')}
                         disabled={busy}
-                        className="icon-btn btn-reject" title="Rechazar"
+                        className="aur-icon-btn aur-icon-btn--danger" title="Rechazar"
                       >
                         <FiX size={16} />
                       </button>
@@ -436,9 +437,9 @@ function LeaveRequests() {
                   )}
                   {canDelete && (
                     <button
-                      onClick={() => handleDelete(p.id)}
+                      onClick={() => setConfirmDelete(p)}
                       disabled={busy}
-                      className="icon-btn delete" title="Eliminar"
+                      className="aur-icon-btn aur-icon-btn--danger" title="Eliminar"
                     >
                       <FiTrash2 size={18} />
                     </button>
@@ -450,6 +451,17 @@ function LeaveRequests() {
         </ul>
         {visibles.length === 0 && <p className="empty-state">Sin permisos para este período.</p>}
       </div>
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar permiso"
+          body={`¿Eliminar el permiso de ${confirmDelete.trabajadorNombre || 'este trabajador'}? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }

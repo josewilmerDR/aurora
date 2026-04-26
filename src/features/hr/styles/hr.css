@@ -311,21 +311,6 @@ button.collapsible-section-header:hover { opacity: 1; }
   display: none;
 }
 
-/* ── Approve / Reject action buttons ─────────────────────────────────────── */
-.btn-approve {
-  background-color: rgba(51, 255, 153, 0.15);
-  color: var(--aurora-green);
-  border: 1px solid rgba(51, 255, 153, 0.3);
-}
-.btn-approve:hover { background-color: rgba(51, 255, 153, 0.25); }
-
-.btn-reject {
-  background-color: rgba(255, 80, 80, 0.12);
-  color: #ff5050;
-  border: 1px solid rgba(255, 80, 80, 0.25);
-}
-.btn-reject:hover { background-color: rgba(255, 80, 80, 0.22); }
-
 /* ── Permiso preview (días + goce badge) ─────────────────────────────────── */
 .hr-permiso-preview {
   display: flex;
