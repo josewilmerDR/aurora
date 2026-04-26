@@ -89,21 +89,14 @@
   border-color: rgba(51, 255, 153, 0.65);
 }
 
+/* aur-badge--yellow ya provee bg/color; aquí sólo afinamos el sizing
+   compacto (3px 8px en vez de 4px 10px) y el tracking en mayúsculas que
+   distinguen el tag del badge default. */
 .ap-pause-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   padding: 3px 8px;
-  border-radius: 10px;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: var(--aur-fs-caption);
   letter-spacing: 0.03em;
   text-transform: uppercase;
-}
-.ap-pause-tag--paused {
-  background: rgba(255, 180, 50, 0.15);
-  border: 1px solid rgba(255, 180, 50, 0.4);
-  color: #ffb432;
 }
 
 .ap-panel-title {
@@ -270,220 +263,116 @@
 }
 .ap-level-slider--disabled { opacity: 0.75; }
 
-/* ── Level change modal ──────────────────────────────────────────────────── */
-.ap-level-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 320;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  animation: ap-level-modal-fade 0.15s ease;
-}
-@keyframes ap-level-modal-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEVEL / PAUSE MODAL — modificadores slim sobre primitivas aur-modal-*
+   El shell (backdrop, modal, header, content, actions, btn-pill, btn-text,
+   icon-btn, modal-icon) viene de aurora.css. Aquí sólo lo brand-specific:
+     · Border-top tonal (neutral/info/warning) que distingue el nivel
+     · Body con gap propio (las 4-5 secciones requieren flujo vertical)
+     · Callouts warn/info inline para "Revisa barandillas" / "Define objetivo"
+     · ap-level-confirm--warn: variante warning del btn-pill (ámbar) que
+       reemplaza el verde accent en activaciones de Nivel 3 / pausas
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.ap-level-modal {
-  width: 100%;
-  max-width: 440px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+/* Border-top tonal — señaliza el "carácter" de la decisión sin reemplazar
+   el shell del aur-modal. La franja de 3px de alto se aplica en la primera
+   esquina del modal. */
 .ap-level-modal--neutral { border-top: 3px solid rgba(255, 255, 255, 0.35); }
-.ap-level-modal--info    { border-top: 3px solid var(--aurora-green); }
-.ap-level-modal--warning { border-top: 3px solid #ffb432; }
+.ap-level-modal--info    { border-top: 3px solid var(--aur-accent); }
+.ap-level-modal--warning { border-top: 3px solid var(--aur-warn); }
 
-.ap-level-modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-.ap-level-modal-header h3 {
-  margin: 0;
-  color: var(--aurora-light);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.ap-level-modal-close {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ap-level-modal-close:hover:not(:disabled) { opacity: 1; background: rgba(255, 255, 255, 0.07); }
-.ap-level-modal-close:disabled { opacity: 0.3; cursor: default; }
-
-.ap-level-modal-body {
-  padding: 14px 16px;
+/* aur-modal-body es por defecto un <p> con line-height; aquí lo
+   convertimos a stack vertical para acomodar intro + body + callout(s)
+   + (opcional) input motivo + error en columna. */
+.ap-level-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.ap-level-modal-intro {
+.ap-level-intro {
   margin: 0;
-  color: var(--aurora-light);
-  font-size: 0.9rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
-.ap-level-modal-text {
+.ap-level-text {
   margin: 0;
-  color: var(--aurora-light);
-  opacity: 0.85;
-  font-size: 0.86rem;
-  line-height: 1.5;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.55;
+  letter-spacing: -0.01em;
 }
-.ap-level-modal-warn {
+.ap-level-text--muted {
+  opacity: 0.75;
+}
+
+/* Callouts inline — bandeja warn/info con icono + link */
+.ap-level-callout {
   margin: 4px 0 0;
   padding: 8px 10px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 180, 50, 0.1);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-caption);
+  line-height: 1.45;
+}
+.ap-level-callout--warn {
+  background: var(--aur-warn-tint);
   border: 1px solid rgba(255, 180, 50, 0.35);
-  border-radius: 6px;
-  color: #ffb432;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  color: var(--aur-warn);
 }
-.ap-level-modal-warn em { font-style: normal; text-decoration: underline; }
-.ap-level-modal-warn-link {
-  color: #ffb432;
+.ap-level-callout--info {
+  background: var(--aur-badge-blue-bg);
+  border: 1px solid rgba(100, 181, 246, 0.3);
+  color: var(--aur-badge-blue-fg);
+}
+.ap-level-callout-link {
+  color: var(--aur-warn);
   font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
 }
-.ap-level-modal-warn-link:hover { filter: brightness(1.15); }
+.ap-level-callout-link--info {
+  color: var(--aur-badge-blue-fg);
+}
+.ap-level-callout-link:hover { filter: brightness(1.15); }
 
-.ap-level-modal-info {
-  margin: 4px 0 0;
+.ap-level-error {
+  margin: 0;
   padding: 8px 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: rgba(106, 176, 255, 0.08);
-  border: 1px solid rgba(106, 176, 255, 0.3);
-  border-radius: 6px;
-  color: #6ab0ff;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  background: var(--aur-danger-tint);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  border-radius: var(--aur-r-card);
+  color: var(--aur-danger);
+  font-size: var(--aur-fs-caption);
 }
-.ap-level-modal-info-link {
-  color: #6ab0ff;
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.ap-level-modal-info-link:hover { filter: brightness(1.15); }
 
+/* aur-modal-actions tiene justify-end + gap; aquí sólo añadimos flex-wrap
+   para el caso del modal Nivel 3 con 3 botones (cancelar + activar +
+   activar y analizar) en pantallas estrechas. */
+.aur-modal-actions:has(> .ap-level-confirm--warn) {
+  flex-wrap: wrap;
+}
+
+/* Variante warning del btn-pill — ámbar en lugar de accent. Usada para
+   Nivel 3 (riesgo elevado) y Pausar (interrumpe ejecución). */
+.ap-level-confirm--warn {
+  background: var(--aur-warn);
+  color: var(--aurora-dark-blue);
+  box-shadow: 0 4px 14px rgba(255, 180, 50, 0.28);
+}
+.ap-level-confirm--warn:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(255, 180, 50, 0.4);
+}
+
+/* aur-field provee display/flex-col/gap; el input ya usa aur-input.
+   Aquí sólo el margen que separa la sección "motivo" del texto explicativo. */
 .ap-pause-reason {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
   margin-top: 4px;
 }
-.ap-pause-reason label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-.ap-pause-reason input {
-  width: 100%;
-  padding: 8px 10px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  font-size: 0.86rem;
-  font-family: inherit;
-  outline: none;
-  box-sizing: border-box;
-}
-.ap-pause-reason input:focus { border-color: var(--aurora-green); }
-.ap-pause-reason input:disabled { opacity: 0.5; }
-
-.ap-level-modal-error {
-  margin: 0;
-  padding: 8px 10px;
-  background: rgba(255, 80, 80, 0.1);
-  border: 1px solid rgba(255, 80, 80, 0.35);
-  border-radius: 6px;
-  color: #ffb3b3;
-  font-size: 0.82rem;
-}
-
-.ap-level-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--aurora-border);
-  background: rgba(0, 0, 0, 0.15);
-}
-
-.ap-level-modal-confirm--analyze {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
-  letter-spacing: 0.01em;
-}
-
-.ap-level-modal-cancel,
-.ap-level-modal-confirm {
-  padding: 7px 16px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--aurora-border);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.ap-level-modal-cancel {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--aurora-light);
-}
-.ap-level-modal-cancel:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
-
-.ap-level-modal-confirm {
-  color: #0d1a26;
-  border-color: transparent;
-}
-.ap-level-modal-confirm--neutral {
-  background: rgba(255, 255, 255, 0.85);
-  color: #0d1a26;
-}
-.ap-level-modal-confirm--info {
-  background: var(--aurora-green);
-}
-.ap-level-modal-confirm--warning {
-  background: #ffb432;
-}
-.ap-level-modal-confirm:hover:not(:disabled) { filter: brightness(1.06); }
-
-.ap-level-modal-cancel:disabled,
-.ap-level-modal-confirm:disabled { opacity: 0.5; cursor: default; }
 
 .ap-panel-close,
 .ap-panel-config-icon {
