@@ -1,54 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiEdit2, FiSettings } from 'react-icons/fi';
-import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiSettings } from 'react-icons/fi';
+import { useUser } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/siembra.css';
+import '../styles/siembra-form.css';
 
 const HOY = new Date().toISOString().slice(0, 10);
-
-// ── Sort utilities ────────────────────────────────────────────────────────────
-const SORT_FIELDS = [
-  { value: 'fecha',    label: 'Fecha' },
-  { value: 'lote',     label: 'Lote' },
-  { value: 'bloque',   label: 'Bloque' },
-  { value: 'plantas',  label: 'Plantas' },
-  { value: 'area',     label: 'Área' },
-  { value: 'material', label: 'Material' },
-  { value: 'variedad', label: 'Variedad' },
-  { value: 'fechaCierre', label: 'F. Cierre' },
-];
-
-function getSortVal(r, field) {
-  switch (field) {
-    case 'fecha':    return r.fecha || '';
-    case 'lote':     return (r.loteNombre || '').toLowerCase();
-    case 'bloque':   return (r.bloque || '').toLowerCase();
-    case 'plantas':  return r.plantas || 0;
-    case 'area':     return r.areaCalculada || 0;
-    case 'material': return (r.materialNombre || '').toLowerCase();
-    case 'variedad': return (r.variedad || '').toLowerCase();
-    case 'fechaCierre': return r.fechaCierre || '';
-    default:            return '';
-  }
-}
-
-function applySort(data, sortConfig) {
-  const active = sortConfig.filter(s => s.field);
-  if (!active.length) return [...data];
-  return [...data].sort((a, b) => {
-    for (const { field, dir } of active) {
-      const av = getSortVal(a, field);
-      const bv = getSortVal(b, field);
-      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-      if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
-    }
-    return 0;
-  });
-}
 
 const MAX_IMAGE_PX = 1600;
 function compressImage(file) {
@@ -194,10 +155,10 @@ function LoteCombobox({ value, onChange, lotes }) {
     <>
       <input
         ref={inputRef}
-        className="td-input"
+        className="aur-input psb-lote-input"
         value={text}
         autoComplete="off"
-        placeholder="-- Lote --"
+        placeholder="— Lote —"
         onChange={handleChange}
         onFocus={openDropdown}
         onBlur={handleBlur}
@@ -206,13 +167,13 @@ function LoteCombobox({ value, onChange, lotes }) {
       {open && filtered.length > 0 && createPortal(
         <ul
           ref={listRef}
-          className="lote-dropdown"
+          className="psb-combo-dropdown"
           style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
         >
           {filtered.map((l, i) => (
             <li
               key={l.id}
-              className={`lote-dropdown-item${i === hi ? ' lote-dropdown-item--active' : ''}`}
+              className={`psb-combo-option${i === hi ? ' psb-combo-option--active' : ''}`}
               onMouseDown={() => selectOption(l)}
               onMouseEnter={() => setHi(i)}
             >
@@ -240,18 +201,20 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
   };
 
   return createPortal(
-    <div className="param-modal-backdrop">
-      <div className="param-modal">
-        <div className="param-modal-header">
-          <FiPlus size={16} />
-          <span>Nuevo material de siembra</span>
+    <div className="aur-modal-backdrop" onPointerDown={() => !saving && onCancel?.()}>
+      <div className="aur-modal" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="aur-modal-header">
+          <span className="aur-modal-icon">
+            <FiPlus size={16} />
+          </span>
+          <span className="aur-modal-title">Nuevo material de siembra</span>
         </div>
-        <div className="mat-modal-fields">
-          <label className="mat-modal-label">
-            Nombre <span className="mat-modal-required">*</span>
+        <div className="psb-mat-modal-fields">
+          <label className="psb-mat-modal-label">
+            Nombre <span className="psb-required">*</span>
             <input
-              className="mat-modal-input"
-              placeholder="Ej: Semilla híbrida X"
+              className="aur-input"
+              placeholder="Ej. Semilla híbrida X"
               value={nombre}
               maxLength={32}
               onChange={e => setNombre(e.target.value)}
@@ -259,22 +222,22 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
               disabled={saving}
             />
           </label>
-          <label className="mat-modal-label">
+          <label className="psb-mat-modal-label">
             Rango de pesos
             <input
-              className="mat-modal-input"
-              placeholder="Ej: 200g–300g"
+              className="aur-input"
+              placeholder="Ej. 200g – 300g"
               value={rango}
               maxLength={32}
               onChange={e => setRango(e.target.value)}
               disabled={saving}
             />
           </label>
-          <label className="mat-modal-label">
+          <label className="psb-mat-modal-label">
             Variedad
             <input
-              className="mat-modal-input"
-              placeholder="Ej: MD2"
+              className="aur-input"
+              placeholder="Ej. MD2"
               value={variedad}
               maxLength={32}
               onChange={e => setVariedad(e.target.value)}
@@ -282,119 +245,22 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
             />
           </label>
         </div>
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancelar</button>
+        <div className="aur-modal-actions">
           <button
-            className="btn btn-primary"
+            type="button"
+            className="aur-btn-text"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="aur-btn-pill"
             disabled={!nombre.trim() || saving}
             onClick={handleConfirm}
           >
             {saving ? 'Guardando…' : 'Agregar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ── Modal editar registro de siembra ─────────────────────────────────────────
-function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving }) {
-  const [fecha, setFecha]           = useState(record.fecha ? record.fecha.slice(0, 10) : '');
-  const [loteId, setLoteId]         = useState(record.loteId || '');
-  const [bloque, setBloque]         = useState(record.bloque || '');
-  const [plantas, setPlantas]       = useState(String(record.plantas || ''));
-  const [densidad, setDensidad]     = useState(String(record.densidad || '65000'));
-  const [materialId, setMaterialId] = useState(record.materialId || '');
-
-  const plantasNum  = Number(plantas)  || 0;
-  const densidadNum = Number(densidad) || 0;
-  const plantasInvalid  = plantasNum < 0 || plantasNum > 199999;
-  const densidadInvalid = densidadNum < 0 || densidadNum > 199999;
-
-  const area = plantas && densidad && densidadNum > 0
-    ? (plantasNum / densidadNum).toFixed(4) : '';
-
-  const handleSave = () => {
-    if (plantasInvalid || densidadInvalid) return;
-    const lote = lotes.find(l => l.id === loteId);
-    const mat  = materiales.find(m => m.id === materialId);
-    onSave({
-      fecha,
-      loteId,
-      loteNombre:     lote?.nombreLote   || record.loteNombre || '',
-      bloque,
-      plantas:        Number(plantas)    || 0,
-      densidad:       Number(densidad)   || 65000,
-      areaCalculada:  area ? parseFloat(area) : null,
-      materialId:     mat?.id            || '',
-      materialNombre: mat?.nombre        || '',
-      rangoPesos:     mat?.rangoPesos    || '',
-      variedad:       mat?.variedad      || '',
-    });
-  };
-
-  return createPortal(
-    <div className="param-modal-backdrop" onPointerDown={onCancel}>
-      <div className="param-modal" style={{ maxWidth: 480 }} onPointerDown={e => e.stopPropagation()}>
-        <div className="param-modal-header">
-          <FiEdit2 size={16} style={{ flexShrink: 0 }} />
-          <span>Editar registro de siembra</span>
-        </div>
-        <div className="edit-siembra-grid">
-          <label className="mat-modal-label">
-            Fecha
-            <input className="mat-modal-input" type="date" value={fecha}
-              onChange={e => setFecha(e.target.value)} disabled={saving} />
-          </label>
-          <label className="mat-modal-label">
-            Lote
-            <select className="mat-modal-input" value={loteId}
-              onChange={e => setLoteId(e.target.value)} disabled={saving}>
-              <option value="">— seleccionar —</option>
-              {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-            </select>
-          </label>
-          <label className="mat-modal-label">
-            Bloque
-            <input className="mat-modal-input" placeholder="Ej: A" value={bloque}
-              maxLength={4}
-              onChange={e => setBloque(e.target.value)} disabled={saving} />
-          </label>
-          <label className="mat-modal-label">
-            Plantas
-            <input className={`mat-modal-input${plantasInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={plantas}
-              onChange={e => setPlantas(e.target.value)} disabled={saving} />
-            {plantasInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
-          </label>
-          <label className="mat-modal-label">
-            Densidad <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>(pl/ha)</span>
-            <input className={`mat-modal-input${densidadInvalid ? ' mat-modal-input-error' : ''}`} type="number" min="0" max="199999" value={densidad}
-              onChange={e => setDensidad(e.target.value)} disabled={saving} />
-            {densidadInvalid && <span className="mat-modal-error">Debe ser entre 0 y 199 999</span>}
-          </label>
-          <label className="mat-modal-label">
-            Área calculada
-            <input className="mat-modal-input" value={area ? area + ' ha' : '—'} readOnly disabled
-              style={{ opacity: 0.55 }} />
-          </label>
-          <label className="mat-modal-label" style={{ gridColumn: '1 / -1' }}>
-            Material
-            <select className="mat-modal-input" value={materialId}
-              onChange={e => setMaterialId(e.target.value)} disabled={saving}>
-              <option value="">— sin material —</option>
-              {materiales.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.nombre}{m.variedad ? ` · ${m.variedad}` : ''}{m.rangoPesos ? ` (${m.rangoPesos})` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!fecha || !loteId || saving || plantasInvalid || densidadInvalid} onClick={handleSave}>
-            {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
       </div>
@@ -426,32 +292,10 @@ function Siembra() {
   const [toast, setToast]           = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [matModal, setMatModal]         = useState(null); // { idx, nombre, rango, variedad } | null
-  const [sortConfig, setSortConfig] = useState([
-    { field: 'fecha', dir: 'desc' },
-    { field: '',      dir: 'asc'  },
-  ]);
 
-  const updateSort = (idx, key, value) =>
-    setSortConfig(prev => prev.map((s, i) => i === idx ? { ...s, [key]: value } : s));
-
-const fileInputRef                = useRef(null);
+  const fileInputRef                = useRef(null);
   const swipeState                  = useRef({});
-  const [histRowMenu, setHistRowMenu]   = useState(null);
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const [editRecord, setEditRecord]     = useState(null);
-  const [editSaving, setEditSaving]     = useState(false);
-  const toggleExpanded = (id) => setExpandedRows(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
 
-  useEffect(() => {
-    if (histRowMenu === null) return;
-    const close = () => setHistRowMenu(null);
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [histRowMenu]);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
@@ -500,8 +344,8 @@ const fileInputRef                = useRef(null);
       e.currentTarget.setPointerCapture(e.pointerId);
       swipeState.current[idx] = {
         startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,
-        hintLeft:  e.currentTarget.querySelector('.sb-row-hint-left'),
-        hintRight: e.currentTarget.querySelector('.sb-row-hint-right'),
+        hintLeft:  e.currentTarget.querySelector('.psb-row-hint-left'),
+        hintRight: e.currentTarget.querySelector('.psb-row-hint-right'),
       };
     },
     onPointerMove(e) {
@@ -549,66 +393,6 @@ const fileInputRef                = useRef(null);
       const s = swipeState.current[idx];
       if (!s) return;
       delete swipeState.current[idx];
-      s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
-      s.el.style.transform = 'translateX(0)';
-      s.el.style.background = '';
-      s.el.style.userSelect = '';
-      if (s.hintLeft)  s.hintLeft.style.opacity  = 0;
-      if (s.hintRight) s.hintRight.style.opacity = 0;
-    },
-  });
-
-  const getHistSwipeHandlers = (r) => ({
-    onPointerDown(e) {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      if (e.target.closest('button')) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
-      swipeState.current['h-' + r.id] = {
-        startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,
-        hintLeft: null, hintRight: null,
-      };
-    },
-    onPointerMove(e) {
-      const s = swipeState.current['h-' + r.id];
-      if (!s || s.cancelled) return;
-      const dx = e.clientX - s.startX;
-      const dy = e.clientY - s.startY;
-      if (!s.locked && Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 8) { s.cancelled = true; return; }
-      if (!s.locked && Math.abs(dx) > 8) s.locked = true;
-      if (!s.locked) return;
-      s.dx = dx;
-      s.el.style.transform = `translateX(${dx}px)`;
-      s.el.style.transition = 'none';
-      s.el.style.userSelect = 'none';
-      const ratio = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1);
-      if (dx < 0) {
-        s.el.style.background = `rgba(220, 60, 60, ${ratio * 0.3})`;
-        if (s.hintLeft)  s.hintLeft.style.opacity  = ratio;
-        if (s.hintRight) s.hintRight.style.opacity = 0;
-      } else {
-        s.el.style.background = `rgba(51, 255, 153, ${ratio * 0.18})`;
-        if (s.hintRight) s.hintRight.style.opacity = ratio;
-        if (s.hintLeft)  s.hintLeft.style.opacity  = 0;
-      }
-    },
-    onPointerUp(e) {
-      const s = swipeState.current['h-' + r.id];
-      if (!s) return;
-      delete swipeState.current['h-' + r.id];
-      s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
-      s.el.style.transform = 'translateX(0)';
-      s.el.style.background = '';
-      s.el.style.userSelect = '';
-      if (s.hintLeft)  s.hintLeft.style.opacity  = 0;
-      if (s.hintRight) s.hintRight.style.opacity = 0;
-      if (s.cancelled || !s.locked) return;
-      if (s.dx < -SWIPE_THRESHOLD) handleDelete(r.id);
-      else if (s.dx > SWIPE_THRESHOLD) toggleExpanded(r.id);
-    },
-    onPointerCancel(e) {
-      const s = swipeState.current['h-' + r.id];
-      if (!s) return;
-      delete swipeState.current['h-' + r.id];
       s.el.style.transition = 'transform 0.22s ease, background 0.22s ease';
       s.el.style.transform = 'translateX(0)';
       s.el.style.background = '';
@@ -815,108 +599,11 @@ const fileInputRef                = useRef(null);
     }
   };
 
-  // ── Toggle cerrado en registros existentes ───────────────────────────────
-  const toggleCerrado = (reg) => {
-    const esSupervisor = hasMinRole(currentUser?.rol, 'supervisor');
-
-    const doToggle = async (nuevoCerrado) => {
-      setConfirmModal(null);
-      try {
-        await apiFetch(`/api/siembras/${reg.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cerrado: nuevoCerrado }),
-        });
-        const ahora = nuevoCerrado ? new Date().toISOString() : null;
-        setRegistros(prev => prev.map(r =>
-          (r.loteId === reg.loteId && r.bloque === reg.bloque) ? { ...r, cerrado: nuevoCerrado, fechaCierre: ahora } : r
-        ));
-      } catch {
-        showToast('Error al actualizar.', 'error');
-      }
-    };
-
-    // Desmarcar cerrado: solo supervisor+
-    if (reg.cerrado) {
-      if (!esSupervisor) {
-        showToast('Solo un supervisor puede reabrir un bloque cerrado.', 'error');
-        return;
-      }
-      setConfirmModal({
-        title: `¿Reabrir el bloque "${reg.bloque || '(sin bloque)'}"?`,
-        body: `Lote: "${reg.loteNombre}". Se podrán volver a agregar registros de siembra en este bloque.`,
-        confirmLabel: 'Reabrir bloque',
-        onConfirm: () => doToggle(false),
-      });
-      return;
-    }
-
-    // Mark as closed: ask for confirmation
-    setConfirmModal({
-      title: `¿Cerrar el bloque "${reg.bloque || '(sin bloque)'}"?`,
-      body: `Lote: "${reg.loteNombre}". Esto indica que la siembra del bloque está completa y no se podrán agregar nuevos registros. Solo un supervisor puede revertir esta acción.`,
-      confirmLabel: 'Cerrar bloque',
-      onConfirm: () => doToggle(true),
-    });
-  };
-
-  const handleDelete = (id) => {
-    setConfirmModal({
-      title: '¿Eliminar este registro?',
-      body: 'Esta acción no se puede deshacer.',
-      confirmLabel: 'Eliminar',
-      onConfirm: async () => {
-        setConfirmModal(null);
-        try {
-          await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
-          setRegistros(prev => prev.filter(r => r.id !== id));
-          showToast('Registro eliminado.');
-        } catch {
-          showToast('Error al eliminar.', 'error');
-        }
-      },
-    });
-  };
-
-  const handleEditSave = async (data) => {
-    setEditSaving(true);
-    try {
-      await apiFetch(`/api/siembras/${editRecord.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      setRegistros(prev => prev.map(r => r.id === editRecord.id ? { ...r, ...data } : r));
-      setEditRecord(null);
-      showToast('Registro actualizado.');
-    } catch {
-      showToast('Error al actualizar.', 'error');
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  const formatFecha = (iso) => {
-    if (!iso) return '—';
-    const d = new Date(iso.slice(0, 10) + 'T12:00:00');
-    const day   = d.getDate().toString().padStart(2, '0');
-    const month = d.toLocaleDateString('es-CR', { month: 'short' });
-    const year  = String(d.getFullYear()).slice(2);
-    return `${day} ${month} ${year}`;
-  };
-
   // ── Draft: save on every change, restore badge on mount ──────────────────
   useEffect(() => {
     if (isDraftMeaningful(fecha, rows)) saveDraft(fecha, rows);
     else clearDraft();
   }, [fecha, rows]);
-
-  const discardDraft = () => {
-    setFecha(HOY);
-    setRows([{ ...EMPTY_ROW }]);
-    setDraftRestored(false);
-    clearDraft();
-  };
 
   const handleMatModalConfirm = async ({ nombre, rango, variedad }) => {
     const { idx } = matModal;
@@ -947,72 +634,65 @@ const fileInputRef                = useRef(null);
   };
 
   return (
-    <div className="siembra-layout">
+    <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
       {matModal && <NuevoMaterialModal initial={matModal} onConfirm={handleMatModalConfirm} onCancel={handleMatModalCancel} />}
-      {editRecord && (
-        <EditSiembraModal
-          record={editRecord}
-          lotes={lotes}
-          materiales={materiales}
-          onSave={handleEditSave}
-          onCancel={() => setEditRecord(null)}
-          saving={editSaving}
-        />
-      )}
 
       {/* ── Spinner de carga inicial ──────────────────────────────────── */}
       {loading && <div className="siembra-page-loading" />}
 
       {!loading && (registros.length > 0 || showForm) && (
         <form
-          className="sb-form"
+          className="aur-sheet psb-sheet"
           noValidate
           onSubmit={(e) => { e.preventDefault(); handleGuardar(); }}
         >
-          <header className="sb-form-header">
-            <div className="sb-form-header-text">
-              <h2 className="sb-form-title">Registro de siembra</h2>
-              <p className="sb-form-subtitle">Captura las filas del día y guárdalas en lote.</p>
+          <header className="aur-sheet-header">
+            <div className="aur-sheet-header-text">
+              <h2 className="aur-sheet-title">Registro de siembra</h2>
+              <p className="aur-sheet-subtitle">Captura las filas del día y guárdalas en lote.</p>
             </div>
-            <Link to="/siembra/historial" className="sb-chip sb-chip--link">
-              <FiClock size={12} /> Historial
-            </Link>
+            <div className="aur-sheet-header-actions">
+              <Link to="/siembra/historial" className="aur-chip aur-chip--ghost">
+                <FiClock size={12} /> Historial
+              </Link>
+            </div>
           </header>
 
           {draftRestored && (
-            <div className="sb-draft-banner">
+            <div className="psb-draft-banner">
               <FiClock size={12} />
               <span>Borrador restaurado · tienes cambios sin guardar.</span>
-              <button type="button" className="sb-draft-discard" onClick={() => setDraftRestored(false)}>
+              <button type="button" className="psb-draft-discard" onClick={() => setDraftRestored(false)}>
                 Cerrar
               </button>
             </div>
           )}
 
-          <section className="sb-form-section">
-            <div className="sb-form-section-header">
-              <span className="sb-form-section-num">01</span>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">01</span>
               <h3>Fecha y origen</h3>
             </div>
-            <div className="sb-form-list">
-              <div className="sb-form-row">
-                <label htmlFor="sb-fecha">Fecha de siembra</label>
+            <div className="aur-list">
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="psb-fecha">Fecha de siembra</label>
                 <input
-                  id="sb-fecha"
+                  id="psb-fecha"
                   type="date"
+                  className="aur-input"
                   value={fecha}
                   onChange={e => setFecha(e.target.value)}
                 />
               </div>
-              <div className="sb-form-row sb-form-row--action">
-                <label>Escaneo con IA</label>
-                <div className="sb-form-row-action-content">
-                  <span className="sb-form-row-hint">Carga una foto del formulario y se extraen las filas.</span>
+              <div className="aur-row aur-row--action">
+                <span className="aur-row-label">Escaneo con IA</span>
+                <div className="aur-row-content">
+                  <span className="psb-row-hint-text">Carga una foto del formulario y se extraen las filas.</span>
                   <button
                     type="button"
-                    className="sb-chip sb-chip--ghost"
+                    className="aur-chip aur-chip--ghost"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={scanning || saving}
                   >
@@ -1031,39 +711,39 @@ const fileInputRef                = useRef(null);
             </div>
           </section>
 
-          <section className="sb-form-section">
-            <div className="sb-form-section-header">
-              <span className="sb-form-section-num">02</span>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">02</span>
               <h3>Filas de siembra</h3>
-              <span className="sb-form-section-count">{rows.length}</span>
+              <span className="aur-section-count">{rows.length}</span>
             </div>
 
-            <ul className="sb-row-list">
+            <ul className="psb-row-list">
               {rows.map((row, idx) => (
-                <li key={idx} className="sb-row-card" {...getSwipeHandlers(idx)}>
-                  <span className="sb-row-hint sb-row-hint-left" aria-hidden="true">
+                <li key={idx} className="psb-row-card" {...getSwipeHandlers(idx)}>
+                  <span className="psb-row-hint psb-row-hint-left" aria-hidden="true">
                     <FiTrash2 size={16} />
                   </span>
-                  <span className="sb-row-hint sb-row-hint-right" aria-hidden="true">
+                  <span className="psb-row-hint psb-row-hint-right" aria-hidden="true">
                     <FiCopy size={16} />
                   </span>
 
-                  <div className="sb-row-head">
-                    <div className="sb-row-num">
-                      <span className="sb-row-num-val">{idx + 1}</span>
-                      <span className="sb-row-num-suffix">fila</span>
+                  <div className="psb-row-head">
+                    <div className="psb-row-num">
+                      <span className="psb-row-num-val">{idx + 1}</span>
+                      <span className="psb-row-num-suffix">fila</span>
                     </div>
-                    <div className="sb-row-lote">
+                    <div className="psb-row-lote">
                       <LoteCombobox
                         value={row.loteId}
                         onChange={v => updateRow(idx, 'loteId', v)}
                         lotes={lotes}
                       />
                     </div>
-                    <div className="sb-row-actions">
+                    <div className="psb-row-actions">
                       <button
                         type="button"
-                        className="sb-row-icon-btn"
+                        className="aur-icon-btn aur-icon-btn--sm"
                         title="Duplicar fila"
                         onClick={() => setRows(prev => { const next = [...prev]; next.splice(idx + 1, 0, { ...prev[idx], bloque: '', cerrado: false }); return next; })}
                       >
@@ -1072,7 +752,7 @@ const fileInputRef                = useRef(null);
                       {rows.length > 1 && (
                         <button
                           type="button"
-                          className="sb-row-icon-btn sb-row-icon-btn--danger"
+                          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
                           title="Eliminar fila"
                           onClick={() => removeRow(idx)}
                         >
@@ -1082,21 +762,21 @@ const fileInputRef                = useRef(null);
                     </div>
                   </div>
 
-                  <div className="sb-row-grid">
-                    <div className="sb-row-field">
+                  <div className="psb-row-grid">
+                    <div className="psb-row-field">
                       <label>Bloque</label>
                       <input
-                        className="sb-row-input"
+                        className="aur-input"
                         placeholder="A"
                         value={row.bloque}
                         maxLength={4}
                         onChange={e => updateRow(idx, 'bloque', e.target.value)}
                       />
                     </div>
-                    <div className="sb-row-field">
+                    <div className="psb-row-field">
                       <label>Plantas</label>
                       <input
-                        className={`sb-row-input sb-row-input--num${rowPlantasInvalid(row) ? ' sb-row-input--error' : ''}`}
+                        className={`aur-input aur-input--num${rowPlantasInvalid(row) ? ' aur-input--error' : ''}`}
                         type="number"
                         min="0"
                         max="199999"
@@ -1104,12 +784,12 @@ const fileInputRef                = useRef(null);
                         value={row.plantas}
                         onChange={e => updateRow(idx, 'plantas', e.target.value)}
                       />
-                      {rowPlantasInvalid(row) && <span className="sb-row-error">0 – 199 999</span>}
+                      {rowPlantasInvalid(row) && <span className="psb-row-error">0 – 199 999</span>}
                     </div>
-                    <div className="sb-row-field">
-                      <label>Densidad <span className="sb-row-hint-text">pl/ha</span></label>
+                    <div className="psb-row-field">
+                      <label>Densidad <span className="psb-row-hint-text">pl/ha</span></label>
                       <input
-                        className={`sb-row-input sb-row-input--num${rowDensidadInvalid(row) ? ' sb-row-input--error' : ''}`}
+                        className={`aur-input aur-input--num${rowDensidadInvalid(row) ? ' aur-input--error' : ''}`}
                         type="number"
                         min="0"
                         max="199999"
@@ -1117,17 +797,17 @@ const fileInputRef                = useRef(null);
                         value={row.densidad}
                         onChange={e => updateRow(idx, 'densidad', e.target.value)}
                       />
-                      {rowDensidadInvalid(row) && <span className="sb-row-error">0 – 199 999</span>}
+                      {rowDensidadInvalid(row) && <span className="psb-row-error">0 – 199 999</span>}
                     </div>
-                    <div className="sb-row-field sb-row-field--readonly">
+                    <div className="psb-row-field psb-row-field--readonly">
                       <label>Área</label>
-                      <div className="sb-row-area">{areaCalc(row)}</div>
+                      <div className="psb-row-area">{areaCalc(row)}</div>
                     </div>
                   </div>
 
-                  <div className="sb-row-foot">
+                  <div className="psb-row-foot">
                     <select
-                      className="sb-chip sb-chip--material"
+                      className="aur-select psb-row-mat-select"
                       value={row.materialId}
                       onChange={e => {
                         if (e.target.value === '__nuevo__') {
@@ -1146,7 +826,7 @@ const fileInputRef                = useRef(null);
                       <option value="__nuevo__">+ Nuevo material</option>
                     </select>
                     <label
-                      className={`sb-toggle${!Number(row.plantas) ? ' sb-toggle--disabled' : ''}${row.cerrado ? ' sb-toggle--on' : ''}`}
+                      className={`aur-toggle${!Number(row.plantas) ? ' aur-toggle--disabled' : ''}`}
                     >
                       <input
                         type="checkbox"
@@ -1154,8 +834,8 @@ const fileInputRef                = useRef(null);
                         disabled={!Number(row.plantas)}
                         onChange={e => handleCerradoChange(idx, e.target.checked)}
                       />
-                      <span className="sb-toggle-track"><span className="sb-toggle-thumb" /></span>
-                      <span className="sb-toggle-label">Cerrado</span>
+                      <span className="aur-toggle-track"><span className="aur-toggle-thumb" /></span>
+                      <span className="aur-toggle-label">Cerrado</span>
                     </label>
                   </div>
                 </li>
@@ -1166,20 +846,20 @@ const fileInputRef                = useRef(null);
               type="button"
               onClick={addRow}
               disabled={scanning}
-              className="sb-add-row"
+              className="psb-add-row"
             >
               <FiPlus size={14} />
               Agregar fila
             </button>
           </section>
 
-          <footer className="sb-form-actions">
-            <Link to="/siembra/materiales" className="sb-btn-text-link">
+          <footer className="psb-form-actions">
+            <Link to="/siembra/materiales" className="aur-btn-text">
               <FiSettings size={11} /> Gestionar materiales
             </Link>
             <button
               type="submit"
-              className="sb-btn-pill"
+              className="aur-btn-pill"
               disabled={saving || scanning}
             >
               {saving ? 'Guardando…' : 'Guardar'}
@@ -1187,7 +867,7 @@ const fileInputRef                = useRef(null);
           </footer>
         </form>
       )}
-    </div>
+    </>
   );
 }
 
