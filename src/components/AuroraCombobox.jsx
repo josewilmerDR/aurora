@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { FiSearch } from 'react-icons/fi';
 
 // Combobox con búsqueda libre. Wrapper sobre las primitivas .aur-combo-*
-// definidas en src/styles/aurora.css.
-export default function HarvestCombobox({
+// definidas en src/styles/aurora.css. Reusable cross-domain.
+export default function AuroraCombobox({
   value,
   onChange,
   items,
