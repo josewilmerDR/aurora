@@ -355,6 +355,8 @@ function UnitPayroll() {
   const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
   const [guardando, setGuardando] = useState(false);
   const [showAprobarConfirm, setShowAprobarConfirm] = useState(false);
+  const [confirmDelPlanilla, setConfirmDelPlanilla] = useState(null);
+  const [confirmDelPlantilla, setConfirmDelPlantilla] = useState(null);
   const [planillaId, setPlanillaId] = useDraft('hr-planilla-id', null);
   const [planillaEstado, setPlanillaEstado] = useDraft('hr-planilla-estado', null);
   const [consecutivo, setConsecutivo] = useDraft('hr-planilla-consecutivo', null);
@@ -859,9 +861,7 @@ function UnitPayroll() {
     }
   };
 
-  const handleEliminar = async (p, e) => {
-    e.stopPropagation();
-    if (!window.confirm(`¿Eliminar la planilla ${p.consecutivo || ''}? Esta acción no se puede deshacer.`)) return;
+  const handleEliminar = async (p) => {
     try {
       const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
@@ -942,7 +942,6 @@ function UnitPayroll() {
   };
 
   const handleEliminarPlantilla = async (p) => {
-    if (!window.confirm(`¿Eliminar la plantilla "${p.nombre}"?`)) return;
     try {
       const res = await apiFetch(`/api/hr/plantillas-planilla/${p.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
@@ -1022,6 +1021,7 @@ function UnitPayroll() {
           title="Aprobar planilla"
           body="Esta planilla será aprobada para pago. ¿Desea continuar?"
           confirmLabel="Aprobar"
+          icon={<FiThumbsUp size={16} />}
           loadingLabel="Aprobando…"
           loading={guardando}
           onConfirm={handleAprobarDesdeFormulario}
@@ -1029,31 +1029,53 @@ function UnitPayroll() {
         />
       )}
 
+      {confirmDelPlanilla && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar planilla"
+          body={`¿Eliminar la planilla ${confirmDelPlanilla.consecutivo || ''}? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { handleEliminar(confirmDelPlanilla); setConfirmDelPlanilla(null); }}
+          onCancel={() => setConfirmDelPlanilla(null)}
+        />
+      )}
+
+      {confirmDelPlantilla && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar plantilla"
+          body={`¿Eliminar la plantilla "${confirmDelPlantilla.nombre}"?`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { handleEliminarPlantilla(confirmDelPlantilla); setConfirmDelPlantilla(null); }}
+          onCancel={() => setConfirmDelPlantilla(null)}
+        />
+      )}
+
       {/* ── Vista previa de planilla ── */}
       {previewPlanilla && (
-        <div className="pu-preview-overlay" onClick={e => { if (e.target === e.currentTarget) setPreviewPlanilla(null); }}>
-          <div className="pu-preview-modal">
-            <div className="pu-preview-modal-header">
-              <div className="pu-preview-modal-title">
+        <div className="aur-modal-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPreviewPlanilla(null); }}>
+          <div className="aur-modal aur-modal--xl pu-preview-modal" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header pu-preview-modal-header">
+              <span className="aur-modal-title pu-preview-modal-title">
                 Vista previa
                 {previewPlanilla.consecutivo && (
                   <span className="pu-preview-consec">{previewPlanilla.consecutivo}</span>
                 )}
-              </div>
+              </span>
               <div className="pu-preview-modal-actions">
-                <button className="btn btn-secondary btn-sm" onClick={() => generatePlanillaPdf('share')} disabled={pdfLoading}>
+                <button className="aur-btn-text" onClick={() => generatePlanillaPdf('share')} disabled={pdfLoading}>
                   <FiShare2 size={14} /> Compartir
                 </button>
-                <button className="btn btn-primary btn-sm" onClick={() => generatePlanillaPdf('save')} disabled={pdfLoading}>
+                <button className="aur-btn-pill" onClick={() => generatePlanillaPdf('save')} disabled={pdfLoading}>
                   <FiDownload size={14} /> {pdfLoading ? 'Generando…' : 'Guardar PDF / Imprimir'}
                 </button>
-                <button className="icon-btn" onClick={() => setPreviewPlanilla(null)} title="Cerrar">
-                  <FiX size={18} />
+                <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setPreviewPlanilla(null)} title="Cerrar">
+                  <FiX size={16} />
                 </button>
               </div>
-            </div>
+            </header>
 
-            <div className="pu-preview-scroll">
+            <div className="aur-modal-content pu-preview-scroll">
               <div className="pu-preview-document" ref={previewRef}>
                 {/* Encabezado */}
                 <div className="pu-pdoc-header">
@@ -1311,7 +1333,7 @@ function UnitPayroll() {
       {/* ── Sección 2: Cuerpo de segmentos ── */}
       <div className="form-card pu-table-card pu-section-card pu-section-body-card">
         <div className="pu-table-toolbar">
-          <button ref={nuevoSegmentoRef} className="btn btn-secondary btn-sm" onClick={() => addSegmento(true)}>
+          <button ref={nuevoSegmentoRef} className="aur-btn-text" onClick={() => addSegmento(true)}>
             <FiPlus size={14} /> Agregar segmento
           </button>
         </div>
@@ -1332,7 +1354,7 @@ function UnitPayroll() {
                   <td key={seg.id} className="ut-seg-title-cell">
                     <span className="ut-seg-num">#{idx + 1}</span>
                     {segmentos.length > 1 && (
-                      <button className="icon-btn delete ut-del-btn" onClick={() => removeSegmento(seg.id)} title="Eliminar segmento">
+                      <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger ut-del-btn" onClick={() => removeSegmento(seg.id)} title="Eliminar segmento">
                         <FiTrash2 size={13} />
                       </button>
                     )}
@@ -1653,18 +1675,18 @@ function UnitPayroll() {
         </div>
         <div className="form-actions" style={{ marginTop: 14 }}>
           {planillaEstado === 'pendiente' ? (
-            <button className="btn btn-primary" onClick={() => setShowAprobarConfirm(true)} disabled={guardando}>
+            <button className="aur-btn-pill" onClick={() => setShowAprobarConfirm(true)} disabled={guardando}>
               <FiThumbsUp size={15} />
               Aprobar
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
+            <button className="aur-btn-pill" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
               <FiSave size={15} />
               {guardando ? 'Guardando…' : 'Guardar planilla'}
             </button>
           )}
           <button
-            className="btn btn-secondary"
+            className="aur-btn-text"
             onClick={() => {
               if (planillaEstado === 'pendiente' && originalPlanillaRef.current) {
                 loadPlanilla(originalPlanillaRef.current);
@@ -1712,7 +1734,7 @@ function UnitPayroll() {
               Plantillas
             </button>
             {historialTab === 'pendientes' && (
-              <button className="icon-btn" onClick={fetchHistorial} title="Actualizar" style={{ marginLeft: 'auto' }}>
+              <button className="aur-icon-btn aur-icon-btn--sm" onClick={fetchHistorial} title="Actualizar" style={{ marginLeft: 'auto' }}>
                 <FiRefreshCw size={14} />
               </button>
             )}
@@ -1762,7 +1784,7 @@ function UnitPayroll() {
                         {editable && (
                           <button
                             className="pu-history-delete-btn"
-                            onClick={e => handleEliminar(p, e)}
+                            onClick={e => { e.stopPropagation(); setConfirmDelPlanilla(p); }}
                             title="Eliminar planilla"
                           >
                             <FiTrash2 size={13} />
@@ -1830,14 +1852,14 @@ function UnitPayroll() {
                   />
                   <div className="pu-plantilla-name-actions">
                     <button
-                      className="btn btn-primary btn-sm"
+                      className="aur-btn-pill"
                       onClick={handleGuardarPlantilla}
                       disabled={!nombrePlantilla.trim() || savingPlantilla}
                     >
                       {savingPlantilla ? 'Guardando…' : 'Guardar'}
                     </button>
                     <button
-                      className="btn btn-secondary btn-sm"
+                      className="aur-btn-text"
                       onClick={() => { setShowSavePlantilla(false); setNombrePlantilla(''); }}
                     >
                       Cancelar
@@ -1860,14 +1882,14 @@ function UnitPayroll() {
                       </div>
                       <div className="pu-plantilla-actions">
                         <button
-                          className="btn btn-primary btn-sm"
+                          className="aur-btn-text"
                           onClick={() => applyPlantilla(p)}
                         >
                           Usar plantilla
                         </button>
                         <button
                           className="pu-history-delete-btn"
-                          onClick={() => handleEliminarPlantilla(p)}
+                          onClick={() => setConfirmDelPlantilla(p)}
                           title="Eliminar plantilla"
                         >
                           <FiTrash2 size={13} />
