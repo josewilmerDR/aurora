@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 
@@ -437,11 +438,13 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
 
   return (
     <div className="aur-modal-backdrop" onPointerDown={onClose}>
-      <div className="modal-content edit-producto-modal" onPointerDown={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{isNew ? 'Nuevo Producto' : 'Editar producto'}</h2>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
+      <div className="aur-modal aur-modal--lg edit-producto-modal" onPointerDown={e => e.stopPropagation()}>
+        <header className="aur-modal-header">
+          <h2 className="aur-modal-title">{isNew ? 'Nuevo Producto' : 'Editar producto'}</h2>
+          <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={onClose}>
+            <FiX size={16} />
+          </button>
+        </header>
 
         <form className="edit-producto-form" onSubmit={handleSubmit} noValidate>
           {/* Identificación */}
@@ -558,7 +561,7 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
 
           {error && <p className="toma-error">{error}</p>}
 
-          <div className="toma-fisica-footer">
+          <div className="aur-modal-actions">
             <button
               type="button"
               className="aur-btn-text"

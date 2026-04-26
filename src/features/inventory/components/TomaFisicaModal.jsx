@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 function TomaFisicaModal({ productos, onClose, onSuccess }) {
@@ -93,12 +94,15 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
 
   return (
     <div className="aur-modal-backdrop" onPointerDown={onClose}>
-      <div className="modal-content toma-fisica-modal" onPointerDown={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Toma Física de Inventario</h2>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
+      <div className="aur-modal aur-modal--xl toma-fisica-modal" onPointerDown={e => e.stopPropagation()}>
+        <header className="aur-modal-header">
+          <h2 className="aur-modal-title">Toma Física de Inventario</h2>
+          <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={onClose}>
+            <FiX size={16} />
+          </button>
+        </header>
 
+        <div className="aur-modal-content">
         <p className="toma-fisica-desc">
           Ingresa las cantidades reales encontradas en bodega. Solo los productos con diferencia serán ajustados.
         </p>
@@ -184,8 +188,9 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
         </div>
 
         {error && <p className="toma-error">{error}</p>}
+        </div>
 
-        <div className="toma-fisica-footer">
+        <div className="aur-modal-actions">
           <button className="aur-btn-text" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
