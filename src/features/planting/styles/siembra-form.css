@@ -1,0 +1,342 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIEMBRA — registro de filas (page-specific overrides on .aur-* primitives)
+   El sheet, secciones, settings list, inputs, chips, btn-pill, icon-btn,
+   toggle y modal vienen de aurora.css. Aquí sólo viven los pedazos únicos
+   de la página: ancho del sheet, banner de borrador, cards de fila con
+   swipe + duplicate/delete hints, dropdown del combobox de lote y modal
+   de nuevo material (form modal sobre .aur-modal-*).
+
+   Tokens: usa --aur-* heredados; sin variables locales.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.psb-sheet {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ── Required asterisk en labels del modal ───────────────────────────────── */
+.psb-required {
+  color: var(--aur-danger);
+  margin-left: 2px;
+}
+
+/* ── Banner "borrador restaurado" ────────────────────────────────────────── */
+.psb-draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--aur-accent-tint);
+  border: 1px solid rgba(51, 255, 153, 0.20);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.psb-draft-banner > span {
+  flex: 1;
+}
+.psb-draft-discard {
+  background: none;
+  border: none;
+  color: var(--aur-text-3);
+  cursor: pointer;
+  font-size: var(--aur-fs-footnote);
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.psb-draft-discard:hover {
+  color: var(--aur-text);
+  background: var(--aur-bg-hover);
+}
+
+/* ── Hint inline (placeholder-style) dentro de una row de tipo action ─── */
+.psb-row-hint-text {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  letter-spacing: -0.01em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FILAS DE SIEMBRA — cada fila es una card con header (num + lote + acciones)
+   + grid de 4 inputs + footer (material select + toggle cerrado).
+   Soporta swipe horizontal: izquierda = eliminar (hint magenta a la izquierda),
+   derecha = duplicar (hint verde a la derecha).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.psb-row-list {
+  list-style: none;
+  margin: 0 0 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.psb-row-card {
+  position: relative;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  touch-action: pan-y;
+  /* el JS aplica transform/background inline durante el swipe */
+}
+
+.psb-row-hint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.psb-row-hint-left {
+  left: 12px;
+  background: rgba(220, 60, 60, 0.20);
+  color: #ff6b6b;
+}
+.psb-row-hint-right {
+  right: 12px;
+  background: var(--aur-accent-tint-2);
+  color: var(--aur-accent);
+}
+
+/* Header: numerador + combobox de lote + acciones */
+.psb-row-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.psb-row-num {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 56px;
+  padding: 4px 10px;
+  background: var(--aur-bg-hover);
+  border-radius: var(--aur-r-pill);
+}
+.psb-row-num-val {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--aur-text);
+  font-variant-numeric: tabular-nums;
+}
+.psb-row-num-suffix {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  letter-spacing: 0.04em;
+}
+.psb-row-lote {
+  flex: 1;
+  min-width: 0;
+}
+.psb-lote-input {
+  /* override del .aur-input dentro del header de la card para no parecer pesado */
+  background: var(--aur-bg-hover);
+}
+.psb-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Grid principal: bloque · plantas · densidad · área */
+.psb-row-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.psb-row-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.psb-row-field label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.psb-row-field--readonly .psb-row-area {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
+  padding: 9px 12px;
+  background: var(--aur-bg-hover);
+  border-radius: var(--aur-r-input);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.psb-row-error {
+  font-size: 11px;
+  color: var(--aur-danger);
+  letter-spacing: -0.01em;
+}
+
+/* Footer: material select + toggle cerrado */
+.psb-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.psb-row-mat-select {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* ── Botón "Agregar fila" ────────────────────────────────────────────────── */
+.psb-add-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed var(--aur-divider-2);
+  border-radius: var(--aur-r-pill);
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.psb-add-row:hover:not(:disabled) {
+  color: var(--aur-accent);
+  border-color: var(--aur-accent);
+  background: var(--aur-accent-tint);
+}
+.psb-add-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Footer del form (gestionar materiales · guardar) ───────────────────── */
+.psb-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--aur-divider);
+  margin-top: 18px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMBOBOX (LoteCombobox) — dropdown portaled
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.psb-combo-dropdown {
+  position: absolute;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--aur-bg-modal);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: 12px;
+  box-shadow: var(--aur-shadow-modal);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  z-index: 1100;
+  max-height: 240px;
+  overflow-y: auto;
+  font-feature-settings: 'ss01', 'cv11';
+}
+.psb-combo-option {
+  padding: 8px 12px;
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text);
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: background 0.12s ease;
+}
+.psb-combo-option:hover,
+.psb-combo-option--active {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL "Nuevo material" — form modal sobre .aur-modal-*. La estructura del
+   modal viene de aurora.css; esto solo agrupa los 3 labels+input en columnas
+   con padding alineado al body del modal.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.psb-mat-modal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 22px 18px 22px;
+}
+.psb-mat-modal-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  letter-spacing: -0.01em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE (≤ 768px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .psb-sheet {
+    padding: 20px 16px;
+    border-radius: 18px;
+  }
+  .psb-row-head {
+    flex-wrap: wrap;
+  }
+  .psb-row-lote {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .psb-row-actions {
+    margin-left: auto;
+  }
+  .psb-row-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .psb-row-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .psb-row-mat-select {
+    min-width: 0;
+  }
+  .psb-form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .psb-form-actions .aur-btn-pill {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .psb-row-grid {
+    grid-template-columns: 1fr;
+  }
+}
