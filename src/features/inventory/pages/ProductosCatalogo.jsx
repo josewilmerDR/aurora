@@ -60,7 +60,7 @@ function ProductosCatalogo() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="catalog-top-bar">
-        <button className="btn btn-secondary catalog-back-btn" onClick={() => navigate('/productos')}>
+        <button className="aur-chip catalog-back-btn" onClick={() => navigate('/productos')}>
           <FiArrowLeft size={15} /> Volver a Bodega
         </button>
         <div className="product-filters">
@@ -113,10 +113,10 @@ function ProductosCatalogo() {
                   {p.stockActual} {p.unidad}
                 </span>
                 <div className="lote-actions">
-                  <button onClick={() => handleEdit(p)} className="icon-btn" title="Editar">
+                  <button onClick={() => handleEdit(p)} className="aur-icon-btn" title="Editar">
                     <FiEdit size={18} />
                   </button>
-                  <button onClick={() => handleDelete(p.id)} className="icon-btn delete" title="Eliminar">
+                  <button onClick={() => handleDelete(p.id)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar">
                     <FiTrash2 size={18} />
                   </button>
                 </div>

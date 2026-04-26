@@ -561,13 +561,13 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
           <div className="toma-fisica-footer">
             <button
               type="button"
-              className="btn btn-secondary"
+              className="aur-btn-text"
               onClick={() => { if (isNew) { clearFormDraft(); clearDraftActive('nuevo-producto'); } onClose(); }}
               disabled={saving}
             >
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
+            <button type="submit" className="aur-btn-pill" disabled={saving}>
               {saving ? 'Guardando…' : isNew ? 'Crear producto' : 'Guardar cambios'}
             </button>
           </div>
