@@ -117,11 +117,14 @@ function SamplingHistory() {
   };
 
   return (
-    <div className="lote-management-layout">
+    <div className="mh-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Filtros */}
       <section className="aur-section mh-filtros-section">
+        <div className="aur-section-header">
+          <h3>Filtros</h3>
+        </div>
         <div className="monitoreo-filtros">
           <div className="aur-field">
             <label className="aur-field-label" htmlFor="filt-lote">Lote</label>
@@ -149,78 +152,87 @@ function SamplingHistory() {
       </section>
 
       {/* Tabla */}
-      {loading ? (
-        <div className="mon-loading" />
-      ) : displayRows.length === 0 ? (
-        <p className="empty-state">No hay registros de monitoreo para los filtros seleccionados.</p>
-      ) : (
-        <div className="mh-outer">
-          <table className="mh-historial-table">
-            <thead>
-              <tr>
-                <th>F. Programada</th>
-                <th>F. Carga</th>
-                <th>Muestreador</th>
-                <th>Supervisor</th>
-                <th>Lote</th>
-                <th>Grupo</th>
-                <th>Notas</th>
-                {tipoCampos.map(c => (
-                  <th key={c.nombre} className="mh-th-dyn">
-                    {c.nombre}
-                  </th>
-                ))}
-                <th className="mh-th-actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {displayRows.map((row, rowIdx) => {
-                const { mon: r, reg, isFirst, regIdx, regTotal } = row;
-                return (
-                  <tr
-                    key={`${r.id}-${rowIdx}`}
-                    className={`mh-data-row${isFirst ? '' : ' mh-data-row--sub'}`}
-                  >
-                    <td>{fmt(r.fecha)}</td>
-                    <td>{fmt(r.createdAt)}</td>
-                    <td>{r.responsableNombre || '—'}</td>
-                    <td>{r.supervisorNombre || '—'}</td>
-                    <td>{r.loteNombre || '—'}</td>
-                    <td>{r.bloque || '—'}</td>
-                    <td className="mh-td-notas" title={r.observaciones || undefined}>
-                      {r.observaciones || ''}
-                    </td>
-                    {tipoCampos.map(c => (
-                      <td key={c.nombre} className="mh-td-dyn">{getDynCell(reg, c.nombre)}</td>
-                    ))}
-                    <td className="mh-td-actions">
-                      {isFirst && r.scanImageUrl && (
-                        <a
-                          href={r.scanImageUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mh-img-btn"
-                          title="Ver imagen de escaneo"
-                        >
-                          <FiImage size={13} />
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                        onClick={() => setConfirmDelete({ monId: r.id, regIdx, regTotal })}
-                        title={regTotal > 1 && regIdx !== null ? 'Eliminar esta línea' : 'Eliminar registro'}
-                      >
-                        <FiTrash2 size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <h3>Registros de monitoreo</h3>
+          <span className="aur-section-count">{displayRows.length}</span>
         </div>
-      )}
+
+        {loading ? (
+          <div className="mon-loading" />
+        ) : displayRows.length === 0 ? (
+          <div className="mh-state mh-state--empty">
+            No hay registros de monitoreo para los filtros seleccionados.
+          </div>
+        ) : (
+          <div className="aur-table-wrap">
+            <table className="aur-table mh-historial-table">
+              <thead>
+                <tr>
+                  <th>F. Programada</th>
+                  <th>F. Carga</th>
+                  <th>Muestreador</th>
+                  <th>Supervisor</th>
+                  <th>Lote</th>
+                  <th>Grupo</th>
+                  <th>Notas</th>
+                  {tipoCampos.map(c => (
+                    <th key={c.nombre} className="mh-th-dyn">
+                      {c.nombre}
+                    </th>
+                  ))}
+                  <th className="mh-th-actions" aria-hidden="true" />
+                </tr>
+              </thead>
+              <tbody>
+                {displayRows.map((row, rowIdx) => {
+                  const { mon: r, reg, isFirst, regIdx, regTotal } = row;
+                  return (
+                    <tr
+                      key={`${r.id}-${rowIdx}`}
+                      className={`mh-data-row${isFirst ? '' : ' mh-data-row--sub'}`}
+                    >
+                      <td>{fmt(r.fecha)}</td>
+                      <td>{fmt(r.createdAt)}</td>
+                      <td>{r.responsableNombre || '—'}</td>
+                      <td>{r.supervisorNombre || '—'}</td>
+                      <td>{r.loteNombre || '—'}</td>
+                      <td>{r.bloque || '—'}</td>
+                      <td className="mh-td-notas" title={r.observaciones || undefined}>
+                        {r.observaciones || ''}
+                      </td>
+                      {tipoCampos.map(c => (
+                        <td key={c.nombre} className="mh-td-dyn">{getDynCell(reg, c.nombre)}</td>
+                      ))}
+                      <td className="mh-td-actions">
+                        {isFirst && r.scanImageUrl && (
+                          <a
+                            href={r.scanImageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mh-img-btn"
+                            title="Ver imagen de escaneo"
+                          >
+                            <FiImage size={13} />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                          onClick={() => setConfirmDelete({ monId: r.id, regIdx, regTotal })}
+                          title={regTotal > 1 && regIdx !== null ? 'Eliminar esta línea' : 'Eliminar registro'}
+                        >
+                          <FiTrash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {confirmDelete && (
         <AuroraConfirmModal
