@@ -21,9 +21,10 @@
   flex-wrap: wrap;
 }
 .ap-title {
-  font-size: 1.15rem;
+  font-size: var(--aur-fs-title3);
   font-weight: 700;
-  color: var(--aurora-light);
+  color: var(--aur-text);
+  letter-spacing: -0.02em;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -36,54 +37,24 @@
   flex-wrap: wrap;
 }
 
-/* ── Mode badges ── */
+/* aur-badge ya provee bg/color/radius/padding; aquí sólo añadimos el
+   tracking en mayúsculas (estilo "MODE TAG") que distingue al mode-badge
+   del badge default y le da el tono de "estado del agente". */
 .ap-mode-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 700;
   white-space: nowrap;
 }
-.ap-mode-badge--off    { background: rgba(230,242,255,0.08); color: rgba(230,242,255,0.4); border: 1px solid rgba(230,242,255,0.12); }
-.ap-mode-badge--nivel1 { background: rgba(30,100,255,0.15);  color: #6ab0ff;              border: 1px solid rgba(30,100,255,0.25); }
-.ap-mode-badge--nivel2 { background: rgba(255,140,0,0.15);   color: #ffb347;              border: 1px solid rgba(255,140,0,0.25); }
-.ap-mode-badge--nivel3 { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); border: 1px solid rgba(204,51,255,0.3); }
 
 .ap-header-off-hint {
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   font-style: italic;
 }
 
-/* ── Analyze button ── */
-.ap-analyze-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  border: none;
-  border-radius: 7px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s, box-shadow 0.15s;
-  white-space: nowrap;
-}
-.ap-analyze-btn:hover:not(:disabled) {
-  opacity: 0.88;
-  box-shadow: 0 0 14px rgba(51,255,153,0.3);
-}
-.ap-analyze-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+/* aur-btn-pill provee toda la base; aquí sólo el spinner de la icono
+   refresh (sin alterar el shape/color del botón). */
 @keyframes ap-spin {
   to { transform: rotate(360deg); }
 }
@@ -91,28 +62,21 @@
   animation: ap-spin 0.8s linear infinite;
 }
 
-/* ── Config link ── */
+/* aur-btn-text provee la base (transparent + hover); aquí compactamos
+   el padding para que quepa en el header junto al pill de Analizar. */
 .ap-config-link {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  text-decoration: none;
+  font-size: var(--aur-fs-footnote);
   padding: 6px 10px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  transition: opacity 0.15s;
   white-space: nowrap;
 }
-.ap-config-link:hover { opacity: 1; }
 
-/* ── Last run timestamp ── */
+/* ── Last run timestamp — texto pequeño aux ── */
 .ap-last-run {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.76rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   white-space: nowrap;
 }
 
@@ -127,18 +91,17 @@
   border: 1px solid;
 }
 .ap-notice--off {
-  border-color: var(--aurora-border);
-  background: rgba(230,242,255,0.03);
-  color: var(--aurora-light);
-  opacity: 0.6;
+  border-color: var(--aur-divider);
+  background: var(--aur-bg-hover);
+  color: var(--aur-text-2);
 }
 .ap-notice--error {
-  border-color: rgba(204,51,255,0.3);
-  background: rgba(204,51,255,0.08);
-  color: var(--aurora-magenta);
+  border-color: rgba(204, 51, 255, 0.3);
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
 }
 
-/* ── Empty state ── */
+/* ── Empty state — card grande con icono central ── */
 .ap-empty {
   display: flex;
   flex-direction: column;
@@ -146,17 +109,17 @@
   justify-content: center;
   gap: 10px;
   padding: 60px 20px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   text-align: center;
-  color: var(--aurora-light);
+  color: var(--aur-text);
 }
-.ap-empty-icon { opacity: 0.2; color: var(--aurora-green); }
-.ap-empty-sub  { opacity: 0.45; font-size: 0.86rem; margin: 0; }
+.ap-empty-icon { opacity: 0.25; color: var(--aur-accent); }
+.ap-empty-sub  { color: var(--aur-text-3); font-size: var(--aur-fs-footnote); margin: 0; }
 .ap-empty p    { margin: 0; }
 
-/* ── Snapshot bar ── */
+/* ── Snapshot bar — 5 metric cards (bespoke layout, system tokens) ── */
 .ap-snapshot-bar {
   display: flex;
   gap: 10px;
@@ -165,17 +128,17 @@
 .ap-snapshot-stat {
   flex: 1;
   min-width: 100px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 .ap-snapshot-stat--magenta {
-  border-color: rgba(204,51,255,0.3);
-  background: rgba(204,51,255,0.05);
+  border-color: rgba(204, 51, 255, 0.3);
+  background: rgba(204, 51, 255, 0.05);
 }
 .ap-snapshot-stat-top {
   display: flex;
@@ -185,26 +148,25 @@
 .ap-snapshot-stat-value {
   font-size: 1.35rem;
   font-weight: 700;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   line-height: 1;
 }
 .ap-snapshot-stat-icon { opacity: 0.4; }
 .ap-snapshot-stat-label {
-  font-size: 0.7rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-/* ── Recommendation groups ── */
+/* ── Recommendation/action groups ── */
 .ap-recs { display: flex; flex-direction: column; gap: 18px; }
 .ap-rec-group { display: flex; flex-direction: column; gap: 8px; }
 .ap-rec-group-title {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 0.72rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -212,20 +174,20 @@
   padding: 0 2px;
 }
 .ap-rec-group-title--alta  { color: var(--aurora-magenta); }
-.ap-rec-group-title--media { color: var(--aurora-green); }
-.ap-rec-group-title--baja  { color: var(--aurora-light); opacity: 0.4; }
+.ap-rec-group-title--media { color: var(--aur-accent); }
+.ap-rec-group-title--baja  { color: var(--aur-text-3); }
 
-/* ── Recommendation cards ── */
+/* ── Recommendation cards — collapsible con left-border tonal por prioridad ── */
 .ap-rec-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
   border-left-width: 3px;
-  border-radius: 8px;
+  border-radius: var(--aur-r-card);
   overflow: hidden;
 }
 .ap-rec-card--alta  { border-left-color: var(--aurora-magenta); }
-.ap-rec-card--media { border-left-color: var(--aurora-green); }
-.ap-rec-card--baja  { border-left-color: var(--aurora-border); }
+.ap-rec-card--media { border-left-color: var(--aur-accent); }
+.ap-rec-card--baja  { border-left-color: var(--aur-divider); }
 
 .ap-rec-card-header {
   display: flex;
@@ -234,67 +196,64 @@
   padding: 12px 14px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.12s;
+  transition: background 0.12s ease;
 }
-.ap-rec-card-header:hover { background: rgba(230,242,255,0.03); }
+.ap-rec-card-header:hover { background: var(--aur-bg-hover); }
 
-.ap-rec-cat-icon  { opacity: 0.45; flex-shrink: 0; color: var(--aurora-light); }
+.ap-rec-cat-icon  { color: var(--aur-text-3); flex-shrink: 0; }
 .ap-rec-categoria {
-  font-size: 0.68rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  opacity: 0.5;
+  color: var(--aur-text-3);
   flex-shrink: 0;
   min-width: 72px;
-  color: var(--aurora-light);
 }
 .ap-rec-titulo {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: var(--aur-fs-body);
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
 }
-.ap-rec-expand { opacity: 0.25; font-size: 0.6rem; flex-shrink: 0; color: var(--aurora-light); }
+.ap-rec-expand { color: var(--aur-text-3); font-size: 0.6rem; flex-shrink: 0; }
 
 .ap-rec-card-body {
   padding: 0 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
 }
 .ap-rec-descripcion {
-  font-size: 0.86rem;
-  color: var(--aurora-light);
-  opacity: 0.82;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   line-height: 1.55;
   margin: 0;
   padding-top: 12px;
 }
 .ap-rec-contexto {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.65;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
   line-height: 1.5;
-  background: rgba(230,242,255,0.04);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 8px 12px;
 }
 .ap-rec-accion {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.75;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   line-height: 1.5;
-  background: rgba(51,255,153,0.05);
-  border: 1px solid rgba(51,255,153,0.18);
-  border-radius: 5px;
+  background: var(--aur-accent-tint);
+  border: 1px solid rgba(51, 255, 153, 0.18);
+  border-radius: var(--aur-r-card);
   padding: 8px 12px;
 }
 .ap-rec-label {
   font-weight: 700;
-  opacity: 0.55;
+  color: var(--aur-text-3);
   margin-right: 4px;
 }
 
@@ -302,23 +261,23 @@
 .ap-config-layout { display: flex; flex-direction: column; gap: 20px; }
 
 
-/* ── AI Summary box (nivel2) ── */
+/* ── AI Summary box (nivel2/nivel3) — bandeja warn con icono Cpu ── */
 .ap-summary-box {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 12px 16px;
-  background: rgba(255,140,0,0.06);
-  border: 1px solid rgba(255,140,0,0.2);
-  border-radius: 8px;
-  font-size: 0.86rem;
-  color: var(--aurora-light);
+  background: var(--aur-warn-tint);
+  border: 1px solid rgba(255, 180, 50, 0.2);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   line-height: 1.55;
 }
-.ap-summary-box p { margin: 0; opacity: 0.8; }
-.ap-summary-icon { flex-shrink: 0; margin-top: 2px; color: #ffb347; opacity: 0.7; }
+.ap-summary-box p { margin: 0; color: var(--aur-text-2); }
+.ap-summary-icon { flex-shrink: 0; margin-top: 2px; color: var(--aur-warn); opacity: 0.85; }
 
-/* ── Action Queue (Level 2) ── */
+/* ── Action Queue (Level 2/3) ── */
 .ap-actions-section {
   display: flex;
   flex-direction: column;
@@ -328,18 +287,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.95rem;
+  font-size: var(--aur-fs-callout);
   font-weight: 700;
-  color: #ffb347;
+  color: var(--aur-warn);
+  letter-spacing: -0.01em;
   margin: 0;
 }
+/* aur-badge--{yellow,green,gray} provee bg/color; aquí sólo el spacing
+   horizontal que separa el contador del título de la sección. */
 .ap-actions-count {
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: rgba(255,140,0,0.15);
-  color: #ffb347;
-  padding: 2px 8px;
-  border-radius: 10px;
   margin-left: 6px;
 }
 .ap-action-group {
@@ -348,52 +304,46 @@
   gap: 8px;
 }
 
-/* ── Action Card ── */
+/* ── Action Card — left-border tonal por prioridad + status modifiers ── */
 .ap-action-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
   border-left-width: 3px;
-  border-radius: 8px;
+  border-radius: var(--aur-r-card);
   overflow: hidden;
 }
 .ap-action-card--pri-alta  { border-left-color: var(--aurora-magenta); }
-.ap-action-card--pri-media { border-left-color: #ffb347; }
-.ap-action-card--pri-baja  { border-left-color: var(--aurora-border); }
+.ap-action-card--pri-media { border-left-color: var(--aur-warn); }
+.ap-action-card--pri-baja  { border-left-color: var(--aur-divider); }
 
 .ap-action-card--executed  { opacity: 0.65; }
 .ap-action-card--rejected  { opacity: 0.45; }
-.ap-action-card--failed    { border-left-color: #ff4444; }
+.ap-action-card--failed    { border-left-color: var(--aur-danger); }
 
 .ap-action-card-header {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
 }
-.ap-action-type-icon { opacity: 0.5; color: var(--aurora-light); }
+.ap-action-type-icon { color: var(--aur-text-3); }
 .ap-action-type-label {
-  font-size: 0.72rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  opacity: 0.6;
-  color: var(--aurora-light);
+  color: var(--aur-text-3);
 }
+/* aur-badge ya provee bg/color/radius/padding según el variant; aquí
+   solo añadimos el margin-left:auto para empujarlo a la derecha del
+   header del card y el tracking en mayúsculas estilo "tag". */
 .ap-action-status {
   margin-left: auto;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  font-weight: 700;
 }
-.ap-action-status--proposed { background: rgba(255,140,0,0.15); color: #ffb347; }
-.ap-action-status--approved { background: rgba(51,255,153,0.15); color: var(--aurora-green); }
-.ap-action-status--executed { background: rgba(51,255,153,0.15); color: var(--aurora-green); }
-.ap-action-status--rejected { background: rgba(255,68,68,0.12); color: #ff6b6b; }
-.ap-action-status--failed   { background: rgba(255,68,68,0.12); color: #ff6b6b; }
 
 .ap-action-card-body {
   padding: 10px 14px;
@@ -402,15 +352,15 @@
   gap: 6px;
 }
 .ap-action-titulo {
-  font-size: 0.88rem;
+  font-size: var(--aur-fs-body);
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
   margin: 0;
 }
 .ap-action-descripcion {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.65;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
   margin: 0;
   line-height: 1.5;
 }
@@ -418,12 +368,11 @@
   list-style: none;
   padding: 8px 12px;
   margin: 4px 0 0;
-  background: rgba(230,242,255,0.04);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.75;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -433,11 +382,18 @@
   opacity: 0.4;
 }
 
-/* ── Action Buttons ── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACTION BUTTONS — modificadores slim sobre aur-btn-pill / aur-btn-text
+   Cada acción (aprobar/rechazar/revertir/cancelar) usa un aur-btn-pill--sm
+   o aur-btn-text del sistema. Aquí sólo el container + el rollback que
+   no tiene equivalente en el set base de variants (warning ámbar).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .ap-action-buttons {
   display: flex;
   gap: 8px;
   padding: 8px 14px 12px;
+  flex-wrap: wrap;
 }
 .ap-action-locked {
   display: flex;
@@ -451,71 +407,48 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.78rem;
-  color: #6ab0ff;
-  line-height: 1.4;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-badge-blue-fg);
+  line-height: 1.45;
 }
-.ap-action-locked-notice strong { color: #6ab0ff; }
-.ap-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.ap-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.ap-action-btn--approve {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-}
-.ap-action-btn--reject {
-  background: rgba(255,68,68,0.15);
-  color: #ff6b6b;
-  border: 1px solid rgba(255,68,68,0.25);
-}
+.ap-action-locked-notice strong { color: var(--aur-badge-blue-fg); }
+
+/* Variante warning del aur-btn-pill — ámbar para "Revertir" (deshacer
+   acción ya ejecutada), distinto del verde "Aprobar" y del rojo "Rechazar". */
 .ap-action-btn--rollback {
-  background: rgba(255,140,0,0.12);
-  color: #ffb347;
-  border: 1px solid rgba(255,140,0,0.3);
+  background: var(--aur-warn);
+  color: var(--aurora-dark-blue);
+  box-shadow: 0 4px 14px rgba(255, 180, 50, 0.28);
+}
+.ap-action-btn--rollback:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(255, 180, 50, 0.4);
 }
 
-/* ── Reasoning panel ── */
+/* ── Reasoning panel — bandeja magenta de razonamiento Claude ── */
 .ap-action-reasoning {
   margin-top: 8px;
   padding: 6px 14px 0;
 }
+/* aur-btn-text provee la base; aquí compactamos el padding/fontsize porque
+   este toggle vive dentro de un card y necesita ser sutil. */
 .ap-action-reasoning-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  font-size: 0.76rem;
-  cursor: pointer;
+  font-size: var(--aur-fs-caption);
   padding: 2px 0;
 }
-.ap-action-reasoning-toggle:hover { opacity: 0.9; }
 .ap-action-reasoning-body {
   margin-top: 6px;
   padding: 8px 10px;
   background: rgba(204, 51, 255, 0.04);
   border: 1px solid rgba(204, 51, 255, 0.18);
-  border-radius: 6px;
+  border-radius: var(--aur-r-card);
 }
 .ap-action-reasoning-thinking {
   margin: 0 0 6px 0;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text);
   opacity: 0.88;
   max-height: 320px;
   overflow-y: auto;
@@ -524,68 +457,58 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 0.7rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  border-top: 1px dashed rgba(255,255,255,0.08);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
   padding-top: 6px;
 }
 .ap-action-reasoning-empty {
   margin: 0;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
 }
 .ap-action-reasoning-error {
   margin: 0;
-  font-size: 0.78rem;
-  color: #ff6b6b;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-danger);
 }
-.ap-action-btn--cancel {
-  background: rgba(230,242,255,0.08);
-  color: var(--aurora-light);
-  opacity: 0.6;
-}
-.ap-action-btn:hover:not(:disabled) { opacity: 0.85; }
 
-/* ── Confirm section ── */
+/* ── Confirm section — sub-row inline dentro del card ── */
 .ap-action-confirm {
   padding: 8px 14px 12px;
-  background: rgba(230,242,255,0.03);
-  border-top: 1px solid var(--aurora-border);
+  background: rgba(230, 242, 255, 0.03);
+  border-top: 1px solid var(--aur-divider);
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 .ap-action-confirm p {
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.7;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
   margin: 0;
 }
 .ap-action-confirm-buttons {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
-.ap-action-reject-input {
-  width: 100%;
-  padding: 6px 10px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  color: var(--aurora-light);
-  font-size: 0.8rem;
-}
-.ap-action-reject-input::placeholder { color: var(--aurora-light); opacity: 0.3; }
 
-/* ── Execution result ── */
+/* aur-input provee toda la base; aquí sólo compactamos el padding para
+   que el input quepa en la fila de confirmación dentro del card. */
+.ap-action-reject-input {
+  padding: 6px 10px;
+  font-size: var(--aur-fs-footnote);
+}
+
+/* ── Execution result — texto inline de status ── */
 .ap-action-result {
   padding: 6px 14px 10px;
-  font-size: 0.76rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
 }
-.ap-action-result--ok { color: var(--aurora-green); opacity: 0.7; }
-.ap-action-result--error { color: #ff6b6b; }
+.ap-action-result--ok { color: var(--aur-accent); opacity: 0.7; }
+.ap-action-result--error { color: var(--aur-danger); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    AUTOPILOT CONFIG — primitivas slim sobre aur-row del sistema
@@ -675,41 +598,35 @@
 
 /* ── Nivel 3 action sections ── */
 .ap-actions-title--n3 { color: var(--aurora-magenta); }
-.ap-actions-title--escalated { color: #ffb347; }
-.ap-actions-count--executed {
-  background: rgba(51,255,153,0.15);
-  color: var(--aurora-green);
-}
-
-/* ── Guardrail violation info ── */
+.ap-actions-title--escalated { color: var(--aur-warn); }
+/* ── Guardrail violation info — bandeja amarilla en el card ── */
 .ap-action-guardrail-info {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  font-size: 0.76rem;
-  color: #ffb347;
-  background: rgba(255,140,0,0.06);
-  border-top: 1px solid var(--aurora-border);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-warn);
+  background: var(--aur-warn-tint);
+  border-top: 1px solid var(--aur-divider);
 }
 
-/* ── Autonomous badge ── */
+/* aur-badge--violet provee bg/color; aquí sólo el spacing horizontal
+   junto al type-label del card. */
 .ap-action-badge-auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.62rem;
-  font-weight: 700;
+  margin-left: 6px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 2px 6px;
-  border-radius: 8px;
-  background: rgba(204,51,255,0.12);
-  color: var(--aurora-magenta);
-  margin-left: 6px;
+  font-weight: 700;
 }
 
-/* ── Feedback controls (thumbs up/down + comment) ── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEEDBACK CONTROLS — modificadores slim sobre aur-icon-btn
+   El thumb-up/-down toggle usa aur-icon-btn--sm; aquí sólo el container
+   (separator dashed + flex), el active-state coloreado por signal y los
+   sub-controles del comment-box (input compacto, save pill, cancel icon).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .ap-feedback {
   display: flex;
   align-items: center;
@@ -717,60 +634,46 @@
   flex-wrap: wrap;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px dashed var(--aurora-border);
+  border-top: 1px dashed var(--aur-divider);
 }
-.ap-fb-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  cursor: pointer;
-  opacity: 0.65;
-  transition: all 0.15s ease;
-}
-.ap-fb-btn:hover {
-  opacity: 1;
-  border-color: var(--aurora-green);
-}
-.ap-fb-btn:disabled { cursor: wait; opacity: 0.4; }
+
+/* Active states del aur-icon-btn — signal coloreado (verde útil / magenta
+   no-útil). Al hover normal, aur-icon-btn ya hace bg-hover; aquí lo
+   sobrescribimos con el tono del signal. */
 .ap-fb-btn--active-up {
-  background: rgba(51, 255, 153, 0.15);
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-  opacity: 1;
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+.ap-fb-btn--active-up:hover:not(:disabled) {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
 }
 .ap-fb-btn--active-down {
-  background: rgba(204, 51, 255, 0.15);
-  border-color: var(--aurora-magenta);
-  color: var(--aurora-magenta);
-  opacity: 1;
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
 }
+.ap-fb-btn--active-down:hover:not(:disabled) {
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
+}
+
 .ap-fb-comment-preview {
-  font-size: 0.72rem;
+  font-size: var(--aur-fs-caption);
   font-style: italic;
-  color: var(--aurora-light);
-  opacity: 0.75;
+  color: var(--aur-text-2);
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* aur-btn-text provee la base; aquí compactamos para que quepa al lado
+   del thumb-down y se vea como link sutil. */
 .ap-fb-comment-toggle {
-  background: transparent;
-  border: none;
-  color: var(--aurora-green);
-  font-size: 0.72rem;
-  cursor: pointer;
+  font-size: var(--aur-fs-caption);
   padding: 2px 4px;
-  text-decoration: underline;
 }
-.ap-fb-comment-toggle:hover { opacity: 0.8; }
+
 .ap-fb-comment-box {
   display: flex;
   align-items: center;
@@ -778,46 +681,15 @@
   flex: 1 1 220px;
   flex-wrap: wrap;
 }
+
+/* aur-input provee toda la base; aquí sólo flex-grow + padding compacto
+   para integrarse con los sub-botones save/cancel en línea. */
 .ap-fb-comment-input {
   flex: 1 1 180px;
   min-width: 160px;
   padding: 4px 8px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 4px;
-  color: var(--aurora-light);
-  font-size: 0.8rem;
+  font-size: var(--aur-fs-footnote);
 }
-.ap-fb-comment-input:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-.ap-fb-comment-save {
-  padding: 4px 10px;
-  background: var(--aurora-green);
-  border: none;
-  border-radius: 4px;
-  color: var(--aurora-dark-blue);
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.ap-fb-comment-save:hover { opacity: 0.9; }
-.ap-fb-comment-save:disabled { opacity: 0.5; cursor: wait; }
-.ap-fb-comment-cancel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--aurora-border);
-  border-radius: 4px;
-  color: var(--aurora-light);
-  cursor: pointer;
-}
-.ap-fb-comment-cancel:hover { border-color: var(--aurora-magenta); color: var(--aurora-magenta); }
 
 /* ── Directives panel (Mis preferencias) ──────────────────────────────────── */
 .ap-directives-add {

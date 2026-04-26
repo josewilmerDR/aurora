@@ -5,7 +5,7 @@ import {
   FiPackage, FiCalendar, FiDroplet, FiActivity, FiGrid, FiClock, FiCpu,
   FiCheck, FiX, FiSend, FiThumbsUp, FiThumbsDown,
   FiChevronDown, FiChevronUp, FiShoppingCart, FiFileText,
-  FiRotateCcw, FiUsers,
+  FiRotateCcw, FiUsers, FiSettings,
 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
@@ -20,6 +20,15 @@ const MODE_LABELS = {
   nivel1: 'Nivel 1 — Recomendaciones',
   nivel2: 'Nivel 2 — Agencia Supervisada',
   nivel3: 'Nivel 3 — Agencia Total',
+};
+
+// Mapping mode → aur-badge variant. Cada nivel toma el color significativo
+// del sistema (gray/blue/yellow/magenta) coherente con el slider.
+const MODE_BADGE_VARIANT = {
+  off:    'gray',
+  nivel1: 'blue',
+  nivel2: 'yellow',
+  nivel3: 'magenta',
 };
 
 const CATEGORIA_ICONS = {
@@ -84,6 +93,14 @@ const STATUS_LABELS = {
   failed:   'Fallida',
 };
 
+const STATUS_BADGE_VARIANT = {
+  proposed: 'yellow',
+  approved: 'green',
+  executed: 'green',
+  rejected: 'gray',
+  failed:   'magenta',
+};
+
 function formatTimestamp(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('es-CR', {
@@ -146,7 +163,7 @@ function FeedbackControls({ current, onSubmit }) {
     <div className="ap-feedback" onClick={e => e.stopPropagation()}>
       <button
         type="button"
-        className={`ap-fb-btn ${activeSignal === 'up' ? 'ap-fb-btn--active-up' : ''}`}
+        className={`aur-icon-btn aur-icon-btn--sm ap-fb-btn${activeSignal === 'up' ? ' ap-fb-btn--active-up' : ''}`}
         onClick={e => handleClick('up', e)}
         disabled={saving}
         title="Útil"
@@ -155,7 +172,7 @@ function FeedbackControls({ current, onSubmit }) {
       </button>
       <button
         type="button"
-        className={`ap-fb-btn ${activeSignal === 'down' ? 'ap-fb-btn--active-down' : ''}`}
+        className={`aur-icon-btn aur-icon-btn--sm ap-fb-btn${activeSignal === 'down' ? ' ap-fb-btn--active-down' : ''}`}
         onClick={e => handleClick('down', e)}
         disabled={saving}
         title="No útil"
@@ -170,7 +187,7 @@ function FeedbackControls({ current, onSubmit }) {
       {activeSignal === 'down' && showCommentFor !== 'down' && (
         <button
           type="button"
-          className="ap-fb-comment-toggle"
+          className="aur-btn-text ap-fb-comment-toggle"
           onClick={e => { e.stopPropagation(); setShowCommentFor('down'); setComment(current?.comment || ''); }}
         >
           {current?.comment ? 'Editar motivo' : 'Añadir motivo (opcional)'}
@@ -184,12 +201,12 @@ function FeedbackControls({ current, onSubmit }) {
             onChange={e => setComment(e.target.value)}
             placeholder="¿Qué no fue útil? (opcional)"
             maxLength={500}
-            className="ap-fb-comment-input"
+            className="aur-input ap-fb-comment-input"
             onClick={e => e.stopPropagation()}
           />
           <button
             type="button"
-            className="ap-fb-comment-save"
+            className="aur-btn-pill aur-btn-pill--sm"
             onClick={handleCommentSave}
             disabled={saving}
           >
@@ -197,8 +214,9 @@ function FeedbackControls({ current, onSubmit }) {
           </button>
           <button
             type="button"
-            className="ap-fb-comment-cancel"
+            className="aur-icon-btn aur-icon-btn--sm"
             onClick={e => { e.stopPropagation(); setShowCommentFor(null); setComment(current?.comment || ''); }}
+            title="Cancelar"
           >
             <FiX size={11} />
           </button>
@@ -347,6 +365,7 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
 
   const isActionable = action.status === 'proposed' && canApprove;
   const canBeRolledBack = action.status === 'executed' && !action.rolledBack && canRollback && !!onRollback;
+  const statusVariant = STATUS_BADGE_VARIANT[action.status] || 'gray';
 
   return (
     <div className={`ap-action-card ap-action-card--${action.status} ap-action-card--pri-${action.prioridad}`}>
@@ -354,9 +373,9 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
         <TypeIcon size={14} className="ap-action-type-icon" />
         <span className="ap-action-type-label">{ACTION_TYPE_LABELS[action.type] || action.type}</span>
         {action.autonomous && (
-          <span className="ap-action-badge-auto"><FiCpu size={10} /> Auto</span>
+          <span className="aur-badge aur-badge--violet ap-action-badge-auto"><FiCpu size={10} /> Auto</span>
         )}
-        <span className={`ap-action-status ap-action-status--${action.status}`}>
+        <span className={`aur-badge aur-badge--${statusVariant} ap-action-status`}>
           {STATUS_LABELS[action.status]}
         </span>
       </div>
@@ -379,10 +398,10 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
       {/* Botones aprobar/rechazar (o aviso de nivel insuficiente) */}
       {isActionable && !confirming && !levelLock && (
         <div className="ap-action-buttons">
-          <button className="ap-action-btn ap-action-btn--approve" onClick={() => setConfirming('approve')}>
+          <button className="aur-btn-pill aur-btn-pill--sm" onClick={() => setConfirming('approve')}>
             <FiCheck size={13} /> Aprobar y Ejecutar
           </button>
-          <button className="ap-action-btn ap-action-btn--reject" onClick={() => setConfirming('reject')}>
+          <button className="aur-btn-pill aur-btn-pill--sm aur-btn-pill--danger" onClick={() => setConfirming('reject')}>
             <FiX size={13} /> Rechazar
           </button>
         </div>
@@ -390,10 +409,10 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
       {isActionable && !confirming && levelLock && (
         <div className="ap-action-locked">
           <div className="ap-action-buttons">
-            <button className="ap-action-btn ap-action-btn--approve" disabled>
+            <button className="aur-btn-pill aur-btn-pill--sm" disabled>
               <FiCheck size={13} /> Aprobar y Ejecutar
             </button>
-            <button className="ap-action-btn ap-action-btn--reject" disabled>
+            <button className="aur-btn-pill aur-btn-pill--sm aur-btn-pill--danger" disabled>
               <FiX size={13} /> Rechazar
             </button>
           </div>
@@ -408,10 +427,10 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
         <div className="ap-action-confirm">
           <p>Esta acción se ejecutará inmediatamente. ¿Continuar?</p>
           <div className="ap-action-confirm-buttons">
-            <button className="ap-action-btn ap-action-btn--approve" onClick={handleApprove} disabled={processing}>
-              {processing ? 'Ejecutando...' : 'Confirmar'}
+            <button className="aur-btn-pill aur-btn-pill--sm" onClick={handleApprove} disabled={processing}>
+              {processing ? 'Ejecutando…' : 'Confirmar'}
             </button>
-            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+            <button className="aur-btn-text" onClick={() => setConfirming(null)} disabled={processing}>
               Cancelar
             </button>
           </div>
@@ -426,13 +445,13 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
             placeholder="Razón del rechazo (opcional)"
             value={rejectReason}
             onChange={e => setRejectReason(e.target.value)}
-            className="ap-action-reject-input"
+            className="aur-input ap-action-reject-input"
           />
           <div className="ap-action-confirm-buttons">
-            <button className="ap-action-btn ap-action-btn--reject" onClick={handleReject} disabled={processing}>
-              {processing ? 'Rechazando...' : 'Confirmar Rechazo'}
+            <button className="aur-btn-pill aur-btn-pill--sm aur-btn-pill--danger" onClick={handleReject} disabled={processing}>
+              {processing ? 'Rechazando…' : 'Confirmar Rechazo'}
             </button>
-            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+            <button className="aur-btn-text" onClick={() => setConfirming(null)} disabled={processing}>
               Cancelar
             </button>
           </div>
@@ -452,7 +471,7 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
       {/* Botón Revertir */}
       {canBeRolledBack && !confirming && (
         <div className="ap-action-buttons">
-          <button className="ap-action-btn ap-action-btn--rollback" onClick={() => setConfirming('rollback')}>
+          <button className="aur-btn-pill aur-btn-pill--sm ap-action-btn--rollback" onClick={() => setConfirming('rollback')}>
             <FiRotateCcw size={13} /> Revertir
           </button>
         </div>
@@ -463,10 +482,10 @@ function ActionCard({ action, onApprove, onReject, onRollback, canApprove, canRo
         <div className="ap-action-confirm">
           <p>Esto deshará el efecto de la acción. ¿Continuar?</p>
           <div className="ap-action-confirm-buttons">
-            <button className="ap-action-btn ap-action-btn--rollback" onClick={handleRollback} disabled={processing}>
+            <button className="aur-btn-pill aur-btn-pill--sm ap-action-btn--rollback" onClick={handleRollback} disabled={processing}>
               {processing ? 'Revirtiendo…' : 'Confirmar reversión'}
             </button>
-            <button className="ap-action-btn ap-action-btn--cancel" onClick={() => setConfirming(null)} disabled={processing}>
+            <button className="aur-btn-text" onClick={() => setConfirming(null)} disabled={processing}>
               Cancelar
             </button>
           </div>
@@ -516,7 +535,7 @@ function ReasoningPanel({ actionId }) {
 
   return (
     <div className="ap-action-reasoning">
-      <button type="button" className="ap-action-reasoning-toggle" onClick={handleToggle}>
+      <button type="button" className="aur-btn-text ap-action-reasoning-toggle" onClick={handleToggle}>
         {open ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
         {open ? 'Ocultar razonamiento' : 'Ver razonamiento del modelo'}
       </button>
@@ -759,6 +778,7 @@ export default function AutopilotDashboard() {
 
   const mode = config?.mode || 'off';
   const canConfig = hasMinRole(currentUser?.rol, 'supervisor');
+  const modeBadgeVariant = MODE_BADGE_VARIANT[mode] || 'gray';
 
   const recommendations = latestSession?.recommendations || [];
   const byPriority = (p) => recommendations.filter(r => r.prioridad === p);
@@ -772,7 +792,7 @@ export default function AutopilotDashboard() {
       <div className="ap-header">
         <div className="ap-header-left">
           <h1 className="ap-title"><FiCpu size={18} /> Aurora Copilot</h1>
-          <span className={`ap-mode-badge ap-mode-badge--${mode}`}>
+          <span className={`aur-badge aur-badge--${modeBadgeVariant} ap-mode-badge`}>
             {MODE_LABELS[mode] || mode}
           </span>
           {!loading && mode === 'off' && (
@@ -791,16 +811,16 @@ export default function AutopilotDashboard() {
             </span>
           )}
           <button
-            className="ap-analyze-btn"
+            className="aur-btn-pill aur-btn-pill--sm ap-analyze-btn"
             onClick={handleAnalyze}
             disabled={analyzing || mode === 'off' || loading}
           >
             <FiRefreshCw size={14} className={analyzing ? 'ap-spin' : ''} />
-            {analyzing ? 'Analizando...' : 'Analizar Ahora'}
+            {analyzing ? 'Analizando…' : 'Analizar Ahora'}
           </button>
           {canConfig && (
-            <Link to="/autopilot/configuracion" className="ap-config-link">
-              Configurar
+            <Link to="/autopilot/configuracion" className="aur-btn-text ap-config-link">
+              <FiSettings size={13} /> Configurar
             </Link>
           )}
         </div>
@@ -899,7 +919,7 @@ export default function AutopilotDashboard() {
           <h2 className="ap-actions-title">
             <FiZap size={14} /> Acciones Propuestas
             {pendingCount > 0 && (
-              <span className="ap-actions-count">{pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}</span>
+              <span className="aur-badge aur-badge--yellow ap-actions-count">{pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}</span>
             )}
           </h2>
           {['alta', 'media', 'baja'].map(prioridad => {
@@ -936,7 +956,7 @@ export default function AutopilotDashboard() {
         <div className="ap-actions-section">
           <h2 className="ap-actions-title ap-actions-title--n3">
             <FiZap size={14} /> Acciones Ejecutadas
-            <span className="ap-actions-count ap-actions-count--executed">
+            <span className="aur-badge aur-badge--green ap-actions-count">
               {executedActions.filter(a => a.status === 'executed').length} ejecutada{executedActions.filter(a => a.status === 'executed').length !== 1 ? 's' : ''}
             </span>
           </h2>
@@ -962,7 +982,7 @@ export default function AutopilotDashboard() {
         <div className="ap-actions-section">
           <h2 className="ap-actions-title ap-actions-title--escalated">
             <FiAlertTriangle size={14} /> Acciones Escaladas
-            <span className="ap-actions-count">
+            <span className="aur-badge aur-badge--yellow ap-actions-count">
               {proposedActions.filter(a => a.status === 'proposed' && a.escalated).length} pendiente{proposedActions.filter(a => a.status === 'proposed' && a.escalated).length !== 1 ? 's' : ''}
             </span>
           </h2>
