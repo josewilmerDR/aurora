@@ -497,30 +497,34 @@ function SamplingPackages() {
                 </div>
 
                 {isEditing ? (
-                  <form onSubmit={saveForm} className="lote-form" style={{ padding: '0.5rem 1rem 0.75rem' }}>
-                    <div className="form-grid">
-                      <div className="form-control">
-                        <label htmlFor="tecnicoResponsable">Técnico responsable</label>
-                        <input
-                          id="tecnicoResponsable"
-                          value={formData.tecnicoResponsable}
-                          onChange={e => updateFormField('tecnicoResponsable', e.target.value)}
-                          placeholder="Nombre del técnico responsable"
-                          maxLength={MAX_TECNICO}
-                        />
+                  <form onSubmit={saveForm} className="spk-form spk-form--edit">
+                    <section className="aur-section">
+                      <div className="aur-list">
+                        <div className="aur-row">
+                          <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
+                          <input
+                            id="tecnicoResponsable"
+                            className="aur-input"
+                            value={formData.tecnicoResponsable}
+                            onChange={e => updateFormField('tecnicoResponsable', e.target.value)}
+                            placeholder="Nombre del técnico responsable"
+                            maxLength={MAX_TECNICO}
+                          />
+                        </div>
+                        <div className="aur-row aur-row--multiline">
+                          <label className="aur-row-label" htmlFor="descripcion">Descripción</label>
+                          <textarea
+                            id="descripcion"
+                            className="aur-textarea"
+                            value={formData.descripcion}
+                            onChange={e => updateFormField('descripcion', e.target.value)}
+                            placeholder="Ej: Paquete de muestreo fitosanitario para etapa de desarrollo."
+                            maxLength={MAX_DESCRIPCION}
+                            rows={3}
+                          />
+                        </div>
                       </div>
-                      <div className="form-control form-control--full">
-                        <label htmlFor="descripcion">Descripción</label>
-                        <textarea
-                          id="descripcion"
-                          value={formData.descripcion}
-                          onChange={e => updateFormField('descripcion', e.target.value)}
-                          placeholder="Ej: Paquete de muestreo fitosanitario para etapa de desarrollo."
-                          maxLength={MAX_DESCRIPCION}
-                          rows={3}
-                        />
-                      </div>
-                    </div>
+                    </section>
 
                     <ActivitiesEditor
                       activities={formData.activities}
@@ -534,42 +538,50 @@ function SamplingPackages() {
                 )}
               </div>
             ) : showNew ? (
-              <div className="form-card">
-                <p className="form-section-title">Nuevo Paquete de Muestreos</p>
-                <form onSubmit={saveForm} className="lote-form">
-                  <div className="form-grid">
-                    <div className="form-control">
-                      <label htmlFor="nombrePaquete">Nombre del paquete</label>
-                      <input
-                        id="nombrePaquete"
-                        value={formData.nombrePaquete}
-                        onChange={e => updateFormField('nombrePaquete', e.target.value)}
-                        maxLength={MAX_NOMBRE_PAQUETE}
-                        required
-                      />
+              <div className="aur-sheet">
+                <form onSubmit={saveForm} className="spk-form spk-form--new">
+                  <section className="aur-section">
+                    <div className="aur-section-header">
+                      <span className="aur-section-num">+</span>
+                      <h3>Nuevo paquete de muestreos</h3>
                     </div>
-                    <div className="form-control">
-                      <label htmlFor="tecnicoResponsable">Técnico responsable</label>
-                      <input
-                        id="tecnicoResponsable"
-                        value={formData.tecnicoResponsable}
-                        onChange={e => updateFormField('tecnicoResponsable', e.target.value)}
-                        placeholder="Nombre del técnico responsable"
-                        maxLength={MAX_TECNICO}
-                      />
+                    <div className="aur-list">
+                      <div className="aur-row">
+                        <label className="aur-row-label" htmlFor="nombrePaquete">Nombre del paquete</label>
+                        <input
+                          id="nombrePaquete"
+                          className="aur-input"
+                          value={formData.nombrePaquete}
+                          onChange={e => updateFormField('nombrePaquete', e.target.value)}
+                          maxLength={MAX_NOMBRE_PAQUETE}
+                          required
+                        />
+                      </div>
+                      <div className="aur-row">
+                        <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
+                        <input
+                          id="tecnicoResponsable"
+                          className="aur-input"
+                          value={formData.tecnicoResponsable}
+                          onChange={e => updateFormField('tecnicoResponsable', e.target.value)}
+                          placeholder="Nombre del técnico responsable"
+                          maxLength={MAX_TECNICO}
+                        />
+                      </div>
+                      <div className="aur-row aur-row--multiline">
+                        <label className="aur-row-label" htmlFor="descripcion">Descripción</label>
+                        <textarea
+                          id="descripcion"
+                          className="aur-textarea"
+                          value={formData.descripcion}
+                          onChange={e => updateFormField('descripcion', e.target.value)}
+                          placeholder="Ej: Paquete de muestreo fitosanitario para etapa de desarrollo."
+                          maxLength={MAX_DESCRIPCION}
+                          rows={3}
+                        />
+                      </div>
                     </div>
-                    <div className="form-control form-control--full">
-                      <label htmlFor="descripcion">Descripción</label>
-                      <textarea
-                        id="descripcion"
-                        value={formData.descripcion}
-                        onChange={e => updateFormField('descripcion', e.target.value)}
-                        placeholder="Ej: Paquete de muestreo fitosanitario para etapa de desarrollo."
-                        maxLength={MAX_DESCRIPCION}
-                        rows={3}
-                      />
-                    </div>
-                  </div>
+                  </section>
 
                   <ActivitiesEditor
                     activities={formData.activities}
@@ -579,9 +591,9 @@ function SamplingPackages() {
                     autoExpandFirst
                   />
 
-                  <div className="form-actions">
-                    <button type="submit" className="aur-btn-pill">Crear paquete</button>
+                  <div className="aur-form-actions">
                     <button type="button" className="aur-btn-text" onClick={cancelNew}>Cancelar</button>
+                    <button type="submit" className="aur-btn-pill">Crear paquete</button>
                   </div>
                 </form>
               </div>

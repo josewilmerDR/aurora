@@ -381,27 +381,38 @@ function TemplateConfig() {
                 )}
               </div>
             ) : showNew ? (
-              <div className="form-card">
-                <p className="form-section-title">Nueva Plantilla de Muestreo</p>
-                <div className="form-control">
-                  <label>Nombre</label>
-                  <input
-                    value={newTipo.nombre}
-                    onChange={e => setNewTipo(prev => ({ ...prev, nombre: e.target.value }))}
-                    placeholder="Ej: Muestreo de pH"
-                    maxLength={MAX_NOMBRE_PLANTILLA}
-                  />
-                </div>
-                <div className="tipo-campos-edit" style={{ marginTop: '0.75rem' }}>
-                  <p className="campos-edit-label">Campos del formulario</p>
-                  <CamposEditor
-                    campos={newTipo.campos}
-                    onChange={campos => setNewTipo(prev => ({ ...prev, campos }))}
-                  />
-                </div>
-                <div className="form-actions">
-                  <button className="aur-btn-pill" onClick={saveNew}>Crear plantilla</button>
-                  <button className="aur-btn-text" onClick={() => setShowNew(false)}>Cancelar</button>
+              <div className="aur-sheet">
+                <div className="tpl-form tpl-form--new">
+                  <section className="aur-section">
+                    <div className="aur-section-header">
+                      <span className="aur-section-num">+</span>
+                      <h3>Nueva plantilla de muestreo</h3>
+                    </div>
+                    <div className="aur-list">
+                      <div className="aur-row">
+                        <label className="aur-row-label" htmlFor="tpl-nombre">Nombre</label>
+                        <input
+                          id="tpl-nombre"
+                          className="aur-input"
+                          value={newTipo.nombre}
+                          onChange={e => setNewTipo(prev => ({ ...prev, nombre: e.target.value }))}
+                          placeholder="Ej: Muestreo de pH"
+                          maxLength={MAX_NOMBRE_PLANTILLA}
+                        />
+                      </div>
+                    </div>
+                  </section>
+                  <div className="tipo-campos-edit">
+                    <p className="campos-edit-label">Campos del formulario</p>
+                    <CamposEditor
+                      campos={newTipo.campos}
+                      onChange={campos => setNewTipo(prev => ({ ...prev, campos }))}
+                    />
+                  </div>
+                  <div className="aur-form-actions">
+                    <button type="button" className="aur-btn-text" onClick={() => setShowNew(false)}>Cancelar</button>
+                    <button type="button" className="aur-btn-pill" onClick={saveNew}>Crear plantilla</button>
+                  </div>
                 </div>
               </div>
             ) : null}
