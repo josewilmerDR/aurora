@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { FiFilter, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import '../../applications/styles/historial.css';
 
 const PAGE_SIZE = 50;
@@ -255,35 +255,17 @@ function UnitPayrollHistory() {
       </div>
 
       {/* ── Popover filtro de columna ── */}
-      {filterPopover && createPortal(
-        <>
-          <div className="historial-filter-backdrop" onClick={() => setFilterPopover(null)} />
-          <div
-            className="historial-filter-popover"
-            style={{ left: filterPopover.x, top: filterPopover.y }}
-          >
-            <FiFilter size={13} className="historial-filter-popover-icon" />
-            <input
-              autoFocus
-              className="historial-filter-input"
-              placeholder="Filtrar…"
-              maxLength={COL_FILTER_MAX}
-              value={colFilters[filterPopover.field] || ''}
-              onChange={e => setColFilter(filterPopover.field, e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
-            />
-            {colFilters[filterPopover.field] && (
-              <button
-                className="historial-filter-clear"
-                title="Limpiar filtro"
-                onClick={() => { setColFilter(filterPopover.field, ''); setFilterPopover(null); }}
-              >
-                <FiX size={13} />
-              </button>
-            )}
-          </div>
-        </>,
-        document.body
+      {filterPopover && (
+        <AuroraFilterPopover
+          x={filterPopover.x}
+          y={filterPopover.y}
+          filterType="text"
+          textValue={colFilters[filterPopover.field] || ''}
+          onTextChange={(value) => setColFilter(filterPopover.field, value)}
+          textMaxLength={COL_FILTER_MAX}
+          onClear={() => setColFilter(filterPopover.field, '')}
+          onClose={() => setFilterPopover(null)}
+        />
       )}
     </>
   );

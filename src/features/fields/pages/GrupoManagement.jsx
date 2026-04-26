@@ -5,6 +5,7 @@ import '../styles/grupo-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1121,75 +1122,30 @@ function GrupoManagement() {
       )}
 
       {/* ── Filter popover (tabla de bloques) ── */}
-      {bloqueFilterPop && createPortal(
-        <>
-          <div className="historial-filter-backdrop" onClick={() => setBloqueFilterPop(null)} />
-          <div
-            className={`historial-filter-popover${bloqueFilterPop.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
-            style={{ left: bloqueFilterPop.x, top: bloqueFilterPop.y }}
-          >
-            <FiFilter size={13} className="historial-filter-popover-icon" />
-            {bloqueFilterPop.filterType !== 'text' ? (
-              <>
-                <div className="historial-filter-range">
-                  <div className="historial-filter-range-row">
-                    <span className="historial-filter-range-label">De</span>
-                    <input
-                      autoFocus
-                      type={bloqueFilterPop.filterType}
-                      className="historial-filter-input"
-                      value={bloqueColFilters[bloqueFilterPop.field]?.from || ''}
-                      onChange={e => setBloqueColFilter(bloqueFilterPop.field, {
-                        type: 'range',
-                        from: e.target.value,
-                        to: bloqueColFilters[bloqueFilterPop.field]?.to || '',
-                      })}
-                      onKeyDown={e => { if (e.key === 'Escape') setBloqueFilterPop(null); }}
-                    />
-                  </div>
-                  <div className="historial-filter-range-row">
-                    <span className="historial-filter-range-label">A</span>
-                    <input
-                      type={bloqueFilterPop.filterType}
-                      className="historial-filter-input"
-                      value={bloqueColFilters[bloqueFilterPop.field]?.to || ''}
-                      onChange={e => setBloqueColFilter(bloqueFilterPop.field, {
-                        type: 'range',
-                        from: bloqueColFilters[bloqueFilterPop.field]?.from || '',
-                        to: e.target.value,
-                      })}
-                      onKeyDown={e => { if (e.key === 'Escape') setBloqueFilterPop(null); }}
-                    />
-                  </div>
-                </div>
-                {(bloqueColFilters[bloqueFilterPop.field]?.from || bloqueColFilters[bloqueFilterPop.field]?.to) && (
-                  <button className="historial-filter-clear" title="Limpiar filtro"
-                    onClick={() => { setBloqueColFilter(bloqueFilterPop.field, null); setBloqueFilterPop(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <input
-                  autoFocus
-                  className="historial-filter-input"
-                  placeholder="Filtrar…"
-                  value={bloqueColFilters[bloqueFilterPop.field]?.value || ''}
-                  onChange={e => setBloqueColFilter(bloqueFilterPop.field, { type: 'text', value: e.target.value })}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setBloqueFilterPop(null); }}
-                />
-                {bloqueColFilters[bloqueFilterPop.field]?.value && (
-                  <button className="historial-filter-clear" title="Limpiar filtro"
-                    onClick={() => { setBloqueColFilter(bloqueFilterPop.field, null); setBloqueFilterPop(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </>,
-        document.body
+      {bloqueFilterPop && (
+        bloqueFilterPop.filterType !== 'text' ? (
+          <AuroraFilterPopover
+            x={bloqueFilterPop.x}
+            y={bloqueFilterPop.y}
+            filterType={bloqueFilterPop.filterType}
+            fromValue={bloqueColFilters[bloqueFilterPop.field]?.from || ''}
+            toValue={bloqueColFilters[bloqueFilterPop.field]?.to || ''}
+            onFromChange={(from) => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from, to: bloqueColFilters[bloqueFilterPop.field]?.to || '' })}
+            onToChange={(to) => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from: bloqueColFilters[bloqueFilterPop.field]?.from || '', to })}
+            onClear={() => setBloqueColFilter(bloqueFilterPop.field, null)}
+            onClose={() => setBloqueFilterPop(null)}
+          />
+        ) : (
+          <AuroraFilterPopover
+            x={bloqueFilterPop.x}
+            y={bloqueFilterPop.y}
+            filterType="text"
+            textValue={bloqueColFilters[bloqueFilterPop.field]?.value || ''}
+            onTextChange={(value) => setBloqueColFilter(bloqueFilterPop.field, { type: 'text', value })}
+            onClear={() => setBloqueColFilter(bloqueFilterPop.field, null)}
+            onClose={() => setBloqueFilterPop(null)}
+          />
+        )
       )}
 
       {/* ── Column menu (tabla de bloques) ── */}
