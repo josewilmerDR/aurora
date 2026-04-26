@@ -739,23 +739,23 @@
   font-size: 0.82rem;
 }
 
-.grupo-hub .hor-table-wrap {
+.grupo-hub .aur-table-wrap {
   border-radius: 0;
 }
 
-.grupo-hub .hor-table {
+.grupo-hub .aur-table {
   width: auto;
   min-width: 0;
 }
 
-.grupo-hub .hor-table th,
-.grupo-hub .hor-table td {
+.grupo-hub .aur-table th,
+.grupo-hub .aur-table td {
   padding: 7px 8px;
   white-space: nowrap;
 }
 
 @media (max-width: 768px) {
-  .grupo-hub .hor-table-wrap {
+  .grupo-hub .aur-table-wrap {
     margin-left: -24px;
     margin-right: -24px;
   }

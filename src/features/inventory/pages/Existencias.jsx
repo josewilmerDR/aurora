@@ -2,10 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-// Legacy: .hor-col-toggle-btn, .hor-col-menu*, .hor-col-hidden-badge desde
-// horimetro.css. Migrar a .aur-col-menu* de aurora.css cuando Existencias se
-// rediseñe a .aur-*.
-import '../../machinery/styles/horimetro.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -596,7 +592,7 @@ function Existencias() {
                     ))}
                     <th className="pg-col-del">
                       <button
-                        className={`hor-col-toggle-btn${visibleCols.size < COLUMNS.length ? ' hor-col-toggle-btn--active' : ''}`}
+                        className={`aur-col-menu-trigger${visibleCols.size < COLUMNS.length ? ' is-active' : ''}`}
                         onClick={handleColMenuOpen}
                         title="Gestionar columnas"
                       >
@@ -764,28 +760,30 @@ function Existencias() {
       {/* Column menu portal */}
       {colMenu && createPortal(
         <>
-          <div className="hor-col-menu-backdrop" onClick={() => setColMenu(null)} />
+          <div className="aur-filter-backdrop" onClick={() => setColMenu(null)} />
           <div
-            className={`hor-col-menu${colMenu.cols > 1 ? ' hor-col-menu--multi' : ''}`}
+            className={`aur-col-menu${colMenu.cols > 1 ? ' aur-col-menu--multi' : ''}`}
             style={{ left: colMenu.x, top: colMenu.y, maxHeight: colMenu.availableH, ...(colMenu.cols > 1 ? { width: colMenu.cols * 190 } : {}) }}
           >
-            <div className="hor-col-menu-title">Columnas visibles</div>
-            <div className={`hor-col-menu-items${colMenu.cols > 1 ? ' hor-col-menu-items--multi' : ''}`}>
+            <div className="aur-col-menu-title">Columnas visibles</div>
+            <div className={`aur-col-menu-items${colMenu.cols > 1 ? ' aur-col-menu-items--multi' : ''}`}>
               {COLUMNS.map(col => (
-                <button
+                <label
                   key={col.key}
-                  className={`hor-col-menu-item${!visibleCols.has(col.key) ? ' is-hidden' : ''}${col.required ? ' col-picker-required' : ''}`}
-                  onClick={() => !col.required && toggleCol(col.key)}
-                  disabled={col.required}
+                  className={`aur-col-menu-item${col.required ? ' aur-col-menu-item--disabled' : ''}`}
                 >
-                  <span className="hor-col-menu-check" />
-                  {col.label}
-                  {col.required && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: '0.75em' }}>🔒</span>}
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={visibleCols.has(col.key)}
+                    disabled={col.required}
+                    onChange={() => !col.required && toggleCol(col.key)}
+                  />
+                  <span>{col.label}{col.required && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: '0.75em' }}>🔒</span>}</span>
+                </label>
               ))}
             </div>
             {visibleCols.size < COLUMNS.filter(c => c.defaultVisible).length && (
-              <button className="hor-col-menu-reset" onClick={() => {
+              <button className="aur-col-menu-reset" onClick={() => {
                 const def = new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
                 localStorage.setItem(LS_KEY, JSON.stringify([...def]));
                 setVisibleCols(def);
