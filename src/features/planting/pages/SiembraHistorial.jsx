@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -13,44 +13,21 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../styles/siembra.css';
 import '../styles/siembra-historial.css';
 
-// ── Sort utilities (same as Siembra.jsx) ─────────────────────────────────────
-const SORT_FIELDS = [
-  { value: 'fecha',    label: 'Fecha' },
-  { value: 'lote',     label: 'Lote' },
-  { value: 'bloque',   label: 'Bloque' },
-  { value: 'plantas',  label: 'Plantas' },
-  { value: 'area',     label: 'Área' },
-  { value: 'material', label: 'Material' },
-  { value: 'variedad', label: 'Variedad' },
-  { value: 'fechaCierre', label: 'F. Cierre' },
-];
-
+// ── Sort utilities ──────────────────────────────────────────────────────────
 function getSortVal(r, field) {
   switch (field) {
-    case 'fecha':    return r.fecha || '';
-    case 'lote':     return (r.loteNombre || '').toLowerCase();
-    case 'bloque':   return (r.bloque || '').toLowerCase();
-    case 'plantas':  return r.plantas || 0;
-    case 'area':     return r.areaCalculada || 0;
-    case 'material': return (r.materialNombre || '').toLowerCase();
-    case 'variedad': return (r.variedad || '').toLowerCase();
-    case 'fechaCierre': return r.fechaCierre || '';
+    case 'fecha':       return r.fecha?.slice(0,10) || '';
+    case 'lote':        return (r.loteNombre || '').toLowerCase();
+    case 'bloque':      return (r.bloque || '').toLowerCase();
+    case 'plantas':     return r.plantas || 0;
+    case 'densidad':    return r.densidad || 0;
+    case 'area':        return r.areaCalculada || 0;
+    case 'material':    return (r.materialNombre || '').toLowerCase();
+    case 'variedad':    return (r.variedad || '').toLowerCase();
+    case 'responsable': return (r.responsableNombre || '').toLowerCase();
+    case 'fcierre':     return r.fechaCierre?.slice(0,10) || '';
     default:            return '';
   }
-}
-
-function applySort(data, sortConfig) {
-  const active = sortConfig.filter(s => s.field);
-  if (!active.length) return [...data];
-  return [...data].sort((a, b) => {
-    for (const { field, dir } of active) {
-      const av = getSortVal(a, field);
-      const bv = getSortVal(b, field);
-      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-      if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
-    }
-    return 0;
-  });
 }
 
 const COLUMNS = [
@@ -247,7 +224,7 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
   );
 }
 
-// ── Modal editar registro de siembra ─────────────────────────────────────────
+// ── Modal editar registro de siembra (sobre .aur-modal-*) ───────────────────
 function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving }) {
   const [fecha, setFecha]           = useState(record.fecha ? record.fecha.slice(0, 10) : '');
   const [loteId, setLoteId]         = useState(record.loteId || '');
@@ -284,59 +261,59 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
   };
 
   return createPortal(
-    <div className="am-backdrop" onPointerDown={onCancel}>
-      <div className="am-modal am-modal--wide" onPointerDown={e => e.stopPropagation()}>
-        <div className="am-modal-header">
-          <span className="am-modal-icon">
+    <div className="aur-modal-backdrop" onPointerDown={onCancel}>
+      <div className="aur-modal aur-modal--wide" onPointerDown={e => e.stopPropagation()}>
+        <div className="aur-modal-header">
+          <span className="aur-modal-icon">
             <FiEdit2 size={14} />
           </span>
-          <span className="am-modal-title">Editar registro de siembra</span>
+          <span className="aur-modal-title">Editar registro de siembra</span>
         </div>
-        <div className="am-modal-grid">
-          <label className="am-field">
-            <span className="am-field-label">Fecha</span>
-            <input className="am-field-input" type="date" value={fecha}
+        <div className="aur-modal-grid">
+          <label className="aur-field">
+            <span className="aur-field-label">Fecha</span>
+            <input className="aur-input" type="date" value={fecha}
               onChange={e => setFecha(e.target.value)} disabled={saving} />
           </label>
-          <label className="am-field">
-            <span className="am-field-label">Lote</span>
-            <select className="am-field-input" value={loteId}
+          <label className="aur-field">
+            <span className="aur-field-label">Lote</span>
+            <select className="aur-select" value={loteId}
               onChange={e => setLoteId(e.target.value)} disabled={saving}>
               <option value="">— seleccionar —</option>
               {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
             </select>
           </label>
-          <label className="am-field">
-            <span className="am-field-label">Bloque</span>
-            <input className="am-field-input" placeholder="Ej: A" value={bloque}
+          <label className="aur-field">
+            <span className="aur-field-label">Bloque</span>
+            <input className="aur-input" placeholder="Ej: A" value={bloque}
               maxLength={4}
               onChange={e => setBloque(e.target.value)} disabled={saving} />
           </label>
-          <label className="am-field">
-            <span className="am-field-label">Plantas</span>
+          <label className="aur-field">
+            <span className="aur-field-label">Plantas</span>
             <input
-              className={`am-field-input${plantasInvalid ? ' am-field-input--error' : ''}`}
+              className={`aur-input aur-input--num${plantasInvalid ? ' aur-input--error' : ''}`}
               type="number" min="0" max="199999" value={plantas}
               onChange={e => setPlantas(e.target.value)} disabled={saving}
             />
-            {plantasInvalid && <span className="am-field-error">Debe ser entre 0 y 199 999</span>}
+            {plantasInvalid && <span className="aur-field-error">Debe ser entre 0 y 199 999</span>}
           </label>
-          <label className="am-field">
-            <span className="am-field-label">Densidad <span className="am-field-hint">pl/ha</span></span>
+          <label className="aur-field">
+            <span className="aur-field-label">Densidad <span className="aur-field-hint">pl/ha</span></span>
             <input
-              className={`am-field-input${densidadInvalid ? ' am-field-input--error' : ''}`}
+              className={`aur-input aur-input--num${densidadInvalid ? ' aur-input--error' : ''}`}
               type="number" min="0" max="199999" value={densidad}
               onChange={e => setDensidad(e.target.value)} disabled={saving}
             />
-            {densidadInvalid && <span className="am-field-error">Debe ser entre 0 y 199 999</span>}
+            {densidadInvalid && <span className="aur-field-error">Debe ser entre 0 y 199 999</span>}
           </label>
-          <label className="am-field">
-            <span className="am-field-label">Área calculada</span>
-            <input className="am-field-input am-field-input--readonly" value={area ? area + ' ha' : '—'} readOnly disabled />
+          <label className="aur-field">
+            <span className="aur-field-label">Área calculada</span>
+            <input className="aur-input aur-input--readonly aur-input--num" value={area ? area + ' ha' : '—'} readOnly disabled />
           </label>
-          <label className="am-field am-field--full">
-            <span className="am-field-label">Material</span>
-            <select className="am-field-input" value={materialId}
+          <label className="aur-field aur-field--full">
+            <span className="aur-field-label">Material</span>
+            <select className="aur-select" value={materialId}
               onChange={e => setMaterialId(e.target.value)} disabled={saving}>
               <option value="">— sin material —</option>
               {materiales.map(m => (
@@ -347,11 +324,11 @@ function EditSiembraModal({ record, lotes, materiales, onSave, onCancel, saving 
             </select>
           </label>
         </div>
-        <div className="am-modal-actions">
-          <button type="button" className="am-btn-text" onClick={onCancel} disabled={saving}>Cancelar</button>
+        <div className="aur-modal-actions">
+          <button type="button" className="aur-btn-text" onClick={onCancel} disabled={saving}>Cancelar</button>
           <button
             type="button"
-            className="am-btn-pill"
+            className="aur-btn-pill"
             disabled={!fecha || !loteId || saving || plantasInvalid || densidadInvalid}
             onClick={handleSave}
           >
@@ -401,22 +378,6 @@ function SiembraHistorial() {
     if (sortField !== field) { setSortField(field); setSortDir('desc'); }
     else if (sortDir === 'desc') { setSortDir('asc'); }
     else { setSortField(null); setSortDir(null); }
-  };
-
-  const getColVal = (r, key) => {
-    switch(key) {
-      case 'fecha':       return r.fecha?.slice(0,10) || '';
-      case 'lote':        return (r.loteNombre || '').toLowerCase();
-      case 'bloque':      return (r.bloque || '').toLowerCase();
-      case 'plantas':     return r.plantas || 0;
-      case 'densidad':    return r.densidad || 0;
-      case 'area':        return r.areaCalculada || 0;
-      case 'material':    return (r.materialNombre || '').toLowerCase();
-      case 'variedad':    return (r.variedad || '').toLowerCase();
-      case 'responsable': return (r.responsableNombre || '').toLowerCase();
-      case 'fcierre':     return r.fechaCierre?.slice(0,10) || '';
-      default:            return '';
-    }
   };
 
   const openColFilter = (e, field, type) => {
@@ -484,9 +445,9 @@ function SiembraHistorial() {
         for (const [key, fv] of activeColFilters) {
           const col = COLUMNS.find(c => c.key === key);
           if (!col) continue;
-          const val = getColVal(r, key);
+          const val = getSortVal(r, key);
           if (col.type === 'text') {
-            if (fv.text && !val.includes(fv.text.toLowerCase())) return false;
+            if (fv.text && !String(val).includes(fv.text.toLowerCase())) return false;
           } else if (col.type === 'date') {
             if (!val) return false;
             if (fv.from && val < fv.from) return false;
@@ -499,7 +460,14 @@ function SiembraHistorial() {
         return true;
       });
     }
-    data = applySort(data, sortField && sortDir ? [{ field: sortField, dir: sortDir }] : []);
+    if (sortField && sortDir) {
+      data.sort((a, b) => {
+        const av = getSortVal(a, sortField);
+        const bv = getSortVal(b, sortField);
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
     return data;
   }, [registros, colFilters, sortField, sortDir]);
 
@@ -611,6 +579,20 @@ function SiembraHistorial() {
     XLSX.writeFile(wb, `siembras_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const exportCSV = () => {
+    const rows = buildExportRows();
+    const csv = [EXPORT_HEADERS, ...rows]
+      .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `siembras_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const SortTh = ({ col, children }) => {
     const isSort   = sortField === col.key;
     const hasFilt  = !!colFilters[col.key];
@@ -636,22 +618,8 @@ function SiembraHistorial() {
     );
   };
 
-  const exportCSV = () => {
-    const rows = buildExportRows();
-    const csv = [EXPORT_HEADERS, ...rows]
-      .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `siembras_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
   return (
-    <div className="sh-layout">
+    <div className="shp-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
       {editRecord && (
@@ -674,164 +642,161 @@ function SiembraHistorial() {
       )}
 
       {loading ? (
-        <div className="siembra-page-loading" />
+        <div className="shp-loading" />
       ) : registros.length === 0 ? (
-        <div className="sh-page sh-page--empty">
-          <div className="sh-page-empty">
+        <div className="aur-sheet aur-sheet--empty shp-historial">
+          <div className="shp-empty">
             <FiPackage size={36} />
             <p>No hay registros aún. Crea el primero en Registro de Siembra.</p>
-            <Link to="/siembra" state={{ openForm: true }} className="sh-btn-pill">
+            <Link to="/siembra" state={{ openForm: true }} className="aur-btn-pill">
               Ir a Registro de Siembra
             </Link>
           </div>
         </div>
       ) : (
-        <div className="sh-page">
+        <div className="aur-sheet shp-historial">
 
-      <header className="sh-page-header">
-        <div className="sh-page-header-text">
-          <h2 className="sh-page-title">Historial de siembra</h2>
-          <p className="sh-page-subtitle">Consulta, filtra, exporta y comparte los registros guardados.</p>
-        </div>
-        <Link to="/siembra" className="sh-chip sh-chip--ghost sh-page-back">
-          <FiChevronLeft size={12} /> Registro
-        </Link>
-      </header>
+          <header className="aur-sheet-header">
+            <div className="aur-sheet-header-text">
+              <h2 className="aur-sheet-title">Historial de siembra</h2>
+              <p className="aur-sheet-subtitle">Consulta, filtra, exporta y comparte los registros guardados.</p>
+            </div>
+            <div className="aur-sheet-header-actions">
+              <Link to="/siembra" className="aur-chip aur-chip--ghost">
+                <FiChevronLeft size={12} /> Registro
+              </Link>
+            </div>
+          </header>
 
-      <section className="sh-page-section">
-        <div className="sh-page-section-header">
-          <span className="sh-page-section-num">01</span>
-          <h3>Resumen</h3>
-        </div>
-        <div className="sh-stats-bar">
-          <div className="sh-stat sh-stat-hide-mobile">
-            <span className="sh-stat-value">{displayData.length}</span>
-            <span className="sh-stat-label">Registros</span>
-          </div>
-          <div className="sh-stat-divider sh-stat-hide-mobile" />
-          <div className="sh-stat">
-            <span className="sh-stat-value">{stats.totalPlantas.toLocaleString()}</span>
-            <span className="sh-stat-label">Plantas totales</span>
-          </div>
-          <div className="sh-stat-divider" />
-          <div className="sh-stat">
-            <span className="sh-stat-value">{stats.totalArea} ha</span>
-            <span className="sh-stat-label">Área calculada</span>
-          </div>
-          <div className="sh-stat-divider sh-stat-hide-mobile" />
-          <div className="sh-stat sh-stat-hide-mobile">
-            <span className="sh-stat-value sh-stat-green">{stats.cerrados}</span>
-            <span className="sh-stat-label">Bloques cerrados</span>
-          </div>
-        </div>
-      </section>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">01</span>
+              <h3>Resumen</h3>
+            </div>
+            <div className="shp-stats">
+              <div className="shp-stat shp-stat--hide-mobile">
+                <span className="shp-stat-value">{displayData.length}</span>
+                <span className="shp-stat-label">Registros</span>
+              </div>
+              <div className="shp-stat">
+                <span className="shp-stat-value">{stats.totalPlantas.toLocaleString()}</span>
+                <span className="shp-stat-label">Plantas totales</span>
+              </div>
+              <div className="shp-stat">
+                <span className="shp-stat-value">{stats.totalArea} ha</span>
+                <span className="shp-stat-label">Área calculada</span>
+              </div>
+              <div className="shp-stat shp-stat--hide-mobile">
+                <span className="shp-stat-value shp-stat-value--accent">{stats.cerrados}</span>
+                <span className="shp-stat-label">Bloques cerrados</span>
+              </div>
+            </div>
+          </section>
 
-      <section className="sh-page-section">
-        <div className="sh-page-section-header">
-          <span className="sh-page-section-num">02</span>
-          <h3>Registros</h3>
-          <span className="sh-page-section-count">{displayData.length}</span>
-          <div className="sh-page-section-actions print-hide">
-            <button type="button" className="sh-chip" onClick={exportXLSX} title="Exportar a Excel">
-              <FiDownload size={12} /> Excel
-            </button>
-            <button type="button" className="sh-chip" onClick={exportCSV} title="Exportar a CSV">
-              <FiDownload size={12} /> CSV
-            </button>
-            <button type="button" className="sh-chip" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
-              <FiShare2 size={12} /> Compartir
-            </button>
-          </div>
-        </div>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">02</span>
+              <h3>Registros</h3>
+              <span className="aur-section-count">{displayData.length}</span>
+              <div className="aur-section-actions print-hide">
+                <button type="button" className="aur-chip" onClick={exportXLSX} title="Exportar a Excel">
+                  <FiDownload size={12} /> Excel
+                </button>
+                <button type="button" className="aur-chip" onClick={exportCSV} title="Exportar a CSV">
+                  <FiDownload size={12} /> CSV
+                </button>
+                <button type="button" className="aur-chip" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
+                  <FiShare2 size={12} /> Compartir
+                </button>
+              </div>
+            </div>
 
-        <div className="siembra-historial sh-table-card">
-          <div className="historial-top-row">
-            <span className="sh-result-count print-hide">
-              {displayData.length === registros.length
-                ? `${registros.length} registros`
-                : `${displayData.length} de ${registros.length} registros`}
-            </span>
-            {Object.keys(colFilters).length > 0 && (
-              <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-                <FiX size={11} /> Limpiar filtros
-              </button>
-            )}
-          </div>
+            <div className="siembra-historial shp-table-card">
+              <div className="historial-top-row">
+                <span className="sh-result-count print-hide">
+                  {displayData.length === registros.length
+                    ? `${registros.length} registros`
+                    : `${displayData.length} de ${registros.length} registros`}
+                </span>
+                {Object.keys(colFilters).length > 0 && (
+                  <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
+                    <FiX size={11} /> Limpiar filtros
+                  </button>
+                )}
+              </div>
 
-          {displayData.length === 0 ? (
-          <p className="empty-state">No hay registros con los filtros aplicados.</p>
-        ) : (
-          <div className="siembra-table-wrapper">
-            <table className="siembra-table siembra-table-historial">
-              <thead>
-                <tr>
-                  {COLUMNS.map(col => visibleCols[col.key] && (
-                    <SortTh key={col.key} col={col}>
-                      {col.label}{col.key === 'densidad' ? <span style={{opacity:0.55, fontSize:'0.78rem'}}> pl/ha</span> : ''}
-                    </SortTh>
-                  ))}
-                  <th className="sh-th-settings print-hide">
-                    <button
-                      className={`sh-col-toggle-btn${Object.values(visibleCols).some(v=>!v) ? ' sh-col-toggle-btn--active' : ''}`}
-                      onClick={handleColBtnClick}
-                      title="Personalizar columnas"
-                    >
-                      <FiSliders size={12} />
-                      {Object.values(visibleCols).filter(v=>!v).length > 0 && (
-                        <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v=>!v).length}</span>
-                      )}
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayData.map(r => (
-                    <tr key={r.id}
-                        className={r.cerrado ? 'row-cerrado' : ''}
-                      >
-                        {visibleCols.fecha       && <td className="td-readonly" data-col="fecha">{formatFecha(r.fecha)}</td>}
-                        {visibleCols.lote        && <td data-col="lote">{r.loteNombre}</td>}
-                        {visibleCols.bloque      && <td data-col="bloque">{r.bloque || '—'}</td>}
-                        {visibleCols.plantas     && <td className="td-num" data-col="plantas">{r.plantas?.toLocaleString()}</td>}
-                        {visibleCols.densidad    && <td className="td-num" data-col="densidad">{r.densidad?.toLocaleString()}</td>}
-                        {visibleCols.area        && <td className="td-calc" data-col="area">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>}
-                        {visibleCols.material    && <td data-col="mat">{r.materialNombre || '—'}</td>}
-                        {visibleCols.variedad    && <td data-col="variedad">{r.variedad || '—'}</td>}
-                        {visibleCols.responsable && <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>}
-                        {visibleCols.fcierre     && <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>}
-                        <td className="print-hide" data-col="menu">
-                          <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
-                            <button
-                              className="hist-kebab-btn"
-                              onClick={e => {
-                                if (rowMenu === r.id) { setRowMenu(null); return; }
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setRowMenuPos({
-                                  top: rect.bottom + 4,
-                                  right: window.innerWidth - rect.right,
-                                });
-                                setRowMenu(r.id);
-                              }}
-                            >
-                              <FiMoreVertical size={16} />
-                            </button>
-                          </div>
-                        </td>
+              {displayData.length === 0 ? (
+                <p className="shp-table-empty">No hay registros con los filtros aplicados.</p>
+              ) : (
+                <div className="siembra-table-wrapper">
+                  <table className="siembra-table siembra-table-historial">
+                    <thead>
+                      <tr>
+                        {COLUMNS.map(col => visibleCols[col.key] && (
+                          <SortTh key={col.key} col={col}>
+                            {col.label}{col.key === 'densidad' ? <span style={{opacity:0.55, fontSize:'0.78rem'}}> pl/ha</span> : ''}
+                          </SortTh>
+                        ))}
+                        <th className="sh-th-settings print-hide">
+                          <button
+                            className={`sh-col-toggle-btn${Object.values(visibleCols).some(v=>!v) ? ' sh-col-toggle-btn--active' : ''}`}
+                            onClick={handleColBtnClick}
+                            title="Personalizar columnas"
+                          >
+                            <FiSliders size={12} />
+                            {Object.values(visibleCols).filter(v=>!v).length > 0 && (
+                              <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v=>!v).length}</span>
+                            )}
+                          </button>
+                        </th>
                       </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    </thead>
+                    <tbody>
+                      {displayData.map(r => (
+                        <tr key={r.id} className={r.cerrado ? 'row-cerrado' : ''}>
+                          {visibleCols.fecha       && <td className="td-readonly" data-col="fecha">{formatFecha(r.fecha)}</td>}
+                          {visibleCols.lote        && <td data-col="lote">{r.loteNombre}</td>}
+                          {visibleCols.bloque      && <td data-col="bloque">{r.bloque || '—'}</td>}
+                          {visibleCols.plantas     && <td className="td-num" data-col="plantas">{r.plantas?.toLocaleString()}</td>}
+                          {visibleCols.densidad    && <td className="td-num" data-col="densidad">{r.densidad?.toLocaleString()}</td>}
+                          {visibleCols.area        && <td className="td-calc" data-col="area">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>}
+                          {visibleCols.material    && <td data-col="mat">{r.materialNombre || '—'}</td>}
+                          {visibleCols.variedad    && <td data-col="variedad">{r.variedad || '—'}</td>}
+                          {visibleCols.responsable && <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>}
+                          {visibleCols.fcierre     && <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>}
+                          <td className="print-hide" data-col="menu">
+                            <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
+                              <button
+                                className="hist-kebab-btn"
+                                onClick={e => {
+                                  if (rowMenu === r.id) { setRowMenu(null); return; }
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setRowMenuPos({
+                                    top: rect.bottom + 4,
+                                    right: window.innerWidth - rect.right,
+                                  });
+                                  setRowMenu(r.id);
+                                }}
+                              >
+                                <FiMoreVertical size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
-          {displayData.some(r => r.cerrado) && (
-            <p className="siembra-cerrado-hint print-hide">
-              <FiAlertCircle size={13} />
-              Los bloques cerrados están listos para iniciar aplicaciones.
-            </p>
-          )}
-        </div>
-      </section>
+              {displayData.some(r => r.cerrado) && (
+                <p className="siembra-cerrado-hint print-hide">
+                  <FiAlertCircle size={13} />
+                  Los bloques cerrados están listos para iniciar aplicaciones.
+                </p>
+              )}
+            </div>
+          </section>
         </div>
       )}
 
