@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { FiEdit2, FiSave, FiX, FiAlertTriangle } from 'react-icons/fi';
+import { FiEdit2, FiSave, FiX } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/parameters.css';
 
@@ -46,74 +46,63 @@ function fromApi(data) {
 // ── Unlock confirmation modal ─────────────────────────────────────────────────
 function UnlockModal({ onConfirm, onCancel }) {
   const [checked, setChecked] = useState(false);
-  return createPortal(
-    <div className="param-modal-backdrop">
-      <div className="param-modal">
-        <div className="param-modal-header">
-          <FiAlertTriangle size={18} className="param-modal-icon-warn" />
-          <span>Editar parámetros del sistema</span>
-        </div>
-        <p className="param-modal-body">
+  return (
+    <AuroraConfirmModal
+      title="Editar parámetros del sistema"
+      body={(
+        <>
           Modificar estos valores afectará los cálculos de <strong>fechas estimadas de cosecha</strong>,
           <strong> Kg estimados</strong> y <strong>KPIs</strong> en toda la plataforma,
           incluyendo grupos y registros existentes.
-        </p>
-        <label className="param-modal-check">
-          <input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />
-          Entiendo las implicaciones y deseo continuar
-        </label>
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
-          <button className="btn btn-primary" disabled={!checked} onClick={onConfirm}>
-            Continuar
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+        </>
+      )}
+      confirmLabel="Continuar"
+      confirmDisabled={!checked}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
+      <label className="param-modal-check">
+        <input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />
+        Entiendo las implicaciones y deseo continuar
+      </label>
+    </AuroraConfirmModal>
   );
 }
 
 // ── Save confirmation modal ──────────────────────────────────────────────────
 function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
   const changes = ALL_PARAMS.filter(p => Number(saved[p.key]) !== Number(draft[p.key]));
-  return createPortal(
-    <div className="param-modal-backdrop">
-      <div className="param-modal param-modal--save">
-        <div className="param-modal-header">
-          <FiSave size={16} />
-          <span>Confirmar cambios</span>
-        </div>
-        {changes.length === 0 ? (
-          <p className="param-modal-body">No hay cambios respecto a los valores actuales.</p>
-        ) : (
-          <>
-            <p className="param-modal-body">Se guardarán los siguientes cambios:</p>
-            <table className="param-diff-table">
-              <thead>
-                <tr><th>Parámetro</th><th>Anterior</th><th>Nuevo</th></tr>
-              </thead>
-              <tbody>
-                {changes.map(p => (
-                  <tr key={p.key}>
-                    <td>{p.label}</td>
-                    <td className="param-diff-old">{saved[p.key]} {p.unit}</td>
-                    <td className="param-diff-new">{draft[p.key]} {p.unit}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-        <div className="param-modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel} disabled={loading}>Cancelar</button>
-          <button className="btn btn-primary" onClick={onConfirm} disabled={loading}>
-            {loading ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+  return (
+    <AuroraConfirmModal
+      title="Confirmar cambios"
+      icon={<FiSave size={16} />}
+      size="wide"
+      body={changes.length === 0
+        ? 'No hay cambios respecto a los valores actuales.'
+        : 'Se guardarán los siguientes cambios:'}
+      confirmLabel="Guardar"
+      loading={loading}
+      loadingLabel="Guardando..."
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
+      {changes.length > 0 && (
+        <table className="param-diff-table">
+          <thead>
+            <tr><th>Parámetro</th><th>Anterior</th><th>Nuevo</th></tr>
+          </thead>
+          <tbody>
+            {changes.map(p => (
+              <tr key={p.key}>
+                <td>{p.label}</td>
+                <td className="param-diff-old">{saved[p.key]} {p.unit}</td>
+                <td className="param-diff-new">{draft[p.key]} {p.unit}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </AuroraConfirmModal>
   );
 }
 
