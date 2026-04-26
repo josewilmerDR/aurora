@@ -1,137 +1,12 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../../machinery/styles/horimetro.css';
+import HarvestCombobox from '../components/HarvestCombobox';
+import '../styles/harvest.css';
 
-// ── Generic combobox ─────────────────────────────────────────────────────────
-function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
-  const getLabel = useCallback(
-    (item) => labelFn ? labelFn(item) : (item?.[labelKey] || ''),
-    [labelFn, labelKey],
-  );
-  const nameFor = useCallback(
-    (id) => { const item = items.find(i => i.id === id); return item ? getLabel(item) : ''; },
-    [items, getLabel],
-  );
-
-  const [text, setText]       = useState(() => nameFor(value));
-  const [open, setOpen]       = useState(false);
-  const [hi,   setHi]         = useState(0);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
-  const inputRef              = useRef(null);
-  const listRef               = useRef(null);
-  const userTyping            = useRef(false);
-
-  useEffect(() => {
-    if (userTyping.current) { userTyping.current = false; return; }
-    setText(nameFor(value));
-  }, [value, nameFor]);
-
-  const filtered = items.filter(i =>
-    !text || getLabel(i).toLowerCase().includes(text.toLowerCase()),
-  );
-
-  const openDropdown = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
-    }
-    setOpen(true);
-    setHi(0);
-  };
-
-  const selectOption = (item) => {
-    setText(getLabel(item));
-    setOpen(false);
-    setHi(0);
-    onChange(item.id);
-  };
-
-  const handleTextChange = (e) => {
-    userTyping.current = true;
-    setText(e.target.value);
-    openDropdown();
-    if (value) onChange('');
-  };
-
-  const handleBlur = () => {
-    setTimeout(() => {
-      if (document.activeElement !== inputRef.current) {
-        setOpen(false);
-        setText(nameFor(value));
-      }
-    }, 150);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (inputRef.current && !inputRef.current.contains(e.target) &&
-          listRef.current  && !listRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        value={text}
-        autoComplete="off"
-        placeholder={placeholder}
-        onChange={handleTextChange}
-        onFocus={openDropdown}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-      />
-      {open && filtered.length > 0 && createPortal(
-        <ul
-          ref={listRef}
-          className="hor-combobox-dropdown"
-          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
-        >
-          {filtered.map((item, i) => (
-            <li
-              key={item.id}
-              className={`hor-combobox-item${i === hi ? ' hor-combobox-item--active' : ''}`}
-              onMouseDown={() => selectOption(item)}
-              onMouseEnter={() => setHi(i)}
-            >
-              {getLabel(item)}
-            </li>
-          ))}
-        </ul>,
-        document.body,
-      )}
-    </>
-  );
-}
-
-// ── Formulario principal ─────────────────────────────────────────────────────
-// Fecha local en formato YYYY-MM-DD (sin shift por UTC)
+// Fecha local en formato YYYY-MM-DD (sin shift por UTC).
 const toLocalISODate = (d) => {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -140,8 +15,7 @@ const toLocalISODate = (d) => {
 };
 const todayISO = () => toLocalISODate(new Date());
 
-// Strict validation: rejects non-existent dates like "2026-02-30"
-// (which `new Date()` would silently normalize to another real date).
+// Validación estricta: rechaza fechas inexistentes ("2026-02-30").
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isValidISODate = (s) => {
   if (typeof s !== 'string' || !FECHA_RE.test(s)) return false;
@@ -154,8 +28,8 @@ const isValidISODate = (s) => {
   );
 };
 
-const CANTIDAD_MAX = 16384;   // exclusive
-const NOTA_MAX     = 288;     // exclusive (max 287 characters)
+const CANTIDAD_MAX = 16384;
+const NOTA_MAX     = 288;
 
 const makeEmptyForm = () => ({
   fecha: todayISO(),
@@ -178,17 +52,17 @@ const makeEmptyForm = () => ({
 export default function CosechaRegistro() {
   const apiFetch = useApiFetch();
 
-  const [lotes, setLotes]         = useState([]);
-  const [grupos, setGrupos]       = useState([]);
-  const [siembras, setSiembras]   = useState([]);
-  const [unidades, setUnidades]   = useState([]);
-  const [usuarios, setUsuarios]   = useState([]);
+  const [lotes, setLotes]           = useState([]);
+  const [grupos, setGrupos]         = useState([]);
+  const [siembras, setSiembras]     = useState([]);
+  const [unidades, setUnidades]     = useState([]);
+  const [usuarios, setUsuarios]     = useState([]);
   const [maquinaria, setMaquinaria] = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading]       = useState(true);
 
-  const [form, setForm]           = useState(makeEmptyForm);
-  const [saving, setSaving]       = useState(false);
-  const [toast, setToast]         = useState(null);
+  const [form, setForm]   = useState(makeEmptyForm);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast]   = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
@@ -213,7 +87,7 @@ export default function CosechaRegistro() {
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Derived lists (lote → grupo → bloque) ──
+  // ── Listas derivadas (lote → grupo → bloque) ─────────────────────────────
   const gruposDelLote = useMemo(() => {
     if (!form.loteId) return grupos;
     const siembraIds = new Set(
@@ -258,18 +132,19 @@ export default function CosechaRegistro() {
       : g.nombreGrupo;
   };
 
-  // Activos = maquinaria excluyendo IMPLEMENTO
-  const activos = useMemo(
-    () => maquinaria.filter(m => m.tipo !== 'IMPLEMENTO'),
-    [maquinaria],
+  const activos     = useMemo(() => maquinaria.filter(m => m.tipo !== 'IMPLEMENTO'), [maquinaria]);
+  const implementos = useMemo(() => maquinaria.filter(m => m.tipo === 'IMPLEMENTO'), [maquinaria]);
+
+  const activoLabel = useCallback(
+    (m) => m ? [m.codigo, m.descripcion].filter(Boolean).join(' — ') : '',
+    [],
   );
-  // Implementos = solo IMPLEMENTO
-  const implementos = useMemo(
-    () => maquinaria.filter(m => m.tipo === 'IMPLEMENTO'),
-    [maquinaria],
+  const unidadLabel = useCallback(
+    (u) => u ? [u.nombre, u.descripcion].filter(Boolean).join(' — ') : '',
+    [],
   );
 
-  // ── Handlers ──
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => {
@@ -291,55 +166,35 @@ export default function CosechaRegistro() {
     const u = usuarios.find(x => x.id === id);
     setForm(prev => ({ ...prev, operarioId: id, operarioNombre: u ? u.nombre : '' }));
   };
-
-  const activoLabel = useCallback(
-    (m) => m ? [m.codigo, m.descripcion].filter(Boolean).join(' - ') : '',
-    [],
-  );
-
   const handleActivoChange = (id) => {
     const m = activos.find(x => x.id === id);
     setForm(prev => ({ ...prev, activoId: id, activoNombre: activoLabel(m) }));
   };
-
   const handleImplementoChange = (id) => {
     const m = implementos.find(x => x.id === id);
     setForm(prev => ({ ...prev, implementoId: id, implementoNombre: activoLabel(m) }));
   };
-
-  const unidadLabel = useCallback(
-    (u) => u ? [u.nombre, u.descripcion].filter(Boolean).join(' — ') : '',
-    [],
-  );
-
   const handleUnidadChange = (id) => {
     const u = unidades.find(x => x.id === id);
     setForm(prev => ({ ...prev, unidadId: id, unidad: u ? u.nombre : '' }));
   };
 
-  const resetForm = () => {
-    setForm(makeEmptyForm());
-  };
+  const resetForm = () => setForm(makeEmptyForm());
 
   const validateForm = () => {
-    // fecha — required, existing, not after the current day
     if (!form.fecha) return 'La fecha es requerida.';
     if (!isValidISODate(form.fecha)) return 'Fecha inválida.';
     if (form.fecha > todayISO()) {
       return 'La fecha no puede ser posterior al día actual.';
     }
-    // lote
     if (!form.loteId || !form.loteId.trim()) return 'El lote es requerido.';
-    // cantidad — > 0 y < 16384
     const cant = Number(form.cantidad);
     if (!Number.isFinite(cant) || cant <= 0 || cant >= CANTIDAD_MAX) {
       return `La cantidad cosechada debe ser mayor a 0 y menor a ${CANTIDAD_MAX}.`;
     }
-    // nota — < 288 caracteres
     if ((form.nota || '').length >= NOTA_MAX) {
       return `La nota no puede superar ${NOTA_MAX - 1} caracteres.`;
     }
-    // lengths of other fields (defense against tampered values)
     if ((form.grupo || '').length > 128)            return 'El grupo es demasiado largo.';
     if ((form.bloque || '').length > 64)            return 'El bloque es demasiado largo.';
     if ((form.unidad || '').length > 64)            return 'La unidad es demasiado larga.';
@@ -358,8 +213,6 @@ export default function CosechaRegistro() {
     }
     setSaving(true);
     try {
-      // Explicit payload: only fields the backend persists
-      // (avoids sending local state like `unidadId` which the backend discards).
       const payload = {
         fecha: form.fecha,
         loteId: form.loteId,
@@ -395,70 +248,85 @@ export default function CosechaRegistro() {
   };
 
   if (loading) {
-    return (
-      <div className="ficha-page-loading">
-        <div className="ficha-spinner" />
-      </div>
-    );
+    return <div className="harvest-page-loading" />;
   }
 
   return (
-    <div className="hor-wrap">
+    <div className="harvest-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div className="hor-toolbar">
-        <h1 className="hor-page-title">Registro de Cosecha</h1>
-        <Link to="/cosecha/historial" className="btn btn-secondary">
-          <FiClock size={14} /> Historial
-        </Link>
-      </div>
+      <form className="aur-sheet" onSubmit={handleSubmit} noValidate>
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">Registro de cosecha</h1>
+            <p className="aur-sheet-subtitle">Captura una nueva boleta de cosecha.</p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            <Link to="/cosecha/historial" className="aur-chip">
+              <FiClock size={12} /> Historial
+            </Link>
+          </div>
+        </header>
 
-      {/* ── Formulario ── */}
-      <div className="hor-form-card">
-        <div className="hor-form-header">
-          <span>Nuevo registro de cosecha</span>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ padding: '16px 18px' }}>
-
-          {/* Fecha */}
-          <div className="hor-form-grid hor-grid-2">
-            <div className="hor-field">
-              <label>Fecha</label>
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">01</span>
+            <h3 className="aur-section-title">Fecha y ubicación</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cr-fecha">Fecha</label>
               <input
+                id="cr-fecha"
                 type="date"
                 name="fecha"
+                className="aur-input"
                 value={form.fecha}
                 onChange={handleChange}
                 max={todayISO()}
                 required
               />
             </div>
-          </div>
-
-          {/* Ubicación: lote / grupo / bloque */}
-          <div className="hor-form-grid hor-grid-2">
-            <div className="hor-field">
-              <label>Lote *</label>
-              <select name="loteId" value={form.loteId} onChange={handleChange} required>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cr-lote">Lote</label>
+              <select
+                id="cr-lote"
+                name="loteId"
+                className="aur-select"
+                value={form.loteId}
+                onChange={handleChange}
+                required
+              >
                 <option value="">— Seleccionar —</option>
                 {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
               </select>
             </div>
-
-            <div className="hor-field">
-              <label>Grupo</label>
-              <select name="grupo" value={form.grupo} onChange={handleChange} disabled={!form.loteId}>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cr-grupo">Grupo</label>
+              <select
+                id="cr-grupo"
+                name="grupo"
+                className="aur-select"
+                value={form.grupo}
+                onChange={handleChange}
+                disabled={!form.loteId}
+              >
                 <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
                 {gruposDelLote.map(g => (
                   <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
                 ))}
               </select>
             </div>
-
-            <div className="hor-field">
-              <label>Bloque</label>
-              <select name="bloque" value={form.bloque} onChange={handleChange} disabled={!form.loteId}>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cr-bloque">Bloque</label>
+              <select
+                id="cr-bloque"
+                name="bloque"
+                className="aur-select"
+                value={form.bloque}
+                onChange={handleChange}
+                disabled={!form.loteId}
+              >
                 <option value="">{form.loteId ? '— Sin bloque —' : '— Seleccione un lote primero —'}</option>
                 {bloquesDisponibles.map(s => {
                   const val = s.bloque || s.id;
@@ -467,14 +335,21 @@ export default function CosechaRegistro() {
               </select>
             </div>
           </div>
+        </section>
 
-          {/* Cantidad y unidad */}
-          <div className="hor-form-grid hor-grid-2">
-            <div className="hor-field">
-              <label>Cantidad cosechada *</label>
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">02</span>
+            <h3 className="aur-section-title">Cantidad cosechada</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cr-cantidad">Cantidad</label>
               <input
+                id="cr-cantidad"
                 type="number"
                 name="cantidad"
+                className="aur-input aur-input--num"
                 min="0.0001"
                 max={CANTIDAD_MAX - 0.0001}
                 step="any"
@@ -484,10 +359,9 @@ export default function CosechaRegistro() {
                 required
               />
             </div>
-
-            <div className="hor-field">
-              <label>Unidad</label>
-              <Combobox
+            <div className="aur-row">
+              <label className="aur-row-label">Unidad</label>
+              <HarvestCombobox
                 value={form.unidadId}
                 onChange={handleUnidadChange}
                 items={unidades}
@@ -496,12 +370,17 @@ export default function CosechaRegistro() {
               />
             </div>
           </div>
+        </section>
 
-          {/* Operario / Activo / Implemento */}
-          <div className="hor-form-grid hor-grid-2">
-            <div className="hor-field">
-              <label>Operario</label>
-              <Combobox
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">03</span>
+            <h3 className="aur-section-title">Operario y maquinaria</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label">Operario</label>
+              <HarvestCombobox
                 value={form.operarioId}
                 onChange={handleOperarioChange}
                 items={usuarios}
@@ -509,10 +388,9 @@ export default function CosechaRegistro() {
                 placeholder="Buscar operario…"
               />
             </div>
-
-            <div className="hor-field">
-              <label>Activo</label>
-              <Combobox
+            <div className="aur-row">
+              <label className="aur-row-label">Activo</label>
+              <HarvestCombobox
                 value={form.activoId}
                 onChange={handleActivoChange}
                 items={activos}
@@ -520,10 +398,9 @@ export default function CosechaRegistro() {
                 placeholder="Buscar activo…"
               />
             </div>
-
-            <div className="hor-field">
-              <label>Implemento</label>
-              <Combobox
+            <div className="aur-row">
+              <label className="aur-row-label">Implemento</label>
+              <HarvestCombobox
                 value={form.implementoId}
                 onChange={handleImplementoChange}
                 items={implementos}
@@ -532,13 +409,20 @@ export default function CosechaRegistro() {
               />
             </div>
           </div>
+        </section>
 
-          {/* Nota */}
-          <p className="hor-section-label">Observaciones</p>
-          <div className="hor-form-grid">
-            <div className="hor-field hor-field--full">
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">04</span>
+            <h3 className="aur-section-title">Observaciones</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="cr-nota">Nota</label>
               <textarea
+                id="cr-nota"
                 name="nota"
+                className="aur-textarea"
                 value={form.nota}
                 onChange={handleChange}
                 placeholder="Observaciones adicionales…"
@@ -547,18 +431,17 @@ export default function CosechaRegistro() {
               />
             </div>
           </div>
+        </section>
 
-          <div className="form-actions" style={{ marginTop: 16 }}>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              <FiCheck size={15} />
-              {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="harvest-form-actions">
+          <button type="button" className="aur-btn-text" onClick={resetForm}>
+            Cancelar
+          </button>
+          <button type="submit" className="aur-btn-pill" disabled={saving}>
+            <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

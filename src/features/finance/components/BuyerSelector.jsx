@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // Select reutilizable — carga compradores activos y emite el id seleccionado.
-function BuyerSelector({ value, onChange, required = false, disabled = false }) {
+function BuyerSelector({ value, onChange, required = false, disabled = false, className }) {
   const apiFetch = useApiFetch();
   const [buyers, setBuyers] = useState([]);
 
@@ -19,6 +19,7 @@ function BuyerSelector({ value, onChange, required = false, disabled = false }) 
       onChange={(e) => onChange(e.target.value)}
       required={required}
       disabled={disabled}
+      className={className}
     >
       <option value="">Seleccione un comprador…</option>
       {buyers.map(b => (

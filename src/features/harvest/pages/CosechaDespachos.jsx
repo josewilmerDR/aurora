@@ -1,216 +1,13 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { FiX, FiCheck, FiClock } from 'react-icons/fi';
+import { FiCheck, FiClock } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import BuyerSelector from '../../finance/components/BuyerSelector';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
-import '../../machinery/styles/horimetro.css';
-import '../styles/cosecha-despachos.css';
-
-// ── Generic combobox ─────────────────────────────────────────────────────────
-function Combobox({ value, onChange, items, labelKey = 'nombre', labelFn, placeholder = '— Seleccionar —' }) {
-  const getLabel = useCallback(
-    (item) => labelFn ? labelFn(item) : (item?.[labelKey] || ''),
-    [labelFn, labelKey],
-  );
-  const nameFor = useCallback(
-    (id) => { const item = items.find(i => i.id === id); return item ? getLabel(item) : ''; },
-    [items, getLabel],
-  );
-
-  const [text, setText]       = useState(() => nameFor(value));
-  const [open, setOpen]       = useState(false);
-  const [hi,   setHi]         = useState(0);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
-  const inputRef              = useRef(null);
-  const listRef               = useRef(null);
-  const userTyping            = useRef(false);
-
-  useEffect(() => {
-    if (userTyping.current) { userTyping.current = false; return; }
-    setText(nameFor(value));
-  }, [value, nameFor]);
-
-  const filtered = items.filter(i =>
-    !text || getLabel(i).toLowerCase().includes(text.toLowerCase()),
-  );
-
-  const openDropdown = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
-    }
-    setOpen(true);
-    setHi(0);
-  };
-
-  const selectOption = (item) => {
-    setText(getLabel(item));
-    setOpen(false);
-    setHi(0);
-    onChange(item.id);
-  };
-
-  const handleTextChange = (e) => {
-    userTyping.current = true;
-    setText(e.target.value);
-    openDropdown();
-    if (value) onChange('');
-  };
-
-  const handleBlur = () => {
-    setTimeout(() => {
-      if (document.activeElement !== inputRef.current) {
-        setOpen(false);
-        setText(nameFor(value));
-      }
-    }, 150);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (inputRef.current && !inputRef.current.contains(e.target) &&
-          listRef.current  && !listRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        value={text}
-        autoComplete="off"
-        placeholder={placeholder}
-        onChange={handleTextChange}
-        onFocus={openDropdown}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-      />
-      {open && filtered.length > 0 && createPortal(
-        <ul
-          ref={listRef}
-          className="hor-combobox-dropdown"
-          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
-        >
-          {filtered.map((item, i) => (
-            <li
-              key={item.id}
-              className={`hor-combobox-item${i === hi ? ' hor-combobox-item--active' : ''}`}
-              onMouseDown={() => selectOption(item)}
-              onMouseEnter={() => setHi(i)}
-            >
-              {getLabel(item)}
-            </li>
-          ))}
-        </ul>,
-        document.body,
-      )}
-    </>
-  );
-}
-
-// ── Selector de boletas de cosecha ────────────────────────────────────────────
-function BoletasSelect({ registros, selected, onChange, usedIds = new Set() }) {
-  const filtered = useMemo(
-    () => registros.filter(r => !usedIds.has(r.id)),
-    [registros, usedIds],
-  );
-
-  const toggle = (reg) => {
-    const already = selected.find(s => s.id === reg.id);
-    if (already) {
-      onChange(selected.filter(s => s.id !== reg.id));
-    } else {
-      onChange([...selected, {
-        id: reg.id,
-        consecutivo: reg.consecutivo,
-        cantidad: reg.cantidad ?? null,
-        unidad: reg.unidad ?? '',
-      }]);
-    }
-  };
-
-  return (
-    <div className="dsp-boletas-wrap">
-      {selected.length > 0 && (
-        <div className="dsp-boletas-chips">
-          {selected.map(s => (
-            <span key={s.id} className="dsp-boleta-chip">
-              {s.consecutivo}
-              {s.cantidad != null && (
-                <span style={{ opacity: 0.75, marginLeft: 3 }}>
-                  {Number(s.cantidad).toLocaleString('es-ES')} {s.unidad}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => onChange(selected.filter(x => x.id !== s.id))}
-                className="dsp-boleta-chip-remove"
-              >
-                <FiX size={10} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="dsp-boletas-list">
-          {filtered.length === 0 ? (
-            <span className="dsp-boletas-empty">Sin boletas de cosecha disponibles</span>
-          ) : (
-            filtered.map(reg => {
-              const checked = !!selected.find(s => s.id === reg.id);
-              return (
-                <div
-                  key={reg.id}
-                  className={`dsp-boleta-item${checked ? ' dsp-boleta-item--checked' : ''}`}
-                  onClick={() => toggle(reg)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(reg)}
-                    onClick={e => e.stopPropagation()}
-                  />
-                  <span className="dsp-boleta-consec">
-                    {reg.consecutivo}
-                  </span>
-                  {reg.cantidad != null && (
-                    <span className="dsp-boleta-qty">
-                      {Number(reg.cantidad).toLocaleString('es-ES')} {reg.unidad || ''}
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-    </div>
-  );
-}
+import HarvestCombobox from '../components/HarvestCombobox';
+import HarvestBoletasSelect from '../components/HarvestBoletasSelect';
+import '../styles/harvest.css';
 
 // ── Validation constants ─────────────────────────────────────────────────────
 const MAX_OPERARIO   = 48;
@@ -218,17 +15,16 @@ const MAX_PLACA      = 12;
 const MAX_NOTA       = 288;
 const MAX_CANTIDAD   = 32768;
 
-// ── Componente principal ──────────────────────────────────────────────────────
 export default function CosechaDespachos() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
 
-  const [lotes,           setLotes]           = useState([]);
-  const [usuarios,        setUsuarios]        = useState([]);
-  const [unidades,        setUnidades]        = useState([]);
+  const [lotes,            setLotes]            = useState([]);
+  const [usuarios,         setUsuarios]         = useState([]);
+  const [unidades,         setUnidades]         = useState([]);
   const [registrosCosecha, setRegistrosCosecha] = useState([]);
-  const [despachos,       setDespachos]       = useState([]);
-  const [loading,         setLoading]         = useState(true);
+  const [despachos,        setDespachos]        = useState([]);
+  const [loading,          setLoading]          = useState(true);
 
   const [saving, setSaving] = useState(false);
   const [toast,  setToast]  = useState(null);
@@ -372,181 +168,225 @@ export default function CosechaDespachos() {
     }
   };
 
+  const handleBoletasChange = (boletas) => {
+    const suma = boletas.reduce((acc, b) => acc + (parseFloat(b.cantidad) || 0), 0);
+    setForm(prev => ({
+      ...prev,
+      boletas,
+      cantidad: suma > 0 ? String(suma) : '',
+    }));
+  };
+
   if (loading) {
-    return (
-      <div className="ficha-page-loading">
-        <div className="ficha-spinner" />
-      </div>
-    );
+    return <div className="harvest-page-loading" />;
   }
 
   return (
-    <div className="hor-wrap">
+    <div className="harvest-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div className="hor-toolbar">
-        <h1 className="hor-page-title">Despacho de Cosecha</h1>
-        <Link to="/cosecha/historial-despachos" className="btn btn-secondary">
-          <FiClock size={14} /> Historial
-        </Link>
-      </div>
+      <form className="aur-sheet" onSubmit={handleSubmit} noValidate>
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">Despacho de cosecha</h1>
+            <p className="aur-sheet-subtitle">Registra un despacho a planta vinculando boletas de cosecha.</p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            <Link to="/cosecha/historial-despachos" className="aur-chip">
+              <FiClock size={12} /> Historial
+            </Link>
+          </div>
+        </header>
 
-      {/* ── Formulario ────────────────────────────────────────────────────── */}
-      <div className="hor-form-card">
-        <div className="hor-form-header">
-          <span>Nuevo despacho de cosecha</span>
-          <button className="icon-btn" onClick={resetForm} title="Limpiar formulario">
-            <FiX size={16} />
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">01</span>
+            <h3 className="aur-section-title">Fecha y comprador</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cd-fecha">Fecha</label>
+              <input
+                id="cd-fecha"
+                type="date"
+                name="fecha"
+                className="aur-input"
+                value={form.fecha}
+                onChange={handleChange}
+                max={today}
+                required
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cd-lote">Lote</label>
+              <select
+                id="cd-lote"
+                name="loteId"
+                className="aur-select"
+                value={form.loteId}
+                onChange={handleChange}
+                required
+              >
+                <option value="">— Seleccionar —</option>
+                {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+              </select>
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cd-buyer">Comprador</label>
+              <BuyerSelector
+                value={form.buyerId}
+                onChange={(v) => setForm(prev => ({ ...prev, buyerId: v }))}
+                required
+                className="aur-select"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">02</span>
+            <h3 className="aur-section-title">Camión</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cd-operario">Operario de camión</label>
+              <input
+                id="cd-operario"
+                type="text"
+                name="operarioCamionNombre"
+                className="aur-input"
+                value={form.operarioCamionNombre}
+                onChange={handleChange}
+                placeholder="Nombre del chofer…"
+                maxLength={MAX_OPERARIO}
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cd-placa">Placa</label>
+              <input
+                id="cd-placa"
+                type="text"
+                name="placaCamion"
+                className="aur-input"
+                value={form.placaCamion}
+                onChange={handleChange}
+                placeholder="Ej. ABC-123"
+                maxLength={MAX_PLACA}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">03</span>
+            <h3 className="aur-section-title">Boletas de cosecha</h3>
+            <span className="aur-section-count">{form.boletas.length}</span>
+          </div>
+          <HarvestBoletasSelect
+            registros={registrosCosecha}
+            usedIds={usedBoletaIds}
+            selected={form.boletas}
+            onChange={handleBoletasChange}
+          />
+        </section>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">04</span>
+            <h3 className="aur-section-title">Cantidad despachada</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cd-cantidad">Cantidad</label>
+              <input
+                id="cd-cantidad"
+                type="number"
+                name="cantidad"
+                className="aur-input aur-input--num"
+                min="0"
+                max={MAX_CANTIDAD}
+                step="any"
+                value={form.cantidad}
+                onChange={handleChange}
+                placeholder="0"
+                required
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label">Unidad</label>
+              <HarvestCombobox
+                value={form.unidadId}
+                onChange={handleUnidadChange}
+                items={unidades}
+                labelFn={unidadLabel}
+                placeholder="Buscar unidad…"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">05</span>
+            <h3 className="aur-section-title">Responsables</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label">Despachador</label>
+              <HarvestCombobox
+                value={form.despachadorId}
+                onChange={handleDespachador}
+                items={usuarios}
+                labelKey="nombre"
+                placeholder="Buscar despachador…"
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label">Encargado de cosecha</label>
+              <HarvestCombobox
+                value={form.encargadoId}
+                onChange={handleEncargado}
+                items={usuarios}
+                labelKey="nombre"
+                placeholder="Buscar encargado…"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">06</span>
+            <h3 className="aur-section-title">Observaciones</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="cd-nota">Nota</label>
+              <textarea
+                id="cd-nota"
+                name="nota"
+                className="aur-textarea"
+                value={form.nota}
+                onChange={handleChange}
+                placeholder="Observaciones adicionales…"
+                rows={2}
+                maxLength={MAX_NOTA}
+              />
+            </div>
+          </div>
+        </section>
+
+        <div className="harvest-form-actions">
+          <button type="button" className="aur-btn-text" onClick={resetForm}>
+            Limpiar
+          </button>
+          <button type="submit" className="aur-btn-pill" disabled={saving}>
+            <FiCheck size={15} /> {saving ? 'Guardando…' : 'Registrar despacho'}
           </button>
         </div>
-
-          <form onSubmit={handleSubmit} style={{ padding: '16px 18px' }}>
-
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Fecha *</label>
-                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} max={today} required />
-              </div>
-              <div className="hor-field">
-                <label>Lote *</label>
-                <select name="loteId" value={form.loteId} onChange={handleChange} required>
-                  <option value="">— Seleccionar —</option>
-                  {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Comprador *</label>
-                <BuyerSelector
-                  value={form.buyerId}
-                  onChange={(v) => setForm(prev => ({ ...prev, buyerId: v }))}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Operario de camión</label>
-                <input
-                  type="text"
-                  name="operarioCamionNombre"
-                  value={form.operarioCamionNombre}
-                  onChange={handleChange}
-                  placeholder="Nombre del chofer…"
-                  maxLength={MAX_OPERARIO}
-                />
-              </div>
-              <div className="hor-field">
-                <label>Placa de camión</label>
-                <input
-                  type="text"
-                  name="placaCamion"
-                  value={form.placaCamion}
-                  onChange={handleChange}
-                  placeholder="Ej. ABC-123"
-                  maxLength={MAX_PLACA}
-                />
-              </div>
-            </div>
-
-            <p className="hor-section-label">Boletas de cosecha</p>
-            <div className="hor-form-grid">
-              <div className="hor-field hor-field--full">
-                <BoletasSelect
-                  registros={registrosCosecha}
-                  usedIds={usedBoletaIds}
-                  selected={form.boletas}
-                  onChange={(boletas) => {
-                    const suma = boletas.reduce((acc, b) => acc + (parseFloat(b.cantidad) || 0), 0);
-                    setForm(prev => ({
-                      ...prev,
-                      boletas,
-                      cantidad: suma > 0 ? String(suma) : '',
-                    }));
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Cantidad *</label>
-                <input
-                  type="number"
-                  name="cantidad"
-                  min="0"
-                  max={MAX_CANTIDAD}
-                  step="any"
-                  value={form.cantidad}
-                  onChange={handleChange}
-                  placeholder="0"
-                  required
-                />
-              </div>
-              <div className="hor-field">
-                <label>Unidad</label>
-                <Combobox
-                  value={form.unidadId}
-                  onChange={handleUnidadChange}
-                  items={unidades}
-                  labelFn={unidadLabel}
-                  placeholder="Buscar unidad…"
-                />
-              </div>
-            </div>
-
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Despachador</label>
-                <Combobox
-                  value={form.despachadorId}
-                  onChange={handleDespachador}
-                  items={usuarios}
-                  labelKey="nombre"
-                  placeholder="Buscar despachador…"
-                />
-              </div>
-              <div className="hor-field">
-                <label>Encargado de cosecha</label>
-                <Combobox
-                  value={form.encargadoId}
-                  onChange={handleEncargado}
-                  items={usuarios}
-                  labelKey="nombre"
-                  placeholder="Buscar encargado…"
-                />
-              </div>
-            </div>
-
-            <p className="hor-section-label">Observaciones</p>
-            <div className="hor-form-grid">
-              <div className="hor-field hor-field--full">
-                <textarea
-                  name="nota"
-                  value={form.nota}
-                  onChange={handleChange}
-                  placeholder="Observaciones adicionales…"
-                  rows={2}
-                  maxLength={MAX_NOTA}
-                />
-              </div>
-            </div>
-
-            <div className="form-actions" style={{ marginTop: 16 }}>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                <FiCheck size={15} />
-                {saving ? 'Guardando…' : 'Registrar despacho'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={resetForm}>
-                Limpiar
-              </button>
-            </div>
-          </form>
-      </div>
-
+      </form>
     </div>
   );
 }
