@@ -5,6 +5,7 @@ import {
   FiArrowLeft, FiChevronRight, FiGlobe, FiClock, FiTag,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/proveedores.css';
 
@@ -94,6 +95,7 @@ function ProveedoresList() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const carouselRef = useRef(null);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -168,8 +170,7 @@ function ProveedoresList() {
     setView('form');
   };
 
-  const handleDelete = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar al proveedor "${nombre}"?`)) return;
+  const handleDelete = async (id) => {
     try {
       const res = await apiFetch(`/api/proveedores/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
@@ -334,10 +335,10 @@ function ProveedoresList() {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={saving}>
+              <button type="submit" className="aur-btn-pill" disabled={saving}>
                 <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar Proveedor' : 'Crear Proveedor'}
               </button>
-              <button type="button" onClick={resetForm} className="btn btn-secondary">
+              <button type="button" onClick={resetForm} className="aur-btn-text">
                 Cancelar
               </button>
             </div>
@@ -366,10 +367,10 @@ function ProveedoresList() {
             </h2>
           </div>
           <div className="hub-header-actions">
-            <button className="icon-btn" onClick={() => handleEdit(p)} title="Editar proveedor">
+            <button className="aur-icon-btn" onClick={() => handleEdit(p)} title="Editar proveedor">
               <FiEdit size={16} />
             </button>
-            <button className="icon-btn delete" onClick={() => handleDelete(p.id, p.nombre)} title="Eliminar proveedor">
+            <button className="aur-icon-btn aur-icon-btn--danger" onClick={() => setConfirmDelete(p)} title="Eliminar proveedor">
               <FiTrash2 size={16} />
             </button>
           </div>
@@ -541,7 +542,7 @@ function ProveedoresList() {
         <div className="prov-empty-state">
           <FiTruck size={32} />
           <p>No hay proveedores aún.</p>
-          <button className="btn btn-primary" onClick={handleNew}>
+          <button className="aur-btn-pill" onClick={handleNew}>
             <FiPlus size={14} /> Crear el primero
           </button>
         </div>
@@ -574,7 +575,7 @@ function ProveedoresList() {
           {view !== 'form' && (
             <div className="lote-page-header">
               <h2 className="lote-page-title">Proveedores</h2>
-              <button className="btn btn-primary" onClick={handleNew}>
+              <button className="aur-btn-pill" onClick={handleNew}>
                 <FiPlus /> Nuevo Proveedor
               </button>
             </div>
@@ -626,6 +627,17 @@ function ProveedoresList() {
             )}
           </div>
         </>
+      )}
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar proveedor"
+          body={`¿Eliminar al proveedor "${confirmDelete.nombre}"?`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

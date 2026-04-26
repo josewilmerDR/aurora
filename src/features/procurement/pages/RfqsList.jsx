@@ -5,6 +5,7 @@ import {
   FiPlus, FiFileText, FiAward,
 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import RfqResponseForm from '../components/rfqs/RfqResponseForm';
 import RfqCreateForm from '../components/rfqs/RfqCreateForm';
 import '../styles/rfqs-list.css';
@@ -26,6 +27,8 @@ function RfqsList() {
   const [expandedId, setExpandedId] = useState(null);
   const [closeResult, setCloseResult] = useState(null); // { rfqId, winner, ... }
   const [showCreate, setShowCreate] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(null); // { id, useClaude }
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -39,11 +42,7 @@ function RfqsList() {
 
   useEffect(() => { load(); }, [load]);
 
-  const closeRfq = async (id, useClaude) => {
-    const confirmMsg = useClaude
-      ? '¿Cerrar la cotización usando razonamiento de IA?'
-      : '¿Cerrar la cotización y elegir ganador?';
-    if (!window.confirm(confirmMsg)) return;
+  const doCloseRfq = async (id, useClaude) => {
     try {
       const url = useClaude ? `/api/rfqs/${id}/close?useClaude=1` : `/api/rfqs/${id}/close`;
       const r = await apiFetch(url, { method: 'POST' });
@@ -56,8 +55,7 @@ function RfqsList() {
     }
   };
 
-  const cancelRfq = async (id) => {
-    if (!window.confirm('¿Eliminar la cotización? No se puede deshacer.')) return;
+  const doCancelRfq = async (id) => {
     try {
       const r = await apiFetch(`/api/rfqs/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await r.text());
@@ -76,7 +74,7 @@ function RfqsList() {
     <div className="lote-page">
       <div className="lote-page-header">
         <h2 className="lote-page-title"><FiSend /> Cotizaciones a proveedores</h2>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+        <button className="aur-btn-pill" onClick={() => setShowCreate(true)}>
           <FiPlus /> Nueva cotización
         </button>
       </div>
@@ -111,8 +109,8 @@ function RfqsList() {
                 rfq={r}
                 expanded={expandedId === r.id}
                 onToggle={() => setExpandedId(prev => prev === r.id ? null : r.id)}
-                onClose={(useClaude) => closeRfq(r.id, useClaude)}
-                onCancel={() => cancelRfq(r.id)}
+                onClose={(useClaude) => setConfirmClose({ id: r.id, useClaude })}
+                onCancel={() => setConfirmDelete(r)}
                 onResponseSaved={load}
                 onCreateOc={() => goToCreateOc(r.id)}
                 closeResult={closeResult?.rfqId === r.id ? closeResult : null}
@@ -126,6 +124,30 @@ function RfqsList() {
         <RfqCreateForm
           onCreated={load}
           onClose={() => setShowCreate(false)}
+        />
+      )}
+
+      {confirmClose && (
+        <AuroraConfirmModal
+          title={confirmClose.useClaude ? 'Cerrar con IA' : 'Cerrar cotización'}
+          body={confirmClose.useClaude
+            ? '¿Cerrar la cotización usando razonamiento de IA para elegir el ganador?'
+            : '¿Cerrar la cotización y elegir ganador con criterio determinista?'}
+          confirmLabel="Cerrar"
+          icon={<FiCheck size={16} />}
+          onConfirm={() => { doCloseRfq(confirmClose.id, confirmClose.useClaude); setConfirmClose(null); }}
+          onCancel={() => setConfirmClose(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar cotización"
+          body={`¿Eliminar la cotización "${confirmDelete.nombreComercial || confirmDelete.productoId}"? No se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { doCancelRfq(confirmDelete.id); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
         />
       )}
     </div>
