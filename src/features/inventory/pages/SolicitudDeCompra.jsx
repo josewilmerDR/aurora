@@ -204,7 +204,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
                   </span>
                 </div>
                 <button
-                  className={`btn ${added ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                  className="aur-icon-btn aur-icon-btn--sm"
                   onClick={() => addProduct(p)}
                   disabled={added}
                   title={added ? 'Ya agregado' : 'Agregar a solicitud'}
@@ -301,7 +301,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
         {/* Acción */}
         <div className="form-actions">
           <button
-            className="btn btn-primary"
+            className="aur-btn-pill"
             onClick={handleOpenPreview}
             disabled={orderItems.length === 0}
           >
@@ -310,7 +310,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
           </button>
           {orderItems.length > 0 && (
             <button
-              className="btn btn-secondary"
+              className="aur-btn-text"
               onClick={() => setOrderItems([])}
             >
               <FiX size={16} />
@@ -322,16 +322,16 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
 
       {/* ══ MODAL DE PREVIEW ══ */}
       {showPreview && (
-        <div className="pr-modal-backdrop" onClick={() => setShowPreview(false)}>
-          <div className="pr-modal" onClick={e => e.stopPropagation()}>
-            <div className="pr-modal-header">
-              <h2>Resumen de Solicitud</h2>
-              <button className="pr-modal-close" onClick={() => setShowPreview(false)}>
-                <FiX size={20} />
+        <div className="aur-modal-backdrop" onPointerDown={() => setShowPreview(false)}>
+          <div className="aur-modal aur-modal--lg" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header">
+              <h2 className="aur-modal-title">Resumen de Solicitud</h2>
+              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setShowPreview(false)}>
+                <FiX size={16} />
               </button>
-            </div>
+            </header>
 
-            <div className="pr-modal-body">
+            <div className="aur-modal-content">
               <div className="pr-preview-meta">
                 <span><strong>Asignado a:</strong> {getResponsableNombre()}</span>
                 {notas && <span><strong>Notas:</strong> {notas}</span>}
@@ -371,13 +371,13 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
               )}
             </div>
 
-            <div className="pr-modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowPreview(false)}>
+            <div className="aur-modal-actions">
+              <button className="aur-btn-text" onClick={() => setShowPreview(false)}>
                 <FiX size={16} />
                 Volver a editar
               </button>
               <button
-                className="btn btn-primary"
+                className="aur-btn-pill"
                 onClick={handleSubmit}
                 disabled={submitting}
               >

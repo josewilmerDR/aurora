@@ -506,7 +506,7 @@ function Existencias() {
         <div className="pg-empty-state">
           <FiClipboard size={36} />
           <p>No hay productos que mostrar</p>
-          <button className="btn btn-primary" onClick={() => setShowNuevoModal(true)}>
+          <button className="aur-btn-pill" onClick={() => setShowNuevoModal(true)}>
             <FiPlus size={14} /> Crear el primero
           </button>
         </div>
@@ -766,38 +766,42 @@ function Existencias() {
       {/* Modal de confirmación de cambios */}
       {showConfirm && (
         <div className="aur-modal-backdrop" onPointerDown={() => !saving && setShowConfirm(false)}>
-          <div className="modal-content pg-confirm-modal" onPointerDown={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Confirmar cambios</h2>
-              <button className="modal-close-btn" onClick={() => setShowConfirm(false)} disabled={saving}>✕</button>
+          <div className="aur-modal aur-modal--lg pg-confirm-modal" onPointerDown={e => e.stopPropagation()}>
+            <header className="aur-modal-header">
+              <h2 className="aur-modal-title">Confirmar cambios</h2>
+              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setShowConfirm(false)} disabled={saving}>
+                <FiX size={16} />
+              </button>
+            </header>
+            <div className="aur-modal-content">
+              <p className="pg-confirm-desc">
+                Se actualizarán <strong>{changeSummary.length} producto{changeSummary.length !== 1 ? 's' : ''}</strong>. Revisa los cambios antes de confirmar.
+              </p>
+              <div className="pg-confirm-list">
+                {changeSummary.map(s => (
+                  <div key={s.id} className="pg-confirm-product">
+                    <div className="pg-confirm-product-name">{s.nombre}</div>
+                    <table className="pg-confirm-table">
+                      <thead>
+                        <tr><th>Campo</th><th>Valor anterior</th><th>Valor nuevo</th></tr>
+                      </thead>
+                      <tbody>
+                        {s.changes.map((c, i) => (
+                          <tr key={i}>
+                            <td className="pg-confirm-field">{c.label}</td>
+                            <td className="pg-confirm-old">{String(c.oldVal)}</td>
+                            <td className="pg-confirm-new">{String(c.newVal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
             </div>
-            <p className="toma-fisica-desc">
-              Se actualizarán <strong style={{ color: 'var(--aurora-green)' }}>{changeSummary.length} producto{changeSummary.length !== 1 ? 's' : ''}</strong>. Revisa los cambios antes de confirmar.
-            </p>
-            <div className="pg-confirm-list">
-              {changeSummary.map(s => (
-                <div key={s.id} className="pg-confirm-product">
-                  <div className="pg-confirm-product-name">{s.nombre}</div>
-                  <table className="pg-confirm-table">
-                    <thead>
-                      <tr><th>Campo</th><th>Valor anterior</th><th>Valor nuevo</th></tr>
-                    </thead>
-                    <tbody>
-                      {s.changes.map((c, i) => (
-                        <tr key={i}>
-                          <td className="pg-confirm-field">{c.label}</td>
-                          <td className="pg-confirm-old">{String(c.oldVal)}</td>
-                          <td className="pg-confirm-new">{String(c.newVal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </div>
-            <div className="toma-fisica-footer">
-              <button className="btn btn-secondary" onClick={() => { setEdits({}); clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }} disabled={saving}>Descartar</button>
-              <button className="btn btn-primary" onClick={handleSaveAll} disabled={saving}>
+            <div className="aur-modal-actions">
+              <button className="aur-btn-text" onClick={() => { setEdits({}); clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }} disabled={saving}>Descartar</button>
+              <button className="aur-btn-pill" onClick={handleSaveAll} disabled={saving}>
                 {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>

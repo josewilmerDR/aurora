@@ -390,7 +390,7 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
                             </div>
                             <button
                               type="button"
-                              className="icon-btn delete"
+                              className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
                               onClick={() => removeLinea(i)}
                               title="Quitar línea"
                             >
@@ -541,15 +541,15 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
             <p className="empty-state">No hay productos extraídos.</p>
           )}
 
-          <button type="button" className="btn btn-secondary btn-add-line" onClick={addLinea}>
+          <button type="button" className="aur-btn-text btn-add-line" onClick={addLinea}>
             <FiPlus size={14} /> Agregar línea manualmente
           </button>
 
           {saveError && <div className="scan-error"><FiAlertCircle size={16} />{saveError}</div>}
 
           <div className="scan-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => setStep('upload')}>← Volver</button>
-            <button type="button" className="btn btn-primary" onClick={handleConfirm} disabled={saving || lineas.length === 0}>
+            <button type="button" className="aur-btn-text" onClick={() => setStep('upload')}>← Volver</button>
+            <button type="button" className="aur-btn-pill" onClick={handleConfirm} disabled={saving || lineas.length === 0}>
               <FiCheck size={15} />{saving ? 'Registrando…' : 'Confirmar y registrar ingreso'}
             </button>
           </div>
@@ -589,8 +589,8 @@ function InvoiceScan({ onDone, onImageScanned, onProductsScanned } = {}) {
           </div>
 
           <div className="scan-actions">
-            <button type="button" className="btn btn-secondary" onClick={resetAll}>Escanear otra factura</button>
-            <a href="/productos" className="btn btn-primary">Ver bodega actualizada</a>
+            <button type="button" className="aur-btn-text" onClick={resetAll}>Escanear otra factura</button>
+            <a href="/productos" className="aur-btn-pill">Ver bodega actualizada</a>
           </div>
         </div>
       )}

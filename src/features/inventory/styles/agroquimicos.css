@@ -1028,57 +1028,6 @@
   }
 }
 
-/* ── Modal compartido (modal-content / modal-header / modal-close-btn) ─── */
-.modal-content {
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 14px;
-  padding: 24px 28px 20px 28px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
-  display: flex;
-  flex-direction: column;
-  animation: card-in 0.18s ease;
-}
-
-@keyframes card-in {
-  from { opacity: 0; transform: translateY(-10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--aurora-light);
-}
-
-.modal-close-btn {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.45;
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-  line-height: 1;
-  transition: opacity 0.15s, background-color 0.15s;
-  flex-shrink: 0;
-}
-
-.modal-close-btn:hover {
-  opacity: 1;
-  background-color: rgba(255, 255, 255, 0.07);
-}
-
 /* ── Grid editable de productos ─────────────────────────────────────────── */
 .product-grid-wrap {
   overflow-x: auto;
@@ -1414,21 +1363,21 @@ select.pg-input option {
 }
 
 /* Modal de confirmación de cambios */
-.pg-confirm-modal {
-  max-width: 680px;
-  width: 95vw;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
+.pg-confirm-desc {
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  margin: 0;
+  line-height: 1.5;
+}
+.pg-confirm-desc strong {
+  color: var(--aurora-green);
 }
 
 .pg-confirm-list {
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  margin-bottom: 14px;
 }
 
 .pg-confirm-product {
@@ -1962,25 +1911,6 @@ select.pg-input option {
   border-radius: 6px;
   padding: 8px 12px;
   margin-bottom: 10px;
-}
-
-.toma-fisica-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding-top: 4px;
-}
-
-@media (max-width: 600px) {
-  .toma-fisica-footer {
-    flex-wrap: wrap;
-    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 5px);
-    margin-bottom: 8px;
-  }
-  .toma-fisica-footer .btn {
-    flex: 1 1 calc(50% - 5px);
-    justify-content: center;
-  }
 }
 
 @media (max-width: 600px) {

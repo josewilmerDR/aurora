@@ -825,10 +825,10 @@ function Recepcion() {
 
         <div className="ingreso-grid-footer">
           <div className="ingreso-footer-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); if (loadedOrdenId) setStep('list'); setLoadedOrdenId(null); setLoadedOrden(null); }} disabled={saving}>
+            <button type="button" className="aur-btn-text" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); if (loadedOrdenId) setStep('list'); setLoadedOrdenId(null); setLoadedOrden(null); }} disabled={saving}>
               <FiX size={15} /> Cancelar
             </button>
-            <button type="button" className="btn btn-primary" onClick={handleGuardarTodo} disabled={saving}>
+            <button type="button" className="aur-btn-pill" onClick={handleGuardarTodo} disabled={saving}>
               <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
