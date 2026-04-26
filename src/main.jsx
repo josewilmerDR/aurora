@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import './styles/aurora.css';
+import './styles/legacy-globals.css';
 import { registerSW } from 'virtual:pwa-register';
 
 // With registerType: 'prompt', onNeedRefresh fires when a new version is waiting.
