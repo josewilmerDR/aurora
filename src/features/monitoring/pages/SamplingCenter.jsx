@@ -12,7 +12,7 @@ const fmt = (iso) => {
 };
 
 const STATUS_LABEL = { pending: 'Pendiente', completed_by_user: 'Completado', skipped: 'Omitido' };
-const STATUS_CLASS = { pending: 'badge-yellow', completed_by_user: 'badge-green', skipped: 'badge-gray' };
+const STATUS_BADGE = { pending: 'yellow', completed_by_user: 'green', skipped: 'gray' };
 
 export default function SamplingCenter() {
   const apiFetch = useApiFetch();
@@ -70,12 +70,17 @@ export default function SamplingCenter() {
   };
 
   return (
-    <div className="mo-wrap">
-      <div className="mo-toolbar">
+    <section className="aur-section mo-page">
+      <div className="aur-section-header">
+        <h3>Órdenes de muestreo</h3>
+        <span className="aur-section-count">{filtered.length}</span>
+      </div>
+
+      <div className="aur-table-toolbar">
         <div className="mo-search-wrap">
           <FiSearch size={15} className="mo-search-icon" />
           <input
-            className="mo-search"
+            className="aur-input mo-search"
             type="text"
             placeholder="Buscar por lote, grupo, responsable, tipo..."
             value={search}
@@ -83,11 +88,13 @@ export default function SamplingCenter() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <span className="mo-count">{filtered.length} orden{filtered.length !== 1 ? 'es' : ''}</span>
+        <span className="aur-table-result-count">
+          {filtered.length} orden{filtered.length !== 1 ? 'es' : ''}
+        </span>
       </div>
 
       {loading && <div className="mo-state">Cargando órdenes...</div>}
-      {error   && (
+      {error && (
         <div className="mo-state mo-state--error">
           <FiAlertCircle size={18} /> {error}
         </div>
@@ -111,8 +118,8 @@ export default function SamplingCenter() {
               {search ? 'Sin resultados para la búsqueda.' : 'No hay órdenes de muestreo programadas.'}
             </div>
           ) : (
-            <div className="mo-table-wrap">
-              <table className="mo-table">
+            <div className="aur-table-wrap">
+              <table className="aur-table mo-table">
                 <thead>
                   <tr>
                     <th>Fecha programada</th>
@@ -122,7 +129,7 @@ export default function SamplingCenter() {
                     <th>Tipo de muestreo</th>
                     <th>Nota</th>
                     <th>Estado</th>
-                    <th></th>
+                    <th aria-hidden="true" />
                   </tr>
                 </thead>
                 <tbody>
@@ -135,41 +142,50 @@ export default function SamplingCenter() {
                       <td>{o.tipoMuestreo}</td>
                       <td className="mo-td-nota">{o.nota || <span className="mo-empty-val">—</span>}</td>
                       <td>
-                        <span className={`badge ${STATUS_CLASS[o.status] || 'badge-gray'}`}>
+                        <span className={`aur-badge aur-badge--${STATUS_BADGE[o.status] || 'gray'}`}>
                           {STATUS_LABEL[o.status] || o.status}
                         </span>
                       </td>
                       <td className="mo-td-action">
                         {confirmId === o.id ? (
-                          <div className="mo-confirm">
-                            <span>¿Eliminar?</span>
+                          <div className="aur-inline-confirm">
+                            <span className="aur-inline-confirm-text">¿Eliminar?</span>
                             <button
-                              className="mo-confirm-yes"
+                              type="button"
+                              className="aur-inline-confirm-yes"
                               onClick={() => handleDelete(o.id)}
                               disabled={deleting === o.id}
                             >
                               {deleting === o.id ? '...' : 'Sí'}
                             </button>
-                            <button className="mo-confirm-no" onClick={() => setConfirmId(null)}>No</button>
+                            <button
+                              type="button"
+                              className="aur-inline-confirm-no"
+                              onClick={() => setConfirmId(null)}
+                            >
+                              No
+                            </button>
                           </div>
                         ) : (
                           <div className="mo-actions">
                             {o.status === 'pending' && (
                               <button
+                                type="button"
                                 className="mo-complete-btn"
                                 title="Registrar resultado y marcar como hecha"
                                 onClick={() => setModalOrden(o)}
                               >
-                                <FiCheckCircle size={15} />
+                                <FiCheckCircle size={14} />
                                 Hecha
                               </button>
                             )}
                             <button
-                              className="mo-delete-btn"
+                              type="button"
+                              className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
                               title="Eliminar orden"
                               onClick={() => setConfirmId(o.id)}
                             >
-                              <FiTrash2 size={15} />
+                              <FiTrash2 size={14} />
                             </button>
                           </div>
                         )}
@@ -182,6 +198,6 @@ export default function SamplingCenter() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
