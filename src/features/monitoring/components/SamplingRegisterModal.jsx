@@ -224,31 +224,37 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     }
   };
 
-  const handleOverlayClick = (e) => {
+  const handleBackdrop = (e) => {
     if (e.target === e.currentTarget && !submitting) onClose();
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="fmm-overlay" onClick={handleOverlayClick}>
-      <div className="fmm-modal">
+    <div className="aur-modal-backdrop" onPointerDown={handleBackdrop}>
+      <div className="aur-modal aur-modal--xl fmm-modal" onPointerDown={(e) => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="fmm-header">
-          <div className="fmm-title">
+        <header className="aur-modal-header fmm-header">
+          <div className="aur-modal-title fmm-title">
             <span className="fmm-title-main">Registrar resultado de muestreo</span>
             <span className="fmm-title-sub">
               {orden.tipoMuestreo}
               {orden.grupoNombre && orden.grupoNombre !== '—' ? ` — ${orden.grupoNombre}` : ''}
             </span>
           </div>
-          <button className="fmm-close" onClick={onClose} disabled={submitting} type="button">
-            <FiX size={18} />
+          <button
+            type="button"
+            className="aur-icon-btn aur-icon-btn--sm aur-modal-close"
+            onClick={onClose}
+            disabled={submitting}
+            aria-label="Cerrar"
+          >
+            <FiX size={16} />
           </button>
-        </div>
+        </header>
 
         {/* Body */}
-        <div className="fmm-body">
+        <div className="aur-modal-content fmm-body">
 
           <div className="fmm-meta-divider"><span>Datos generales</span></div>
 
@@ -455,20 +461,20 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
         </div>
 
         {/* Footer */}
-        <div className="fmm-footer">
+        <div className="aur-modal-actions fmm-footer">
           {submitError && (
             <span className="fmm-submit-error" role="alert">
               <FiAlertCircle size={14} /> {submitError}
             </span>
           )}
-          <button className="fmm-btn fmm-btn--cancel" onClick={onClose} disabled={submitting} type="button">
+          <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>
             Cancelar
           </button>
           <button
-            className="fmm-btn fmm-btn--submit"
+            type="button"
+            className="aur-btn-pill"
             onClick={handleSubmit}
             disabled={submitting || state === 'loading'}
-            type="button"
           >
             {submitting ? 'Guardando...' : 'Guardar'}
           </button>

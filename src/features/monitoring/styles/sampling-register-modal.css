@@ -1,40 +1,14 @@
-/* ── Overlay ──────────────────────────────────────────────────────────────── */
-.fmm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.72);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  box-sizing: border-box;
-}
-
-/* ── Modal shell ──────────────────────────────────────────────────────────── */
-.fmm-modal {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  width: 100%;
-  max-width: 960px;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
-}
-
-/* ── Header ───────────────────────────────────────────────────────────────── */
+/* ── Header overrides ─────────────────────────────────────────────────────── */
+/* aur-modal-header provee display/align/gap/padding base; añadimos border-
+   bottom (separador con el body) y align-items: flex-start porque el título
+   ocupa 2 líneas y el botón cierre debe alinearse al tope. */
 .fmm-header {
-  display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px;
   border-bottom: 1px solid var(--aurora-border);
-  flex-shrink: 0;
 }
 
+/* aur-modal-title es text-only; aquí lo convertimos a stack vertical para
+   acomodar título principal + subtítulo (tipo de muestreo · grupo). */
 .fmm-title {
   display: flex;
   flex-direction: column;
@@ -53,27 +27,12 @@
   opacity: 0.5;
 }
 
-.fmm-close {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.45;
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  transition: opacity 0.15s;
-  flex-shrink: 0;
-}
-
-.fmm-close:hover:not(:disabled) { opacity: 1; }
-.fmm-close:disabled { cursor: not-allowed; }
-
-/* ── Body ─────────────────────────────────────────────────────────────────── */
+/* ── Body overrides ───────────────────────────────────────────────────────── */
+/* aur-modal-content provee flex/overflow/padding base; neutralizamos el gap
+   porque los hijos (meta-divider, scan-bar, registros-wrap, etc.) ya manejan
+   sus propios márgenes. */
 .fmm-body {
-  flex: 1;
-  overflow: auto;
-  padding: 16px 20px;
+  gap: 0;
   min-height: 120px;
 }
 
@@ -401,15 +360,11 @@
   background: var(--aurora-border);
 }
 
-/* ── Footer ───────────────────────────────────────────────────────────────── */
+/* ── Footer overrides ─────────────────────────────────────────────────────── */
+/* aur-modal-actions provee display/align/justify/padding/border-top/bg base;
+   añadimos flex-wrap para que el submit-error (margin-right:auto) pueda
+   replegarse en pantallas estrechas sin desbordar la fila. */
 .fmm-footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--aurora-border);
-  flex-shrink: 0;
   flex-wrap: wrap;
 }
 
@@ -420,39 +375,6 @@
   margin-right: auto;
   color: #ff6b6b;
   font-size: 0.82rem;
-}
-
-/* ── Buttons ──────────────────────────────────────────────────────────────── */
-.fmm-btn {
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.fmm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.fmm-btn--cancel {
-  background: none;
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-}
-
-.fmm-btn--cancel:hover:not(:disabled) { border-color: rgba(230, 242, 255, 0.45); }
-
-.fmm-btn--submit {
-  background: var(--aurora-green);
-  border: none;
-  color: var(--aurora-dark-blue);
-}
-
-.fmm-btn--submit:hover:not(:disabled) { opacity: 0.85; }
-
-@media (max-width: 480px) {
-  .fmm-footer { justify-content: stretch; padding-bottom: 24px; }
-  .fmm-btn { flex: 1; }
 }
 
 /* ── Multi-registro table ─────────────────────────────────────────────────── */
