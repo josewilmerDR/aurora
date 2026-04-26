@@ -401,27 +401,29 @@ function LoteManagement() {
     const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
     return (
       <th
-        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
         onClick={() => setBloqueSorts(prev => {
           const next = [...prev];
           next[0] = next[0].field === field ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' };
           return next;
         })}
       >
-        {children}
-        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span
-          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
-          title="Filtrar columna"
-          onClick={e => {
-            e.stopPropagation();
-            if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
-            const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-            const rect = th.getBoundingClientRect();
-            setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
-          }}
-        >
-          <FiFilter size={10} />
+        <span className="aur-th-content">
+          {children}
+          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+          <span
+            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
+            title="Filtrar columna"
+            onClick={e => {
+              e.stopPropagation();
+              if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
+              const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+              const rect = th.getBoundingClientRect();
+              setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
+            }}
+          >
+            <FiFilter size={10} />
+          </span>
         </span>
       </th>
     );
@@ -433,31 +435,65 @@ function LoteManagement() {
   const renderRightPanel = () => {
     if (view === 'form') {
       return (
-        <div className="form-card">
-          <h2>{isEditing ? 'Editar Lote' : 'Crear Nuevo Lote'}</h2>
-          <form onSubmit={handleSubmit} className="lote-form">
-            <div className="form-grid">
-              <div className="form-control">
-                <label htmlFor="codigoLote">Código del Lote</label>
-                <input id="codigoLote" name="codigoLote" value={formData.codigoLote} onChange={handleInputChange} placeholder="Ej: L2604" maxLength={16} required />
-              </div>
-              <div className="form-control">
-                <label htmlFor="nombreLote">Nombre amigable <span style={{ fontWeight: 400, opacity: 0.7 }}>(opcional)</span></label>
-                <input id="nombreLote" name="nombreLote" value={formData.nombreLote} onChange={handleInputChange} placeholder="Ej: 4, Lote de Aurora" maxLength={32} />
-              </div>
-              <div className="form-control">
-                <label htmlFor="fechaCreacion">Fecha de Creación</label>
-                <input id="fechaCreacion" name="fechaCreacion" value={formData.fechaCreacion} onChange={handleInputChange} type="date" max={new Date().toISOString().split('T')[0]} required />
-              </div>
+        <div className="aur-sheet">
+          <header className="aur-sheet-header">
+            <div className="aur-sheet-header-text">
+              <h1 className="aur-sheet-title">{isEditing ? 'Editar Lote' : 'Crear Nuevo Lote'}</h1>
             </div>
+          </header>
+          <form onSubmit={handleSubmit} noValidate>
+            <section className="aur-section">
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="codigoLote">Código del Lote</label>
+                  <input
+                    id="codigoLote"
+                    name="codigoLote"
+                    className="aur-input"
+                    value={formData.codigoLote}
+                    onChange={handleInputChange}
+                    placeholder="Ej: L2604"
+                    maxLength={16}
+                    required
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="nombreLote">
+                    Nombre amigable <span className="aur-field-hint">(opcional)</span>
+                  </label>
+                  <input
+                    id="nombreLote"
+                    name="nombreLote"
+                    className="aur-input"
+                    value={formData.nombreLote}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 4, Lote de Aurora"
+                    maxLength={32}
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="fechaCreacion">Fecha de Creación</label>
+                  <input
+                    id="fechaCreacion"
+                    name="fechaCreacion"
+                    className="aur-input"
+                    value={formData.fechaCreacion}
+                    onChange={handleInputChange}
+                    type="date"
+                    max={new Date().toISOString().split('T')[0]}
+                    required
+                  />
+                </div>
+              </div>
+            </section>
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                <FiPlus />
-                {isEditing ? 'Actualizar Lote' : 'Crear Lote'}
-              </button>
-              <button type="button" onClick={resetForm} className="btn btn-secondary">
+            <div className="aur-form-actions">
+              <button type="button" onClick={resetForm} className="aur-btn-text">
                 Cancelar
+              </button>
+              <button type="submit" className="aur-btn-pill">
+                <FiPlus size={14} />
+                {isEditing ? 'Actualizar Lote' : 'Crear Lote'}
               </button>
             </div>
           </form>
@@ -482,44 +518,44 @@ function LoteManagement() {
             )}
           </div>
           <div className="hub-header-actions">
-            <button onClick={() => setPreviewLote(selectedLote)} className="icon-btn" title="Vista previa / PDF">
+            <button onClick={() => setPreviewLote(selectedLote)} className="aur-icon-btn" title="Vista previa / PDF">
               <FiEye size={16} />
             </button>
-            <button onClick={() => handleEdit(selectedLote)} className="icon-btn" title="Editar lote">
+            <button onClick={() => handleEdit(selectedLote)} className="aur-icon-btn" title="Editar lote">
               <FiEdit size={16} />
             </button>
-            <button onClick={() => handleDeleteClick(selectedLote)} className="icon-btn delete" title="Eliminar lote">
+            <button onClick={() => handleDeleteClick(selectedLote)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar lote">
               <FiTrash2 size={16} />
             </button>
           </div>
         </div>
 
         <div className="hub-info-pills">
-          <span className="hub-pill">
+          <span className="aur-badge">
             <FiCalendar size={13} />
             Siembra: {formatDate(selectedLote.fechaCreacion)}
           </span>
           {selectedLote.hectareas && (
-            <span className="hub-pill">
+            <span className="aur-badge aur-badge--green">
               <FiLayers size={13} />
               {selectedLote.hectareas} ha
             </span>
           )}
           {pkg && (
-            <span className="hub-pill">
+            <span className="aur-badge aur-badge--blue">
               <FiPackage size={13} />
               {pkg.nombrePaquete}
             </span>
           )}
           {!selectedLote.paqueteId && (
-            <span className="hub-pill hub-pill-muted">Sin paquete técnico</span>
+            <span className="aur-badge">Sin paquete técnico</span>
           )}
         </div>
 
         <div className="grupo-hub-bloques-header">
           <p className="grupo-hub-bloques-title">Bloques</p>
           {Object.values(bloqueColFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
-            <button className="historial-clear-col-filters" onClick={() => setBloqueColFilters({})}>
+            <button className="aur-btn-text" onClick={() => setBloqueColFilters({})}>
               <FiX size={11} /> Limpiar filtros
             </button>
           )}
@@ -637,8 +673,8 @@ function LoteManagement() {
       {view !== 'form' && (
         <div className="lote-page-header">
           <h2 className="lote-page-title">Lotes Activos</h2>
-          <button onClick={handleNewLote} className="btn btn-primary">
-            <FiPlus /> Nuevo Lote
+          <button onClick={handleNewLote} className="aur-btn-pill">
+            <FiPlus size={14} /> Nuevo Lote
           </button>
         </div>
       )}
@@ -736,15 +772,15 @@ function LoteManagement() {
       {previewLote && createPortal(
         <div className="gp-preview-backdrop">
           <div className="gp-preview-toolbar">
-            <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => setPreviewLote(null)}>
+            <button className="aur-chip gp-toolbar-icon-btn" onClick={() => setPreviewLote(null)}>
               <FiArrowLeft size={15} /> <span className="gp-toolbar-btn-text">Volver</span>
             </button>
             <span className="gp-preview-toolbar-title">Lote — {previewLote.codigoLote}</span>
             <div className="gp-preview-toolbar-actions">
-              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={handleCompartirLote}>
+              <button className="aur-chip gp-toolbar-icon-btn" onClick={handleCompartirLote}>
                 <FiShare2 size={15} /> <span className="gp-toolbar-btn-text">Compartir</span>
               </button>
-              <button className="btn btn-secondary gp-toolbar-icon-btn" onClick={() => window.print()}>
+              <button className="aur-chip gp-toolbar-icon-btn" onClick={() => window.print()}>
                 <FiPrinter size={15} /> <span className="gp-toolbar-btn-text">Imprimir</span>
               </button>
             </div>
