@@ -1,59 +1,26 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FiFilter, FiX, FiSliders } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
-import '../../planting/styles/siembra.css';
-import '../../planting/styles/siembra-historial.css';
-import '../styles/cosecha-historial.css';
+import HarvestDataTable from '../components/HarvestDataTable';
+import '../styles/harvest.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────
 const COLUMNS = [
-  { key: 'consecutivo',    label: 'Consec.',     type: 'text'   },
-  { key: 'fecha',          label: 'Fecha',       type: 'date'   },
-  { key: 'lote',           label: 'Lote',        type: 'text'   },
-  { key: 'grupo',          label: 'Grupo',       type: 'text'   },
-  { key: 'bloque',         label: 'Bloque',      type: 'text'   },
-  { key: 'cantidad',       label: 'Cant. campo', type: 'number' },
-  { key: 'unidad',         label: 'Unidad',      type: 'text'   },
-  { key: 'operario',       label: 'Operario',    type: 'text'   },
-  { key: 'activo',         label: 'Activo',      type: 'text'   },
-  { key: 'implemento',     label: 'Implemento',  type: 'text'   },
-  { key: 'nota',           label: 'Nota',        type: 'text'   },
-  { key: 'recibido',       label: 'Recibido planta', type: 'number' },
+  { key: 'consecutivo',    label: 'Consec.',          type: 'text'   },
+  { key: 'fecha',          label: 'Fecha',            type: 'date'   },
+  { key: 'lote',           label: 'Lote',             type: 'text'   },
+  { key: 'grupo',          label: 'Grupo',            type: 'text'   },
+  { key: 'bloque',         label: 'Bloque',           type: 'text'   },
+  { key: 'cantidad',       label: 'Cant. campo',      type: 'number', align: 'right' },
+  { key: 'unidad',         label: 'Unidad',           type: 'text'   },
+  { key: 'operario',       label: 'Operario',         type: 'text'   },
+  { key: 'activo',         label: 'Activo',           type: 'text'   },
+  { key: 'implemento',     label: 'Implemento',       type: 'text'   },
+  { key: 'nota',           label: 'Nota',             type: 'text'   },
+  { key: 'recibido',       label: 'Recibido planta',  type: 'number', align: 'right' },
 ];
-
-const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
-
-// ── ColMenu (column visibility) ──────────────────────────────────────────────
-function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
-  const menuRef = useRef(null);
-  useEffect(() => {
-    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
-    const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown',   onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [onClose]);
-  return createPortal(
-    <div ref={menuRef} className="sh-col-menu" style={{ position: 'fixed', top: y, left: x }}>
-      <div className="sh-col-menu-title">Columnas visibles</div>
-      {COLUMNS.map(col => {
-        const checked = visibleCols[col.key];
-        const isLast  = checked && Object.values(visibleCols).filter(Boolean).length === 1;
-        return (
-          <label key={col.key} className={`sh-col-menu-item${isLast ? ' sh-col-menu-item--disabled' : ''}`}>
-            <input type="checkbox" checked={checked} disabled={isLast}
-              onChange={() => !isLast && onToggle(col.key)} />
-            <span>{col.label}</span>
-          </label>
-        );
-      })}
-    </div>,
-    document.body
-  );
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (v) => {
@@ -62,7 +29,6 @@ const fmt = (v) => {
   if (isNaN(d)) return v;
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
 };
-
 const num = (v) => {
   if (v == null || v === '') return '—';
   const n = Number(v);
@@ -87,32 +53,7 @@ function getColVal(r, key) {
   }
 }
 
-// ── Subcomponente: encabezado ordenable + filtro ────────────────────────────
-function SortTh({ col, children, visibleCols, sortField, sortDir, colFilters, onSort, onFilter }) {
-  if (!visibleCols[col.key]) return null;
-  const isSort  = sortField === col.key;
-  const hasFilt = !!colFilters[col.key];
-  return (
-    <th
-      className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
-      onClick={() => onSort(col.key)}
-    >
-      <span className="sh-th-content">
-        {children}
-        <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
-        <span
-          className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
-          onClick={e => onFilter(e, col.key, col.type)}
-          title="Filtrar columna"
-        >
-          <FiFilter size={10} />
-        </span>
-      </span>
-    </th>
-  );
-}
-
-// ── Nota cell with "show more / show less" ──────────────────────────────────
+// ── Nota cell con expand/collapse ────────────────────────────────────────────
 function NotaCell({ text }) {
   const [expanded, setExpanded] = useState(false);
   const [clamped, setClamped]   = useState(false);
@@ -123,15 +64,15 @@ function NotaCell({ text }) {
     if (el) setClamped(el.scrollHeight > el.clientHeight + 1);
   }, [text]);
 
-  if (!text) return <span style={{ color: '#8ba5bf' }}>—</span>;
+  if (!text) return <span className="harvest-td-empty">—</span>;
 
   return (
-    <span className="td-nota-wrap">
-      <span ref={textRef} className={`td-nota-text${expanded ? ' td-nota-text--open' : ''}`}>
+    <span className="harvest-nota">
+      <span ref={textRef} className={`harvest-nota-text${expanded ? ' harvest-nota-text--open' : ''}`}>
         {text}
       </span>
       {(clamped || expanded) && (
-        <button className="td-nota-toggle" onClick={() => setExpanded(p => !p)}>
+        <button type="button" className="harvest-nota-toggle" onClick={() => setExpanded(p => !p)}>
           {expanded ? 'ver menos' : 'ver más'}
         </button>
       )}
@@ -139,7 +80,7 @@ function NotaCell({ text }) {
   );
 }
 
-// ── Inline-editable cell for cantidadRecibidaPlanta ──────────────────────────
+// ── Cell editable inline para cantidadRecibidaPlanta ─────────────────────────
 function InlineRecibido({ value, onSave }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving]   = useState(false);
@@ -158,36 +99,53 @@ function InlineRecibido({ value, onSave }) {
 
   if (editing) {
     return (
-      <span className="ch-inline-edit">
+      <span className="harvest-inline-edit">
         <input
           ref={inputRef}
           type="number"
           min="0"
           step="0.01"
           value={val}
-          onChange={e => setVal(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
-          className="ch-inline-input"
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
+          className="harvest-inline-input"
           disabled={saving}
         />
-        <button className="ch-inline-ok"     onClick={save}   title="Guardar" disabled={saving}>✓</button>
-        <button className="ch-inline-cancel" onClick={cancel} title="Cancelar" disabled={saving}>✕</button>
+        <button
+          type="button"
+          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--success"
+          onClick={save}
+          title="Guardar"
+          disabled={saving}
+        >
+          <FiCheck size={13} />
+        </button>
+        <button
+          type="button"
+          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+          onClick={cancel}
+          title="Cancelar"
+          disabled={saving}
+        >
+          <FiX size={13} />
+        </button>
       </span>
     );
   }
 
+  const isPending = !(value != null && value !== '');
   return (
     <span
-      className={`ch-inline-value${value != null && value !== '' ? '' : ' ch-inline-pending'}`}
+      className={`harvest-inline-cell${isPending ? ' harvest-inline-cell--pending' : ''}`}
       onClick={open}
       title="Clic para ingresar el valor recibido en planta"
     >
-      {value != null && value !== '' ? num(value) : 'Pendiente'}
+      {isPending ? 'Pendiente' : num(value)}
     </span>
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function CosechaHistorial() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
@@ -196,52 +154,8 @@ export default function CosechaHistorial() {
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
 
-  const [sortField, setSortField] = useState('fecha');
-  const [sortDir,   setSortDir]   = useState('desc');
-  const [colFilters, setColFilters] = useState({});
-  const [filterPopover, setFilterPopover] = useState(null);
-  const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
-  const [colMenu, setColMenu] = useState(null);
-
-  const toggleCol = (key) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
-  const handleColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    setColMenu({ x: r.right - 185, y: r.bottom + 4 });
-  };
-
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  // ── Sort handler (3-state: desc → asc → none) ────────────────────────────
-  const handleThSort = (field) => {
-    if (sortField !== field) { setSortField(field); setSortDir('desc'); }
-    else if (sortDir === 'desc') { setSortDir('asc'); }
-    else { setSortField(null); setSortDir(null); }
-  };
-
-  // ── Column filter helpers ─────────────────────────────────────────────────
-  const openColFilter = (e, field, type) => {
-    e.stopPropagation();
-    if (filterPopover?.field === field) { setFilterPopover(null); return; }
-    const th = e.currentTarget.closest('th') ?? e.currentTarget;
-    const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, type, x: rect.left, y: rect.bottom + 4 });
-  };
-
-  const setColFilter = (field, type, key, val) => {
-    setColFilters(prev => {
-      const cur = prev[field] || (type === 'text' ? { text: '' } : { from: '', to: '' });
-      const updated = { ...cur, [key]: val };
-      const isEmpty = type === 'text' ? !updated.text : !updated.from && !updated.to;
-      if (isEmpty) {
-        const { [field]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [field]: updated };
-    });
-  };
-
-  // ── Carga ─────────────────────────────────────────────────────────────────
   const fetchRegistros = () => {
     setLoading(true);
     apiFetch('/api/cosecha/registros')
@@ -253,7 +167,7 @@ export default function CosechaHistorial() {
 
   useEffect(() => { fetchRegistros(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Inline update of "recibido en planta" ─────────────────────────────────
+  // Inline update de cantidadRecibidaPlanta
   const handleRecibido = async (reg, rawVal) => {
     const parsed = rawVal !== '' ? parseFloat(rawVal) : null;
     const cantidadRecibidaPlanta = parsed != null && !isNaN(parsed) ? parsed : null;
@@ -265,7 +179,7 @@ export default function CosechaHistorial() {
       });
       if (!res.ok) throw new Error();
       setRegistros(prev =>
-        prev.map(r => r.id === reg.id ? { ...r, cantidadRecibidaPlanta } : r)
+        prev.map(r => r.id === reg.id ? { ...r, cantidadRecibidaPlanta } : r),
       );
       showToast('Cantidad recibida en planta actualizada.');
     } catch {
@@ -273,198 +187,71 @@ export default function CosechaHistorial() {
     }
   };
 
-  // ── Filtrado y ordenamiento ───────────────────────────────────────────────
-  const displayData = useMemo(() => {
-    let data = [...registros];
+  const renderRow = (reg, visibleCols) => (
+    <>
+      {visibleCols.consecutivo && <td className="harvest-td-consec">{reg.consecutivo || '—'}</td>}
+      {visibleCols.fecha       && <td>{fmt(reg.fecha)}</td>}
+      {visibleCols.lote        && <td>{reg.loteNombre      || '—'}</td>}
+      {visibleCols.grupo       && <td>{reg.grupo           || '—'}</td>}
+      {visibleCols.bloque      && <td>{reg.bloque          || '—'}</td>}
+      {visibleCols.cantidad    && <td className="aur-td-num">{num(reg.cantidad)}</td>}
+      {visibleCols.unidad      && <td>{reg.unidad          || '—'}</td>}
+      {visibleCols.operario    && <td>{reg.operarioNombre  || '—'}</td>}
+      {visibleCols.activo      && <td>{reg.activoNombre    || '—'}</td>}
+      {visibleCols.implemento  && <td>{reg.implementoNombre || '—'}</td>}
+      {visibleCols.nota        && <td><NotaCell text={reg.nota} /></td>}
+      {visibleCols.recibido    && (
+        <td className="aur-td-num">
+          <InlineRecibido
+            value={reg.cantidadRecibidaPlanta}
+            onSave={(v) => handleRecibido(reg, v)}
+          />
+        </td>
+      )}
+    </>
+  );
 
-    // Column filters
-    const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
-      if (fv.text !== undefined) return fv.text.trim();
-      return fv.from || fv.to;
-    });
-    if (activeColFilters.length > 0) {
-      data = data.filter(d => {
-        for (const [key, fv] of activeColFilters) {
-          const col = COLUMNS.find(c => c.key === key);
-          if (!col) continue;
-          const val = getColVal(d, key);
-          if (col.type === 'text') {
-            if (fv.text && !val.includes(fv.text.toLowerCase())) return false;
-          } else if (col.type === 'date') {
-            if (!val) return false;
-            if (fv.from && val < fv.from) return false;
-            if (fv.to   && val > fv.to)   return false;
-          } else if (col.type === 'number') {
-            if (fv.from !== '' && val < Number(fv.from)) return false;
-            if (fv.to   !== '' && val > Number(fv.to))   return false;
-          }
-        }
-        return true;
-      });
-    }
-
-    // Sort
-    if (sortField && sortDir) {
-      data.sort((a, b) => {
-        const av = getColVal(a, sortField);
-        const bv = getColVal(b, sortField);
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-
-    return data;
-  }, [registros, colFilters, sortField, sortDir]);
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="sh-layout cosecha-page">
+    <div className="harvest-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Encabezado ──────────────────────────────────────────────────── */}
-      <div className="ch-header">
-        <div>
-          <h1 className="ch-title">Historial de Cosecha</h1>
-        </div>
-        <button className="btn btn-primary" onClick={() => navigate('/cosecha/registro')}>Nuevo Registro</button>
+      <div className="aur-sheet">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">Historial de cosecha</h1>
+            <p className="aur-sheet-subtitle">
+              {loading ? 'Cargando…' : `${registros.length} registro${registros.length !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => navigate('/cosecha/registro')}
+            >
+              <FiPlus size={14} /> Nuevo registro
+            </button>
+          </div>
+        </header>
+
+        {loading ? (
+          <div className="empty-state"><p className="item-main-text">Cargando historial…</p></div>
+        ) : registros.length === 0 ? (
+          <div className="empty-state">
+            <p className="item-main-text">Sin registros de cosecha</p>
+            <p>Los registros aparecen aquí una vez creados desde Registro de Cosecha.</p>
+          </div>
+        ) : (
+          <HarvestDataTable
+            columns={COLUMNS}
+            data={registros}
+            getColVal={getColVal}
+            initialSort={{ field: 'fecha', dir: 'desc' }}
+            firstClickDir="desc"
+            renderRow={renderRow}
+          />
+        )}
       </div>
-
-      {/* ── Tabla ───────────────────────────────────────────────────────── */}
-      {loading ? (
-        <div className="empty-state"><p className="item-main-text">Cargando historial…</p></div>
-      ) : registros.length === 0 ? (
-        <div className="empty-state">
-          <p className="item-main-text">Sin registros de cosecha</p>
-          <p>Los registros aparecen aquí una vez creados desde <strong>Registro de Cosecha</strong>.</p>
-        </div>
-      ) : (
-        <div className="sh-table-card">
-          <div className="historial-top-row">
-            <span className="sh-result-count">
-              {displayData.length === registros.length
-                ? `${registros.length} registros`
-                : `${displayData.length} de ${registros.length} registros`}
-            </span>
-            {Object.keys(colFilters).length > 0 && (
-              <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-                <FiX size={11} /> Limpiar filtros de columna
-              </button>
-            )}
-          </div>
-
-          {displayData.length === 0 ? (
-            <p className="empty-state">No hay registros con los filtros aplicados.</p>
-          ) : (
-            <div className="siembra-table-wrapper">
-              <table className="siembra-table siembra-table-historial">
-                <thead>
-                  <tr>
-                    {COLUMNS.map(col => (
-                      <SortTh key={col.key} col={col}
-                        visibleCols={visibleCols} sortField={sortField} sortDir={sortDir}
-                        colFilters={colFilters} onSort={handleThSort} onFilter={openColFilter}
-                      >{col.label}</SortTh>
-                    ))}
-                    {(() => {
-                      const hiddenCount = Object.values(visibleCols).filter(v => !v).length;
-                      return (
-                        <th className="sh-th-settings">
-                          <button
-                            className={`sh-col-toggle-btn${hiddenCount > 0 ? ' sh-col-toggle-btn--active' : ''}`}
-                            onClick={handleColBtnClick}
-                            title="Personalizar columnas"
-                          >
-                            <FiSliders size={12} />
-                            {hiddenCount > 0 && (
-                              <span className="sh-col-hidden-badge">{hiddenCount}</span>
-                            )}
-                          </button>
-                        </th>
-                      );
-                    })()}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayData.map(reg => (
-                    <tr key={reg.id}>
-                      {visibleCols.consecutivo && <td style={{ fontFamily: 'monospace', color: 'var(--aurora-green)', whiteSpace: 'nowrap' }}>{reg.consecutivo || '—'}</td>}
-                      {visibleCols.fecha       && <td style={{ whiteSpace: 'nowrap' }}>{fmt(reg.fecha)}</td>}
-                      {visibleCols.lote        && <td>{reg.loteNombre      || '—'}</td>}
-                      {visibleCols.grupo       && <td>{reg.grupo           || '—'}</td>}
-                      {visibleCols.bloque      && <td>{reg.bloque          || '—'}</td>}
-                      {visibleCols.cantidad    && <td className="td-num">{num(reg.cantidad)}</td>}
-                      {visibleCols.unidad      && <td>{reg.unidad          || '—'}</td>}
-                      {visibleCols.operario    && <td>{reg.operarioNombre  || '—'}</td>}
-                      {visibleCols.activo      && <td>{reg.activoNombre    || '—'}</td>}
-                      {visibleCols.implemento  && <td>{reg.implementoNombre || '—'}</td>}
-                      {visibleCols.nota        && <td className="td-nota"><NotaCell text={reg.nota} /></td>}
-                      {visibleCols.recibido    && <td>
-                        <InlineRecibido
-                          value={reg.cantidadRecibidaPlanta}
-                          onSave={(v) => handleRecibido(reg, v)}
-                        />
-                      </td>}
-                      <td />
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Column visibility menu portal ─────────────────────────────────── */}
-      {colMenu && (
-        <ColMenu x={colMenu.x} y={colMenu.y} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
-      )}
-
-      {/* ── Column filter popover portal ──────────────────────────────────── */}
-      {filterPopover && createPortal(
-        <>
-          <div className="sh-filter-backdrop" onClick={() => setFilterPopover(null)} />
-          <div className="sh-filter-popover" style={{ left: Math.min(filterPopover.x, window.innerWidth - 220), top: filterPopover.y }}>
-            {filterPopover.type === 'text' ? (
-              <>
-                <FiFilter size={13} className="sh-filter-icon" />
-                <input autoFocus className="sh-filter-input" placeholder="Filtrar…"
-                  value={colFilters[filterPopover.field]?.text || ''}
-                  onChange={e => setColFilter(filterPopover.field, 'text', 'text', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setFilterPopover(null); }}
-                />
-                {colFilters[filterPopover.field]?.text && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, 'text', 'text', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className="sh-filter-range">
-                <span className="sh-filter-range-label">De</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.from || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'from', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                <span className="sh-filter-range-label">A</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.to || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'to', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
     </div>
   );
 }
