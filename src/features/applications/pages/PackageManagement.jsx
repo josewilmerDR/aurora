@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import '../styles/packages.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiChevronDown, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
-// ── Product search combobox ──────────────────────────────────────────────────
+// ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
 function ProdCombobox({ productos, excludeIds, onSelect }) {
   const [text, setText]       = useState('');
   const [open, setOpen]       = useState(false);
@@ -66,11 +67,12 @@ function ProdCombobox({ productos, excludeIds, onSelect }) {
   }, []);
 
   return (
-    <div className="pkg-prod-combo" ref={wrapRef}>
-      <div className="pkg-prod-input-wrap">
+    <div className="aur-combo pkg-prod-combo" ref={wrapRef}>
+      <div className="aur-combo-input-wrap">
         <FiSearch size={13} />
         <input
           type="text"
+          className="aur-combo-input"
           placeholder="+ Agregar producto..."
           value={text}
           autoComplete="off"
@@ -85,18 +87,18 @@ function ProdCombobox({ productos, excludeIds, onSelect }) {
       {open && filtered.length > 0 && createPortal(
         <ul
           ref={listRef}
-          className="pkg-prod-dropdown"
+          className="aur-combo-dropdown"
           style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width }}
         >
           {filtered.map((p, i) => (
             <li
               key={p.id}
-              className={`pkg-prod-option${i === hi ? ' pkg-prod-option--active' : ''}`}
+              className={`aur-combo-option${i === hi ? ' aur-combo-option--active' : ''}`}
               onMouseDown={() => selectOption(p)}
               onMouseEnter={() => setHi(i)}
             >
-              <span className="pkg-prod-name">{p.nombreComercial}</span>
-              {p.ingredienteActivo && <span className="pkg-prod-ing">{p.ingredienteActivo}</span>}
+              <span className="aur-combo-name">{p.nombreComercial}</span>
+              {p.ingredienteActivo && <span className="aur-combo-meta">{p.ingredienteActivo}</span>}
             </li>
           ))}
         </ul>,
@@ -475,26 +477,32 @@ function PackageManagement() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {pendingDeletePkgId && (
-        <div className="pkg-deps-overlay" onClick={() => setPendingDeletePkgId(null)}>
-          <div className="pkg-deps-modal" onClick={e => e.stopPropagation()}>
-            <h3>¿Eliminar paquete?</h3>
-            <p>Esta acción no se puede deshacer.</p>
-            <div className="pkg-deps-actions">
-              <button className="btn btn-secondary" onClick={() => setPendingDeletePkgId(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={() => handleDelete(pendingDeletePkgId)}>Eliminar</button>
-            </div>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          danger
+          title="¿Eliminar paquete?"
+          body="Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
+          onConfirm={() => handleDelete(pendingDeletePkgId)}
+          onCancel={() => setPendingDeletePkgId(null)}
+        />
       )}
 
       {pkgDepsModal && (
-        <div className="pkg-deps-overlay" onClick={() => setPkgDepsModal(null)}>
-          <div className="pkg-deps-modal" onClick={e => e.stopPropagation()}>
-            <h3>No es posible eliminar este paquete</h3>
-            <p>
+        <AuroraConfirmModal
+          size="wide"
+          title="No es posible eliminar este paquete"
+          body={
+            <>
               El paquete <strong>"{pkgDepsModal.name}"</strong> está siendo usado por los siguientes registros.
               Por favor, resuelve estas dependencias antes de eliminarlo.
-            </p>
+            </>
+          }
+          showCancel={false}
+          confirmLabel="Entendido"
+          onConfirm={() => setPkgDepsModal(null)}
+          onCancel={() => setPkgDepsModal(null)}
+        >
+          <div className="pkg-deps-body">
             {pkgDepsModal.lotes.length > 0 && (
               <>
                 <p className="pkg-deps-section-label">Lotes</p>
@@ -511,11 +519,8 @@ function PackageManagement() {
                 </ul>
               </>
             )}
-            <div className="pkg-deps-actions">
-              <button className="btn btn-secondary" onClick={() => setPkgDepsModal(null)}>Entendido</button>
-            </div>
           </div>
-        </div>
+        </AuroraConfirmModal>
       )}
 
       {/* ── Spinner de carga ── */}
@@ -526,7 +531,7 @@ function PackageManagement() {
         <div className="pkg-empty-state">
           <FiPackage size={36} />
           <p>No hay paquetes de aplicaciones creados aún.</p>
-          <button className="btn btn-primary" onClick={handleNew}>
+          <button className="aur-btn-pill" onClick={handleNew}>
             <FiPlus size={15} /> Crear el primero
           </button>
         </div>
@@ -535,8 +540,8 @@ function PackageManagement() {
       {!loading && (packages.length > 0 || isFormOpen) && !(isFormOpen && !selectedPkg) && <div className="pkg-page-header">
         <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
         {packages.length > 0 && (
-          <button className="btn btn-primary" onClick={handleNew}>
-            <FiPlus /> Nuevo Paquete
+          <button className="aur-btn-pill" onClick={handleNew}>
+            <FiPlus size={14} /> Nuevo Paquete
           </button>
         )}
       </div>}
@@ -570,27 +575,30 @@ function PackageManagement() {
 
       {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
-        <form onSubmit={handleSubmit} className="pkg-form" noValidate>
-          <header className="pkg-form-header">
-            <h2 className="pkg-form-title">{isEditing ? 'Editar paquete' : 'Nuevo paquete'}</h2>
-            <p className="pkg-form-subtitle">
-              {isEditing
-                ? 'Modifica la información del paquete y su programa de actividades.'
-                : 'Define un programa de aplicaciones reutilizable para tus lotes.'}
-            </p>
+        <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
+          <header className="aur-sheet-header">
+            <div className="aur-sheet-header-text">
+              <h2 className="aur-sheet-title">{isEditing ? 'Editar paquete' : 'Nuevo paquete'}</h2>
+              <p className="aur-sheet-subtitle">
+                {isEditing
+                  ? 'Modifica la información del paquete y su programa de actividades.'
+                  : 'Define un programa de aplicaciones reutilizable para tus lotes.'}
+              </p>
+            </div>
           </header>
 
-          <section className="pkg-form-section">
-            <div className="pkg-form-section-header">
-              <span className="pkg-form-section-num">01</span>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">01</span>
               <h3>Identidad</h3>
             </div>
-            <div className="pkg-form-list">
-              <div className="pkg-form-row">
-                <label htmlFor="nombrePaquete">Nombre</label>
+            <div className="aur-list">
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="nombrePaquete">Nombre</label>
                 <input
                   id="nombrePaquete"
                   name="nombrePaquete"
+                  className="aur-input"
                   value={formData.nombrePaquete}
                   onChange={handleInputChange}
                   maxLength={19}
@@ -598,11 +606,12 @@ function PackageManagement() {
                   required
                 />
               </div>
-              <div className="pkg-form-row pkg-form-row--multiline">
-                <label htmlFor="descripcion">Descripción</label>
+              <div className="aur-row aur-row--multiline">
+                <label className="aur-row-label" htmlFor="descripcion">Descripción</label>
                 <textarea
                   id="descripcion"
                   name="descripcion"
+                  className="aur-textarea"
                   value={formData.descripcion}
                   onChange={handleInputChange}
                   placeholder="Resumen breve del propósito del paquete..."
@@ -613,15 +622,15 @@ function PackageManagement() {
             </div>
           </section>
 
-          <section className="pkg-form-section">
-            <div className="pkg-form-section-header">
-              <span className="pkg-form-section-num">02</span>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">02</span>
               <h3>Clasificación</h3>
             </div>
-            <div className="pkg-form-list">
-              <div className="pkg-form-row">
-                <label htmlFor="tipoCosecha">Tipo de cosecha</label>
-                <select id="tipoCosecha" name="tipoCosecha" value={formData.tipoCosecha} onChange={handleInputChange} required>
+            <div className="aur-list">
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="tipoCosecha">Tipo de cosecha</label>
+                <select id="tipoCosecha" name="tipoCosecha" className="aur-select" value={formData.tipoCosecha} onChange={handleInputChange} required>
                   <option value="">Seleccionar...</option>
                   <option value="I Cosecha">I Cosecha</option>
                   <option value="II Cosecha">II Cosecha</option>
@@ -629,20 +638,21 @@ function PackageManagement() {
                   <option value="Semillero">Semillero</option>
                 </select>
               </div>
-              <div className="pkg-form-row">
-                <label htmlFor="etapaCultivo">Etapa del cultivo</label>
-                <select id="etapaCultivo" name="etapaCultivo" value={formData.etapaCultivo} onChange={handleInputChange} required>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="etapaCultivo">Etapa del cultivo</label>
+                <select id="etapaCultivo" name="etapaCultivo" className="aur-select" value={formData.etapaCultivo} onChange={handleInputChange} required>
                   <option value="">Seleccionar...</option>
                   <option value="Desarrollo">Desarrollo</option>
                   <option value="Postforza">Postforza</option>
                   <option value="N/A">N/A</option>
                 </select>
               </div>
-              <div className="pkg-form-row">
-                <label htmlFor="tecnicoResponsable">Técnico responsable</label>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
                 <input
                   id="tecnicoResponsable"
                   name="tecnicoResponsable"
+                  className="aur-input"
                   value={formData.tecnicoResponsable}
                   onChange={handleInputChange}
                   placeholder="Opcional"
@@ -652,11 +662,11 @@ function PackageManagement() {
             </div>
           </section>
 
-          <section className="pkg-form-section">
-            <div className="pkg-form-section-header">
-              <span className="pkg-form-section-num">03</span>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">03</span>
               <h3>Programa de actividades</h3>
-              <span className="pkg-form-section-count">{formData.activities.length}</span>
+              <span className="aur-section-count">{formData.activities.length}</span>
             </div>
             <ul className="pkg-act-list">
               {formData.activities.map((activity, index) => {
@@ -701,7 +711,7 @@ function PackageManagement() {
                         />
                         <div className="pkg-act-meta">
                           <select
-                            className="pkg-chip"
+                            className="aur-chip"
                             value={activity.responsableId}
                             onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}
                             aria-label="Responsable"
@@ -710,7 +720,7 @@ function PackageManagement() {
                             {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
                           </select>
                           <select
-                            className="pkg-chip"
+                            className="aur-chip"
                             value={activity.calibracionId || ''}
                             onChange={(e) => handleActivityChange(index, 'calibracionId', e.target.value)}
                             aria-label="Calibración"
@@ -720,7 +730,7 @@ function PackageManagement() {
                           </select>
                           {plantillas.length > 0 && (
                             <select
-                              className="pkg-chip pkg-chip--ghost"
+                              className="aur-chip aur-chip--ghost"
                               value=""
                               onChange={(e) => {
                                 if (e.target.value) aplicarPlantillaAActividad(index, e.target.value);
@@ -745,16 +755,16 @@ function PackageManagement() {
 
                       <div className="pkg-act-actions">
                         {pendingDeleteIdx === index ? (
-                          <div className="pkg-act-confirm">
-                            <span>¿Eliminar?</span>
-                            <button type="button" className="pkg-act-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
-                            <button type="button" className="pkg-act-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
+                          <div className="aur-inline-confirm">
+                            <span className="aur-inline-confirm-text">¿Eliminar?</span>
+                            <button type="button" className="aur-inline-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
+                            <button type="button" className="aur-inline-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
                           </div>
                         ) : (
                           <>
                             <button
                               type="button"
-                              className="pkg-act-icon-btn"
+                              className="aur-icon-btn"
                               onClick={() => duplicateActivity(index)}
                               title="Duplicar actividad"
                             >
@@ -762,7 +772,7 @@ function PackageManagement() {
                             </button>
                             <button
                               type="button"
-                              className="pkg-act-icon-btn pkg-act-icon-btn--danger"
+                              className="aur-icon-btn aur-icon-btn--danger"
                               onClick={() => setPendingDeleteIdx(index)}
                               title="Eliminar actividad"
                             >
@@ -770,7 +780,7 @@ function PackageManagement() {
                             </button>
                             <button
                               type="button"
-                              className={`pkg-act-icon-btn pkg-act-expand${expanded ? ' is-open' : ''}`}
+                              className={`aur-icon-btn pkg-act-expand${expanded ? ' is-open' : ''}`}
                               onClick={() => toggleActivityExpand(index)}
                               title={expanded ? 'Ocultar productos' : 'Productos de mezcla'}
                             >
@@ -849,8 +859,8 @@ function PackageManagement() {
           </section>
 
           <footer className="pkg-form-actions">
-            <button type="button" onClick={resetForm} className="pkg-btn-text">Cancelar</button>
-            <button type="submit" className="pkg-btn-pill">{isEditing ? 'Actualizar paquete' : 'Guardar paquete'}</button>
+            <button type="button" onClick={resetForm} className="aur-btn-text">Cancelar</button>
+            <button type="submit" className="aur-btn-pill">{isEditing ? 'Actualizar paquete' : 'Guardar paquete'}</button>
           </footer>
         </form>
       )}
