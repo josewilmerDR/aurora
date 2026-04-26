@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiClipboard, FiChevronRight, FiArrowLeft, FiMove, FiLock } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/monitoring.css';
 
@@ -129,7 +130,7 @@ function CamposEditor({ campos, onChange, disabled }) {
           </select>
           <button
             type="button"
-            className="icon-btn delete"
+            className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
             onClick={() => removeCampo(i)}
             disabled={disabled}
             title="Eliminar campo"
@@ -160,6 +161,7 @@ function TemplateConfig() {
   const [newTipo, setNewTipo]           = useState({ nombre: '', campos: [] });
   const [toast, setToast]               = useState(null);
   const [loading, setLoading]           = useState(true);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -241,8 +243,7 @@ function TemplateConfig() {
     }
   };
 
-  const handleDelete = async (tipo) => {
-    if (!confirm('¿Eliminar esta plantilla de muestreo?')) return;
+  const doDelete = async (tipo) => {
     try {
       await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, { method: 'DELETE' });
       setTipos(prev => prev.filter(t => t.id !== tipo.id));
@@ -270,7 +271,7 @@ function TemplateConfig() {
         <div className="mon-empty-state">
           <FiClipboard size={36} />
           <p>No hay plantillas de muestreo creadas</p>
-          <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+          <button className="aur-btn-pill" onClick={() => setShowNew(true)}>
             <FiPlus size={14} /> Crear el primero
           </button>
         </div>
@@ -279,7 +280,7 @@ function TemplateConfig() {
           {!selectedTipo && (
             <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 className="lote-list-title">Plantillas de muestreo</h3>
-              <button className="btn btn-primary" onClick={() => { setShowNew(true); setSelectedTipo(null); }}>
+              <button className="aur-btn-pill" onClick={() => { setShowNew(true); setSelectedTipo(null); }}>
                 <FiPlus size={16} /> Nueva plantilla
               </button>
             </div>
@@ -333,18 +334,18 @@ function TemplateConfig() {
                   <div className="hub-header-actions">
                     {editingId === selectedTipo.id ? (
                       <>
-                        <button className="icon-btn" style={{ color: 'var(--aurora-green)', opacity: 1 }} onClick={saveEdit} title="Guardar"><FiCheck size={16} /></button>
-                        <button className="icon-btn" onClick={cancelEdit} title="Cancelar"><FiX size={16} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--success" onClick={saveEdit} title="Guardar"><FiCheck size={16} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={cancelEdit} title="Cancelar"><FiX size={16} /></button>
                       </>
                     ) : (
                       <>
-                        <button className="icon-btn" onClick={() => toggleActivo(selectedTipo)} title={selectedTipo.activo ? 'Desactivar' : 'Activar'}>
+                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={() => toggleActivo(selectedTipo)} title={selectedTipo.activo ? 'Desactivar' : 'Activar'}>
                           {selectedTipo.activo
                             ? <FiToggleRight size={18} style={{ color: 'var(--aurora-green)' }} />
                             : <FiToggleLeft size={18} />}
                         </button>
-                        <button className="icon-btn" onClick={() => startEdit(selectedTipo)} title="Editar"><FiEdit2 size={15} /></button>
-                        <button className="icon-btn delete" onClick={() => handleDelete(selectedTipo)} title="Eliminar"><FiTrash2 size={15} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={() => startEdit(selectedTipo)} title="Editar"><FiEdit2 size={15} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger" onClick={() => setConfirmDelete(selectedTipo)} title="Eliminar"><FiTrash2 size={15} /></button>
                       </>
                     )}
                   </div>
@@ -399,8 +400,8 @@ function TemplateConfig() {
                   />
                 </div>
                 <div className="form-actions">
-                  <button className="btn btn-primary" onClick={saveNew}>Crear plantilla</button>
-                  <button className="btn btn-secondary" onClick={() => setShowNew(false)}>Cancelar</button>
+                  <button className="aur-btn-pill" onClick={saveNew}>Crear plantilla</button>
+                  <button className="aur-btn-text" onClick={() => setShowNew(false)}>Cancelar</button>
                 </div>
               </div>
             ) : null}
@@ -426,6 +427,17 @@ function TemplateConfig() {
             )}
           </div>
         </>
+      )}
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar plantilla"
+          body={`¿Eliminar la plantilla "${confirmDelete.nombre}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { doDelete(confirmDelete); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

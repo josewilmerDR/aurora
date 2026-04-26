@@ -139,16 +139,16 @@ function ActivitiesEditor({
                         </div>
                       ) : (
                         <>
-                          <button type="button" onClick={() => setPendingDeleteIdx(index)} className="icon-btn pkg-action-btn" title="Eliminar Actividad">
+                          <button type="button" onClick={() => setPendingDeleteIdx(index)} className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger pkg-action-btn" title="Eliminar Actividad">
                             <FiX size={16} />
                           </button>
-                          <button type="button" onClick={() => duplicateActivity(index)} className="icon-btn pkg-action-btn" title="Duplicar Actividad">
+                          <button type="button" onClick={() => duplicateActivity(index)} className="aur-icon-btn aur-icon-btn--sm pkg-action-btn" title="Duplicar Actividad">
                             <FiCopy size={15} />
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleExpand(index)}
-                            className={`icon-btn pkg-action-btn${expanded.has(index) ? ' expanded' : ''}`}
+                            className={`aur-icon-btn aur-icon-btn--sm pkg-action-btn${expanded.has(index) ? ' expanded' : ''}`}
                             title={expanded.has(index) ? 'Ocultar formularios' : 'Ver formularios'}
                           >
                             <FiEye size={16} />
@@ -205,7 +205,7 @@ function ActivitiesEditor({
       </div>
 
       <div className="add-activity-btn-container">
-        <button type="button" onClick={addActivity} className="btn btn-secondary">
+        <button type="button" onClick={addActivity} className="aur-btn-text">
           <FiPlus /> Añadir Actividad
         </button>
       </div>
@@ -418,7 +418,7 @@ function SamplingPackages() {
         <div className="mon-empty-state">
           <FiClipboard size={36} />
           <p>No hay paquetes de muestreo creados</p>
-          <button className="btn btn-primary" onClick={startNew}>
+          <button className="aur-btn-pill" onClick={startNew}>
             <FiPlus size={14} /> Crear el primero
           </button>
         </div>
@@ -427,7 +427,7 @@ function SamplingPackages() {
           {!selectedPkg && !showNew && (
             <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 className="lote-list-title">Paquetes de muestreo</h3>
-              <button className="btn btn-primary" onClick={startNew}>
+              <button className="aur-btn-pill" onClick={startNew}>
                 <FiPlus size={16} /> Nuevo paquete
               </button>
             </div>
@@ -475,13 +475,13 @@ function SamplingPackages() {
                   <div className="hub-header-actions">
                     {isEditing ? (
                       <>
-                        <button className="icon-btn" style={{ color: 'var(--aurora-green)', opacity: 1 }} onClick={saveForm} title="Guardar"><FiCheck size={16} /></button>
-                        <button className="icon-btn" onClick={cancelEdit} title="Cancelar"><FiX size={16} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--success" onClick={saveForm} title="Guardar"><FiCheck size={16} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={cancelEdit} title="Cancelar"><FiX size={16} /></button>
                       </>
                     ) : (
                       <>
-                        <button className="icon-btn" onClick={startEdit} title="Editar"><FiEdit2 size={15} /></button>
-                        <button className="icon-btn" onClick={() => handleDuplicate(selectedPkg)} title="Duplicar"><FiCopy size={15} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={startEdit} title="Editar"><FiEdit2 size={15} /></button>
+                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={() => handleDuplicate(selectedPkg)} title="Duplicar"><FiCopy size={15} /></button>
                         {pendingDeletePkgId === selectedPkg.id ? (
                           <div className="activity-delete-confirm">
                             <span>¿Eliminar?</span>
@@ -489,7 +489,7 @@ function SamplingPackages() {
                             <button className="btn-confirm-no" onClick={() => setPendingDeletePkgId(null)}>No</button>
                           </div>
                         ) : (
-                          <button className="icon-btn delete" onClick={() => setPendingDeletePkgId(selectedPkg.id)} title="Eliminar"><FiTrash2 size={15} /></button>
+                          <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger" onClick={() => setPendingDeletePkgId(selectedPkg.id)} title="Eliminar"><FiTrash2 size={15} /></button>
                         )}
                       </>
                     )}
@@ -580,8 +580,8 @@ function SamplingPackages() {
                   />
 
                   <div className="form-actions">
-                    <button type="submit" className="btn btn-primary">Crear paquete</button>
-                    <button type="button" className="btn btn-secondary" onClick={cancelNew}>Cancelar</button>
+                    <button type="submit" className="aur-btn-pill">Crear paquete</button>
+                    <button type="button" className="aur-btn-text" onClick={cancelNew}>Cancelar</button>
                   </div>
                 </form>
               </div>
