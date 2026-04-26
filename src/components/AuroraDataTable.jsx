@@ -177,6 +177,19 @@ export default function AuroraDataTable({
                 <tr>
                   {columns.map(col => {
                     if (!visibleCols[col.key]) return null;
+                    // Columnas con sortable: false renderizan un <th> plano,
+                    // sin sort cursor ni filter funnel (útil para columnas
+                    // computed/derived donde el sort/filter no aplica).
+                    if (col.sortable === false) {
+                      return (
+                        <th
+                          key={col.key}
+                          style={col.align === 'right' ? { textAlign: 'right' } : undefined}
+                        >
+                          {col.label}
+                        </th>
+                      );
+                    }
                     const isSort  = sortField === col.key;
                     const hasFilt = !!colFilters[col.key];
                     return (

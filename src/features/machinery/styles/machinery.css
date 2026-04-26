@@ -1,0 +1,290 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MACHINERY — estilos específicos del dominio maquinaria
+
+   Las primitivas Apple-inspired (sheet/section/list/row/input/btn/chip/combo/
+   table/th-sortable/th-funnel/filter-popover/icon-btn/modal/col-menu/
+   table-toolbar/table-wrap/pagination-footer/page-loading/form-actions)
+   vienen de src/styles/aurora.css. Este archivo contiene únicamente lo que
+   es propio del dominio machinery:
+
+     · Layout de página (.machinery-page)
+     · Toolbar de tabla (search + fuel-bodega chip)
+     · Fuel-bodega popover (selector de bodega de combustible)
+     · Tipo badge (etiqueta del tipo de maquinaria)
+     · Cell helpers (code, actions, empty, num, currency)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Layout de página ──────────────────────────────────────────────────── */
+.machinery-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Toolbar (search + fuel chip) por encima de la tabla ───────────────── */
+.machinery-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.machinery-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 360px;
+  min-width: 200px;
+  background: var(--aur-bg-input);
+  border: 1px solid transparent;
+  border-radius: var(--aur-r-input);
+  padding: 0 12px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.machinery-search-wrap:focus-within {
+  background: var(--aur-bg-hover);
+  box-shadow: var(--aur-ring);
+}
+.machinery-search-wrap > svg {
+  flex-shrink: 0;
+  color: var(--aur-text-3);
+}
+.machinery-search-wrap:focus-within > svg {
+  color: var(--aur-accent);
+}
+.machinery-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
+  padding: 9px 0;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+.machinery-search-input::placeholder {
+  color: var(--aur-text-3);
+}
+
+/* ── Fuel-bodega chip + popover ────────────────────────────────────────── */
+.machinery-fuel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  color: var(--aur-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--aur-r-pill);
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s var(--aur-ease);
+}
+.machinery-fuel-chip:hover {
+  border-color: var(--aur-divider-2);
+  color: var(--aur-text);
+}
+.machinery-fuel-chip:active {
+  transform: scale(0.96);
+}
+.machinery-fuel-chip.is-configured {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-2);
+  color: var(--aur-accent);
+}
+.machinery-fuel-chip.is-empty {
+  border-style: dashed;
+}
+
+.machinery-fuel-popover {
+  position: fixed;
+  z-index: 1200;
+  min-width: 260px;
+  max-width: 320px;
+  background: rgba(13, 26, 38, 0.96);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: var(--aur-shadow-popover);
+  animation: aur-slide-up 0.18s var(--aur-ease);
+  font-feature-settings: 'ss01', 'cv11';
+  letter-spacing: -0.01em;
+}
+.machinery-fuel-popover-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--aur-text-3);
+  padding: 8px 10px 4px;
+}
+.machinery-fuel-popover-hint {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  padding: 0 10px 8px;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+.machinery-fuel-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.machinery-fuel-option:hover {
+  background: var(--aur-bg-hover);
+}
+.machinery-fuel-option.is-selected {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+  font-weight: 600;
+}
+.machinery-fuel-popover-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  font-style: italic;
+  margin: 0;
+}
+.machinery-fuel-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--aur-text-3);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  transition: background 0.12s ease, color 0.12s ease;
+  margin-top: 4px;
+  border-top: 1px solid var(--aur-divider);
+  padding-top: 10px;
+}
+.machinery-fuel-clear:hover {
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
+}
+
+/* ── Tipo badge (en columna de la tabla) ───────────────────────────────── */
+.machinery-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--aur-bg-strong);
+  color: var(--aur-text-2);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  font-feature-settings: 'ss01';
+}
+
+/* ── Cell helpers ──────────────────────────────────────────────────────── */
+.machinery-td-code {
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--aur-text-2);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.machinery-td-empty {
+  color: var(--aur-text-3);
+  font-style: italic;
+}
+.machinery-td-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.machinery-td-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.machinery-td-actions .aur-icon-btn {
+  margin-left: 2px;
+}
+
+/* Highlight verde para L/H configurado */
+.machinery-fuel-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Empty state (lista vacía) ─────────────────────────────────────────── */
+.machinery-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--aur-text-3);
+}
+.machinery-empty > svg {
+  color: var(--aur-text-3);
+  opacity: 0.5;
+}
+.machinery-empty-text {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
+  margin: 0;
+  font-weight: 500;
+}
+.machinery-empty-sub {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  margin: 0;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .machinery-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .machinery-search-wrap {
+    max-width: none;
+  }
+  .machinery-fuel-chip {
+    align-self: flex-start;
+  }
+}
