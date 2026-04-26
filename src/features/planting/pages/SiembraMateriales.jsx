@@ -4,7 +4,7 @@ import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icon
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../styles/siembra.css';
+import '../styles/siembra-materiales.css';
 
 const EMPTY = { nombre: '', rangoPesos: '', variedad: '' };
 
@@ -89,150 +89,161 @@ function SiembraMateriales() {
   };
 
   return (
-    <div className="sm-wrap">
+    <div className="aur-sheet mat-sheet">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
 
-      <div className="sm-page">
-        <header className="sm-page-header">
-          <div className="sm-page-header-text">
-            <h2 className="sm-page-title">Materiales de siembra</h2>
-            <p className="sm-page-subtitle">Catálogo de variedades y rangos de peso usados en los registros.</p>
-          </div>
-          <div className="sm-page-header-actions">
-            <Link to="/siembra" className="sm-chip sm-chip--ghost">
-              <FiArrowLeft size={12} /> Registro
-            </Link>
-            {!showForm && (
-              <button type="button" className="sm-btn-pill" onClick={() => setShowForm(true)}>
-                <FiPlus size={14} /> Nuevo material
-              </button>
-            )}
-          </div>
-        </header>
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title">Materiales de siembra</h2>
+          <p className="aur-sheet-subtitle">Catálogo de variedades y rangos de peso usados en los registros.</p>
+        </div>
+        <div className="aur-sheet-header-actions">
+          <Link to="/siembra" className="aur-chip aur-chip--ghost">
+            <FiArrowLeft size={12} /> Registro
+          </Link>
+          {!showForm && (
+            <button type="button" className="aur-btn-pill" onClick={() => setShowForm(true)}>
+              <FiPlus size={14} /> Nuevo material
+            </button>
+          )}
+        </div>
+      </header>
 
-        {showForm && (
-          <section className="sm-page-section">
-            <div className="sm-page-section-header">
-              <span className="sm-page-section-num">+</span>
-              <h3>Nuevo material</h3>
-              <button type="button" className="sm-page-section-close" onClick={cancelCreate} title="Cerrar">
+      {showForm && (
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">+</span>
+            <h3>Nuevo material</h3>
+            <div className="aur-section-actions">
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={cancelCreate}
+                title="Cerrar"
+                aria-label="Cerrar"
+              >
                 <FiX size={14} />
               </button>
             </div>
-            <form onSubmit={handleCreate}>
-              <div className="sm-page-form-list">
-                <div className="sm-page-form-row">
-                  <label htmlFor="sm-nombre">Nombre <span className="sm-required">*</span></label>
-                  <input
-                    id="sm-nombre"
-                    value={form.nombre}
-                    onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-                    placeholder="Ej. CM, MD2, Cayena Lisa"
-                    autoFocus
-                  />
-                </div>
-                <div className="sm-page-form-row">
-                  <label htmlFor="sm-rango">Rango de pesos</label>
-                  <input
-                    id="sm-rango"
-                    value={form.rangoPesos}
-                    onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
-                    placeholder="Ej. 200g – 300g"
-                  />
-                </div>
-                <div className="sm-page-form-row">
-                  <label htmlFor="sm-variedad">Variedad</label>
-                  <input
-                    id="sm-variedad"
-                    value={form.variedad}
-                    onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
-                    placeholder="Ej. Amarilla, Roja"
-                  />
-                </div>
-              </div>
-              <div className="sm-page-form-actions">
-                <button type="button" className="sm-btn-text" onClick={cancelCreate}>Cancelar</button>
-                <button type="submit" className="sm-btn-pill">Crear material</button>
-              </div>
-            </form>
-          </section>
-        )}
-
-        <section className="sm-page-section">
-          <div className="sm-page-section-header">
-            <span className="sm-page-section-num">{showForm ? '02' : '01'}</span>
-            <h3>Catálogo</h3>
-            <span className="sm-page-section-count">{materiales.length}</span>
           </div>
-
-          {materiales.length === 0 ? (
-            <div className="sm-empty">
-              <p>No hay materiales registrados.</p>
-              <p className="sm-empty-hint">Crea el primero con el botón "Nuevo material".</p>
+          <form onSubmit={handleCreate}>
+            <div className="aur-list">
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="mat-nombre">
+                  Nombre <span className="mat-required">*</span>
+                </label>
+                <input
+                  id="mat-nombre"
+                  className="aur-input"
+                  value={form.nombre}
+                  onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                  placeholder="Ej. CM, MD2, Cayena Lisa"
+                  autoFocus
+                />
+              </div>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="mat-rango">Rango de pesos</label>
+                <input
+                  id="mat-rango"
+                  className="aur-input"
+                  value={form.rangoPesos}
+                  onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
+                  placeholder="Ej. 200g – 300g"
+                />
+              </div>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="mat-variedad">Variedad</label>
+                <input
+                  id="mat-variedad"
+                  className="aur-input"
+                  value={form.variedad}
+                  onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
+                  placeholder="Ej. Amarilla, Roja"
+                />
+              </div>
             </div>
-          ) : (
-            <ul className="sm-item-list">
-              {materiales.map(m => (
-                <li key={m.id} className={`sm-item-card${editingId === m.id ? ' sm-item-card--editing' : ''}`}>
-                  {editingId === m.id ? (
-                    <>
-                      <div className="sm-item-edit">
-                        <input
-                          className="sm-item-input"
-                          placeholder="Nombre"
-                          value={editData.nombre}
-                          onChange={e => setEditData(p => ({ ...p, nombre: e.target.value }))}
-                        />
-                        <input
-                          className="sm-item-input"
-                          placeholder="Rango de pesos"
-                          value={editData.rangoPesos}
-                          onChange={e => setEditData(p => ({ ...p, rangoPesos: e.target.value }))}
-                        />
-                        <input
-                          className="sm-item-input"
-                          placeholder="Variedad"
-                          value={editData.variedad}
-                          onChange={e => setEditData(p => ({ ...p, variedad: e.target.value }))}
-                        />
-                      </div>
-                      <div className="sm-item-actions">
-                        <button type="button" className="sm-icon-btn sm-icon-btn--success" onClick={saveEdit} title="Guardar">
-                          <FiCheck size={14} />
-                        </button>
-                        <button type="button" className="sm-icon-btn" onClick={() => setEditingId(null)} title="Cancelar">
-                          <FiX size={14} />
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="sm-item-info">
-                        <span className="sm-item-name">{m.nombre}</span>
-                        {(m.rangoPesos || m.variedad) && (
-                          <div className="sm-item-chips">
-                            {m.rangoPesos && <span className="sm-mat-chip">{m.rangoPesos}</span>}
-                            {m.variedad && <span className="sm-mat-chip sm-mat-chip--var">{m.variedad}</span>}
-                          </div>
-                        )}
-                      </div>
-                      <div className="sm-item-actions">
-                        <button type="button" className="sm-icon-btn" onClick={() => startEdit(m)} title="Editar">
-                          <FiEdit2 size={14} />
-                        </button>
-                        <button type="button" className="sm-icon-btn sm-icon-btn--danger" onClick={() => askDelete(m)} title="Eliminar">
-                          <FiTrash2 size={14} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+            <div className="mat-form-actions">
+              <button type="button" className="aur-btn-text" onClick={cancelCreate}>Cancelar</button>
+              <button type="submit" className="aur-btn-pill">Crear material</button>
+            </div>
+          </form>
         </section>
-      </div>
+      )}
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">{showForm ? '02' : '01'}</span>
+          <h3>Catálogo</h3>
+          <span className="aur-section-count">{materiales.length}</span>
+        </div>
+
+        {materiales.length === 0 ? (
+          <div className="mat-empty">
+            <p>No hay materiales registrados.</p>
+            <p className="mat-empty-hint">Crea el primero con el botón "Nuevo material".</p>
+          </div>
+        ) : (
+          <ul className="mat-list">
+            {materiales.map(m => (
+              <li key={m.id} className={`mat-card${editingId === m.id ? ' mat-card--editing' : ''}`}>
+                {editingId === m.id ? (
+                  <>
+                    <div className="mat-edit">
+                      <input
+                        className="aur-input"
+                        placeholder="Nombre"
+                        value={editData.nombre}
+                        onChange={e => setEditData(p => ({ ...p, nombre: e.target.value }))}
+                      />
+                      <input
+                        className="aur-input"
+                        placeholder="Rango de pesos"
+                        value={editData.rangoPesos}
+                        onChange={e => setEditData(p => ({ ...p, rangoPesos: e.target.value }))}
+                      />
+                      <input
+                        className="aur-input"
+                        placeholder="Variedad"
+                        value={editData.variedad}
+                        onChange={e => setEditData(p => ({ ...p, variedad: e.target.value }))}
+                      />
+                    </div>
+                    <div className="mat-actions">
+                      <button type="button" className="aur-icon-btn aur-icon-btn--success" onClick={saveEdit} title="Guardar">
+                        <FiCheck size={14} />
+                      </button>
+                      <button type="button" className="aur-icon-btn" onClick={() => setEditingId(null)} title="Cancelar">
+                        <FiX size={14} />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mat-info">
+                      <span className="mat-name">{m.nombre}</span>
+                      {(m.rangoPesos || m.variedad) && (
+                        <div className="mat-chips">
+                          {m.rangoPesos && <span className="aur-chip">{m.rangoPesos}</span>}
+                          {m.variedad && <span className="aur-chip aur-chip--ghost">{m.variedad}</span>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mat-actions">
+                      <button type="button" className="aur-icon-btn" onClick={() => startEdit(m)} title="Editar">
+                        <FiEdit2 size={14} />
+                      </button>
+                      <button type="button" className="aur-icon-btn aur-icon-btn--danger" onClick={() => askDelete(m)} title="Eliminar">
+                        <FiTrash2 size={14} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

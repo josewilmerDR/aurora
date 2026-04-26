@@ -1,0 +1,120 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIEMBRA MATERIALES — page-specific overrides on top of .aur-* primitives
+   El sheet, secciones, lista de form, inputs, chips, icon buttons y modal
+   vienen de aurora.css. Aquí solo viven los pedazos únicos de la página:
+   ancho cómodo del sheet, grid de cards de material y layout inline-edit.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mat-sheet {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ── Required asterisk en labels ─────────────────────────────────────────── */
+.mat-required {
+  color: var(--aur-danger);
+  margin-left: 2px;
+}
+
+/* ── Form actions (cancelar + crear) ─────────────────────────────────────── */
+.mat-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.mat-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--aur-text-2);
+}
+.mat-empty p {
+  margin: 0 0 4px 0;
+  font-size: var(--aur-fs-body);
+}
+.mat-empty-hint {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+
+/* ── Lista de materiales ─────────────────────────────────────────────────── */
+.mat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.mat-card:hover {
+  border-color: var(--aur-divider-2);
+}
+.mat-card--editing {
+  border-color: var(--aur-accent-tint-2);
+  background: var(--aur-bg-hover);
+}
+
+.mat-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mat-name {
+  font-size: var(--aur-fs-body);
+  font-weight: 500;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.mat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Inline edit (3 inputs en columna dentro del card) ──────────────────── */
+.mat-edit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Acciones por card (icon buttons) ───────────────────────────────────── */
+.mat-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Mobile (≤600px) ────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .mat-sheet {
+    padding: 20px;
+    border-radius: 16px;
+  }
+  .mat-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mat-actions {
+    justify-content: flex-end;
+  }
+}
