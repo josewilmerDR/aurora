@@ -165,7 +165,7 @@ function UnitPayrollHistory() {
                 onChange={e => { setFilterTo(e.target.value); setPage(1); }}
               />
               {(filterFrom || filterTo) && (
-                <button className="btn btn-secondary historial-clear-btn" onClick={clearAllFilters}>
+                <button className="aur-btn-text historial-clear-btn" onClick={clearAllFilters}>
                   Limpiar
                 </button>
               )}
@@ -244,7 +244,7 @@ function UnitPayrollHistory() {
 
             {visible.length < sorted.length && (
               <div className="historial-load-more">
-                <button className="btn btn-secondary" onClick={() => setPage(p => p + 1)}>
+                <button className="aur-btn-text" onClick={() => setPage(p => p + 1)}>
                   Ver más — {sorted.length - visible.length} restante{sorted.length - visible.length !== 1 ? 's' : ''}
                 </button>
               </div>

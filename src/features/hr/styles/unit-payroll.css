@@ -1038,44 +1038,12 @@ select.ut-ctrl {
   color: var(--aurora-green);
 }
 
-/* ── Modal de vista previa ───────────────────────────────────────────────── */
-.pu-preview-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.72);
-  z-index: 1000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 20px 16px;
-  overflow-y: auto;
-}
-
-.pu-preview-modal {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  width: 100%;
-  max-width: 940px;
-  display: flex;
-  flex-direction: column;
-  margin: auto;
-}
-
+/* ── Modal de vista previa (extiende aur-modal--xl) ──────────────────────── */
 .pu-preview-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--aurora-border);
-  gap: 12px;
   flex-wrap: wrap;
 }
 
 .pu-preview-modal-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--aurora-light);
   display: flex;
   align-items: center;
   gap: 10px;
