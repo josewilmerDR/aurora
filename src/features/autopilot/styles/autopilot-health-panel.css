@@ -1,8 +1,15 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTOPILOT HEALTH PANEL — modificadores slim sobre primitivas del sistema
+   El refresh button usa aur-icon-btn--sm; el detail-link usa aur-btn-text;
+   los KPI cards y la ventana segmented control son layout bespoke con
+   tokens del sistema.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .ap-health {
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 14px 16px;
-  background: var(--aurora-background);
+  background: var(--aur-bg-card);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -18,8 +25,10 @@
 
 .ap-health-header h3 {
   margin: 0;
-  font-size: 0.95rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-callout);
+  color: var(--aur-text);
+  font-weight: 600;
+  letter-spacing: -0.01em;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -31,56 +40,60 @@
   gap: 8px;
 }
 
+/* Segmented control — 3 botones (1h/24h/7d) en una bandeja unificada.
+   La bandeja tiene un solo border; los botones internos son borderless
+   y el active toma el verde accent del sistema. */
 .ap-health-window {
   display: inline-flex;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   overflow: hidden;
 }
 
 .ap-health-window-btn {
   background: transparent;
-  color: var(--aurora-light);
+  color: var(--aur-text-2);
   border: none;
-  padding: 4px 10px;
-  font-size: 0.78rem;
+  padding: 5px 12px;
+  font-size: var(--aur-fs-caption);
+  font-weight: 500;
   cursor: pointer;
-  opacity: 0.7;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-
+.ap-health-window-btn:hover:not(:disabled):not(.is-active) {
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
 .ap-health-window-btn.is-active {
-  background: var(--aurora-green);
+  background: var(--aur-accent);
   color: var(--aurora-dark-blue);
-  opacity: 1;
+  font-weight: 600;
 }
-
 .ap-health-window-btn:disabled {
   cursor: not-allowed;
-}
-
-.ap-health-refresh {
-  padding: 4px 8px;
+  opacity: 0.5;
 }
 
 .ap-health-spin {
   animation: ap-health-spin 1s linear infinite;
 }
-
 @keyframes ap-health-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
 .ap-health-error {
-  font-size: 0.82rem;
-  color: #ff6b6b;
-  background: rgba(255, 77, 77, 0.08);
-  border: 1px solid rgba(255, 77, 77, 0.2);
-  border-radius: 6px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-danger);
+  background: var(--aur-danger-tint);
+  border: 1px solid rgba(255, 80, 80, 0.2);
+  border-radius: var(--aur-r-card);
   padding: 6px 10px;
 }
 
+/* ── KPI cards (4 metrics: total/success/latency/failed) ─────────────────── */
 .ap-health-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -92,28 +105,28 @@
   flex-direction: column;
   gap: 2px;
   padding: 10px 12px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  background: var(--aur-bg-input);
 }
 
 .ap-health-kpi-value {
   font-size: 1.2rem;
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
 }
 
 .ap-health-kpi-label {
-  font-size: 0.74rem;
-  color: var(--aurora-light);
-  opacity: 0.65;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.ap-health-kpi--good  .ap-health-kpi-value { color: var(--aurora-green); }
-.ap-health-kpi--warn  .ap-health-kpi-value { color: #ffb347; }
-.ap-health-kpi--bad   .ap-health-kpi-value { color: #ff6b6b; }
+.ap-health-kpi--good  .ap-health-kpi-value { color: var(--aur-accent); }
+.ap-health-kpi--warn  .ap-health-kpi-value { color: var(--aur-warn); }
+.ap-health-kpi--bad   .ap-health-kpi-value { color: var(--aur-danger); }
 
 .ap-health-breakdown {
   display: grid;
@@ -123,11 +136,11 @@
 
 .ap-health-breakdown-group h5 {
   margin: 0 0 6px 0;
-  font-size: 0.78rem;
+  font-size: var(--aur-fs-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--aurora-light);
-  opacity: 0.7;
+  color: var(--aur-text-3);
+  font-weight: 700;
 }
 
 .ap-health-breakdown-group ul {
@@ -142,18 +155,18 @@
 .ap-health-breakdown-group li {
   display: flex;
   justify-content: space-between;
-  font-size: 0.84rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--aur-r-card);
+  background: var(--aur-bg-hover);
 }
 
 .ap-health-failures h4 {
   margin: 0 0 8px 0;
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -161,9 +174,9 @@
 
 .ap-health-empty {
   margin: 0;
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  font-style: italic;
 }
 
 .ap-health-failures ul {
@@ -177,34 +190,33 @@
 
 .ap-health-failures li {
   padding: 8px 10px;
-  border: 1px solid rgba(255, 77, 77, 0.2);
-  border-radius: 6px;
-  background: rgba(255, 77, 77, 0.04);
+  border: 1px solid rgba(255, 80, 80, 0.2);
+  border-radius: var(--aur-r-card);
+  background: var(--aur-danger-tint);
 }
 
 .ap-health-failure-head {
   display: flex;
   justify-content: space-between;
-  font-size: 0.84rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
 }
 
 .ap-health-failure-head span {
-  opacity: 0.6;
-  font-size: 0.76rem;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
 }
 
 .ap-health-failure-title {
   margin-top: 2px;
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.85;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
 }
 
 .ap-health-failure-error {
   margin-top: 4px;
-  font-size: 0.78rem;
-  color: #ff6b6b;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-danger);
   word-break: break-word;
 }
 
@@ -212,21 +224,12 @@
   display: flex;
   justify-content: flex-end;
   padding-top: 4px;
-  border-top: 1px dashed var(--aurora-border);
+  border-top: 1px dashed var(--aur-divider);
 }
 
+/* aur-btn-text provee la base; aquí sólo el accent verde para señalar
+   que es un link "ver más" hacia la vista CEO completa. */
 .ap-health-detail-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: var(--aurora-green);
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: background 0.15s ease;
-}
-
-.ap-health-detail-link:hover {
-  background: rgba(51, 255, 153, 0.08);
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-footnote);
 }

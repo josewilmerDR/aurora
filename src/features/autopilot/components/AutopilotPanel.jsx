@@ -19,6 +19,14 @@ const SpeechRec = typeof window !== 'undefined' &&
 // keep the modal self-contained — same logic lives in AutopilotDashboard.
 const LEVEL_RANK = { off: 0, nivel1: 1, nivel2: 2, nivel3: 3 };
 const LEVEL_LABELS = { nivel1: 'Nivel 1', nivel2: 'Nivel 2', nivel3: 'Nivel 3' };
+
+// Mapping prioridad → aur-badge variant para los chips del feed compacto.
+// alta=rojo (urgent), media=amarillo (atención), baja=azul (info), accion=magenta.
+const PRIO_BADGE_VARIANT = {
+  alta:  'magenta',
+  media: 'yellow',
+  baja:  'blue',
+};
 function getActionLevelLock(sourceMode, currentMode) {
   if (!sourceMode || sourceMode === 'command') return null;
   const sourceRank = LEVEL_RANK[sourceMode] ?? 0;
@@ -283,14 +291,20 @@ export default function AutopilotPanel({ open, onClose }) {
                 <Link
                   to="/autopilot/configuracion"
                   onClick={onClose}
-                  className="ap-panel-config-icon"
+                  className="aur-icon-btn aur-icon-btn--sm"
                   title="Configuración"
                   aria-label="Configuración"
                 >
                   <FiSliders size={15} />
                 </Link>
               )}
-              <button className="ap-panel-close" onClick={onClose} title="Cerrar">
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={onClose}
+                title="Cerrar"
+                aria-label="Cerrar"
+              >
                 <FiX size={18} />
               </button>
             </div>
@@ -338,7 +352,8 @@ export default function AutopilotPanel({ open, onClose }) {
                   {lastRun ? `Último: ${formatTimestamp(lastRun)}` : 'Sin análisis aún'}
                 </span>
                 <button
-                  className="ap-panel-analyze-btn"
+                  type="button"
+                  className="aur-btn-pill aur-btn-pill--sm"
                   onClick={handleAnalyze}
                   disabled={analyzing}
                 >
@@ -348,12 +363,13 @@ export default function AutopilotPanel({ open, onClose }) {
               </div>
 
               <div className="ap-panel-command">
-                <label className="ap-panel-label">Comando / instrucción</label>
+                <label className="aur-field-label ap-panel-label" htmlFor="ap-panel-cmd-input">Comando / instrucción</label>
                 <p className="ap-panel-command-help">
                   Dale una instrucción concreta a Aurora Copilot. Ej: <i>"Genera una orden de compra de 20 kg de Mancozeb a Almacenes El Éxito"</i> o <i>"Notifícale a María que la tarea del lote Norte se reprograma para el viernes"</i>. Todas las acciones quedan como <strong>propuestas</strong> para aprobación.
                 </p>
                 <textarea
-                  className="ap-panel-textarea"
+                  id="ap-panel-cmd-input"
+                  className="aur-textarea ap-panel-textarea"
                   value={text}
                   onChange={e => setText(e.target.value)}
                   placeholder={voiceSupported
@@ -367,7 +383,7 @@ export default function AutopilotPanel({ open, onClose }) {
                   {voiceSupported && (
                     <button
                       type="button"
-                      className={`ap-panel-mic${listening ? ' ap-panel-mic--on' : ''}`}
+                      className={`aur-icon-btn aur-icon-btn--sm ap-panel-mic${listening ? ' ap-panel-mic--on' : ''}`}
                       onClick={toggleListening}
                       disabled={sending}
                       title={listening ? 'Detener dictado' : 'Dictar por voz'}
@@ -377,7 +393,7 @@ export default function AutopilotPanel({ open, onClose }) {
                   )}
                   <button
                     type="button"
-                    className="ap-panel-send"
+                    className="aur-btn-pill aur-btn-pill--sm"
                     onClick={handleSend}
                     disabled={sending || !text.trim()}
                   >
@@ -407,7 +423,7 @@ export default function AutopilotPanel({ open, onClose }) {
                   </div>
                   <button
                     type="button"
-                    className="ap-panel-reset"
+                    className="aur-btn-text ap-panel-reset"
                     onClick={handleReset}
                     disabled={sending}
                   >
@@ -431,41 +447,46 @@ export default function AutopilotPanel({ open, onClose }) {
                       <span>Resultado del último análisis</span>
                     </div>
                     <ul className="ap-panel-recs-list">
-                      {visibleRecs.map(r => (
-                        <li key={r.id} className={`ap-panel-rec ap-panel-rec--${r.prioridad || 'baja'}`}>
-                          <div className="ap-panel-rec-head">
-                            <span className={`ap-panel-rec-prio ap-panel-rec-prio--${r.prioridad || 'baja'}`}>
-                              {r.prioridad || 'baja'}
-                            </span>
-                            <strong className="ap-panel-rec-title">{r.titulo || '(sin título)'}</strong>
-                            <button
-                              type="button"
-                              className="ap-panel-rec-dismiss"
-                              onClick={() => dismiss(r.id)}
-                              title="Descartar"
-                              aria-label="Descartar recomendación"
-                            >
-                              <FiX size={12} />
-                            </button>
-                          </div>
-                          {r.descripcion && <p className="ap-panel-rec-desc">{r.descripcion}</p>}
-                          {r.accionSugerida && (
-                            <p className="ap-panel-rec-action">→ {r.accionSugerida}</p>
-                          )}
-                        </li>
-                      ))}
+                      {visibleRecs.map(r => {
+                        const prio = r.prioridad || 'baja';
+                        const prioVariant = PRIO_BADGE_VARIANT[prio] || 'gray';
+                        return (
+                          <li key={r.id} className={`ap-panel-rec ap-panel-rec--${prio}`}>
+                            <div className="ap-panel-rec-head">
+                              <span className={`aur-badge aur-badge--${prioVariant} ap-panel-rec-prio`}>
+                                {prio}
+                              </span>
+                              <strong className="ap-panel-rec-title">{r.titulo || '(sin título)'}</strong>
+                              <button
+                                type="button"
+                                className="aur-icon-btn aur-icon-btn--sm"
+                                onClick={() => dismiss(r.id)}
+                                title="Descartar"
+                                aria-label="Descartar recomendación"
+                              >
+                                <FiX size={12} />
+                              </button>
+                            </div>
+                            {r.descripcion && <p className="ap-panel-rec-desc">{r.descripcion}</p>}
+                            {r.accionSugerida && (
+                              <p className="ap-panel-rec-action">→ {r.accionSugerida}</p>
+                            )}
+                          </li>
+                        );
+                      })}
                       {visibleActions.map(a => {
                         const lock = getActionLevelLock(a.sourceMode, mode);
+                        const prio = a.prioridad || 'media';
                         return (
-                          <li key={a.id} className={`ap-panel-rec ap-panel-rec--accion ap-panel-rec--${a.prioridad || 'media'}`}>
+                          <li key={a.id} className={`ap-panel-rec ap-panel-rec--accion ap-panel-rec--${prio}`}>
                             <div className="ap-panel-rec-head">
-                              <span className="ap-panel-rec-prio ap-panel-rec-prio--accion">
+                              <span className="aur-badge aur-badge--violet ap-panel-rec-prio">
                                 propuesta
                               </span>
                               <strong className="ap-panel-rec-title">{a.titulo || a.type || '(sin título)'}</strong>
                               <button
                                 type="button"
-                                className="ap-panel-rec-dismiss"
+                                className="aur-icon-btn aur-icon-btn--sm"
                                 onClick={() => dismiss(a.id)}
                                 title="Descartar"
                                 aria-label="Descartar propuesta"

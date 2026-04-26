@@ -71,18 +71,23 @@ export default function AutopilotHealthPanel() {
       <div className="ap-health-header">
         <h3><FiActivity size={16} /> Salud de Aurora Copilot</h3>
         <div className="ap-health-controls">
-          <div className="ap-health-window">
-            {WINDOW_OPTIONS.map(opt => (
-              <button
-                key={opt.hours}
-                type="button"
-                className={`ap-health-window-btn ${windowHours === opt.hours ? 'is-active' : ''}`}
-                onClick={() => setWindowHours(opt.hours)}
-                disabled={loading}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="ap-health-window" role="tablist" aria-label="Ventana de tiempo">
+            {WINDOW_OPTIONS.map(opt => {
+              const active = windowHours === opt.hours;
+              return (
+                <button
+                  key={opt.hours}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`ap-health-window-btn${active ? ' is-active' : ''}`}
+                  onClick={() => setWindowHours(opt.hours)}
+                  disabled={loading}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
           <button
             type="button"
@@ -147,7 +152,7 @@ export default function AutopilotHealthPanel() {
 
       {isAdmin && (
         <div className="ap-health-detail-link-row">
-          <Link to="/ceo" className="ap-health-detail-link">
+          <Link to="/ceo" className="aur-btn-text ap-health-detail-link">
             Ver resumen completo del Copilot <FiArrowRight size={12} />
           </Link>
         </div>

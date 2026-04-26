@@ -13,8 +13,8 @@
   width: 420px;
   max-width: 100vw;
   height: calc(100dvh - 62px);
-  background: var(--aurora-background);
-  border-left: 1px solid var(--aurora-border);
+  background: var(--aur-bg-modal);
+  border-left: 1px solid var(--aur-divider);
   z-index: 299;
   display: flex;
   flex-direction: column;
@@ -34,7 +34,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
   flex-shrink: 0;
 }
 
@@ -103,9 +103,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--aurora-light);
-  font-size: 1rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-callout);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 /* ── Level slider ────────────────────────────────────────────────────────── */
@@ -374,23 +375,6 @@
   margin-top: 4px;
 }
 
-.ap-panel-close,
-.ap-panel-config-icon {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-}
-.ap-panel-close:hover,
-.ap-panel-config-icon:hover { opacity: 1; background: rgba(255, 255, 255, 0.07); }
-
 /* ── Body ────────────────────────────────────────────────────────────────── */
 .ap-panel-body {
   flex: 1;
@@ -401,29 +385,29 @@
   gap: 0.85rem;
 }
 
+/* Notices del panel — bandeja informativa con icono + texto */
 .ap-panel-notice {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  font-size: 0.84rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  line-height: 1.4;
+  font-size: var(--aur-fs-footnote);
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  color: var(--aur-text);
+  line-height: 1.45;
 }
-.ap-panel-notice a { color: var(--aurora-green); text-decoration: underline; }
+.ap-panel-notice a { color: var(--aur-accent); text-decoration: underline; }
 .ap-panel-notice--cta {
   border-color: rgba(51, 255, 153, 0.3);
-  background: rgba(51, 255, 153, 0.07);
-  color: var(--aurora-light);
+  background: var(--aur-accent-tint);
 }
-.ap-panel-notice--cta svg { color: var(--aurora-green); flex-shrink: 0; }
+.ap-panel-notice--cta svg { color: var(--aur-accent); flex-shrink: 0; }
 .ap-panel-notice--error {
   border-color: rgba(255, 80, 80, 0.4);
-  background: rgba(255, 80, 80, 0.08);
-  color: #ffb3b3;
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
 }
 
 .ap-panel-row {
@@ -438,28 +422,11 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.6;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
 }
 
-.ap-panel-analyze-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  background: var(--aurora-green);
-  border: none;
-  border-radius: 6px;
-  color: #0d1a26;
-  font-weight: 600;
-  font-size: 0.82rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ap-panel-analyze-btn:disabled { opacity: 0.5; cursor: default; }
-.ap-panel-analyze-btn:hover:not(:disabled) { filter: brightness(1.05); }
-
+/* Spinner del icono refresh dentro del aur-btn-pill (sin alterar el shape). */
 @keyframes ap-panel-spin { to { transform: rotate(360deg); } }
 .ap-panel-spin { animation: ap-panel-spin 0.9s linear infinite; }
 
@@ -470,83 +437,51 @@
   gap: 6px;
 }
 
+/* aur-field-label provee el styling de label uppercase; aquí sólo añadimos
+   un margin-bottom mínimo coherente con el gap del container. */
 .ap-panel-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  margin-bottom: 0;
 }
 
 .ap-panel-command-help {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--aur-fs-caption);
   line-height: 1.45;
-  color: var(--aurora-light);
-  opacity: 0.72;
+  color: var(--aur-text-2);
 }
 .ap-panel-command-help i { font-style: italic; opacity: 0.9; }
-.ap-panel-command-help strong { font-weight: 600; color: var(--aurora-light); opacity: 1; }
+.ap-panel-command-help strong { font-weight: 600; color: var(--aur-text); }
 
+/* aur-textarea provee toda la base; aquí sólo afinamos el min-height
+   para que el panel no quede demasiado alto en mobile. */
 .ap-panel-textarea {
-  width: 100%;
-  padding: 10px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  font-size: 0.88rem;
-  font-family: inherit;
-  resize: vertical;
-  outline: none;
-  box-sizing: border-box;
   min-height: 70px;
 }
-.ap-panel-textarea:focus { border-color: var(--aurora-green); }
 
 .ap-panel-command-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+  align-items: center;
 }
 
-.ap-panel-mic,
-.ap-panel-send {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--aurora-light);
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-.ap-panel-mic:hover:not(:disabled),
-.ap-panel-send:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+/* Active state del aur-icon-btn cuando está dictando voz — magenta intenso
+   para señalar que el micrófono está captando. */
 .ap-panel-mic--on {
-  background: rgba(204, 51, 255, 0.18);
-  color: var(--aurora-magenta);
-  border-color: rgba(204, 51, 255, 0.5);
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
 }
-.ap-panel-send {
-  background: var(--aurora-green);
-  color: #0d1a26;
-  border-color: var(--aurora-green);
-  font-weight: 600;
+.ap-panel-mic--on:hover:not(:disabled) {
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
 }
-.ap-panel-send:hover:not(:disabled) { filter: brightness(1.05); background: var(--aurora-green); }
-.ap-panel-send:disabled,
-.ap-panel-mic:disabled { opacity: 0.5; cursor: default; }
 
 .ap-panel-mic-error {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.75rem;
-  color: #ffb3b3;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-danger);
 }
 
 /* ── Mini chat log ───────────────────────────────────────────────────────── */
@@ -557,55 +492,52 @@
   max-height: 260px;
   overflow-y: auto;
   padding: 8px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
 }
 
 .ap-panel-bubble {
   padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 0.83rem;
-  line-height: 1.4;
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.45;
   max-width: 90%;
 }
 .ap-panel-bubble--user {
-  background: rgba(51, 255, 153, 0.07);
+  background: var(--aur-accent-tint);
   align-self: flex-end;
   border: 1px solid rgba(51, 255, 153, 0.18);
 }
 .ap-panel-bubble--assistant {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--aur-bg-hover);
   align-self: flex-start;
-  border: 1px solid var(--aurora-border);
+  border: 1px solid var(--aur-divider);
 }
 .ap-panel-bubble p {
   margin: 2px 0 0;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .ap-panel-role {
-  font-size: 0.68rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
-  opacity: 0.6;
-  color: var(--aurora-light);
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
+/* aur-btn-text provee la base; aquí compactamos + añadimos border dashed
+   para distinguir esta acción "destructiva soft" (reset) de un botón
+   normal de texto. */
 .ap-panel-reset {
-  background: none;
-  border: 1px dashed var(--aurora-border);
-  color: var(--aurora-light);
-  opacity: 0.7;
+  border: 1px dashed var(--aur-divider);
   padding: 5px 10px;
-  font-size: 0.78rem;
-  border-radius: 6px;
-  cursor: pointer;
+  font-size: var(--aur-fs-caption);
   align-self: center;
 }
-.ap-panel-reset:hover:not(:disabled) { opacity: 1; }
-.ap-panel-reset:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Last analysis result list ───────────────────────────────────────────── */
 .ap-panel-recs {
@@ -613,23 +545,22 @@
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
 }
 
 .ap-panel-recs-header {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.74rem;
-  font-weight: 600;
+  font-size: var(--aur-fs-caption);
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--aurora-light);
-  opacity: 0.75;
+  color: var(--aur-text-2);
 }
-.ap-panel-recs-header svg { color: var(--aurora-green); }
+.ap-panel-recs-header svg { color: var(--aur-accent); }
 
 .ap-panel-recs-list {
   list-style: none;
@@ -641,15 +572,15 @@
 }
 
 .ap-panel-rec {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 8px 10px;
 }
-.ap-panel-rec--alta  { border-left: 3px solid #ff8a8a; }
-.ap-panel-rec--media { border-left: 3px solid #ffb432; }
-.ap-panel-rec--baja  { border-left: 3px solid rgba(106, 176, 255, 0.7); }
-.ap-panel-rec--accion { border-left-color: var(--aurora-magenta); }
+.ap-panel-rec--alta  { border-left: 3px solid var(--aurora-magenta); }
+.ap-panel-rec--media { border-left: 3px solid var(--aur-warn); }
+.ap-panel-rec--baja  { border-left: 3px solid var(--aur-badge-blue-fg); }
+.ap-panel-rec--accion { border-left-color: var(--aur-badge-violet-fg); }
 
 .ap-panel-rec-head {
   display: flex;
@@ -657,59 +588,39 @@
   gap: 6px;
 }
 
+/* aur-badge--{magenta,yellow,blue,violet} provee bg/color/radius/padding;
+   aquí sólo afinamos el font-size más compacto + tracking en mayúsculas
+   para el chip pequeño dentro del rec card. */
 .ap-panel-rec-prio {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 8px;
   font-size: 0.62rem;
-  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  font-weight: 700;
+  flex-shrink: 0;
 }
-.ap-panel-rec-prio--alta   { background: rgba(255, 80, 80, 0.15);   color: #ff8a8a; }
-.ap-panel-rec-prio--media  { background: rgba(255, 180, 50, 0.18);  color: #ffb432; }
-.ap-panel-rec-prio--baja   { background: rgba(106, 176, 255, 0.18); color: #6ab0ff; }
-.ap-panel-rec-prio--accion { background: rgba(204, 51, 255, 0.18);  color: var(--aurora-magenta); }
 
 .ap-panel-rec-title {
   flex: 1;
-  font-size: 0.84rem;
+  font-size: var(--aur-fs-footnote);
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
   line-height: 1.3;
   word-break: break-word;
 }
 
-.ap-panel-rec-dismiss {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ap-panel-rec-dismiss:hover { opacity: 1; background: rgba(255, 255, 255, 0.07); }
-
 .ap-panel-rec-desc {
   margin: 4px 0 0;
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.78;
-  line-height: 1.4;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+  line-height: 1.45;
 }
 
 .ap-panel-rec-action {
   margin: 4px 0 0;
-  font-size: 0.76rem;
-  color: var(--aurora-green);
-  line-height: 1.4;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-accent);
+  line-height: 1.45;
   font-style: italic;
 }
 
@@ -718,7 +629,7 @@
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  font-size: 0.74rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
   color: var(--aurora-magenta);
   text-decoration: none;
@@ -730,48 +641,46 @@
   align-items: center;
   gap: 5px;
   margin: 6px 0 0;
-  font-size: 0.74rem;
-  color: #6ab0ff;
-  line-height: 1.4;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-badge-blue-fg);
+  line-height: 1.45;
 }
-.ap-panel-rec-locked strong { color: #6ab0ff; }
+.ap-panel-rec-locked strong { color: var(--aur-badge-blue-fg); }
 
 .ap-panel-recs-more {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   align-self: flex-start;
-  font-size: 0.74rem;
-  color: var(--aurora-green);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-accent);
   text-decoration: underline;
   text-decoration-color: rgba(51, 255, 153, 0.4);
   text-underline-offset: 2px;
   margin-top: 2px;
 }
-.ap-panel-recs-more:hover { text-decoration-color: var(--aurora-green); }
+.ap-panel-recs-more:hover { text-decoration-color: var(--aur-accent); }
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 .ap-panel-footer {
   display: flex;
   justify-content: flex-start;
   padding: 0.7rem 1.25rem;
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
   background: rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
 }
 
 .ap-panel-footer-link {
-  color: var(--aurora-green);
-  opacity: 0.8;
+  color: var(--aur-accent);
   text-decoration: underline;
   text-decoration-color: rgba(51, 255, 153, 0.4);
   text-underline-offset: 2px;
-  font-size: 0.78rem;
-  transition: opacity 0.15s, text-decoration-color 0.15s;
+  font-size: var(--aur-fs-caption);
+  transition: text-decoration-color 0.15s ease;
 }
 .ap-panel-footer-link:hover {
-  opacity: 1;
-  text-decoration-color: var(--aurora-green);
+  text-decoration-color: var(--aur-accent);
 }
 
 /* ── Header button (lives in .app-header) ────────────────────────────────── */
