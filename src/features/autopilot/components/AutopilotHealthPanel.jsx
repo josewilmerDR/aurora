@@ -86,7 +86,7 @@ export default function AutopilotHealthPanel() {
           </div>
           <button
             type="button"
-            className="btn btn-secondary ap-health-refresh"
+            className="aur-icon-btn aur-icon-btn--sm ap-health-refresh"
             onClick={() => refresh(windowHours)}
             disabled={loading}
             aria-label="Refrescar"
