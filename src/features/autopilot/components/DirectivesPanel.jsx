@@ -5,7 +5,8 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 /**
  * Self-contained "Mis preferencias" card. Loads the current user's directives
  * from /api/autopilot/directives on mount and handles add/delete internally.
- * Renders as a standard form-card so it integrates with the Config page layout.
+ * Renders as an aur-section so it integrates with the Apple-inspired Config
+ * page layout (aur-section + aur-list).
  */
 export default function DirectivesPanel() {
   const apiFetch = useApiFetch();
@@ -66,11 +67,13 @@ export default function DirectivesPanel() {
   };
 
   return (
-    <div className="form-card">
-      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <FiSliders size={16} /> Mis preferencias
-      </h2>
-      <p className="ap-objectives-hint">
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiSliders size={14} /></span>
+        <h3>Mis preferencias</h3>
+        <span className="aur-section-count">{directives.length}</span>
+      </div>
+      <p className="ap-section-intro">
         Reglas firmes que Aurora Copilot respetará siempre. Úsalas para indicar preferencias o restricciones fuertes: qué priorizar, qué evitar o qué tono usar en las recomendaciones.
       </p>
 
@@ -82,38 +85,36 @@ export default function DirectivesPanel() {
           onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
           placeholder='Ej: "Prioriza compras locales sobre importadas"'
           maxLength={300}
-          className="ap-directives-input"
+          className="aur-input ap-directives-input"
         />
         <button
           type="button"
-          className="ap-directives-add-btn"
+          className="aur-btn-pill"
           onClick={handleAdd}
           disabled={saving || !draft.trim()}
         >
-          <FiPlus size={12} /> Añadir
+          <FiPlus size={14} /> Añadir
         </button>
       </div>
 
       {error && (
-        <p className="ap-directives-empty" style={{ color: '#ffb3b3', fontStyle: 'normal', marginTop: 8 }}>
-          {error}
-        </p>
+        <p className="ap-directives-error">{error}</p>
       )}
 
       {directives.length === 0 ? (
-        <p className="ap-directives-empty" style={{ marginTop: 10 }}>
+        <p className="ap-directives-empty">
           Aún no tienes preferencias guardadas.
         </p>
       ) : (
-        <ul className="ap-directives-list" style={{ marginTop: 10 }}>
+        <ul className="ap-directives-list">
           {directives.map(d => (
             <li key={d.id} className="ap-directives-item">
               <span className="ap-directives-text">{d.text}</span>
               <button
                 type="button"
-                className="ap-directives-del"
+                className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
                 onClick={() => handleDelete(d.id)}
-                title="Eliminar"
+                title="Eliminar preferencia"
                 disabled={saving}
               >
                 <FiTrash2 size={12} />
@@ -122,6 +123,6 @@ export default function DirectivesPanel() {
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
