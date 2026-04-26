@@ -120,11 +120,13 @@ export default function AutopilotPauseButton({ open, mode }) {
   if (!isAdmin) {
     if (!status.paused) return null;
     return (
-      <span className="ap-pause-tag ap-pause-tag--paused" title="Aurora Copilot está pausado">
+      <span className="aur-badge aur-badge--yellow ap-pause-tag" title="Aurora Copilot está pausado">
         <FiAlertTriangle size={11} /> Pausado
       </span>
     );
   }
+
+  const isPause = dialog === 'pause';
 
   return (
     <>
@@ -156,23 +158,26 @@ export default function AutopilotPauseButton({ open, mode }) {
 
       {dialog && (
         <div
-          className="ap-level-modal-backdrop"
+          className="aur-modal-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="ap-pause-dialog-title"
-          onClick={closeDialog}
+          onPointerDown={closeDialog}
         >
           <div
-            className={`ap-level-modal ap-level-modal--${dialog === 'pause' ? 'warning' : 'info'}`}
-            onClick={(e) => e.stopPropagation()}
+            className={`aur-modal ap-level-modal ap-level-modal--${isPause ? 'warning' : 'info'}`}
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            <div className="ap-level-modal-header">
-              <h3 id="ap-pause-dialog-title">
-                {dialog === 'pause' ? 'Pausar Aurora Copilot' : 'Reanudar Aurora Copilot'}
-              </h3>
+            <div className="aur-modal-header">
+              <span className={`aur-modal-icon${isPause ? ' aur-modal-icon--warn' : ''}`}>
+                {isPause ? <FiPause size={16} /> : <FiPlay size={16} />}
+              </span>
+              <span className="aur-modal-title" id="ap-pause-dialog-title">
+                {isPause ? 'Pausar Aurora Copilot' : 'Reanudar Aurora Copilot'}
+              </span>
               <button
                 type="button"
-                className="ap-level-modal-close"
+                className="aur-icon-btn aur-icon-btn--sm aur-modal-close"
                 onClick={closeDialog}
                 disabled={busy}
                 aria-label="Cancelar"
@@ -180,17 +185,19 @@ export default function AutopilotPauseButton({ open, mode }) {
                 <FiX size={16} />
               </button>
             </div>
-            <div className="ap-level-modal-body">
-              {dialog === 'pause' ? (
+            <div className="aur-modal-body ap-level-body">
+              {isPause ? (
                 <>
-                  <p className="ap-level-modal-intro">
+                  <p className="ap-level-intro">
                     Vas a pausar Aurora Copilot.
                   </p>
-                  <p className="ap-level-modal-text">
+                  <p className="ap-level-text">
                     Mientras esté pausado, Aurora no ejecutará análisis programados ni acciones autónomas. Las propuestas ya registradas quedarán intactas y podrás reanudarlo en cualquier momento.
                   </p>
-                  <div className="ap-pause-reason">
-                    <label htmlFor="ap-pause-reason-input">Motivo (opcional)</label>
+                  <div className="aur-field ap-pause-reason">
+                    <label htmlFor="ap-pause-reason-input" className="aur-field-label">
+                      Motivo (opcional)
+                    </label>
                     <input
                       id="ap-pause-reason-input"
                       type="text"
@@ -200,30 +207,31 @@ export default function AutopilotPauseButton({ open, mode }) {
                       onChange={(e) => setReason(e.target.value)}
                       disabled={busy}
                       autoFocus
+                      className="aur-input"
                     />
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="ap-level-modal-intro">
+                  <p className="ap-level-intro">
                     ¿Reanudar Aurora Copilot?
                   </p>
-                  <p className="ap-level-modal-text">
+                  <p className="ap-level-text">
                     Aurora volverá a ejecutar acciones según el modo configurado y las barandillas de seguridad vigentes.
                   </p>
                   {status.pausedReason && (
-                    <p className="ap-level-modal-text" style={{ opacity: 0.75 }}>
+                    <p className="ap-level-text ap-level-text--muted">
                       Motivo de la pausa: <em>"{status.pausedReason}"</em>
                     </p>
                   )}
                 </>
               )}
-              {error && <p className="ap-level-modal-error">{error}</p>}
+              {error && <p className="ap-level-error">{error}</p>}
             </div>
-            <div className="ap-level-modal-actions">
+            <div className="aur-modal-actions">
               <button
                 type="button"
-                className="ap-level-modal-cancel"
+                className="aur-btn-text"
                 onClick={closeDialog}
                 disabled={busy}
               >
@@ -231,13 +239,13 @@ export default function AutopilotPauseButton({ open, mode }) {
               </button>
               <button
                 type="button"
-                className={`ap-level-modal-confirm ap-level-modal-confirm--${dialog === 'pause' ? 'warning' : 'info'}`}
-                onClick={dialog === 'pause' ? submitPause : submitResume}
+                className={`aur-btn-pill aur-btn-pill--sm${isPause ? ' ap-level-confirm--warn' : ''}`}
+                onClick={isPause ? submitPause : submitResume}
                 disabled={busy}
               >
                 {busy
-                  ? (dialog === 'pause' ? 'Pausando…' : 'Reanudando…')
-                  : (dialog === 'pause' ? 'Confirmar pausa' : 'Reanudar')}
+                  ? (isPause ? 'Pausando…' : 'Reanudando…')
+                  : (isPause ? 'Confirmar pausa' : 'Reanudar')}
               </button>
             </div>
           </div>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiX, FiAlertTriangle, FiInfo } from 'react-icons/fi';
+import { FiX, FiAlertTriangle, FiInfo, FiPower, FiZap } from 'react-icons/fi';
 
 const LEVELS = [
   { id: 'off',    index: 0, short: 'Off',     label: 'Off' },
@@ -39,6 +39,14 @@ const LEVEL_COPY = {
     confirmLabel: 'Activar',
     tone: 'warning',
   },
+};
+
+// Mapping tone → aur-modal-icon variant + icono. Mantiene los 3 colores
+// significativos (neutral/info/warning) usando primitivas del sistema.
+const TONE_ICON_VARIANT = {
+  neutral: '',
+  info: '',
+  warning: ' aur-modal-icon--warn',
 };
 
 export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavigate, onAnalyze, objectives }) {
@@ -155,21 +163,24 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
 
       {copy && (
         <div
-          className="ap-level-modal-backdrop"
+          className="aur-modal-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="ap-level-modal-title"
-          onClick={cancel}
+          onPointerDown={cancel}
         >
           <div
-            className={`ap-level-modal ap-level-modal--${copy.tone}`}
-            onClick={(e) => e.stopPropagation()}
+            className={`aur-modal ap-level-modal ap-level-modal--${copy.tone}`}
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            <div className="ap-level-modal-header">
-              <h3 id="ap-level-modal-title">{copy.title}</h3>
+            <div className="aur-modal-header">
+              <span className={`aur-modal-icon${TONE_ICON_VARIANT[copy.tone]}`}>
+                {copy.tone === 'warning' ? <FiAlertTriangle size={16} /> : copy.tone === 'neutral' ? <FiPower size={16} /> : <FiZap size={16} />}
+              </span>
+              <span className="aur-modal-title" id="ap-level-modal-title">{copy.title}</span>
               <button
                 type="button"
-                className="ap-level-modal-close"
+                className="aur-icon-btn aur-icon-btn--sm aur-modal-close"
                 onClick={cancel}
                 disabled={busy}
                 aria-label="Cancelar"
@@ -177,17 +188,17 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                 <FiX size={16} />
               </button>
             </div>
-            <div className="ap-level-modal-body">
-              <p className="ap-level-modal-intro">{copy.intro}</p>
-              <p className="ap-level-modal-text">{copy.body}</p>
+            <div className="aur-modal-body ap-level-body">
+              <p className="ap-level-intro">{copy.intro}</p>
+              <p className="ap-level-text">{copy.body}</p>
               {copy.tone === 'warning' && (
-                <p className="ap-level-modal-warn">
+                <p className="ap-level-callout ap-level-callout--warn">
                   <FiAlertTriangle size={13} />
                   <span>
                     Revisa las barandillas en{' '}
                     <Link
                       to="/autopilot/configuracion"
-                      className="ap-level-modal-warn-link"
+                      className="ap-level-callout-link"
                       onClick={() => {
                         cancel();
                         if (onNavigate) onNavigate();
@@ -200,13 +211,13 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                 </p>
               )}
               {pendingId !== 'off' && !(objectives && String(objectives).trim()) && (
-                <p className="ap-level-modal-info">
+                <p className="ap-level-callout ap-level-callout--info">
                   <FiInfo size={13} />
                   <span>
                     Aurora Copilot da mejores recomendaciones cuando tiene un objetivo definido. Define uno en{' '}
                     <Link
                       to="/autopilot/configuracion"
-                      className="ap-level-modal-info-link"
+                      className="ap-level-callout-link ap-level-callout-link--info"
                       onClick={() => {
                         cancel();
                         if (onNavigate) onNavigate();
@@ -217,12 +228,12 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
                   </span>
                 </p>
               )}
-              {error && <p className="ap-level-modal-error">{error}</p>}
+              {error && <p className="ap-level-error">{error}</p>}
             </div>
-            <div className="ap-level-modal-actions">
+            <div className="aur-modal-actions">
               <button
                 type="button"
-                className="ap-level-modal-cancel"
+                className="aur-btn-text"
                 onClick={cancel}
                 disabled={busy}
               >
@@ -230,7 +241,7 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
               </button>
               <button
                 type="button"
-                className={`ap-level-modal-confirm ap-level-modal-confirm--${copy.tone}`}
+                className={`aur-btn-pill aur-btn-pill--sm${copy.tone === 'warning' ? ' ap-level-confirm--warn' : ''}`}
                 onClick={confirm}
                 disabled={busy}
               >
@@ -239,7 +250,7 @@ export default function AutopilotLevelSlider({ mode, disabled, onChange, onNavig
               {pendingId !== 'off' && onAnalyze && (
                 <button
                   type="button"
-                  className={`ap-level-modal-confirm ap-level-modal-confirm--${copy.tone} ap-level-modal-confirm--analyze`}
+                  className={`aur-btn-pill aur-btn-pill--sm${copy.tone === 'warning' ? ' ap-level-confirm--warn' : ''}`}
                   onClick={confirmAndAnalyze}
                   disabled={busy}
                   title="Guarda el nivel y genera un análisis inmediato"
