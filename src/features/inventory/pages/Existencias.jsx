@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import '../styles/agroquimicos.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import TomaFisicaModal from '../components/TomaFisicaModal';
@@ -696,65 +697,30 @@ function Existencias() {
         )}
 
       {/* Filter popover portal */}
-      {filterPop && createPortal(
-        <>
-          <div className="historial-filter-backdrop" onClick={() => setFilterPop(null)} />
-          <div
-            className={`historial-filter-popover${filterPop.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
-            style={{ left: filterPop.x, top: filterPop.y }}
-          >
-            <FiFilter size={13} className="historial-filter-popover-icon" />
-            {filterPop.filterType !== 'text' ? (
-              <>
-                <div className="historial-filter-range">
-                  <div className="historial-filter-range-row">
-                    <span className="historial-filter-range-label">De</span>
-                    <input
-                      autoFocus
-                      type="number"
-                      className="historial-filter-input"
-                      value={colFilters[filterPop.field]?.from || ''}
-                      onChange={e => setColFilter(filterPop.field, { type: 'range', from: e.target.value, to: colFilters[filterPop.field]?.to || '' })}
-                      onKeyDown={e => { if (e.key === 'Escape') setFilterPop(null); }}
-                    />
-                  </div>
-                  <div className="historial-filter-range-row">
-                    <span className="historial-filter-range-label">A</span>
-                    <input
-                      type="number"
-                      className="historial-filter-input"
-                      value={colFilters[filterPop.field]?.to || ''}
-                      onChange={e => setColFilter(filterPop.field, { type: 'range', from: colFilters[filterPop.field]?.from || '', to: e.target.value })}
-                      onKeyDown={e => { if (e.key === 'Escape') setFilterPop(null); }}
-                    />
-                  </div>
-                </div>
-                {(colFilters[filterPop.field]?.from || colFilters[filterPop.field]?.to) && (
-                  <button className="historial-filter-clear" onClick={() => { setColFilter(filterPop.field, null); setFilterPop(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <input
-                  autoFocus
-                  className="historial-filter-input"
-                  placeholder="Filtrar…"
-                  value={colFilters[filterPop.field]?.value || ''}
-                  onChange={e => setColFilter(filterPop.field, { type: 'text', value: e.target.value })}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPop(null); }}
-                />
-                {colFilters[filterPop.field]?.value && (
-                  <button className="historial-filter-clear" onClick={() => { setColFilter(filterPop.field, null); setFilterPop(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </>,
-        document.body
+      {filterPop && (
+        filterPop.filterType !== 'text' ? (
+          <AuroraFilterPopover
+            x={filterPop.x}
+            y={filterPop.y}
+            filterType="number"
+            fromValue={colFilters[filterPop.field]?.from || ''}
+            toValue={colFilters[filterPop.field]?.to || ''}
+            onFromChange={(from) => setColFilter(filterPop.field, { type: 'range', from, to: colFilters[filterPop.field]?.to || '' })}
+            onToChange={(to) => setColFilter(filterPop.field, { type: 'range', from: colFilters[filterPop.field]?.from || '', to })}
+            onClear={() => setColFilter(filterPop.field, null)}
+            onClose={() => setFilterPop(null)}
+          />
+        ) : (
+          <AuroraFilterPopover
+            x={filterPop.x}
+            y={filterPop.y}
+            filterType="text"
+            textValue={colFilters[filterPop.field]?.value || ''}
+            onTextChange={(value) => setColFilter(filterPop.field, { type: 'text', value })}
+            onClear={() => setColFilter(filterPop.field, null)}
+            onClose={() => setFilterPop(null)}
+          />
+        )
       )}
 
       {/* Column menu portal */}
