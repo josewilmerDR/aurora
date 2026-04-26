@@ -2,6 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import '../styles/agroquimicos.css';
+// Legacy: .hor-col-toggle-btn, .hor-col-menu*, .hor-col-hidden-badge desde
+// horimetro.css. Migrar a .aur-col-menu* de aurora.css cuando Existencias se
+// rediseñe a .aur-*.
+import '../../machinery/styles/horimetro.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';

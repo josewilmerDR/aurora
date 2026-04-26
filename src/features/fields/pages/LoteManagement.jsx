@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
+// Legacy: .hor-table-wrap, .hor-table, .hor-th-settings, .hor-col-menu* desde
+// horimetro.css. Migrar a .aur-table-wrap + .aur-col-menu* de aurora.css cuando
+// LoteManagement se rediseñe a .aur-*.
+import '../../machinery/styles/horimetro.css';
 import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';

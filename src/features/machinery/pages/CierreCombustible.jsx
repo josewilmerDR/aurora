@@ -3,80 +3,82 @@ import { FiDroplet, FiPlay, FiCheck, FiChevronDown, FiChevronUp, FiAlertTriangle
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../styles/cierre-combustible.css';
+import '../styles/machinery.css';
 
 const fmt  = (n) => (n ?? 0).toLocaleString('es-CR', { maximumFractionDigits: 0 });
 const fmtD = (n, d = 2) => (n ?? 0).toLocaleString('es-CR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
-const VAR_CLASS = (v) => v > 0 ? 'cc-var-pos' : v < 0 ? 'cc-var-neg' : '';
+// Convención: variación positiva (gastamos más de lo estimado) = magenta;
+// negativa (ahorramos) = verde.
+const VAR_CLASS = (v) => v > 0 ? 'machinery-cierre-var-pos' : v < 0 ? 'machinery-cierre-var-neg' : '';
 
 function MaquinaCard({ m, expanded, onToggle }) {
   return (
-    <div className="cc-maquina-card">
-      <button className="cc-maquina-header" onClick={onToggle}>
-        <span className="cc-maquina-nombre">{m.maquinaNombre}</span>
-        <span className="cc-maquina-badges">
-          <span className="cc-badge">{fmtD(m.litros, 1)} L</span>
-          <span className="cc-badge">{fmtD(m.totalHoras, 1)} h</span>
-          {m.tasaReal !== null && <span className="cc-badge cc-badge-rate">{fmtD(m.tasaReal, 2)} L/H</span>}
-          <span className={`cc-badge cc-badge-var ${VAR_CLASS(m.variacion)}`}>
+    <div className="machinery-cierre-card">
+      <button type="button" className="machinery-cierre-card-header" onClick={onToggle}>
+        <span className="machinery-cierre-card-name">{m.maquinaNombre}</span>
+        <span className="machinery-cierre-card-badges">
+          <span className="machinery-cierre-badge">{fmtD(m.litros, 1)} L</span>
+          <span className="machinery-cierre-badge">{fmtD(m.totalHoras, 1)} h</span>
+          {m.tasaReal !== null && (
+            <span className="machinery-cierre-badge machinery-cierre-badge--accent">{fmtD(m.tasaReal, 2)} L/H</span>
+          )}
+          <span className={`machinery-cierre-badge machinery-cierre-badge--var ${VAR_CLASS(m.variacion)}`}>
             {m.variacion >= 0 ? '+' : ''}₡{fmt(m.variacion)}
           </span>
         </span>
         {expanded ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
       </button>
 
-      {/* Resumen de la máquina */}
-      <div className="cc-maquina-resumen">
-        <div className="cc-resumen-item">
-          <span className="cc-resumen-label">Costo real</span>
-          <span className="cc-resumen-val">₡{fmt(m.costoReal)}</span>
+      <div className="machinery-cierre-stats">
+        <div className="machinery-cierre-stat">
+          <span className="machinery-cierre-stat-label">Costo real</span>
+          <span className="machinery-cierre-stat-val">₡{fmt(m.costoReal)}</span>
         </div>
-        <div className="cc-resumen-item">
-          <span className="cc-resumen-label">Estimado</span>
-          <span className="cc-resumen-val">₡{fmt(m.costoEstimado)}</span>
+        <div className="machinery-cierre-stat">
+          <span className="machinery-cierre-stat-label">Estimado</span>
+          <span className="machinery-cierre-stat-val">₡{fmt(m.costoEstimado)}</span>
         </div>
-        <div className="cc-resumen-item">
-          <span className="cc-resumen-label">Variación</span>
-          <span className={`cc-resumen-val ${VAR_CLASS(m.variacion)}`}>
+        <div className="machinery-cierre-stat">
+          <span className="machinery-cierre-stat-label">Variación</span>
+          <span className={`machinery-cierre-stat-val ${VAR_CLASS(m.variacion)}`}>
             {m.variacion >= 0 ? '+' : ''}₡{fmt(m.variacion)}
           </span>
         </div>
         {m.precioMedio > 0 && (
-          <div className="cc-resumen-item">
-            <span className="cc-resumen-label">Precio medio</span>
-            <span className="cc-resumen-val">₡{fmt(m.precioMedio)}/L</span>
+          <div className="machinery-cierre-stat">
+            <span className="machinery-cierre-stat-label">Precio medio</span>
+            <span className="machinery-cierre-stat-val">₡{fmt(m.precioMedio)}/L</span>
           </div>
         )}
       </div>
 
-      {/* Tabla de horímetros */}
       {expanded && (
-        <div className="cc-detalles-wrap">
-          <table className="cc-detalles-table">
+        <div className="machinery-cierre-detail-wrap">
+          <table className="aur-table machinery-cierre-detail-table">
             <thead>
               <tr>
                 <th>Fecha</th>
                 <th>Lote</th>
                 <th>Labor</th>
-                <th className="cc-td-num">Horas</th>
-                <th className="cc-td-num">%</th>
-                <th className="cc-td-num">Estimado</th>
-                <th className="cc-td-num">Real</th>
-                <th className="cc-td-num">Ajuste</th>
+                <th style={{ textAlign: 'right' }}>Horas</th>
+                <th style={{ textAlign: 'right' }}>%</th>
+                <th style={{ textAlign: 'right' }}>Estimado</th>
+                <th style={{ textAlign: 'right' }}>Real</th>
+                <th style={{ textAlign: 'right' }}>Ajuste</th>
               </tr>
             </thead>
             <tbody>
               {m.detalles.map((d, i) => (
                 <tr key={i}>
                   <td>{d.fecha}</td>
-                  <td>{d.loteNombre || <span className="cc-td-empty">—</span>}</td>
-                  <td>{d.labor      || <span className="cc-td-empty">—</span>}</td>
-                  <td className="cc-td-num">{fmtD(d.horas, 1)}</td>
-                  <td className="cc-td-num cc-td-pct">{fmtD(d.pct, 1)}%</td>
-                  <td className="cc-td-num">₡{fmt(d.costoEstimado)}</td>
-                  <td className="cc-td-num cc-td-real">₡{fmt(d.costoReal)}</td>
-                  <td className={`cc-td-num ${VAR_CLASS(d.ajuste)}`}>
+                  <td>{d.loteNombre || <span className="machinery-td-empty">—</span>}</td>
+                  <td>{d.labor      || <span className="machinery-td-empty">—</span>}</td>
+                  <td className="machinery-td-num">{fmtD(d.horas, 1)}</td>
+                  <td className="machinery-td-num">{fmtD(d.pct, 1)}%</td>
+                  <td className="machinery-td-num">₡{fmt(d.costoEstimado)}</td>
+                  <td className="machinery-td-num"><strong>₡{fmt(d.costoReal)}</strong></td>
+                  <td className={`machinery-td-num ${VAR_CLASS(d.ajuste)}`}>
                     {d.ajuste >= 0 ? '+' : ''}₡{fmt(d.ajuste)}
                   </td>
                 </tr>
@@ -92,7 +94,6 @@ function MaquinaCard({ m, expanded, onToggle }) {
 export default function CierreCombustible() {
   const apiFetch = useApiFetch();
 
-  // Selector
   const now       = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const [anio,     setAnio]     = useState(String(prevMonth.getFullYear()));
@@ -101,14 +102,14 @@ export default function CierreCombustible() {
   const [bodegaId, setBodegaId] = useState(() => localStorage.getItem('aurora_fuel_bodegaId') || '');
 
   // Preview / execution
-  const [preview,   setPreview]   = useState(null);   // preview result
+  const [preview,   setPreview]   = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [executing, setExecuting] = useState(false);
   const [confirm,   setConfirm]   = useState(false);
-  const [expanded,  setExpanded]  = useState({});      // { [maquinaId]: bool }
+  const [expanded,  setExpanded]  = useState({});
 
   // Historial
-  const [historial, setHistorial] = useState([]);
+  const [historial,   setHistorial]   = useState([]);
   const [loadingHist, setLoadingHist] = useState(true);
 
   const [toast, setToast] = useState(null);
@@ -116,7 +117,6 @@ export default function CierreCombustible() {
 
   const periodo = `${anio}-${mes}`;
 
-  // Cargar bodegas y historial al montar
   useEffect(() => {
     apiFetch('/api/bodegas')
       .then(r => r.json())
@@ -128,10 +128,16 @@ export default function CierreCombustible() {
       .then(data => setHistorial(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoadingHist(false));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Limpiar preview al cambiar periodo/bodega
   useEffect(() => { setPreview(null); }, [periodo, bodegaId]);
+
+  const handleBodegaChange = (e) => {
+    const id = e.target.value;
+    setBodegaId(id);
+    if (id) localStorage.setItem('aurora_fuel_bodegaId', id);
+  };
 
   const handlePreview = async () => {
     if (!bodegaId) { showToast('Seleccione una bodega de combustible.', 'error'); return; }
@@ -147,7 +153,6 @@ export default function CierreCombustible() {
       const data = await res.json();
       if (!res.ok) { showToast(data.message || 'Error al calcular la vista previa.', 'error'); return; }
       setPreview(data);
-      // Expand the first machine by default
       if (data.maquinas?.length) setExpanded({ [data.maquinas[0].maquinaId]: true });
     } catch {
       showToast('Error de conexión.', 'error');
@@ -169,7 +174,6 @@ export default function CierreCombustible() {
       if (!res.ok) { showToast(data.message || 'Error al ejecutar el cierre.', 'error'); return; }
       showToast(`Cierre ${periodo} ejecutado. ${preview?.maquinas?.length ?? 0} máquina(s) procesada(s).`);
       setPreview(null);
-      // Refrescar historial
       apiFetch('/api/cierres-combustible').then(r => r.json()).then(d => setHistorial(Array.isArray(d) ? d : []));
     } catch {
       showToast('Error de conexión.', 'error');
@@ -179,150 +183,191 @@ export default function CierreCombustible() {
   };
 
   const totalVariacion = preview?.maquinas?.reduce((s, m) => s + m.variacion, 0) ?? 0;
+  const totalHorimetros = preview?.maquinas?.reduce((s, m) => s + m.detalles.length, 0) ?? 0;
 
   return (
-    <>
-    <div className="cc-wrap">
+    <div className="machinery-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       {confirm && (
         <AuroraConfirmModal
           title={`Ejecutar cierre ${periodo}`}
-          body={`Se actualizarán ${preview?.maquinas?.reduce((s, m) => s + m.detalles.length, 0) ?? 0} registros de horímetro con el costo real de combustible. Esta acción no se puede deshacer fácilmente.`}
+          body={`Se actualizarán ${totalHorimetros} registros de horímetro con el costo real de combustible. Esta acción no se puede deshacer fácilmente.`}
           confirmLabel="Ejecutar cierre"
           onConfirm={handleExecute}
           onCancel={() => setConfirm(false)}
         />
       )}
 
-      {/* ── Encabezado ── */}
-      <div className="cc-toolbar">
-        <h1 className="cc-title">
-          <FiDroplet size={18} /> Cierre Mensual de Combustible
-        </h1>
-      </div>
-
-      {/* ── Selector ── */}
-      <div className="cc-selector-card">
-        <div className="cc-selector-row">
-          <div className="cc-field">
-            <label>Año</label>
-            <select value={anio} onChange={e => setAnio(e.target.value)}>
-              {[0, 1, 2].map(i => {
-                const y = String(now.getFullYear() - i);
-                return <option key={y} value={y}>{y}</option>;
-              })}
-            </select>
+      <div className="aur-sheet">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">
+              <FiDroplet size={20} style={{ verticalAlign: -3, marginRight: 8 }} />
+              Cierre mensual de combustible
+            </h1>
+            <p className="aur-sheet-subtitle">
+              Compara costo estimado vs real por máquina y ajusta los horímetros del periodo.
+            </p>
           </div>
-          <div className="cc-field">
-            <label>Mes</label>
-            <select value={mes} onChange={e => setMes(e.target.value)}>
-              {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
-                <option key={m} value={m}>
-                  {new Date(2000, Number(m) - 1, 1).toLocaleString('es-ES', { month: 'long' })}
-                </option>
+        </header>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">01</span>
+            <h3 className="aur-section-title">Periodo</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cc-anio">Año</label>
+              <select id="cc-anio" className="aur-select" value={anio} onChange={e => setAnio(e.target.value)}>
+                {[0, 1, 2].map(i => {
+                  const y = String(now.getFullYear() - i);
+                  return <option key={y} value={y}>{y}</option>;
+                })}
+              </select>
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cc-mes">Mes</label>
+              <select id="cc-mes" className="aur-select" value={mes} onChange={e => setMes(e.target.value)}>
+                {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
+                  <option key={m} value={m}>
+                    {new Date(2000, Number(m) - 1, 1).toLocaleString('es-ES', { month: 'long' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="cc-bodega">Bodega de combustible</label>
+              <select id="cc-bodega" className="aur-select" value={bodegaId} onChange={handleBodegaChange}>
+                <option value="">— Seleccionar —</option>
+                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              </select>
+            </div>
+            <div className="aur-row aur-row--action">
+              <label className="aur-row-label">Vista previa</label>
+              <div className="aur-row-content">
+                <button
+                  type="button"
+                  className="aur-btn-pill aur-btn-pill--sm"
+                  onClick={handlePreview}
+                  disabled={loading || !bodegaId}
+                >
+                  {loading ? 'Calculando…' : 'Calcular cierre'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {preview && (
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">02</span>
+              <h3 className="aur-section-title">Resumen del cierre</h3>
+              <span className="aur-section-count">{periodo}</span>
+            </div>
+
+            <div className="machinery-cierre-summary">
+              <span>
+                {preview.maquinas.length} máquina{preview.maquinas.length !== 1 ? 's' : ''} · variación total:{' '}
+                <strong className={VAR_CLASS(totalVariacion)}>
+                  {totalVariacion >= 0 ? '+' : ''}₡{fmt(totalVariacion)}
+                </strong>
+              </span>
+              {totalVariacion === 0 && (
+                <span className="machinery-cierre-summary-ok">
+                  <FiCheck size={13} /> Estimado = Real, sin ajuste necesario
+                </span>
+              )}
+            </div>
+
+            <div className="machinery-cierre-list">
+              {preview.maquinas.map(m => (
+                <MaquinaCard
+                  key={m.maquinaId}
+                  m={m}
+                  expanded={!!expanded[m.maquinaId]}
+                  onToggle={() => setExpanded(p => ({ ...p, [m.maquinaId]: !p[m.maquinaId] }))}
+                />
               ))}
-            </select>
-          </div>
-          <div className="cc-field cc-field--wide">
-            <label>Bodega de combustible</label>
-            <select value={bodegaId} onChange={e => { setBodegaId(e.target.value); localStorage.setItem('aurora_fuel_bodegaId', e.target.value); }}>
-              <option value="">— Seleccionar —</option>
-              {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-            </select>
-          </div>
-          <button className="btn btn-secondary cc-btn-preview" onClick={handlePreview} disabled={loading || !bodegaId}>
-            {loading ? 'Calculando…' : 'Vista previa'}
-          </button>
-        </div>
-      </div>
+            </div>
 
-      {/* ── Preview ── */}
-      {preview && (
-        <div className="cc-preview-section">
-          <div className="cc-preview-header">
-            <span className="cc-preview-periodo">{periodo}</span>
-            <span className="cc-preview-summary">
-              {preview.maquinas.length} máquina{preview.maquinas.length !== 1 ? 's' : ''} ·
-              Variación total:&nbsp;
-              <span className={VAR_CLASS(totalVariacion)}>
-                {totalVariacion >= 0 ? '+' : ''}₡{fmt(totalVariacion)}
-              </span>
-            </span>
-            {totalVariacion === 0 && (
-              <span className="cc-preview-cero">
-                <FiCheck size={13} /> Estimado = Real, sin ajuste necesario
-              </span>
+            <div className="machinery-cierre-execute">
+              <div className="machinery-cierre-warning">
+                <FiAlertTriangle size={14} />
+                <span>
+                  Ejecutar el cierre actualiza el costo real en cada horímetro del periodo.
+                  No se puede deshacer automáticamente.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={() => setConfirm(true)}
+                disabled={executing}
+              >
+                <FiPlay size={14} /> {executing ? 'Ejecutando…' : `Ejecutar cierre ${periodo}`}
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">{preview ? '03' : '02'}</span>
+            <h3 className="aur-section-title">Cierres ejecutados</h3>
+            {!loadingHist && historial.length > 0 && (
+              <span className="aur-section-count">{historial.length}</span>
             )}
           </div>
 
-          {preview.maquinas.map(m => (
-            <MaquinaCard
-              key={m.maquinaId}
-              m={m}
-              expanded={!!expanded[m.maquinaId]}
-              onToggle={() => setExpanded(p => ({ ...p, [m.maquinaId]: !p[m.maquinaId] }))}
-            />
-          ))}
-
-          <div className="cc-execute-bar">
-            <div className="cc-execute-warning">
-              <FiAlertTriangle size={14} />
-              <span>Ejecutar el cierre actualiza el costo real en cada horímetro del periodo. No se puede deshacer automáticamente.</span>
+          {loadingHist ? (
+            <div className="aur-page-loading" />
+          ) : historial.length === 0 ? (
+            <div className="machinery-empty">
+              <FiDroplet size={36} />
+              <p className="machinery-empty-text">No hay cierres registrados aún.</p>
+              <p className="machinery-empty-sub">Ejecuta tu primer cierre desde la sección de arriba.</p>
             </div>
-            <button
-              className="btn btn-primary cc-btn-execute"
-              onClick={() => setConfirm(true)}
-              disabled={executing}
-            >
-              <FiPlay size={14} /> {executing ? 'Ejecutando…' : `Ejecutar cierre ${periodo}`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Historial ── */}
-      <section className="cc-historial-section">
-        <h2 className="cc-section-title">Cierres ejecutados</h2>
-        {loadingHist ? (
-          <p className="cc-empty">Cargando…</p>
-        ) : historial.length === 0 ? (
-          <p className="cc-empty">No hay cierres registrados aún.</p>
-        ) : (
-          <table className="cc-hist-table">
-            <thead>
-              <tr>
-                <th>Periodo</th>
-                <th>Bodega</th>
-                <th className="cc-td-num">Máquinas</th>
-                <th className="cc-td-num">Horímetros</th>
-                <th className="cc-td-num">Variación total</th>
-                <th>Ejecutado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historial.map(c => {
-                const varTotal = (c.maquinas || []).reduce((s, m) => s + m.variacion, 0);
-                const nHorim   = (c.maquinas || []).reduce((s, m) => s + (m.detalles?.length || 0), 0);
-                return (
-                  <tr key={c.id}>
-                    <td className="cc-hist-periodo">{c.periodo}</td>
-                    <td>{c.bodegaNombre}</td>
-                    <td className="cc-td-num">{c.maquinas?.length ?? 0}</td>
-                    <td className="cc-td-num">{nHorim}</td>
-                    <td className={`cc-td-num ${VAR_CLASS(varTotal)}`}>
-                      {varTotal >= 0 ? '+' : ''}₡{fmt(varTotal)}
-                    </td>
-                    <td className="cc-hist-fecha">
-                      {c.creadoEn ? new Date(c.creadoEn).toLocaleDateString('es-CR') : '—'}
-                    </td>
+          ) : (
+            <div className="aur-table-wrap">
+              <table className="aur-table">
+                <thead>
+                  <tr>
+                    <th>Periodo</th>
+                    <th>Bodega</th>
+                    <th style={{ textAlign: 'right' }}>Máquinas</th>
+                    <th style={{ textAlign: 'right' }}>Horímetros</th>
+                    <th style={{ textAlign: 'right' }}>Variación total</th>
+                    <th>Ejecutado</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {historial.map(c => {
+                    const varTotal = (c.maquinas || []).reduce((s, m) => s + m.variacion, 0);
+                    const nHorim   = (c.maquinas || []).reduce((s, m) => s + (m.detalles?.length || 0), 0);
+                    return (
+                      <tr key={c.id}>
+                        <td><strong>{c.periodo}</strong></td>
+                        <td>{c.bodegaNombre}</td>
+                        <td className="machinery-td-num">{c.maquinas?.length ?? 0}</td>
+                        <td className="machinery-td-num">{nHorim}</td>
+                        <td className={`machinery-td-num ${VAR_CLASS(varTotal)}`}>
+                          {varTotal >= 0 ? '+' : ''}₡{fmt(varTotal)}
+                        </td>
+                        <td>
+                          {c.creadoEn ? new Date(c.creadoEn).toLocaleDateString('es-CR') : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
-    </>
   );
 }

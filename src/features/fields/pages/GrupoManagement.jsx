@@ -2,6 +2,10 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
+// Legacy: .hor-table-wrap, .hor-table, .hor-th-settings, .hor-col-menu* desde
+// horimetro.css. Migrar a .aur-table-wrap + .aur-col-menu* de aurora.css cuando
+// GrupoManagement se rediseñe a .aur-*.
+import '../../machinery/styles/horimetro.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
