@@ -1,16 +1,15 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, Link } from 'react-router-dom';
 import {
-  FiClock, FiPlus, FiX, FiCheck,
-  FiCamera, FiUpload, FiCpu, FiSearch,
+  FiClock, FiPlus, FiX, FiCheck, FiCamera, FiUpload, FiCpu,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraCombobox from '../../../components/AuroraCombobox';
+import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
-import '../styles/horimetro.css';
-
+import '../styles/machinery.css';
 
 const DRAFT_KEY        = 'aurora_horimetro_draft';
 const DRAFT_ACTIVE_KEY = 'aurora_draftActive_horimetro-registro';
@@ -77,173 +76,51 @@ function compressImage(file) {
   });
 }
 
-// ── Combobox operario ─────────────────────────────────────────────────────────
-function OperarioCombobox({ value, onChange, usuarios }) {
-  const nameFor = useCallback((id) => usuarios.find(u => u.id === id)?.nombre || '', [usuarios]);
-
-  const [text, setText]       = useState(() => nameFor(value));
-  const [open, setOpen]       = useState(false);
-  const [hi,   setHi]         = useState(0);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
-  const inputRef              = useRef(null);
-  const listRef               = useRef(null);
-  const userTyping            = useRef(false);
-
-  useEffect(() => {
-    if (userTyping.current) { userTyping.current = false; return; }
-    setText(nameFor(value));
-  }, [value, nameFor]);
-
-  const filtered = usuarios.filter(u =>
-    !text || u.nombre.toLowerCase().includes(text.toLowerCase())
-  );
-
-  const openDropdown = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      const left = Math.min(r.left + window.scrollX, window.innerWidth - 12);
-      setDropPos({ top: r.bottom + window.scrollY + 2, left, width: r.width });
-    }
-    setOpen(true);
-    setHi(0);
-  };
-
-  const selectOption = (u) => {
-    setText(u.nombre);
-    setOpen(false);
-    setHi(0);
-    onChange(u.id);
-  };
-
-  const handleTextChange = (e) => {
-    userTyping.current = true;
-    setText(e.target.value);
-    openDropdown();
-    if (value) onChange('');
-  };
-
-  const handleBlur = () => {
-    setTimeout(() => {
-      if (document.activeElement !== inputRef.current) {
-        setOpen(false);
-        setText(nameFor(value));
-      }
-    }, 150);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (inputRef.current && !inputRef.current.contains(e.target) &&
-          listRef.current  && !listRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        value={text}
-        autoComplete="off"
-        placeholder="— Seleccionar —"
-        onChange={handleTextChange}
-        onFocus={openDropdown}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-      />
-      {open && filtered.length > 0 && createPortal(
-        <ul
-          ref={listRef}
-          className="hor-combobox-dropdown"
-          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
-        >
-          {filtered.map((u, i) => (
-            <li
-              key={u.id}
-              className={`hor-combobox-item${i === hi ? ' hor-combobox-item--active' : ''}`}
-              onMouseDown={() => selectOption(u)}
-              onMouseEnter={() => setHi(i)}
-            >
-              {u.nombre}
-            </li>
-          ))}
-        </ul>,
-        document.body
-      )}
-    </>
-  );
-}
+// Activos labels para los comboboxes
+const tractorLabel = (m) => m ? (m.codigo ? `${m.codigo} — ${m.descripcion}` : m.descripcion) : '';
+const laborLabel   = (l) => l ? (l.codigo ? `${l.codigo} · ${l.descripcion}`  : l.descripcion) : '';
+const userLabel    = (u) => u ? u.nombre : '';
 
 function RegistroHorimetro() {
   const apiFetch = useApiFetch();
-  const { currentUser } = useUser();
+  const { currentUser: _ } = useUser(); // eslint-disable-line no-unused-vars
   const location = useLocation();
-
-  // Labor combobox
-  const laborRef = useRef(null);
-  const [laborQuery, setLaborQuery] = useState('');
-  const [laborOpen, setLaborOpen] = useState(false);
-  const timeDropdownRef = useRef(null);
-  const clockBtnRefs   = useRef({});
-  const [timeDropdown, setTimeDropdown] = useState(null);
-  const [dropdownPos,  setDropdownPos]  = useState({ top: 0, bottom: 0, right: 0, openUp: false });
 
   // Scan state
   const scanFileRef = useRef(null);
-  const [scanStep, setScanStep] = useState(null);
-  const [scanImage, setScanImage] = useState(null);
-  const [scanRows, setScanRows] = useState([]);
-  const [scanning, setScanning] = useState(false);
-  const [scanError, setScanError] = useState(null);
+  const [scanStep,   setScanStep]    = useState(null);
+  const [scanImage,  setScanImage]   = useState(null);
+  const [scanRows,   setScanRows]    = useState([]);
+  const [scanning,   setScanning]    = useState(false);
+  const [scanError,  setScanError]   = useState(null);
   const [savingBatch, setSavingBatch] = useState(false);
 
   // Catalog data
-  const [tractores, setTractores] = useState([]);
-  const [lotes, setLotes] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
-  const [grupos, setGrupos] = useState([]);
-  const [siembras, setSiembras] = useState([]);
-  const [labores, setLabores] = useState([]);
-  const [records, setRecords] = useState([]);
-  const [toast, setToast] = useState(null);
+  const [tractores,  setTractores]  = useState([]);
+  const [lotes,      setLotes]      = useState([]);
+  const [usuarios,   setUsuarios]   = useState([]);
+  const [grupos,     setGrupos]     = useState([]);
+  const [siembras,   setSiembras]   = useState([]);
+  const [labores,    setLabores]    = useState([]);
+  const [records,    setRecords]    = useState([]);
+  const [toast,      setToast]      = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   // Tasas de combustible (cargadas una vez al montar, desde la bodega configurada)
   const fuelBodegaId = localStorage.getItem('aurora_fuel_bodegaId') || '';
   const [tasasCombustible, setTasasCombustible] = useState({});
 
-  // Form — always open on mount (restore draft fields if present)
+  // Form — abre por defecto al montar, restaura draft si existe
   const _draft = loadDraft();
   const [showForm, setShowForm]   = useState(true);
   const [form, setForm]           = useState(_draft?.form     ?? EMPTY_FORM);
   const [isEditing, setIsEditing] = useState(_draft?.isEditing ?? false);
   const [saving, setSaving]       = useState(false);
 
-  const [rangeConfirm,      setRangeConfirm]      = useState(null);
-  const [horimetroConfirm,  setHorimetroConfirm]  = useState(null);
-  const [lastHorimetroFinal, setLastHorimetroFinal] = useState(null);
-  const [pendingLines,      setPendingLines]      = useState([]);
+  const [rangeConfirm,        setRangeConfirm]        = useState(null);
+  const [horimetroConfirm,    setHorimetroConfirm]    = useState(null);
+  const [lastHorimetroFinal,  setLastHorimetroFinal]  = useState(null);
+  const [pendingLines,        setPendingLines]        = useState([]);
 
   const fetchRecords = () =>
     apiFetch('/api/horimetro')
@@ -268,7 +145,7 @@ function RegistroHorimetro() {
       setLabores(Array.isArray(laboresData) ? laboresData : []);
     }).catch(() => {});
     fetchRecords();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore sidebar draft badge if a cross-session draft exists
   useEffect(() => {
@@ -285,7 +162,7 @@ function RegistroHorimetro() {
       .then(r => r.json())
       .then(data => setTasasCombustible(data.tasas || {}))
       .catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill from Aurora chat "Revisar en formulario" (passed via router state)
   useEffect(() => {
@@ -316,31 +193,7 @@ function RegistroHorimetro() {
     setShowForm(true);
   }, [location.state?.editRecord]);
 
-  // Close labor combobox on outside click
-  useEffect(() => {
-    if (!laborOpen) return;
-    const handler = (e) => {
-      if (laborRef.current && !laborRef.current.contains(e.target)) {
-        setLaborOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [laborOpen]);
-
-  // Close time dropdown on outside click
-  useEffect(() => {
-    if (!timeDropdown) return;
-    const handler = (e) => {
-      const inDropdown = timeDropdownRef.current?.contains(e.target);
-      const inBtn = Object.values(clockBtnRefs.current).some(r => r?.contains(e.target));
-      if (!inDropdown && !inBtn) setTimeDropdown(null);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [timeDropdown]);
-
-  const getLastHorimetroFinal = (tractorId) => {
+  const getLastHorimetroFinal = useCallback((tractorId) => {
     if (!tractorId) return null;
     const tRecords = records
       .filter(r => r.tractorId === tractorId && r.horimetroFinal != null && r.horimetroFinal !== '')
@@ -348,30 +201,14 @@ function RegistroHorimetro() {
     if (!tRecords.length) return null;
     const val = parseFloat(tRecords[0].horimetroFinal);
     return isNaN(val) ? null : val;
-  };
+  }, [records]);
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name } = e.target;
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    let autoLastFinal = undefined;
-    if (name === 'tractorId' && !isEditing) {
-      autoLastFinal = value ? getLastHorimetroFinal(value) : null;
-      setLastHorimetroFinal(autoLastFinal);
-    }
     setForm(prev => {
       const next = { ...prev, [name]: value };
-      if (name === 'tractorId') {
-        const t = tractores.find(x => x.id === value);
-        next.tractorNombre = t ? t.descripcion : '';
-        if (!isEditing && autoLastFinal != null) {
-          next.horimetroInicial = String(autoLastFinal);
-          next.horimetroFinal   = String(autoLastFinal);
-        }
-      }
-      if (name === 'implementoId') {
-        const t = tractores.find(x => x.id === value);
-        next.implemento = t ? t.descripcion : '';
-      }
       if (name === 'horimetroInicial') {
         if (!prev.horimetroFinal || prev.horimetroFinal === prev.horimetroInicial) {
           next.horimetroFinal = value;
@@ -400,22 +237,59 @@ function RegistroHorimetro() {
           .filter(Boolean)
           .map(s => s.bloque || s.id) ?? [];
       }
-      if (name === 'operarioId') {
-        const u = usuarios.find(x => x.id === value);
-        next.operarioNombre = u ? u.nombre : '';
+      saveDraft(next, isEditing);
+      return next;
+    });
+  };
+
+  const handleTractorChange = (id) => {
+    const lastFin = !isEditing && id ? getLastHorimetroFinal(id) : null;
+    if (!isEditing) setLastHorimetroFinal(lastFin);
+    const t = tractores.find(x => x.id === id);
+    setForm(prev => {
+      const next = {
+        ...prev,
+        tractorId: id,
+        tractorNombre: t ? t.descripcion : '',
+      };
+      if (!isEditing && lastFin != null) {
+        next.horimetroInicial = String(lastFin);
+        next.horimetroFinal   = String(lastFin);
       }
       saveDraft(next, isEditing);
       return next;
     });
   };
 
-  const handleOperarioChange = (id) => {
+  const handleImplementoChange = (id) => {
+    const t = tractores.find(x => x.id === id);
     setForm(prev => {
-      const u = usuarios.find(x => x.id === id);
+      const next = { ...prev, implementoId: id, implemento: t ? t.descripcion : '' };
+      saveDraft(next, isEditing);
+      return next;
+    });
+  };
+
+  const handleOperarioChange = (id) => {
+    const u = usuarios.find(x => x.id === id);
+    setForm(prev => {
       const next = { ...prev, operarioId: id, operarioNombre: u ? u.nombre : '' };
       saveDraft(next, isEditing);
       return next;
     });
+  };
+
+  const handleLaborChange = (id) => {
+    const l = labores.find(x => x.id === id);
+    setForm(prev => {
+      const next = { ...prev, labor: l ? l.descripcion : '' };
+      saveDraft(next, isEditing);
+      return next;
+    });
+  };
+
+  const handleTimeChange = (field) => (val) => {
+    handleChange({ target: { name: field, value: val } });
   };
 
   const toggleBloque = (val) => {
@@ -435,7 +309,7 @@ function RegistroHorimetro() {
     setPendingLines([]);
   };
 
-  // Build the `combustible` object for a given line (form or pendingLine)
+  // ── Save logic ────────────────────────────────────────────────────────────
   const buildCombustiblePayload = (line) => {
     const tasa = fuelBodegaId ? (tasasCombustible[line.tractorId] ?? null) : null;
     const ini  = parseFloat(line.horimetroInicial);
@@ -496,13 +370,24 @@ function RegistroHorimetro() {
       if (diffMin > 12 * 60) {
         setRangeConfirm({
           title: 'Rango inusual de horas',
-          message: `El rango de horas trabajadas es de ${(diffMin / 60).toFixed(1)} h. ¿Es correcto?`,
+          body: `El rango de horas trabajadas es de ${(diffMin / 60).toFixed(1)} h. ¿Es correcto?`,
           onConfirm: () => { setRangeConfirm(null); doSave(); },
         });
         return;
       }
     }
     doSave();
+  };
+
+  const checkMismatchAndSave = () => {
+    const ini = parseFloat(form.horimetroInicial);
+    if (!isEditing && lastHorimetroFinal !== null && !isNaN(ini) && ini !== lastHorimetroFinal) {
+      setHorimetroConfirm({
+        onConfirm: () => { setHorimetroConfirm(null); checkHoraAndSave(); },
+      });
+      return;
+    }
+    checkHoraAndSave();
   };
 
   const handleSubmit = (e) => {
@@ -524,7 +409,7 @@ function RegistroHorimetro() {
     if (!isNaN(ini) && !isNaN(fin) && ini === fin) {
       setRangeConfirm({
         title: 'Horímetro sin variación',
-        message: `El horímetro inicial y final son iguales (${ini}). Esto puede indicar que el activo no operó (ej. mantenimiento). ¿Desea continuar?`,
+        body: `El horímetro inicial y final son iguales (${ini}). Esto puede indicar que el activo no operó (ej. mantenimiento). ¿Desea continuar?`,
         onConfirm: () => { setRangeConfirm(null); checkMismatchAndSave(); },
       });
       return;
@@ -536,23 +421,12 @@ function RegistroHorimetro() {
     if (!isNaN(ini) && !isNaN(fin) && (fin - ini) > 12) {
       setRangeConfirm({
         title: 'Rango inusual de horímetro',
-        message: `El rango del horímetro es de ${(fin - ini).toFixed(1)} h. ¿Es correcto?`,
+        body: `El rango del horímetro es de ${(fin - ini).toFixed(1)} h. ¿Es correcto?`,
         onConfirm: () => { setRangeConfirm(null); checkMismatchAndSave(); },
       });
       return;
     }
     checkMismatchAndSave();
-  };
-
-  const checkMismatchAndSave = () => {
-    const ini = parseFloat(form.horimetroInicial);
-    if (!isEditing && lastHorimetroFinal !== null && !isNaN(ini) && ini !== lastHorimetroFinal) {
-      setHorimetroConfirm({
-        onConfirm: () => { setHorimetroConfirm(null); checkHoraAndSave(); },
-      });
-      return;
-    }
-    checkHoraAndSave();
   };
 
   const handleAddLine = () => {
@@ -584,39 +458,6 @@ function RegistroHorimetro() {
     }));
   };
 
-  // ── Time helpers ──────────────────────────────────────────────────────────
-  const applyOffset = (fieldName, hours) => {
-    setForm(prev => {
-      const now = () => {
-        const d = new Date();
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      };
-      const base = prev[fieldName] || now();
-      const isFinWithOvernight = fieldName === 'horaFinal' && prev.diaSiguiente;
-      const [hB, mB] = base.split(':').map(Number);
-      const baseAbsMin = isFinWithOvernight ? hB * 60 + mB + 24 * 60 : hB * 60 + mB;
-      const totalMin   = baseAbsMin + Math.round(hours * 60);
-      const finMin     = ((totalMin % (24 * 60)) + 24 * 60) % (24 * 60);
-      const value      = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
-      const next = { ...prev, [fieldName]: value };
-      if (fieldName === 'horaFinal' && prev.horaInicio) {
-        next.diaSiguiente = totalMin >= 24 * 60;
-      }
-      saveDraft(next, isEditing);
-      return next;
-    });
-  };
-
-  const setNow = (fieldName) => {
-    const d = new Date();
-    const value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    setForm(prev => {
-      const next = { ...prev, [fieldName]: value };
-      saveDraft(next, isEditing);
-      return next;
-    });
-  };
-
   // ── Derived asset lists ────────────────────────────────────────────────────
   const tractoresLista = useMemo(() =>
     tractores.filter(t => /tractor/i.test(t.tipo) || /otra maquinaria/i.test(t.tipo)),
@@ -629,10 +470,10 @@ function RegistroHorimetro() {
   const gruposDelLote = useMemo(() => {
     if (!form.loteId) return grupos;
     const siembraIds = new Set(
-      siembras.filter(s => s.loteId === form.loteId).map(s => s.id)
+      siembras.filter(s => s.loteId === form.loteId).map(s => s.id),
     );
     return grupos.filter(g =>
-      Array.isArray(g.bloques) && g.bloques.some(bid => siembraIds.has(bid))
+      Array.isArray(g.bloques) && g.bloques.some(bid => siembraIds.has(bid)),
     );
   }, [grupos, siembras, form.loteId]);
 
@@ -651,6 +492,29 @@ function RegistroHorimetro() {
       })
       .sort((a, b) => parseInt(a.bloque || a.id) - parseInt(b.bloque || b.id));
   }, [grupos, siembras, form.grupo]);
+
+  const grupoLabel = (g) => {
+    const bloqueNums = [...new Set(
+      (g.bloques || [])
+        .map(id => siembras.find(s => s.id === id)?.bloque)
+        .filter(Boolean),
+    )].sort((a, b) => parseInt(a) - parseInt(b));
+    return bloqueNums.length
+      ? `${g.nombreGrupo} (${bloqueNums.join(', ')})`
+      : g.nombreGrupo;
+  };
+
+  const gruposParaFila = (loteId) => {
+    if (!loteId) return grupos;
+    const ids = new Set(siembras.filter(s => s.loteId === loteId).map(s => s.id));
+    return grupos.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
+  };
+
+  // labor value es ID derivado de la descripcion guardada en form.labor
+  const laborValue = useMemo(() => {
+    if (!form.labor) return '';
+    return labores.find(l => l.descripcion === form.labor)?.id || '';
+  }, [form.labor, labores]);
 
   // ── Scan handlers ──────────────────────────────────────────────────────────
   const handleScanFile = async (e) => {
@@ -737,23 +601,6 @@ function RegistroHorimetro() {
     if (ok) { setScanStep(null); setScanImage(null); setScanRows([]); fetchRecords(); }
   };
 
-  const gruposParaFila = (loteId) => {
-    if (!loteId) return grupos;
-    const ids = new Set(siembras.filter(s => s.loteId === loteId).map(s => s.id));
-    return grupos.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
-  };
-
-  const grupoLabel = (g) => {
-    const bloqueNums = [...new Set(
-      (g.bloques || [])
-        .map(id => siembras.find(s => s.id === id)?.bloque)
-        .filter(Boolean)
-    )].sort((a, b) => parseInt(a) - parseInt(b));
-    return bloqueNums.length
-      ? `${g.nombreGrupo} (${bloqueNums.join(', ')})`
-      : g.nombreGrupo;
-  };
-
   // ── Inline validation ─────────────────────────────────────────────────────
   const errHorimetro = (() => {
     const ini = parseFloat(form.horimetroInicial);
@@ -762,7 +609,7 @@ function RegistroHorimetro() {
   })();
   const errHora = !!(form.horaInicio && form.horaFinal && form.horaInicio >= form.horaFinal && !form.diaSiguiente);
 
-  // ── Costo estimado de combustible ──────────────────────────────────────────
+  // ── Costo estimado de combustible ─────────────────────────────────────────
   const tasaMaquina = form.tractorId ? (tasasCombustible[form.tractorId] ?? null) : null;
   const horasForm   = (() => {
     const ini = parseFloat(form.horimetroInicial);
@@ -774,14 +621,24 @@ function RegistroHorimetro() {
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  const sheetTitle = scanStep === 'upload' ? 'Escanear formulario'
+                  : scanStep === 'review' ? 'Revisar registros extraídos'
+                  : isEditing             ? 'Editar registro de horímetro'
+                  :                          'Registro de horímetro';
+
+  const sheetSubtitle = scanStep === 'upload' ? 'Carga una foto del formulario y deja que la IA extraiga las filas.'
+                      : scanStep === 'review' ? `${scanRows.length} fila${scanRows.length !== 1 ? 's' : ''} extraída${scanRows.length !== 1 ? 's' : ''}. Revísalas antes de guardar.`
+                      : isEditing             ? 'Modifica los datos del registro existente.'
+                      :                          'Captura horas trabajadas, ubicación y combustible para un activo.';
+
   return (
-    <>
-    <div className="hor-wrap">
+    <div className="machinery-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       {rangeConfirm && (
         <AuroraConfirmModal
           title={rangeConfirm.title}
-          body={rangeConfirm.message}
+          body={rangeConfirm.body}
           confirmLabel="Sí, es correcto"
           onConfirm={rangeConfirm.onConfirm}
           onCancel={() => setRangeConfirm(null)}
@@ -797,149 +654,199 @@ function RegistroHorimetro() {
         />
       )}
 
-      {/* ── Top bar ── */}
-      <div className="hor-toolbar">
-        <h1 className="hor-page-title">Registro de Horímetros</h1>
-        <Link to="/operaciones/horimetro/historial" className="btn btn-secondary">
-          <FiClock size={14} /> Historial
-        </Link>
-      </div>
-
-      {/* ── Form card ── */}
-      {showForm ? (
-        <div className="hor-form-card">
-          <div className="hor-form-header">
-            <span>{isEditing ? 'Editar Registro' : 'Nuevo Registro de Horímetro'}</span>
-            <div className="hor-form-header-right">
-              {!isEditing && (
-                <button
-                  type="button"
-                  className="btn btn-ia hor-scan-header-btn"
-                  onClick={() => { resetForm(); setShowForm(false); setScanStep('upload'); setScanImage(null); setScanError(null); }}
-                >
-                  <FiCpu size={14} /> Leer con IA
-                </button>
-              )}
-              <button className="hor-close-btn" onClick={resetForm} title="Cancelar">
+      <div className="aur-sheet">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">{sheetTitle}</h1>
+            <p className="aur-sheet-subtitle">{sheetSubtitle}</p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            {scanStep === null && !isEditing && (
+              <button
+                type="button"
+                className="aur-chip"
+                onClick={() => { resetForm(); setShowForm(false); setScanStep('upload'); setScanImage(null); setScanError(null); }}
+                title="Leer formulario con IA"
+              >
+                <FiCpu size={12} /> Leer con IA
+              </button>
+            )}
+            <Link to="/operaciones/horimetro/historial" className="aur-chip">
+              <FiClock size={12} /> Historial
+            </Link>
+            {(scanStep === 'upload' || scanStep === 'review') && (
+              <button
+                type="button"
+                className="aur-icon-btn"
+                onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); setShowForm(true); }}
+                title="Cancelar"
+              >
                 <FiX size={16} />
               </button>
-            </div>
+            )}
           </div>
+        </header>
 
-          <form className="hor-form" onSubmit={handleSubmit}>
-
-            <div className="hor-global-section">
-              <div className="hor-form-grid">
-                <div className="hor-field">
-                  <label>Fecha <span className="hor-req">*</span></label>
-                  <input type="date" name="fecha" value={form.fecha} onChange={handleChange} max={TODAY()} required />
+        {/* ═══════════════════════════════════════════════════════════════════
+             FORM MODE
+             ═══════════════════════════════════════════════════════════════════ */}
+        {showForm && scanStep === null && (
+          <form onSubmit={handleSubmit} noValidate>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">01</span>
+                <h3 className="aur-section-title">Fecha y operario</h3>
+              </div>
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-fecha">Fecha</label>
+                  <input
+                    id="rh-fecha"
+                    type="date"
+                    name="fecha"
+                    className="aur-input"
+                    value={form.fecha}
+                    onChange={handleChange}
+                    max={TODAY()}
+                    required
+                  />
                 </div>
-                <div className="hor-field">
-                  <label>Operario</label>
-                  <OperarioCombobox
+                <div className="aur-row">
+                  <label className="aur-row-label">Operario</label>
+                  <AuroraCombobox
                     value={form.operarioId}
                     onChange={handleOperarioChange}
-                    usuarios={usuarios}
+                    items={usuarios}
+                    labelFn={userLabel}
+                    placeholder="— Buscar operario —"
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
             {pendingLines.length > 0 && (
-              <div className="hor-pending-lines">
-                <p className="hor-pending-title">
-                  <FiCheck size={13} /> {pendingLines.length} línea{pendingLines.length > 1 ? 's' : ''} lista{pendingLines.length > 1 ? 's' : ''} para guardar
-                </p>
-                {pendingLines.map((line, idx) => (
-                  <div key={idx} className="hor-pending-row">
-                    <span className="hor-pending-num">{idx + 1}</span>
-                    <span className="hor-pending-detail">
-                      {[line.labor, line.loteNombre, line.grupo].filter(Boolean).join(' · ') || '—'}
-                    </span>
-                    <span className="hor-pending-times">
-                      {line.horimetroInicial}–{line.horimetroFinal}
-                      {(line.horaInicio || line.horaFinal) && ` · ${line.horaInicio || '?'}–${line.horaFinal || '?'}`}
-                    </span>
-                    <button
-                      type="button" className="hor-pending-del"
-                      onClick={() => setPendingLines(prev => prev.filter((_, i) => i !== idx))}
-                      title="Quitar línea"
-                    >
-                      <FiX size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <section className="aur-section">
+                <div className="aur-section-header">
+                  <span className="aur-section-num">·</span>
+                  <h3 className="aur-section-title">Líneas pendientes</h3>
+                  <span className="aur-section-count">{pendingLines.length}</span>
+                </div>
+                <div className="machinery-pending-list">
+                  {pendingLines.map((line, idx) => (
+                    <div key={idx} className="machinery-pending-item">
+                      <span className="machinery-pending-num">{idx + 1}</span>
+                      <span className="machinery-pending-detail">
+                        {[line.labor, line.loteNombre, line.grupo].filter(Boolean).join(' · ') || '—'}
+                      </span>
+                      <span className="machinery-pending-times">
+                        {line.horimetroInicial}–{line.horimetroFinal}
+                        {(line.horaInicio || line.horaFinal) && ` · ${line.horaInicio || '?'}–${line.horaFinal || '?'}`}
+                      </span>
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                        onClick={() => setPendingLines(prev => prev.filter((_, i) => i !== idx))}
+                        title="Quitar línea"
+                      >
+                        <FiX size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
 
-            <p className="hor-section-label">Maquinaria</p>
-            <div className="hor-form-grid hor-grid-4">
-              <div className="hor-field">
-                <label>Tractor <span className="hor-req">*</span></label>
-                <select name="tractorId" value={form.tractorId} onChange={handleChange} required>
-                  <option value="">— Seleccionar —</option>
-                  {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
-                </select>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">02</span>
+                <h3 className="aur-section-title">Maquinaria</h3>
               </div>
-
-              <div className="hor-field">
-                <label>Implemento</label>
-                <select name="implementoId" value={form.implementoId} onChange={handleChange}>
-                  <option value="">— Sin implemento —</option>
-                  {implementosLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
-                </select>
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label">Tractor</label>
+                  <AuroraCombobox
+                    value={form.tractorId}
+                    onChange={handleTractorChange}
+                    items={tractoresLista}
+                    labelFn={tractorLabel}
+                    placeholder="— Seleccionar tractor —"
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label">Implemento</label>
+                  <AuroraCombobox
+                    value={form.implementoId}
+                    onChange={handleImplementoChange}
+                    items={implementosLista}
+                    labelFn={tractorLabel}
+                    placeholder="— Sin implemento —"
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-hor-ini">Horímetro inicial</label>
+                  <input
+                    id="rh-hor-ini"
+                    type="number"
+                    name="horimetroInicial"
+                    className={`aur-input aur-input--num${errHorimetro ? ' aur-input--error' : ''}`}
+                    value={form.horimetroInicial}
+                    onChange={handleChange}
+                    min="0"
+                    max="99999"
+                    step="0.1"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-hor-fin">Horímetro final</label>
+                  <input
+                    id="rh-hor-fin"
+                    type="number"
+                    name="horimetroFinal"
+                    className={`aur-input aur-input--num${errHorimetro ? ' aur-input--error' : ''}`}
+                    value={form.horimetroFinal}
+                    onChange={handleChange}
+                    min="0"
+                    max="99999"
+                    step="0.1"
+                    placeholder="0.0"
+                  />
+                </div>
+                {errHorimetro && (
+                  <div className="aur-row aur-row--multiline">
+                    <span className="aur-row-label" />
+                    <span className="aur-field-error">El horímetro final debe ser mayor que el inicial.</span>
+                  </div>
+                )}
               </div>
+            </section>
 
-              <div className="hor-field">
-                <label>Horímetro Inicial</label>
-                <input
-                  type="number" name="horimetroInicial"
-                  value={form.horimetroInicial} onChange={handleChange}
-                  min="0" max="99999" step="0.1" placeholder="0.0"
-                  className={errHorimetro ? 'hor-input-error' : ''}
-                />
-              </div>
-
-              <div className="hor-field">
-                <label>Horímetro Final</label>
-                <input
-                  type="number" name="horimetroFinal"
-                  value={form.horimetroFinal} onChange={handleChange}
-                  min="0" max="99999" step="0.1" placeholder="0.0"
-                  className={errHorimetro ? 'hor-input-error' : ''}
-                />
-                {errHorimetro && <span className="hor-field-error">El final debe ser mayor que el inicial</span>}
-              </div>
-
-            </div>
-
-            {/* Costo estimado de combustible */}
             {fuelBodegaId && form.tractorId && (
-              <div className={`hor-fuel-strip${costoEstCombustible !== null ? ' hor-fuel-strip--ok' : ' hor-fuel-strip--na'}`}>
+              <div className={`machinery-fuel-strip${costoEstCombustible !== null ? '' : ' machinery-fuel-strip--na'}`}>
                 {costoEstCombustible !== null ? (
                   <>
-                    <span className="hor-fuel-item">
-                      <span className="hor-fuel-label">Tasa</span>
-                      <span className="hor-fuel-val">{tasaMaquina.tasaLH.toFixed(2)} L/H</span>
+                    <span className="machinery-fuel-strip-item">
+                      <span className="machinery-fuel-strip-label">Tasa</span>
+                      <span className="machinery-fuel-strip-val">{tasaMaquina.tasaLH.toFixed(2)} L/H</span>
                     </span>
-                    <span className="hor-fuel-sep">·</span>
-                    <span className="hor-fuel-item">
-                      <span className="hor-fuel-label">Precio</span>
-                      <span className="hor-fuel-val">₡{tasaMaquina.precioUnitario.toLocaleString('es-CR', { maximumFractionDigits: 0 })}/L</span>
+                    <span className="machinery-fuel-strip-sep">·</span>
+                    <span className="machinery-fuel-strip-item">
+                      <span className="machinery-fuel-strip-label">Precio</span>
+                      <span className="machinery-fuel-strip-val">₡{tasaMaquina.precioUnitario.toLocaleString('es-CR', { maximumFractionDigits: 0 })}/L</span>
                     </span>
-                    <span className="hor-fuel-sep">·</span>
-                    <span className="hor-fuel-item">
-                      <span className="hor-fuel-label">Litros est.</span>
-                      <span className="hor-fuel-val">{(tasaMaquina.tasaLH * horasForm).toFixed(1)} L</span>
+                    <span className="machinery-fuel-strip-sep">·</span>
+                    <span className="machinery-fuel-strip-item">
+                      <span className="machinery-fuel-strip-label">Litros est.</span>
+                      <span className="machinery-fuel-strip-val">{(tasaMaquina.tasaLH * horasForm).toFixed(1)} L</span>
                     </span>
-                    <span className="hor-fuel-sep">·</span>
-                    <span className="hor-fuel-item hor-fuel-total">
-                      <span className="hor-fuel-label">Costo est.</span>
-                      <span className="hor-fuel-val">₡{costoEstCombustible.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</span>
+                    <span className="machinery-fuel-strip-sep">·</span>
+                    <span className="machinery-fuel-strip-item machinery-fuel-strip-total">
+                      <span className="machinery-fuel-strip-label">Costo est.</span>
+                      <span className="machinery-fuel-strip-val">₡{costoEstCombustible.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</span>
                     </span>
                   </>
                 ) : (
-                  <span className="hor-fuel-na">
+                  <span className="machinery-fuel-strip-na">
                     {!tasaMaquina
                       ? 'Sin datos de consumo en los últimos 30 días para este activo.'
                       : 'Ingrese horímetro inicial y final para calcular costo de combustible.'}
@@ -948,301 +855,305 @@ function RegistroHorimetro() {
               </div>
             )}
 
-            <p className="hor-section-label">Ubicación y Labor</p>
-            <div className="hor-form-grid hor-grid-2">
-              <div className="hor-field">
-                <label>Lote</label>
-                <select name="loteId" value={form.loteId} onChange={handleChange}>
-                  <option value="">— Seleccionar —</option>
-                  {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                </select>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">03</span>
+                <h3 className="aur-section-title">Ubicación</h3>
               </div>
-
-              <div className="hor-field">
-                <label>Grupo</label>
-                <select name="grupo" value={form.grupo} onChange={handleChange} disabled={!form.loteId}>
-                  <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
-                  {gruposDelLote.map(g => (
-                    <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="hor-field hor-field--full">
-                <label>Bloques</label>
-                <div className="hor-check-list">
-                  {!form.grupo ? (
-                    <p className="hor-check-empty">Seleccione un grupo primero.</p>
-                  ) : bloquesDelGrupo.length === 0 ? (
-                    <p className="hor-check-empty">Este grupo no tiene bloques.</p>
-                  ) : bloquesDelGrupo.map(s => {
-                    const val = s.bloque || s.id;
-                    return (
-                      <label key={s.id} className="hor-check-row">
-                        <input
-                          type="checkbox"
-                          checked={(form.bloques || []).includes(val)}
-                          onChange={() => toggleBloque(val)}
-                        />
-                        <span>Bloque {s.bloque || s.id}</span>
-                      </label>
-                    );
-                  })}
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-lote">Lote</label>
+                  <select
+                    id="rh-lote"
+                    name="loteId"
+                    className="aur-select"
+                    value={form.loteId}
+                    onChange={handleChange}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+                  </select>
                 </div>
-              </div>
-
-            </div>
-
-            <div className="hor-form-grid hor-labor-hora-grid">
-              <div className="hor-field hor-field--labor">
-                <label>Labor</label>
-                <div className="hor-labor-combo" ref={laborRef}>
-                  <div className="hor-labor-input-wrap" onClick={() => setLaborOpen(true)}>
-                    <FiSearch size={13} />
-                    <input
-                      type="text"
-                      placeholder={form.labor || '— Buscar labor —'}
-                      value={laborOpen ? laborQuery : ''}
-                      onChange={e => { setLaborQuery(e.target.value); setLaborOpen(true); }}
-                      onFocus={() => setLaborOpen(true)}
-                      className={form.labor && !laborOpen ? 'hor-labor-has-value' : ''}
-                    />
-                    {form.labor && (
-                      <button type="button" onClick={e => { e.stopPropagation(); setForm(p => ({ ...p, labor: '' })); setLaborQuery(''); }}>
-                        <FiX size={13} />
-                      </button>
-                    )}
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-grupo">Grupo</label>
+                  <select
+                    id="rh-grupo"
+                    name="grupo"
+                    className="aur-select"
+                    value={form.grupo}
+                    onChange={handleChange}
+                    disabled={!form.loteId}
+                  >
+                    <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
+                    {gruposDelLote.map(g => (
+                      <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label">Bloques</label>
+                  <div className="machinery-bloques-list">
+                    {!form.grupo ? (
+                      <p className="machinery-bloques-empty">Seleccione un grupo primero.</p>
+                    ) : bloquesDelGrupo.length === 0 ? (
+                      <p className="machinery-bloques-empty">Este grupo no tiene bloques.</p>
+                    ) : bloquesDelGrupo.map(s => {
+                      const val = s.bloque || s.id;
+                      return (
+                        <label key={s.id} className="machinery-bloques-row">
+                          <input
+                            type="checkbox"
+                            checked={(form.bloques || []).includes(val)}
+                            onChange={() => toggleBloque(val)}
+                          />
+                          <span>Bloque {s.bloque || s.id}</span>
+                        </label>
+                      );
+                    })}
                   </div>
-                  {laborOpen && (() => {
-                    const q = laborQuery.toLowerCase();
-                    const laboresFiltradas = labores.filter(l =>
-                      !q || l.descripcion?.toLowerCase().includes(q) || l.codigo?.toLowerCase().includes(q)
-                    );
-                    return (
-                    <div className="hor-labor-dropdown">
-                      {laboresFiltradas.map(l => (
-                          <button
-                            type="button"
-                            key={l.id}
-                            className="hor-labor-option"
-                            onClick={() => {
-                              setForm(p => ({ ...p, labor: l.descripcion }));
-                              setLaborQuery('');
-                              setLaborOpen(false);
-                            }}
-                          >
-                            {l.codigo && <span className="hor-labor-code">{l.codigo}</span>}
-                            <span className="hor-labor-desc">{l.descripcion}</span>
-                          </button>
-                        ))
-                      }
-                      {laboresFiltradas.length === 0 && (
-                        <p className="hor-labor-empty">Sin resultados</p>
-                      )}
-                    </div>
-                    );
-                  })()}
                 </div>
               </div>
-              {['horaInicio', 'horaFinal'].map(field => (
-                <div key={field} className="hor-field">
-                  <label>{field === 'horaInicio' ? 'Hora de Inicio' : 'Hora Final'}</label>
-                  <div className="hor-time-row" ref={timeDropdown === field ? timeDropdownRef : null}>
-                    <input
-                      type="time" name={field} value={form[field]} onChange={handleChange}
-                      className={errHora && field === 'horaFinal' ? 'hor-input-error' : ''}
-                    />
-                    <div className="hor-time-dd-wrap">
-                      <button
-                        type="button"
-                        ref={el => { clockBtnRefs.current[field] = el; }}
-                        className={`hor-now-btn${timeDropdown === field ? ' hor-now-btn--active' : ''}`}
-                        onClick={() => {
-                          if (timeDropdown === field) { setTimeDropdown(null); return; }
-                          const btn = clockBtnRefs.current[field];
-                          if (btn) {
-                            const r = btn.getBoundingClientRect();
-                            const spaceBelow = window.innerHeight - r.bottom;
-                            const spaceAbove = r.top;
-                            const dropdownH = 340; // approximate dropdown height
-                            const openUp = spaceBelow < dropdownH && spaceAbove > spaceBelow;
-                            setDropdownPos({
-                              top: openUp ? 0 : r.bottom + 4,
-                              bottom: openUp ? (window.innerHeight - r.top + 4) : 0,
-                              right: window.innerWidth - r.right,
-                              openUp,
-                            });
-                          }
-                          setTimeDropdown(field);
-                        }}
-                        title="Opciones de hora"
-                      >
-                        <FiClock size={13} />
-                      </button>
-                    </div>
-                  </div>
-                  {errHora && field === 'horaFinal' && <span className="hor-field-error">La hora final debe ser mayor que la inicial</span>}
-                </div>
-              ))}
-            </div>
-            {form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (
-              <label className="hor-dia-siguiente-label">
-                <input
-                  type="checkbox" name="diaSiguiente"
-                  checked={!!form.diaSiguiente} onChange={handleChange}
-                />
-                Finaliza el día siguiente
-              </label>
-            )}
-            {form.diaSiguiente && form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (() => {
-              const [hI, mI] = form.horaInicio.split(':').map(Number);
-              const [hF, mF] = form.horaFinal.split(':').map(Number);
-              const diff = ((hF * 60 + mF) - (hI * 60 + mI) + 24 * 60) % (24 * 60);
-              const h = Math.floor(diff / 60), m = diff % 60;
-              return (
-                <p className="hor-nocturno-info">
-                  Turno nocturno · finaliza el día siguiente · {h}h {m > 0 ? `${m}m` : ''} de trabajo
-                </p>
-              );
-            })()}
+            </section>
 
-            {!isEditing && (
-              <div className="hor-add-line-wrap">
-                <button type="button" className="btn btn-secondary" onClick={handleAddLine}>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num">04</span>
+                <h3 className="aur-section-title">Labor y horas</h3>
+              </div>
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label">Labor</label>
+                  <AuroraCombobox
+                    value={laborValue}
+                    onChange={handleLaborChange}
+                    items={labores}
+                    labelFn={laborLabel}
+                    placeholder="— Buscar labor —"
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-h-ini">Hora inicial</label>
+                  <AuroraTimePicker
+                    id="rh-h-ini"
+                    name="horaInicio"
+                    value={form.horaInicio}
+                    onChange={handleTimeChange('horaInicio')}
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="rh-h-fin">Hora final</label>
+                  <AuroraTimePicker
+                    id="rh-h-fin"
+                    name="horaFinal"
+                    value={form.horaFinal}
+                    onChange={handleTimeChange('horaFinal')}
+                    hasError={errHora}
+                  />
+                </div>
+                {errHora && (
+                  <div className="aur-row aur-row--multiline">
+                    <span className="aur-row-label" />
+                    <span className="aur-field-error">La hora final debe ser mayor que la inicial.</span>
+                  </div>
+                )}
+                {form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (
+                  <div className="aur-row">
+                    <span className="aur-row-label" />
+                    <label className="machinery-toggle-label">
+                      <input
+                        type="checkbox"
+                        name="diaSiguiente"
+                        checked={!!form.diaSiguiente}
+                        onChange={handleChange}
+                      />
+                      <span>Finaliza el día siguiente</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {form.diaSiguiente && form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (() => {
+                const [hI, mI] = form.horaInicio.split(':').map(Number);
+                const [hF, mF] = form.horaFinal.split(':').map(Number);
+                const diff = ((hF * 60 + mF) - (hI * 60 + mI) + 24 * 60) % (24 * 60);
+                const h = Math.floor(diff / 60), m = diff % 60;
+                return (
+                  <p className="machinery-nocturno-info">
+                    Turno nocturno · finaliza el día siguiente · {h}h {m > 0 ? `${m}m` : ''} de trabajo
+                  </p>
+                );
+              })()}
+            </section>
+
+            <div className="aur-form-actions">
+              {!isEditing && (
+                <button type="button" className="aur-btn-text" onClick={handleAddLine}>
                   <FiPlus size={14} /> Agregar línea
                 </button>
-              </div>
-            )}
-
-            <div className="hor-form-actions">
-              <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
+              )}
+              <button type="button" className="aur-btn-text" onClick={resetForm}>
+                Cancelar
+              </button>
+              <button type="submit" className="aur-btn-pill" disabled={saving}>
                 <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : pendingLines.length > 0 ? `Guardar ${pendingLines.length + 1} líneas` : 'Registrar'}
               </button>
             </div>
           </form>
-        </div>
-      ) : scanStep === 'upload' ? (
-        <div className="hor-scan-card">
-          <div className="hor-form-header">
-            <span><FiCamera size={14} style={{ marginRight: 6 }} />Escanear Formulario de Horímetro</span>
-            <button className="hor-close-btn" onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); }}><FiX size={16} /></button>
-          </div>
-          <div className="hor-scan-body">
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+             SCAN UPLOAD MODE
+             ═══════════════════════════════════════════════════════════════════ */}
+        {scanStep === 'upload' && (
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">·</span>
+              <h3 className="aur-section-title"><FiCamera size={14} style={{ verticalAlign: -2, marginRight: 6 }} />Cargar imagen del formulario</h3>
+            </div>
             <div
-              className={`hor-drop-zone${scanImage ? ' has-image' : ''}`}
+              className={`machinery-scan-dropzone${scanImage ? ' has-image' : ''}`}
               onDrop={handleScanDrop}
-              onDragOver={e => e.preventDefault()}
+              onDragOver={(e) => e.preventDefault()}
               onClick={() => !scanImage && scanFileRef.current?.click()}
             >
               {scanImage ? (
-                <div className="hor-scan-preview-wrap">
-                  <img src={scanImage.previewUrl} alt="Formulario" className="hor-scan-preview" />
-                  <button className="hor-scan-clear" onClick={e => { e.stopPropagation(); setScanImage(null); }}>
-                    <FiX size={14} /> Cambiar imagen
+                <div className="machinery-scan-preview-wrap">
+                  <img src={scanImage.previewUrl} alt="Formulario" className="machinery-scan-preview" />
+                  <button
+                    type="button"
+                    className="aur-chip"
+                    onClick={(e) => { e.stopPropagation(); setScanImage(null); }}
+                  >
+                    <FiX size={12} /> Cambiar imagen
                   </button>
                 </div>
               ) : (
-                <div className="hor-drop-hint">
+                <div className="machinery-scan-hint">
                   <FiUpload size={28} />
                   <p>Arrastra la foto del formulario aquí o <strong>haz clic para seleccionar</strong></p>
                   <span>JPG, PNG, WEBP</span>
                 </div>
               )}
             </div>
-            <input ref={scanFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleScanFile} />
-            {scanError && <p className="hor-scan-error">{scanError}</p>}
-            <div className="hor-scan-actions">
-              <button className="btn btn-secondary" onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); setShowForm(true); }}>Cancelar</button>
-              <button className="btn btn-ia" onClick={handleScan} disabled={!scanImage || scanning}>
+            <input
+              ref={scanFileRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleScanFile}
+            />
+            {scanError && <p className="aur-field-error" style={{ marginTop: 12 }}>{scanError}</p>}
+            <div className="aur-form-actions">
+              <button
+                type="button"
+                className="aur-btn-text"
+                onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); setShowForm(true); }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={handleScan}
+                disabled={!scanImage || scanning}
+              >
                 <FiCpu size={14} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
               </button>
             </div>
-          </div>
-        </div>
-      ) : scanStep === 'review' ? (
-        <div className="hor-scan-card">
-          <div className="hor-form-header">
-            <span>Revisar registros extraídos ({scanRows.length})</span>
-            <button className="hor-close-btn" onClick={() => setScanStep('upload')}><FiX size={16} /></button>
-          </div>
-          <div className="hor-scan-body">
-            <div className="hor-batch-wrap">
-              <table className="hor-batch-table">
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+             SCAN REVIEW MODE — batch-editable table
+             ═══════════════════════════════════════════════════════════════════ */}
+        {scanStep === 'review' && (
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">·</span>
+              <h3 className="aur-section-title">Filas extraídas</h3>
+              <span className="aur-section-count">{scanRows.length}</span>
+            </div>
+            <div className="aur-table-wrap machinery-batch-wrap">
+              <table className="aur-table machinery-batch-table">
                 <thead>
                   <tr>
                     <th>#</th>
                     <th>Fecha</th>
                     <th>Tractor</th>
                     <th>Implemento</th>
-                    <th>Hor.Ini</th>
-                    <th>Hor.Fin</th>
+                    <th style={{ textAlign: 'right' }}>Hor. ini</th>
+                    <th style={{ textAlign: 'right' }}>Hor. fin</th>
                     <th>Lote</th>
                     <th>Grupo</th>
                     <th>Labor</th>
-                    <th>H.Inicio</th>
-                    <th>H.Final</th>
+                    <th>H. inicio</th>
+                    <th>H. final</th>
                     <th>Operario</th>
-                    <th></th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
                   {scanRows.map((row, idx) => (
-                    <tr key={idx} className={!row.tractorId ? 'hor-batch-row-warn' : ''}>
-                      <td className="hor-batch-num">{idx + 1}</td>
+                    <tr key={idx} className={!row.tractorId ? 'machinery-batch-row-warn' : ''}>
+                      <td className="machinery-td-num">{idx + 1}</td>
                       <td>
-                        <input type="date" className="hor-batch-input" value={row.fecha || ''} max={TODAY()} onChange={e => updateScanRow(idx, 'fecha', e.target.value)} />
+                        <input type="date" className="machinery-batch-input" value={row.fecha || ''} max={TODAY()} onChange={e => updateScanRow(idx, 'fecha', e.target.value)} />
                       </td>
                       <td>
-                        <select className="hor-batch-select" value={row.tractorId || ''} onChange={e => updateScanRow(idx, 'tractorId', e.target.value)}>
+                        <select className="machinery-batch-select" value={row.tractorId || ''} onChange={e => updateScanRow(idx, 'tractorId', e.target.value)}>
                           <option value="">—</option>
-                          {tractoresLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
+                          {tractoresLista.map(t => <option key={t.id} value={t.id}>{tractorLabel(t)}</option>)}
                         </select>
                       </td>
                       <td>
-                        <select className="hor-batch-select" value={row.implementoId || ''} onChange={e => updateScanRow(idx, 'implementoId', e.target.value)}>
+                        <select className="machinery-batch-select" value={row.implementoId || ''} onChange={e => updateScanRow(idx, 'implementoId', e.target.value)}>
                           <option value="">—</option>
-                          {implementosLista.map(t => <option key={t.id} value={t.id}>{t.codigo ? `${t.codigo} — ${t.descripcion}` : t.descripcion}</option>)}
+                          {implementosLista.map(t => <option key={t.id} value={t.id}>{tractorLabel(t)}</option>)}
                         </select>
                       </td>
                       <td>
-                        <input type="number" className="hor-batch-input hor-batch-num-input" value={row.horimetroInicial ?? ''} onChange={e => updateScanRow(idx, 'horimetroInicial', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
+                        <input type="number" className="machinery-batch-input machinery-batch-num" value={row.horimetroInicial ?? ''} onChange={e => updateScanRow(idx, 'horimetroInicial', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
                       </td>
                       <td>
-                        <input type="number" className="hor-batch-input hor-batch-num-input" value={row.horimetroFinal ?? ''} onChange={e => updateScanRow(idx, 'horimetroFinal', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
+                        <input type="number" className="machinery-batch-input machinery-batch-num" value={row.horimetroFinal ?? ''} onChange={e => updateScanRow(idx, 'horimetroFinal', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
                       </td>
                       <td>
-                        <select className="hor-batch-select" value={row.loteId || ''} onChange={e => updateScanRow(idx, 'loteId', e.target.value)}>
+                        <select className="machinery-batch-select" value={row.loteId || ''} onChange={e => updateScanRow(idx, 'loteId', e.target.value)}>
                           <option value="">—</option>
                           {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                         </select>
                       </td>
                       <td>
-                        <select className="hor-batch-select" value={row.grupo || ''} onChange={e => updateScanRow(idx, 'grupo', e.target.value)}>
+                        <select className="machinery-batch-select" value={row.grupo || ''} onChange={e => updateScanRow(idx, 'grupo', e.target.value)}>
                           <option value="">—</option>
                           {gruposParaFila(row.loteId).map(g => <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>)}
                         </select>
                       </td>
                       <td>
-                        <select className="hor-batch-select hor-batch-select-wide" value={row.labor || ''} onChange={e => updateScanRow(idx, 'labor', e.target.value)}>
+                        <select className="machinery-batch-select machinery-batch-select-wide" value={row.labor || ''} onChange={e => updateScanRow(idx, 'labor', e.target.value)}>
                           <option value="">—</option>
-                          {labores.map(l => <option key={l.id} value={l.descripcion}>{l.codigo ? `${l.codigo} — ${l.descripcion}` : l.descripcion}</option>)}
+                          {labores.map(l => <option key={l.id} value={l.descripcion}>{laborLabel(l)}</option>)}
                         </select>
                       </td>
                       <td>
-                        <input type="time" className="hor-batch-input" value={row.horaInicio || ''} onChange={e => updateScanRow(idx, 'horaInicio', e.target.value)} />
+                        <input type="time" className="machinery-batch-input" value={row.horaInicio || ''} onChange={e => updateScanRow(idx, 'horaInicio', e.target.value)} />
                       </td>
                       <td>
-                        <input type="time" className="hor-batch-input" value={row.horaFinal || ''} onChange={e => updateScanRow(idx, 'horaFinal', e.target.value)} />
+                        <input type="time" className="machinery-batch-input" value={row.horaFinal || ''} onChange={e => updateScanRow(idx, 'horaFinal', e.target.value)} />
                       </td>
                       <td>
-                        <select className="hor-batch-select" value={row.operarioId || ''} onChange={e => updateScanRow(idx, 'operarioId', e.target.value)}>
+                        <select className="machinery-batch-select" value={row.operarioId || ''} onChange={e => updateScanRow(idx, 'operarioId', e.target.value)}>
                           <option value="">—</option>
                           {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                         </select>
                       </td>
                       <td>
-                        <button className="hor-btn-icon hor-btn-danger" onClick={() => removeScanRow(idx)} title="Eliminar fila">
+                        <button
+                          type="button"
+                          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                          onClick={() => removeScanRow(idx)}
+                          title="Eliminar fila"
+                        >
                           <FiX size={13} />
                         </button>
                       </td>
@@ -1251,59 +1162,27 @@ function RegistroHorimetro() {
                 </tbody>
               </table>
             </div>
-            {scanError && <p className="hor-scan-error">{scanError}</p>}
-            <p className="hor-scan-hint">Las filas en amarillo requieren seleccionar un tractor para guardarse.</p>
-            <div className="hor-scan-actions">
-              <button className="btn btn-secondary" onClick={() => setScanStep('upload')}>← Volver</button>
-              <button className="btn btn-primary" onClick={handleBatchSave} disabled={savingBatch || scanRows.length === 0}>
+            <p className="machinery-batch-hint">
+              Las filas en magenta requieren seleccionar un tractor para guardarse.
+            </p>
+            {scanError && <p className="aur-field-error">{scanError}</p>}
+            <div className="aur-form-actions">
+              <button type="button" className="aur-btn-text" onClick={() => setScanStep('upload')}>
+                ← Volver
+              </button>
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={handleBatchSave}
+                disabled={savingBatch || scanRows.length === 0}
+              >
                 <FiCheck size={14} /> {savingBatch ? 'Guardando…' : `Registrar ${scanRows.filter(r => r.tractorId).length} registro(s)`}
               </button>
             </div>
-          </div>
-        </div>
-      ) : null}
+          </section>
+        )}
+      </div>
     </div>
-
-    {timeDropdown && createPortal(
-      <div
-        ref={timeDropdownRef}
-        className="hor-time-dropdown"
-        style={{
-          position: 'fixed',
-          top: dropdownPos.openUp ? 'auto' : dropdownPos.top,
-          bottom: dropdownPos.openUp ? dropdownPos.bottom : 'auto',
-          right: dropdownPos.right,
-          left: 'auto',
-          zIndex: 9999,
-        }}
-      >
-        <button type="button" className="hor-tdd-item hor-tdd-now"
-          onClick={() => { setNow(timeDropdown); setTimeDropdown(null); }}>
-          Hora actual
-        </button>
-        <div className="hor-tdd-divider" />
-        {[{ h: 1/60, label: '+1m' }, { h: 1/12, label: '+5m' }, { h: 0.25, label: '+15m' }, { h: 0.5, label: '+30m' }, { h: 1, label: '+1h' }].map(({ h, label }) => (
-          <button key={label} type="button" className="hor-tdd-item hor-tdd-pos"
-            onClick={() => applyOffset(timeDropdown, h)}>
-            {label}
-          </button>
-        ))}
-        <div className="hor-tdd-divider" />
-        {[{ h: -1/60, label: '-1m' }, { h: -1/12, label: '-5m' }, { h: -0.25, label: '-15m' }, { h: -0.5, label: '-30m' }, { h: -1, label: '-1h' }].map(({ h, label }) => (
-          <button key={label} type="button" className="hor-tdd-item hor-tdd-neg"
-            onClick={() => applyOffset(timeDropdown, h)}>
-            {label}
-          </button>
-        ))}
-        <div className="hor-tdd-divider" />
-        <button type="button" className="hor-tdd-item hor-tdd-close"
-          onClick={() => setTimeDropdown(null)}>
-          Cerrar
-        </button>
-      </div>,
-      document.body
-    )}
-    </>
   );
 }
 

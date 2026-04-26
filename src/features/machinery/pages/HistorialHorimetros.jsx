@@ -1,58 +1,38 @@
 import { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import {
-  FiClipboard, FiEdit, FiTrash2, FiFilter, FiSliders, FiX, FiPlus,
-} from 'react-icons/fi';
+import { FiClipboard, FiEdit, FiTrash2, FiPlus } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import '../styles/horimetro.css';
+import '../styles/machinery.css';
 
 const COLUMNS = [
-  { id: 'fecha',            label: 'Fecha',             filterType: 'date'   },
-  { id: 'tractorNombre',    label: 'Tractor'                                  },
-  { id: 'implemento',       label: 'Implemento'                               },
-  { id: 'horimetroInicial', label: 'Horímetro Inicial', filterType: 'number' },
-  { id: 'horimetroFinal',   label: 'Horímetro Final',   filterType: 'number' },
-  { id: 'horas',            label: 'Horas',             plain: true           },
-  { id: 'montoDepTractor',  label: 'Monto Dep. Tractor',  filterType: 'number' },
-  { id: 'montoDepImplemento', label: 'Monto Dep. Implemento', filterType: 'number' },
-  { id: 'combTasaLH',        label: 'Tasa (L/H)',            plain: true           },
-  { id: 'combPrecio',        label: 'Precio Comb.',          plain: true           },
-  { id: 'combLitros',        label: 'Litros est.',           plain: true           },
-  { id: 'combCosto',         label: 'Costo est.',            plain: true           },
-  { id: 'loteNombre',       label: 'Lote'                                     },
-  { id: 'grupo',            label: 'Grupo'                                    },
-  { id: 'bloque',           label: 'Bloque',            plain: true           },
-  { id: 'labor',            label: 'Labor'                                    },
-  { id: 'horaInicio',       label: 'Hora Inicial'                             },
-  { id: 'horaFinal',        label: 'Hora Final'                               },
-  { id: 'operarioNombre',   label: 'Operario'                                 },
+  { key: 'fecha',             label: 'Fecha',             type: 'date'   },
+  { key: 'tractorNombre',     label: 'Tractor',           type: 'text'   },
+  { key: 'implemento',        label: 'Implemento',        type: 'text'   },
+  { key: 'horimetroInicial',  label: 'Horímetro inicial', type: 'number', align: 'right' },
+  { key: 'horimetroFinal',    label: 'Horímetro final',   type: 'number', align: 'right' },
+  { key: 'horas',             label: 'Horas',             sortable: false, align: 'right' },
+  { key: 'montoDepTractor',   label: 'Monto dep. tractor',    type: 'number', align: 'right' },
+  { key: 'montoDepImplemento', label: 'Monto dep. implemento', type: 'number', align: 'right' },
+  { key: 'combTasaLH',        label: 'Tasa (L/H)',        sortable: false, align: 'right' },
+  { key: 'combPrecio',        label: 'Precio comb.',      sortable: false, align: 'right' },
+  { key: 'combLitros',        label: 'Litros est.',       sortable: false, align: 'right' },
+  { key: 'combCosto',         label: 'Costo est.',        sortable: false, align: 'right' },
+  { key: 'loteNombre',        label: 'Lote',              type: 'text'   },
+  { key: 'grupo',             label: 'Grupo',             type: 'text'   },
+  { key: 'bloque',            label: 'Bloque',            sortable: false },
+  { key: 'labor',             label: 'Labor',             type: 'text'   },
+  { key: 'horaInicio',        label: 'Hora inicial',      type: 'text'   },
+  { key: 'horaFinal',         label: 'Hora final',        type: 'text'   },
+  { key: 'operarioNombre',    label: 'Operario',          type: 'text'   },
 ];
-
-function compare(a, b, field) {
-  const av = a[field] ?? '';
-  const bv = b[field] ?? '';
-  if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-  return String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
-}
-
-function multiSort(records, sorts) {
-  const active = sorts.filter(s => s.field);
-  if (!active.length) return [...records];
-  return [...records].sort((a, b) => {
-    for (const s of active) {
-      const r = compare(a, b, s.field);
-      if (r !== 0) return s.dir === 'desc' ? -r : r;
-    }
-    return 0;
-  });
-}
 
 function horasUsadas(rec) {
   const ini = parseFloat(rec.horimetroInicial);
   const fin = parseFloat(rec.horimetroFinal);
-  if (!isNaN(ini) && !isNaN(fin) && fin >= ini) return (fin - ini).toFixed(1);
+  if (!isNaN(ini) && !isNaN(fin) && fin >= ini) return parseFloat((fin - ini).toFixed(1));
   return null;
 }
 
@@ -65,29 +45,26 @@ function costoDepHoraNum(asset) {
   return null;
 }
 
-function SortTh({ field, children, filterType, sort, colFilter, onSort, onFilter }) {
-  const active = sort.field === field;
-  const dir    = active ? sort.dir : null;
-  const hasFilter = colFilter
-    ? (colFilter.type === 'range' ? !!(colFilter.from?.trim() || colFilter.to?.trim()) : !!colFilter.value?.trim())
-    : false;
-  return (
-    <th
-      className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
-      onClick={() => onSort(field)}
-    >
-      {children}
-      <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-      {filterType && (
-        <span className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`} onClick={e => onFilter(e, field, filterType)} title="Filtrar columna">
-          <FiFilter size={10} />
-        </span>
-      )}
-    </th>
-  );
+function getColVal(r, key) {
+  switch (key) {
+    case 'fecha':              return r.fecha?.slice(0, 10) || '';
+    case 'tractorNombre':      return (r.tractorNombre || '').toLowerCase();
+    case 'implemento':         return (r.implemento || '').toLowerCase();
+    case 'horimetroInicial':   return Number(r.horimetroInicial) || 0;
+    case 'horimetroFinal':     return Number(r.horimetroFinal) || 0;
+    case 'montoDepTractor':    return Number(r.montoDepTractor) || 0;
+    case 'montoDepImplemento': return Number(r.montoDepImplemento) || 0;
+    case 'loteNombre':         return (r.loteNombre || '').toLowerCase();
+    case 'grupo':              return (r.grupo || '').toLowerCase();
+    case 'labor':              return (r.labor || '').toLowerCase();
+    case 'horaInicio':         return r.horaInicio || '';
+    case 'horaFinal':          return r.horaFinal || '';
+    case 'operarioNombre':     return (r.operarioNombre || '').toLowerCase();
+    default:                   return '';
+  }
 }
 
-function HistorialHorimetros() {
+export default function HistorialHorimetros() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
 
@@ -95,13 +72,10 @@ function HistorialHorimetros() {
   const [maquinaria, setMaquinaria] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  const showToast = (message, type = 'success') => setToast({ message, type });
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, fecha, tractor }
+  const [deleting, setDeleting] = useState(false);
 
-  const [colFilters,    setColFilters]    = useState({});
-  const [filterPopover, setFilterPopover] = useState(null);
-  const [hiddenCols,    setHiddenCols]    = useState(new Set());
-  const [colMenu,       setColMenu]       = useState(null);
-  const [sorts, setSorts] = useState([{ field: 'fecha', dir: 'desc' }]);
+  const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchRecords = () =>
     Promise.all([
@@ -115,21 +89,26 @@ function HistorialHorimetros() {
       .catch(() => showToast('Error al cargar los registros.', 'error'))
       .finally(() => setLoading(false));
 
-  useEffect(() => { fetchRecords(); }, []);
+  useEffect(() => { fetchRecords(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (rec) => {
     navigate('/operaciones/horimetro/registro', { state: { editRecord: rec } });
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este registro de horímetro?')) return;
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    setDeleting(true);
     try {
       const res = await apiFetch(`/api/horimetro/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
+      setConfirmDelete(null);
       showToast('Registro eliminado.');
       fetchRecords();
     } catch {
       showToast('Error al eliminar.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -137,11 +116,10 @@ function HistorialHorimetros() {
   const enrichedRecords = useMemo(() => {
     const maqById = Object.fromEntries(maquinaria.map(m => [m.id, m]));
     return records.map(rec => {
-      const hrs    = horasUsadas(rec);
-      const hrsNum = hrs != null ? parseFloat(hrs) : null;
+      const hrsNum = horasUsadas(rec);
 
-      const costoTractor     = costoDepHoraNum(maqById[rec.tractorId]);
-      const montoDepTractor  = hrsNum != null && costoTractor != null
+      const costoTractor    = costoDepHoraNum(maqById[rec.tractorId]);
+      const montoDepTractor = hrsNum != null && costoTractor != null
         ? parseFloat((hrsNum * costoTractor).toFixed(2)) : null;
 
       const costoImplemento    = costoDepHoraNum(maqById[rec.implementoId]);
@@ -150,297 +128,133 @@ function HistorialHorimetros() {
 
       const comb       = rec.combustible;
       const combTasaLH = comb?.tasaLH         ?? null;
-      const combPrecio = comb?.precioUnitario  ?? null;
+      const combPrecio = comb?.precioUnitario ?? null;
       const combLitros = comb?.litrosEstimados ?? null;
       const combCosto  = comb?.costoEstimado   ?? null;
 
-      const horas = hrsNum;
       const bloque = rec.bloques?.length ? rec.bloques.join(', ') : (rec.bloque || '');
-      return { ...rec, horas, bloque, montoDepTractor, montoDepImplemento, combTasaLH, combPrecio, combLitros, combCosto };
+      return {
+        ...rec,
+        horas: hrsNum,
+        bloque,
+        montoDepTractor,
+        montoDepImplemento,
+        combTasaLH,
+        combPrecio,
+        combLitros,
+        combCosto,
+      };
     });
   }, [records, maquinaria]);
 
-  // ── Filtering ──────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const activeCol = Object.entries(colFilters).filter(([, f]) => {
-      if (!f) return false;
-      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
-      return !!f.value?.trim();
-    });
-    return enrichedRecords.filter(r => {
-      for (const [field, filter] of activeCol) {
-        const cell = r[field];
-        if (filter.type === 'range') {
-          if (cell == null || cell === '') return false;
-          const num = Number(cell);
-          if (!isNaN(num) && cell !== '') {
-            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
-            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
-          } else {
-            const str = String(cell);
-            if (filter.from && str < filter.from) return false;
-            if (filter.to   && str > filter.to)   return false;
-          }
-        } else {
-          if (cell == null) return false;
-          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
-        }
-      }
-      return true;
-    });
-  }, [enrichedRecords, colFilters]);
-
-  const sorted = useMemo(() => multiSort(filtered, sorts), [filtered, sorts]);
-
-  const handleThSort = (field) => {
-    setSorts(prev => {
-      const cur = prev[0];
-      if (cur.field !== field) return [{ field, dir: 'asc' }];
-      if (cur.dir === 'asc')  return [{ field, dir: 'desc' }];
-      return [{ field: '', dir: 'asc' }]; // OFF
-    });
-  };
-
-  const openFilter = (e, field, filterType = 'text') => {
-    e.stopPropagation();
-    if (filterPopover?.field === field) { setFilterPopover(null); return; }
-    const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-    const rect = th.getBoundingClientRect();
-    const x = Math.min(rect.left, window.innerWidth - 240);
-    const y = Math.min(rect.bottom + 4, window.innerHeight - 60);
-    setFilterPopover({ field, x, y, filterType });
-  };
-
-  const openColMenu = (e) => {
-    e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 200);
-    const y = Math.min(e.clientY, window.innerHeight - 200);
-    setColMenu({ x, y });
-  };
-
-  const toggleCol = (id) => {
-    setHiddenCols(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const hiddenCount = hiddenCols.size;
-
-  const handleColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = Math.min(r.right - 190, window.innerWidth - 200);
-    const y = Math.min(r.bottom + 4, window.innerHeight - 200);
-    setColMenu(prev => prev ? null : { x, y });
-  };
-
-  const setColFilter = (field, filterObj) => {
-    const empty = !filterObj ||
-      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
-    setColFilters(prev => empty
-      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
-      : { ...prev, [field]: filterObj }
+  // ── Render row ────────────────────────────────────────────────────────────
+  const renderRow = (rec, visibleCols) => {
+    const empty = <span className="machinery-td-empty">—</span>;
+    const fmtCurrency = (n) =>
+      n != null ? n.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : null;
+    return (
+      <>
+        {visibleCols.fecha             && <td>{rec.fecha || empty}</td>}
+        {visibleCols.tractorNombre     && <td>{rec.tractorNombre || empty}</td>}
+        {visibleCols.implemento        && <td>{rec.implemento    || empty}</td>}
+        {visibleCols.horimetroInicial  && <td className="machinery-td-num">{rec.horimetroInicial !== '' && rec.horimetroInicial != null ? rec.horimetroInicial : empty}</td>}
+        {visibleCols.horimetroFinal    && <td className="machinery-td-num">{rec.horimetroFinal   !== '' && rec.horimetroFinal   != null ? rec.horimetroFinal   : empty}</td>}
+        {visibleCols.horas             && <td className="machinery-td-num">{rec.horas != null ? <strong style={{ color: 'var(--aur-accent)' }}>{rec.horas.toFixed(1)}</strong> : empty}</td>}
+        {visibleCols.montoDepTractor   && <td className="machinery-td-num">{fmtCurrency(rec.montoDepTractor) ?? empty}</td>}
+        {visibleCols.montoDepImplemento && <td className="machinery-td-num">{fmtCurrency(rec.montoDepImplemento) ?? empty}</td>}
+        {visibleCols.combTasaLH && <td className="machinery-td-num">{rec.combTasaLH != null ? rec.combTasaLH.toFixed(2) : empty}</td>}
+        {visibleCols.combPrecio && <td className="machinery-td-num">{fmtCurrency(rec.combPrecio) ?? empty}</td>}
+        {visibleCols.combLitros && <td className="machinery-td-num">{rec.combLitros != null ? rec.combLitros.toFixed(2) : empty}</td>}
+        {visibleCols.combCosto  && <td className="machinery-td-num">{fmtCurrency(rec.combCosto)  ?? empty}</td>}
+        {visibleCols.loteNombre     && <td>{rec.loteNombre || empty}</td>}
+        {visibleCols.grupo          && <td>{rec.grupo      || empty}</td>}
+        {visibleCols.bloque         && <td>{rec.bloque     || empty}</td>}
+        {visibleCols.labor          && <td>{rec.labor      || empty}</td>}
+        {visibleCols.horaInicio     && <td>{rec.horaInicio || empty}</td>}
+        {visibleCols.horaFinal      && <td>{rec.horaFinal  || empty}</td>}
+        {visibleCols.operarioNombre && <td>{rec.operarioNombre || empty}</td>}
+      </>
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const trailingCell = (rec) => (
+    <td className="machinery-td-actions">
+      <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={() => handleEdit(rec)} title="Editar">
+        <FiEdit size={13} />
+      </button>
+      <button
+        type="button"
+        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+        onClick={() => setConfirmDelete({ id: rec.id, fecha: rec.fecha, tractor: rec.tractorNombre })}
+        title="Eliminar"
+      >
+        <FiTrash2 size={13} />
+      </button>
+    </td>
+  );
+
   return (
-    <>
-    <div className="hor-wrap">
+    <div className="machinery-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {loading ? (
-        <div className="hor-page-loading" />
-      ) : records.length === 0 ? (
-        <div className="hor-empty-state">
-          <FiClipboard size={36} />
-          <p>No hay registros aún.</p>
-          <button className="btn btn-primary" onClick={() => navigate('/operaciones/horimetro/registro')}>
-            <FiPlus size={14} /> Crear el primero
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="hor-toolbar">
-            <h1 className="hor-page-title">Historial de Horímetros</h1>
-            <button className="btn btn-primary" onClick={() => navigate('/operaciones/horimetro/registro')}>
-              <FiPlus size={15} /> Nuevo Registro
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar registro de horímetro"
+          body={`¿Eliminar el registro del ${confirmDelete.fecha || 'sin fecha'} ${confirmDelete.tractor ? `(${confirmDelete.tractor})` : ''}? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={doDelete}
+          onCancel={() => setConfirmDelete(null)}
+          loading={deleting}
+        />
+      )}
+
+      <div className="aur-sheet">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">Historial de horímetros</h1>
+            <p className="aur-sheet-subtitle">
+              {loading ? 'Cargando…' : `${records.length} registro${records.length !== 1 ? 's' : ''}.`}
+            </p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => navigate('/operaciones/horimetro/registro')}
+            >
+              <FiPlus size={14} /> Nuevo registro
             </button>
           </div>
+        </header>
 
-          <section className="hor-section">
-            <div className="hor-section-header">
-              {Object.values(colFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
-                <button className="historial-clear-col-filters" onClick={() => setColFilters({})}>
-                  <FiX size={11} />
-                  Limpiar filtros de columna
-                </button>
-              )}
-            </div>
-
-            {sorted.length === 0 ? (
-              <div className="hor-empty-state">
-                <FiClipboard size={36} />
-                <p>Sin resultados para los filtros activos.</p>
-              </div>
-            ) : (
-              <div className="hor-table-wrap">
-                <table className="hor-table">
-                  <thead>
-                    <tr onContextMenu={openColMenu}>
-                      {COLUMNS.map(col => hiddenCols.has(col.id) ? null
-                        : <SortTh key={col.id} field={col.id} filterType={col.plain ? null : col.filterType} sort={sorts[0]} colFilter={colFilters[col.id]} onSort={handleThSort} onFilter={openFilter}>{col.label}</SortTh>
-                      )}
-                      <th className="hor-th-settings">
-                        <button
-                          className={`hor-col-toggle-btn${hiddenCount > 0 ? ' hor-col-toggle-btn--active' : ''}`}
-                          onClick={handleColBtnClick}
-                          title="Personalizar columnas visibles"
-                        >
-                          <FiSliders size={12} />
-                          {hiddenCount > 0 && <span className="hor-col-hidden-badge">{hiddenCount}</span>}
-                        </button>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map(rec => (
-                        <tr key={rec.id}>
-                          {!hiddenCols.has('fecha')            && <td className="hor-td-date">{rec.fecha || '—'}</td>}
-                          {!hiddenCols.has('tractorNombre')    && <td className="hor-td-maq">{rec.tractorNombre || '—'}</td>}
-                          {!hiddenCols.has('implemento')       && <td>{rec.implemento || <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('horimetroInicial') && <td className="hor-td-num">{rec.horimetroInicial !== '' && rec.horimetroInicial != null ? rec.horimetroInicial : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('horimetroFinal')   && <td className="hor-td-num">{rec.horimetroFinal   !== '' && rec.horimetroFinal   != null ? rec.horimetroFinal   : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('horas')            && <td className={`hor-td-horas${rec.horas != null ? '' : ' hor-td-empty'}`}>{rec.horas != null ? rec.horas.toFixed(1) : '—'}</td>}
-                          {!hiddenCols.has('montoDepTractor')  && <td className="hor-td-num">{rec.montoDepTractor != null ? rec.montoDepTractor.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('montoDepImplemento') && <td className="hor-td-num">{rec.montoDepImplemento != null ? rec.montoDepImplemento.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('combTasaLH')  && <td className="hor-td-num">{rec.combTasaLH  != null ? rec.combTasaLH.toFixed(2)  : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('combPrecio')  && <td className="hor-td-num">{rec.combPrecio  != null ? rec.combPrecio.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('combLitros')  && <td className="hor-td-num">{rec.combLitros  != null ? rec.combLitros.toFixed(2)  : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('combCosto')   && <td className="hor-td-num">{rec.combCosto   != null ? rec.combCosto.toLocaleString('es-CR', { minimumFractionDigits: 2 }) : <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('loteNombre')       && <td>{rec.loteNombre || <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('grupo')            && <td>{rec.grupo      || <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('bloque')           && <td>{rec.bloque || <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('labor')            && <td className="hor-td-labor">{rec.labor || <span className="hor-td-empty">—</span>}</td>}
-                          {!hiddenCols.has('horaInicio')       && <td className="hor-td-time">{rec.horaInicio || '—'}</td>}
-                          {!hiddenCols.has('horaFinal')        && <td className="hor-td-time">{rec.horaFinal  || '—'}</td>}
-                          {!hiddenCols.has('operarioNombre')   && <td>{rec.operarioNombre || <span className="hor-td-empty">—</span>}</td>}
-                          <td className="hor-td-actions">
-                            <button className="hor-btn-icon" onClick={() => handleEdit(rec)} title="Editar">
-                              <FiEdit size={13} />
-                            </button>
-                            <button className="hor-btn-icon hor-btn-danger" onClick={() => handleDelete(rec.id)} title="Eliminar">
-                              <FiTrash2 size={13} />
-                            </button>
-                          </td>
-                        </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
-      )}
-    </div>
-
-    {filterPopover && createPortal(
-      <>
-        <div className="historial-filter-backdrop" onClick={() => setFilterPopover(null)} />
-        <div
-          className={`historial-filter-popover${filterPopover.filterType !== 'text' ? ' historial-filter-popover--range' : ''}`}
-          style={{ left: filterPopover.x, top: filterPopover.y }}
-        >
-          <FiFilter size={13} className="historial-filter-popover-icon" />
-          {filterPopover.filterType !== 'text' ? (
-            <>
-              <div className="historial-filter-range">
-                <div className="historial-filter-range-row">
-                  <span className="historial-filter-range-label">De</span>
-                  <input
-                    autoFocus
-                    type={filterPopover.filterType}
-                    className="historial-filter-input"
-                    value={colFilters[filterPopover.field]?.from || ''}
-                    onChange={e => setColFilter(filterPopover.field, {
-                      type: 'range',
-                      from: e.target.value,
-                      to: colFilters[filterPopover.field]?.to || '',
-                    })}
-                    onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                  />
-                </div>
-                <div className="historial-filter-range-row">
-                  <span className="historial-filter-range-label">A</span>
-                  <input
-                    type={filterPopover.filterType}
-                    className="historial-filter-input"
-                    value={colFilters[filterPopover.field]?.to || ''}
-                    onChange={e => setColFilter(filterPopover.field, {
-                      type: 'range',
-                      from: colFilters[filterPopover.field]?.from || '',
-                      to: e.target.value,
-                    })}
-                    onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                  />
-                </div>
-              </div>
-              {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
-                <button className="historial-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, null); setFilterPopover(null); }}>
-                  <FiX size={13} />
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <input
-                autoFocus
-                className="historial-filter-input"
-                placeholder="Filtrar…"
-                value={colFilters[filterPopover.field]?.value || ''}
-                onChange={e => setColFilter(filterPopover.field, { type: 'text', value: e.target.value })}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setFilterPopover(null); }}
-              />
-              {colFilters[filterPopover.field]?.value && (
-                <button className="historial-filter-clear" title="Limpiar filtro" onClick={() => { setColFilter(filterPopover.field, null); setFilterPopover(null); }}>
-                  <FiX size={13} />
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </>,
-      document.body
-    )}
-
-    {colMenu && createPortal(
-      <>
-        <div className="hor-col-menu-backdrop" onClick={() => setColMenu(null)} />
-        <div className="hor-col-menu" style={{ left: colMenu.x, top: colMenu.y }}>
-          <div className="hor-col-menu-title">Columnas visibles</div>
-          {COLUMNS.map(col => (
+        {loading ? (
+          <div className="aur-page-loading" />
+        ) : records.length === 0 ? (
+          <div className="machinery-empty">
+            <FiClipboard size={40} />
+            <p className="machinery-empty-text">No hay registros aún.</p>
+            <p className="machinery-empty-sub">Empieza por crear el primero.</p>
             <button
-              key={col.id}
-              className={`hor-col-menu-item${hiddenCols.has(col.id) ? ' is-hidden' : ''}`}
-              onClick={() => toggleCol(col.id)}
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => navigate('/operaciones/horimetro/registro')}
             >
-              <span className="hor-col-menu-check" />
-              {col.label}
+              <FiPlus size={14} /> Crear el primero
             </button>
-          ))}
-          {hiddenCols.size > 0 && (
-            <button className="hor-col-menu-reset" onClick={() => { setHiddenCols(new Set()); setColMenu(null); }}>
-              Mostrar todas
-            </button>
-          )}
-        </div>
-      </>,
-      document.body
-    )}
-    </>
+          </div>
+        ) : (
+          <AuroraDataTable
+            columns={COLUMNS}
+            data={enrichedRecords}
+            getColVal={getColVal}
+            initialSort={{ field: 'fecha', dir: 'desc' }}
+            firstClickDir="desc"
+            renderRow={renderRow}
+            trailingCell={trailingCell}
+          />
+        )}
+      </div>
+    </div>
   );
 }
-
-export default HistorialHorimetros;
