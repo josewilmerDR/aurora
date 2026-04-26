@@ -121,32 +121,32 @@ function SamplingHistory() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Filtros */}
-      <div className="form-card" style={{ marginBottom: '1rem' }}>
+      <section className="aur-section mh-filtros-section">
         <div className="monitoreo-filtros">
-          <div className="form-control">
-            <label>Lote</label>
-            <select name="loteId" value={filtros.loteId} onChange={handleFiltro}>
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="filt-lote">Lote</label>
+            <select id="filt-lote" className="aur-select" name="loteId" value={filtros.loteId} onChange={handleFiltro}>
               <option value="">Todos</option>
               {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
             </select>
           </div>
-          <div className="form-control">
-            <label>Tipo</label>
-            <select name="tipoId" value={filtros.tipoId} onChange={handleFiltro}>
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="filt-tipo">Tipo</label>
+            <select id="filt-tipo" className="aur-select" name="tipoId" value={filtros.tipoId} onChange={handleFiltro}>
               <option value="">Todos</option>
               {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
             </select>
           </div>
-          <div className="form-control">
-            <label>Desde</label>
-            <input type="date" name="desde" value={filtros.desde} onChange={handleFiltro} />
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="filt-desde">Desde</label>
+            <input id="filt-desde" className="aur-input" type="date" name="desde" value={filtros.desde} onChange={handleFiltro} />
           </div>
-          <div className="form-control">
-            <label>Hasta</label>
-            <input type="date" name="hasta" value={filtros.hasta} onChange={handleFiltro} />
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="filt-hasta">Hasta</label>
+            <input id="filt-hasta" className="aur-input" type="date" name="hasta" value={filtros.hasta} onChange={handleFiltro} />
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Tabla */}
       {loading ? (
