@@ -224,7 +224,7 @@ function OrdenesHistorial() {
         </Link>
         <div className="oh-toolbar-actions">
           <button
-            className={`btn btn-secondary oh-filter-btn${activeFilterCount ? ' oh-filter-active' : ''}`}
+            className={`aur-btn-text oh-filter-btn${activeFilterCount ? ' oh-filter-active' : ''}`}
             onClick={() => setShowFilters(v => !v)}
           >
             <FiFilter size={14} />
@@ -388,13 +388,13 @@ function OrdenesHistorial() {
             <div className="ol-preview-toolbar">
               <span className="ol-preview-toolbar-title">Vista previa — Orden de Compra</span>
               <div className="ol-preview-toolbar-actions">
-                <button className="btn btn-secondary" onClick={handleCompartir}>
+                <button className="aur-btn-text" onClick={handleCompartir}>
                   <FiShare2 size={15} /> Compartir
                 </button>
-                <button className="btn btn-secondary" onClick={() => window.print()}>
+                <button className="aur-btn-text" onClick={() => window.print()}>
                   <FiPrinter size={15} /> Imprimir / PDF
                 </button>
-                <button className="btn btn-secondary" onClick={closePreview}>
+                <button className="aur-btn-text" onClick={closePreview}>
                   <FiX size={15} /> Cerrar
                 </button>
               </div>

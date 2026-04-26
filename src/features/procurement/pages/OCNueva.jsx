@@ -7,6 +7,7 @@ import {
   FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX, FiSave, FiShare2,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useUser } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/oc-nueva.css';
@@ -264,6 +265,7 @@ const OrdenesList = () => {
   // Form — open by default
   const [showForm, setShowForm] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [previewSaved, setPreviewSaved] = useState(false);
   const [savedPoNumber, setSavedPoNumber] = useState('');
   const [savedSnapshot, setSavedSnapshot] = useState(null);
@@ -436,10 +438,7 @@ const OrdenesList = () => {
     setFocusRowKey(row._key);
   };
 
-  const handleCancelar = () => {
-    const hasContent = proveedor !== '' || contacto !== '' || notas !== '' ||
-      fechaEntrega !== '' || filas.some(f => f.nombreComercial.trim() !== '');
-    if (hasContent && !window.confirm('¿Descartar los cambios de esta orden?')) return;
+  const doDiscardForm = () => {
     clearFormDraft();
     setFilas([newRow()]);
     setProveedor('');
@@ -450,6 +449,13 @@ const OrdenesList = () => {
     setExchangeRateToCRC('');
     setLoadedSolicitudId(null);
     setLoadedRfqId(null);
+  };
+
+  const handleCancelar = () => {
+    const hasContent = proveedor !== '' || contacto !== '' || notas !== '' ||
+      fechaEntrega !== '' || filas.some(f => f.nombreComercial.trim() !== '');
+    if (hasContent) { setConfirmDiscard(true); return; }
+    doDiscardForm();
   };
   const removeFila = (key) => setFilas(prev => prev.length > 1 ? prev.filter(f => f._key !== key) : prev);
 
@@ -847,13 +853,13 @@ const OrdenesList = () => {
                       </div>
                     </div>
                   )}
-                  <button type="button" className="btn btn-secondary" onClick={handleCancelar}>
+                  <button type="button" className="aur-btn-text" onClick={handleCancelar}>
                     <FiX size={15} /> Cancelar
                   </button>
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowPreview(true)}>
+                  <button type="button" className="aur-btn-text" onClick={() => setShowPreview(true)}>
                     <FiEye size={15} /> Previsualizar
                   </button>
-                  <button type="button" className="btn btn-primary" onClick={handleGuardarOC} disabled={saving}>
+                  <button type="button" className="aur-btn-pill" onClick={handleGuardarOC} disabled={saving}>
                     <FiCheck size={15} /> {saving ? 'Guardando…' : 'Crear OC'}
                   </button>
                 </div>
@@ -1004,19 +1010,19 @@ const OrdenesList = () => {
               <span className="ol-preview-toolbar-title">Vista previa — Orden de Compra</span>
               <div className="ol-preview-toolbar-actions">
                 {!previewSaved && (
-                  <button className="btn btn-primary" onClick={handleGuardarDesdePreview} disabled={saving}>
+                  <button className="aur-btn-pill" onClick={handleGuardarDesdePreview} disabled={saving}>
                     <FiSave size={15} /> {saving ? 'Guardando…' : 'Guardar'}
                   </button>
                 )}
                 {previewSaved && (
-                  <button className="btn btn-secondary" onClick={handleCompartir}>
+                  <button className="aur-btn-text" onClick={handleCompartir}>
                     <FiShare2 size={15} /> Compartir
                   </button>
                 )}
-                <button className="btn btn-secondary" onClick={() => window.print()}>
+                <button className="aur-btn-text" onClick={() => window.print()}>
                   <FiPrinter size={15} /> Imprimir / PDF
                 </button>
-                <button className="btn btn-secondary" onClick={closePreview}>
+                <button className="aur-btn-text" onClick={closePreview}>
                   <FiX size={15} /> Cerrar
                 </button>
               </div>
@@ -1149,6 +1155,17 @@ const OrdenesList = () => {
           </div>
         </div>,
         document.body
+      )}
+
+      {confirmDiscard && (
+        <AuroraConfirmModal
+          danger
+          title="Descartar cambios"
+          body="¿Descartar los cambios de esta orden? Los datos del formulario se perderán."
+          confirmLabel="Descartar"
+          onConfirm={() => { doDiscardForm(); setConfirmDiscard(false); }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
       )}
 
     </div>
