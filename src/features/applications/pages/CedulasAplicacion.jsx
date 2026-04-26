@@ -1275,7 +1275,7 @@ function CedulasAplicacion() {
                   if (cedula.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado')) {
                     return (
                       <button
-                        className="btn btn-secondary"
+                        className="aur-btn-pill"
                         onClick={() => handleMezclaLista(cedula.id)}
                         disabled={isLdg}
                       >
@@ -1287,7 +1287,7 @@ function CedulasAplicacion() {
                   if (cedula.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador')) {
                     return (
                       <button
-                        className="btn btn-primary"
+                        className="aur-btn-pill"
                         onClick={() => handleAplicada(cedula.id)}
                         disabled={isLdg}
                       >
@@ -1299,10 +1299,10 @@ function CedulasAplicacion() {
                   return null;
                 })()}
 
-                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={handleShare}>
+                <button className="aur-chip ca-toolbar-icon-btn" onClick={handleShare}>
                   <FiShare2 size={15} /> <span className="ca-toolbar-btn-text">Compartir</span>
                 </button>
-                <button className="btn btn-secondary ca-toolbar-icon-btn" onClick={handlePrint}>
+                <button className="aur-chip ca-toolbar-icon-btn" onClick={handlePrint}>
                   <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
                 </button>
               </div>
