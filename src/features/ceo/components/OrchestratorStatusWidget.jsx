@@ -63,16 +63,19 @@ function OrchestratorStatusWidget() {
   const latest = runs[0];
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiActivity size={14} /> Plan automático</span>
-        <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
-          <FiRefreshCw size={12} />
-        </button>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiActivity size={14} /></span>
+        <h3 className="aur-section-title">Plan automático</h3>
+        <div className="aur-section-actions">
+          <button type="button" className="aur-icon-btn" onClick={load} disabled={loading} title="Recargar">
+            <FiRefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
@@ -82,8 +85,8 @@ function OrchestratorStatusWidget() {
             </div>
           ) : (
             <>
-              <div>
-                <div className="fin-widget-primary" style={{ fontSize: '1rem' }}>
+              <div className="ceo-status-block">
+                <div className="ceo-status-text">
                   {latest.status === 'dispatched' ? 'Acciones realizadas' : latest.status === 'partial' ? 'Acciones a medias' : 'Solo recomendación'}
                 </div>
                 <div className="fin-widget-sub">
@@ -91,7 +94,7 @@ function OrchestratorStatusWidget() {
                     <>Lo más urgente: <UrgencyBadge urgency={latest.topUrgency} /> · {latest.stepCount} pasos en el plan</>
                   ) : 'Todo bajo control'}
                 </div>
-                <div className="ceo-score-meta" style={{ marginTop: 4 }}>
+                <div className="ceo-score-meta">
                   {latest.createdAt
                     ? new Date(latest.createdAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
                     : ''}
@@ -115,8 +118,8 @@ function OrchestratorStatusWidget() {
                 </div>
               )}
 
-              <div style={{ marginTop: 'auto' }}>
-                <Link to="/autopilot" className="btn btn-secondary" style={{ width: '100%', textAlign: 'center' }}>
+              <div className="fin-widget-cta-row">
+                <Link to="/autopilot" className="aur-btn-text">
                   Ver acciones del Copilot
                 </Link>
               </div>
@@ -124,7 +127,7 @@ function OrchestratorStatusWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

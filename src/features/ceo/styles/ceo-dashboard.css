@@ -75,6 +75,40 @@
   letter-spacing: 0.2px;
 }
 
+/* ── OrchestratorStatusWidget — bloque status (primary text + sub + meta) ─
+   El primary del orquestador es texto status ("Acciones realizadas"), no un
+   número grande, por lo que no usamos fin-widget-primary. Slim agrupa
+   los 3 elementos con gap pequeño y aplica callout al primary. */
+.ceo-status-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ceo-status-text {
+  font-size: var(--aur-fs-callout);
+  font-weight: 700;
+  color: var(--aur-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ── KpiAccuracyWidget — window selector compacto + scroll container ───── */
+/* La primitive .aur-select tiene padding generoso (12px 14px) para input
+   full-size; aquí necesitamos un select inline compacto que encaje en el
+   aur-section-header. Slim ajusta padding y font sin tocar el dropdown
+   arrow del primitive. */
+.ceo-window-select {
+  width: auto;
+  padding: 4px 28px 4px 8px;
+  font-size: var(--aur-fs-caption);
+  background-position: right 6px center;
+}
+
+.ceo-kpi-scroll {
+  overflow-y: auto;
+  max-height: 180px;
+}
+
 /* ── Score bars (trust + hit-rate) ──────────────────────────────────────── */
 .ceo-score-row {
   display: grid;
@@ -121,6 +155,12 @@
 .ceo-score-meta {
   font-size: var(--aur-fs-caption);
   color: var(--aur-text-3);
+}
+/* Cuando el meta vive dentro de .ceo-score-row (grid de 3 columnas), se
+   expande a la fila completa para que aparezca bajo el row. Reemplaza el
+   inline style={{ gridColumn: '1 / -1' }} legacy. */
+.ceo-score-meta--row {
+  grid-column: 1 / -1;
 }
 
 /* ── Chain rows ─────────────────────────────────────────────────────────── */

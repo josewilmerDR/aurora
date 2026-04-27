@@ -69,25 +69,26 @@ function TrustScoreWidget() {
   const observationCount = scores?.observationCount ?? 0;
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiTarget size={14} /> Aciertos por área</span>
-        <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
-          <FiRefreshCw size={12} />
-        </button>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiTarget size={14} /></span>
+        <h3 className="aur-section-title">Aciertos por área</h3>
+        <div className="aur-section-actions">
+          <button type="button" className="aur-icon-btn" onClick={load} disabled={loading} title="Recargar">
+            <FiRefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && scores && (
         <>
-          <div>
-            <div className="fin-widget-sub">
-              {observationCount > 0
-                ? `${observationCount} decisiones evaluadas en los últimos ${scores.sinceDays || 365} días · da más peso a las recientes`
-                : 'Aún no hay datos. El Copilot revisa cada día qué tan acertadas fueron sus decisiones.'}
-            </div>
+          <div className="fin-widget-sub">
+            {observationCount > 0
+              ? `${observationCount} decisiones evaluadas en los últimos ${scores.sinceDays || 365} días · da más peso a las recientes`
+              : 'Aún no hay datos. El Copilot revisa cada día qué tan acertadas fueron sus decisiones.'}
           </div>
 
           <div>
@@ -100,7 +101,7 @@ function TrustScoreWidget() {
                   <span className={d.score == null ? 'ceo-score-value ceo-score-value--null' : 'ceo-score-value'}>
                     {d.score == null ? '—' : d.score.toFixed(2)}
                   </span>
-                  <span className="ceo-score-meta" style={{ gridColumn: '1 / -1' }}>
+                  <span className="ceo-score-meta ceo-score-meta--row">
                     confianza {(d.confidence || 0).toFixed(2)} · basado en {d.sampleSize || 0} decisiones
                   </span>
                 </div>
@@ -109,13 +110,12 @@ function TrustScoreWidget() {
           </div>
 
           {canRecompute && (
-            <div style={{ marginTop: 'auto' }}>
+            <div className="fin-widget-cta-row">
               <button
                 type="button"
-                className="btn btn-primary"
+                className="aur-btn-pill"
                 onClick={handleRecompute}
                 disabled={recomputing}
-                style={{ width: '100%' }}
               >
                 {recomputing ? 'Calculando…' : 'Recalcular y sugerir ajustes'}
               </button>
@@ -123,7 +123,7 @@ function TrustScoreWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
