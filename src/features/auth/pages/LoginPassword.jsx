@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { FiEye, FiEyeOff, FiArrowLeft } from 'react-icons/fi';
+import { FiArrowLeft } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
+import AuthCard from '../components/AuthCard';
+import PasswordInput from '../components/PasswordInput';
 import '../styles/auth.css';
 
 export default function LoginPassword() {
@@ -24,7 +26,6 @@ export default function LoginPassword() {
   }, [isLoggedIn, needsOrgSelection, needsSetup, navigate, from]);
 
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,49 +51,35 @@ export default function LoginPassword() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-logo">
-          <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
-          <span className="login-logo-label">Aurora</span>
+    <AuthCard title="Bienvenido">
+      <p className="auth-subtitle auth-email-display">{emailFromState}</p>
+
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div className="aur-field">
+          <label htmlFor="password" className="aur-field-label">Contraseña</label>
+          <PasswordInput
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            disabled={submitting}
+            autoComplete="current-password"
+            autoFocus
+            required
+          />
+          <Link to="/forgot-password" className="auth-forgot-link">¿Olvidaste tu contraseña?</Link>
         </div>
 
-        <h2 className="login-title">Bienvenido</h2>
-        <p className="login-subtitle login-email-display">{emailFromState}</p>
+        {error && <p className="auth-error">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="login-field">
-            <label htmlFor="password">Contraseña</label>
-            <div className="login-input-wrapper">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                disabled={submitting}
-                autoComplete="current-password"
-                autoFocus
-                required
-              />
-              <button type="button" className="login-eye-btn" onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
-                {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-              </button>
-            </div>
-            <Link to="/forgot-password" className="login-forgot-link">¿Olvidaste tu contraseña?</Link>
-          </div>
-
-          {error && <p className="login-error">{error}</p>}
-
-          <button type="submit" className="login-btn" disabled={submitting || !password}>
-            {submitting ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <button className="login-back-btn" onClick={() => navigate('/login')}>
-          <FiArrowLeft size={14} /> Usar otro correo
+        <button type="submit" className="aur-btn-pill auth-btn-submit" disabled={submitting || !password}>
+          {submitting ? 'Entrando...' : 'Entrar'}
         </button>
-      </div>
-    </div>
+      </form>
+
+      <button className="auth-back-btn" onClick={() => navigate('/login')}>
+        <FiArrowLeft size={14} /> Usar otro correo
+      </button>
+    </AuthCard>
   );
 }
