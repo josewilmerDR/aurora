@@ -22,6 +22,15 @@ const ESTADO_LABELS = {
   recibida_parcialmente: 'Parcial',
 };
 
+// Estado de la OC → variante de aur-badge.
+const ESTADO_BADGE_VARIANT = {
+  activa:                 'aur-badge--green',
+  completada:             'aur-badge--blue',
+  cancelada:              'aur-badge--gray',
+  recibida:               'aur-badge--green',
+  recibida_parcialmente:  'aur-badge--yellow',
+};
+
 const formatDateLong = (dateStr) => {
   if (!dateStr) return '___________________________';
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', {
@@ -658,7 +667,7 @@ const OrdenesList = () => {
     }
   };
 
-  if (loading) return <div className="ol-empty">Cargando…</div>;
+  if (loading) return <div className="empty-state">Cargando…</div>;
 
   // Preview data — frozen snapshot after save, live state otherwise
   const pvSrc = previewSaved && savedSnapshot ? savedSnapshot : { filas, proveedor, contacto, fechaOC, fechaEntrega, notas };
@@ -694,9 +703,9 @@ const OrdenesList = () => {
 
           {showForm && (
             <div className="ol-nueva-oc-body">
-              <div className="ol-oc-header-fields">
-                <div className="ol-oc-field">
-                  <label>Proveedor</label>
+              <ul className="aur-list ol-oc-header-fields">
+                <li className="aur-row">
+                  <span className="aur-row-label">Proveedor</span>
                   <ProveedorCombobox
                     value={proveedor}
                     onChange={setProveedor}
@@ -704,27 +713,30 @@ const OrdenesList = () => {
                     proveedores={proveedoresCatalog}
                     placeholder="Nombre del proveedor"
                   />
-                </div>
-                <div className="ol-oc-field">
-                  <label>Dirección / Contacto</label>
-                  <input value={contacto} onChange={e => setContacto(e.target.value)} placeholder="Correo, teléfono o dirección" maxLength={300} />
-                </div>
-                <div className="ol-oc-field">
-                  <label>Fecha de la orden</label>
-                  <input type="date" value={fechaOC} onChange={e => setFechaOC(e.target.value)} />
-                </div>
-                <div className="ol-oc-field">
-                  <label>Fecha de entrega estimada</label>
-                  <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
-                </div>
-                <div className="ol-oc-field">
-                  <label>Notas / Condiciones</label>
-                  <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Condiciones de pago, urgencia…" maxLength={1000} />
-                </div>
+                </li>
+                <li className="aur-row">
+                  <span className="aur-row-label">Dirección / Contacto</span>
+                  <input className="aur-input" value={contacto} onChange={e => setContacto(e.target.value)}
+                    placeholder="Correo, teléfono o dirección" maxLength={300} />
+                </li>
+                <li className="aur-row">
+                  <span className="aur-row-label">Fecha de la orden</span>
+                  <input className="aur-input" type="date" value={fechaOC} onChange={e => setFechaOC(e.target.value)} />
+                </li>
+                <li className="aur-row">
+                  <span className="aur-row-label">Fecha de entrega estimada</span>
+                  <input className="aur-input" type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
+                </li>
+                <li className="aur-row">
+                  <span className="aur-row-label">Notas / Condiciones</span>
+                  <input className="aur-input" value={notas} onChange={e => setNotas(e.target.value)}
+                    placeholder="Condiciones de pago, urgencia…" maxLength={1000} />
+                </li>
                 {hasNonCrcItem && (
-                  <div className="ol-oc-field">
-                    <label>Tipo de cambio a CRC *</label>
+                  <li className="aur-row">
+                    <span className="aur-row-label">Tipo de cambio a CRC *</span>
                     <input
+                      className="aur-input aur-input--num"
                       type="number"
                       step="0.01"
                       min="0.01"
@@ -733,9 +745,9 @@ const OrdenesList = () => {
                       onChange={e => setExchangeRateToCRC(e.target.value)}
                       placeholder="ej. 520.00"
                     />
-                  </div>
+                  </li>
                 )}
-              </div>
+              </ul>
 
               <div className="ingreso-grid-wrapper">
                 <table className="ingreso-table">
@@ -869,14 +881,14 @@ const OrdenesList = () => {
         </div>
 
         {/* ── RIGHT: Solicitudes de Compra ── */}
-        <aside className="ol-solicitudes-panel">
-          <div className="ol-section-header">
-            <FiShoppingCart size={15} />
-            <span>Solicitudes</span>
+        <aside className="aur-section ol-solicitudes-panel">
+          <header className="aur-section-header">
+            <span className="aur-section-num"><FiShoppingCart size={15} /></span>
+            <h3 className="aur-section-title">Solicitudes</h3>
             {pendingCount > 0 && (
-              <span className="ol-section-count">{pendingCount}</span>
+              <span className="aur-section-count">{pendingCount}</span>
             )}
-          </div>
+          </header>
 
           {solicitudes.length === 0 ? (
             <div className="ol-solicitudes-empty">
@@ -915,7 +927,8 @@ const OrdenesList = () => {
                         {done ? 'OC Generada' : overdue ? 'Vencida' : 'Pendiente'}
                       </span>
                       <button
-                        className="ol-solicitud-ext"
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm ol-solicitud-ext"
                         onClick={e => { e.stopPropagation(); navigate(`/orden-compra/${task.id}`); }}
                         title="Abrir editor de OC"
                       >
@@ -931,23 +944,23 @@ const OrdenesList = () => {
       </div>
 
       {/* ── Órdenes Guardadas (full width) ── */}
-      <section className="ol-section">
-        <div className="ol-section-header">
-          <FiFileText size={15} />
-          <span>Órdenes de Compra Guardadas</span>
+      <section className="aur-section">
+        <header className="aur-section-header">
+          <span className="aur-section-num"><FiFileText size={15} /></span>
+          <h3 className="aur-section-title">Órdenes de Compra Guardadas</h3>
           {ordenes.length > 0 && (
-            <span className="ol-section-count">{ordenes.length} orden{ordenes.length !== 1 ? 'es' : ''}</span>
+            <span className="aur-section-count">{ordenes.length}</span>
           )}
-        </div>
+        </header>
 
         {ordenes.length === 0 ? (
-          <div className="ol-empty ol-empty--inline">
+          <div className="empty-state">
             <p>No hay órdenes guardadas aún.</p>
             <p className="ol-empty-hint">Crea una nueva OC arriba o guárdala desde el editor de una solicitud.</p>
           </div>
         ) : (
-          <div className="ol-card">
-            <table className="ol-table">
+          <div className="aur-table-wrap">
+            <table className="aur-table">
               <thead>
                 <tr>
                   <th>N° OC</th>
@@ -961,10 +974,7 @@ const OrdenesList = () => {
               </thead>
               <tbody>
                 {ordenes.slice(0, 20).map((orden) => (
-                  <tr
-                    key={orden.id}
-                    className="ol-row"
-                  >
+                  <tr key={orden.id}>
                     <td className="ol-po-number">{orden.poNumber || '—'}</td>
                     <td>{orden.proveedor || <span className="ol-muted">Sin proveedor</span>}</td>
                     <td className="ol-col-center">{formatDate(orden.fecha)}</td>
@@ -976,14 +986,17 @@ const OrdenesList = () => {
                       </span>
                     </td>
                     <td className="ol-col-center">
-                      <span className={`ol-estado ol-estado--${orden.estado || 'activa'}`}>
+                      <span className={`aur-badge ${ESTADO_BADGE_VARIANT[orden.estado || 'activa']}`}>
                         {ESTADO_LABELS[orden.estado] || 'Activa'}
                       </span>
                     </td>
                     <td className="ol-col-action">
-                      <button className="ol-btn-open"
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm"
                         onClick={e => { e.stopPropagation(); handleVisualizarOrden(orden); }}
-                        title="Visualizar OC">
+                        title="Visualizar OC"
+                      >
                         <FiEye size={15} />
                       </button>
                     </td>
@@ -1109,8 +1122,8 @@ const OrdenesList = () => {
                         <tfoot>
                           {pvIvaTotal > 0 && (
                             <tr>
-                              <td colSpan={6} className="po-total-label" style={{ opacity: 0.7 }}>IVA</td>
-                              <td className="po-total-value" style={{ color: '#cc33ff' }}>{pvIvaTotal.toFixed(2)}</td>
+                              <td colSpan={6} className="po-total-label po-total-label--iva">IVA</td>
+                              <td className="po-total-value po-total-value--iva">{pvIvaTotal.toFixed(2)}</td>
                             </tr>
                           )}
                           <tr>
