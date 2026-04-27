@@ -91,29 +91,59 @@ function CostTable({ rows, nameLabel }) {
 }
 
 // ── Snapshot save modal ─────────────────────────────────────────────
-function SnapshotModal({ onClose, onSave }) {
+function SnapshotModal({ onClose, onSave, saving }) {
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState('manual');
+
+  const handleBackdrop = () => {
+    if (saving) return;
+    onClose();
+  };
+
   return createPortal(
-    <div className="cc-modal-overlay" onClick={onClose}>
-      <div className="cc-modal" onClick={e => e.stopPropagation()}>
-        <h3>Guardar Snapshot</h3>
-        <div className="cc-ind-form">
-          <div className="cc-field">
-            <label>Nombre</label>
-            <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej: Cierre Marzo 2026" />
+    <div className="aur-modal-backdrop" onPointerDown={handleBackdrop}>
+      <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
+        <header className="aur-modal-header">
+          <span className="aur-modal-icon"><FiCamera size={16} /></span>
+          <span className="aur-modal-title">Guardar snapshot</span>
+        </header>
+        <div className="aur-modal-content">
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="snap-nombre">Nombre</label>
+            <input
+              id="snap-nombre"
+              className="aur-input"
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
+              placeholder="Ej: Cierre Marzo 2026"
+              autoFocus
+            />
           </div>
-          <div className="cc-field">
-            <label>Tipo</label>
-            <select value={tipo} onChange={e => setTipo(e.target.value)}>
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="snap-tipo">Tipo</label>
+            <select
+              id="snap-tipo"
+              className="aur-select"
+              value={tipo}
+              onChange={e => setTipo(e.target.value)}
+            >
               <option value="manual">Manual</option>
               <option value="mensual">Mensual</option>
             </select>
           </div>
         </div>
-        <div className="cc-modal-actions">
-          <button className="cc-btn cc-btn--secondary" onClick={onClose}>Cancelar</button>
-          <button className="cc-btn cc-btn--primary" disabled={!nombre.trim()} onClick={() => onSave(nombre.trim(), tipo)}>Guardar</button>
+        <div className="aur-modal-actions">
+          <button type="button" className="aur-btn-text" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="aur-btn-pill"
+            disabled={!nombre.trim() || saving}
+            onClick={() => onSave(nombre.trim(), tipo)}
+          >
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
         </div>
       </div>
     </div>,
@@ -150,8 +180,11 @@ export default function CostCenter() {
   // Snapshots
   const [snapshots, setSnapshots] = useState([]);
   const [showSnapModal, setShowSnapModal] = useState(false);
+  const [savingSnap, setSavingSnap] = useState(false);
   const [viewSnap, setViewSnap] = useState(null);
   const [compareSnaps, setCompareSnaps] = useState([]);
+  const [confirmDeleteSnap, setConfirmDeleteSnap] = useState(null);
+  const [deletingSnap, setDeletingSnap] = useState(false);
 
   // ── Fetch live data ───────────────────────────────────────────────
   const fetchLive = useCallback(async () => {
@@ -213,16 +246,33 @@ export default function CostCenter() {
   // ── Snapshot CRUD ─────────────────────────────────────────────────
   const saveSnapshot = async (nombre, tipo) => {
     if (!data) return;
-    const res = await apiFetch('/api/costos/snapshots', {
-      method: 'POST',
-      body: JSON.stringify({ nombre, tipo, rangoFechas: data.rangoFechas, resumen: data.resumen, porLote: data.porLote, porGrupo: data.porGrupo, porBloque: data.porBloque }),
-    });
-    if (res.ok) { setShowSnapModal(false); fetchSnapshots(); }
+    setSavingSnap(true);
+    try {
+      const res = await apiFetch('/api/costos/snapshots', {
+        method: 'POST',
+        body: JSON.stringify({ nombre, tipo, rangoFechas: data.rangoFechas, resumen: data.resumen, porLote: data.porLote, porGrupo: data.porGrupo, porBloque: data.porBloque }),
+      });
+      if (res.ok) { setShowSnapModal(false); fetchSnapshots(); }
+    } finally {
+      setSavingSnap(false);
+    }
   };
 
-  const deleteSnapshot = async (id) => {
-    const res = await apiFetch(`/api/costos/snapshots/${id}`, { method: 'DELETE' });
-    if (res.ok) { setSnapshots(s => s.filter(x => x.id !== id)); setCompareSnaps(c => c.filter(x => x.id !== id)); }
+  const deleteSnapshot = async () => {
+    if (!confirmDeleteSnap) return;
+    setDeletingSnap(true);
+    try {
+      const id = confirmDeleteSnap.id;
+      const res = await apiFetch(`/api/costos/snapshots/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSnapshots(s => s.filter(x => x.id !== id));
+        setCompareSnaps(c => c.filter(x => x.id !== id));
+        if (viewSnap?.id === id) setViewSnap(null);
+        setConfirmDeleteSnap(null);
+      }
+    } finally {
+      setDeletingSnap(false);
+    }
   };
 
   const viewSnapshot = async (id) => {
@@ -457,35 +507,72 @@ export default function CostCenter() {
       </section>
 
       {/* ── Snapshots section ────────────────────────────────────────── */}
-      <div className="cc-section">
-        <div className="cc-section-title">
-          <FiCamera /> Historial de Snapshots
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiCamera size={14} /></span>
+          <h3 className="aur-section-title">Historial de snapshots</h3>
+          {snapshots.length > 0 && (
+            <span className="aur-section-count">{snapshots.length}</span>
+          )}
         </div>
 
         {snapshots.length === 0 && <div className="cost-empty">No hay snapshots guardados.</div>}
         {snapshots.length > 0 && (
-          <div className="cc-snap-list">
-            {snapshots.map(s => (
-              <div key={s.id} className={`cc-snap-item${compareSnaps.find(c => c.id === s.id) ? ' cc-snap-item--selected' : ''}`}>
-                <span className="cc-snap-name">{s.nombre}</span>
-                <span className="cc-snap-dates">{s.rangoFechas?.desde} → {s.rangoFechas?.hasta}</span>
-                <span className="cc-snap-cost">{fmt(s.resumen?.costoTotal)} | {s.resumen?.costoPorKg != null ? `${fmt(s.resumen.costoPorKg)}/kg` : '—/kg'}</span>
-                <div className="cc-snap-actions">
-                  <button onClick={() => viewSnapshot(s.id)} title="Ver detalle"><FiEye /></button>
-                  <button onClick={() => toggleCompare(s)} title="Comparar"><FiColumns /></button>
-                  <button onClick={() => deleteSnapshot(s.id)} title="Eliminar"><FiTrash2 /></button>
+          <div className="aur-list">
+            {snapshots.map(s => {
+              const isSelected = !!compareSnaps.find(c => c.id === s.id);
+              return (
+                <div key={s.id} className={`aur-row cost-snap-row${isSelected ? ' is-selected' : ''}`}>
+                  <span className="cost-snap-name">{s.nombre}</span>
+                  <span className="cost-snap-dates">{s.rangoFechas?.desde} → {s.rangoFechas?.hasta}</span>
+                  <span className="cost-snap-cost">
+                    {fmt(s.resumen?.costoTotal)}
+                    <span className="cost-snap-cost-sep">·</span>
+                    {s.resumen?.costoPorKg != null ? `${fmt(s.resumen.costoPorKg)}/kg` : '—/kg'}
+                  </span>
+                  <div className="cost-snap-actions">
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm"
+                      onClick={() => viewSnapshot(s.id)}
+                      title="Ver detalle"
+                    >
+                      <FiEye size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className={`aur-icon-btn aur-icon-btn--sm${isSelected ? ' aur-icon-btn--success' : ''}`}
+                      onClick={() => toggleCompare(s)}
+                      title={isSelected ? 'Quitar de comparación' : 'Comparar'}
+                    >
+                      <FiColumns size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                      onClick={() => setConfirmDeleteSnap({ id: s.id, nombre: s.nombre })}
+                      title="Eliminar"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {/* View snapshot detail */}
         {viewSnap && (
-          <div className="cc-section" style={{ marginTop: 16 }}>
-            <div className="cc-section-title">
-              Detalle: {viewSnap.nombre}
-              <button className="cc-btn cc-btn--secondary" style={{ marginLeft: 'auto', fontSize: '0.8rem' }} onClick={() => setViewSnap(null)}>Cerrar</button>
+          <section className="aur-section cost-snap-detail">
+            <div className="aur-section-header">
+              <span className="aur-section-num"><FiEye size={14} /></span>
+              <h3 className="aur-section-title">Detalle · {viewSnap.nombre}</h3>
+              <div className="aur-section-actions">
+                <button type="button" className="aur-btn-text" onClick={() => setViewSnap(null)}>
+                  Cerrar
+                </button>
+              </div>
             </div>
             <div className="cost-kpis">
               <div className="cost-kpi"><span className="cost-kpi-label">Costo Total</span><span className="cost-kpi-value">{fmt(viewSnap.resumen?.costoTotal)}</span></div>
@@ -493,15 +580,18 @@ export default function CostCenter() {
               <div className="cost-kpi cost-kpi--accent"><span className="cost-kpi-label">Costo/Kg</span><span className="cost-kpi-value">{fmt(viewSnap.resumen?.costoPorKg)}</span></div>
             </div>
             <CostTable rows={(viewSnap.porLote || []).map(r => ({ ...r, displayName: r.nombre }))} nameLabel="Lote" />
-          </div>
+          </section>
         )}
 
         {/* Compare two snapshots side by side */}
         {compareSnaps.length === 2 && (
-          <div className="cc-compare">
+          <div className="cost-compare">
             {compareSnaps.map(s => (
-              <div key={s.id} className="cc-compare-col">
-                <div className="cc-compare-title">{s.nombre} ({s.rangoFechas?.desde} → {s.rangoFechas?.hasta})</div>
+              <div key={s.id} className="cost-compare-col">
+                <div className="cost-compare-title">
+                  <span className="cost-compare-name">{s.nombre}</span>
+                  <span className="cost-compare-range">{s.rangoFechas?.desde} → {s.rangoFechas?.hasta}</span>
+                </div>
                 <div className="cost-kpis cost-kpis--compact">
                   <div className="cost-kpi"><span className="cost-kpi-label">Costo Total</span><span className="cost-kpi-value">{fmt(s.resumen?.costoTotal)}</span></div>
                   <div className="cost-kpi"><span className="cost-kpi-label">Kg</span><span className="cost-kpi-value">{fmtKg(s.resumen?.kgTotal)}</span></div>
@@ -515,10 +605,16 @@ export default function CostCenter() {
         {compareSnaps.length === 1 && (
           <div className="cost-empty">Selecciona un segundo snapshot para comparar.</div>
         )}
-      </div>
+      </section>
 
       {/* ── Snapshot Modal ───────────────────────────────────────────── */}
-      {showSnapModal && <SnapshotModal onClose={() => setShowSnapModal(false)} onSave={saveSnapshot} />}
+      {showSnapModal && (
+        <SnapshotModal
+          onClose={() => setShowSnapModal(false)}
+          onSave={saveSnapshot}
+          saving={savingSnap}
+        />
+      )}
 
       {/* ── Confirm delete indirecto ─────────────────────────────────── */}
       {confirmDeleteIndirecto && (
@@ -530,6 +626,19 @@ export default function CostCenter() {
           onConfirm={deleteIndirecto}
           onCancel={() => setConfirmDeleteIndirecto(null)}
           loading={deletingIndirecto}
+        />
+      )}
+
+      {/* ── Confirm delete snapshot ──────────────────────────────────── */}
+      {confirmDeleteSnap && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar snapshot"
+          body={`¿Eliminar el snapshot "${confirmDeleteSnap.nombre}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={deleteSnapshot}
+          onCancel={() => setConfirmDeleteSnap(null)}
+          loading={deletingSnap}
         />
       )}
     </div>
