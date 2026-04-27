@@ -16,6 +16,49 @@
   margin: 0 0 0.75rem 0;
 }
 
+/* ── Page wrapper ─────────────────────────────────────────────────────────── */
+.profile-form {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.profile-form-title {
+  margin: 0 0 4px 0;
+  font-size: var(--aur-fs-title3);
+  color: var(--aur-text);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ── Provider rows (Métodos de acceso) ────────────────────────────────────── */
+/* slim sobre aur-row aur-row--action: relaja la columna de label de 180px
+   para que quepa icono + nombre + (futuro contenido) en una sola línea. */
+.profile-provider-row {
+  grid-template-columns: 1fr auto;
+}
+
+.profile-provider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-provider-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* Banner explicativo bajo la lista de providers — sólo aporta margen
+   superior; el resto (bg/border/color/padding) viene de aur-banner--info. */
+.profile-section-footnote {
+  margin-top: 12px;
+}
+
+/* ── LEGACY (PR C migrará reminders; PR D removerá las clases muertas) ───── */
 .provider-row {
   display: flex;
   align-items: center;
@@ -25,47 +68,6 @@
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--aurora-border);
   border-radius: 8px;
-}
-
-.provider-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.provider-icon {
-  display: flex;
-  align-items: center;
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-
-.provider-name {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--aurora-light);
-  font-weight: 500;
-}
-
-.provider-badge {
-  display: inline-block;
-  margin-top: 2px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 10px;
-  letter-spacing: 0.04em;
-}
-
-.provider-badge.active {
-  background-color: rgba(51, 255, 153, 0.15);
-  color: var(--aurora-green);
-}
-
-.provider-badge.inactive {
-  background-color: rgba(255, 255, 255, 0.06);
-  color: var(--aurora-light);
-  opacity: 0.5;
 }
 
 .reminder-add-btn {
