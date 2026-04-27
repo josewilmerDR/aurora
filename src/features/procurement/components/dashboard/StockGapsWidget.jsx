@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
-// Color per urgency band — aligned with the backend classification.
-const URGENCY_STYLE = {
-  critical: { label: 'Crítico', color: '#ff5050' },
-  high:     { label: 'Alto',    color: '#ff9a40' },
-  medium:   { label: 'Medio',   color: '#ffd166' },
-  low:      { label: 'Bajo',    color: '#66b3ff' },
+// Urgency → aur-badge variant. Coherente con backend classification.
+const URGENCY_BADGE_VARIANT = {
+  critical: { label: 'Crítico', cls: 'aur-badge--magenta' },
+  high:     { label: 'Alto',    cls: 'aur-badge--yellow' },
+  medium:   { label: 'Medio',   cls: 'aur-badge--blue' },
+  low:      { label: 'Bajo',    cls: 'aur-badge--gray' },
 };
 
 function fmt(n) {
@@ -34,10 +34,11 @@ function StockGapsWidget() {
   const counts = data?.counts || {};
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiAlertTriangle size={14} /> Brechas de stock</span>
-        <span className="fin-widget-sub">{data?.gapsCount ?? 0} productos</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiAlertTriangle size={14} /></span>
+        <h3 className="aur-section-title">Brechas de stock</h3>
+        <span className="aur-section-count">{data?.gapsCount ?? 0}</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
@@ -67,16 +68,14 @@ function StockGapsWidget() {
           ) : (
             <div className="fin-budget-rows">
               {topGaps.map(g => {
-                const u = URGENCY_STYLE[g.urgency] || URGENCY_STYLE.low;
+                const u = URGENCY_BADGE_VARIANT[g.urgency] || URGENCY_BADGE_VARIANT.low;
                 return (
                   <div key={g.productoId} className="fin-budget-row">
                     <div className="fin-budget-row-head">
                       <span className="fin-budget-row-cat">{g.nombreComercial || g.productoId}</span>
-                      <span className="fin-budget-row-pct" style={{ color: u.color }}>
-                        {u.label}
-                      </span>
+                      <span className={`aur-badge ${u.cls}`}>{u.label}</span>
                     </div>
-                    <span className="fin-widget-sub" style={{ gridColumn: '1 / -1' }}>
+                    <span className="fin-widget-sub">
                       Stock {fmt(g.stockActual)} / sugerido {fmt(g.suggestedQty)} {g.unidad}
                       {g.daysUntilStockout != null && ` · ${Math.round(g.daysUntilStockout)}d cobertura`}
                     </span>
@@ -87,7 +86,7 @@ function StockGapsWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

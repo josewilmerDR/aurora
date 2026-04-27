@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { FiStar } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
-function scoreColor(score) {
-  if (score == null) return 'var(--aurora-light)';
-  if (score >= 75) return '#33ff99';
-  if (score >= 50) return '#ffd166';
-  return '#ff8080';
+// Score → aur-badge variant.
+function scoreVariant(score) {
+  if (score == null) return 'aur-badge--gray';
+  if (score >= 75) return 'aur-badge--green';
+  if (score >= 50) return 'aur-badge--yellow';
+  return 'aur-badge--magenta';
 }
 
 function SupplierRankingWidget() {
@@ -27,10 +28,11 @@ function SupplierRankingWidget() {
   const withoutHistory = rows.filter(r => r.score == null).length;
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiStar size={14} /> Ranking de proveedores</span>
-        <span className="fin-widget-sub">{rows.length} activos</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiStar size={14} /></span>
+        <h3 className="aur-section-title">Ranking de proveedores</h3>
+        <span className="aur-section-count">{rows.length}</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
@@ -48,11 +50,11 @@ function SupplierRankingWidget() {
                 <div key={s.supplierId} className="fin-budget-row">
                   <div className="fin-budget-row-head">
                     <span className="fin-budget-row-cat">{s.supplierName}</span>
-                    <span className="fin-budget-row-pct" style={{ color: scoreColor(s.score) }}>
+                    <span className={`aur-badge ${scoreVariant(s.score)}`}>
                       {s.score != null ? s.score.toFixed(0) : '—'}
                     </span>
                   </div>
-                  <span className="fin-widget-sub" style={{ gridColumn: '1 / -1' }}>
+                  <span className="fin-widget-sub">
                     {s.orderCount || 0} OCs
                     {s.avgLeadTimeDays != null && ` · ${s.avgLeadTimeDays.toFixed(1)}d lead`}
                     {s.fillRate != null && ` · fill ${(s.fillRate * 100).toFixed(0)}%`}
@@ -61,14 +63,14 @@ function SupplierRankingWidget() {
               ))}
             </div>
             {withoutHistory > 0 && (
-              <div className="fin-widget-sub" style={{ fontSize: '0.75rem' }}>
+              <div className="fin-widget-sub fin-widget-footer">
                 {withoutHistory} proveedor(es) sin historial suficiente.
               </div>
             )}
           </>
         )
       )}
-    </div>
+    </section>
   );
 }
 
