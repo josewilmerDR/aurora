@@ -23,7 +23,7 @@ function CeoDashboard() {
         <h2><FiCpu /> Resumen del Copilot</h2>
       </div>
 
-      <div className="fin-policy-banner ceo-banner">
+      <div className="aur-banner aur-banner--info">
         <FiShield size={14} />
         <span>
           <strong>¿Cómo está trabajando el Copilot por usted?</strong> Aquí ve qué revisa
