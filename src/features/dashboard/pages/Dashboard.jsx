@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { FiClock, FiAlertTriangle, FiInbox, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import '../styles/dashboard.css';
@@ -31,18 +32,18 @@ function FeedEvent({ event }) {
   const initial = isAutopilot ? '⚙' : (event.userName || '?')[0].toUpperCase();
 
   return (
-    <div className={`feed-event${isAutopilot ? ' feed-event--autopilot' : ''}`}>
-      <div className={`feed-avatar${isAutopilot ? ' feed-avatar--autopilot' : ''}`}>{initial}</div>
-      <div className="feed-body">
-        <span className={`feed-username${isAutopilot ? ' feed-username--autopilot' : ''}`}>{event.userName}</span>
-        {' '}<span className="feed-action">{text}</span>
-        {event.title && <span className="feed-title"> — {event.title}</span>}
+    <div className={`aur-row dash-feed-row${isAutopilot ? ' is-autopilot' : ''}`}>
+      <div className="dash-feed-avatar">{initial}</div>
+      <div className="dash-feed-body">
+        <span className="dash-feed-username">{event.userName}</span>
+        {' '}<span className="dash-feed-action">{text}</span>
+        {event.title && <span className="dash-feed-title"> — {event.title}</span>}
         {event.loteNombre && event.eventType !== 'lote_created' && (
-          <span className="feed-sub"> · {event.loteNombre}</span>
+          <span className="dash-feed-sub"> · {event.loteNombre}</span>
         )}
       </div>
-      <div className="feed-time">{timeAgo(event.timestamp)}</div>
-      <div className="feed-icon">{icon}</div>
+      <div className="dash-feed-time">{timeAgo(event.timestamp)}</div>
+      <div className="dash-feed-icon">{icon}</div>
     </div>
   );
 }
@@ -94,34 +95,67 @@ function Dashboard() {
     });
   }, [firebaseUser?.uid]);
 
-  if (loading) return <div>Cargando...</div>;
-  if (error) return <div className="empty-state">{error}</div>;
-
   return (
-    <div>
-      <div className="dashboard-grid">
-        <Link to="/tasks?filter=overdue" className="stat-card overdue">
-          <div className="count">{stats.overdue}</div>
-          <div className="label">Tareas Vencidas</div>
-        </Link>
-        <Link to="/tasks?filter=pending" className="stat-card pending">
-          <div className="count">{stats.pending}</div>
-          <div className="label">Tareas Pendientes</div>
-        </Link>
-        <Link to="/tasks?new=1" className="stat-card new-task">
-          <div className="count">+</div>
-          <div className="label">Nueva Tarea</div>
-        </Link>
-      </div>
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h1 className="aur-sheet-title">Dashboard</h1>
+          <p className="aur-sheet-subtitle">
+            Resumen de tareas pendientes y actividad reciente de la finca.
+          </p>
+        </div>
+      </header>
 
-      <div className="feed-card">
-        <h3 className="feed-header">Actividad reciente</h3>
-        {feed.length > 0 ? (
-          feed.map(event => <FeedEvent key={event.id} event={event} />)
-        ) : (
-          <p className="empty-state">Aún no hay actividad registrada.</p>
-        )}
-      </div>
+      {loading && <div className="aur-page-loading" />}
+
+      {!loading && error && <div className="empty-state">{error}</div>}
+
+      {!loading && !error && (
+        <>
+          {/* ── Stats: tareas ──────────────────────────────────────────── */}
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num"><FiInbox size={14} /></span>
+              <h3 className="aur-section-title">Tareas</h3>
+            </div>
+            <div className="dash-stats-grid">
+              <Link to="/tasks?filter=overdue" className="dash-stat-card dash-stat-card--danger">
+                <span className="dash-stat-icon"><FiAlertTriangle size={18} /></span>
+                <span className="dash-stat-count">{stats.overdue}</span>
+                <span className="dash-stat-label">Tareas vencidas</span>
+              </Link>
+              <Link to="/tasks?filter=pending" className="dash-stat-card dash-stat-card--warn">
+                <span className="dash-stat-icon"><FiClock size={18} /></span>
+                <span className="dash-stat-count">{stats.pending}</span>
+                <span className="dash-stat-label">Tareas pendientes</span>
+              </Link>
+              <Link to="/tasks?new=1" className="dash-stat-card dash-stat-card--accent">
+                <span className="dash-stat-icon"><FiPlus size={18} /></span>
+                <span className="dash-stat-count dash-stat-count--symbol">+</span>
+                <span className="dash-stat-label">Nueva tarea</span>
+              </Link>
+            </div>
+          </section>
+
+          {/* ── Feed: actividad reciente ───────────────────────────────── */}
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num"><FiClock size={14} /></span>
+              <h3 className="aur-section-title">Actividad reciente</h3>
+              {feed.length > 0 && (
+                <span className="aur-section-count">{feed.length}</span>
+              )}
+            </div>
+            {feed.length > 0 ? (
+              <div className="aur-list">
+                {feed.map(event => <FeedEvent key={event.id} event={event} />)}
+              </div>
+            ) : (
+              <div className="empty-state">Aún no hay actividad registrada.</div>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }
