@@ -1,5 +1,123 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Costs domain — slim modifiers sobre primitivas .aur-*
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── KPI Cards ──────────────────────────────────────────────────────── */
+/* ── Toolbar de rango ──────────────────────────────────────────────────
+   Layout horizontal compacto (label + date input + Actualizar). aur-input
+   ya provee bg/border/radius/padding/focus-ring; el slim sólo aporta
+   width auto y tabular-nums para fechas. */
+.cost-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.cost-toolbar-label {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.cost-toolbar-input {
+  width: auto;
+  min-width: 150px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── KPI cards ─────────────────────────────────────────────────────────
+   Stat cards bespoke (no hay primitiva exacta); layout grid + shell de
+   card con tokens del sistema. La variante --compact se usa en la vista
+   de comparación side-by-side donde el espacio horizontal es la mitad. */
+.cost-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.cost-kpis--compact {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.cost-kpi {
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cost-kpi-label {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+.cost-kpi-value {
+  font-size: var(--aur-fs-title3);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.cost-kpi--accent .cost-kpi-value {
+  color: var(--aur-accent);
+}
+.cost-kpis--compact .cost-kpi {
+  padding: 12px 14px;
+}
+.cost-kpis--compact .cost-kpi-value {
+  font-size: var(--aur-fs-callout);
+}
+
+/* ── Tabs (segmented control) ──────────────────────────────────────────
+   Bandeja unificada con botones internos borderless. Mismo patrón que
+   .ap-health-window en autopilot. is-active flips bg al accent del
+   sistema. El visual underline original se descarta a favor del
+   segmented (coherente con dominios cerrados). */
+.cost-tabs {
+  display: inline-flex;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  overflow: hidden;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.cost-tabs-btn {
+  background: transparent;
+  color: var(--aur-text-2);
+  border: none;
+  padding: 8px 16px;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.cost-tabs-btn:hover:not(:disabled):not(.is-active) {
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+.cost-tabs-btn.is-active {
+  background: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+  font-weight: 600;
+}
+.cost-tabs-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Legacy .cc-* — pendientes de migrar en PRs B/C/D
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── KPI cards legacy — todavía consumido por RoiTable (migra en PR B) ── */
 .cc-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -30,29 +148,7 @@
   color: var(--aurora-green);
 }
 
-/* ── Date range bar ─────────────────────────────────────────────────── */
-.cc-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-}
-.cc-toolbar label {
-  font-size: 0.82rem;
-  color: #8ab4d8;
-}
-.cc-toolbar input[type="date"] {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 0.85rem;
-}
-.cc-toolbar-spacer { flex: 1; }
-
-/* ── Tabs ───────────────────────────────────────────────────────────── */
+/* ── Tabs legacy — todavía consumido por RoiTable (migra en PR B) ── */
 .cc-tabs {
   display: flex;
   gap: 0;
