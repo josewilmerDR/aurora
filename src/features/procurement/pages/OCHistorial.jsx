@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
   FiChevronLeft, FiFilter, FiX, FiEye, FiShare2, FiPrinter, FiPackage,
+  FiArrowUp, FiArrowDown,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useUser } from '../../../contexts/UserContext';
@@ -11,8 +12,14 @@ import '../styles/oc-nueva.css';
 import '../styles/oc-desde-solicitud.css';
 import '../styles/oc-historial.css';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const ESTADO_LABELS = { activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada' };
+
+// Estado de la OC → variante de aur-badge.
+const ESTADO_BADGE_VARIANT = {
+  activa:     'aur-badge--green',
+  completada: 'aur-badge--blue',
+  cancelada:  'aur-badge--gray',
+};
 
 const formatDate = (iso) => {
   if (!iso) return '—';
@@ -26,7 +33,6 @@ const formatDateLong = (dateStr) => {
   });
 };
 
-// ─── Sort ─────────────────────────────────────────────────────────────────────
 const SORT_FIELDS = [
   { value: 'fecha',        label: 'Fecha' },
   { value: 'poNumber',     label: 'N° OC' },
@@ -75,7 +81,6 @@ function applyFilters(data, f) {
   });
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 function OrdenesHistorial() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -197,7 +202,6 @@ function OrdenesHistorial() {
     }
   };
 
-  // Preview computed values
   const pvSrc = savedSnapshot || {};
   const pvFilas = pvSrc.filas || [];
   const pvProveedor = pvSrc.proveedor || '';
@@ -217,9 +221,8 @@ function OrdenesHistorial() {
     <div className="oh-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Toolbar ── */}
       <div className="oh-toolbar">
-        <Link to="/ordenes-compra" className="oh-back-link">
+        <Link to="/ordenes-compra" className="aur-btn-text oh-back-link">
           <FiChevronLeft size={15} /> Órdenes de Compra
         </Link>
         <div className="oh-toolbar-actions">
@@ -229,30 +232,33 @@ function OrdenesHistorial() {
           >
             <FiFilter size={14} />
             Filtros
-            {activeFilterCount > 0 && <span className="oh-filter-badge">{activeFilterCount}</span>}
+            {activeFilterCount > 0 && <span className="aur-badge aur-badge--green oh-filter-badge">{activeFilterCount}</span>}
           </button>
         </div>
       </div>
 
-      {/* ── Filter panel ── */}
       {showFilters && (
-        <div className="oh-filter-panel">
+        <section className="aur-section oh-filter-panel">
           <div className="oh-filter-grid">
             <div className="oh-filter-field">
               <label>Fecha desde</label>
-              <input type="date" value={filters.fechaDesde} onChange={e => updateFilter('fechaDesde', e.target.value)} />
+              <input className="aur-input" type="date" value={filters.fechaDesde}
+                onChange={e => updateFilter('fechaDesde', e.target.value)} />
             </div>
             <div className="oh-filter-field">
               <label>Fecha hasta</label>
-              <input type="date" value={filters.fechaHasta} onChange={e => updateFilter('fechaHasta', e.target.value)} />
+              <input className="aur-input" type="date" value={filters.fechaHasta}
+                onChange={e => updateFilter('fechaHasta', e.target.value)} />
             </div>
             <div className="oh-filter-field">
               <label>Proveedor</label>
-              <input placeholder="Ej: Novagro" value={filters.proveedor} onChange={e => updateFilter('proveedor', e.target.value)} />
+              <input className="aur-input" placeholder="Ej: Novagro" value={filters.proveedor}
+                onChange={e => updateFilter('proveedor', e.target.value)} />
             </div>
             <div className="oh-filter-field">
               <label>Estado</label>
-              <select value={filters.estado} onChange={e => updateFilter('estado', e.target.value)}>
+              <select className="aur-select" value={filters.estado}
+                onChange={e => updateFilter('estado', e.target.value)}>
                 <option value="todos">Todos</option>
                 <option value="activa">Activa</option>
                 <option value="completada">Completada</option>
@@ -261,15 +267,14 @@ function OrdenesHistorial() {
             </div>
           </div>
           {activeFilterCount > 0 && (
-            <button className="oh-clear-filters" onClick={clearFilters}>
+            <button type="button" className="aur-btn-text oh-clear-filters" onClick={clearFilters}>
               <FiX size={13} /> Limpiar filtros
             </button>
           )}
-        </div>
+        </section>
       )}
 
-      {/* ── Stats bar ── */}
-      <div className="oh-stats-bar">
+      <section className="aur-section oh-stats-bar">
         <div className="oh-stat">
           <span className="oh-stat-value">{stats.total}</span>
           <span className="oh-stat-label">Total</span>
@@ -293,12 +298,11 @@ function OrdenesHistorial() {
             </div>
           </>
         )}
-      </div>
+      </section>
 
-      {/* ── Table card ── */}
-      <div className="oh-table-card">
-        <div className="oh-table-toprow">
-          <span className="oh-result-count">
+      <section className="aur-section oh-table-card">
+        <div className="aur-table-toolbar oh-table-toprow">
+          <span className="aur-table-result-count">
             {displayData.length === ordenes.length
               ? `${ordenes.length} orden${ordenes.length !== 1 ? 'es' : ''}`
               : `${displayData.length} de ${ordenes.length} órdenes`}
@@ -308,7 +312,7 @@ function OrdenesHistorial() {
               <div key={idx} className="oh-sort-group">
                 <span className="oh-sort-label">{idx === 0 ? 'Ordenar por' : 'Luego por'}</span>
                 <select
-                  className="oh-sort-select"
+                  className="aur-select oh-sort-select"
                   value={s.field}
                   onChange={e => updateSort(idx, 'field', e.target.value)}
                 >
@@ -318,12 +322,13 @@ function OrdenesHistorial() {
                   ))}
                 </select>
                 <button
-                  className={`oh-sort-dir-btn${!s.field ? ' oh-sort-dir-disabled' : ''}`}
+                  type="button"
+                  className={`aur-icon-btn aur-icon-btn--sm${!s.field ? ' oh-sort-dir-disabled' : ''}`}
                   disabled={!s.field}
                   onClick={() => updateSort(idx, 'dir', s.dir === 'asc' ? 'desc' : 'asc')}
                   title={s.dir === 'asc' ? 'Ascendente' : 'Descendente'}
                 >
-                  {s.dir === 'asc' ? '↑' : '↓'}
+                  {s.dir === 'asc' ? <FiArrowUp size={14} /> : <FiArrowDown size={14} />}
                 </button>
               </div>
             ))}
@@ -335,8 +340,8 @@ function OrdenesHistorial() {
         ) : displayData.length === 0 ? (
           <p className="empty-state">No hay órdenes con los filtros aplicados.</p>
         ) : (
-          <div className="oh-table-wrapper">
-            <table className="ol-table">
+          <div className="aur-table-wrap">
+            <table className="aur-table">
               <thead>
                 <tr>
                   <th>N° OC</th>
@@ -350,7 +355,7 @@ function OrdenesHistorial() {
               </thead>
               <tbody>
                 {displayData.map((orden) => (
-                  <tr key={orden.id} className="ol-row">
+                  <tr key={orden.id}>
                     <td className="ol-po-number">{orden.poNumber || '—'}</td>
                     <td>{orden.proveedor || <span className="ol-muted">Sin proveedor</span>}</td>
                     <td className="ol-col-center">{formatDate(orden.fecha)}</td>
@@ -362,14 +367,17 @@ function OrdenesHistorial() {
                       </span>
                     </td>
                     <td className="ol-col-center">
-                      <span className={`ol-estado ol-estado--${orden.estado || 'activa'}`}>
+                      <span className={`aur-badge ${ESTADO_BADGE_VARIANT[orden.estado || 'activa']}`}>
                         {ESTADO_LABELS[orden.estado] || 'Activa'}
                       </span>
                     </td>
                     <td className="ol-col-action">
-                      <button className="ol-btn-open"
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm"
                         onClick={() => handleVisualizarOrden(orden)}
-                        title="Visualizar OC">
+                        title="Visualizar OC"
+                      >
                         <FiEye size={15} />
                       </button>
                     </td>
@@ -379,7 +387,7 @@ function OrdenesHistorial() {
             </table>
           </div>
         )}
-      </div>
+      </section>
 
       {/* ── Preview Modal ── */}
       {showPreview && savedSnapshot && createPortal(
@@ -478,8 +486,8 @@ function OrdenesHistorial() {
                         <tfoot>
                           {pvIvaTotal > 0 && (
                             <tr>
-                              <td colSpan={6} className="po-total-label" style={{ opacity: 0.7 }}>IVA</td>
-                              <td className="po-total-value" style={{ color: '#cc33ff' }}>{pvIvaTotal.toFixed(2)}</td>
+                              <td colSpan={6} className="po-total-label po-total-label--iva">IVA</td>
+                              <td className="po-total-value po-total-value--iva">{pvIvaTotal.toFixed(2)}</td>
                             </tr>
                           )}
                           <tr>

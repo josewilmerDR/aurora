@@ -14,20 +14,12 @@
   gap: 0.75rem;
 }
 
-.oh-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.83rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  text-decoration: none;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.oh-back-link:hover {
-  opacity: 1;
-  color: var(--aurora-green);
+/* aur-btn-text ya provee color/typography del back-link; este slim sólo
+   reduce la fuente y ajusta el padding para encajar en la toolbar. */
+.aur-btn-text.oh-back-link {
+  font-size: var(--aur-fs-footnote);
+  padding: 0;
+  align-self: flex-start;
 }
 
 .oh-toolbar-actions {
@@ -36,30 +28,21 @@
   flex-wrap: wrap;
 }
 
-.oh-filter-btn {
+/* aur-btn-text + slim para destacar visualmente cuando hay filtros activos. */
+.aur-btn-text.oh-filter-btn {
   position: relative;
 }
 
-.oh-filter-active {
-  border-color: var(--aurora-green) !important;
-  color: var(--aurora-green) !important;
+.aur-btn-text.oh-filter-btn.oh-filter-active {
+  color: var(--aur-accent);
 }
 
 .oh-filter-badge {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  font-size: 0.65rem;
-  font-weight: 700;
-  border-radius: 9px;
-  padding: 1px 5px;
   margin-left: 2px;
 }
 
-/* ── Filter panel ───────────────────────────────────────────────────────────── */
-.oh-filter-panel {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
+/* ── Filter panel: slim sobre aur-section (grid de inputs) ─────────────────── */
+.aur-section.oh-filter-panel {
   padding: 1rem 1.25rem;
 }
 
@@ -76,58 +59,28 @@
 }
 
 .oh-filter-field label {
-  font-size: 0.73rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.55;
+  color: var(--aur-text-3);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
-.oh-filter-field input,
-.oh-filter-field select {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 5px 8px;
-  font-size: 0.83rem;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.oh-filter-field input:focus,
-.oh-filter-field select:focus {
-  border-color: var(--aurora-green);
-}
-
-.oh-clear-filters {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+/* aur-btn-text + slim — color magenta para subrayar la acción de borrar. */
+.aur-btn-text.oh-clear-filters {
   margin-top: 0.75rem;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.45;
-  font-size: 0.78rem;
-  cursor: pointer;
-  padding: 0;
-  transition: opacity 0.15s, color 0.15s;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
 }
 
-.oh-clear-filters:hover {
-  opacity: 0.9;
-  color: var(--aurora-magenta);
+.aur-btn-text.oh-clear-filters:hover:not(:disabled) {
+  color: var(--aur-magenta, #cc33ff);
 }
 
-/* ── Stats bar ──────────────────────────────────────────────────────────────── */
-.oh-stats-bar {
+/* ── Stats bar: slim sobre aur-section (KPI strip horizontal) ──────────────── */
+.aur-section.oh-stats-bar {
   display: flex;
   align-items: center;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
   padding: 0.75rem 1.25rem;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -147,17 +100,17 @@
 .oh-stat-value {
   font-size: 1.2rem;
   font-weight: 700;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
-.oh-stat-green { color: var(--aurora-green); }
-.oh-stat-red   { color: #ff6b6b; }
+.oh-stat-green { color: var(--aur-accent); }
+.oh-stat-red   { color: var(--aur-danger); }
 
 .oh-stat-label {
-  font-size: 0.7rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   text-transform: uppercase;
   letter-spacing: 0.4px;
   white-space: nowrap;
@@ -166,32 +119,22 @@
 .oh-stat-divider {
   width: 1px;
   height: 2rem;
-  background: var(--aurora-border);
+  background: var(--aur-divider);
   flex-shrink: 0;
 }
 
-/* ── Table card ─────────────────────────────────────────────────────────────── */
-.oh-table-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 12px;
+/* ── Table card: slim sobre aur-section ─────────────────────────────────────── */
+.aur-section.oh-table-card {
   padding: 1.25rem;
 }
 
-.oh-table-toprow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+/* aur-table-toolbar ya provee el layout (justify-between, padding); este slim
+   permite que el toprow envuelva el sort-row en mobile. */
+.aur-table-toolbar.oh-table-toprow {
   flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.oh-result-count {
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.4;
-  padding-top: 4px;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding: 0;
 }
 
 .oh-sort-row {
@@ -208,51 +151,20 @@
 }
 
 .oh-sort-label {
-  font-size: 0.72rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   white-space: nowrap;
 }
 
-.oh-sort-select {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  color: var(--aurora-light);
+/* Slim sobre aur-select dentro del sort group: tipografía más compacta. */
+.aur-select.oh-sort-select {
   padding: 4px 7px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.oh-sort-select:focus {
-  border-color: var(--aurora-green);
-}
-
-.oh-sort-dir-btn {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  color: var(--aurora-light);
-  padding: 4px 8px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-  line-height: 1.4;
-}
-
-.oh-sort-dir-btn:hover:not(:disabled) {
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
+  font-size: var(--aur-fs-caption);
 }
 
 .oh-sort-dir-disabled {
   opacity: 0.3;
   cursor: not-allowed;
-}
-
-.oh-table-wrapper {
-  overflow-x: auto;
 }
 
 /* ── OrdenesList.jsx "Ver todas" footer ──────────────────────────────────────── */
@@ -262,8 +174,8 @@
 }
 
 .ol-ver-todas-link {
-  font-size: 0.83rem;
-  color: var(--aurora-green);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-accent);
   opacity: 0.7;
   text-decoration: none;
   transition: opacity 0.15s;
@@ -276,20 +188,20 @@
 /* ── Print ──────────────────────────────────────────────────────────────────── */
 @media print {
   .oh-toolbar,
-  .oh-filter-panel,
-  .oh-stats-bar { display: none; }
+  .aur-section.oh-filter-panel,
+  .aur-section.oh-stats-bar { display: none; }
 
-  .oh-table-toprow .oh-sort-row { display: none; }
+  .aur-table-toolbar.oh-table-toprow .oh-sort-row { display: none; }
 
-  .oh-table-card {
+  .aur-section.oh-table-card {
     border: 1px solid #ccc;
     border-radius: 0;
     background: #fff;
     color: #000;
   }
 
-  .ol-table th,
-  .ol-table td {
+  .aur-table th,
+  .aur-table td {
     color: #000;
     border-color: #ccc;
   }
