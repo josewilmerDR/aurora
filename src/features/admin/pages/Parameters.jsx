@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiEdit2, FiSave, FiX } from 'react-icons/fi';
+import { FiEdit2, FiSave, FiX, FiBarChart2 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -61,10 +61,17 @@ function UnlockModal({ onConfirm, onCancel }) {
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
-      <label className="param-modal-check">
-        <input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />
-        Entiendo las implicaciones y deseo continuar
-      </label>
+      <div className="param-modal-gate">
+        <label className="aur-toggle">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={e => setChecked(e.target.checked)}
+          />
+          <span className="aur-toggle-track"><span className="aur-toggle-thumb" /></span>
+          <span className="aur-toggle-label">Entiendo las implicaciones y deseo continuar</span>
+        </label>
+      </div>
     </AuroraConfirmModal>
   );
 }
@@ -87,20 +94,22 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
       onCancel={onCancel}
     >
       {changes.length > 0 && (
-        <table className="param-diff-table">
-          <thead>
-            <tr><th>Parámetro</th><th>Anterior</th><th>Nuevo</th></tr>
-          </thead>
-          <tbody>
-            {changes.map(p => (
-              <tr key={p.key}>
-                <td>{p.label}</td>
-                <td className="param-diff-old">{saved[p.key]} {p.unit}</td>
-                <td className="param-diff-new">{draft[p.key]} {p.unit}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="param-diff-wrap">
+          <table className="aur-table param-diff-table">
+            <thead>
+              <tr><th>Parámetro</th><th>Anterior</th><th>Nuevo</th></tr>
+            </thead>
+            <tbody>
+              {changes.map(p => (
+                <tr key={p.key}>
+                  <td>{p.label}</td>
+                  <td className="param-diff-old">{saved[p.key]} {p.unit}</td>
+                  <td className="param-diff-new aur-td-strong">{draft[p.key]} {p.unit}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </AuroraConfirmModal>
   );
@@ -155,64 +164,84 @@ function Parameters() {
   };
 
   return (
-    <div className="param-page-layout">
+    <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {modal === 'unlock' && <UnlockModal onConfirm={handleUnlockConfirm} onCancel={() => setModal(null)} />}
       {modal === 'save'   && <SaveModal saved={saved} draft={draft} loading={loading} onConfirm={handleSaveConfirm} onCancel={() => setModal(null)} />}
 
-      {/* ── Left panel: KPI ── */}
-      <div className="form-card param-kpi-card">
-        <p className="form-section-title">KPI</p>
-        <p className="param-kpi-placeholder">Próximamente — indicadores clave de rendimiento.</p>
-      </div>
-
-      {/* ── Right panel: Parameters ── */}
-      <div className="form-card param-list-card">
-
-        <div className="param-list-header">
-          {editMode ? (
-            <>
-              <button className="btn btn-secondary btn-sm" onClick={handleCancel}>
-                <FiX size={14} /> Cancelar
+      <div className="aur-sheet">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h2 className="aur-sheet-title">Parámetros del sistema</h2>
+            <p className="aur-sheet-subtitle">
+              Valores de referencia que alimentan los cálculos de cosecha, Kg estimados y KPIs en toda la plataforma.
+            </p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            {editMode ? (
+              <>
+                <button type="button" className="aur-btn-text" onClick={handleCancel}>
+                  <FiX size={14} /> Cancelar
+                </button>
+                <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => setModal('save')}>
+                  <FiSave size={14} /> Guardar
+                </button>
+              </>
+            ) : (
+              <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => setModal('unlock')}>
+                <FiEdit2 size={14} /> Editar parámetros
               </button>
-              <button className="btn btn-primary btn-sm" onClick={() => setModal('save')}>
-                <FiSave size={14} /> Guardar
-              </button>
-            </>
-          ) : (
-            <button className="btn btn-secondary btn-sm" onClick={() => setModal('unlock')}>
-              <FiEdit2 size={14} /> Editar parámetros
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        </header>
 
-        {SECTIONS.map(section => (
-          <div key={section.title}>
-            <p className="param-list-section">{section.title}</p>
-            <ul className="param-list">
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">01</span>
+            <h3>KPI</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <span className="aur-row-label"><FiBarChart2 size={13} /> Indicadores</span>
+              <span className="param-kpi-placeholder">Próximamente — indicadores clave de rendimiento.</span>
+            </div>
+          </div>
+        </section>
+
+        {SECTIONS.map((section, sIdx) => (
+          <section key={section.title} className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">{String(sIdx + 2).padStart(2, '0')}</span>
+              <h3>{section.title}</h3>
+              <span className="aur-section-count">{section.params.length}</span>
+            </div>
+            <div className="aur-list">
               {section.params.map(p => (
-                <li key={p.key} className="param-list-row">
-                  <span className="param-list-label">{p.label}</span>
+                <div key={p.key} className="aur-row">
+                  <span className="aur-row-label">{p.label}</span>
                   {editMode ? (
                     <input
-                      className="param-list-input"
-                      type="number" min={p.min} step={p.step}
-                      name={p.key} value={draft[p.key]}
+                      className="aur-input aur-input--num"
+                      type="number"
+                      min={p.min}
+                      step={p.step}
+                      name={p.key}
+                      value={draft[p.key]}
                       onChange={handleChange}
                     />
                   ) : (
-                    <span className="param-list-value">
-                      {saved[p.key]} <span className="param-list-unit">{p.unit}</span>
+                    <span className="param-row-value">
+                      <span className="param-row-num">{saved[p.key]}</span>
+                      <span className="param-row-unit">{p.unit}</span>
                     </span>
                   )}
-                </li>
+                </div>
               ))}
-            </ul>
-          </div>
+            </div>
+          </section>
         ))}
-
       </div>
-    </div>
+    </>
   );
 }
 

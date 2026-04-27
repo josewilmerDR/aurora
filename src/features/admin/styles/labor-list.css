@@ -1,156 +1,53 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LABOR LIST — slim modifiers sobre primitivas aurora.
 
-/* ── Layout ── */
-.lab-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
+   La página vive ahora sobre aur-sheet + aur-sheet-header + aur-section +
+   aur-list/aur-row + aur-input/aur-textarea + aur-table-wrap + aur-table +
+   aur-table-toolbar + aur-icon-btn(--danger) + aur-form-actions +
+   AuroraConfirmModal (delete).
 
-.lab-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.lab-search {
-  flex: 1;
-  max-width: 320px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 8px 12px;
-  font-size: 0.875rem;
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.15s;
-}
-.lab-search:focus { border-color: var(--aurora-green); }
-.lab-search::placeholder { color: rgba(230, 242, 255, 0.3); }
-
-/* ── Form card ── */
-.lab-form-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.lab-form-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--aurora-border);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-}
-
-.lab-close-btn {
-  background: none;
-  border: none;
-  color: rgba(230, 242, 255, 0.4);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  transition: color 0.15s;
-}
-.lab-close-btn:hover { color: var(--aurora-light); }
-
-.lab-form { padding: 18px; }
-
-.lab-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.lab-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.lab-field--full { grid-column: 1 / -1; }
-
-.lab-field label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(230, 242, 255, 0.55);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+   Aquí sólo queda:
+     · lab-required        — asterisco magenta del label "Descripción *".
+     · lab-search-wrap / -icon / lab-search — search input con icono lupa
+                              embebido (aur-input no expone slot de prefijo).
+     · lab-empty / lab-empty-state — placeholders dentro de la sección de
+                              tabla (loading + sin-resultados / sin-registros).
+     · lab-th-actions, lab-td-{code,desc,obs,actions,empty} — afinamientos
+                              tipográficos por celda (mono para código, ancho
+                              máx para observación, alineación de acciones).
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .lab-required {
-  color: var(--aurora-magenta);
+  color: var(--aur-danger);
   margin-left: 2px;
 }
 
-.lab-field input,
-.lab-field textarea {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 8px 10px;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.15s;
-  font-family: inherit;
-  resize: vertical;
+/* ── Search input con icono prefijo ──────────────────────────────────────── */
+.lab-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 320px;
+  min-width: 200px;
+}
+.lab-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--aur-text-3);
+  pointer-events: none;
+}
+.lab-search {
+  padding-left: 34px;
 }
 
-.lab-field input:focus,
-.lab-field textarea:focus { border-color: var(--aurora-green); }
-
-.lab-field textarea { min-height: 60px; }
-
-.lab-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--aurora-border);
-}
-
-/* ── Section header ── */
-.lab-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.lab-section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(230, 242, 255, 0.45);
-}
-
-.lab-count {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-  padding: 1px 8px;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* ── Empty state ── */
+/* ── Estados vacíos / loading dentro de la sección ──────────────────────── */
 .lab-empty {
-  color: rgba(230, 242, 255, 0.4);
-  font-size: 0.88rem;
+  margin: 0;
+  padding: 24px 4px;
+  text-align: center;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
 }
 
 .lab-empty-state {
@@ -159,106 +56,59 @@
   align-items: center;
   gap: 14px;
   padding: 48px 20px;
-  color: rgba(230, 242, 255, 0.3);
+  color: var(--aur-text-3);
   text-align: center;
 }
 .lab-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.4);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
   margin: 0;
 }
 
-/* ── Table ── */
-.lab-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-}
-
-.lab-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.lab-table thead tr {
-  background: var(--aurora-background);
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.lab-table th {
-  padding: 10px 14px;
-  text-align: left;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(230, 242, 255, 0.45);
-  white-space: nowrap;
-}
-
-.lab-table tbody tr {
-  border-bottom: 1px solid var(--aurora-border);
-  transition: background 0.12s;
-}
-.lab-table tbody tr:last-child { border-bottom: none; }
-.lab-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
-
-.lab-table td {
-  padding: 10px 14px;
-  color: var(--aurora-light);
-  vertical-align: middle;
-}
-
+/* ── Celdas de tabla ─────────────────────────────────────────────────────── */
 .lab-td-code {
-  font-family: monospace;
-  font-size: 0.8rem;
-  color: rgba(230, 242, 255, 0.7);
-  white-space: nowrap;
+  font-family: 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--aur-text-2);
 }
 
-.lab-td-desc { font-weight: 500; }
+.lab-td-desc {
+  font-weight: 500;
+}
 
 .lab-td-obs {
-  font-size: 0.8rem;
-  color: rgba(230, 242, 255, 0.55);
+  color: var(--aur-text-2);
   max-width: 300px;
+  white-space: normal;
+  line-height: 1.4;
 }
 
-.lab-td-empty { color: rgba(230, 242, 255, 0.25); }
+.lab-td-empty {
+  color: var(--aur-text-3);
+}
 
+.lab-th-actions,
 .lab-td-actions {
-  white-space: nowrap;
   text-align: right;
+  white-space: nowrap;
+}
+.lab-td-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
-.lab-btn-icon {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  color: rgba(230, 242, 255, 0.4);
-  cursor: pointer;
-  padding: 5px;
-  display: inline-flex;
-  align-items: center;
-  transition: color 0.15s, border-color 0.15s;
-}
-.lab-btn-icon:hover {
-  color: var(--aurora-green);
-  border-color: var(--aurora-border);
-}
-.lab-btn-danger:hover {
-  color: #ff5555;
-  border-color: var(--aurora-border);
-}
-
-/* ── Mobile ── */
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
-  .lab-toolbar { flex-wrap: wrap; justify-content: stretch; }
-  .lab-search { max-width: none; width: 100%; }
-  .lab-form-grid { grid-template-columns: 1fr; }
-  .lab-form-actions { flex-direction: column-reverse; }
-  .lab-form-actions .btn { width: 100%; justify-content: center; }
-  .lab-td-obs { max-width: 160px; }
+  .aur-table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lab-search-wrap {
+    max-width: none;
+    width: 100%;
+  }
+  .lab-td-obs {
+    max-width: 160px;
+  }
 }
-
