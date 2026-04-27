@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiPrinter, FiArrowLeft, FiSearch, FiX } from 'react-icons/fi';
+import {
+  FiPlus, FiTrash2, FiPrinter, FiArrowLeft, FiSearch, FiX, FiSave, FiCheck,
+} from 'react-icons/fi';
 import '../styles/oc-desde-solicitud.css';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -78,7 +80,7 @@ function ProveedorCombobox({ value, onChange, proveedores }) {
     <>
       <input
         ref={inputRef}
-        className="ingreso-proveedor-input"
+        className="aur-input"
         value={value}
         autoComplete="off"
         onChange={e => { onChange(e.target.value); openDropdown(); }}
@@ -124,7 +126,6 @@ const PurchaseOrder = () => {
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(null);
 
-  // PO header fields
   const [poNumber] = useState(generatePoNumber);
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [proveedor, setProveedor] = useState('');
@@ -133,10 +134,8 @@ const PurchaseOrder = () => {
   const [elaboradoPor, setElaboradoPor] = useState('');
   const [notas, setNotas] = useState('');
 
-  // Line items
   const [items, setItems] = useState([]);
 
-  // Product search
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -178,7 +177,6 @@ const PurchaseOrder = () => {
     fetchData();
   }, [taskId]);
 
-  // Close search on outside click
   useEffect(() => {
     if (!searchOpen) return;
     const handler = (e) => {
@@ -261,76 +259,92 @@ const PurchaseOrder = () => {
   return (
     <div className="po-page">
 
-      {/* ── Save toast ── */}
       {saveToast && (
         <div className={`po-save-toast po-save-toast--${saveToast.type}`}>
           {saveToast.message}
         </div>
       )}
 
-      {/* ── Top bar (hidden on print) ── */}
       <div className="po-topbar no-print">
-        <button className="po-btn-back" onClick={() => navigate(-1)}>
+        <button type="button" className="aur-btn-text" onClick={() => navigate(-1)}>
           <FiArrowLeft size={16} /> Volver
         </button>
         <span className="po-topbar-title">Editor — Orden de Compra</span>
         <div className="po-topbar-actions">
           {savedOcId ? (
-            <span className="po-saved-indicator">✓ OC guardada</span>
+            <span className="aur-badge aur-badge--green po-saved-indicator">
+              <FiCheck size={12} /> OC guardada
+            </span>
           ) : (
-            <button className="po-btn-save" onClick={handleSaveOC} disabled={saving || items.length === 0}>
-              {saving ? 'Guardando…' : '💾 Guardar OC'}
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={handleSaveOC}
+              disabled={saving || items.length === 0}
+            >
+              <FiSave size={14} /> {saving ? 'Guardando…' : 'Guardar OC'}
             </button>
           )}
-          <button className="po-btn-print" onClick={handlePrint}>
-            <FiPrinter size={16} /> Imprimir / PDF
+          <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handlePrint}>
+            <FiPrinter size={14} /> Imprimir / PDF
           </button>
         </div>
       </div>
 
       <div className="po-layout">
 
-        {/* ══ EDITOR PANEL (hidden on print) ══ */}
+        {/* ══ EDITOR PANEL ══ */}
         <aside className="po-editor no-print">
 
-          <section className="po-editor-section">
-            <h3>Encabezado</h3>
-            <div className="po-field">
-              <label>Proveedor</label>
-              <ProveedorCombobox
-                value={proveedor}
-                onChange={setProveedor}
-                proveedores={proveedores}
-              />
-            </div>
-            <div className="po-field">
-              <label>Dirección / Contacto</label>
-              <input
-                value={direccionProveedor}
-                onChange={e => setDireccionProveedor(e.target.value)}
-                placeholder="Correo, teléfono o dirección"
-              />
-            </div>
-            <div className="po-field">
-              <label>Fecha de la orden</label>
-              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-            </div>
-            <div className="po-field">
-              <label>Fecha de entrega estimada</label>
-              <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
-            </div>
-            <div className="po-field">
-              <label>Elaborado por</label>
-              <input
-                value={elaboradoPor}
-                onChange={e => setElaboradoPor(e.target.value)}
-                placeholder="Nombre del responsable"
-              />
-            </div>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">01</span>
+              <h3 className="aur-section-title">Encabezado</h3>
+            </header>
+            <ul className="aur-list">
+              <li className="aur-row">
+                <span className="aur-row-label">Proveedor</span>
+                <ProveedorCombobox
+                  value={proveedor}
+                  onChange={setProveedor}
+                  proveedores={proveedores}
+                />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Dirección / Contacto</span>
+                <input
+                  className="aur-input"
+                  value={direccionProveedor}
+                  onChange={e => setDireccionProveedor(e.target.value)}
+                  placeholder="Correo, teléfono o dirección"
+                />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Fecha de la orden</span>
+                <input className="aur-input" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Fecha de entrega estimada</span>
+                <input className="aur-input" type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Elaborado por</span>
+                <input
+                  className="aur-input"
+                  value={elaboradoPor}
+                  onChange={e => setElaboradoPor(e.target.value)}
+                  placeholder="Nombre del responsable"
+                />
+              </li>
+            </ul>
           </section>
 
-          <section className="po-editor-section">
-            <h3>Líneas de producto</h3>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">02</span>
+              <h3 className="aur-section-title">Líneas de producto</h3>
+              <span className="aur-section-count">{items.length}</span>
+            </header>
 
             {items.length === 0 && (
               <p className="po-empty-lines">No hay productos. Agrega uno abajo.</p>
@@ -343,15 +357,17 @@ const PurchaseOrder = () => {
                   <div className="po-line-field">
                     <label>Cantidad</label>
                     <input
+                      className="aur-input aur-input--num"
                       type="number" min="0" step="0.1"
                       value={item.cantidad}
                       onChange={e => updateItem(idx, 'cantidad', e.target.value)}
                       placeholder="0"
                     />
                   </div>
-                  <div className="po-line-field po-line-unit">
+                  <div className="po-line-field">
                     <label>Unidad</label>
                     <input
+                      className="aur-input"
                       value={item.unidad}
                       onChange={e => updateItem(idx, 'unidad', e.target.value)}
                     />
@@ -359,15 +375,17 @@ const PurchaseOrder = () => {
                   <div className="po-line-field">
                     <label>Precio unit.</label>
                     <input
+                      className="aur-input aur-input--num"
                       type="number" min="0" step="0.01"
                       value={item.precioUnitario}
                       onChange={e => updateItem(idx, 'precioUnitario', e.target.value)}
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="po-line-field po-line-currency">
+                  <div className="po-line-field">
                     <label>Moneda</label>
                     <select
+                      className="aur-select"
                       value={item.moneda}
                       onChange={e => updateItem(idx, 'moneda', e.target.value)}
                     >
@@ -376,14 +394,18 @@ const PurchaseOrder = () => {
                       <option value="EUR">EUR</option>
                     </select>
                   </div>
-                  <button className="po-line-remove" onClick={() => removeItem(idx)} title="Eliminar línea">
+                  <button
+                    type="button"
+                    className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                    onClick={() => removeItem(idx)}
+                    title="Eliminar línea"
+                  >
                     <FiTrash2 size={14} />
                   </button>
                 </div>
               </div>
             ))}
 
-            {/* Search & add */}
             {searchOpen ? (
               <div className="po-search-box" ref={searchRef}>
                 <div className="po-search-input-wrap">
@@ -394,13 +416,17 @@ const PurchaseOrder = () => {
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                   />
-                  <button onClick={() => { setSearchOpen(false); setSearchTerm(''); }}>
+                  <button
+                    type="button"
+                    className="aur-icon-btn aur-icon-btn--sm"
+                    onClick={() => { setSearchOpen(false); setSearchTerm(''); }}
+                  >
                     <FiX size={14} />
                   </button>
                 </div>
                 <div className="po-search-results">
                   {filteredCatalog.slice(0, 7).map(p => (
-                    <button key={p.id} className="po-search-result" onClick={() => addFromCatalog(p)}>
+                    <button type="button" key={p.id} className="po-search-result" onClick={() => addFromCatalog(p)}>
                       <span className="po-sr-name">{p.nombreComercial}</span>
                       <span className="po-sr-meta">{p.unidad} · {p.ingredienteActivo}</span>
                     </button>
@@ -411,28 +437,36 @@ const PurchaseOrder = () => {
                 </div>
               </div>
             ) : (
-              <button className="po-btn-add-line" onClick={() => setSearchOpen(true)}>
+              <button type="button" className="po-btn-add-line" onClick={() => setSearchOpen(true)}>
                 <FiPlus size={15} /> Agregar producto
               </button>
             )}
           </section>
 
-          <section className="po-editor-section">
-            <h3>Notas / Condiciones</h3>
-            <textarea
-              rows={4}
-              value={notas}
-              onChange={e => setNotas(e.target.value)}
-              placeholder="Condiciones de pago, urgencia, instrucciones de entrega…"
-            />
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">03</span>
+              <h3 className="aur-section-title">Notas / Condiciones</h3>
+            </header>
+            <ul className="aur-list">
+              <li className="aur-row aur-row--multiline">
+                <span className="aur-row-label">Detalle</span>
+                <textarea
+                  className="aur-textarea"
+                  rows={4}
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Condiciones de pago, urgencia, instrucciones de entrega…"
+                />
+              </li>
+            </ul>
           </section>
         </aside>
 
-        {/* ══ DOCUMENT (live preview + print target) ══ */}
+        {/* ══ DOCUMENT (Apple-quality printable, brand-specific — sin tocar) ══ */}
         <div className="po-doc-wrap">
           <div className="po-document">
 
-            {/* Header */}
             <div className="po-doc-header">
               <div className="po-doc-brand">
                 <div className="po-doc-logo">AU</div>
@@ -445,26 +479,16 @@ const PurchaseOrder = () => {
                 <div className="po-doc-title">ORDEN DE COMPRA</div>
                 <table className="po-doc-meta-table">
                   <tbody>
-                    <tr>
-                      <td>N°:</td>
-                      <td><strong>{poNumber}</strong></td>
-                    </tr>
-                    <tr>
-                      <td>Fecha:</td>
-                      <td><strong>{formatDateLong(fecha)}</strong></td>
-                    </tr>
+                    <tr><td>N°:</td><td><strong>{poNumber}</strong></td></tr>
+                    <tr><td>Fecha:</td><td><strong>{formatDateLong(fecha)}</strong></td></tr>
                     {fechaEntrega && (
-                      <tr>
-                        <td>Entrega:</td>
-                        <td><strong>{formatDateLong(fechaEntrega)}</strong></td>
-                      </tr>
+                      <tr><td>Entrega:</td><td><strong>{formatDateLong(fechaEntrega)}</strong></td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Parties */}
             <div className="po-doc-parties">
               <div className="po-doc-party">
                 <div className="po-doc-party-label">PROVEEDOR</div>
@@ -482,7 +506,6 @@ const PurchaseOrder = () => {
               </div>
             </div>
 
-            {/* Items table */}
             <table className="po-doc-table">
               <thead>
                 <tr>
@@ -536,14 +559,12 @@ const PurchaseOrder = () => {
               )}
             </table>
 
-            {/* Notes */}
             {notas && (
               <div className="po-doc-notes">
                 <strong>Notas / Condiciones:</strong> {notas}
               </div>
             )}
 
-            {/* Signatures */}
             <div className="po-doc-signatures">
               <div className="po-sig">
                 <div className="po-sig-line" />
