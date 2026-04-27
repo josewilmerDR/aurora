@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiUpload, FiSave, FiX } from 'react-icons/fi';
+import { FiUpload, FiSave, FiX, FiImage } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/account-settings.css';
+
+const COMPANY_FIELDS = [
+  { name: 'nombreEmpresa',      label: 'Nombre de la Empresa',  placeholder: 'Ej: Finca Aurora S.A.',          type: 'text' },
+  { name: 'identificacion',     label: 'Identificación',         placeholder: 'Ej: 3-101-123456',               type: 'text' },
+  { name: 'representanteLegal', label: 'Representante legal',    placeholder: 'Nombre del representante legal', type: 'text' },
+  { name: 'administrador',      label: 'Administrador',          placeholder: 'Nombre del administrador',       type: 'text' },
+  { name: 'direccion',          label: 'Dirección',              placeholder: 'Ej: Upala, Alajuela, Costa Rica', type: 'text' },
+  { name: 'whatsapp',           label: 'Teléfono / WhatsApp',    placeholder: 'Ej: +506 8888-8888',             type: 'text' },
+  { name: 'correo',             label: 'Correo electrónico',     placeholder: 'Ej: contacto@fincaaurora.com',   type: 'email' },
+];
 
 function AccountSettings() {
   const apiFetch = useApiFetch();
@@ -95,33 +105,42 @@ function AccountSettings() {
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div className="form-card config-card">
-        <form onSubmit={handleSubmit} className="lote-form">
+      <form onSubmit={handleSubmit} className="account-form">
+        <h2 className="account-form-title">Configuración de la cuenta</h2>
 
-          {/* Logo */}
-          <p className="form-section-title">Logo de la Empresa</p>
-          <div className="logo-upload-area">
+        <section className="aur-section">
+          <header className="aur-section-header">
+            <span className="aur-section-num">01</span>
+            <h3 className="aur-section-title">Logo de la empresa</h3>
+          </header>
+          <div className="account-logo-area">
             {activeLogo ? (
-              <div className="logo-preview-wrapper">
-                <img src={activeLogo} alt="Logo" className="logo-preview" />
+              <div className="account-logo-preview-wrap">
+                <img src={activeLogo} alt="Logo" className="account-logo-preview" />
                 {preview && (
-                  <button type="button" className="logo-clear-btn" onClick={clearLogo} title="Quitar selección">
+                  <button
+                    type="button"
+                    className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger account-logo-clear"
+                    onClick={clearLogo}
+                    title="Quitar selección"
+                    aria-label="Quitar selección"
+                  >
                     <FiX size={14} />
                   </button>
                 )}
               </div>
             ) : (
-              <div className="logo-placeholder">
-                <FiUpload size={28} />
+              <div className="account-logo-placeholder">
+                <FiImage size={28} />
                 <span>Sin logo</span>
               </div>
             )}
-            <div className="logo-upload-controls">
-              <button type="button" className="btn btn-secondary" onClick={() => fileRef.current.click()}>
+            <div className="account-logo-controls">
+              <button type="button" className="aur-btn-text" onClick={() => fileRef.current.click()}>
                 <FiUpload size={15} />
                 {activeLogo ? 'Cambiar logo' : 'Subir logo'}
               </button>
-              <p className="logo-hint">PNG o JPG · Máx. 2 MB · Recomendado: fondo transparente</p>
+              <p className="account-logo-hint">PNG o JPG · Máx. 2 MB · Recomendado: fondo transparente</p>
               <input
                 ref={fileRef}
                 type="file"
@@ -131,78 +150,38 @@ function AccountSettings() {
               />
             </div>
           </div>
+        </section>
 
-          {/* Datos empresa */}
-          <p className="form-section-title">Datos de la Empresa</p>
-          <div className="form-grid">
-            <div className="form-control">
-              <label htmlFor="nombreEmpresa">Nombre de la Empresa</label>
-              <input
-                id="nombreEmpresa" name="nombreEmpresa"
-                value={form.nombreEmpresa} onChange={handleChange}
-                placeholder="Ej: Finca Aurora S.A."
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="identificacion">Identificación</label>
-              <input
-                id="identificacion" name="identificacion"
-                value={form.identificacion} onChange={handleChange}
-                placeholder="Ej: 3-101-123456"
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="representanteLegal">Representante legal</label>
-              <input
-                id="representanteLegal" name="representanteLegal"
-                value={form.representanteLegal} onChange={handleChange}
-                placeholder="Nombre del representante legal"
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="administrador">Administrador</label>
-              <input
-                id="administrador" name="administrador"
-                value={form.administrador} onChange={handleChange}
-                placeholder="Nombre del administrador"
-              />
-            </div>
-            <div className="form-control" style={{ gridColumn: '1 / -1' }}>
-              <label htmlFor="direccion">Dirección</label>
-              <input
-                id="direccion" name="direccion"
-                value={form.direccion} onChange={handleChange}
-                placeholder="Ej: Upala, Alajuela, Costa Rica"
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="whatsapp">Teléfono / WhatsApp</label>
-              <input
-                id="whatsapp" name="whatsapp"
-                value={form.whatsapp} onChange={handleChange}
-                placeholder="Ej: +506 8888-8888"
-              />
-            </div>
-            <div className="form-control">
-              <label htmlFor="correo">Correo electrónico</label>
-              <input
-                id="correo" name="correo" type="email"
-                value={form.correo} onChange={handleChange}
-                placeholder="Ej: contacto@fincaaurora.com"
-              />
-            </div>
-          </div>
+        <section className="aur-section">
+          <header className="aur-section-header">
+            <span className="aur-section-num">02</span>
+            <h3 className="aur-section-title">Datos de la empresa</h3>
+          </header>
+          <ul className="aur-list">
+            {COMPANY_FIELDS.map(f => (
+              <li key={f.name} className="aur-row">
+                <span className="aur-row-label">{f.label}</span>
+                <input
+                  className="aur-input"
+                  id={f.name}
+                  name={f.name}
+                  type={f.type}
+                  value={form[f.name]}
+                  onChange={handleChange}
+                  placeholder={f.placeholder}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
 
-
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              <FiSave size={16} />
-              {loading ? 'Guardando...' : 'Guardar Configuración'}
-            </button>
-          </div>
-
-        </form>
-      </div>
+        <div className="aur-form-actions">
+          <button type="submit" className="aur-btn-pill" disabled={loading}>
+            <FiSave size={15} />
+            {loading ? 'Guardando…' : 'Guardar configuración'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
