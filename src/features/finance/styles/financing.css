@@ -79,25 +79,10 @@
   background: var(--aur-bg-hover);
 }
 
-/* finance-back-link: usada por las páginas CreditOffers/DebtSimulations
-   (PR D); se mantiene refrescada a tokens del sistema. */
-.finance-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--aur-fs-caption);
-  color: var(--aur-text-3);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-.finance-back-link:hover {
-  color: var(--aur-accent);
-}
-
-/* fin-badge: legacy badge usado por DebtSimulationDetail/DebtSimulations
-   (migración pendiente en PR D) y por el dominio CEO (KpiAccuracyWidget,
-   CeoDashboard). Se conserva con tokens del sistema; al cerrar PR D el
-   uso interno de finance migrará a aur-badge--{green,yellow,gray}. */
+/* fin-badge: legacy badge ahora consumido sólo por el dominio CEO
+   (KpiAccuracyWidget). Las páginas y widgets internos de finance ya
+   migraron a aur-badge--{green,yellow,gray}. Se mantiene aquí mientras
+   el cierre de CEO no lo retire. */
 .fin-badge {
   font-size: var(--aur-fs-caption);
   font-weight: 600;

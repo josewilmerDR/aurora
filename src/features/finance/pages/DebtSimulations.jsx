@@ -16,10 +16,10 @@ import '../styles/finance.css';
 import '../styles/financing.css';
 import '../styles/debt-simulator.css';
 
-const RECOMMENDATION_LABELS = {
-  tomar: { label: 'Tomar', cls: 'fin-badge--ok' },
-  tomar_condicional: { label: 'Condicional', cls: 'fin-badge--warn' },
-  no_tomar: { label: 'No tomar', cls: 'fin-badge--bad' },
+const RECOMMENDATION_BADGE_VARIANT = {
+  tomar:             { label: 'Tomar',       cls: 'aur-badge--green' },
+  tomar_condicional: { label: 'Condicional', cls: 'aur-badge--yellow' },
+  no_tomar:          { label: 'No tomar',    cls: 'aur-badge--gray' },
 };
 
 const COLUMNS = [
@@ -277,15 +277,15 @@ function DebtSimulations() {
   return (
     <div className="lote-page">
       <div className="lote-page-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Link to="/finance/financing" className="finance-back-link">
+        <div className="lote-page-title-stack">
+          <Link to="/finance/financing" className="aur-btn-text fin-back-link">
             <FiArrowLeft size={12} /> Financiamiento
           </Link>
           <h2 className="lote-page-title"><FiTrendingUp /> Simulador de deuda</h2>
         </div>
         {view === 'list' && (
           <button
-            className="btn btn-primary"
+            className="aur-btn-pill"
             onClick={startCreate}
             disabled={loading || !!blockReason}
             title={blockReason || ''}
@@ -297,7 +297,7 @@ function DebtSimulations() {
 
       {view === 'form' && (
         <>
-          <p className="finance-empty" style={{ textAlign: 'left', margin: '0 0 6px 0', opacity: 0.75 }}>
+          <p className="fin-page-intro">
             La simulación corre {500} escenarios Monte Carlo con y sin la deuda y compara cómo se mueve la caja
             mensual bajo incertidumbre de precio y rendimiento. El modelo de retorno esperado que ingreses es
             determinante — sin él, el crédito siempre luce mal.
@@ -324,16 +324,16 @@ function DebtSimulations() {
             <FiPackage size={36} />
             <p>Aún no hay simulaciones.</p>
             {blockReason ? (
-              <p style={{ opacity: 0.7, fontSize: 13 }}>{blockReason}</p>
+              <p className="fin-page-empty-hint">{blockReason}</p>
             ) : (
-              <p style={{ opacity: 0.7, fontSize: 13 }}>Corré la primera simulación con "Nueva simulación".</p>
+              <p className="fin-page-empty-hint">Corré la primera simulación con "Nueva simulación".</p>
             )}
           </div>
         ) : (
           <>
             {blockReason && (
-              <div className="debt-sim-block-banner">
-                <FiPackage size={14} /> {blockReason}
+              <div className="aur-banner aur-banner--warn">
+                <FiPackage size={14} /> <span>{blockReason}</span>
               </div>
             )}
             <div className="sh-stats-bar">
@@ -398,12 +398,12 @@ function DebtSimulations() {
                     </thead>
                     <tbody>
                       {displayData.map(r => {
-                        const rec = RECOMMENDATION_LABELS[r.recommendation] || null;
+                        const rec = RECOMMENDATION_BADGE_VARIANT[r.recommendation] || null;
                         const marginDelta = Number(r.marginDelta) || 0;
                         const positive = marginDelta >= 0;
                         const aprPct = (Number(r.apr) * 100).toFixed(2);
                         return (
-                          <tr key={r.id} onClick={() => openDetail(r.id)} style={{ cursor: 'pointer' }}>
+                          <tr key={r.id} className="ds-row-clickable" onClick={() => openDetail(r.id)}>
                             {visibleCols.fecha     && <td className="td-readonly">{fmtDate(r.createdAt)}</td>}
                             {visibleCols.proveedor && <td>{r.providerName || '—'}</td>}
                             {visibleCols.monto     && <td className="td-num">{formatMoney(r.amount, undefined, { decimals: 0 })}</td>}
@@ -419,7 +419,7 @@ function DebtSimulations() {
                             )}
                             {visibleCols.rec && (
                               <td>
-                                {rec ? <span className={`fin-badge ${rec.cls}`}>{rec.label}</span> : '—'}
+                                {rec ? <span className={`aur-badge ${rec.cls}`}>{rec.label}</span> : '—'}
                               </td>
                             )}
                             <td />

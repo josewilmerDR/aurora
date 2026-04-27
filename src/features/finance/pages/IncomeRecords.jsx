@@ -31,10 +31,10 @@ const COLUMNS = [
 
 const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
 
-const STATUS_PILL = {
-  pendiente: { label: 'Pendiente', cls: 'finance-pill--pending' },
-  cobrado:   { label: 'Cobrado',   cls: 'finance-pill--paid'    },
-  anulado:   { label: 'Anulado',   cls: 'finance-pill--void'    },
+const STATUS_BADGE_VARIANT = {
+  pendiente: { label: 'Pendiente', cls: 'aur-badge--magenta' },
+  cobrado:   { label: 'Cobrado',   cls: 'aur-badge--green' },
+  anulado:   { label: 'Anulado',   cls: 'aur-badge--gray' },
 };
 
 const formatFecha = (iso) =>
@@ -290,7 +290,7 @@ function IncomeRecords() {
       <div className="lote-page-header">
         <h2 className="lote-page-title"><FiDollarSign /> Ingresos</h2>
         {!showForm && (
-          <button className="btn btn-primary" onClick={startCreate}>
+          <button className="aur-btn-pill" onClick={startCreate}>
             <FiPlus /> Nuevo ingreso
           </button>
         )}
@@ -374,7 +374,7 @@ function IncomeRecords() {
                     </thead>
                     <tbody>
                       {displayData.map(r => {
-                        const pill = STATUS_PILL[r.collectionStatus] || STATUS_PILL.pendiente;
+                        const pill = STATUS_BADGE_VARIANT[r.collectionStatus] || STATUS_BADGE_VARIANT.pendiente;
                         const dispCount = Array.isArray(r.despachoIds) ? r.despachoIds.length : (r.despachoId ? 1 : 0);
                         return (
                           <tr key={r.id} className={r.collectionStatus === 'anulado' ? 'row-anulado' : ''}>
@@ -387,7 +387,7 @@ function IncomeRecords() {
                             {visibleCols.precio    && <td className="td-num">{formatNumber(r.unitPrice, { decimals: 4 })}</td>}
                             {visibleCols.total     && <td className="td-num td-calc">{formatMoney(r.totalAmount, r.currency)}</td>}
                             {visibleCols.moneda    && <td>{r.currency || '—'}</td>}
-                            {visibleCols.estado    && <td><span className={`finance-pill ${pill.cls}`}>{pill.label}</span></td>}
+                            {visibleCols.estado    && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
                             {visibleCols.fespera   && <td className="td-readonly">{formatFecha(r.expectedCollectionDate)}</td>}
                             {visibleCols.fcobro    && <td className="td-readonly">{formatFecha(r.actualCollectionDate)}</td>}
                             <td>

@@ -206,25 +206,28 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
           </div>
         </div>
 
-        <div className="debt-sim-radio-group" role="radiogroup" aria-label="Modelo de retorno esperado">
-          {RETURN_KINDS.map(r => (
-            <label
-              key={r.value}
-              className={`debt-sim-radio${form.returnKind === r.value ? ' debt-sim-radio--active' : ''}`}
-            >
-              <input
-                type="radio"
-                name="returnKind"
-                value={r.value}
-                checked={form.returnKind === r.value}
-                onChange={update('returnKind')}
-              />
-              <div>
-                <strong>{r.label}</strong>
-                <span>{r.hint}</span>
-              </div>
-            </label>
-          ))}
+        <div className="aur-row aur-row--multiline">
+          <span className="aur-row-label">Modelo de retorno esperado</span>
+          <div className="debt-sim-radio-group" role="radiogroup" aria-label="Modelo de retorno esperado">
+            {RETURN_KINDS.map(r => (
+              <label
+                key={r.value}
+                className={`debt-sim-radio${form.returnKind === r.value ? ' debt-sim-radio--active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="returnKind"
+                  value={r.value}
+                  checked={form.returnKind === r.value}
+                  onChange={update('returnKind')}
+                />
+                <div>
+                  <strong>{r.label}</strong>
+                  <span>{r.hint}</span>
+                </div>
+              </label>
+            ))}
+          </div>
         </div>
 
         {(form.returnKind === 'linear' || form.returnKind === 'delayed_revenue') && (
