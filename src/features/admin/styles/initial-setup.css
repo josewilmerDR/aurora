@@ -1,55 +1,57 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   INITIAL SETUP — slim modifiers sobre primitivas aurora.
 
-.ci-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
+   La página vive ahora sobre aur-sheet + aur-sheet-header + aur-section +
+   aur-banner(--info/--danger) + aur-btn-pill(--sm) + aur-icon-btn(--sm) +
+   aur-badge--green (count chip).
 
-/* ── Intro banner ── */
+   Aquí queda slim sólo:
+     · ci-grid       — grid responsive auto-fill que arregla las 9 cards en
+                       columnas. aur-list es para iOS rows verticales, no
+                       para card-grid; ningún primitive cubre auto-fill grid.
+     · ci-card       — chrome de tarjeta (bg + border + radius + padding).
+                       aur-section es layout sin chrome; aquí necesitamos un
+                       contenedor visual independiente por entidad.
+     · ci-card-header / -icon / -title / -count — composición del header de
+                       cada card (icono verde + título + count badge + link
+                       externo). aur-badge--green provee el chip; el resto es
+                       layout slim.
+     · ci-card-desc  — texto descriptivo de la tarjeta (gray, 1.45 line-height).
+     · ci-import-row — fila de los 2 botones Plantilla + Importar Excel.
+     · ci-intro      — afina margin del aur-banner intro al estar inmediatamente
+                       después del aur-sheet-header.
+     · ci-nav-prompt / -body / -actions — afinaciones sobre aur-banner para
+                       que el body acomode texto + acciones en columna.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Intro banner: afina margin después del header ───────────────────────── */
 .ci-intro {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 14px 18px;
-  color: rgba(230, 242, 255, 0.5);
-  font-size: 0.875rem;
-  line-height: 1.55;
+  margin-bottom: 24px;
 }
 
-.ci-intro svg {
-  margin-top: 2px;
-  flex-shrink: 0;
-  color: var(--aurora-green);
-}
-
-.ci-intro p { margin: 0; }
-
-/* ── Grid de tarjetas ── */
+/* ── Grid responsive de tarjetas ─────────────────────────────────────────── */
 .ci-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 
-/* ── Tarjeta ── */
+/* ── Tarjeta de entidad ──────────────────────────────────────────────────── */
 .ci-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s ease;
 }
-
 .ci-card:hover {
-  border-color: rgba(51, 255, 153, 0.25);
+  border-color: var(--aur-divider-2);
 }
 
+/* ── Header del card ─────────────────────────────────────────────────────── */
 .ci-card-header {
   display: flex;
   align-items: center;
@@ -57,76 +59,49 @@
 }
 
 .ci-card-icon {
-  color: var(--aurora-green);
+  color: var(--aur-accent);
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.ci-card-nombre {
-  font-size: 0.9rem;
+.ci-card-title {
+  font-size: var(--aur-fs-callout);
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   flex: 1;
+  min-width: 0;
+  letter-spacing: -0.01em;
 }
 
+/* aur-badge--green ya provee bg/color/padding/radius; aquí sólo añadimos
+   tabular-nums (el badge default ya lo tiene; redundante pero explícito). */
 .ci-card-count {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-  padding: 1px 8px;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.ci-card-link {
-  color: rgba(230, 242, 255, 0.25);
-  display: flex;
-  align-items: center;
-  padding: 3px;
-  border-radius: 4px;
-  transition: color 0.15s;
-  flex-shrink: 0;
-}
-.ci-card-link:hover { color: var(--aurora-green); }
-
+/* ── Descripción ─────────────────────────────────────────────────────────── */
 .ci-card-desc {
   margin: 0;
-  font-size: 0.82rem;
-  color: rgba(230, 242, 255, 0.4);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
   line-height: 1.45;
 }
 
-/* ── Import row ── */
+/* ── Fila de botones de import ──────────────────────────────────────────── */
 .ci-import-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.ci-import-result {
-  margin: 0;
-  font-size: 0.78rem;
-}
-.ci-import-ok    { color: var(--aurora-green); }
-.ci-import-error { color: var(--aurora-magenta); }
-
-/* ── Prompt de navegación post-importación ── */
-.ci-nav-prompt {
+/* ── Nav prompt: el aur-banner default es flex-row; necesitamos columna
+      para apilar texto + acciones. Slim afina el body y las actions. ────── */
+.ci-nav-prompt-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: rgba(51, 255, 153, 0.06);
-  border: 1px solid rgba(51, 255, 153, 0.2);
-  border-radius: 8px;
-  padding: 12px 14px;
-  font-size: 0.84rem;
-  color: var(--aurora-light);
-}
-
-.ci-nav-prompt strong {
-  color: var(--aurora-green);
 }
 
 .ci-nav-prompt-actions {
@@ -135,7 +110,9 @@
   flex-wrap: wrap;
 }
 
-.btn-sm {
-  padding: 5px 12px;
-  font-size: 0.8rem;
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .ci-grid {
+    grid-template-columns: 1fr;
+  }
 }
