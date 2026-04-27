@@ -40,7 +40,7 @@ function CashflowDualChart({ withDebt = [], withoutDebt = [], labels = [] }) {
   const yTicks = [yMax, 0, yMin].filter((v, i, arr) => arr.indexOf(v) === i);
 
   return (
-    <div className="cashflow-dual-chart">
+    <div>
       <div className="cashflow-dual-legend">
         <span className="cashflow-dual-legend-item cashflow-dual-legend-item--without">
           <span className="cashflow-dual-swatch cashflow-dual-swatch--without" /> Sin deuda

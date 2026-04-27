@@ -49,9 +49,9 @@ const COLUMNS = [
 
 const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
 
-const STATUS_PILL = {
-  activo:   { label: 'Activa',   cls: 'finance-pill--paid'     },
-  inactivo: { label: 'Archivada', cls: 'finance-pill--inactive' },
+const STATUS_BADGE_VARIANT = {
+  activo:   { label: 'Activa',    cls: 'aur-badge--green' },
+  inactivo: { label: 'Archivada', cls: 'aur-badge--gray' },
 };
 
 function getColVal(r, key) {
@@ -282,21 +282,21 @@ function CreditOffers() {
   return (
     <div className="lote-page">
       <div className="lote-page-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Link to="/finance/financing" className="finance-back-link">
+        <div className="lote-page-title-stack">
+          <Link to="/finance/financing" className="aur-btn-text fin-back-link">
             <FiArrowLeft size={12} /> Financiamiento
           </Link>
           <h2 className="lote-page-title"><FiBriefcase /> Ofertas de crédito</h2>
         </div>
         {!showForm && (
-          <button className="btn btn-primary" onClick={startCreate}>
+          <button className="aur-btn-pill" onClick={startCreate}>
             <FiPlus /> Nueva oferta
           </button>
         )}
       </div>
 
       {!showForm && (
-        <p className="finance-empty" style={{ textAlign: 'left', margin: '0 0 6px 0', opacity: 0.75 }}>
+        <p className="fin-page-intro">
           Registrá acá las ofertas concretas que hayas recibido de bancos, cooperativas u otros proveedores.
           Estas ofertas alimentan el análisis de elegibilidad y las simulaciones Monte Carlo del dashboard.
         </p>
@@ -380,7 +380,7 @@ function CreditOffers() {
                     <tbody>
                       {displayData.map(r => {
                         const pillKey = r.activo === false ? 'inactivo' : 'activo';
-                        const pill = STATUS_PILL[pillKey];
+                        const pill = STATUS_BADGE_VARIANT[pillKey];
                         const aprPct = Number(r.aprMin) * 100;
                         return (
                           <tr key={r.id} className={r.activo === false ? 'row-anulado' : ''}>
@@ -392,7 +392,7 @@ function CreditOffers() {
                             {visibleCols.plazo     && <td className="td-num">{formatNumber(r.plazoMesesMin, { decimals: 0 })}</td>}
                             {visibleCols.apr       && <td className="td-num">{formatNumber(aprPct, { decimals: 2 })}%</td>}
                             {visibleCols.esquema   && <td>{ESQUEMA_LABELS[r.esquemaAmortizacion] || r.esquemaAmortizacion || '—'}</td>}
-                            {visibleCols.estado    && <td><span className={`finance-pill ${pill.cls}`}>{pill.label}</span></td>}
+                            {visibleCols.estado    && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
                             <td>
                               <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
                                 <button

@@ -30,9 +30,9 @@ const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
 
 const PAYMENT_LABELS = { contado: 'Contado', credito: 'Crédito' };
 
-const STATUS_PILL = {
-  activo:   { label: 'Activo',   cls: 'finance-pill--paid'     },
-  inactivo: { label: 'Inactivo', cls: 'finance-pill--inactive' },
+const STATUS_BADGE_VARIANT = {
+  activo:   { label: 'Activo',   cls: 'aur-badge--green' },
+  inactivo: { label: 'Inactivo', cls: 'aur-badge--gray' },
 };
 
 function getColVal(r, key) {
@@ -272,7 +272,7 @@ function BuyersList() {
       <div className="lote-page-header">
         <h2 className="lote-page-title"><FiUsers /> Compradores</h2>
         {!showForm && (
-          <button className="btn btn-primary" onClick={startCreate}>
+          <button className="aur-btn-pill" onClick={startCreate}>
             <FiPlus /> Nuevo comprador
           </button>
         )}
@@ -356,7 +356,7 @@ function BuyersList() {
                     </thead>
                     <tbody>
                       {displayData.map(r => {
-                        const pill = STATUS_PILL[r.status] || STATUS_PILL.activo;
+                        const pill = STATUS_BADGE_VARIANT[r.status] || STATUS_BADGE_VARIANT.activo;
                         const paymentLabel = PAYMENT_LABELS[r.paymentType] || r.paymentType || '—';
                         const creditLabel  = r.paymentType === 'credito' ? `${r.creditDays || 0}d` : '—';
                         return (
@@ -370,7 +370,7 @@ function BuyersList() {
                             {visibleCols.credito  && <td className="td-num">{creditLabel}</td>}
                             {visibleCols.moneda   && <td>{r.currency || '—'}</td>}
                             {visibleCols.pais     && <td>{r.country || '—'}</td>}
-                            {visibleCols.estado   && <td><span className={`finance-pill ${pill.cls}`}>{pill.label}</span></td>}
+                            {visibleCols.estado   && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
                             <td>
                               <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
                                 <button

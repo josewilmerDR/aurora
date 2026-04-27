@@ -45,20 +45,37 @@
 }
 
 
-.finance-pill {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+/* ── Page-level helpers compartidos por las páginas de finance ─────────── */
+.lote-page-title-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.finance-pill--pending  { background: rgba(204, 51, 255, 0.15); color: var(--aurora-magenta); }
-.finance-pill--paid     { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
-.finance-pill--void     { background: rgba(255, 80, 80, 0.15);  color: #ff8080; }
-.finance-pill--inactive { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
+/* aur-btn-text ya provee color/typography del back-link; este slim sólo
+   reduce el tamaño de fuente para que el link encaje bajo el título. */
+.aur-btn-text.fin-back-link {
+  font-size: var(--aur-fs-caption);
+  padding: 0;
+  align-self: flex-start;
+}
+
+.fin-page-intro {
+  margin: 0 0 6px 0;
+  text-align: left;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-footnote);
+}
+
+.fin-page-empty-hint {
+  margin: 0;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+
+.ds-row-clickable {
+  cursor: pointer;
+}
 
 .finance-amount {
   font-variant-numeric: tabular-nums;

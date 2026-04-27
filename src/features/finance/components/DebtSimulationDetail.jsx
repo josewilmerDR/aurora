@@ -2,10 +2,10 @@ import { FiArrowLeft, FiAlertTriangle, FiInfo, FiDollarSign, FiTrendingUp, FiTre
 import CashflowDualChart from './CashflowDualChart';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
 
-const RECOMMENDATION_LABELS = {
-  tomar: { label: 'Tomar', cls: 'fin-badge--ok' },
-  tomar_condicional: { label: 'Tomar (condicional)', cls: 'fin-badge--warn' },
-  no_tomar: { label: 'No tomar', cls: 'fin-badge--bad' },
+const RECOMMENDATION_BADGE_VARIANT = {
+  tomar:             { label: 'Tomar',                cls: 'aur-badge--green' },
+  tomar_condicional: { label: 'Tomar (condicional)',  cls: 'aur-badge--yellow' },
+  no_tomar:          { label: 'No tomar',             cls: 'aur-badge--gray' },
 };
 
 const SCENARIO_TOOLTIP = {
@@ -52,7 +52,7 @@ function DebtSimulationDetail({ simulation, onBack }) {
   if (!simulation) return null;
 
   const rec = simulation.recommendation || {};
-  const recBadge = RECOMMENDATION_LABELS[rec.recommendation];
+  const recBadge = RECOMMENDATION_BADGE_VARIANT[rec.recommendation];
   const delta = simulation.delta || {};
   const resumenDelta = delta.resumen || {};
   const scenarioDelta = delta.byScenario || {};
@@ -73,25 +73,25 @@ function DebtSimulationDetail({ simulation, onBack }) {
   return (
     <div className="debt-sim-detail">
       <div className="debt-sim-detail-header">
-        <button className="debt-sim-back-btn" onClick={onBack}>
+        <button className="aur-btn-text" onClick={onBack}>
           <FiArrowLeft size={14} /> Volver a simulaciones
         </button>
       </div>
 
-      <div className="debt-sim-detail-top">
-        <div className="debt-sim-detail-title">
-          <h3>
+      <section className="aur-section debt-sim-summary">
+        <div className="debt-sim-summary-title">
+          <h3 className="aur-section-title">
             {formatMoney(simulation.amount, currency, { decimals: 0 })} · {simulation.plazoMeses}m
             {' '}a {(Number(simulation.apr) * 100).toFixed(2)}%
           </h3>
-          <p className="debt-sim-detail-sub">
+          <p className="debt-sim-summary-sub">
             {simulation.providerName || 'Proveedor'} · {simulation.useCase?.tipo || '—'}
             {simulation.useCase?.detalle ? ` · ${simulation.useCase.detalle}` : ''}
           </p>
         </div>
         {recBadge && (
           <div className="debt-sim-rec-block">
-            <span className={`fin-badge ${recBadge.cls} debt-sim-rec-badge`}>{recBadge.label}</span>
+            <span className={`aur-badge ${recBadge.cls} debt-sim-rec-badge`}>{recBadge.label}</span>
             {rec.razon && <p className="debt-sim-rec-reason">{rec.razon}</p>}
             {Array.isArray(rec.condiciones) && rec.condiciones.length > 0 && (
               <ul className="debt-sim-rec-conditions">
@@ -105,12 +105,12 @@ function DebtSimulationDetail({ simulation, onBack }) {
             )}
           </div>
         )}
-      </div>
+      </section>
 
       {Array.isArray(simulation.warnings) && simulation.warnings.length > 0 && (
         <div className="debt-sim-warnings">
           {simulation.warnings.map((w, i) => (
-            <div key={i} className="debt-sim-warning">
+            <div key={i} className="aur-banner aur-banner--warn">
               <FiAlertTriangle size={14} />
               <span>{warningText(w)}</span>
             </div>
@@ -118,88 +118,107 @@ function DebtSimulationDetail({ simulation, onBack }) {
         </div>
       )}
 
-      <div className="debt-sim-section-title">Impacto medio — {simulation.nTrials} corridas, {simulation.horizonteMeses} meses</div>
-      <div className="debt-sim-metrics">
-        <MetricCard
-          label="Margen medio (con deuda)"
-          value={resumenDelta.margenMedio?.withDebt}
-          delta={resumenDelta.margenMedio?.delta}
-          currency={currency}
-        />
-        <MetricCard
-          label="Caja final media (con deuda)"
-          value={resumenDelta.cajaFinalMedia?.withDebt}
-          delta={resumenDelta.cajaFinalMedia?.delta}
-          currency={currency}
-        />
-        <MetricCard
-          label="Pago total del crédito"
-          value={payments.reduce((s, v) => s + (Number(v) || 0), 0)}
-          currency={currency}
-        />
-      </div>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiTrendingUp size={14} /></span>
+          <h3 className="aur-section-title">Impacto medio</h3>
+          <span className="aur-section-count">{simulation.nTrials} corridas · {simulation.horizonteMeses} meses</span>
+        </div>
+        <div className="debt-sim-metrics">
+          <MetricCard
+            label="Margen medio (con deuda)"
+            value={resumenDelta.margenMedio?.withDebt}
+            delta={resumenDelta.margenMedio?.delta}
+            currency={currency}
+          />
+          <MetricCard
+            label="Caja final media (con deuda)"
+            value={resumenDelta.cajaFinalMedia?.withDebt}
+            delta={resumenDelta.cajaFinalMedia?.delta}
+            currency={currency}
+          />
+          <MetricCard
+            label="Pago total del crédito"
+            value={payments.reduce((s, v) => s + (Number(v) || 0), 0)}
+            currency={currency}
+          />
+        </div>
+      </section>
 
-      <div className="debt-sim-section-title">Proyección mediana de caja mes a mes</div>
-      <CashflowDualChart
-        withDebt={withDebtCash}
-        withoutDebt={withoutDebtCash}
-        labels={monthLabels}
-      />
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiDollarSign size={14} /></span>
+          <h3 className="aur-section-title">Proyección mediana de caja mes a mes</h3>
+        </div>
+        <CashflowDualChart
+          withDebt={withDebtCash}
+          withoutDebt={withoutDebtCash}
+          labels={monthLabels}
+        />
+      </section>
 
-      <div className="debt-sim-section-title">Escenarios Monte Carlo</div>
-      <div className="debt-sim-scenario-grid">
-        {scenarios.map(name => {
-          const w = findScenario(withScenarios, name);
-          const wo = findScenario(withoutScenarios, name);
-          const d = scenarioDelta[name] || {};
-          if (!w || !wo) return null;
-          return (
-            <div key={name} className="debt-sim-scenario-card">
-              <div className="debt-sim-scenario-header">
-                <strong>{name}</strong>
-                <span title={SCENARIO_TOOLTIP[name]}><FiInfo size={11} /></span>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiInfo size={14} /></span>
+          <h3 className="aur-section-title">Escenarios Monte Carlo</h3>
+        </div>
+        <div className="debt-sim-scenario-grid">
+          {scenarios.map(name => {
+            const w = findScenario(withScenarios, name);
+            const wo = findScenario(withoutScenarios, name);
+            const d = scenarioDelta[name] || {};
+            if (!w || !wo) return null;
+            return (
+              <div key={name} className="debt-sim-scenario-card">
+                <div className="debt-sim-scenario-header">
+                  <strong>{name}</strong>
+                  <span title={SCENARIO_TOOLTIP[name]}><FiInfo size={11} /></span>
+                </div>
+                <div className="debt-sim-scenario-row">
+                  <span>Margen sin deuda</span>
+                  <strong>{formatMoney(wo.margenProyectado, currency, { decimals: 0 })}</strong>
+                </div>
+                <div className="debt-sim-scenario-row">
+                  <span>Margen con deuda</span>
+                  <strong>{formatMoney(w.margenProyectado, currency, { decimals: 0 })}</strong>
+                </div>
+                <div className={`debt-sim-scenario-row debt-sim-scenario-row--delta ${Number(d.margen?.delta) >= 0 ? 'is-positive' : 'is-negative'}`}>
+                  <span>Δ margen</span>
+                  <strong>{formatMoney(d.margen?.delta, currency, { decimals: 0 })}</strong>
+                </div>
+                <div className="debt-sim-scenario-divider" />
+                <div className="debt-sim-scenario-row">
+                  <span>Caja final mediana (p50)</span>
+                  <strong>{formatMoney(w.percentiles?.cajaFinal?.p50, currency, { decimals: 0 })}</strong>
+                </div>
+                <div className="debt-sim-scenario-row debt-sim-scenario-row--minor">
+                  <span>p10 · p90</span>
+                  <span>
+                    {formatMoney(w.percentiles?.cajaFinal?.p10, currency, { decimals: 0 })}
+                    {' · '}
+                    {formatMoney(w.percentiles?.cajaFinal?.p90, currency, { decimals: 0 })}
+                  </span>
+                </div>
               </div>
-              <div className="debt-sim-scenario-row">
-                <span>Margen sin deuda</span>
-                <strong>{formatMoney(wo.margenProyectado, currency, { decimals: 0 })}</strong>
-              </div>
-              <div className="debt-sim-scenario-row">
-                <span>Margen con deuda</span>
-                <strong>{formatMoney(w.margenProyectado, currency, { decimals: 0 })}</strong>
-              </div>
-              <div className={`debt-sim-scenario-row debt-sim-scenario-row--delta ${Number(d.margen?.delta) >= 0 ? 'is-positive' : 'is-negative'}`}>
-                <span>Δ margen</span>
-                <strong>{formatMoney(d.margen?.delta, currency, { decimals: 0 })}</strong>
-              </div>
-              <div className="debt-sim-scenario-divider" />
-              <div className="debt-sim-scenario-row">
-                <span>Caja final mediana (p50)</span>
-                <strong>{formatMoney(w.percentiles?.cajaFinal?.p50, currency, { decimals: 0 })}</strong>
-              </div>
-              <div className="debt-sim-scenario-row debt-sim-scenario-row--minor">
-                <span>p10 · p90</span>
-                <span>
-                  {formatMoney(w.percentiles?.cajaFinal?.p10, currency, { decimals: 0 })}
-                  {' · '}
-                  {formatMoney(w.percentiles?.cajaFinal?.p90, currency, { decimals: 0 })}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </section>
 
       {payments.length > 0 && (
-        <>
-          <div className="debt-sim-section-title">Cronograma de pagos</div>
-          <div className="debt-sim-payments-table-wrap">
-            <table className="debt-sim-payments-table">
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiDollarSign size={14} /></span>
+            <h3 className="aur-section-title">Cronograma de pagos</h3>
+          </div>
+          <div className="aur-table-wrap">
+            <table className="aur-table">
               <thead>
                 <tr>
                   <th>Mes</th>
-                  <th className="td-num">Pago</th>
-                  <th className="td-num">Retorno esperado</th>
-                  <th className="td-num">Neto</th>
+                  <th className="aur-td-num">Pago</th>
+                  <th className="aur-td-num">Retorno esperado</th>
+                  <th className="aur-td-num">Neto</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,9 +232,9 @@ function DebtSimulationDetail({ simulation, onBack }) {
                   return (
                     <tr key={i}>
                       <td>m{i + 1}</td>
-                      <td className="td-num">{formatMoney(payment, currency, { decimals: 0 })}</td>
-                      <td className="td-num">{formatMoney(netReturn, currency, { decimals: 0 })}</td>
-                      <td className={`td-num ${net >= 0 ? 'debt-sim-net-positive' : 'debt-sim-net-negative'}`}>
+                      <td className="aur-td-num">{formatMoney(payment, currency, { decimals: 0 })}</td>
+                      <td className="aur-td-num">{formatMoney(netReturn, currency, { decimals: 0 })}</td>
+                      <td className={`aur-td-num ${net >= 0 ? 'debt-sim-net-positive' : 'debt-sim-net-negative'}`}>
                         {formatMoney(net, currency, { decimals: 0 })}
                       </td>
                     </tr>
@@ -224,7 +243,7 @@ function DebtSimulationDetail({ simulation, onBack }) {
               </tbody>
             </table>
           </div>
-        </>
+        </section>
       )}
 
       <p className="debt-sim-footnote">
