@@ -33,85 +33,202 @@ function BuyerForm({ initial, onSubmit, onCancel, saving }) {
   };
 
   return (
-    <form className="lote-form-card" onSubmit={handleSubmit}>
-      <div className="finance-form-grid">
-        <div className="finance-field">
-          <label>Nombre del comprador *</label>
-          <input type="text" value={form.name} onChange={update('name')} required />
+    <form onSubmit={handleSubmit} noValidate>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">01</span>
+          <h3 className="aur-section-title">Identificación</h3>
         </div>
-        <div className="finance-field">
-          <label>Cédula jurídica / RUC</label>
-          <input type="text" value={form.taxId} onChange={update('taxId')} />
-        </div>
-        <div className="finance-field">
-          <label>Teléfono</label>
-          <input type="text" value={form.phone} onChange={update('phone')} />
-        </div>
-        <div className="finance-field">
-          <label>Email</label>
-          <input type="email" value={form.email} onChange={update('email')} />
-        </div>
-        <div className="finance-field">
-          <label>Contacto principal</label>
-          <input type="text" value={form.contact} onChange={update('contact')} />
-        </div>
-        <div className="finance-field">
-          <label>WhatsApp</label>
-          <input type="text" value={form.whatsapp} onChange={update('whatsapp')} />
-        </div>
-        <div className="finance-field finance-field-full">
-          <label>Dirección</label>
-          <input type="text" value={form.address} onChange={update('address')} />
-        </div>
-        <div className="finance-field">
-          <label>Sitio web</label>
-          <input type="text" value={form.website} onChange={update('website')} />
-        </div>
-        <div className="finance-field">
-          <label>País</label>
-          <input type="text" value={form.country} onChange={update('country')} />
-        </div>
-        <div className="finance-field">
-          <label>Forma de pago</label>
-          <select value={form.paymentType} onChange={update('paymentType')}>
-            <option value="contado">Contado</option>
-            <option value="credito">Crédito</option>
-          </select>
-        </div>
-        {form.paymentType === 'credito' && (
-          <div className="finance-field">
-            <label>Días de crédito</label>
-            <input type="number" min="1" max="365" value={form.creditDays} onChange={update('creditDays')} />
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-name">Nombre del comprador</label>
+            <input
+              id="bu-name"
+              type="text"
+              className="aur-input"
+              value={form.name}
+              onChange={update('name')}
+              required
+            />
           </div>
-        )}
-        <div className="finance-field">
-          <label>Moneda</label>
-          <select value={form.currency} onChange={update('currency')}>
-            <option value="USD">USD</option>
-            <option value="CRC">CRC</option>
-          </select>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-taxid">Cédula jurídica / RUC</label>
+            <input
+              id="bu-taxid"
+              type="text"
+              className="aur-input"
+              value={form.taxId}
+              onChange={update('taxId')}
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-country">País</label>
+            <input
+              id="bu-country"
+              type="text"
+              className="aur-input"
+              value={form.country}
+              onChange={update('country')}
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-status">Estado</label>
+            <select
+              id="bu-status"
+              className="aur-select"
+              value={form.status}
+              onChange={update('status')}
+            >
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
+          </div>
         </div>
-        <div className="finance-field">
-          <label>Límite de crédito</label>
-          <input type="number" min="0" step="0.01" value={form.creditLimit} onChange={update('creditLimit')} />
+      </section>
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">02</span>
+          <h3 className="aur-section-title">Contacto</h3>
         </div>
-        <div className="finance-field">
-          <label>Estado</label>
-          <select value={form.status} onChange={update('status')}>
-            <option value="activo">Activo</option>
-            <option value="inactivo">Inactivo</option>
-          </select>
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-contact">Contacto principal</label>
+            <input
+              id="bu-contact"
+              type="text"
+              className="aur-input"
+              value={form.contact}
+              onChange={update('contact')}
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-phone">Teléfono</label>
+            <input
+              id="bu-phone"
+              type="text"
+              className="aur-input"
+              value={form.phone}
+              onChange={update('phone')}
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-whatsapp">WhatsApp</label>
+            <input
+              id="bu-whatsapp"
+              type="text"
+              className="aur-input"
+              value={form.whatsapp}
+              onChange={update('whatsapp')}
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-email">Email</label>
+            <input
+              id="bu-email"
+              type="email"
+              className="aur-input"
+              value={form.email}
+              onChange={update('email')}
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-website">Sitio web</label>
+            <input
+              id="bu-website"
+              type="text"
+              className="aur-input"
+              value={form.website}
+              onChange={update('website')}
+            />
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="bu-address">Dirección</label>
+            <input
+              id="bu-address"
+              type="text"
+              className="aur-input"
+              value={form.address}
+              onChange={update('address')}
+            />
+          </div>
         </div>
-        <div className="finance-field finance-field-full">
-          <label>Notas</label>
-          <textarea rows="3" value={form.notes} onChange={update('notes')} />
+      </section>
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">03</span>
+          <h3 className="aur-section-title">Pago y crédito</h3>
         </div>
-      </div>
-      <div className="lote-form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}>
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-paytype">Forma de pago</label>
+            <select
+              id="bu-paytype"
+              className="aur-select"
+              value={form.paymentType}
+              onChange={update('paymentType')}
+            >
+              <option value="contado">Contado</option>
+              <option value="credito">Crédito</option>
+            </select>
+          </div>
+          {form.paymentType === 'credito' && (
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="bu-creditdays">Días de crédito</label>
+              <input
+                id="bu-creditdays"
+                type="number"
+                className="aur-input aur-input--num"
+                min="1"
+                max="365"
+                value={form.creditDays}
+                onChange={update('creditDays')}
+              />
+            </div>
+          )}
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-currency">Moneda</label>
+            <select
+              id="bu-currency"
+              className="aur-select"
+              value={form.currency}
+              onChange={update('currency')}
+            >
+              <option value="USD">USD</option>
+              <option value="CRC">CRC</option>
+            </select>
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="bu-creditlimit">Límite de crédito</label>
+            <input
+              id="bu-creditlimit"
+              type="number"
+              className="aur-input aur-input--num"
+              min="0"
+              step="0.01"
+              value={form.creditLimit}
+              onChange={update('creditLimit')}
+            />
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="bu-notes">Notas</label>
+            <textarea
+              id="bu-notes"
+              className="aur-textarea"
+              rows="3"
+              value={form.notes}
+              onChange={update('notes')}
+            />
+          </div>
+        </div>
+      </section>
+
+      <div className="aur-form-actions">
+        <button type="button" className="aur-btn-text" onClick={onCancel} disabled={saving}>
           <FiX /> Cancelar
         </button>
-        <button type="submit" className="btn-primary" disabled={saving}>
+        <button type="submit" className="aur-btn-pill" disabled={saving}>
           <FiSave /> {saving ? 'Guardando…' : 'Guardar'}
         </button>
       </div>

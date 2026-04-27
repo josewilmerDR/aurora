@@ -104,186 +104,264 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
     onSubmit(payload);
   };
 
+  const useCaseHint = USECASE_TIPOS.find(t => t.value === form.useCaseTipo)?.hint;
+
   return (
-    <form className="lote-form-card" onSubmit={handleSubmit}>
-      <div className="finance-form-grid">
-
-        <div className="finance-field">
-          <label>Snapshot financiero *</label>
-          <select value={form.snapshotId} onChange={update('snapshotId')} required disabled={!snapshots.length}>
-            {!snapshots.length && <option value="">No hay snapshots — creá uno primero</option>}
-            {snapshots.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.asOf} — margen {(Number(s.netMargin) * 100).toFixed(1)}%
-              </option>
-            ))}
-          </select>
+    <form onSubmit={handleSubmit} noValidate>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">01</span>
+          <h3 className="aur-section-title">Insumos</h3>
         </div>
-
-        <div className="finance-field">
-          <label>Oferta de crédito *</label>
-          <select value={form.creditProductId} onChange={update('creditProductId')} required disabled={!offers.length}>
-            {!offers.length && <option value="">No hay ofertas activas — registrá una primero</option>}
-            {offers.map(o => (
-              <option key={o.id} value={o.id}>
-                {o.providerName} — {formatMoney(o.monedaMin, o.moneda, { decimals: 0 })} · {o.plazoMesesMin}m · {(Number(o.aprMin) * 100).toFixed(1)}%
-              </option>
-            ))}
-          </select>
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="ds-snapshot">Snapshot financiero</label>
+            <select
+              id="ds-snapshot"
+              className="aur-select"
+              value={form.snapshotId}
+              onChange={update('snapshotId')}
+              required
+              disabled={!snapshots.length}
+            >
+              {!snapshots.length && <option value="">No hay snapshots — creá uno primero</option>}
+              {snapshots.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.asOf} — margen {(Number(s.netMargin) * 100).toFixed(1)}%
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="ds-offer">Oferta de crédito</label>
+            <select
+              id="ds-offer"
+              className="aur-select"
+              value={form.creditProductId}
+              onChange={update('creditProductId')}
+              required
+              disabled={!offers.length}
+            >
+              {!offers.length && <option value="">No hay ofertas activas — registrá una primero</option>}
+              {offers.map(o => (
+                <option key={o.id} value={o.id}>
+                  {o.providerName} — {formatMoney(o.monedaMin, o.moneda, { decimals: 0 })} · {o.plazoMesesMin}m · {(Number(o.aprMin) * 100).toFixed(1)}%
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-
         {selectedOffer && (
-          <div className="finance-field finance-field-full">
-            <div className="debt-sim-offer-summary">
-              <div>
-                <span className="debt-sim-offer-label">Monto</span>
-                <strong>{formatMoney(selectedOffer.monedaMin, selectedOffer.moneda, { decimals: 0 })}</strong>
-              </div>
-              <div>
-                <span className="debt-sim-offer-label">Plazo</span>
-                <strong>{selectedOffer.plazoMesesMin} meses</strong>
-              </div>
-              <div>
-                <span className="debt-sim-offer-label">APR</span>
-                <strong>{(Number(selectedOffer.aprMin) * 100).toFixed(2)}%</strong>
-              </div>
-              <div>
-                <span className="debt-sim-offer-label">Esquema</span>
-                <strong>{selectedOffer.esquemaAmortizacion}</strong>
-              </div>
+          <div className="debt-sim-offer-summary">
+            <div>
+              <span className="debt-sim-offer-label">Monto</span>
+              <strong>{formatMoney(selectedOffer.monedaMin, selectedOffer.moneda, { decimals: 0 })}</strong>
+            </div>
+            <div>
+              <span className="debt-sim-offer-label">Plazo</span>
+              <strong>{selectedOffer.plazoMesesMin} meses</strong>
+            </div>
+            <div>
+              <span className="debt-sim-offer-label">APR</span>
+              <strong>{(Number(selectedOffer.aprMin) * 100).toFixed(2)}%</strong>
+            </div>
+            <div>
+              <span className="debt-sim-offer-label">Esquema</span>
+              <strong>{selectedOffer.esquemaAmortizacion}</strong>
             </div>
           </div>
         )}
+      </section>
 
-        <div className="finance-field finance-field-full">
-          <label>Destino del crédito *</label>
-          <select value={form.useCaseTipo} onChange={update('useCaseTipo')}>
-            {USECASE_TIPOS.map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-          <span className="debt-sim-hint">
-            {USECASE_TIPOS.find(t => t.value === form.useCaseTipo)?.hint}
-          </span>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">02</span>
+          <h3 className="aur-section-title">Destino y retorno</h3>
         </div>
-
-        <div className="finance-field finance-field-full">
-          <label>Detalle (opcional)</label>
-          <input
-            type="text"
-            value={form.useCaseDetalle}
-            onChange={update('useCaseDetalle')}
-            placeholder="Ej: Expansión de 10 ha de chile dulce en lote norte."
-          />
-        </div>
-
-        <div className="finance-field finance-field-full">
-          <label>Modelo de retorno esperado *</label>
-          <div className="debt-sim-radio-group">
-            {RETURN_KINDS.map(r => (
-              <label key={r.value} className={`debt-sim-radio${form.returnKind === r.value ? ' debt-sim-radio--active' : ''}`}>
-                <input
-                  type="radio"
-                  name="returnKind"
-                  value={r.value}
-                  checked={form.returnKind === r.value}
-                  onChange={update('returnKind')}
-                />
-                <div>
-                  <strong>{r.label}</strong>
-                  <span>{r.hint}</span>
-                </div>
-              </label>
-            ))}
+        <div className="aur-list">
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="ds-usecase">Destino del crédito</label>
+            <select
+              id="ds-usecase"
+              className="aur-select"
+              value={form.useCaseTipo}
+              onChange={update('useCaseTipo')}
+            >
+              {USECASE_TIPOS.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            {useCaseHint && <span className="aur-field-hint">{useCaseHint}</span>}
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="ds-detalle">Detalle (opcional)</label>
+            <input
+              id="ds-detalle"
+              type="text"
+              className="aur-input"
+              value={form.useCaseDetalle}
+              onChange={update('useCaseDetalle')}
+              placeholder="Ej: Expansión de 10 ha de chile dulce en lote norte."
+            />
           </div>
         </div>
 
+        <div className="debt-sim-radio-group" role="radiogroup" aria-label="Modelo de retorno esperado">
+          {RETURN_KINDS.map(r => (
+            <label
+              key={r.value}
+              className={`debt-sim-radio${form.returnKind === r.value ? ' debt-sim-radio--active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="returnKind"
+                value={r.value}
+                checked={form.returnKind === r.value}
+                onChange={update('returnKind')}
+              />
+              <div>
+                <strong>{r.label}</strong>
+                <span>{r.hint}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+
         {(form.returnKind === 'linear' || form.returnKind === 'delayed_revenue') && (
-          <div className="finance-field">
-            <label>Ingreso adicional mensual ({selectedOffer?.moneda || 'USD'}) *</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.monthlyIncrease}
-              onChange={update('monthlyIncrease')}
-              required
-            />
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="ds-monthly">
+                Ingreso adicional mensual ({selectedOffer?.moneda || 'USD'})
+              </label>
+              <input
+                id="ds-monthly"
+                type="number"
+                className="aur-input aur-input--num"
+                min="0"
+                step="0.01"
+                value={form.monthlyIncrease}
+                onChange={update('monthlyIncrease')}
+                required
+              />
+            </div>
           </div>
         )}
 
         {form.returnKind === 'delayed_revenue' && (
-          <div className="finance-field">
-            <label>Mes en que arranca el retorno *</label>
-            <input
-              type="number"
-              min="0"
-              max={Number(form.horizonteMeses) - 1}
-              step="1"
-              value={form.startMonth}
-              onChange={update('startMonth')}
-              required
-            />
-            <span className="debt-sim-hint">0 = este mes. Ej: una siembra que rinde a los 4 meses → 4.</span>
+          <div className="aur-list">
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="ds-startmonth">Mes en que arranca el retorno</label>
+              <input
+                id="ds-startmonth"
+                type="number"
+                className="aur-input aur-input--num"
+                min="0"
+                max={Number(form.horizonteMeses) - 1}
+                step="1"
+                value={form.startMonth}
+                onChange={update('startMonth')}
+                required
+              />
+              <span className="aur-field-hint">0 = este mes. Ej: una siembra que rinde a los 4 meses → 4.</span>
+            </div>
           </div>
         )}
 
         {form.returnKind === 'cost_reduction' && (
-          <div className="finance-field">
-            <label>Reducción mensual de costo ({selectedOffer?.moneda || 'USD'}) *</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.monthlyCostReduction}
-              onChange={update('monthlyCostReduction')}
-              required
-            />
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="ds-costred">
+                Reducción mensual de costo ({selectedOffer?.moneda || 'USD'})
+              </label>
+              <input
+                id="ds-costred"
+                type="number"
+                className="aur-input aur-input--num"
+                min="0"
+                step="0.01"
+                value={form.monthlyCostReduction}
+                onChange={update('monthlyCostReduction')}
+                required
+              />
+            </div>
           </div>
         )}
+      </section>
 
-        <div className="finance-field finance-field-full">
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">03</span>
+          <h3 className="aur-section-title">Parámetros avanzados</h3>
           <button
             type="button"
-            className="debt-sim-advanced-toggle"
+            className="aur-btn-text"
             onClick={() => setAdvancedOpen(v => !v)}
+            aria-expanded={advancedOpen}
           >
             {advancedOpen ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-            Parámetros avanzados
+            {advancedOpen ? 'Ocultar' : 'Mostrar'}
           </button>
         </div>
-
         {advancedOpen && (
-          <>
-            <div className="finance-field">
-              <label>Horizonte (meses)</label>
-              <input type="number" min="1" max="36" step="1" value={form.horizonteMeses} onChange={update('horizonteMeses')} />
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="ds-horizon">Horizonte (meses)</label>
+              <input
+                id="ds-horizon"
+                type="number"
+                className="aur-input aur-input--num"
+                min="1"
+                max="36"
+                step="1"
+                value={form.horizonteMeses}
+                onChange={update('horizonteMeses')}
+              />
             </div>
-            <div className="finance-field">
-              <label>N° de corridas Monte Carlo</label>
-              <input type="number" min="100" max="5000" step="100" value={form.nTrials} onChange={update('nTrials')} />
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="ds-trials">N° de corridas Monte Carlo</label>
+              <input
+                id="ds-trials"
+                type="number"
+                className="aur-input aur-input--num"
+                min="100"
+                max="5000"
+                step="100"
+                value={form.nTrials}
+                onChange={update('nTrials')}
+              />
             </div>
-            <div className="finance-field">
-              <label>Semilla</label>
-              <input type="number" min="1" step="1" value={form.seed} onChange={update('seed')} />
-              <span className="debt-sim-hint">Misma semilla = resultados reproducibles.</span>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="ds-seed">Semilla</label>
+              <input
+                id="ds-seed"
+                type="number"
+                className="aur-input aur-input--num"
+                min="1"
+                step="1"
+                value={form.seed}
+                onChange={update('seed')}
+              />
+              <span className="aur-field-hint">Misma semilla = resultados reproducibles.</span>
             </div>
-          </>
+          </div>
         )}
-
-      </div>
+      </section>
 
       {error && (
-        <div className="finance-empty" style={{ color: 'var(--aurora-magenta)', marginTop: 10 }}>
-          {error}
+        <div className="aur-row aur-row--multiline">
+          <span className="aur-field-error">{error}</span>
         </div>
       )}
 
-      <div className="lote-form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel} disabled={submitting}>
+      <div className="aur-form-actions">
+        <button type="button" className="aur-btn-text" onClick={onCancel} disabled={submitting}>
           <FiX /> Cancelar
         </button>
-        <button type="submit" className="btn-primary" disabled={submitting || !snapshots.length || !offers.length}>
+        <button
+          type="submit"
+          className="aur-btn-pill"
+          disabled={submitting || !snapshots.length || !offers.length}
+        >
           <FiPlay /> {submitting ? 'Corriendo Monte Carlo…' : 'Simular'}
         </button>
       </div>
