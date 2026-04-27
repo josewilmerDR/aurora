@@ -163,17 +163,34 @@
   grid-column: 1 / -1;
 }
 
-/* ── Chain rows ─────────────────────────────────────────────────────────── */
+/* ── ChainHistoryWidget — scroll + row + chevron + detail expandido ────── */
+.ceo-chain-scroll {
+  overflow-y: auto;
+  max-height: 280px;
+}
+
+/* Cada fila es un <button> clickable (no <div>): preserva accesibilidad
+   teclado/lectores, expande el detail al click. Reset del button nativo
+   + grid layout idéntico al row original. */
 .ceo-chain-row {
+  width: 100%;
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px 0;
+  border: none;
   border-bottom: 1px dashed var(--aur-divider);
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-size: var(--aur-fs-footnote);
+  text-align: left;
+  cursor: pointer;
 }
 .ceo-chain-row:last-child { border-bottom: none; }
+.ceo-chain-row:hover { background: var(--aur-bg-hover); }
+
 .ceo-chain-objective {
   color: var(--aur-text);
   overflow: hidden;
@@ -184,6 +201,35 @@
   font-size: var(--aur-fs-caption);
   color: var(--aur-text-3);
   font-variant-numeric: tabular-nums;
+}
+
+.ceo-chain-chevron {
+  color: var(--aur-text-3);
+  transition: transform 0.15s var(--aur-ease);
+}
+.ceo-chain-chevron--open {
+  transform: rotate(90deg);
+}
+
+/* Detail expandible: muestra rationale + steps con sus status + rollback. */
+.ceo-chain-detail {
+  padding: 8px 12px 12px 12px;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+}
+.ceo-chain-rationale {
+  margin-bottom: 8px;
+}
+.ceo-chain-step {
+  margin-bottom: 4px;
+}
+.ceo-chain-step-rationale {
+  color: var(--aur-text-3);
+  margin-left: 4px;
+}
+.ceo-chain-rollback {
+  margin-top: 8px;
+  color: var(--aur-danger);
 }
 
 /* ── Status badges (chains + proposals: 11 variantes) ───────────────────── */
@@ -209,6 +255,47 @@
 .ceo-status-badge--expired               { background: var(--aur-badge-yellow-bg);  color: var(--aur-badge-yellow-fg); }
 .ceo-status-badge--proposed              { background: var(--aur-badge-violet-bg);  color: var(--aur-badge-violet-fg); }
 .ceo-status-badge--rejected              { background: var(--aur-badge-gray-bg);    color: var(--aur-text-3); }
+
+/* ── DynamicGuardrailsWidget — 2-column grid + corridor reference ──────── */
+.ceo-guardrails-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.ceo-guardrails-scroll {
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.ceo-guardrails-col-title {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.ceo-guardrails-empty {
+  padding: 8px 0;
+}
+
+.ceo-corridor-row {
+  font-size: var(--aur-fs-caption);
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--aur-divider);
+}
+.ceo-corridor-row:last-child { border-bottom: none; }
+.ceo-corridor-key {
+  color: var(--aur-text);
+  font-weight: 500;
+}
+.ceo-corridor-values {
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Guardrail proposals ────────────────────────────────────────────────── */
 .ceo-proposal-row {

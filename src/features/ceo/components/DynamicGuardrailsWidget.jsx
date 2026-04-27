@@ -69,21 +69,24 @@ function DynamicGuardrailsWidget() {
   const executed = proposals.filter(p => p.status === 'executed').slice(0, 3);
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiSliders size={14} /> Ajustes propuestos a las reglas</span>
-        <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
-          <FiRefreshCw size={12} />
-        </button>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiSliders size={14} /></span>
+        <h3 className="aur-section-title">Ajustes propuestos a las reglas</h3>
+        <div className="aur-section-actions">
+          <button type="button" className="aur-icon-btn" onClick={load} disabled={loading} title="Recargar">
+            <FiRefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
           <div>
-            <div className="fin-widget-primary" style={{ fontSize: '1.4rem' }}>
+            <div className="fin-widget-primary">
               {pending.length}
             </div>
             <div className="fin-widget-sub">
@@ -91,14 +94,12 @@ function DynamicGuardrailsWidget() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, overflow: 'hidden' }}>
+          <div className="ceo-guardrails-grid">
             {/* Pending proposals */}
-            <div style={{ overflowY: 'auto', maxHeight: 200 }}>
-              <div className="ceo-score-meta" style={{ marginBottom: 6, textTransform: 'uppercase' }}>
-                Cambios pendientes
-              </div>
+            <div className="ceo-guardrails-scroll">
+              <div className="ceo-guardrails-col-title">Cambios pendientes</div>
               {pending.length === 0 ? (
-                <div className="fin-widget-empty" style={{ padding: '8px 0' }}>
+                <div className="fin-widget-empty ceo-guardrails-empty">
                   Sin cambios propuestos por ahora.
                 </div>
               ) : (
@@ -116,7 +117,7 @@ function DynamicGuardrailsWidget() {
                         <div className="ceo-proposal-actions">
                           <button
                             type="button"
-                            className="btn btn-primary"
+                            className="aur-btn-pill aur-btn-pill--sm"
                             disabled={actingId === p.id}
                             onClick={() => handleAction(p.id, 'approve')}
                           >
@@ -124,7 +125,7 @@ function DynamicGuardrailsWidget() {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary"
+                            className="aur-btn-text"
                             disabled={actingId === p.id}
                             onClick={() => handleAction(p.id, 'reject')}
                           >
@@ -139,14 +140,12 @@ function DynamicGuardrailsWidget() {
             </div>
 
             {/* Corridor reference */}
-            <div style={{ overflowY: 'auto', maxHeight: 200 }}>
-              <div className="ceo-score-meta" style={{ marginBottom: 6, textTransform: 'uppercase' }}>
-                Rangos permitidos (mín / actual / máx)
-              </div>
+            <div className="ceo-guardrails-scroll">
+              <div className="ceo-guardrails-col-title">Rangos permitidos (mín / actual / máx)</div>
               {corridor.map(c => (
-                <div key={c.key} style={{ fontSize: '0.76rem', padding: '4px 0', borderBottom: '1px dashed var(--aurora-border)' }}>
-                  <div style={{ color: 'var(--aurora-light)', fontWeight: 500 }}>{c.key}</div>
-                  <div style={{ opacity: 0.65, fontVariantNumeric: 'tabular-nums' }}>
+                <div key={c.key} className="ceo-corridor-row">
+                  <div className="ceo-corridor-key">{c.key}</div>
+                  <div className="ceo-corridor-values">
                     {fmtValue(c.floor, c.unit)} / <strong>{fmtValue(c.default, c.unit)}</strong> / {fmtValue(c.ceiling, c.unit)}
                   </div>
                 </div>
@@ -155,7 +154,7 @@ function DynamicGuardrailsWidget() {
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
 

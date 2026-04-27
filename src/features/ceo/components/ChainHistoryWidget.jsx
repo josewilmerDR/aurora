@@ -73,16 +73,19 @@ function ChainHistoryWidget() {
   };
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiLink2 size={14} /> Tareas en cadena recientes</span>
-        <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
-          <FiRefreshCw size={12} />
-        </button>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiLink2 size={14} /></span>
+        <h3 className="aur-section-title">Tareas en cadena recientes</h3>
+        <div className="aur-section-actions">
+          <button type="button" className="aur-icon-btn" onClick={load} disabled={loading} title="Recargar">
+            <FiRefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         rows.length === 0 ? (
@@ -91,13 +94,13 @@ function ChainHistoryWidget() {
             (ejemplo: si la caja baja → revisa gastos, posterga compras y reasigna personal).
           </div>
         ) : (
-          <div style={{ overflowY: 'auto', maxHeight: 280 }}>
+          <div className="ceo-chain-scroll">
             {rows.map(r => (
               <div key={r.id}>
-                <div
+                <button
+                  type="button"
                   className="ceo-chain-row"
                   onClick={() => expand(r.id)}
-                  style={{ cursor: 'pointer' }}
                 >
                   <div>
                     <div className="ceo-chain-objective">{r.objective || '(sin meta definida)'}</div>
@@ -109,29 +112,25 @@ function ChainHistoryWidget() {
                   <StatusBadge status={r.status} />
                   <FiChevronRight
                     size={14}
-                    style={{
-                      transform: expandedId === r.id ? 'rotate(90deg)' : 'none',
-                      transition: 'transform 0.15s',
-                      opacity: 0.6,
-                    }}
+                    className={`ceo-chain-chevron${expandedId === r.id ? ' ceo-chain-chevron--open' : ''}`}
                   />
-                </div>
+                </button>
 
                 {expandedId === r.id && (
-                  <div style={{ padding: '8px 12px 12px 12px', fontSize: '0.78rem', opacity: 0.85 }}>
+                  <div className="ceo-chain-detail">
                     {detailLoading && <div>Cargando detalle…</div>}
                     {detail?.error && <div className="fin-widget-error">{detail.error}</div>}
                     {detail && !detail.error && (
                       <>
                         {detail.plan?.overallRationale && (
-                          <div style={{ marginBottom: 8 }}>
+                          <div className="ceo-chain-rationale">
                             <em>{detail.plan.overallRationale}</em>
                           </div>
                         )}
                         {Array.isArray(detail.plan?.steps) && detail.plan.steps.map(s => {
                           const exec = detail.execution?.perStep?.find(e => e.stepId === s.id);
                           return (
-                            <div key={s.id} style={{ marginBottom: 4 }}>
+                            <div key={s.id} className="ceo-chain-step">
                               <span className="ceo-domain-chip">{s.id}</span>{' '}
                               <strong>{s.actionType}</strong>{' '}
                               {exec && (
@@ -139,12 +138,12 @@ function ChainHistoryWidget() {
                                   {exec.status}
                                 </span>
                               )}
-                              <div style={{ opacity: 0.7, marginLeft: 4 }}>{s.rationale}</div>
+                              <div className="ceo-chain-step-rationale">{s.rationale}</div>
                             </div>
                           );
                         })}
                         {detail.execution?.rollback && (
-                          <div style={{ marginTop: 8, color: '#ff8080' }}>
+                          <div className="ceo-chain-rollback">
                             Pasos deshechos: {detail.execution.rollback.fullyApplied ? 'todos' : 'parcialmente'} —
                             disparado por <code>{detail.execution.rollback.triggeredByStepId || 'cancelación'}</code>
                           </div>
@@ -158,7 +157,7 @@ function ChainHistoryWidget() {
           </div>
         )
       )}
-    </div>
+    </section>
   );
 }
 
