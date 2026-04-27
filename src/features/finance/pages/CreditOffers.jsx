@@ -318,7 +318,7 @@ function CreditOffers() {
           <div className="siembra-empty-state">
             <FiPackage size={36} />
             <p>Aún no hay ofertas registradas.</p>
-            <p style={{ opacity: 0.7, fontSize: 13 }}>Ingresá la primera oferta que hayas recibido de un banco.</p>
+            <p className="fin-page-empty-hint">Ingresá la primera oferta que hayas recibido de un banco.</p>
           </div>
         ) : (
           <>

@@ -355,28 +355,3 @@
   flex-shrink: 0;
 }
 
-/* ── Form: hint text legacy (todavía referenciada por DebtSimulatorForm
-   en algunos hints inline; aur-field-hint la cubre cuando aplica). ──── */
-.debt-sim-hint {
-  font-size: var(--aur-fs-caption);
-  color: var(--aur-text-3);
-  margin-top: 2px;
-}
-
-/* ── Form: advanced toggle legacy ─────────────────────────────────────── */
-.debt-sim-advanced-toggle {
-  background: transparent;
-  border: none;
-  color: var(--aur-text-3);
-  font-size: var(--aur-fs-caption);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  transition: color 0.15s ease;
-}
-
-.debt-sim-advanced-toggle:hover {
-  color: var(--aur-accent);
-}
