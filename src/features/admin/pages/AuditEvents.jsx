@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FiShield, FiFilter, FiRefreshCw, FiChevronDown, FiChevronRight,
-  FiAlertTriangle, FiAlertCircle, FiInfo, FiClock, FiUser,
+  FiAlertTriangle, FiAlertCircle, FiInfo, FiClock, FiUser, FiX,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -49,12 +49,19 @@ const SEVERITY_OPTIONS = [
   { value: 'critical', label: 'Crítico' },
 ];
 
-// Map severity → icon + accent class for the row indicator.
 const SEVERITY_META = {
-  info:     { Icon: FiInfo,           cls: 'audit-sev--info',     label: 'Info' },
-  warning:  { Icon: FiAlertTriangle,  cls: 'audit-sev--warning',  label: 'Advertencia' },
-  critical: { Icon: FiAlertCircle,    cls: 'audit-sev--critical', label: 'Crítico' },
+  info:     { Icon: FiInfo,           label: 'Info' },
+  warning:  { Icon: FiAlertTriangle,  label: 'Advertencia' },
+  critical: { Icon: FiAlertCircle,    label: 'Crítico' },
 };
+
+const SEVERITY_BADGE_VARIANT = {
+  info:     'aur-badge--blue',
+  warning:  'aur-badge--yellow',
+  critical: 'aur-badge--magenta',
+};
+
+const LIMIT_OPTIONS = [50, 100, 250, 500];
 
 function formatTimestamp(iso) {
   if (!iso) return '—';
@@ -161,130 +168,198 @@ function AuditEvents() {
 
   const hasFilters = filterAction || filterSeverity || filterSince || filterUntil || limit !== 100;
 
-  return (
-    <div className="audit-page-wrap">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+  if (loading) {
+    return <div className="aur-page-loading" />;
+  }
 
-      <div className="audit-header">
-        <div className="audit-header-title">
-          <FiShield size={18} />
-          <h2>Registro de auditoría</h2>
-        </div>
-        <button className="btn btn-secondary audit-refresh-btn" onClick={fetchEvents} disabled={loading}>
-          <FiRefreshCw size={14} className={loading ? 'audit-spin' : ''} />
-          Actualizar
-        </button>
-      </div>
-
-      <div className="audit-filters">
-        <div className="audit-filter-item">
-          <label><FiFilter size={12} /> Acción</label>
-          <select value={filterAction} onChange={e => setFilterAction(e.target.value)}>
-            {ACTION_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="audit-filter-item">
-          <label>Severidad</label>
-          <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}>
-            {SEVERITY_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="audit-filter-item">
-          <label>Desde</label>
-          <input type="date" value={filterSince} onChange={e => setFilterSince(e.target.value)} />
-        </div>
-        <div className="audit-filter-item">
-          <label>Hasta</label>
-          <input type="date" value={filterUntil} onChange={e => setFilterUntil(e.target.value)} />
-        </div>
-        <div className="audit-filter-item audit-filter-item--narrow">
-          <label>Límite</label>
-          <select value={limit} onChange={e => setLimit(Number(e.target.value))}>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value={250}>250</option>
-            <option value={500}>500</option>
-          </select>
-        </div>
-        {hasFilters && (
-          <button className="audit-reset-btn" onClick={resetFilters}>
-            Limpiar
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="audit-loading" />
-      ) : events.length === 0 ? (
-        <div className="audit-empty">
-          <FiShield size={32} />
-          <p>{hasFilters ? 'Ningún evento coincide con los filtros.' : 'No hay eventos registrados todavía.'}</p>
-          {!hasFilters && (
+  if (events.length === 0 && !hasFilters) {
+    return (
+      <>
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        <div className="aur-sheet aur-sheet--empty">
+          <div className="audit-empty">
+            <FiShield size={36} />
+            <p>No hay eventos registrados todavía.</p>
             <p className="audit-empty-hint">
               Los eventos aparecen aquí cuando se crean usuarios, se cambian roles o el sistema detecta actividad sospechosa.
             </p>
-          )}
+          </div>
         </div>
-      ) : (
-        <ul className="audit-list">
-          {events.map(ev => {
-            const sev = SEVERITY_META[ev.severity] || SEVERITY_META.info;
-            const SevIcon = sev.Icon;
-            const isOpen = expanded.has(ev.id);
-            const actionLabel = ACTION_LABEL[ev.action] || ev.action;
-            const targetStr = formatTarget(ev.target);
+      </>
+    );
+  }
 
-            return (
-              <li key={ev.id} className={`audit-row ${sev.cls}`}>
-                <button
-                  className="audit-row-header"
-                  onClick={() => toggleExpand(ev.id)}
-                  aria-expanded={isOpen}
-                >
-                  <span className="audit-row-sev" title={sev.label}>
-                    <SevIcon size={14} />
-                  </span>
-                  <span className="audit-row-time">
-                    <FiClock size={12} />
-                    {formatTimestamp(ev.timestamp)}
-                  </span>
-                  <span className="audit-row-action">{actionLabel}</span>
-                  <span className="audit-row-actor">
-                    <FiUser size={12} />
-                    {ev.actorEmail || ev.actorUid || 'sistema'}
-                    {ev.actorRole && <span className="audit-row-role">· {ev.actorRole}</span>}
-                  </span>
-                  {targetStr && <span className="audit-row-target">{targetStr}</span>}
-                  <span className="audit-row-chevron">
-                    {isOpen ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                  </span>
+  return (
+    <>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      <div className="aur-sheet">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h2 className="aur-sheet-title">Registro de auditoría</h2>
+            <p className="aur-sheet-subtitle">
+              Eventos críticos del sistema: creaciones, cambios de rol, autopilot y seguridad.
+            </p>
+          </div>
+          <div className="aur-sheet-header-actions">
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={fetchEvents}
+              disabled={loading}
+            >
+              <FiRefreshCw size={13} className={loading ? 'audit-spin' : ''} />
+              Actualizar
+            </button>
+          </div>
+        </header>
+
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">01</span>
+            <h3>Filtros</h3>
+            {hasFilters && (
+              <div className="aur-section-actions">
+                <button type="button" className="aur-chip aur-chip--ghost" onClick={resetFilters}>
+                  <FiX size={11} /> Limpiar
                 </button>
-                {isOpen && (
-                  <div className="audit-row-body">
-                    <MetadataRow metadata={ev.metadata} />
-                    <div className="audit-row-ids">
-                      <span>ID evento: <code>{ev.id}</code></span>
-                      {ev.fincaId && <span>Finca: <code>{ev.fincaId}</code></span>}
-                      {ev.actorUid && <span>UID: <code>{ev.actorUid}</code></span>}
-                    </div>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              </div>
+            )}
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="audit-action">
+                <FiFilter size={12} /> Acción
+              </label>
+              <select
+                id="audit-action"
+                className="aur-select"
+                value={filterAction}
+                onChange={e => setFilterAction(e.target.value)}
+              >
+                {ACTION_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="audit-severity">Severidad</label>
+              <select
+                id="audit-severity"
+                className="aur-select"
+                value={filterSeverity}
+                onChange={e => setFilterSeverity(e.target.value)}
+              >
+                {SEVERITY_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="audit-since">Desde</label>
+              <input
+                id="audit-since"
+                type="date"
+                className="aur-input"
+                value={filterSince}
+                onChange={e => setFilterSince(e.target.value)}
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="audit-until">Hasta</label>
+              <input
+                id="audit-until"
+                type="date"
+                className="aur-input"
+                value={filterUntil}
+                onChange={e => setFilterUntil(e.target.value)}
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="audit-limit">Límite</label>
+              <select
+                id="audit-limit"
+                className="aur-select"
+                value={limit}
+                onChange={e => setLimit(Number(e.target.value))}
+              >
+                {LIMIT_OPTIONS.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
 
-      {!loading && events.length >= limit && (
-        <p className="audit-limit-hint">
-          Se muestran los {events.length} eventos más recientes. Ajusta los filtros o aumenta el límite para ver más.
-        </p>
-      )}
-    </div>
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num">02</span>
+            <h3>Eventos</h3>
+            <span className="aur-section-count">{events.length}</span>
+          </div>
+
+          {events.length === 0 ? (
+            <p className="audit-no-matches">Ningún evento coincide con los filtros.</p>
+          ) : (
+            <ul className="audit-event-list">
+              {events.map(ev => {
+                const sev = SEVERITY_META[ev.severity] || SEVERITY_META.info;
+                const SevIcon = sev.Icon;
+                const isOpen = expanded.has(ev.id);
+                const actionLabel = ACTION_LABEL[ev.action] || ev.action;
+                const targetStr = formatTarget(ev.target);
+                const badgeVariant = SEVERITY_BADGE_VARIANT[ev.severity] || 'aur-badge--gray';
+
+                return (
+                  <li key={ev.id} className={`audit-event audit-event--${ev.severity || 'info'}`}>
+                    <button
+                      type="button"
+                      className="audit-event-header"
+                      onClick={() => toggleExpand(ev.id)}
+                      aria-expanded={isOpen}
+                    >
+                      <span className={`aur-badge ${badgeVariant}`} title={sev.label}>
+                        <SevIcon size={11} /> {sev.label}
+                      </span>
+                      <span className="audit-event-time">
+                        <FiClock size={12} />
+                        {formatTimestamp(ev.timestamp)}
+                      </span>
+                      <span className="audit-event-action">{actionLabel}</span>
+                      <span className="audit-event-actor">
+                        <FiUser size={12} />
+                        {ev.actorEmail || ev.actorUid || 'sistema'}
+                        {ev.actorRole && <span className="audit-event-role">· {ev.actorRole}</span>}
+                      </span>
+                      {targetStr && <span className="audit-event-target">{targetStr}</span>}
+                      <span className="audit-event-chevron">
+                        {isOpen ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="audit-event-body">
+                        <MetadataRow metadata={ev.metadata} />
+                        <div className="audit-event-ids">
+                          <span>ID evento: <code>{ev.id}</code></span>
+                          {ev.fincaId && <span>Finca: <code>{ev.fincaId}</code></span>}
+                          {ev.actorUid && <span>UID: <code>{ev.actorUid}</code></span>}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {events.length >= limit && (
+            <p className="audit-limit-hint">
+              Se muestran los {events.length} eventos más recientes. Ajusta los filtros o aumenta el límite para ver más.
+            </p>
+          )}
+        </section>
+      </div>
+    </>
   );
 }
 

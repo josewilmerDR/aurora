@@ -1,34 +1,22 @@
-.audit-page-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUDIT EVENTS — slim modifiers sobre primitivas aurora.
 
-.audit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
+   Casi toda la página corre sobre aur-sheet / aur-section / aur-list / aur-row
+   / aur-input / aur-select / aur-badge / aur-btn-pill / aur-chip. Aquí sólo
+   queda lo que las primitivas no cubren:
 
-.audit-header-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--aurora-light);
-}
-
-.audit-header-title h2 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.audit-refresh-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+     · audit-event*    — fila evento full-width clickable con border-left tonal
+                         por severidad. No usamos aur-row porque su grilla
+                         label-control rígida no encaja con un row tipo-feed
+                         compuesto por chip + tiempo + acción + actor + target.
+     · audit-meta-*    — grid <dl> auto-fill que aparece dentro del body
+                         expandido del evento.
+     · audit-event-ids — strip de IDs monospace al pie del body.
+     · audit-empty     — wrapping interno de aur-sheet--empty (icono + text).
+     · audit-spin      — keyframe local para el icono del botón refresh
+                         (alias del aur-spin de aurora.css por compatibilidad
+                         de ciclos previos).
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .audit-spin {
   animation: audit-spin 0.8s linear infinite;
@@ -38,121 +26,38 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Filters ── */
-.audit-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-}
-
-.audit-filter-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 160px;
-  flex: 1;
-}
-
-.audit-filter-item--narrow {
-  min-width: 100px;
-  flex: 0 0 100px;
-}
-
-.audit-filter-item label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(230, 242, 255, 0.5);
-  font-weight: 600;
-}
-
-.audit-filter-item select,
-.audit-filter-item input[type="date"] {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 7px 10px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.audit-filter-item select:focus,
-.audit-filter-item input[type="date"]:focus {
-  border-color: var(--aurora-green);
-}
-
-.audit-reset-btn {
-  background: none;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: rgba(230, 242, 255, 0.7);
-  padding: 7px 14px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.15s;
-  height: 34px;
-}
-
-.audit-reset-btn:hover {
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-}
-
-/* ── Loading ── */
-.audit-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40vh;
-}
-
-.audit-loading::after {
-  content: '';
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(51, 255, 153, 0.2);
-  border-top-color: var(--aurora-green);
-  border-radius: 50%;
-  animation: audit-spin 0.75s linear infinite;
-}
-
-/* ── Empty ── */
+/* ── Empty state (interior de aur-sheet--empty) ──────────────────────────── */
 .audit-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  min-height: 40vh;
   text-align: center;
-  color: rgba(230, 242, 255, 0.4);
+  color: var(--aur-text-3);
 }
-
 .audit-empty p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
 }
-
 .audit-empty-hint {
   max-width: 360px;
-  color: rgba(230, 242, 255, 0.45);
-  font-size: 0.82rem !important;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
   line-height: 1.5;
 }
 
-/* ── List ── */
-.audit-list {
+/* ── Sin coincidencias dentro de la sección de eventos ───────────────────── */
+.audit-no-matches {
+  margin: 0;
+  padding: 24px 4px;
+  text-align: center;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+
+/* ── Lista de eventos ────────────────────────────────────────────────────── */
+.audit-event-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -161,24 +66,32 @@
   gap: 6px;
 }
 
-.audit-row {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
+/* Tarjeta-fila de evento. No se reusa aur-row porque el patrón aquí es un
+   feed clickable con stripe lateral por severidad, no label/control. */
+.audit-event {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
   border-left-width: 3px;
-  border-radius: 6px;
+  border-left-color: transparent;
+  border-radius: var(--aur-r-input);
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s ease;
+}
+.audit-event:hover {
+  border-color: var(--aur-divider-2);
 }
 
-.audit-row:hover {
-  border-color: var(--aurora-green);
-}
+/* Stripe lateral tonal por severidad. Las primitivas no exponen left-border
+   tonal — slim necesario para reflejar la severidad del evento entero. */
+.audit-event--info     { border-left-color: var(--aur-badge-blue-fg); }
+.audit-event--warning  { border-left-color: var(--aur-badge-yellow-fg); }
+.audit-event--critical { border-left-color: var(--aur-badge-magenta-fg); }
 
-.audit-row-header {
+.audit-event-header {
   width: 100%;
   background: none;
   border: none;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   padding: 10px 14px;
   display: grid;
   grid-template-columns: auto 160px auto 1fr auto auto;
@@ -186,80 +99,63 @@
   gap: 14px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--aur-fs-footnote);
   text-align: left;
 }
 
-.audit-row-sev {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-}
-
-.audit-sev--info      { border-left-color: rgba(100, 150, 255, 0.7); }
-.audit-sev--info      .audit-row-sev { background: rgba(100, 150, 255, 0.15); color: #89a8ff; }
-
-.audit-sev--warning   { border-left-color: rgba(255, 180, 60, 0.8); }
-.audit-sev--warning   .audit-row-sev { background: rgba(255, 180, 60, 0.15); color: #ffb43c; }
-
-.audit-sev--critical  { border-left-color: rgba(255, 80, 80, 0.9); }
-.audit-sev--critical  .audit-row-sev { background: rgba(255, 80, 80, 0.18); color: #ff6060; }
-
-.audit-row-time {
+.audit-event-time {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: rgba(230, 242, 255, 0.6);
-  font-size: 0.78rem;
+  color: var(--aur-text-2);
+  font-size: 12px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.audit-row-action {
+.audit-event-action {
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   white-space: nowrap;
 }
 
-.audit-row-actor {
+.audit-event-actor {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: rgba(230, 242, 255, 0.7);
-  font-size: 0.8rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-.audit-row-role {
-  color: var(--aurora-green);
-  opacity: 0.7;
-  font-size: 0.75rem;
+.audit-event-role {
+  color: var(--aur-accent);
+  opacity: 0.75;
+  font-size: 11px;
 }
 
-.audit-row-target {
-  color: var(--aurora-magenta);
-  opacity: 0.8;
-  font-size: 0.75rem;
+.audit-event-target {
+  color: var(--aur-badge-magenta-fg);
+  opacity: 0.85;
+  font-size: 11px;
   font-family: 'Menlo', 'Consolas', monospace;
   white-space: nowrap;
 }
 
-.audit-row-chevron {
-  color: rgba(230, 242, 255, 0.4);
+.audit-event-chevron {
+  color: var(--aur-text-3);
   display: inline-flex;
   align-items: center;
 }
 
-/* ── Body ── */
-.audit-row-body {
+/* ── Body expandido ──────────────────────────────────────────────────────── */
+.audit-event-body {
   padding: 12px 14px 14px;
-  border-top: 1px solid var(--aurora-border);
-  background: var(--aurora-dark-blue);
+  border-top: 1px solid var(--aur-divider);
+  background: var(--aur-bg);
 }
 
 .audit-meta-grid {
@@ -269,23 +165,21 @@
   margin: 0 0 12px;
 }
 
-.audit-meta-item {
-  min-width: 0;
-}
+.audit-meta-item { min-width: 0; }
 
 .audit-meta-item dt {
-  font-size: 0.7rem;
+  font-size: var(--aur-fs-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgba(230, 242, 255, 0.45);
+  color: var(--aur-text-3);
   font-weight: 600;
   margin-bottom: 2px;
 }
 
 .audit-meta-item dd {
   margin: 0;
-  color: var(--aurora-light);
-  font-size: 0.83rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
   word-break: break-word;
 }
 
@@ -294,67 +188,62 @@
   padding: 6px 8px;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 12px;
   font-family: 'Menlo', 'Consolas', monospace;
-  color: rgba(230, 242, 255, 0.85);
+  color: var(--aur-text);
   max-height: 200px;
   overflow: auto;
   white-space: pre-wrap;
 }
 
 .audit-meta-empty {
-  color: rgba(230, 242, 255, 0.4);
-  font-size: 0.8rem;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-footnote);
   font-style: italic;
   margin-bottom: 10px;
 }
 
-.audit-row-ids {
+.audit-event-ids {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 16px;
-  font-size: 0.72rem;
-  color: rgba(230, 242, 255, 0.45);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   padding-top: 8px;
-  border-top: 1px dashed rgba(42, 74, 106, 0.5);
+  border-top: 1px dashed var(--aur-divider);
 }
 
-.audit-row-ids code {
+.audit-event-ids code {
   font-family: 'Menlo', 'Consolas', monospace;
   background: rgba(0, 0, 0, 0.25);
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 0.7rem;
-  color: rgba(230, 242, 255, 0.75);
+  font-size: 11px;
+  color: var(--aur-text);
 }
 
 .audit-limit-hint {
   text-align: center;
-  color: rgba(230, 242, 255, 0.45);
-  font-size: 0.8rem;
-  margin: 4px 0 0;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-footnote);
+  margin: 12px 0 0;
 }
 
-/* ── Responsive ── */
+/* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .audit-row-header {
+  .audit-event-header {
     grid-template-columns: auto 1fr auto;
     grid-template-rows: auto auto;
     gap: 6px 10px;
   }
-  .audit-row-sev { grid-row: 1 / span 2; }
-  .audit-row-time { grid-column: 2; grid-row: 1; font-size: 0.72rem; }
-  .audit-row-chevron { grid-column: 3; grid-row: 1 / span 2; }
-  .audit-row-action { grid-column: 2; grid-row: 2; }
-  .audit-row-actor,
-  .audit-row-target {
+  .audit-event-header > .aur-badge { grid-row: 1 / span 2; }
+  .audit-event-time    { grid-column: 2; grid-row: 1; }
+  .audit-event-chevron { grid-column: 3; grid-row: 1 / span 2; }
+  .audit-event-action  { grid-column: 2; grid-row: 2; }
+  .audit-event-actor,
+  .audit-event-target {
     grid-column: 1 / -1;
-    padding-left: 34px;
-    font-size: 0.75rem;
+    padding-left: 4px;
+    font-size: 11px;
   }
-}
-
-@media (max-width: 600px) {
-  .audit-filter-item { flex: 1 1 100%; }
-  .audit-filter-item--narrow { flex: 1 1 100%; }
 }
