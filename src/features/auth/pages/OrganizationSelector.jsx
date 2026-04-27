@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useUser, ROLE_LABELS } from '../../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../lib/apiFetch';
+import AuthCard from '../components/AuthCard';
+import AuthLoading from '../components/AuthLoading';
 import '../styles/auth.css';
 
 export default function OrganizationSelector() {
@@ -32,90 +34,80 @@ export default function OrganizationSelector() {
 
   if (checking) {
     return (
-      <div className="login-page">
-        <div className="login-card">
-          <div className="login-logo">
-            <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
-            <span className="login-logo-label">Aurora</span>
-          </div>
-          <div className="login-google-loading">
-            <div className="login-google-spinner" />
-            <p className="login-google-loading-text">Verificando cuenta...</p>
-          </div>
-        </div>
-      </div>
+      <AuthCard>
+        <AuthLoading />
+      </AuthCard>
     );
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card org-selector-card">
-        <div className="login-logo">
-          <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
-          <span className="login-logo-label">Aurora</span>
-        </div>
-
-        <h2 className="login-title">Tus organizaciones</h2>
-        {firebaseUser?.email && (
-          <p className="login-subtitle">{firebaseUser.email}</p>
-        )}
-
-        {noMemberships ? (
-          <>
-            <p className="org-empty-message">
-              En este momento no perteneces a ninguna organización.
-              Crea tu primera organización e invita a otras personas a unirse a ella.
-            </p>
-            <button className="login-btn org-selector-cta" onClick={() => navigate('/nueva-organizacion')}>
-              + Crear organización
-            </button>
-          </>
-        ) : (
-          <>
-            {hasOwnOrg && (
-              <div className="org-section">
-                <span className="org-section-title">Tu organización</span>
-                {ownedOrgs.map(m => (
-                  <button
-                    key={m.fincaId}
-                    className="finca-item finca-item-own"
-                    onClick={() => selectFinca(m.fincaId)}
-                  >
-                    <span className="finca-item-nombre">Ir a {m.fincaNombre}</span>
-                    <span className="finca-item-owner-badge">Tuya</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {!hasOwnOrg && (
-              <button className="login-btn org-selector-cta" onClick={() => navigate('/nueva-organizacion')}>
-                + Crear organización
-              </button>
-            )}
-
-            {invitedOrgs.length > 0 && (
-              <div className="org-section">
-                <span className="org-section-title">Otras organizaciones</span>
-                {invitedOrgs.map(m => (
-                  <button
-                    key={m.fincaId}
-                    className="finca-item"
-                    onClick={() => selectFinca(m.fincaId)}
-                  >
-                    <span className="finca-item-nombre">{m.fincaNombre}</span>
-                    <span className="finca-item-rol">{ROLE_LABELS[m.rol] || m.rol}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        <button className="login-register-link-btn" onClick={logout}>
+    <AuthCard
+      variant="wide"
+      title="Tus organizaciones"
+      subtitle={firebaseUser?.email}
+      footer={
+        <button className="aur-btn-text" onClick={logout}>
           Cerrar sesión
         </button>
-      </div>
-    </div>
+      }
+    >
+      {noMemberships ? (
+        <>
+          <p className="auth-org-empty">
+            En este momento no perteneces a ninguna organización.
+            Crea tu primera organización e invita a otras personas a unirse a ella.
+          </p>
+          <button
+            className="aur-btn-pill auth-btn-submit"
+            onClick={() => navigate('/nueva-organizacion')}
+          >
+            + Crear organización
+          </button>
+        </>
+      ) : (
+        <>
+          {hasOwnOrg && (
+            <div className="auth-org-section">
+              <span className="auth-org-section-title">Tu organización</span>
+              {ownedOrgs.map(m => (
+                <button
+                  key={m.fincaId}
+                  className="auth-org-item auth-org-item--own"
+                  onClick={() => selectFinca(m.fincaId)}
+                >
+                  <span className="auth-org-item-name">Ir a {m.fincaNombre}</span>
+                  <span className="aur-badge aur-badge--green">Tuya</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!hasOwnOrg && (
+            <button
+              className="aur-btn-pill auth-btn-submit"
+              onClick={() => navigate('/nueva-organizacion')}
+            >
+              + Crear organización
+            </button>
+          )}
+
+          {invitedOrgs.length > 0 && (
+            <div className="auth-org-section">
+              <span className="auth-org-section-title">Otras organizaciones</span>
+              {invitedOrgs.map(m => (
+                <button
+                  key={m.fincaId}
+                  className="auth-org-item"
+                  onClick={() => selectFinca(m.fincaId)}
+                >
+                  <span className="auth-org-item-name">{m.fincaNombre}</span>
+                  <span className="auth-org-item-rol">{ROLE_LABELS[m.rol] || m.rol}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </AuthCard>
   );
 }
