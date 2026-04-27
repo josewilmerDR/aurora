@@ -98,7 +98,7 @@
 }
 
 .auth-logo-label {
-  font-size: 0.8rem;
+  font-size: var(--aur-fs-footnote);
   color: var(--aur-text-3);
   letter-spacing: 6px;
   text-transform: uppercase;
@@ -206,7 +206,7 @@
 
 /* ── Error message ───────────────────────────────────────────────────────── */
 .auth-error {
-  font-size: 0.85rem;
+  font-size: var(--aur-fs-footnote);
   color: var(--aur-danger);
   margin: 0;
   text-align: center;
@@ -219,7 +219,7 @@
   align-items: center;
   gap: 12px;
   color: var(--aur-text-3);
-  font-size: 0.8rem;
+  font-size: var(--aur-fs-footnote);
   margin: 4px 0;
 }
 
@@ -243,7 +243,7 @@
   border: 1px solid var(--aur-divider-2);
   border-radius: var(--aur-r-input);
   padding: 12px;
-  font-size: 0.95rem;
+  font-size: var(--aur-fs-body);
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.2s, background-color 0.2s;
@@ -261,7 +261,7 @@
 
 /* ── Footer / nav links ──────────────────────────────────────────────────── */
 .auth-register-link {
-  font-size: 0.85rem;
+  font-size: var(--aur-fs-footnote);
   color: var(--aur-text-2);
   margin: 8px 0 0 0;
 }
@@ -279,7 +279,7 @@
 .auth-forgot-link {
   display: block;
   margin-top: 6px;
-  font-size: 0.78rem;
+  font-size: var(--aur-fs-footnote);
   color: var(--aur-text-3);
   text-decoration: none;
   text-align: right;
@@ -297,7 +297,7 @@
   background: none;
   border: none;
   color: var(--aur-text-3);
-  font-size: 0.82rem;
+  font-size: var(--aur-fs-footnote);
   cursor: pointer;
   margin-top: 1rem;
   padding: 4px 0;
@@ -345,7 +345,7 @@
 }
 
 .auth-password-rules li {
-  font-size: 0.75rem;
+  font-size: var(--aur-fs-caption);
   transition: color 0.2s;
 }
 
@@ -354,7 +354,7 @@
 
 /* ── Org selector: secciones, lista de orgs, mensaje vacío ───────────────── */
 .auth-org-empty {
-  font-size: 0.9rem;
+  font-size: var(--aur-fs-footnote);
   color: var(--aur-text-2);
   text-align: center;
   line-height: 1.6;
@@ -370,7 +370,7 @@
 }
 
 .auth-org-section-title {
-  font-size: 0.72rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
   color: var(--aur-text-3);
   text-transform: uppercase;
@@ -398,13 +398,13 @@
 }
 
 .auth-org-item-name {
-  font-size: 0.95rem;
+  font-size: var(--aur-fs-body);
   font-weight: 600;
   color: var(--aur-text);
 }
 
 .auth-org-item-rol {
-  font-size: 0.75rem;
+  font-size: var(--aur-fs-caption);
   color: var(--aur-accent);
   font-weight: 600;
   text-transform: uppercase;
