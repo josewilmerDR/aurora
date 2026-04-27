@@ -1,52 +1,52 @@
-/* Las primitivas de layout (lote-page*, lote-list*, lote-hub*, hub-*,
-   lote-bubble*) vienen de src/styles/legacy-globals.css, cargado
-   globalmente desde main.jsx. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   USER MANAGEMENT — slim modifiers sobre primitivas aurora.
 
-/* ── Page loading spinner ─────────────────────────────────────────────────── */
-.usr-page-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
-}
-.usr-page-loading::after {
-  content: '';
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(51, 255, 153, 0.2);
-  border-top-color: var(--aurora-green);
-  border-radius: 50%;
-  animation: app-loading-spin 0.75s linear infinite;
-}
+   El layout-shell de la página (lote-page, lote-management-layout, lote-bubble*,
+   lote-carousel, lote-hub, hub-header, hub-pill, hub-info-pills, hub-title-block,
+   hub-lote-code, hub-header-actions, lote-list-panel, lote-list, lote-list-item,
+   lote-list-code, lote-list-name, lote-list-arrow, lote-actions, lote-form)
+   vive en src/styles/legacy-globals.css y es compartido con LoteManagement /
+   GrupoManagement / EmployeeProfile / PackageManagement / etc. NO lo tocamos
+   aquí para preservar la simetría visual cross-domain.
 
-/* ── Page empty state ─────────────────────────────────────────────────────── */
-.usr-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 60vh;
-  color: rgba(230, 242, 255, 0.3);
-  text-align: center;
-}
-.usr-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.45);
-  margin: 0;
-}
+   Lo migrado en esta página:
+     · form-card panel  → aur-sheet (panel izquierdo del lote-management-layout)
+     · form-control x4  → aur-row aur-row--multiline + aur-input/aur-select
+     · form-actions     → aur-form-actions
+     · role-badge--*    → constante ROLE_BADGE_VARIANT mapeando a aur-badge--{
+                          green, magenta, blue, violet, gray}
+     · module-checkbox  → aur-row + aur-toggle (iOS Settings switch)
+     · hub-pill--restricted → aur-badge--blue
+     · btn btn-primary  → aur-btn-pill
+     · icon-btn / icon-btn--danger → aur-icon-btn / aur-icon-btn--danger
+     · um-page-loading  → aur-page-loading
+     · usr-empty-state  → aur-sheet aur-sheet--empty
+     · window.confirm   → AuroraConfirmModal danger
 
-/* ── Page header ──────────────────────────────────────────────────────────── */
+   Aquí queda slim sólo:
+     · usr-page-header / usr-page-title — encabezado de página coherente con
+                                          el resto del dominio admin.
+     · usr-empty                       — interior del aur-sheet--empty.
+     · usr-list-info                   — composición vertical nombre + badge
+                                          dentro del lote-list-item (legacy).
+     · usr-list-role                   — alias del aur-badge en el item para
+                                          alinearlo al inicio de la columna.
+     · usr-modules-hint                — texto informativo arriba de la lista
+                                          de toggles de módulos.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page header (pre-form / pre-detalle) ────────────────────────────────── */
 .usr-page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .usr-page-title {
-  font-size: 1.35rem;
+  font-size: var(--aur-fs-title3);
   font-weight: 600;
   margin: 0;
-  color: var(--aurora-light);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
 }
 
 /* Ocultar cabecera en móvil cuando hay un usuario seleccionado */
@@ -56,85 +56,41 @@
   }
 }
 
-/* ── User list item info (nombre encima, rol debajo) ──────────────────────── */
+/* ── Empty state (interior de aur-sheet--empty) ──────────────────────────── */
+.usr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--aur-text-3);
+}
+.usr-empty p {
+  margin: 0;
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
+}
+
+/* ── Lista derecha: composición nombre + role-badge dentro del lote-list-item ── */
 .usr-list-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
   overflow: hidden;
 }
 
-/* ── Role badges ──────────────────────────────────────────────────────────── */
-.item-main-text {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+/* aur-badge--* ya provee bg/color/padding/radius; aquí sólo añadimos
+   align-self para que el badge no se estire al ancho del item flex y se
+   mantenga compacto pegado a la izquierda de su columna. */
+.usr-list-role {
+  align-self: flex-start;
 }
 
-.role-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-}
-
-.role-badge--ninguno     { background: rgba(230,242,255,0.06); color: var(--aurora-light); opacity: 0.45; }
-.role-badge--trabajador  { background: rgba(230,242,255,0.12); color: var(--aurora-light); }
-.role-badge--encargado   { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
-.role-badge--supervisor  { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
-.role-badge--administrador { background: rgba(51,153,255,0.2); color: #5599ff; }
-
-
-/* Módulos permitidos (restrictedTo) — multi-select visual */
-.form-control--full {
-  grid-column: 1 / -1;
-}
-.modules-section {
-  margin-top: 12px;
-}
-.form-hint {
-  margin: 0 0 10px 0;
-  color: var(--aurora-light);
-  opacity: 0.65;
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-.module-checkboxes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-}
-.module-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  transition: border-color 0.15s, background 0.15s;
-}
-.module-checkbox:hover {
-  border-color: var(--aurora-green);
-}
-.module-checkbox input[type="checkbox"] {
-  margin: 0;
-  accent-color: var(--aurora-green);
-  cursor: pointer;
-}
-.module-checkbox--on {
-  border-color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.08);
-}
-
-.hub-pill--restricted {
-  background: rgba(51, 153, 255, 0.15);
-  color: #5599ff;
+/* ── Hint del módulos-section dentro del form ────────────────────────────── */
+.usr-modules-hint {
+  margin: 0 0 10px 4px;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.45;
 }
