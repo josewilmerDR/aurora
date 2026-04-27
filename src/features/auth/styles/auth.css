@@ -118,11 +118,20 @@
 }
 
 /* ── Form layout ─────────────────────────────────────────────────────────── */
+.auth-form,
 .login-form {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Pill full-width para CTAs principales del splash. .aur-btn-pill es
+   inline-flex (sized to content); este modifier slim lo expande al ancho
+   del card sin alterar shadow/hover/disabled del primitive. */
+.auth-btn-submit {
+  width: 100%;
+  margin-top: 8px;
 }
 
 .login-field {
@@ -297,18 +306,21 @@
 }
 
 /* ── Footer links ────────────────────────────────────────────────────────── */
+.auth-register-link,
 .login-register-link {
   font-size: 0.85rem;
   color: var(--aur-text-2);
   margin: 8px 0 0 0;
 }
 
+.auth-register-link a,
 .login-register-link a {
   color: var(--aur-accent);
   text-decoration: none;
   font-weight: 600;
 }
 
+.auth-register-link a:hover,
 .login-register-link a:hover {
   text-decoration: underline;
 }
@@ -328,7 +340,7 @@
   color: var(--aur-text-2);
 }
 
-.login-forgot-link {
+.auth-forgot-link {
   display: block;
   margin-top: 6px;
   font-size: 0.78rem;
@@ -338,11 +350,11 @@
   transition: color 0.2s;
 }
 
-.login-forgot-link:hover {
+.auth-forgot-link:hover {
   color: var(--aur-text);
 }
 
-.login-back-btn {
+.auth-back-btn {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -356,12 +368,12 @@
   transition: color 0.2s;
 }
 
-.login-back-btn:hover {
+.auth-back-btn:hover {
   color: var(--aur-text);
 }
 
 /* ── Botón flecha dentro del campo email (Login) ─────────────────────────── */
-.login-arrow-btn {
+.auth-input-arrow {
   position: absolute;
   right: 0.55rem;
   background: none;
@@ -378,22 +390,22 @@
   transition: opacity 0.18s ease, background 0.18s ease, transform 0.15s ease;
 }
 
-.login-arrow-btn:not(:disabled) {
+.auth-input-arrow:not(:disabled) {
   opacity: 1;
   pointer-events: auto;
 }
 
-.login-arrow-btn:hover:not(:disabled) {
+.auth-input-arrow:hover:not(:disabled) {
   background: var(--aur-accent-tint);
   transform: translateX(2px);
 }
 
-.login-arrow-btn:active:not(:disabled) {
+.auth-input-arrow:active:not(:disabled) {
   transform: translateX(1px) scale(0.92);
 }
 
 /* ── Email resumido en LoginPassword ─────────────────────────────────────── */
-.login-email-display {
+.auth-email-display {
   font-weight: 500;
   opacity: 0.75;
   margin-bottom: 1.25rem;
@@ -448,14 +460,6 @@
 .rule-fail { color: var(--aur-text-3); }
 
 /* ── Org selector: lista de organizaciones ───────────────────────────────── */
-.finca-list {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
-}
-
 .finca-item {
   width: 100%;
   display: flex;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../../firebase';
+import AuthCard from '../components/AuthCard';
 import '../styles/auth.css';
 
 export default function ForgotPassword() {
@@ -29,55 +30,51 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-logo">
-          <img src="/aurora-logo.png" alt="Aurora" className="login-logo-img" />
-          <span className="login-logo-label">Aurora</span>
-        </div>
-
-        <h2 className="login-title">Recuperar contraseña</h2>
-
-        {sent ? (
-          <>
-            <p className="login-subtitle">
-              Te enviamos un enlace a <strong>{email}</strong>. Revisa tu bandeja de entrada
-              (y la carpeta de spam por si acaso).
-            </p>
-            <Link to="/login" className="login-btn" style={{ display: 'block', textAlign: 'center', marginTop: '1.5rem' }}>
-              Volver al inicio de sesión
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="login-subtitle">
-              Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
-            </p>
-            <form onSubmit={handleSubmit} className="login-form">
-              <div className="login-field">
-                <label htmlFor="email">Correo electrónico</label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@correo.com"
-                  autoComplete="email"
-                  disabled={submitting}
-                  required
-                />
-              </div>
-              {error && <p className="login-error">{error}</p>}
-              <button type="submit" className="login-btn" disabled={submitting || !email}>
-                {submitting ? 'Enviando...' : 'Enviar enlace'}
-              </button>
-            </form>
-            <p className="login-register-link">
-              <Link to="/login">Volver al inicio de sesión</Link>
-            </p>
-          </>
-        )}
-      </div>
-    </div>
+    <AuthCard
+      title="Recuperar contraseña"
+      footer={!sent && (
+        <p className="auth-register-link">
+          <Link to="/login">Volver al inicio de sesión</Link>
+        </p>
+      )}
+    >
+      {sent ? (
+        <>
+          <p className="auth-subtitle">
+            Te enviamos un enlace a <strong>{email}</strong>. Revisa tu bandeja de entrada
+            (y la carpeta de spam por si acaso).
+          </p>
+          <Link to="/login" className="aur-btn-pill auth-btn-submit">
+            Volver al inicio de sesión
+          </Link>
+        </>
+      ) : (
+        <>
+          <p className="auth-subtitle">
+            Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
+          </p>
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="aur-field">
+              <label htmlFor="email" className="aur-field-label">Correo electrónico</label>
+              <input
+                id="email"
+                type="email"
+                className="aur-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@correo.com"
+                autoComplete="email"
+                disabled={submitting}
+                required
+              />
+            </div>
+            {error && <p className="auth-error">{error}</p>}
+            <button type="submit" className="aur-btn-pill auth-btn-submit" disabled={submitting || !email}>
+              {submitting ? 'Enviando...' : 'Enviar enlace'}
+            </button>
+          </form>
+        </>
+      )}
+    </AuthCard>
   );
 }
