@@ -213,7 +213,56 @@
   gap: 8px;
 }
 
-/* ── Indirectos form ────────────────────────────────────────────────── */
+/* ── Indirectos: form de quick-add ─────────────────────────────────────
+   Grid horizontal de 4 aur-field + botón. aur-field provee
+   label-on-top + spacing; aur-input/aur-select proveen el control;
+   el slim sólo aporta el grid horizontal + alineación por la base
+   para que el botón quede al ras del bottom de los inputs. */
+.cost-ind-form {
+  display: grid;
+  grid-template-columns: 140px 180px 1fr 140px auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+@media (max-width: 720px) {
+  .cost-ind-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── Indirectos: row layout ─────────────────────────────────────────────
+   Override grid-template-columns del aur-row primitivo para layout
+   tabular: fecha · badge · descripción · monto · acción. aur-row ya
+   provee padding/divider/hover/rounded; aquí sólo cambian las columnas. */
+.aur-row.cost-ind-row {
+  grid-template-columns: 100px auto 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+}
+.cost-ind-fecha {
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cost-ind-desc {
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cost-ind-monto {
+  color: var(--aur-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--aur-fs-footnote);
+  white-space: nowrap;
+}
+
+/* ── Legacy cc-ind-form / cc-field — todavía consumidos por SnapshotModal
+   (migra en PR D). Mantener intactos. */
 .cc-ind-form {
   display: flex;
   gap: 10px;
@@ -238,42 +287,6 @@
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 0.85rem;
-}
-.cc-ind-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.cc-ind-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  font-size: 0.84rem;
-}
-.cc-ind-item-cat {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-.cc-ind-item-monto {
-  margin-left: auto;
-  font-weight: 600;
-  color: var(--aurora-light);
-}
-.cc-ind-item button {
-  background: none;
-  border: none;
-  color: #e57373;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 2px;
 }
 
 /* ── Snapshots ──────────────────────────────────────────────────────── */

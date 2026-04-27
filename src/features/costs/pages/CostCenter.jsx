@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FiCamera, FiTrash2, FiEye, FiColumns, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import RoiTable from '../../finance/components/RoiTable';
 import '../styles/cost-center.css';
 
@@ -18,6 +19,8 @@ const CATEGORIAS_INDIRECTO = [
   { value: 'administrativo', label: 'Administrativo' },
   { value: 'otro', label: 'Otro' },
 ];
+
+const catLabel = (val) => CATEGORIAS_INDIRECTO.find(c => c.value === val)?.label || val;
 
 const fmt = n => n != null ? n.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 const fmtKg = n => n != null ? n.toLocaleString('es-CR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
@@ -140,6 +143,10 @@ export default function CostCenter() {
   const [indirectos, setIndirectos] = useState([]);
   const [indForm, setIndForm] = useState({ fecha: '', categoria: 'mantenimiento', descripcion: '', monto: '' });
 
+  // Indirecto delete confirmation
+  const [confirmDeleteIndirecto, setConfirmDeleteIndirecto] = useState(null);
+  const [deletingIndirecto, setDeletingIndirecto] = useState(false);
+
   // Snapshots
   const [snapshots, setSnapshots] = useState([]);
   const [showSnapModal, setShowSnapModal] = useState(false);
@@ -188,9 +195,19 @@ export default function CostCenter() {
     }
   };
 
-  const deleteIndirecto = async (id) => {
-    const res = await apiFetch(`/api/costos/indirectos/${id}`, { method: 'DELETE' });
-    if (res.ok) { fetchIndirectos(); fetchLive(); }
+  const deleteIndirecto = async () => {
+    if (!confirmDeleteIndirecto) return;
+    setDeletingIndirecto(true);
+    try {
+      const res = await apiFetch(`/api/costos/indirectos/${confirmDeleteIndirecto.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setConfirmDeleteIndirecto(null);
+        fetchIndirectos();
+        fetchLive();
+      }
+    } finally {
+      setDeletingIndirecto(false);
+    }
   };
 
   // ── Snapshot CRUD ─────────────────────────────────────────────────
@@ -355,46 +372,89 @@ export default function CostCenter() {
       )}
 
       {/* ── Costos Indirectos section ────────────────────────────────── */}
-      <div className="cc-section">
-        <div className="cc-section-title">
-          <FiPlus /> Costos Indirectos Manuales
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiPlus size={14} /></span>
+          <h3 className="aur-section-title">Costos indirectos manuales</h3>
+          {indirectosFiltrados.length > 0 && (
+            <span className="aur-section-count">{indirectosFiltrados.length}</span>
+          )}
         </div>
-        <div className="cc-ind-form">
-          <div className="cc-field">
-            <label>Fecha</label>
-            <input type="date" value={indForm.fecha} onChange={e => setIndForm(f => ({ ...f, fecha: e.target.value }))} />
+
+        <div className="cost-ind-form">
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="ind-fecha">Fecha</label>
+            <input
+              id="ind-fecha"
+              type="date"
+              className="aur-input"
+              value={indForm.fecha}
+              onChange={e => setIndForm(f => ({ ...f, fecha: e.target.value }))}
+            />
           </div>
-          <div className="cc-field">
-            <label>Categoría</label>
-            <select value={indForm.categoria} onChange={e => setIndForm(f => ({ ...f, categoria: e.target.value }))}>
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="ind-categoria">Categoría</label>
+            <select
+              id="ind-categoria"
+              className="aur-select"
+              value={indForm.categoria}
+              onChange={e => setIndForm(f => ({ ...f, categoria: e.target.value }))}
+            >
               {CATEGORIAS_INDIRECTO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
-          <div className="cc-field">
-            <label>Descripción</label>
-            <input value={indForm.descripcion} onChange={e => setIndForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="Opcional" />
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="ind-desc">Descripción</label>
+            <input
+              id="ind-desc"
+              className="aur-input"
+              value={indForm.descripcion}
+              onChange={e => setIndForm(f => ({ ...f, descripcion: e.target.value }))}
+              placeholder="Opcional"
+            />
           </div>
-          <div className="cc-field">
-            <label>Monto</label>
-            <input type="number" value={indForm.monto} onChange={e => setIndForm(f => ({ ...f, monto: e.target.value }))} placeholder="0.00" />
+          <div className="aur-field">
+            <label className="aur-field-label" htmlFor="ind-monto">Monto</label>
+            <input
+              id="ind-monto"
+              type="number"
+              className="aur-input aur-input--num"
+              value={indForm.monto}
+              onChange={e => setIndForm(f => ({ ...f, monto: e.target.value }))}
+              placeholder="0.00"
+            />
           </div>
-          <button className="cc-btn cc-btn--primary" onClick={addIndirecto} disabled={!indForm.fecha || !indForm.monto}>Agregar</button>
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            onClick={addIndirecto}
+            disabled={!indForm.fecha || !indForm.monto}
+          >
+            <FiPlus size={14} /> Agregar
+          </button>
         </div>
 
         {indirectosFiltrados.length > 0 && (
-          <div className="cc-ind-list">
+          <div className="aur-list">
             {indirectosFiltrados.map(item => (
-              <div key={item.id} className="cc-ind-item">
-                <span style={{ color: '#8ab4d8', fontSize: '0.8rem' }}>{item.fecha}</span>
-                <span className="cc-ind-item-cat">{item.categoria}</span>
-                <span>{item.descripcion}</span>
-                <span className="cc-ind-item-monto">{fmt(item.monto)}</span>
-                <button onClick={() => deleteIndirecto(item.id)} title="Eliminar"><FiTrash2 /></button>
+              <div key={item.id} className="aur-row cost-ind-row">
+                <span className="cost-ind-fecha">{item.fecha}</span>
+                <span className="aur-badge aur-badge--green">{catLabel(item.categoria)}</span>
+                <span className="cost-ind-desc">{item.descripcion || '—'}</span>
+                <span className="cost-ind-monto">{fmt(item.monto)}</span>
+                <button
+                  type="button"
+                  className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                  onClick={() => setConfirmDeleteIndirecto({ id: item.id, fecha: item.fecha, categoria: item.categoria, monto: item.monto })}
+                  title="Eliminar"
+                >
+                  <FiTrash2 size={13} />
+                </button>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {/* ── Snapshots section ────────────────────────────────────────── */}
       <div className="cc-section">
@@ -459,6 +519,19 @@ export default function CostCenter() {
 
       {/* ── Snapshot Modal ───────────────────────────────────────────── */}
       {showSnapModal && <SnapshotModal onClose={() => setShowSnapModal(false)} onSave={saveSnapshot} />}
+
+      {/* ── Confirm delete indirecto ─────────────────────────────────── */}
+      {confirmDeleteIndirecto && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar costo indirecto"
+          body={`¿Eliminar el costo indirecto del ${confirmDeleteIndirecto.fecha} (${catLabel(confirmDeleteIndirecto.categoria)} · ${fmt(confirmDeleteIndirecto.monto)})? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={deleteIndirecto}
+          onCancel={() => setConfirmDeleteIndirecto(null)}
+          loading={deletingIndirecto}
+        />
+      )}
     </div>
   );
 }
