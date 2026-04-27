@@ -1,79 +1,11 @@
 
-/* ── Form: field grid ─────────────────────────────────────────────────────── */
-.prov-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.prov-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.prov-field--full {
-  grid-column: 1 / -1;
-}
-
-.prov-field label {
-  font-size: 0.75rem;
+/* ── Form: title slim sobre h2 ────────────────────────────────────────────── */
+.prov-form-title {
+  margin: 0 0 12px 0;
+  font-size: var(--aur-fs-title3);
+  color: var(--aur-text);
   font-weight: 600;
-  color: rgba(230, 242, 255, 0.55);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.prov-required {
-  color: var(--aurora-magenta);
-  margin-left: 2px;
-}
-
-.prov-field input,
-.prov-field select,
-.prov-field textarea {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 8px 10px;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.15s;
-  font-family: inherit;
-  resize: vertical;
-}
-
-.prov-field input:focus,
-.prov-field select:focus,
-.prov-field textarea:focus {
-  border-color: var(--aurora-green);
-}
-
-.prov-field textarea {
-  min-height: 60px;
-}
-
-/* ── Form section divider ─────────────────────────────────────────────────── */
-.prov-form-divider {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(230, 242, 255, 0.3);
-}
-
-.prov-form-divider::before,
-.prov-form-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--aurora-border);
+  letter-spacing: -0.01em;
 }
 
 /* ── Moneda tags ──────────────────────────────────────────────────────────── */
@@ -91,20 +23,20 @@
 }
 
 .prov-moneda-tag--USD {
-  background: rgba(255, 200, 50, 0.12);
-  color: #ffc832;
+  background: var(--aur-badge-yellow-bg);
+  color: var(--aur-badge-yellow-fg);
 }
 
 .prov-moneda-tag--CRC {
-  background: rgba(51, 170, 255, 0.12);
-  color: #33aaff;
+  background: var(--aur-badge-blue-bg);
+  color: var(--aur-badge-blue-fg);
 }
 
 /* ── Hub: nombre del proveedor ────────────────────────────────────────────── */
 .prov-hub-nombre {
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   margin: 0;
   line-height: 1.3;
   word-break: break-word;
@@ -116,9 +48,9 @@
 
 /* ── Hub: inactivo pill ───────────────────────────────────────────────────── */
 .prov-pill-inactivo {
-  background: rgba(255, 85, 85, 0.1) !important;
-  color: #ff5555 !important;
-  border-color: rgba(255, 85, 85, 0.2) !important;
+  background: var(--aur-danger-tint) !important;
+  color: var(--aur-danger) !important;
+  border-color: transparent !important;
 }
 
 /* ── Hub: detail sections ─────────────────────────────────────────────────── */
@@ -135,14 +67,14 @@
 }
 
 .prov-detail-section-title {
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: rgba(230, 242, 255, 0.35);
+  color: var(--aur-text-3);
   margin: 0;
   padding-bottom: 6px;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
 }
 
 .prov-detail-rows {
@@ -155,19 +87,19 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
 }
 
 .prov-detail-row > svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: rgba(230, 242, 255, 0.4);
+  color: var(--aur-text-3);
 }
 
 .prov-detail-label {
-  font-size: 0.78rem;
-  color: rgba(230, 242, 255, 0.45);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   min-width: 95px;
   flex-shrink: 0;
 }
@@ -178,7 +110,7 @@
 }
 
 .prov-detail-row a {
-  color: var(--aurora-green);
+  color: var(--aur-accent);
   text-decoration: none;
   word-break: break-all;
   flex: 1;
@@ -189,8 +121,8 @@
 }
 
 .prov-detail-notas {
-  font-size: 0.85rem;
-  color: rgba(230, 242, 255, 0.6);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
   margin: 0;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -208,8 +140,8 @@
 
 .prov-list-name {
   font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -219,20 +151,19 @@
 }
 
 .lote-list-item.active .prov-list-name {
-  color: var(--aurora-green);
+  color: var(--aur-accent);
 }
 
 .prov-list-sub {
-  font-size: 0.72rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .prov-list-inactivo {
-  color: #ff5555 !important;
+  color: var(--aur-danger) !important;
   opacity: 1 !important;
 }
 
@@ -245,27 +176,12 @@
   gap: 14px;
   min-height: 60vh;
   padding: 48px 20px;
-  color: rgba(230, 242, 255, 0.3);
+  color: var(--aur-text-3);
   text-align: center;
 }
 
 .prov-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.4);
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-3);
   margin: 0;
-}
-
-/* ── Responsive ───────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .prov-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .prov-field--full {
-    grid-column: 1;
-  }
-
-  .prov-form-divider {
-    grid-column: 1;
-  }
 }

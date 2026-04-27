@@ -17,6 +17,14 @@ const STATE_LABELS = {
   cancelled: 'Cancelado',
 };
 
+// Estado del RFQ → variante de aur-badge (verde activo, gris cerrado, etc.).
+const STATE_BADGE_VARIANT = {
+  sent:        'aur-badge--green',
+  failed_send: 'aur-badge--yellow',
+  closed:      'aur-badge--gray',
+  cancelled:   'aur-badge--gray',
+};
+
 function RfqsList() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
@@ -25,9 +33,9 @@ function RfqsList() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('');
   const [expandedId, setExpandedId] = useState(null);
-  const [closeResult, setCloseResult] = useState(null); // { rfqId, winner, ... }
+  const [closeResult, setCloseResult] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(null); // { id, useClaude }
+  const [confirmClose, setConfirmClose] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = useCallback(() => {
@@ -80,9 +88,13 @@ function RfqsList() {
       </div>
 
       <div className="rfq-toolbar">
-        <label>
-          Filtrar por estado:
-          <select value={filter} onChange={e => setFilter(e.target.value)}>
+        <label className="rfq-toolbar-filter">
+          <span>Estado</span>
+          <select
+            className="aur-select"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          >
             <option value="">Todos</option>
             <option value="sent">Enviado</option>
             <option value="closed">Cerrado</option>
@@ -159,32 +171,34 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, o
   const responses = Array.isArray(rfq.responses) ? rfq.responses : [];
   const isOpen = rfq.estado === 'sent' || rfq.estado === 'failed_send';
   const isClosed = rfq.estado === 'closed';
-  // Show persistent winner from the doc when closed; prefer the fresh closeResult
-  // if the user just closed it in this session (has ephemeral fields like rationale).
   const persistentWinner = isClosed ? rfq.winner : null;
   const displayedWinner = closeResult?.winner || persistentWinner;
   const hasOc = !!rfq.ocId;
+  const stateVariant = STATE_BADGE_VARIANT[rfq.estado] || 'aur-badge--gray';
 
   return (
     <div className={`rfq-card rfq-card--${rfq.estado}`}>
       <div className="rfq-card-head" onClick={onToggle}>
-        <div>
+        <div className="rfq-card-title">
           <strong>{rfq.nombreComercial || rfq.productoId}</strong>
-          <span className="fin-widget-sub"> · {rfq.cantidad} {rfq.unidad}</span>
+          <span className="rfq-card-qty"> · {rfq.cantidad} {rfq.unidad}</span>
         </div>
         <div className="rfq-card-meta">
-          <span className="rfq-badge">{STATE_LABELS[rfq.estado] || rfq.estado}</span>
-          <span className="fin-widget-sub">{responses.length}/{contacted.length} resp.</span>
-          <span className="fin-widget-sub">cierre {rfq.deadline}</span>
-          {hasOc && <span className="rfq-badge rfq-badge--oc">{rfq.ocNumber || 'OC'}</span>}
+          <span className={`aur-badge ${stateVariant}`}>{STATE_LABELS[rfq.estado] || rfq.estado}</span>
+          <span className="rfq-card-meta-text">{responses.length}/{contacted.length} resp.</span>
+          <span className="rfq-card-meta-text">cierre {rfq.deadline}</span>
+          {hasOc && <span className="aur-badge aur-badge--green">{rfq.ocNumber || 'OC'}</span>}
           {expanded ? <FiChevronDown /> : <FiChevronRight />}
         </div>
       </div>
 
       {expanded && (
         <div className="rfq-card-body">
-          <div className="rfq-section">
-            <h4>Contactados</h4>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <h3 className="aur-section-title">Contactados</h3>
+              <span className="aur-section-count">{contacted.length}</span>
+            </header>
             <ul className="info-list">
               {contacted.map(c => (
                 <li key={c.supplierId}>
@@ -192,10 +206,13 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, o
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
 
-          <div className="rfq-section">
-            <h4>Respuestas</h4>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <h3 className="aur-section-title">Respuestas</h3>
+              <span className="aur-section-count">{responses.length}</span>
+            </header>
             {responses.length === 0
               ? <div className="empty-state">Sin respuestas aún.</div>
               : (
@@ -207,25 +224,28 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, o
                         ? ` — ${r.precioUnitario} ${r.moneda || 'USD'}`
                         : ' — no disponible'}
                       {r.leadTimeDays != null && r.disponible && ` · ${r.leadTimeDays}d`}
-                      {r.notas && <div className="fin-widget-sub">{r.notas}</div>}
+                      {r.notas && <div className="rfq-response-note">{r.notas}</div>}
                     </li>
                   ))}
                 </ul>
               )}
-          </div>
+          </section>
 
           {isClosed && (
-            <div className="rfq-section rfq-close-result">
-              <h4><FiAward size={12} /> Ganador</h4>
+            <section className="aur-section rfq-close-result">
+              <header className="aur-section-header">
+                <span className="aur-section-num"><FiAward size={14} /></span>
+                <h3 className="aur-section-title">Ganador</h3>
+              </header>
               {displayedWinner ? (
                 <>
-                  <p>
-                    <strong>{displayedWinner.supplierName}</strong> ·
-                    {' '}{displayedWinner.precioUnitario} {displayedWinner.moneda || rfq.currency || 'USD'}
+                  <p className="rfq-winner-summary">
+                    <strong>{displayedWinner.supplierName}</strong> ·{' '}
+                    {displayedWinner.precioUnitario} {displayedWinner.moneda || rfq.currency || 'USD'}
                     {displayedWinner.leadTimeDays != null && ` · ${displayedWinner.leadTimeDays}d`}
                   </p>
                   {closeResult?.decisionSource === 'claude' && (
-                    <p className="fin-widget-sub">
+                    <p className="rfq-winner-rationale">
                       Decisión con IA{closeResult.overrodeDeterministic ? ' (sobrescribió la determinista)' : ''}
                       {closeResult.rationale ? `: ${closeResult.rationale}` : ''}
                     </p>
@@ -236,41 +256,43 @@ function RfqRow({ rfq, expanded, onToggle, onClose, onCancel, onResponseSaved, o
                         <FiFileText size={12} /> OC ya creada: <strong>{rfq.ocNumber}</strong>
                       </span>
                     ) : (
-                      <button className="rfq-primary-btn" onClick={onCreateOc}>
+                      <button className="aur-btn-pill aur-btn-pill--sm" onClick={onCreateOc}>
                         <FiFileText size={12} /> Crear OC desde esta cotización
                       </button>
                     )}
                   </div>
                 </>
               ) : (
-                <p>Sin respuestas elegibles.</p>
+                <p className="rfq-winner-empty">Sin respuestas elegibles.</p>
               )}
-            </div>
+            </section>
           )}
 
           {isOpen && (
             <>
-              <div className="rfq-section">
-                <h4>Registrar respuesta</h4>
+              <section className="aur-section">
+                <header className="aur-section-header">
+                  <h3 className="aur-section-title">Registrar respuesta</h3>
+                </header>
                 <RfqResponseForm rfq={rfq} onSaved={onResponseSaved} />
-              </div>
+              </section>
               <div className="rfq-card-actions">
                 <button
-                  className="rfq-primary-btn"
+                  className="aur-btn-pill aur-btn-pill--sm"
                   onClick={() => onClose(false)}
                   disabled={responses.length === 0}
                 >
                   <FiCheck size={12} /> Cerrar (determinista)
                 </button>
                 <button
-                  className="rfq-primary-btn"
+                  className="aur-btn-pill aur-btn-pill--sm"
                   onClick={() => onClose(true)}
                   disabled={responses.length < 2}
                   title="Requiere al menos 2 respuestas elegibles"
                 >
                   <FiCpu size={12} /> Cerrar con IA
                 </button>
-                <button className="rfq-danger-btn" onClick={onCancel}>
+                <button className="aur-btn-pill aur-btn-pill--sm aur-btn-pill--danger" onClick={onCancel}>
                   <FiTrash2 size={12} /> Eliminar
                 </button>
               </div>

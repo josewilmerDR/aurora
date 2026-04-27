@@ -2,17 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { FiClock, FiCheck, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
-// Shows procurement autopilot actions awaiting approval (status=proposed
-// and categoria=procurement). Inline approve/reject — no modal — to keep
-// the widget dense. The dedicated Autopilot Dashboard remains available
-// for richer flows (rollback, reasoning inspection, etc.).
+const PRIORITY_BADGE_VARIANT = {
+  alta:  'aur-badge--magenta',
+  media: 'aur-badge--yellow',
+  baja:  'aur-badge--blue',
+};
 
 function PriorityPill({ prioridad }) {
-  const color = prioridad === 'alta' ? '#ff8080' : prioridad === 'media' ? '#ffd166' : '#66b3ff';
+  const variant = PRIORITY_BADGE_VARIANT[prioridad] || PRIORITY_BADGE_VARIANT.media;
   return (
-    <span className="fin-widget-sub" style={{ color, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>
-      {prioridad || 'media'}
-    </span>
+    <span className={`aur-badge ${variant}`}>{prioridad || 'media'}</span>
   );
 }
 
@@ -21,7 +20,7 @@ function PendingActionsWidget() {
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(null); // actionId currently being processed
+  const [busy, setBusy] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -48,10 +47,11 @@ function PendingActionsWidget() {
   };
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiClock size={14} /> Aprobaciones abastecimiento</span>
-        <span className="fin-widget-sub">{actions.length} pendiente(s)</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiClock size={14} /></span>
+        <h3 className="aur-section-title">Aprobaciones abastecimiento</h3>
+        <span className="aur-section-count">{actions.length}</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
@@ -72,23 +72,25 @@ function PendingActionsWidget() {
                     </span>
                     <PriorityPill prioridad={a.prioridad} />
                   </div>
-                  <span className="fin-widget-sub" style={{ gridColumn: '1 / -1' }}>
+                  <span className="fin-widget-sub">
                     {a.type === 'crear_orden_compra' ? 'OC' : 'Solicitud'}
                     {estimated ? ` · ~$${Number(estimated).toFixed(0)}` : ''}
                     {a.procurementSupplier?.name ? ` · ${a.procurementSupplier.name}` : ''}
                   </span>
-                  <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 4 }}>
+                  <div className="proc-pending-actions">
                     <button
+                      type="button"
+                      className="aur-btn-pill aur-btn-pill--sm"
                       onClick={() => handle(a.id, 'approve')}
                       disabled={busy === a.id}
-                      style={btnStyle('#33ff99')}
                     >
                       <FiCheck size={12} /> Aprobar
                     </button>
                     <button
+                      type="button"
+                      className="aur-btn-pill aur-btn-pill--sm aur-btn-pill--danger"
                       onClick={() => handle(a.id, 'reject')}
                       disabled={busy === a.id}
-                      style={btnStyle('#ff8080')}
                     >
                       <FiX size={12} /> Rechazar
                     </button>
@@ -99,23 +101,8 @@ function PendingActionsWidget() {
           </div>
         )
       )}
-    </div>
+    </section>
   );
-}
-
-function btnStyle(color) {
-  return {
-    background: 'transparent',
-    border: `1px solid ${color}`,
-    color,
-    padding: '3px 10px',
-    borderRadius: 4,
-    fontSize: '0.75rem',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-  };
 }
 
 export default PendingActionsWidget;

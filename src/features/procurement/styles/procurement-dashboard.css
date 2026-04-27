@@ -1,3 +1,31 @@
-/* Procurement dashboard reuses every widget class from the finance dashboard.
-   Import is enough — no overrides needed right now. */
+/* Procurement dashboard reuses finance widget primitives + slims locales. */
 @import '../../finance/styles/finance-dashboard.css';
+
+/* Subtítulo dentro de un fin-budget-row debe ocupar la fila completa
+   (los hijos directos del row son grid 2-col, y fin-widget-sub aquí es
+   meta-info bajo el head). */
+.fin-budget-row > .fin-widget-sub {
+  grid-column: 1 / -1;
+}
+
+/* Footer del widget (ej. "N proveedores sin historial"). */
+.fin-widget-footer {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  margin-top: 4px;
+}
+
+/* Acciones inline dentro de un fin-budget-row (Aprobar / Rechazar). */
+.proc-pending-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Slim sobre fin-budget-row cuando se renderiza como Link (RfqsWidget):
+   neutralizar decoración y herencia de color del anchor. */
+.fin-budget-row.proc-rfq-row {
+  text-decoration: none;
+  color: inherit;
+}

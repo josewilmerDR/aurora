@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
-// Inline form to log a supplier response to an RFQ. Dedupes on supplierId
-// server-side so re-submitting replaces the prior entry.
-
 function RfqResponseForm({ rfq, onSaved }) {
   const apiFetch = useApiFetch();
   const contacted = Array.isArray(rfq.suppliersContacted) ? rfq.suppliersContacted : [];
@@ -51,66 +48,81 @@ function RfqResponseForm({ rfq, onSaved }) {
 
   return (
     <form onSubmit={submit} className="rfq-response-form">
-      <div className="rfq-response-row">
-        <label>
-          Proveedor
-          <select value={supplierId} onChange={e => setSupplierId(e.target.value)} required>
+      <ul className="aur-list">
+        <li className="aur-row">
+          <span className="aur-row-label">Proveedor</span>
+          <select
+            className="aur-select"
+            value={supplierId}
+            onChange={e => setSupplierId(e.target.value)}
+            required
+          >
             {contacted.map(c => (
               <option key={c.supplierId} value={c.supplierId}>{c.supplierName}</option>
             ))}
           </select>
-        </label>
-        <label>
+        </li>
+        <li className="aur-row">
+          <span className="aur-row-label">Disponible</span>
+          <label className="aur-toggle">
+            <input
+              type="checkbox"
+              checked={disponible}
+              onChange={e => setDisponible(e.target.checked)}
+            />
+            <span className="aur-toggle-track" aria-hidden="true">
+              <span className="aur-toggle-thumb" />
+            </span>
+            <span className="aur-toggle-label">{disponible ? 'Sí' : 'No'}</span>
+          </label>
+        </li>
+        {disponible && (
+          <>
+            <li className="aur-row">
+              <span className="aur-row-label">Precio unitario ({rfq.currency || 'USD'})</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="aur-input aur-input--num"
+                value={precio}
+                onChange={e => setPrecio(e.target.value)}
+                required
+              />
+            </li>
+            <li className="aur-row">
+              <span className="aur-row-label">Lead time (días)</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                className="aur-input aur-input--num"
+                value={leadTime}
+                onChange={e => setLeadTime(e.target.value)}
+              />
+            </li>
+          </>
+        )}
+        <li className="aur-row">
+          <span className="aur-row-label">Notas</span>
           <input
-            type="checkbox"
-            checked={disponible}
-            onChange={e => setDisponible(e.target.checked)}
+            type="text"
+            className="aur-input"
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
+            maxLength={500}
+            placeholder="opcional"
           />
-          {' '}Disponible
-        </label>
+        </li>
+      </ul>
+
+      {error && <div className="aur-banner aur-banner--danger">{error}</div>}
+
+      <div className="aur-form-actions">
+        <button type="submit" disabled={busy || !supplierId} className="aur-btn-pill">
+          <FiPlus size={14} /> {busy ? 'Guardando…' : 'Registrar respuesta'}
+        </button>
       </div>
-
-      {disponible && (
-        <div className="rfq-response-row">
-          <label>
-            Precio unitario ({rfq.currency || 'USD'})
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={precio}
-              onChange={e => setPrecio(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Lead time (días)
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={leadTime}
-              onChange={e => setLeadTime(e.target.value)}
-            />
-          </label>
-        </div>
-      )}
-
-      <label>
-        Notas
-        <input
-          type="text"
-          value={notas}
-          onChange={e => setNotas(e.target.value)}
-          maxLength={500}
-          placeholder="opcional"
-        />
-      </label>
-
-      {error && <div className="fin-widget-error">{error}</div>}
-      <button type="submit" disabled={busy || !supplierId} className="rfq-primary-btn">
-        <FiPlus size={12} /> {busy ? 'Guardando…' : 'Registrar respuesta'}
-      </button>
     </form>
   );
 }

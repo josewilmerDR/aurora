@@ -28,10 +28,11 @@ function RfqsWidget() {
   }, 0);
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiSend size={14} /> Cotizaciones abiertas</span>
-        <Link to="/procurement/rfqs" className="fin-widget-sub" style={{ textDecoration: 'underline' }}>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiSend size={14} /></span>
+        <h3 className="aur-section-title">Cotizaciones abiertas</h3>
+        <Link to="/procurement/rfqs" className="aur-btn-text aur-section-actions">
           Ver todos
         </Link>
       </div>
@@ -65,14 +66,13 @@ function RfqsWidget() {
                   <Link
                     key={r.id}
                     to="/procurement/rfqs"
-                    className="fin-budget-row"
-                    style={{ textDecoration: 'none', color: 'inherit' }}
+                    className="fin-budget-row proc-rfq-row"
                   >
                     <div className="fin-budget-row-head">
                       <span className="fin-budget-row-cat">{r.nombreComercial || r.productoId}</span>
                       <span className="fin-budget-row-pct">{responded}/{contacted}</span>
                     </div>
-                    <span className="fin-widget-sub" style={{ gridColumn: '1 / -1' }}>
+                    <span className="fin-widget-sub">
                       {r.cantidad} {r.unidad} · cierre {r.deadline}
                     </span>
                   </Link>
@@ -82,7 +82,7 @@ function RfqsWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
