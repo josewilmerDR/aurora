@@ -1,0 +1,541 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTH — slim modifiers para el splash de autenticación.
+
+   Las páginas /login, /login/contrasena, /register, /forgot-password,
+   /nueva-organizacion y el OrganizationSelector inline comparten un único
+   shell visual (page → card → logo → contenido → footer). Aquí queda slim
+   sólo lo que las primitivas .aur-* no cubren:
+
+     · auth-page / auth-card        — shell full-screen centered + card
+                                       380/420px del splash. aur-sheet es
+                                       para contenido principal de página,
+                                       no splash; aur-modal es overlay.
+     · auth-logo / auth-logo-img    — logo block (img + label "Aurora")
+                                       específico del splash.
+     · auth-title / auth-subtitle   — tipografía del card centered, fija
+                                       en este contexto.
+     · auth-input-wrap              — input + slot derecho (eye toggle o
+                                       arrow). No hay primitive aur-input
+                                       con slot derecho.
+     · auth-input-action            — botón absolute dentro de input-wrap
+                                       para toggle/submit.
+     · auth-error                   — texto de error sutil centered. Más
+                                       liviano que aur-banner--danger.
+     · auth-divider                 — separador con label "o" entre Google
+                                       y email. No hay primitive de
+                                       divider con label.
+     · auth-btn-google              — outline button con SVG de Google. No
+                                       hay modifier --ghost en aur-btn-pill.
+     · auth-loading / auth-spinner  — spinner inline + texto durante
+                                       autenticación. Reusa @keyframes
+                                       aur-spin global.
+     · auth-org-item / -nombre /    — row clickable tipo menu-item para
+        -rol / -own / -owner-badge    selección de organización. aur-row
+                                       es label/control, no menu-item.
+     · auth-section / -title        — agrupación de orgs ("Tu org" vs
+                                       "Otras") dentro del selector.
+     · password-rules / rule-*      — checklist inline de reglas de
+                                       contraseña (Register).
+
+   NOTA — Migración en curso: durante PR A las clases legacy (.login-*,
+   .finca-*, .org-*) coexisten con las nuevas (.auth-*) mediante
+   selectores duales. Conforme PR B / PR C migren páginas a las nuevas
+   clases + primitivas .aur-*, los selectores legacy se irán eliminando.
+   PR D cerrará el dominio con sólo .auth-* y los aur-* primitives.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shell page + card ───────────────────────────────────────────────────── */
+.auth-page,
+.login-page {
+  min-height: 100vh;
+  background-color: var(--aurora-dark-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card,
+.login-card {
+  background-color: var(--aur-bg-strong);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-card--wide,
+.org-selector-card {
+  max-width: 420px;
+}
+
+/* ── Logo block ──────────────────────────────────────────────────────────── */
+.auth-logo,
+.login-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.auth-logo-img,
+.login-logo-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.auth-logo-label,
+.login-logo-label {
+  font-size: 0.8rem;
+  color: var(--aur-text-3);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* ── Tipografía del card ─────────────────────────────────────────────────── */
+.auth-title,
+.login-title {
+  font-size: var(--aur-fs-title3);
+  font-weight: 700;
+  color: var(--aur-text);
+  margin: 0;
+}
+
+.auth-subtitle,
+.login-subtitle {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  margin: 0 0 16px 0;
+  text-align: center;
+}
+
+/* ── Form layout ─────────────────────────────────────────────────────────── */
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--aur-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-field select {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aur-text);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  padding: 12px 14px;
+  font-size: 1rem;
+  width: 100%;
+  cursor: pointer;
+  appearance: auto;
+  transition: border-color 0.2s;
+}
+
+.login-field select:focus {
+  outline: none;
+  border-color: var(--aur-accent);
+}
+
+.login-field input {
+  background-color: var(--aurora-dark-blue);
+  color: var(--aur-text);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  padding: 12px 14px;
+  font-size: 1rem;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: var(--aur-accent);
+}
+
+.login-field input::placeholder {
+  color: var(--aur-text-3);
+}
+
+/* ── Input wrap (input + acción slot derecho) ────────────────────────────── */
+.auth-input-wrap,
+.login-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-input-wrap input,
+.login-input-wrapper input {
+  width: 100%;
+  padding-right: 2.75rem;
+}
+
+.auth-input-action,
+.login-eye-btn {
+  position: absolute;
+  right: 0.65rem;
+  background: none;
+  border: none;
+  color: var(--aur-text-3);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.auth-input-action:hover,
+.login-eye-btn:hover {
+  color: var(--aur-text);
+}
+
+/* ── Error message ───────────────────────────────────────────────────────── */
+.auth-error,
+.login-error {
+  font-size: 0.85rem;
+  color: var(--aur-danger);
+  margin: 0;
+  text-align: center;
+}
+
+/* ── Botón primario verde ────────────────────────────────────────────────── */
+.login-btn {
+  background-color: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+  border: none;
+  border-radius: var(--aur-r-input);
+  padding: 13px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  margin-top: 8px;
+}
+
+.login-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.login-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Divider con label "o" ───────────────────────────────────────────────── */
+.auth-divider,
+.login-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--aur-text-3);
+  font-size: 0.8rem;
+  margin: 4px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after,
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--aur-divider);
+}
+
+/* ── Botón Google (outline) ──────────────────────────────────────────────── */
+.auth-btn-google,
+.login-btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: transparent;
+  color: var(--aur-text);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: var(--aur-r-input);
+  padding: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.auth-btn-google:hover:not(:disabled),
+.login-btn-google:hover:not(:disabled) {
+  border-color: var(--aur-text);
+  background-color: var(--aur-bg-hover);
+}
+
+.auth-btn-google:disabled,
+.login-btn-google:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Footer links ────────────────────────────────────────────────────────── */
+.login-register-link {
+  font-size: 0.85rem;
+  color: var(--aur-text-2);
+  margin: 8px 0 0 0;
+}
+
+.login-register-link a {
+  color: var(--aur-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.login-register-link a:hover {
+  text-decoration: underline;
+}
+
+.login-register-link-btn {
+  background: none;
+  border: none;
+  color: var(--aur-text-3);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-top: 4px;
+  transition: color 0.2s;
+}
+
+.login-register-link-btn:hover {
+  color: var(--aur-text-2);
+}
+
+.login-forgot-link {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--aur-text-3);
+  text-decoration: none;
+  text-align: right;
+  transition: color 0.2s;
+}
+
+.login-forgot-link:hover {
+  color: var(--aur-text);
+}
+
+.login-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--aur-text-3);
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  padding: 4px 0;
+  transition: color 0.2s;
+}
+
+.login-back-btn:hover {
+  color: var(--aur-text);
+}
+
+/* ── Botón flecha dentro del campo email (Login) ─────────────────────────── */
+.login-arrow-btn {
+  position: absolute;
+  right: 0.55rem;
+  background: none;
+  border: none;
+  color: var(--aur-accent);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, background 0.18s ease, transform 0.15s ease;
+}
+
+.login-arrow-btn:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.login-arrow-btn:hover:not(:disabled) {
+  background: var(--aur-accent-tint);
+  transform: translateX(2px);
+}
+
+.login-arrow-btn:active:not(:disabled) {
+  transform: translateX(1px) scale(0.92);
+}
+
+/* ── Email resumido en LoginPassword ─────────────────────────────────────── */
+.login-email-display {
+  font-weight: 500;
+  opacity: 0.75;
+  margin-bottom: 1.25rem;
+  word-break: break-all;
+}
+
+/* ── Loading state (spinner + texto durante OAuth) ───────────────────────── */
+.auth-loading,
+.login-google-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 0 16px;
+  width: 100%;
+}
+
+.auth-spinner,
+.login-google-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--aur-accent-tint-2);
+  border-top-color: var(--aur-accent);
+  border-radius: 50%;
+  animation: aur-spin 0.75s linear infinite;
+}
+
+.auth-loading-text,
+.login-google-loading-text {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  text-align: center;
+}
+
+/* ── Password rules checklist (Register) ─────────────────────────────────── */
+.password-rules {
+  list-style: none;
+  margin: 6px 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.password-rules li {
+  font-size: 0.75rem;
+  transition: color 0.2s;
+}
+
+.rule-ok   { color: var(--aur-accent); }
+.rule-fail { color: var(--aur-text-3); }
+
+/* ── Org selector: lista de organizaciones ───────────────────────────────── */
+.finca-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.finca-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+  text-align: left;
+}
+
+.finca-item:hover {
+  border-color: var(--aur-accent);
+  background-color: var(--aur-accent-tint);
+}
+
+.finca-item-nombre {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--aur-text);
+}
+
+.finca-item-rol {
+  font-size: 0.75rem;
+  color: var(--aur-accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.finca-item-own {
+  border-color: var(--aur-accent);
+  background-color: var(--aur-accent-tint);
+}
+
+.finca-item-own:hover {
+  background-color: var(--aur-accent-tint-2);
+}
+
+.finca-item-owner-badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--aurora-dark-blue);
+  background-color: var(--aur-accent);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Org selector: secciones (Tu org / Otras) y mensaje vacío ────────────── */
+.org-empty-message {
+  font-size: 0.9rem;
+  color: var(--aur-text-2);
+  text-align: center;
+  line-height: 1.6;
+  margin: 8px 0 16px 0;
+}
+
+.org-selector-cta {
+  width: 100%;
+}
+
+.org-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.org-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}

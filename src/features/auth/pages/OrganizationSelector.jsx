@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useUser, ROLE_LABELS } from '../../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../lib/apiFetch';
-import '../styles/login.css';
+import '../styles/auth.css';
 
 export default function OrganizationSelector() {
   const { memberships, selectFinca, firebaseUser, logout, refreshMemberships } = useUser();
