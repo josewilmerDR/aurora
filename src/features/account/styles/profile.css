@@ -1,14 +1,14 @@
 
 /* ── Page wrapper ─────────────────────────────────────────────────────────── */
+/* Sin display:flex aquí: dejamos que cada aur-section aporte su propio
+   margin-bottom (28px del primitive), igualando el ritmo vertical de
+   procurement / account-settings. */
 .profile-form {
   max-width: 640px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
 }
 
 .profile-form-title {
-  margin: 0 0 4px 0;
+  margin: 0 0 12px 0;
   font-size: var(--aur-fs-title3);
   color: var(--aur-text);
   font-weight: 600;
