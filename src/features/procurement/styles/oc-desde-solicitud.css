@@ -1,13 +1,13 @@
 /* ═══════════════════════════════════════════
-   PURCHASE ORDER — Screen styles
+   PURCHASE ORDER — Screen styles (editor chrome + document)
    ═══════════════════════════════════════════ */
 
 .po-page {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-color: var(--aurora-dark-blue);
-  color: var(--aurora-light);
+  background-color: var(--aur-bg-app, var(--aurora-dark-blue));
+  color: var(--aur-text);
   font-family: inherit;
 }
 
@@ -17,36 +17,17 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
-  background-color: var(--aurora-background);
-  border-bottom: 1px solid var(--aurora-border);
+  background-color: var(--aur-bg-card);
+  border-bottom: 1px solid var(--aur-divider);
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
 .po-topbar-title {
-  font-size: 1rem;
+  font-size: var(--aur-fs-body);
   font-weight: 600;
-  color: var(--aurora-light);
-}
-
-.po-btn-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: none;
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-  padding: 8px 14px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: border-color 0.15s;
-}
-
-.po-btn-back:hover {
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
+  color: var(--aur-text);
 }
 
 .po-topbar-actions {
@@ -55,38 +36,12 @@
   gap: 10px;
 }
 
-.po-btn-save {
+/* aur-badge--green ya provee el chip; este slim pega íconos+texto compactos. */
+.aur-badge.po-saved-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  background-color: var(--aurora-background);
-  color: var(--aurora-green);
-  border: 1px solid var(--aurora-green);
-  padding: 8px 14px;
-  border-radius: 5px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.po-btn-save:hover:not(:disabled) {
-  background-color: rgba(51, 255, 153, 0.1);
-}
-
-.po-btn-save:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.po-saved-indicator {
-  color: var(--aurora-green);
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 8px 14px;
-  border: 1px solid var(--aurora-green);
-  border-radius: 5px;
-  background-color: rgba(51, 255, 153, 0.08);
+  gap: 5px;
+  padding: 4px 10px;
 }
 
 .po-save-toast {
@@ -95,10 +50,10 @@
   right: 28px;
   padding: 13px 20px;
   border-radius: 8px;
-  font-size: 0.95rem;
+  font-size: var(--aur-fs-body);
   font-weight: 500;
   z-index: 2000;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  box-shadow: var(--aur-shadow-modal);
   animation: po-toast-in 0.2s ease;
 }
 
@@ -108,32 +63,13 @@
 }
 
 .po-save-toast--success {
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
+  background-color: var(--aur-accent);
+  color: var(--aur-bg-app, var(--aurora-dark-blue));
 }
 
 .po-save-toast--error {
-  background-color: #ff6b6b;
+  background-color: var(--aur-danger);
   color: #fff;
-}
-
-.po-btn-print {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  border: none;
-  padding: 9px 18px;
-  border-radius: 5px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.po-btn-print:hover {
-  opacity: 0.88;
 }
 
 /* ── Two-column layout ── */
@@ -146,88 +82,39 @@
 
 /* ── Editor panel ── */
 .po-editor {
-  background-color: var(--aurora-background);
-  border-right: 1px solid var(--aurora-border);
+  background-color: var(--aur-bg-card);
+  border-right: 1px solid var(--aur-divider);
   padding: 20px;
   overflow-y: auto;
   height: calc(100vh - 53px);
   position: sticky;
   top: 53px;
-}
-
-.po-editor-section {
-  margin-bottom: 24px;
-}
-
-.po-editor-section h3 {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--aurora-green);
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.po-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-bottom: 12px;
+  gap: 16px;
 }
 
-.po-field label {
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-
-.po-field input,
-.po-field select,
-.po-editor-section textarea {
-  background-color: var(--aurora-dark-blue);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  border-radius: 5px;
-  padding: 8px 10px;
-  font-size: 0.9rem;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.po-field input:focus,
-.po-field select:focus,
-.po-editor-section textarea:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
-.po-editor-section textarea {
-  resize: vertical;
-}
-
-/* ── Line editor ── */
+/* ── Line editor (compact card por línea de producto) ── */
 .po-empty-lines {
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  opacity: 0.4;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
   text-align: center;
   padding: 12px 0;
+  margin: 0;
 }
 
 .po-line-editor {
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  background-color: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
   padding: 10px 12px;
   margin-bottom: 8px;
 }
 
 .po-line-name {
-  font-size: 0.88rem;
+  font-size: var(--aur-fs-footnote);
   font-weight: 600;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   margin-bottom: 8px;
 }
 
@@ -245,45 +132,8 @@
 }
 
 .po-line-field label {
-  font-size: 0.72rem;
-  color: var(--aurora-light);
-  opacity: 0.6;
-}
-
-.po-line-field input,
-.po-line-field select {
-  background-color: var(--aurora-background);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  border-radius: 4px;
-  padding: 6px 8px;
-  font-size: 0.85rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.po-line-field input:focus,
-.po-line-field select:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
-.po-line-remove {
-  background: none;
-  border: 1px solid var(--aurora-border);
-  color: #ff6b6b;
-  border-radius: 4px;
-  padding: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: end;
-  height: 32px;
-}
-
-.po-line-remove:hover {
-  background-color: rgba(255, 107, 107, 0.12);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
 }
 
 /* ── Add product search ── */
@@ -293,26 +143,26 @@
   gap: 7px;
   width: 100%;
   background: none;
-  border: 1px dashed var(--aurora-border);
-  color: var(--aurora-green);
-  border-radius: 6px;
+  border: 1px dashed var(--aur-divider);
+  color: var(--aur-accent);
+  border-radius: var(--aur-r-input);
   padding: 10px;
   cursor: pointer;
-  font-size: 0.88rem;
+  font-size: var(--aur-fs-footnote);
   justify-content: center;
   margin-top: 4px;
   transition: border-color 0.15s, background-color 0.15s;
 }
 
 .po-btn-add-line:hover {
-  border-color: var(--aurora-green);
-  background-color: rgba(51, 255, 153, 0.05);
+  border-color: var(--aur-accent);
+  background-color: var(--aur-accent-tint);
 }
 
 .po-search-box {
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-green);
-  border-radius: 6px;
+  background-color: var(--aur-bg-input);
+  border: 1px solid var(--aur-accent);
+  border-radius: var(--aur-r-input);
   overflow: hidden;
   margin-top: 4px;
 }
@@ -322,27 +172,17 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-  opacity: 0.7;
+  border-bottom: 1px solid var(--aur-divider);
+  color: var(--aur-text-2);
 }
 
 .po-search-input-wrap input {
   flex: 1;
   background: none;
   border: none;
-  color: var(--aurora-light);
-  font-size: 0.9rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
   outline: none;
-}
-
-.po-search-input-wrap button {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  cursor: pointer;
-  opacity: 0.6;
-  display: flex;
 }
 
 .po-search-results {
@@ -357,7 +197,7 @@
   width: 100%;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
   padding: 9px 12px;
   text-align: left;
   cursor: pointer;
@@ -365,27 +205,26 @@
 }
 
 .po-search-result:hover {
-  background-color: var(--aurora-background);
+  background-color: var(--aur-bg-hover);
 }
 
 .po-sr-name {
-  font-size: 0.88rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   font-weight: 500;
 }
 
 .po-sr-meta {
-  font-size: 0.75rem;
-  color: var(--aurora-light);
-  opacity: 0.55;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
 }
 
 .po-no-results {
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  opacity: 0.4;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
   text-align: center;
   padding: 14px;
+  margin: 0;
 }
 
 /* ── Document wrap ── */
@@ -396,7 +235,9 @@
 }
 
 /* ════════════════════════════════════════════
-   THE DOCUMENT — white paper look on screen
+   THE DOCUMENT — Apple-quality printable, brand-specific
+   (NO migrar tokens — el documento debe verse igual en pantalla
+   y en papel; usa colores fijos que sobreviven al print)
    ════════════════════════════════════════════ */
 .po-document {
   background: #ffffff;
@@ -412,7 +253,6 @@
   box-sizing: border-box;
 }
 
-/* ── Doc header ── */
 .po-doc-header {
   display: flex;
   justify-content: space-between;
@@ -501,7 +341,6 @@
   text-align: right;
 }
 
-/* ── Parties ── */
 .po-doc-parties {
   margin-bottom: 24px;
 }
@@ -541,7 +380,6 @@
   margin-top: 0;
 }
 
-/* ── Items table ── */
 .po-doc-table {
   width: 100%;
   border-collapse: collapse;
@@ -597,13 +435,15 @@
   font-size: 1rem;
 }
 
+.po-total-label--iva { opacity: 0.7; }
+.po-total-value--iva { color: #cc33ff; font-size: 0.88rem; }
+
 .po-col-num   { width: 32px; text-align: center; }
 .po-col-qty   { width: 70px; text-align: right; }
 .po-col-unit  { width: 60px; text-align: center; }
 .po-col-price { width: 100px; text-align: right; }
 .po-col-total { width: 100px; text-align: right; }
 
-/* ── Notes ── */
 .po-doc-notes {
   font-family: sans-serif;
   font-size: 0.82rem;
@@ -616,7 +456,6 @@
   background-color: #fafafa;
 }
 
-/* ── Signatures ── */
 .po-doc-signatures {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -655,7 +494,6 @@
   text-align: center;
 }
 
-/* ── Footer ── */
 .po-doc-footer {
   margin-top: 28px;
   padding-top: 10px;
@@ -666,25 +504,20 @@
   text-align: center;
 }
 
-/* ── Loading ── */
 .po-loading {
-  color: var(--aurora-light);
-  opacity: 0.6;
+  color: var(--aur-text-3);
   text-align: center;
   padding: 60px;
 }
-
 
 /* ═══════════════════════════════════════════
    PRINT STYLES — Only the document prints
    ═══════════════════════════════════════════ */
 @media print {
-  /* Hide everything not needed */
   .no-print {
     display: none !important;
   }
 
-  /* Reset page */
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -710,7 +543,6 @@
     padding: 0;
   }
 
-  /* The document fills the page */
   .po-document {
     box-shadow: none;
     max-width: none;
@@ -720,7 +552,6 @@
     font-size: 11pt;
   }
 
-  /* Keep dark header readable */
   .po-doc-table th {
     background-color: #0d1a26 !important;
     color: #fff !important;
@@ -731,7 +562,6 @@
     color: #33ff99 !important;
   }
 
-  /* Avoid page breaks inside rows */
   .po-doc-table tr {
     page-break-inside: avoid;
   }
@@ -757,32 +587,14 @@
   }
 }
 
-/* ── Proveedor combobox ── */
-.ingreso-proveedor-input {
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  color: var(--aurora-light);
-  padding: 7px 12px;
-  font-size: 0.88rem;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.ingreso-proveedor-input:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
 /* ── Proveedor combobox dropdown (portal) ── */
 .proveedor-dropdown {
   position: absolute;
   z-index: 9999;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
+  background-color: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--aur-shadow-modal);
   list-style: none;
   margin: 0;
   padding: 4px 0;
@@ -793,8 +605,8 @@
 .proveedor-dropdown-item {
   padding: 7px 12px;
   cursor: pointer;
-  font-size: 0.84rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -803,6 +615,6 @@
 
 .proveedor-dropdown-item:hover,
 .proveedor-dropdown-item--active {
-  background-color: rgba(51, 255, 153, 0.1);
-  color: var(--aurora-green);
+  background-color: var(--aur-accent-tint);
+  color: var(--aur-accent);
 }
