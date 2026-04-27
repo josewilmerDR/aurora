@@ -62,19 +62,6 @@
   font-size: var(--aur-fs-footnote);
 }
 
-.ol-activity-name {
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-text);
-}
-
-.ol-date--overdue {
-  color: var(--aur-warn);
-}
-
-.ol-row--done {
-  opacity: 0.55;
-}
-
 .ol-col-action {
   text-align: right;
   padding-right: 10px;
