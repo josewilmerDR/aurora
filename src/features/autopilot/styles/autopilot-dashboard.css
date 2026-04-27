@@ -80,20 +80,17 @@
   white-space: nowrap;
 }
 
-/* ── Notices ── */
+/* ── Notices — banda informativa con icono + texto.
+   Sólo la variante --error está en uso; --off fue removida en el cleanup
+   final (no había rama del JSX que la activara). */
 .ap-notice {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 0.86rem;
-  border: 1px solid;
-}
-.ap-notice--off {
-  border-color: var(--aur-divider);
-  background: var(--aur-bg-hover);
-  color: var(--aur-text-2);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  border: 1px solid transparent;
 }
 .ap-notice--error {
   border-color: rgba(204, 51, 255, 0.3);

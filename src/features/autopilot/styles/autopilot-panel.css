@@ -51,41 +51,44 @@
   gap: 6px;
 }
 
-/* ── Pause / resume button (compact, lives in panel header) ──────────────── */
+/* ── Pause / resume button — pill compacto bespoke en el panel header ─────
+   No es aur-btn-pill porque vive en una banda muy estrecha del header
+   junto al cierre/config; necesita un tamaño más reducido y dual variant
+   (pause=rojo, resume=verde) que el sistema no provee como primitiva. */
 .ap-pause-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
   border-radius: 14px;
-  font-size: 0.74rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
   white-space: nowrap;
   border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .ap-pause-btn:disabled { opacity: 0.5; cursor: default; }
 
 .ap-pause-btn--pause {
-  background: rgba(255, 80, 80, 0.1);
-  border-color: rgba(255, 80, 80, 0.35);
-  color: #ff8a8a;
+  background: var(--aur-danger-tint);
+  border-color: rgba(204, 51, 255, 0.35);
+  color: var(--aur-danger);
 }
 .ap-pause-btn--pause:hover:not(:disabled) {
-  background: rgba(255, 80, 80, 0.2);
-  border-color: rgba(255, 80, 80, 0.55);
-  color: #ffb3b3;
+  background: var(--aur-danger-tint-2);
+  border-color: rgba(204, 51, 255, 0.55);
 }
 
 .ap-pause-btn--resume {
-  background: rgba(51, 255, 153, 0.12);
-  border-color: rgba(51, 255, 153, 0.45);
-  color: var(--aurora-green);
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-3);
+  color: var(--aur-accent);
 }
 .ap-pause-btn--resume:hover:not(:disabled) {
-  background: rgba(51, 255, 153, 0.2);
+  background: var(--aur-accent-tint-2);
   border-color: rgba(51, 255, 153, 0.65);
 }
 
@@ -164,7 +167,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--aurora-background);
+  background: var(--aur-bg-modal);
   border: 2px solid rgba(255, 255, 255, 0.25);
   box-sizing: border-box;
   transition: background-color 0.18s ease, border-color 0.18s ease;
@@ -203,7 +206,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--aurora-light);
+  background: var(--aur-text);
   border: 3px solid var(--ap-level-color);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   cursor: pointer;
@@ -214,7 +217,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--aurora-light);
+  background: var(--aur-text);
   border: 3px solid var(--ap-level-color);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   cursor: pointer;
@@ -243,20 +246,20 @@
   padding: 2px 0;
   background: none;
   border: none;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  font-size: 0.68rem;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: center;
   cursor: pointer;
+  font-family: inherit;
   transition: color 0.18s ease, opacity 0.18s ease;
 }
 .ap-level-slider-label:first-child { text-align: left; }
 .ap-level-slider-label:last-child  { text-align: right; }
-.ap-level-slider-label:hover:not(:disabled) { opacity: 0.9; }
-.ap-level-slider-label.is-active { opacity: 1; color: var(--ap-level-color); }
+.ap-level-slider-label:hover:not(:disabled) { color: var(--aur-text-2); }
+.ap-level-slider-label.is-active { color: var(--ap-level-color); }
 
 .ap-level-slider--disabled .ap-level-slider-range,
 .ap-level-slider--disabled .ap-level-slider-label {
@@ -692,24 +695,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--aurora-border);
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
   border-radius: 50%;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  font-family: inherit;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .app-header-autopilot-btn:hover {
-  background: rgba(51, 255, 153, 0.1);
-  border-color: rgba(51, 255, 153, 0.35);
-  color: var(--aurora-green);
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-3);
+  color: var(--aur-accent);
 }
 
 .app-header-autopilot-btn.active {
-  background: rgba(51, 255, 153, 0.15);
+  background: var(--aur-accent-tint-2);
   border-color: rgba(51, 255, 153, 0.5);
-  color: var(--aurora-green);
+  color: var(--aur-accent);
 }
 
 .app-header-autopilot-badge {
@@ -719,7 +723,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: var(--aurora-magenta);
+  background: var(--aur-danger);
   color: #fff;
   border: 2px solid var(--aurora-dark-blue);
   border-radius: 9px;
@@ -737,6 +741,6 @@
   .autopilot-panel {
     width: 100vw;
     border-left: none;
-    border-top: 1px solid var(--aurora-border);
+    border-top: 1px solid var(--aur-divider);
   }
 }
