@@ -77,16 +77,16 @@ function KpiAccuracyWidget() {
         </div>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {loading && <div className="ceo-widget-loading">Cargando…</div>}
+      {error && <div className="ceo-widget-error">{error}</div>}
 
       {!loading && !error && data && (
         <>
           <div>
-            <div className="fin-widget-primary">
+            <div className="ceo-widget-primary">
               {fmtHitRate(data.overall?.hitRate)}
             </div>
-            <div className="fin-widget-sub">
+            <div className="ceo-widget-sub">
               Aciertos en general · {data.overall?.decidedCount || 0} decisiones evaluadas
               {data.observationCount > 0
                 ? ` · basado en ${data.observationCount} registros${data.truncated ? ' (limitado)' : ''}`
@@ -95,7 +95,7 @@ function KpiAccuracyWidget() {
           </div>
 
           {rows.length === 0 ? (
-            <div className="fin-widget-empty">
+            <div className="ceo-widget-empty">
               Todavía no hay datos para evaluar. El Copilot revisa los resultados cada día.
             </div>
           ) : (
