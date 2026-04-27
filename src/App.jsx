@@ -20,7 +20,6 @@ import LoginPassword from './features/auth/pages/LoginPassword';
 import Register from './features/auth/pages/Register';
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import Profile from './features/account/pages/Profile';
-import FincaSelector from './features/auth/pages/FincaSelector';
 import OrganizationSelector from './features/auth/pages/OrganizationSelector';
 import NewOrganization from './features/auth/pages/NewOrganization';
 import EmployeeProfile from './features/hr/pages/EmployeeProfile';

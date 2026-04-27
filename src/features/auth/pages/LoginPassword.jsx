@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FiEye, FiEyeOff, FiArrowLeft } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
-import '../styles/login.css';
+import '../styles/auth.css';
 
 export default function LoginPassword() {
   const { login, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
