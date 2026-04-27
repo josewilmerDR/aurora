@@ -12,25 +12,27 @@ const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('es-CR', { mini
 const fmtKg = (n) => (n == null ? '—' : Number(n).toLocaleString('es-CR', { maximumFractionDigits: 0 }));
 const fmtPct = (n) => (n == null ? '—' : `${Number(n).toFixed(1)}%`);
 
-// Color de la celda de margen según signo.
-function marginClass(margen) {
-  if (margen == null) return '';
-  if (margen > 0) return 'roi-positive';
-  if (margen < 0) return 'roi-negative';
+function tone(v) {
+  if (v == null) return '';
+  if (v > 0) return 'positive';
+  if (v < 0) return 'negative';
   return '';
 }
+const numToneClass = (v) => { const t = tone(v); return t ? `cost-num--${t}` : ''; };
+const kpiToneClass = (v) => { const t = tone(v); return t ? `cost-kpi--${t}` : ''; };
 
 function RoiRow({ row, displayName }) {
+  const tCls = numToneClass(row.margen);
   return (
     <tr>
-      <td className="cc-td-name">{displayName}</td>
-      <td className="cc-td-num">{fmt(row.ingresos)}</td>
-      <td className="cc-td-num">{fmt(row.costos)}</td>
-      <td className={`cc-td-num ${marginClass(row.margen)}`} style={{ fontWeight: 600 }}>{fmt(row.margen)}</td>
-      <td className={`cc-td-num ${marginClass(row.margen)}`}>{fmtPct(row.margenPct)}</td>
-      <td className="cc-td-num">{fmtKg(row.kg)}</td>
-      <td className="cc-td-num">{row.precioPromedio != null ? fmt(row.precioPromedio) : '—'}</td>
-      <td className="cc-td-num">{row.costoPorKg != null ? fmt(row.costoPorKg) : '—'}</td>
+      <td className="cost-td-name">{displayName}</td>
+      <td className="aur-td-num">{fmt(row.ingresos)}</td>
+      <td className="aur-td-num">{fmt(row.costos)}</td>
+      <td className={`aur-td-num cost-td-total ${tCls}`}>{fmt(row.margen)}</td>
+      <td className={`aur-td-num ${tCls}`}>{fmtPct(row.margenPct)}</td>
+      <td className="aur-td-num">{fmtKg(row.kg)}</td>
+      <td className="aur-td-num">{row.precioPromedio != null ? fmt(row.precioPromedio) : '—'}</td>
+      <td className="aur-td-num">{row.costoPorKg != null ? fmt(row.costoPorKg) : '—'}</td>
     </tr>
   );
 }
@@ -74,39 +76,41 @@ function RoiTable({ desde, hasta }) {
     }
   }, [data, subTab]);
 
-  if (loading) return <div className="cc-loading">Calculando rentabilidad…</div>;
-  if (error) return <div className="cc-empty" style={{ color: '#ff8080' }}>{error}</div>;
-  if (!data) return <div className="cc-empty">Sin datos.</div>;
+  if (loading) return <div className="cost-loading">Calculando rentabilidad…</div>;
+  if (error) return <div className="cost-empty cost-num--negative">{error}</div>;
+  if (!data) return <div className="cost-empty">Sin datos.</div>;
+
+  const kpiTone = kpiToneClass(data.resumen.margen);
 
   return (
     <div>
       {/* KPIs de rentabilidad */}
-      <div className="cc-kpis" style={{ marginBottom: 12 }}>
-        <div className="cc-kpi">
-          <span className="cc-kpi-label">Ingresos</span>
-          <span className="cc-kpi-value">{fmt(data.resumen.ingresos)}</span>
+      <div className="cost-kpis cost-kpis--tight">
+        <div className="cost-kpi">
+          <span className="cost-kpi-label">Ingresos</span>
+          <span className="cost-kpi-value">{fmt(data.resumen.ingresos)}</span>
         </div>
-        <div className="cc-kpi">
-          <span className="cc-kpi-label">Costos</span>
-          <span className="cc-kpi-value">{fmt(data.resumen.costos)}</span>
+        <div className="cost-kpi">
+          <span className="cost-kpi-label">Costos</span>
+          <span className="cost-kpi-value">{fmt(data.resumen.costos)}</span>
         </div>
-        <div className={`cc-kpi cc-kpi--highlight ${marginClass(data.resumen.margen)}`}>
-          <span className="cc-kpi-label">Margen</span>
-          <span className="cc-kpi-value">{fmt(data.resumen.margen)}</span>
+        <div className={`cost-kpi cost-kpi--accent ${kpiTone}`}>
+          <span className="cost-kpi-label">Margen</span>
+          <span className="cost-kpi-value">{fmt(data.resumen.margen)}</span>
         </div>
-        <div className={`cc-kpi ${marginClass(data.resumen.margen)}`}>
-          <span className="cc-kpi-label">Margen %</span>
-          <span className="cc-kpi-value">{fmtPct(data.resumen.margenPct)}</span>
+        <div className={`cost-kpi ${kpiTone}`}>
+          <span className="cost-kpi-label">Margen %</span>
+          <span className="cost-kpi-value">{fmtPct(data.resumen.margenPct)}</span>
         </div>
-        <div className="cc-kpi">
-          <span className="cc-kpi-label">Precio / Kg</span>
-          <span className="cc-kpi-value">{data.resumen.precioPromedio != null ? fmt(data.resumen.precioPromedio) : '—'}</span>
+        <div className="cost-kpi">
+          <span className="cost-kpi-label">Precio / Kg</span>
+          <span className="cost-kpi-value">{data.resumen.precioPromedio != null ? fmt(data.resumen.precioPromedio) : '—'}</span>
         </div>
       </div>
 
       {/* Aviso si hubo prorrateo de ingresos no atribuidos */}
       {data.meta?.unattributedAmount > 0 && (
-        <div className="roi-notice">
+        <div className="cost-notice cost-notice--warn">
           {fmt(data.meta.unattributedAmount)} en ingresos no se pudo atribuir directamente a un lote.
           {data.meta.unattributedProrated
             ? ' Se prorrateó proporcional al kg cosechado del período.'
@@ -115,11 +119,14 @@ function RoiTable({ desde, hasta }) {
       )}
 
       {/* Sub-tabs para lote/grupo/bloque */}
-      <div className="cc-tabs">
+      <div className="cost-tabs" role="tablist">
         {SUB_TABS.map(t => (
           <button
             key={t.id}
-            className={`cc-tab${subTab === t.id ? ' cc-tab--active' : ''}`}
+            type="button"
+            role="tab"
+            aria-selected={subTab === t.id}
+            className={`cost-tabs-btn${subTab === t.id ? ' is-active' : ''}`}
             onClick={() => setSubTab(t.id)}
           >
             {t.label}
@@ -129,20 +136,20 @@ function RoiTable({ desde, hasta }) {
 
       {/* Tabla */}
       {rows.length === 0 ? (
-        <div className="cc-empty">Sin datos para el rango seleccionado.</div>
+        <div className="cost-empty">Sin datos para el rango seleccionado.</div>
       ) : (
-        <div className="cc-table-wrap">
-          <table className="cc-table">
+        <div className="aur-table-wrap">
+          <table className="aur-table">
             <thead>
               <tr>
                 <th>{subTab === 'general' ? 'Finca' : subTab === 'lote' ? 'Lote' : subTab === 'grupo' ? 'Grupo' : 'Bloque'}</th>
-                <th className="cc-th-num">Ingresos</th>
-                <th className="cc-th-num">Costos</th>
-                <th className="cc-th-num">Margen</th>
-                <th className="cc-th-num">Margen %</th>
-                <th className="cc-th-num">Kg</th>
-                <th className="cc-th-num">Precio/Kg</th>
-                <th className="cc-th-num">Costo/Kg</th>
+                <th className="aur-td-num">Ingresos</th>
+                <th className="aur-td-num">Costos</th>
+                <th className="aur-td-num">Margen</th>
+                <th className="aur-td-num">Margen %</th>
+                <th className="aur-td-num">Kg</th>
+                <th className="aur-td-num">Precio/Kg</th>
+                <th className="aur-td-num">Costo/Kg</th>
               </tr>
             </thead>
             <tbody>
