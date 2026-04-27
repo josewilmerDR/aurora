@@ -1,120 +1,215 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Dashboard domain — slim modifiers sobre primitivas .aur-*
+   El selector .empty-state y la familia .info-list / .item-*-text se
+   mantienen como utilities globales (33 / 5 / 3 archivos consumidores
+   fuera de este dominio) — solo refrescamos sus tokens.
+   ═══════════════════════════════════════════════════════════════════════ */
 
-.dashboard-search-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-  transition: border-color 0.2s;
-}
-
-.dashboard-search-bar:focus-within {
-  border-color: var(--aurora-green);
-}
-
-.dashboard-search-icon {
-  font-size: 1.1rem;
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.dashboard-search-bar input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 1rem;
-  color: var(--aurora-light);
-}
-
-.dashboard-search-bar input::placeholder {
-  color: var(--aurora-light);
-  opacity: 0.45;
-}
-
-.dashboard-grid {
+/* ── Stats grid (3 cards) ──────────────────────────────────────────────
+   Layout grid responsive. Cada card tiene icono + count + label apilados
+   semánticamente con jerarquía. Las variantes --danger/--warn/--accent
+   pintan el count y un border-color tonal, similar a cost-kpi--accent. */
+.dash-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 25px;
-  margin-bottom: 25px;
-}
-
-.stat-card {
-  background-color: var(--aurora-background);
-  padding: 16px 20px;
-  border-radius: 8px;
-  border: 1px solid var(--aurora-border);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  display: flex;
-  align-items: center;
   gap: 14px;
 }
 
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+.dash-stat-card {
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  text-decoration: none;
+  color: var(--aur-text);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s var(--aur-ease);
+  cursor: pointer;
+}
+.dash-stat-card:hover {
+  background: var(--aur-bg-hover);
+  border-color: var(--aur-divider-2);
+}
+.dash-stat-card:active {
+  transform: scale(0.98);
 }
 
-.stat-card .count {
-  font-size: 2.4rem;
-  font-weight: 700;
-  line-height: 1;
+.dash-stat-icon {
+  grid-row: 1 / span 2;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--aur-r-input);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aur-bg-input);
+  color: var(--aur-text-2);
   flex-shrink: 0;
 }
 
-.stat-card .label {
-  font-size: 1rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
+.dash-stat-count {
+  font-size: var(--aur-fs-title3);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--aur-text);
+}
+/* Símbolo "+" del card "Nueva tarea" — más liviano que el numérico. */
+.dash-stat-count--symbol {
+  font-weight: 400;
+  font-variant-numeric: normal;
+}
+
+.dash-stat-label {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
   line-height: 1.2;
 }
 
-.stat-card.overdue .count {
-  color: var(--aurora-magenta);
+/* Variantes tonales — tiñen icono + count + border-color al hover. */
+.dash-stat-card--danger .dash-stat-icon {
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
 }
-.stat-card.pending .count {
-  color: #f0ad4e; /* Mantenemos el ámbar para "pendiente" ya que es un estándar reconocido */
+.dash-stat-card--danger .dash-stat-count {
+  color: var(--aur-danger);
 }
-.stat-card.completed .count {
-  color: var(--aurora-green);
-}
-.stat-card.new-task .count {
-  color: var(--aurora-green);
-  font-weight: 400;
-}
-.stat-card.new-task {
-  border-color: rgba(51, 255, 153, 0.3);
-}
-.stat-card.new-task:hover {
-  border-color: var(--aurora-green);
+.dash-stat-card--danger:hover {
+  border-color: var(--aur-danger);
 }
 
-.dashboard-columns-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 25px;
+.dash-stat-card--warn .dash-stat-icon {
+  background: var(--aur-warn-tint);
+  color: var(--aur-warn);
+}
+.dash-stat-card--warn .dash-stat-count {
+  color: var(--aur-warn);
+}
+.dash-stat-card--warn:hover {
+  border-color: var(--aur-warn);
 }
 
-.info-card {
-  background-color: var(--aurora-background);
-  padding: 25px;
-  border-radius: 8px;
-  border: 1px solid var(--aurora-border);
+.dash-stat-card--accent .dash-stat-icon {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+.dash-stat-card--accent .dash-stat-count {
+  color: var(--aur-accent);
+}
+.dash-stat-card--accent:hover {
+  border-color: var(--aur-accent);
 }
 
-.info-card h3 {
-  font-size: 1.25rem;
+@media (max-width: 720px) {
+  .dash-stats-grid { gap: 10px; }
+  .dash-stat-card { padding: 12px 14px; column-gap: 10px; }
+  .dash-stat-icon { width: 30px; height: 30px; }
+  .dash-stat-count { font-size: var(--aur-fs-callout); }
+  .dash-stat-label { font-size: 10px; }
+}
+
+/* ── Feed: actividad reciente ──────────────────────────────────────────
+   Cada evento es un aur-row con grid override para layout 4-col:
+   avatar / body / time / icon. Variante is-autopilot tiñe bg con
+   magenta-tint del sistema y agrega un indicador inset, consistente
+   con cost-snap-row.is-selected (PR D de costs/). */
+.aur-row.dash-feed-row {
+  grid-template-columns: 36px 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+}
+.aur-row.dash-feed-row.is-autopilot {
+  background: var(--aur-badge-magenta-bg);
+  box-shadow: inset 2px 0 0 var(--aur-badge-magenta-fg);
+}
+
+.dash-feed-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--aur-bg-input);
+  color: var(--aur-accent);
+  font-weight: 700;
+  font-size: var(--aur-fs-footnote);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dash-feed-row.is-autopilot .dash-feed-avatar {
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
+  font-size: var(--aur-fs-callout);
+}
+
+.dash-feed-body {
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.4;
+  color: var(--aur-text);
+  min-width: 0;
+}
+
+.dash-feed-username {
   font-weight: 600;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--aurora-border);
-  padding-bottom: 10px;
+  color: var(--aur-accent);
+}
+.dash-feed-row.is-autopilot .dash-feed-username {
+  color: var(--aur-badge-magenta-fg);
+}
+
+.dash-feed-action {
+  color: var(--aur-text-2);
+}
+
+.dash-feed-title {
+  font-weight: 500;
+  color: var(--aur-text);
+}
+
+.dash-feed-sub {
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
+}
+
+.dash-feed-time {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dash-feed-icon {
+  font-size: var(--aur-fs-body);
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Utilities globales — consumidas por 33+ archivos fuera del dominio.
+   NO TOCAR la estructura/selectores; solo refrescar tokens al sistema.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-footnote);
 }
 
 .info-list {
   list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .info-list li {
@@ -122,12 +217,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 5px;
-  border-bottom: 1px solid var(--aurora-border);
-  transition: background-color 0.2s;
+  border-bottom: 1px solid var(--aur-divider);
+  transition: background-color 0.15s ease;
 }
 
 .info-list li:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background: var(--aur-bg-hover);
 }
 
 .info-list li:last-child {
@@ -136,146 +231,15 @@
 
 .info-list .item-main-text {
   font-weight: 500;
+  color: var(--aur-text);
 }
 
 .info-list .item-sub-text {
-  font-size: 0.9rem;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  opacity: 0.7;
-}
-
-/* Feed */
-.feed-card {
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.feed-header {
-  font-size: 1rem;
-  font-weight: 600;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--aurora-border);
-  margin: 0;
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.feed-event {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--aurora-border);
-  transition: background-color 0.15s;
-}
-
-.feed-event:last-child {
-  border-bottom: none;
-}
-
-.feed-event:hover {
-  background-color: rgba(255, 255, 255, 0.03);
-}
-
-.feed-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background-color: var(--aurora-border);
-  color: var(--aurora-green);
-  font-weight: 700;
-  font-size: 0.95rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.feed-body {
-  flex: 1;
-  font-size: 0.9rem;
-  line-height: 1.4;
-  color: var(--aurora-light);
-}
-
-.feed-username {
-  font-weight: 600;
-  color: var(--aurora-green);
-}
-
-.feed-action {
-  opacity: 0.8;
-}
-
-.feed-title {
-  font-weight: 500;
-}
-
-.feed-sub {
-  opacity: 0.55;
-  font-size: 0.85rem;
-}
-
-.feed-time {
-  font-size: 0.8rem;
-  opacity: 0.45;
-  flex-shrink: 0;
-}
-
-.feed-icon {
-  font-size: 1rem;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-/* Autopilot feed events */
-.feed-event--autopilot {
-  background: rgba(204, 51, 255, 0.03);
-  border-left: 3px solid var(--aurora-magenta);
-}
-
-.feed-avatar--autopilot {
-  background: rgba(204, 51, 255, 0.15);
-  color: var(--aurora-magenta);
-  font-size: 1rem;
-}
-
-.feed-username--autopilot {
-  color: var(--aurora-magenta);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
 }
 
 @media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-
-  .stat-card {
-    padding: 12px 14px;
-    gap: 10px;
-  }
-
-  .stat-card .count {
-    font-size: 1.6rem;
-  }
-
-  .stat-card .label {
-    font-size: 0.8rem;
-  }
-
-  .dashboard-columns-grid {
-    grid-template-columns: 1fr;
-  }
-
   .info-list li {
     flex-wrap: wrap;
     gap: 6px;
