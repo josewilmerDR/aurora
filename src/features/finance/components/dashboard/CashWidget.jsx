@@ -55,19 +55,20 @@ function CashWidget() {
   const isNegativeEnd = data?.summary?.endingBalance < 0;
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiActivity size={14} /> Caja</span>
-        <span className="fin-widget-sub">{data?.weeks ? `Proyección ${data.weeks}s` : ''}</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiActivity size={14} /></span>
+        <h3 className="aur-section-title">Caja</h3>
+        {data?.weeks ? <span className="aur-section-count">Proyección {data.weeks}s</span> : null}
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (
         <>
           <div>
-            <div className={`fin-widget-primary ${isNegativeEnd ? 'fin-widget-primary--negative' : ''}`}>
+            <div className={`fin-widget-primary${isNegativeEnd ? ' fin-widget-primary--negative' : ''}`}>
               {fmt(data.startingBalance, currency)}
             </div>
             <div className="fin-widget-sub">Saldo actual</div>
@@ -95,7 +96,7 @@ function CashWidget() {
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
 

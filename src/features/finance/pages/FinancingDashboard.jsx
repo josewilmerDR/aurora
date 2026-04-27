@@ -23,7 +23,7 @@ function FinancingDashboard() {
         <h2><FiBriefcase /> Financiamiento</h2>
       </div>
 
-      <div className="fin-policy-banner">
+      <div className="aur-banner aur-banner--info fin-financing-banner">
         <FiShield size={14} />
         <span>
           <strong>Nivel 1 por política:</strong> este dominio solo produce recomendaciones.

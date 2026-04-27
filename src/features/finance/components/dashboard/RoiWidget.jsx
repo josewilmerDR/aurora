@@ -43,15 +43,25 @@ function RoiWidget() {
   // duplicados con "mejores".
   const worst = sorted.length > 3 ? sorted.slice(-3).reverse() : [];
 
+  const renderItem = (r) => (
+    <div key={r.loteId} className="fin-roi-item">
+      <span className="fin-roi-item-name">{r.loteNombre}</span>
+      <span className={`fin-roi-item-value${r.margen < 0 ? ' fin-widget-primary--negative' : ''}`}>
+        {fmt(r.margen)} · {fmtPct(r.margenPct)}
+      </span>
+    </div>
+  );
+
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiBarChart2 size={14} /> Rentabilidad</span>
-        <span className="fin-widget-sub">Mes actual</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiBarChart2 size={14} /></span>
+        <h3 className="aur-section-title">Rentabilidad</h3>
+        <span className="aur-section-count">Mes actual</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (
         <>
@@ -76,34 +86,20 @@ function RoiWidget() {
             <>
               <div className="fin-roi-section">
                 <span className="fin-roi-section-title">Mejores lotes</span>
-                {top.map(r => (
-                  <div key={r.loteId} className="fin-roi-item">
-                    <span className="fin-roi-item-name">{r.loteNombre}</span>
-                    <span className={`fin-roi-item-value ${r.margen < 0 ? 'fin-widget-primary--negative' : ''}`}>
-                      {fmt(r.margen)} · {fmtPct(r.margenPct)}
-                    </span>
-                  </div>
-                ))}
+                {top.map(renderItem)}
               </div>
 
               {worst.length > 0 && (
                 <div className="fin-roi-section">
                   <span className="fin-roi-section-title">Peores lotes</span>
-                  {worst.map(r => (
-                    <div key={r.loteId} className="fin-roi-item">
-                      <span className="fin-roi-item-name">{r.loteNombre}</span>
-                      <span className={`fin-roi-item-value ${r.margen < 0 ? 'fin-widget-primary--negative' : ''}`}>
-                        {fmt(r.margen)} · {fmtPct(r.margenPct)}
-                      </span>
-                    </div>
-                  ))}
+                  {worst.map(renderItem)}
                 </div>
               )}
             </>
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

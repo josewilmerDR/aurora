@@ -17,12 +17,18 @@ const fmtDate = (iso) => {
   } catch { return iso; }
 };
 
-const scoreBadge = (score) => {
-  if (score == null) return null;
-  if (score >= 0.75) return { label: 'Elegible', cls: 'fin-badge--ok' };
-  if (score >= 0.5) return { label: 'Revisar', cls: 'fin-badge--warn' };
-  return { label: 'No elegible', cls: 'fin-badge--bad' };
+const SCORE_BADGE_VARIANT = {
+  ok:    { label: 'Elegible',    cls: 'aur-badge--green' },
+  warn:  { label: 'Revisar',     cls: 'aur-badge--yellow' },
+  bad:   { label: 'No elegible', cls: 'aur-badge--gray' },
 };
+
+function scoreBadge(score) {
+  if (score == null) return null;
+  if (score >= 0.75) return SCORE_BADGE_VARIANT.ok;
+  if (score >= 0.5)  return SCORE_BADGE_VARIANT.warn;
+  return SCORE_BADGE_VARIANT.bad;
+}
 
 function EligibilityWidget() {
   const apiFetch = useApiFetch();
@@ -41,14 +47,15 @@ function EligibilityWidget() {
   const top = analyses.slice(0, 5);
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiCheckSquare size={14} /> Análisis de elegibilidad</span>
-        <span className="fin-widget-sub">{analyses.length ? `${analyses.length} recientes` : ''}</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiCheckSquare size={14} /></span>
+        <h3 className="aur-section-title">Análisis de elegibilidad</h3>
+        {analyses.length ? <span className="aur-section-count">{analyses.length} recientes</span> : null}
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
@@ -62,14 +69,14 @@ function EligibilityWidget() {
                 const badge = scoreBadge(a.topScore);
                 return (
                   <div key={a.id} className="fin-recent-row">
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div className="fin-recent-row-text">
                       <strong>{fmtMoney(a.targetAmount)}</strong>
                       <span className="fin-widget-sub">
                         {a.targetUse || 'sin uso especificado'} · {fmtDate(a.createdAt)}
                       </span>
                     </div>
                     {badge && (
-                      <span className={`fin-badge ${badge.cls}`}>
+                      <span className={`aur-badge ${badge.cls}`}>
                         {badge.label} · {(a.topScore * 100).toFixed(0)}
                       </span>
                     )}
@@ -80,7 +87,7 @@ function EligibilityWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

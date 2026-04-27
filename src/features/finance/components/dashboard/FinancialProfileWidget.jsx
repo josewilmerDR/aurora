@@ -62,14 +62,15 @@ function FinancialProfileWidget() {
   const latest = snapshots[0];
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiFileText size={14} /> Perfil financiero</span>
-        <span className="fin-widget-sub">Snapshots inmutables</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiFileText size={14} /></span>
+        <h3 className="aur-section-title">Perfil financiero</h3>
+        <span className="aur-section-count">Snapshots inmutables</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
@@ -97,7 +98,7 @@ function FinancialProfileWidget() {
                 {snapshots.slice(0, 3).map(s => (
                   <div key={s.id} className="fin-recent-row">
                     <span>{fmtDate(s.generatedAt)}</span>
-                    <span className="fin-recent-tag">corte {s.asOf}</span>
+                    <span className="aur-badge aur-badge--gray">corte {s.asOf}</span>
                   </div>
                 ))}
               </div>
@@ -109,21 +110,19 @@ function FinancialProfileWidget() {
           )}
 
           {canGenerate && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+            <div className="fin-widget-cta-row">
               <button
                 type="button"
-                className="btn btn-primary"
+                className="aur-btn-pill"
                 onClick={handleGenerate}
                 disabled={generating}
-                style={{ flex: 1 }}
               >
                 <FiRefreshCw size={14} /> {generating ? 'Generando…' : 'Generar snapshot'}
               </button>
               {latest && (
                 <Link
                   to={`/finance/financing/snapshots/${latest.id}`}
-                  className="btn btn-secondary"
-                  style={{ flex: 1, textAlign: 'center' }}
+                  className="aur-btn-text"
                 >
                   Ver último
                 </Link>
@@ -132,7 +131,7 @@ function FinancialProfileWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
