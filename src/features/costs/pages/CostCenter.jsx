@@ -251,45 +251,73 @@ export default function CostCenter() {
   );
 
   return (
-    <div className="page-container">
-      <h1 className="page-title">Centro de Costos</h1>
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h1 className="aur-sheet-title">Centro de Costos</h1>
+          <p className="aur-sheet-subtitle">
+            Análisis de costos directos e indirectos por lote, grupo y bloque · ROI integrado.
+          </p>
+        </div>
+        <div className="aur-sheet-header-actions">
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            onClick={() => setShowSnapModal(true)}
+            disabled={!data}
+          >
+            <FiCamera size={14} /> Snapshot
+          </button>
+        </div>
+      </header>
 
-      {/* ── Date range ──────────────────────────────────────────────── */}
-      <div className="cc-toolbar">
-        <label>Desde</label>
-        <input type="date" value={desde} onChange={e => setDesde(e.target.value)} />
-        <label>Hasta</label>
-        <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} />
-        <button className="cc-btn cc-btn--primary" onClick={fetchLive} disabled={loading}>
-          {loading ? 'Calculando...' : 'Actualizar'}
-        </button>
-        <div className="cc-toolbar-spacer" />
-        <button className="cc-btn cc-btn--secondary" onClick={() => setShowSnapModal(true)} disabled={!data}>
-          <FiCamera style={{ marginRight: 6 }} /> Snapshot
+      {/* ── Date range toolbar ───────────────────────────────────────── */}
+      <div className="cost-toolbar">
+        <label className="cost-toolbar-label">Desde</label>
+        <input
+          type="date"
+          className="aur-input cost-toolbar-input"
+          value={desde}
+          onChange={e => setDesde(e.target.value)}
+        />
+        <label className="cost-toolbar-label">Hasta</label>
+        <input
+          type="date"
+          className="aur-input cost-toolbar-input"
+          value={hasta}
+          onChange={e => setHasta(e.target.value)}
+        />
+        <button
+          type="button"
+          className="aur-btn-pill aur-btn-pill--sm"
+          onClick={fetchLive}
+          disabled={loading}
+        >
+          {loading ? 'Calculando…' : 'Actualizar'}
         </button>
       </div>
 
-      {loading && <div className="cc-loading">Calculando costos...</div>}
+      {loading && <div className="cc-loading">Calculando costos…</div>}
 
       {!loading && r && (
         <>
           {/* ── KPI cards ───────────────────────────────────────────── */}
-          <div className="cc-kpis">
-            <div className="cc-kpi">
-              <span className="cc-kpi-label">Costo Total</span>
-              <span className="cc-kpi-value">{fmt(r.costoTotal)}</span>
+          <div className="cost-kpis">
+            <div className="cost-kpi">
+              <span className="cost-kpi-label">Costo Total</span>
+              <span className="cost-kpi-value">{fmt(r.costoTotal)}</span>
             </div>
-            <div className="cc-kpi">
-              <span className="cc-kpi-label">Kg Totales</span>
-              <span className="cc-kpi-value">{fmtKg(r.kgTotal)}</span>
+            <div className="cost-kpi">
+              <span className="cost-kpi-label">Kg Totales</span>
+              <span className="cost-kpi-value">{fmtKg(r.kgTotal)}</span>
             </div>
-            <div className="cc-kpi cc-kpi--highlight">
-              <span className="cc-kpi-label">Costo / Kg</span>
-              <span className="cc-kpi-value">{r.costoPorKg != null ? fmt(r.costoPorKg) : '—'}</span>
+            <div className="cost-kpi cost-kpi--accent">
+              <span className="cost-kpi-label">Costo / Kg</span>
+              <span className="cost-kpi-value">{r.costoPorKg != null ? fmt(r.costoPorKg) : '—'}</span>
             </div>
-            <div className="cc-kpi">
-              <span className="cc-kpi-label">% Indirectos</span>
-              <span className="cc-kpi-value">{r.costoTotal > 0 ? `${((r.indirectos / r.costoTotal) * 100).toFixed(1)}%` : '—'}</span>
+            <div className="cost-kpi">
+              <span className="cost-kpi-label">% Indirectos</span>
+              <span className="cost-kpi-value">{r.costoTotal > 0 ? `${((r.indirectos / r.costoTotal) * 100).toFixed(1)}%` : '—'}</span>
             </div>
           </div>
 
@@ -302,10 +330,17 @@ export default function CostCenter() {
             <span><span className="cc-bar-ind" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, marginRight: 4 }} /> Indirectos</span>
           </div>
 
-          {/* ── Tabs ─────────────────────────────────────────────────── */}
-          <div className="cc-tabs">
+          {/* ── Tabs (segmented control) ─────────────────────────────── */}
+          <div className="cost-tabs" role="tablist">
             {TABS.map(t => (
-              <button key={t.id} className={`cc-tab${tab === t.id ? ' cc-tab--active' : ''}`} onClick={() => setTab(t.id)}>
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`cost-tabs-btn${tab === t.id ? ' is-active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
                 {t.label}
               </button>
             ))}
@@ -392,10 +427,10 @@ export default function CostCenter() {
               Detalle: {viewSnap.nombre}
               <button className="cc-btn cc-btn--secondary" style={{ marginLeft: 'auto', fontSize: '0.8rem' }} onClick={() => setViewSnap(null)}>Cerrar</button>
             </div>
-            <div className="cc-kpis">
-              <div className="cc-kpi"><span className="cc-kpi-label">Costo Total</span><span className="cc-kpi-value">{fmt(viewSnap.resumen?.costoTotal)}</span></div>
-              <div className="cc-kpi"><span className="cc-kpi-label">Kg Totales</span><span className="cc-kpi-value">{fmtKg(viewSnap.resumen?.kgTotal)}</span></div>
-              <div className="cc-kpi cc-kpi--highlight"><span className="cc-kpi-label">Costo/Kg</span><span className="cc-kpi-value">{fmt(viewSnap.resumen?.costoPorKg)}</span></div>
+            <div className="cost-kpis">
+              <div className="cost-kpi"><span className="cost-kpi-label">Costo Total</span><span className="cost-kpi-value">{fmt(viewSnap.resumen?.costoTotal)}</span></div>
+              <div className="cost-kpi"><span className="cost-kpi-label">Kg Totales</span><span className="cost-kpi-value">{fmtKg(viewSnap.resumen?.kgTotal)}</span></div>
+              <div className="cost-kpi cost-kpi--accent"><span className="cost-kpi-label">Costo/Kg</span><span className="cost-kpi-value">{fmt(viewSnap.resumen?.costoPorKg)}</span></div>
             </div>
             <CostTable rows={(viewSnap.porLote || []).map(r => ({ ...r, displayName: r.nombre }))} nameLabel="Lote" />
           </div>
@@ -407,10 +442,10 @@ export default function CostCenter() {
             {compareSnaps.map(s => (
               <div key={s.id} className="cc-compare-col">
                 <div className="cc-compare-title">{s.nombre} ({s.rangoFechas?.desde} → {s.rangoFechas?.hasta})</div>
-                <div className="cc-kpis" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-                  <div className="cc-kpi"><span className="cc-kpi-label">Costo Total</span><span className="cc-kpi-value" style={{ fontSize: '1.1rem' }}>{fmt(s.resumen?.costoTotal)}</span></div>
-                  <div className="cc-kpi"><span className="cc-kpi-label">Kg</span><span className="cc-kpi-value" style={{ fontSize: '1.1rem' }}>{fmtKg(s.resumen?.kgTotal)}</span></div>
-                  <div className="cc-kpi cc-kpi--highlight"><span className="cc-kpi-label">Costo/Kg</span><span className="cc-kpi-value" style={{ fontSize: '1.1rem' }}>{fmt(s.resumen?.costoPorKg)}</span></div>
+                <div className="cost-kpis cost-kpis--compact">
+                  <div className="cost-kpi"><span className="cost-kpi-label">Costo Total</span><span className="cost-kpi-value">{fmt(s.resumen?.costoTotal)}</span></div>
+                  <div className="cost-kpi"><span className="cost-kpi-label">Kg</span><span className="cost-kpi-value">{fmtKg(s.resumen?.kgTotal)}</span></div>
+                  <div className="cost-kpi cost-kpi--accent"><span className="cost-kpi-label">Costo/Kg</span><span className="cost-kpi-value">{fmt(s.resumen?.costoPorKg)}</span></div>
                 </div>
                 <CostTable rows={(s.porLote || []).map(r => ({ ...r, displayName: r.nombre }))} nameLabel="Lote" />
               </div>
