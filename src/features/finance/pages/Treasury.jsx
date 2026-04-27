@@ -60,18 +60,16 @@ function Treasury() {
       <div className="lote-page-header">
         <h2 className="lote-page-title"><FiActivity /> Tesorería</h2>
         {!showBalanceForm && (
-          <button className="btn btn-primary" onClick={() => setShowBalanceForm(true)}>
+          <button className="aur-btn-pill" onClick={() => setShowBalanceForm(true)}>
             <FiPlus /> Registrar saldo
           </button>
         )}
       </div>
 
       {!hasSource && !loading && !error && (
-        <div className="treasury-cash-banner">
-          <span>
-            <FiAlertTriangle size={14} className="treasury-cash-banner-icon" />
-            No hay saldo de caja registrado. La proyección parte de 0.
-          </span>
+        <div className="aur-banner aur-banner--warn">
+          <FiAlertTriangle size={14} />
+          <span>No hay saldo de caja registrado. La proyección parte de 0.</span>
         </div>
       )}
 
@@ -83,7 +81,7 @@ function Treasury() {
         />
       )}
 
-      <div className="finance-filters">
+      <div className="treasury-filters">
         <HorizonSelector
           value={weeks}
           onChange={setWeeks}
@@ -98,31 +96,34 @@ function Treasury() {
       )}
 
       {!loading && error && (
-        <div className="treasury-card treasury-error-state">
+        <section className="aur-section treasury-error-state">
           <p>{error.message}</p>
-          <button className="btn btn-secondary" onClick={reload}>
+          <button className="aur-btn-pill" onClick={reload}>
             <FiRefreshCw /> Reintentar
           </button>
-        </div>
+        </section>
       )}
 
       {!loading && !error && hasProjection && (
         <>
-          <div className="treasury-card">
+          <section className="aur-section">
             <TreasuryStats
               startingBalance={projection.startingBalance}
               summary={projection.summary}
               currency={PROJECTION_CURRENCY}
             />
             <ProjectionChart series={projection.series} />
-          </div>
+          </section>
 
-          <div className="treasury-card">
-            <strong className="treasury-section-title">Serie semanal</strong>
-            <div className="finance-execution-table-wrap">
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num">02</span>
+              <h3 className="aur-section-title">Serie semanal</h3>
+            </div>
+            <div className="aur-table-wrap">
               <ProjectionTable series={projection.series} currency={PROJECTION_CURRENCY} />
             </div>
-          </div>
+          </section>
         </>
       )}
 

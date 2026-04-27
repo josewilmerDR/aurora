@@ -189,7 +189,7 @@ function Budgets() {
       <div className="lote-page-header">
         <h2 className="lote-page-title"><FiDollarSign /> Presupuestos</h2>
         {!showForm && (
-          <button className="btn btn-primary" onClick={startCreate}>
+          <button className="aur-btn-pill" onClick={startCreate}>
             <FiPlus /> Nuevo presupuesto
           </button>
         )}
