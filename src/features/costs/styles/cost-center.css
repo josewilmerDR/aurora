@@ -113,110 +113,43 @@
   opacity: 0.5;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Legacy .cc-* — pendientes de migrar en PRs B/C/D
-   ═══════════════════════════════════════════════════════════════════════ */
-
-/* ── KPI cards legacy — todavía consumido por RoiTable (migra en PR B) ── */
-.cc-kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
-  margin-bottom: 22px;
-}
-.cc-kpi {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.cc-kpi-label {
-  font-size: 0.78rem;
-  color: #8ab4d8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.cc-kpi-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--aurora-light);
-}
-.cc-kpi--highlight .cc-kpi-value {
-  color: var(--aurora-green);
-}
-
-/* ── Tabs legacy — todavía consumido por RoiTable (migra en PR B) ── */
-.cc-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 2px solid var(--aurora-border);
-  margin-bottom: 16px;
-}
-.cc-tab {
-  padding: 8px 20px;
-  background: none;
-  border: none;
-  color: #8ab4d8;
-  font-size: 0.88rem;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: color 0.15s, border-color 0.15s;
-}
-.cc-tab:hover { color: var(--aurora-light); }
-.cc-tab--active {
-  color: var(--aurora-green);
-  border-bottom-color: var(--aurora-green);
-  font-weight: 600;
-}
-
-/* ── Cost table ─────────────────────────────────────────────────────── */
-.cc-table-wrap {
-  overflow-x: auto;
-  margin-bottom: 28px;
-}
-.cc-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.84rem;
-}
-.cc-table th {
-  text-align: left;
-  padding: 8px 10px;
-  color: #8ab4d8;
-  font-weight: 600;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  border-bottom: 1px solid var(--aurora-border);
-  white-space: nowrap;
-}
-.cc-table th.cc-th-num,
-.cc-table td.cc-td-num {
-  text-align: right;
-}
-.cc-table td {
-  padding: 8px 10px;
-  color: var(--aurora-light);
-  border-bottom: 1px solid rgba(42, 74, 106, 0.3);
-}
-.cc-table tr:hover td {
-  background: rgba(51, 255, 153, 0.04);
-}
-.cc-td-name {
+/* ── Tabla de costos — slim sobre aur-table primitiva ──────────────────
+   aur-table-wrap ya provee scroll/border/radius/bg; aur-table ya provee
+   thead/td/hover. Aquí sólo afinamos las celdas semánticas (nombre /
+   total / costo-kg) que no tienen primitiva exacta. */
+.cost-td-name {
   font-weight: 500;
   white-space: nowrap;
+  color: var(--aur-text);
 }
-.cc-td-costkg {
-  color: var(--aurora-green) !important;
-  font-weight: 700;
+.cost-td-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.cost-td-costkg {
+  color: var(--aur-accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Desglose bar (mini stacked bar inside table) ───────────────────── */
-.cc-desglose-bar {
+/* ── Tonos numéricos — positivo / negativo (margen ROI) ────────────────
+   Cells: aplican color + bold sobre la celda numérica. KPIs: aplican
+   color al cost-kpi-value. Mantener ambos selectors porque el cell
+   tonal cae dentro de un primitivo aur-td-num que no conoce la semántica
+   financiera. */
+.cost-num--positive { color: var(--aur-accent); font-weight: 600; }
+.cost-num--negative { color: var(--aur-danger); font-weight: 600; }
+.cost-kpi.cost-kpi--positive .cost-kpi-value { color: var(--aur-accent); }
+.cost-kpi.cost-kpi--negative .cost-kpi-value { color: var(--aur-danger); }
+
+/* Variante --tight para KPIs en RoiTable (5-up) que llevan menos
+   margen-bottom porque debajo siempre hay tabs/notice cercanos. */
+.cost-kpis--tight { margin-bottom: 12px; }
+
+/* ── Desglose bar (mini stacked bar) + leyenda ─────────────────────────
+   Paleta bespoke porque no hay primitiva chart en aur-* (aur-accent es
+   verde único; aquí necesitamos 5 categorías diferenciables). */
+.cost-desglose-bar {
   display: flex;
   height: 6px;
   border-radius: 3px;
@@ -224,11 +157,47 @@
   min-width: 80px;
   margin-top: 2px;
 }
-.cc-bar-comb  { background: #4fc3f7; }
-.cc-bar-plan  { background: #ffb74d; }
-.cc-bar-ins   { background: #ce93d8; }
-.cc-bar-dep   { background: #90a4ae; }
-.cc-bar-ind   { background: #a5d6a7; }
+.cost-bar-comb { background: #4fc3f7; }
+.cost-bar-plan { background: #ffb74d; }
+.cost-bar-ins  { background: #ce93d8; }
+.cost-bar-dep  { background: #90a4ae; }
+.cost-bar-ind  { background: #a5d6a7; }
+
+.cost-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+}
+.cost-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cost-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ── Notice (warn) — bloque informativo amarillo ───────────────────────
+   No hay primitiva notice en aur-*; mantener bespoke usando los tokens
+   de warn del sistema. */
+.cost-notice {
+  padding: 10px 14px;
+  border-radius: var(--aur-r-input);
+  margin-bottom: 14px;
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.5;
+  color: var(--aur-text);
+}
+.cost-notice--warn {
+  background: var(--aur-warn-tint);
+  color: var(--aur-warn);
+}
 
 /* ── Sections ───────────────────────────────────────────────────────── */
 .cc-section {
@@ -387,17 +356,17 @@
 }
 
 /* ── Loading / empty ────────────────────────────────────────────────── */
-.cc-loading {
+.cost-loading {
   text-align: center;
   padding: 40px;
-  color: #8ab4d8;
-  font-size: 0.9rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-body);
 }
-.cc-empty {
+.cost-empty {
   text-align: center;
   padding: 30px;
-  color: #8ab4d8;
-  font-size: 0.88rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
 }
 
 /* ── Modal overlay ──────────────────────────────────────────────────── */
@@ -430,19 +399,3 @@
   margin-top: 18px;
 }
 
-/* ── ROI (Rentabilidad) ────────────────────────────────────────────── */
-.roi-positive { color: var(--aurora-green); }
-.roi-negative { color: #ff8080; }
-
-.cc-kpi.roi-positive .cc-kpi-value { color: var(--aurora-green); }
-.cc-kpi.roi-negative .cc-kpi-value { color: #ff8080; }
-
-.roi-notice {
-  background: rgba(255, 204, 51, 0.08);
-  border: 1px solid rgba(255, 204, 51, 0.25);
-  color: #ffcc33;
-  padding: 10px 14px;
-  border-radius: 8px;
-  margin-bottom: 14px;
-  font-size: 0.85rem;
-}

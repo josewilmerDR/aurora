@@ -36,48 +36,48 @@ function DesgloseBar({ desglose }) {
   if (total <= 0) return null;
   const pct = v => `${((v / total) * 100).toFixed(1)}%`;
   return (
-    <div className="cc-desglose-bar">
-      {combustible > 0 && <div className="cc-bar-comb" style={{ width: pct(combustible) }} title={`Combustible: ${fmt(combustible)}`} />}
-      {planilla > 0    && <div className="cc-bar-plan" style={{ width: pct(planilla) }}    title={`Planilla: ${fmt(planilla)}`} />}
-      {insumos > 0     && <div className="cc-bar-ins"  style={{ width: pct(insumos) }}     title={`Insumos: ${fmt(insumos)}`} />}
-      {depreciacion > 0 && <div className="cc-bar-dep" style={{ width: pct(depreciacion) }} title={`Depreciación: ${fmt(depreciacion)}`} />}
-      {indirectos > 0  && <div className="cc-bar-ind"  style={{ width: pct(indirectos) }}  title={`Indirectos: ${fmt(indirectos)}`} />}
+    <div className="cost-desglose-bar">
+      {combustible > 0 && <div className="cost-bar-comb" style={{ width: pct(combustible) }} title={`Combustible: ${fmt(combustible)}`} />}
+      {planilla > 0    && <div className="cost-bar-plan" style={{ width: pct(planilla) }}    title={`Planilla: ${fmt(planilla)}`} />}
+      {insumos > 0     && <div className="cost-bar-ins"  style={{ width: pct(insumos) }}     title={`Insumos: ${fmt(insumos)}`} />}
+      {depreciacion > 0 && <div className="cost-bar-dep" style={{ width: pct(depreciacion) }} title={`Depreciación: ${fmt(depreciacion)}`} />}
+      {indirectos > 0  && <div className="cost-bar-ind"  style={{ width: pct(indirectos) }}  title={`Indirectos: ${fmt(indirectos)}`} />}
     </div>
   );
 }
 
 // ── Cost table for any tab ──────────────────────────────────────────
 function CostTable({ rows, nameLabel }) {
-  if (!rows || rows.length === 0) return <div className="cc-empty">Sin datos para el rango seleccionado.</div>;
+  if (!rows || rows.length === 0) return <div className="cost-empty">Sin datos para el rango seleccionado.</div>;
   return (
-    <div className="cc-table-wrap">
-      <table className="cc-table">
+    <div className="aur-table-wrap">
+      <table className="aur-table">
         <thead>
           <tr>
             <th>{nameLabel}</th>
-            <th className="cc-th-num">Combustible</th>
-            <th className="cc-th-num">Planilla</th>
-            <th className="cc-th-num">Insumos</th>
-            <th className="cc-th-num">Deprec.</th>
-            <th className="cc-th-num">Indirectos</th>
-            <th className="cc-th-num">Total</th>
-            <th className="cc-th-num">Kg</th>
-            <th className="cc-th-num">Costo/Kg</th>
+            <th className="aur-td-num">Combustible</th>
+            <th className="aur-td-num">Planilla</th>
+            <th className="aur-td-num">Insumos</th>
+            <th className="aur-td-num">Deprec.</th>
+            <th className="aur-td-num">Indirectos</th>
+            <th className="aur-td-num">Total</th>
+            <th className="aur-td-num">Kg</th>
+            <th className="aur-td-num">Costo/Kg</th>
             <th>Composición</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              <td className="cc-td-name">{r.displayName}</td>
-              <td className="cc-td-num">{fmt(r.desglose?.combustible)}</td>
-              <td className="cc-td-num">{fmt(r.desglose?.planilla)}</td>
-              <td className="cc-td-num">{fmt(r.desglose?.insumos)}</td>
-              <td className="cc-td-num">{fmt(r.desglose?.depreciacion)}</td>
-              <td className="cc-td-num">{fmt(r.desglose?.indirectos)}</td>
-              <td className="cc-td-num" style={{ fontWeight: 600 }}>{fmt(r.costoTotal)}</td>
-              <td className="cc-td-num">{fmtKg(r.kg)}</td>
-              <td className="cc-td-num cc-td-costkg">{r.costoPorKg != null ? fmt(r.costoPorKg) : '—'}</td>
+              <td className="cost-td-name">{r.displayName}</td>
+              <td className="aur-td-num">{fmt(r.desglose?.combustible)}</td>
+              <td className="aur-td-num">{fmt(r.desglose?.planilla)}</td>
+              <td className="aur-td-num">{fmt(r.desglose?.insumos)}</td>
+              <td className="aur-td-num">{fmt(r.desglose?.depreciacion)}</td>
+              <td className="aur-td-num">{fmt(r.desglose?.indirectos)}</td>
+              <td className="aur-td-num cost-td-total">{fmt(r.costoTotal)}</td>
+              <td className="aur-td-num">{fmtKg(r.kg)}</td>
+              <td className="aur-td-num cost-td-costkg">{r.costoPorKg != null ? fmt(r.costoPorKg) : '—'}</td>
               <td><DesgloseBar desglose={r.desglose} /></td>
             </tr>
           ))}
@@ -297,7 +297,7 @@ export default function CostCenter() {
         </button>
       </div>
 
-      {loading && <div className="cc-loading">Calculando costos…</div>}
+      {loading && <div className="cost-loading">Calculando costos…</div>}
 
       {!loading && r && (
         <>
@@ -322,12 +322,12 @@ export default function CostCenter() {
           </div>
 
           {/* ── Desglose legend ──────────────────────────────────────── */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontSize: '0.78rem', flexWrap: 'wrap' }}>
-            <span><span className="cc-bar-comb" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, marginRight: 4 }} /> Combustible</span>
-            <span><span className="cc-bar-plan" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, marginRight: 4 }} /> Planilla</span>
-            <span><span className="cc-bar-ins" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, marginRight: 4 }} /> Insumos</span>
-            <span><span className="cc-bar-dep" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, marginRight: 4 }} /> Depreciación</span>
-            <span><span className="cc-bar-ind" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, marginRight: 4 }} /> Indirectos</span>
+          <div className="cost-legend">
+            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-comb" /> Combustible</span>
+            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-plan" /> Planilla</span>
+            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ins" /> Insumos</span>
+            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-dep" /> Depreciación</span>
+            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ind" /> Indirectos</span>
           </div>
 
           {/* ── Tabs (segmented control) ─────────────────────────────── */}
@@ -402,7 +402,7 @@ export default function CostCenter() {
           <FiCamera /> Historial de Snapshots
         </div>
 
-        {snapshots.length === 0 && <div className="cc-empty">No hay snapshots guardados.</div>}
+        {snapshots.length === 0 && <div className="cost-empty">No hay snapshots guardados.</div>}
         {snapshots.length > 0 && (
           <div className="cc-snap-list">
             {snapshots.map(s => (
@@ -453,7 +453,7 @@ export default function CostCenter() {
           </div>
         )}
         {compareSnaps.length === 1 && (
-          <div className="cc-empty">Selecciona un segundo snapshot para comparar.</div>
+          <div className="cost-empty">Selecciona un segundo snapshot para comparar.</div>
         )}
       </div>
 
