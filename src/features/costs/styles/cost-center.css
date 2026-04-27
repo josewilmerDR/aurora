@@ -103,6 +103,9 @@
   background: var(--aur-bg-hover);
   color: var(--aur-text);
 }
+/* --aurora-dark-blue directo sobre el accent es el patrón canónico del
+   sistema (igual que aur-btn-pill en aurora.css:406); no hay token
+   --aur-text-on-accent. */
 .cost-tabs-btn.is-active {
   background: var(--aur-accent);
   color: var(--aurora-dark-blue);
@@ -199,20 +202,6 @@
   color: var(--aur-warn);
 }
 
-/* ── Sections ───────────────────────────────────────────────────────── */
-.cc-section {
-  margin-top: 32px;
-}
-.cc-section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* ── Indirectos: form de quick-add ─────────────────────────────────────
    Grid horizontal de 4 aur-field + botón. aur-field provee
    label-on-top + spacing; aur-input/aur-select proveen el control;
@@ -261,111 +250,102 @@
   white-space: nowrap;
 }
 
-/* ── Legacy cc-ind-form / cc-field — todavía consumidos por SnapshotModal
-   (migra en PR D). Mantener intactos. */
-.cc-ind-form {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  margin-bottom: 14px;
+/* ── Snapshots: row layout ─────────────────────────────────────────────
+   Override grid del aur-row primitivo para layout tabular: nombre /
+   rango de fechas / costo total · costo/kg / acciones. is-selected
+   tiñe el border con --aur-accent para indicar inclusión en compare. */
+.aur-row.cost-snap-row {
+  grid-template-columns: minmax(140px, 1.4fr) minmax(160px, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
 }
-.cc-ind-form .cc-field {
-  display: flex;
-  flex-direction: column;
+.aur-row.cost-snap-row.is-selected {
+  background: var(--aur-accent-tint);
+  box-shadow: inset 2px 0 0 var(--aur-accent);
+}
+.cost-snap-name {
+  font-weight: 600;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cost-snap-dates {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cost-snap-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-footnote);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cost-snap-cost-sep {
+  color: var(--aur-text-3);
+  font-weight: 400;
+}
+.cost-snap-actions {
+  display: inline-flex;
   gap: 4px;
 }
-.cc-ind-form .cc-field label {
-  font-size: 0.75rem;
-  color: #8ab4d8;
-}
-.cc-ind-form .cc-field input,
-.cc-ind-form .cc-field select {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 0.85rem;
+
+/* ── Snapshot detail nested section ────────────────────────────────────
+   Cuando se abre el detalle inline, se separa visualmente del listado
+   con un margen-top y un fondo card para diferenciarlo del flujo. */
+.aur-section.cost-snap-detail {
+  margin-top: 20px;
+  padding: 18px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
 }
 
-/* ── Snapshots ──────────────────────────────────────────────────────── */
-.cc-snap-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.cc-snap-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-.cc-snap-item:hover { border-color: var(--aurora-green); }
-.cc-snap-item--selected { border-color: var(--aurora-green); background: rgba(51, 255, 153, 0.06); }
-.cc-snap-name { font-weight: 600; color: var(--aurora-light); }
-.cc-snap-dates { font-size: 0.78rem; color: #8ab4d8; }
-.cc-snap-cost { margin-left: auto; font-weight: 600; color: var(--aurora-green); }
-.cc-snap-actions { display: flex; gap: 6px; }
-.cc-snap-actions button {
-  background: none;
-  border: none;
-  color: #8ab4d8;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 4px;
-}
-.cc-snap-actions button:hover { color: var(--aurora-light); }
-
-/* ── Comparison view ────────────────────────────────────────────────── */
-.cc-compare {
+/* ── Comparison view ───────────────────────────────────────────────────
+   Grid responsive de 2 columnas; cada col es una card con bg-card +
+   divider. El título usa accent + tabular para destacar la identidad
+   del snapshot. */
+.cost-compare {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-top: 16px;
 }
-.cc-compare-col {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
+@media (max-width: 720px) {
+  .cost-compare {
+    grid-template-columns: 1fr;
+  }
+}
+.cost-compare-col {
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 16px;
 }
-.cc-compare-title {
+.cost-compare-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.cost-compare-name {
   font-weight: 600;
-  color: var(--aurora-green);
-  margin-bottom: 10px;
-  font-size: 0.9rem;
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-callout);
+  letter-spacing: -0.01em;
 }
-
-/* ── Buttons ────────────────────────────────────────────────────────── */
-.cc-btn {
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: none;
-  font-size: 0.84rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.cc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.cc-btn--primary {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-}
-.cc-btn--secondary {
-  background: transparent;
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-}
-.cc-btn--danger {
-  background: transparent;
-  border: 1px solid #e57373;
-  color: #e57373;
+.cost-compare-range {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Loading / empty ────────────────────────────────────────────────── */
@@ -380,35 +360,5 @@
   padding: 30px;
   color: var(--aur-text-2);
   font-size: var(--aur-fs-footnote);
-}
-
-/* ── Modal overlay ──────────────────────────────────────────────────── */
-.cc-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.cc-modal {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 12px;
-  padding: 24px;
-  min-width: 360px;
-  max-width: 480px;
-}
-.cc-modal h3 {
-  color: var(--aurora-light);
-  margin: 0 0 16px 0;
-  font-size: 1.05rem;
-}
-.cc-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
 }
 
