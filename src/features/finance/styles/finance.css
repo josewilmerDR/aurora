@@ -65,84 +65,51 @@
   font-weight: 600;
 }
 
-.finance-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: end;
-  margin-bottom: 16px;
-}
-
 .finance-empty {
   text-align: center;
   padding: 32px;
-  color: var(--aurora-light);
-  opacity: 0.6;
+  color: var(--aur-text-3);
 }
 
-/* ── Execution panel — tabla de consumo por categoría ───────────────────── */
-.finance-execution-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-
-.finance-execution-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
+/* ── Execution panel — KPI strip arriba de la tabla ─────────────────────── */
 .finance-execution-summary {
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
-  font-size: 13px;
+  margin: 4px 0 14px;
+  padding: 0 4px;
 }
 
-.finance-execution-summary-item strong { color: var(--aurora-green); }
-.finance-execution-summary-item--over strong { color: #ff8080; }
-
-.finance-execution-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+.finance-execution-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.finance-execution-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.finance-execution-summary-label {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--aur-text-3);
 }
 
-@media (max-width: 480px) {
-  .finance-execution-table { min-width: 520px; }
-}
-
-.finance-execution-table th,
-.finance-execution-table td {
-  text-align: left;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.finance-execution-table th {
-  color: var(--aurora-light);
-  opacity: 0.7;
-  font-weight: 500;
-}
-
-.finance-execution-table td.finance-num {
-  text-align: right;
+.finance-execution-summary-item strong {
+  font-size: var(--aur-fs-callout);
   font-variant-numeric: tabular-nums;
+  color: var(--aur-accent);
+}
+.finance-execution-summary-item--over strong { color: var(--aur-danger); }
+
+.finance-execution-error {
+  color: var(--aur-danger);
+  text-align: center;
+  padding: 20px 12px;
+  font-size: var(--aur-fs-footnote);
 }
 
-.finance-row-over   { color: #ff8080; }
-.finance-row-nobudget { opacity: 0.6; }
+.finance-row-over { color: var(--aur-danger); }
+.finance-row-nobudget { opacity: 0.55; }
 
 /* ── Filas expandibles con sub-presupuestos ─────────────────────────────── */
 .finance-execution-row-category {
@@ -165,30 +132,33 @@
 
 .finance-execution-row-expandable { cursor: pointer; }
 
-.finance-execution-row-expandable:hover td {
-  background: rgba(230, 242, 255, 0.04);
-}
-
 .finance-execution-row-expanded .finance-execution-row-chevron {
   transform: rotate(90deg);
-  opacity: 0.9;
-  color: var(--aurora-green);
+  opacity: 1;
+  color: var(--aur-accent);
 }
 
+/* aur-badge--green ya provee bg/color/typography; aquí sólo añadimos
+   margen para separar del label de la categoría. */
 .finance-execution-row-count {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
   margin-left: 4px;
+}
+
+.finance-execution-consume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.finance-execution-consume-pct {
+  font-size: var(--aur-fs-footnote);
+  font-variant-numeric: tabular-nums;
+  color: var(--aur-text-2);
 }
 
 .finance-execution-expanded > td {
   padding: 0 !important;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid var(--aurora-border);
+  background: var(--aur-bg-modal);
+  border-bottom: 1px solid var(--aur-divider);
 }
 
 .finance-execution-sub-list {
@@ -206,9 +176,9 @@
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
 }
 
 .finance-execution-subrow-info {
@@ -217,17 +187,14 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  font-size: 13px;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
 }
 
-.finance-execution-subrow-sub {
-  font-weight: 600;
-}
-
+.finance-execution-subrow-sub { font-weight: 600; }
 .finance-execution-subrow-meta {
-  opacity: 0.6;
-  font-size: 12px;
+  opacity: 0.65;
+  font-size: var(--aur-fs-caption);
 }
 
 .finance-execution-subrow-actions {
@@ -241,7 +208,7 @@
   display: block;
   height: 6px;
   width: 120px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--aur-bg-strong);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -249,19 +216,19 @@
 .finance-progress-fill {
   display: block;
   height: 100%;
-  background: var(--aurora-green);
+  background: var(--aur-accent);
   transition: width 0.2s;
 }
 
-.finance-progress-fill--warn { background: #ffcc33; }
-.finance-progress-fill--over { background: #ff8080; }
+.finance-progress-fill--warn { background: var(--aur-warn); }
+.finance-progress-fill--over { background: var(--aur-danger); }
 
-/* ── Treasury — chart + tabla semanal ─────────────────────────────────── */
-.treasury-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 16px;
+/* ── Treasury — filtros, chart, error state ────────────────────────────── */
+.treasury-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
   margin-bottom: 16px;
 }
 
@@ -269,58 +236,44 @@
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
-  font-size: 13px;
+  font-size: var(--aur-fs-footnote);
+  margin-bottom: 12px;
 }
 
-.treasury-stats strong { color: var(--aurora-green); }
-.treasury-stats .treasury-stat--negative strong { color: #ff8080; }
+.treasury-stats strong {
+  color: var(--aur-accent);
+  font-variant-numeric: tabular-nums;
+}
+.treasury-stats .treasury-stat--negative strong { color: var(--aur-danger); }
 
 .treasury-chart-wrap {
   width: 100%;
   height: 220px;
 }
 
+/* Las clases del chart SVG mantienen el verde brand-specific (--aurora-green)
+   ya que representan la serie de saldos como acento de marca. */
 .treasury-chart-line     { fill: none; stroke: var(--aurora-green); stroke-width: 2; }
 .treasury-chart-area     { fill: rgba(51, 255, 153, 0.12); stroke: none; }
 .treasury-chart-baseline { stroke: rgba(255, 80, 80, 0.6); stroke-dasharray: 4 4; stroke-width: 1; fill: none; }
 .treasury-chart-grid     { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
 
-.treasury-week-row-negative td { color: #ff8080; }
+.treasury-week-row-negative td { color: var(--aur-danger); }
 
-.treasury-cash-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(255, 204, 51, 0.08);
-  border: 1px solid rgba(255, 204, 51, 0.25);
-  color: #ffcc33;
-  padding: 10px 14px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-size: 13px;
-}
-
-.treasury-cash-banner-icon {
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
-.treasury-stats--spaced { margin-bottom: 12px; }
-
-.treasury-section-title {
-  display: block;
-  margin-bottom: 10px;
-}
-
-.treasury-error-state {
+/* aur-section + aur-banner cubren el card y header; este slim sólo centra
+   el contenido de la pantalla de error y agrega el espaciado vertical
+   estándar de un empty-state grande. */
+.aur-section.treasury-error-state {
   text-align: center;
   padding: 32px 16px;
-  color: var(--aurora-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
-
-.treasury-error-state p {
-  margin: 0 0 14px 0;
-  opacity: 0.85;
+.aur-section.treasury-error-state p {
+  margin: 0;
+  color: var(--aur-text-2);
 }
 
 /* ── DispatchesSelect — selector multi-despacho en IncomeForm ───────────── */

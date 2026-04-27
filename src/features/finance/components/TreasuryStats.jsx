@@ -6,7 +6,7 @@ function TreasuryStats({ startingBalance, summary, currency }) {
   const endingNeg = summary.endingBalance < 0;
   const minNeg = summary.minBalance < 0;
   return (
-    <div className="treasury-stats treasury-stats--spaced">
+    <div className="treasury-stats">
       <div>Saldo inicial: <strong>{formatMoney(startingBalance, currency)}</strong></div>
       <div>Entradas: <strong>{formatMoney(summary.totalInflows, currency)}</strong></div>
       <div>Salidas: <strong>{formatMoney(summary.totalOutflows, currency)}</strong></div>

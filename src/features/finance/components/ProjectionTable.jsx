@@ -5,15 +5,15 @@ import { formatMoney, DEFAULT_CURRENCY } from '../../../lib/formatMoney';
 function ProjectionTable({ series, currency = DEFAULT_CURRENCY }) {
   if (!series?.length) return null;
   return (
-    <table className="finance-execution-table">
+    <table className="aur-table">
       <thead>
         <tr>
           <th>Semana</th>
-          <th className="finance-num">Apertura</th>
-          <th className="finance-num">Entradas</th>
-          <th className="finance-num">Salidas</th>
-          <th className="finance-num">Neto</th>
-          <th className="finance-num">Cierre</th>
+          <th className="aur-td-num">Apertura</th>
+          <th className="aur-td-num">Entradas</th>
+          <th className="aur-td-num">Salidas</th>
+          <th className="aur-td-num">Neto</th>
+          <th className="aur-td-num">Cierre</th>
         </tr>
       </thead>
       <tbody>
@@ -24,11 +24,11 @@ function ProjectionTable({ series, currency = DEFAULT_CURRENCY }) {
           return (
             <tr key={i} className={neg ? 'treasury-week-row-negative' : ''}>
               <td>{w.weekStart} → {w.weekEnd}</td>
-              <td className="finance-num">{formatMoney(w.openingBalance, currency)}</td>
-              <td className="finance-num">{inflowsSum > 0 ? formatMoney(inflowsSum, currency) : '—'}</td>
-              <td className="finance-num">{outflowsSum > 0 ? formatMoney(outflowsSum, currency) : '—'}</td>
-              <td className="finance-num">{formatMoney(w.netFlow, currency)}</td>
-              <td className="finance-num">{formatMoney(w.closingBalance, currency)}</td>
+              <td className="aur-td-num">{formatMoney(w.openingBalance, currency)}</td>
+              <td className="aur-td-num">{inflowsSum > 0 ? formatMoney(inflowsSum, currency) : '—'}</td>
+              <td className="aur-td-num">{outflowsSum > 0 ? formatMoney(outflowsSum, currency) : '—'}</td>
+              <td className="aur-td-num">{formatMoney(w.netFlow, currency)}</td>
+              <td className="aur-td-num">{formatMoney(w.closingBalance, currency)}</td>
             </tr>
           );
         })}
