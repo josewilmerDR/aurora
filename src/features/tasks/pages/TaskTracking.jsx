@@ -1,10 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu, FiChevronDown } from 'react-icons/fi';
+import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu } from 'react-icons/fi';
 import '../styles/task-tracking.css';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+
+// Mapping centralizado de badge variant + label para el tipo de tarea.
+// Cada badge usa una primitiva aur-badge--* del sistema. Los emojis se
+// mantienen como iconografía liviana inline (no react-icons) porque son
+// glifos comunes y no semánticos.
+const TASK_TAGS = {
+  aplicacion: { variant: 'aur-badge--magenta', label: '⚗ Aplic.' },
+  compra:     { variant: 'aur-badge--violet',  label: '🛒 Compra' },
+  planilla:   { variant: 'aur-badge--green',   label: '💰 Planilla' },
+};
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -298,66 +308,70 @@ function TaskTracking() {
     return task.displayStatus.key === filter;
   });
 
-  const renderTaskCard = (task) => (
-    <div
-      key={task.id}
-      className={`task-row ${task.displayStatus.className}`}
-      onClick={() => {
-        if (task.type === 'PLANILLA_PAGO') return navigate('/hr/planilla/fijo');
-        if (task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) {
-          return navigate(`/aplicaciones/cedulas?open=${task.id}`);
-        }
-        navigate(`/task/${task.id}`);
-      }}
-    >
-      <span className="task-row__dot" title={task.displayStatus.text} />
-      <span className="task-row__name">{task.activityName}</span>
-      <span className="task-row__meta">
-        {task.type !== 'PLANILLA_PAGO' && task.loteName && <>{task.loteName} · </>}
-        {task.activity?.responsableId
-          ? task.responsableName
-          : <em className="task-row__unassigned">Sin asignar</em>}
-      </span>
-      <div className="task-row__tags">
-        {task.activity?.type === 'aplicacion' && (
-          <span className="task-aplicacion-tag">⚗ Aplic.</span>
-        )}
-        {task.type === 'SOLICITUD_COMPRA' && (
-          <span className="task-aplicacion-tag" style={{ background: 'var(--aurora-magenta)', color: '#fff' }}>🛒 Compra</span>
-        )}
-        {task.type === 'PLANILLA_PAGO' && (
-          <span className="task-aplicacion-tag" style={{ background: 'rgba(51,255,153,0.15)', color: 'var(--aurora-green)', border: '1px solid var(--aurora-green)' }}>💰 Planilla</span>
-        )}
-        {(task.activity?.type === 'aplicacion' || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA')) && (
-          <span className="task-cedula-link" title="Ver Cédula de Aplicación">
-            <FiFileText size={12} /> Cédula
-          </span>
-        )}
+  const renderTaskCard = (task) => {
+    const isAplicacion = task.activity?.type === 'aplicacion'
+      || (task.activity?.productos?.length > 0 && task.type !== 'SOLICITUD_COMPRA');
+    const goToTask = () => {
+      if (task.type === 'PLANILLA_PAGO') return navigate('/hr/planilla/fijo');
+      if (isAplicacion) return navigate(`/aplicaciones/cedulas?open=${task.id}`);
+      navigate(`/task/${task.id}`);
+    };
+    return (
+      <div
+        key={task.id}
+        className={`aur-row task-row ${task.displayStatus.className}`}
+        onClick={goToTask}
+      >
+        <span className="task-row__dot" title={task.displayStatus.text} />
+        <span className="task-row__name">{task.activityName}</span>
+        <span className="task-row__meta">
+          {task.type !== 'PLANILLA_PAGO' && task.loteName && <>{task.loteName} · </>}
+          {task.activity?.responsableId
+            ? task.responsableName
+            : <em className="task-row__unassigned">Sin asignar</em>}
+        </span>
+        <div className="task-row__tags">
+          {task.activity?.type === 'aplicacion' && (
+            <span className={`aur-badge ${TASK_TAGS.aplicacion.variant}`}>{TASK_TAGS.aplicacion.label}</span>
+          )}
+          {task.type === 'SOLICITUD_COMPRA' && (
+            <span className={`aur-badge ${TASK_TAGS.compra.variant}`}>{TASK_TAGS.compra.label}</span>
+          )}
+          {task.type === 'PLANILLA_PAGO' && (
+            <span className={`aur-badge ${TASK_TAGS.planilla.variant}`}>{TASK_TAGS.planilla.label}</span>
+          )}
+          {isAplicacion && (
+            <span className="aur-chip task-cedula-chip" title="Ver cédula de aplicación">
+              <FiFileText size={12} /> Cédula
+            </span>
+          )}
+        </div>
+        <span className="task-row__date">
+          {new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short' })}
+        </span>
+        <div className="task-kebab-menu">
+          <button
+            type="button"
+            className="aur-icon-btn aur-icon-btn--sm"
+            onClick={e => { e.stopPropagation(); setOpenKebabId(openKebabId === task.id ? null : task.id); }}
+            title="Más opciones"
+          >
+            <FiMoreVertical size={14} />
+          </button>
+          {openKebabId === task.id && (
+            <div className="task-kebab-dropdown">
+              {archivedIds.has(task.id) ? (
+                <button type="button" onClick={e => unarchiveTask(task.id, e)}>Desarchivar</button>
+              ) : (
+                <button type="button" onClick={e => archiveTask(task.id, e)}>Archivar</button>
+              )}
+              <button type="button" className="task-kebab-dropdown__delete" onClick={e => dismissTask(task.id, e)}>Eliminar del panel</button>
+            </div>
+          )}
+        </div>
       </div>
-      <span className="task-row__date">
-        {new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short' })}
-      </span>
-      <div className="task-kebab-menu">
-        <button
-          className="task-kebab-btn"
-          onClick={e => { e.stopPropagation(); setOpenKebabId(openKebabId === task.id ? null : task.id); }}
-          title="Más opciones"
-        >
-          <FiMoreVertical size={15} />
-        </button>
-        {openKebabId === task.id && (
-          <div className="task-kebab-dropdown">
-            {archivedIds.has(task.id) ? (
-              <button onClick={e => unarchiveTask(task.id, e)}>Desarchivar</button>
-            ) : (
-              <button onClick={e => archiveTask(task.id, e)}>Archivar</button>
-            )}
-            <button className="task-kebab-dropdown__delete" onClick={e => dismissTask(task.id, e)}>Eliminar del panel</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const allTasksSorted = visibleTasks
     .filter(t => !archivedIds.has(t.id))
@@ -371,66 +385,91 @@ function TaskTracking() {
         : new Date(a.dueDate) - new Date(b.dueDate);
     });
 
-  if (loading) return <div className="empty-state">Cargando tareas...</div>;
-  if (error) return <div className="empty-state">Error: {error}</div>;
+  if (loading) return (
+    <div className="aur-sheet">
+      <div className="aur-page-loading" />
+    </div>
+  );
+  if (error) return (
+    <div className="aur-sheet">
+      <div className="empty-state">Error: {error}</div>
+    </div>
+  );
 
   const availableProductos = formProductos.filter(p => !formData.productos.find(fp => fp.productoId === p.id));
 
   return (
-    <div>
+    <div className="aur-sheet">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="task-tracking-header" style={{ position: 'relative' }}>
-        <button className="page-close-btn" onClick={() => navigate(-1)} title="Volver atrás">
-          <FiX size={16} />
-        </button>
-        <div className="task-tracking-controls">
+
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h1 className="aur-sheet-title">Seguimiento de tareas</h1>
+          <p className="aur-sheet-subtitle">
+            Lista, filtros y plantillas de tareas pendientes y completadas.
+          </p>
+        </div>
+        <div className="aur-sheet-header-actions">
           <button
-            className={`btn-nueva-aplicacion${showNewTask ? ' active' : ''}`}
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm task-new-btn"
             onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
           >
-            {showNewTask ? <FiX size={15} /> : <FiPlus size={15} />}
-            {showNewTask ? 'Cancelar' : 'Nueva Tarea'}
+            {showNewTask ? <FiX size={14} /> : <FiPlus size={14} />}
+            {showNewTask ? 'Cancelar' : 'Nueva tarea'}
           </button>
-          <div className="filter-pills">
-            <button onClick={() => handleFilterChange('all')} className={`pill-btn ${filter === 'all' ? 'active' : ''}`}>Todas</button>
-            <button onClick={() => handleFilterChange('overdue')} className={`pill-btn ${filter === 'overdue' ? 'active' : ''}`}>Vencidas</button>
-            <button onClick={() => handleFilterChange('pending')} className={`pill-btn ${filter === 'pending' ? 'active' : ''}`}>Pendientes</button>
-            <button onClick={() => handleFilterChange('completed')} className={`pill-btn ${filter === 'completed' ? 'active' : ''}`}>Hechas</button>
-            <button onClick={() => handleFilterChange('unassigned')} className={`pill-btn ${filter === 'unassigned' ? 'active' : ''}`}>Sin Asignar</button>
-          </div>
-
-          {/* Barra de filtro mobile: [≡]  Etiqueta activa  [+] */}
-          <div className="filter-bar">
-            <button
-              className="filter-bar__menu-btn"
-              onClick={() => setFilterMenuOpen(o => !o)}
-              title="Filtrar"
-            >
-              <FiMenu size={17} />
-            </button>
-            <span className="filter-bar__label">{FILTER_LABELS[filter] ?? 'Todas'}</span>
-            <button
-              className="filter-bar__add-btn"
-              onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
-              title={showNewTask ? 'Cancelar' : 'Nueva Tarea'}
-            >
-              {showNewTask ? <FiX size={17} /> : <FiPlus size={17} />}
-            </button>
-            {filterMenuOpen && (
-              <div className="filter-bar__dropdown">
-                {Object.entries(FILTER_LABELS).map(([key, label]) => (
-                  <button
-                    key={key}
-                    className={`filter-hamburger__option${filter === key ? ' active' : ''}`}
-                    onClick={() => { handleFilterChange(key); setFilterMenuOpen(false); }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
+      </header>
+
+      {/* ── Filtros desktop (chips) ────────────────────────────────────── */}
+      <div className="filter-pills" role="tablist">
+        {Object.entries(FILTER_LABELS).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={filter === key}
+            className={`aur-chip aur-chip--ghost${filter === key ? ' is-active' : ''}`}
+            onClick={() => handleFilterChange(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Filtros mobile (barra unificada) ──────────────────────────── */}
+      <div className="filter-bar">
+        <button
+          type="button"
+          className="filter-bar__menu-btn"
+          onClick={() => setFilterMenuOpen(o => !o)}
+          title="Filtrar"
+        >
+          <FiMenu size={17} />
+        </button>
+        <span className="filter-bar__label">{FILTER_LABELS[filter] ?? 'Todas'}</span>
+        <button
+          type="button"
+          className="filter-bar__add-btn"
+          onClick={() => showNewTask ? resetForm() : setShowNewTask(true)}
+          title={showNewTask ? 'Cancelar' : 'Nueva tarea'}
+        >
+          {showNewTask ? <FiX size={17} /> : <FiPlus size={17} />}
+        </button>
+        {filterMenuOpen && (
+          <div className="filter-bar__dropdown">
+            {Object.entries(FILTER_LABELS).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`filter-hamburger__option${filter === key ? ' active' : ''}`}
+                onClick={() => { handleFilterChange(key); setFilterMenuOpen(false); }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Formulario de nueva tarea de aplicación ── */}
@@ -590,31 +629,39 @@ function TaskTracking() {
         filter === 'all' ? (
           <>
             {archivedIds.size > 0 && (
-              <button className="archived-shortcut" onClick={() => handleFilterChange('archived')}>
-                <FiArchive size={14} />
+              <button
+                type="button"
+                className="aur-chip aur-chip--ghost archived-shortcut"
+                onClick={() => handleFilterChange('archived')}
+              >
+                <FiArchive size={13} />
                 <span>Archivadas</span>
                 <span className="archived-shortcut__count">{archivedIds.size}</span>
               </button>
             )}
             {allTasksSorted.length === 0
-              ? <p className="empty-state">No hay tareas en esta categoría.</p>
-              : <div className="tasks-list">{allTasksSorted.map(renderTaskCard)}</div>
+              ? <div className="empty-state">No hay tareas en esta categoría.</div>
+              : <div className="aur-list tasks-list">{allTasksSorted.map(renderTaskCard)}</div>
             }
           </>
         ) : filter === 'archived' ? (
           <>
-            <button className="archived-back" onClick={() => handleFilterChange('all')}>
+            <button
+              type="button"
+              className="aur-btn-text archived-back"
+              onClick={() => handleFilterChange('all')}
+            >
               ← Volver a Todas
             </button>
             {filteredTasks.length === 0
-              ? <p className="empty-state">No hay tareas archivadas.</p>
-              : <div className="tasks-list archived-grid">{filteredTasks.map(renderTaskCard)}</div>
+              ? <div className="empty-state">No hay tareas archivadas.</div>
+              : <div className="aur-list tasks-list archived-grid">{filteredTasks.map(renderTaskCard)}</div>
             }
           </>
         ) : (
           <>
-            {filteredTasks.length === 0 && <p className="empty-state">No hay tareas en esta categoría.</p>}
-            <div className="tasks-list">
+            {filteredTasks.length === 0 && <div className="empty-state">No hay tareas en esta categoría.</div>}
+            <div className="aur-list tasks-list">
               {filteredTasks.map(renderTaskCard)}
             </div>
           </>
