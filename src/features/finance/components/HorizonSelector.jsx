@@ -27,10 +27,12 @@ function HorizonSelector({ value, onChange, min = 1, max = 104, fallback = 26 })
   };
 
   return (
-    <div className="finance-field">
-      <label>Horizonte (semanas)</label>
+    <div className="aur-field">
+      <label className="aur-field-label" htmlFor="horizon-weeks">Horizonte (semanas)</label>
       <input
+        id="horizon-weeks"
         type="number"
+        className="aur-input aur-input--num"
         min={min}
         max={max}
         value={input}

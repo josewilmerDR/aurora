@@ -83,124 +83,179 @@ function CreditOfferForm({ initial, onSubmit, onCancel, saving }) {
   };
 
   return (
-    <form className="lote-form-card" onSubmit={handleSubmit}>
-      <div className="finance-form-grid">
-        <div className="finance-field finance-field-full">
-          <label>Proveedor *</label>
-          <input
-            type="text"
-            value={form.providerName}
-            onChange={update('providerName')}
-            placeholder="Ej: Banco Nacional, Coopenae…"
-            required
-          />
+    <form onSubmit={handleSubmit} noValidate>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">01</span>
+          <h3 className="aur-section-title">Proveedor</h3>
         </div>
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-provider">Proveedor</label>
+            <input
+              id="co-provider"
+              type="text"
+              className="aur-input"
+              value={form.providerName}
+              onChange={update('providerName')}
+              placeholder="Ej: Banco Nacional, Coopenae…"
+              required
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-providertype">Tipo de proveedor</label>
+            <select
+              id="co-providertype"
+              className="aur-select"
+              value={form.providerType}
+              onChange={update('providerType')}
+            >
+              <option value="banco">Banco</option>
+              <option value="cooperativa">Cooperativa</option>
+              <option value="microfinanciera">Microfinanciera</option>
+              <option value="fintech">Fintech</option>
+            </select>
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-tipo">Tipo de crédito</label>
+            <select
+              id="co-tipo"
+              className="aur-select"
+              value={form.tipo}
+              onChange={update('tipo')}
+            >
+              <option value="agricola">Agrícola</option>
+              <option value="capital_trabajo">Capital de trabajo</option>
+              <option value="leasing">Leasing</option>
+              <option value="rotativo">Rotativo</option>
+            </select>
+          </div>
+        </div>
+      </section>
 
-        <div className="finance-field">
-          <label>Tipo de proveedor</label>
-          <select value={form.providerType} onChange={update('providerType')}>
-            <option value="banco">Banco</option>
-            <option value="cooperativa">Cooperativa</option>
-            <option value="microfinanciera">Microfinanciera</option>
-            <option value="fintech">Fintech</option>
-          </select>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">02</span>
+          <h3 className="aur-section-title">Términos</h3>
         </div>
+        <div className="aur-list">
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-monto">Monto ofertado</label>
+            <input
+              id="co-monto"
+              type="number"
+              className="aur-input aur-input--num"
+              min="1"
+              step="0.01"
+              value={form.monto}
+              onChange={update('monto')}
+              required
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-moneda">Moneda</label>
+            <select
+              id="co-moneda"
+              className="aur-select"
+              value={form.moneda}
+              onChange={update('moneda')}
+            >
+              <option value="USD">USD</option>
+              <option value="CRC">CRC</option>
+            </select>
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-plazo">Plazo (meses)</label>
+            <input
+              id="co-plazo"
+              type="number"
+              className="aur-input aur-input--num"
+              min="1"
+              max="60"
+              step="1"
+              value={form.plazoMeses}
+              onChange={update('plazoMeses')}
+              required
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-apr">Tasa APR (%)</label>
+            <input
+              id="co-apr"
+              type="number"
+              className="aur-input aur-input--num"
+              min="0"
+              max="80"
+              step="0.01"
+              value={form.aprPct}
+              onChange={update('aprPct')}
+              placeholder="Ej: 14.5"
+              required
+            />
+          </div>
+          <div className="aur-row">
+            <label className="aur-row-label" htmlFor="co-esquema">Esquema de amortización</label>
+            <select
+              id="co-esquema"
+              className="aur-select"
+              value={form.esquemaAmortizacion}
+              onChange={update('esquemaAmortizacion')}
+            >
+              <option value="cuota_fija">Cuota fija (francés)</option>
+              <option value="amortizacion_constante">Amortización constante</option>
+              <option value="bullet">Bullet (capital al vencimiento)</option>
+            </select>
+          </div>
+        </div>
+      </section>
 
-        <div className="finance-field">
-          <label>Tipo de crédito</label>
-          <select value={form.tipo} onChange={update('tipo')}>
-            <option value="agricola">Agrícola</option>
-            <option value="capital_trabajo">Capital de trabajo</option>
-            <option value="leasing">Leasing</option>
-            <option value="rotativo">Rotativo</option>
-          </select>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">03</span>
+          <h3 className="aur-section-title">Disponibilidad y notas</h3>
         </div>
-
-        <div className="finance-field">
-          <label>Monto ofertado *</label>
-          <input
-            type="number"
-            min="1"
-            step="0.01"
-            value={form.monto}
-            onChange={update('monto')}
-            required
-          />
+        <div className="aur-list">
+          <div className="aur-row">
+            <span className="aur-row-label">Oferta activa</span>
+            <label className="aur-toggle">
+              <input
+                type="checkbox"
+                checked={form.activo}
+                onChange={update('activo')}
+              />
+              <span className="aur-toggle-track">
+                <span className="aur-toggle-thumb" />
+              </span>
+              <span className="aur-toggle-label">
+                {form.activo ? 'Disponible para simular' : 'Inactiva'}
+              </span>
+            </label>
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="co-descripcion">Notas</label>
+            <textarea
+              id="co-descripcion"
+              className="aur-textarea"
+              rows="3"
+              value={form.descripcion}
+              onChange={update('descripcion')}
+              placeholder="Condiciones específicas, requisitos, fecha de cotización…"
+            />
+          </div>
         </div>
-
-        <div className="finance-field">
-          <label>Moneda</label>
-          <select value={form.moneda} onChange={update('moneda')}>
-            <option value="USD">USD</option>
-            <option value="CRC">CRC</option>
-          </select>
-        </div>
-
-        <div className="finance-field">
-          <label>Plazo (meses) *</label>
-          <input
-            type="number"
-            min="1"
-            max="60"
-            step="1"
-            value={form.plazoMeses}
-            onChange={update('plazoMeses')}
-            required
-          />
-        </div>
-
-        <div className="finance-field">
-          <label>Tasa APR (%) *</label>
-          <input
-            type="number"
-            min="0"
-            max="80"
-            step="0.01"
-            value={form.aprPct}
-            onChange={update('aprPct')}
-            placeholder="Ej: 14.5"
-            required
-          />
-        </div>
-
-        <div className="finance-field">
-          <label>Esquema de amortización</label>
-          <select value={form.esquemaAmortizacion} onChange={update('esquemaAmortizacion')}>
-            <option value="cuota_fija">Cuota fija (francés)</option>
-            <option value="amortizacion_constante">Amortización constante</option>
-            <option value="bullet">Bullet (capital al vencimiento)</option>
-          </select>
-        </div>
-
-        <div className="finance-field">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18 }}>
-            <input type="checkbox" checked={form.activo} onChange={update('activo')} />
-            <span>Oferta activa (disponible para simular)</span>
-          </label>
-        </div>
-
-        <div className="finance-field finance-field-full">
-          <label>Notas</label>
-          <textarea
-            rows="3"
-            value={form.descripcion}
-            onChange={update('descripcion')}
-            placeholder="Condiciones específicas, requisitos, fecha de cotización…"
-          />
-        </div>
-      </div>
+      </section>
 
       {error && (
-        <div className="finance-empty" style={{ color: 'var(--aurora-magenta)', marginTop: 10 }}>
-          {error}
+        <div className="aur-row aur-row--multiline">
+          <span className="aur-field-error">{error}</span>
         </div>
       )}
 
-      <div className="lote-form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}>
+      <div className="aur-form-actions">
+        <button type="button" className="aur-btn-text" onClick={onCancel} disabled={saving}>
           <FiX /> Cancelar
         </button>
-        <button type="submit" className="btn-primary" disabled={saving}>
+        <button type="submit" className="aur-btn-pill" disabled={saving}>
           <FiSave /> {saving ? 'Guardando…' : 'Guardar oferta'}
         </button>
       </div>

@@ -28,16 +28,25 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
   };
 
   return (
-    <form className="lote-form-card" onSubmit={handleSubmit}>
-      <div className="finance-form-grid">
-        <div className="finance-field">
-          <label>Fecha del saldo *</label>
-          <input type="date" value={form.dateAsOf} onChange={update('dateAsOf')} required />
-        </div>
-        <div className="finance-field">
-          <label>Saldo *</label>
+    <form onSubmit={handleSubmit} noValidate>
+      <div className="aur-list">
+        <div className="aur-row">
+          <label className="aur-row-label" htmlFor="cb-date">Fecha del saldo</label>
           <input
+            id="cb-date"
+            type="date"
+            className="aur-input"
+            value={form.dateAsOf}
+            onChange={update('dateAsOf')}
+            required
+          />
+        </div>
+        <div className="aur-row">
+          <label className="aur-row-label" htmlFor="cb-amount">Saldo</label>
+          <input
+            id="cb-amount"
             type="number"
+            className="aur-input aur-input--num"
             step="0.01"
             min={-MAX_AMOUNT}
             max={MAX_AMOUNT}
@@ -46,25 +55,37 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
             required
           />
         </div>
-        <div className="finance-field">
-          <label>Moneda</label>
-          <select value={form.currency} onChange={update('currency')}>
+        <div className="aur-row">
+          <label className="aur-row-label" htmlFor="cb-currency">Moneda</label>
+          <select
+            id="cb-currency"
+            className="aur-select"
+            value={form.currency}
+            onChange={update('currency')}
+          >
             <option value="CRC">CRC</option>
             <option value="USD">USD</option>
           </select>
         </div>
-        <div className="finance-field">
-          <label>Fuente</label>
-          <select value={form.source} onChange={update('source')}>
+        <div className="aur-row">
+          <label className="aur-row-label" htmlFor="cb-source">Fuente</label>
+          <select
+            id="cb-source"
+            className="aur-select"
+            value={form.source}
+            onChange={update('source')}
+          >
             <option value="manual">Manual</option>
             <option value="bank">Bancario</option>
           </select>
         </div>
         {needsFx && (
-          <div className="finance-field finance-field-full">
-            <label>Tipo de cambio a CRC *</label>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="cb-fx">Tipo de cambio a CRC</label>
             <input
+              id="cb-fx"
               type="number"
+              className="aur-input aur-input--num"
               step="0.01"
               min="0.01"
               max={MAX_FX}
@@ -73,21 +94,29 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
               placeholder="ej. 520.00"
               required
             />
-            <small style={{ fontSize: 11, color: 'var(--aurora-light)', opacity: 0.6 }}>
+            <span className="aur-field-hint">
               1 {form.currency} = ? CRC. Se usa para convertir a la moneda funcional.
-            </small>
+            </span>
           </div>
         )}
-        <div className="finance-field finance-field-full">
-          <label>Nota</label>
-          <textarea rows="2" maxLength={MAX_NOTE} value={form.note} onChange={update('note')} />
+        <div className="aur-row aur-row--multiline">
+          <label className="aur-row-label" htmlFor="cb-note">Nota</label>
+          <textarea
+            id="cb-note"
+            className="aur-textarea"
+            rows="2"
+            maxLength={MAX_NOTE}
+            value={form.note}
+            onChange={update('note')}
+          />
         </div>
       </div>
-      <div className="lote-form-actions">
-        <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={saving}>
+
+      <div className="aur-form-actions">
+        <button type="button" className="aur-btn-text" onClick={onCancel} disabled={saving}>
           <FiX /> Cancelar
         </button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>
+        <button type="submit" className="aur-btn-pill" disabled={saving}>
           <FiSave /> {saving ? 'Guardando…' : 'Guardar saldo'}
         </button>
       </div>

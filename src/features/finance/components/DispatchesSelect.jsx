@@ -75,19 +75,20 @@ function DispatchesSelect({ buyerId, selected, onChange, usedIds = new Set(), ex
       {selected.length > 0 && (
         <div className="fin-dispatch-chips">
           {selected.map(s => (
-            <span key={s.id} className="fin-dispatch-chip">
-              {s.consecutivo || s.id}
+            <span key={s.id} className="aur-chip fin-dispatch-chip">
+              <span className="fin-dispatch-chip-id">{s.consecutivo || s.id}</span>
               {s.cantidad != null && (
-                <span style={{ opacity: 0.75, marginLeft: 3 }}>
+                <span className="fin-dispatch-chip-qty">
                   {Number(s.cantidad).toLocaleString('es-ES')} {s.unidad}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => onChange(selected.filter(x => x.id !== s.id))}
-                className="fin-dispatch-chip-remove"
+                className="aur-icon-btn aur-icon-btn--sm"
+                aria-label={`Quitar despacho ${s.consecutivo || s.id}`}
               >
-                <FiX size={10} />
+                <FiX size={11} />
               </button>
             </span>
           ))}
