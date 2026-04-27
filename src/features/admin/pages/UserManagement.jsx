@@ -4,6 +4,7 @@ import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPh
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import { MODULES } from '../../../components/Sidebar';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 
@@ -14,6 +15,18 @@ const VALID_ROLES = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administr
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]+$/;
 const VALID_MODULE_IDS = new Set(MODULES.map(m => m.id));
+
+// Constante centralizada de mapping rol → variante de aur-badge.
+// Reemplaza .role-badge--{ninguno,trabajador,encargado,supervisor,administrador}
+// del CSS legacy + añade el caso 'rrhh' que el CSS anterior no contemplaba.
+const ROLE_BADGE_VARIANT = {
+  ninguno:       'aur-badge--gray',
+  trabajador:    'aur-badge--gray',
+  encargado:     'aur-badge--green',
+  supervisor:    'aur-badge--magenta',
+  rrhh:          'aur-badge--violet',
+  administrador: 'aur-badge--blue',
+};
 
 const getInitials = (nombre) => {
   if (!nombre) return '?';
@@ -37,6 +50,8 @@ function UserManagement() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, nombre }
+  const [deleting, setDeleting] = useState(false);
   const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -144,19 +159,23 @@ function UserManagement() {
     window.scrollTo(0, 0);
   };
 
-  const handleDelete = async (userId) => {
-    if (!window.confirm('¿Seguro que quieres eliminar a este usuario?')) return;
+  const handleDeleteConfirm = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/users/${confirmDelete.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message || 'Error al eliminar');
       }
-      if (selectedUser?.id === userId) setSelectedUser(null);
+      if (selectedUser?.id === confirmDelete.id) setSelectedUser(null);
+      setConfirmDelete(null);
       fetchUsers();
       showToast('Usuario eliminado correctamente');
     } catch (err) {
       showToast(err.message || 'Error al eliminar el usuario.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -217,6 +236,8 @@ function UserManagement() {
     const restrictedLabels = restricted
       .map(id => MODULES.find(m => m.id === id)?.nombre)
       .filter(Boolean);
+    const roleKey = selectedUser.rol || 'trabajador';
+    const badgeVariant = ROLE_BADGE_VARIANT[roleKey] || 'aur-badge--gray';
     return (
       <div className="lote-hub">
         <button className="lote-hub-back" onClick={() => setSelectedUser(null)}>
@@ -225,15 +246,25 @@ function UserManagement() {
         <div className="hub-header">
           <div className="hub-title-block">
             <h2 className="hub-lote-code">{selectedUser.nombre}</h2>
-            <span className={`role-badge role-badge--${selectedUser.rol || 'trabajador'}`}>
-              {ROLE_LABELS[selectedUser.rol] || 'Trabajador'}
+            <span className={`aur-badge ${badgeVariant}`}>
+              {ROLE_LABELS[roleKey] || 'Trabajador'}
             </span>
           </div>
           <div className="hub-header-actions">
-            <button onClick={() => handleEdit(selectedUser)} className="icon-btn" title="Editar">
+            <button
+              type="button"
+              onClick={() => handleEdit(selectedUser)}
+              className="aur-icon-btn"
+              title="Editar"
+            >
               <FiEdit size={16} />
             </button>
-            <button onClick={() => handleDelete(selectedUser.id)} className="icon-btn delete" title="Eliminar">
+            <button
+              type="button"
+              onClick={() => setConfirmDelete({ id: selectedUser.id, nombre: selectedUser.nombre })}
+              className="aur-icon-btn aur-icon-btn--danger"
+              title="Eliminar"
+            >
               <FiTrash2 size={16} />
             </button>
           </div>
@@ -244,8 +275,8 @@ function UserManagement() {
         </div>
         {restrictedLabels.length > 0 && (
           <div className="hub-info-pills">
-            <span className="hub-pill hub-pill--restricted" title="Acceso restringido a estos módulos">
-              <FiLock size={13} />Solo: {restrictedLabels.join(', ')}
+            <span className="aur-badge aur-badge--blue" title="Acceso restringido a estos módulos">
+              <FiLock size={11} />Solo: {restrictedLabels.join(', ')}
             </span>
           </div>
         )}
@@ -257,17 +288,32 @@ function UserManagement() {
     <div className={`lote-page${selectedUser && view === 'hub' ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title={`¿Eliminar a ${confirmDelete.nombre}?`}
+          body="Esta acción no se puede deshacer. El usuario perderá el acceso al sistema y dejará de aparecer en los listados."
+          confirmLabel="Eliminar"
+          loading={deleting}
+          loadingLabel="Eliminando…"
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
       {/* --- SPINNER DE CARGA --- */}
-      {loading && <div className="usr-page-loading" />}
+      {loading && <div className="aur-page-loading" />}
 
       {/* --- ESTADO VACÍO --- */}
       {!loading && users.length === 0 && view !== 'form' && (
-        <div className="usr-empty-state">
-          <FiUserPlus size={36} />
-          <p>No hay usuarios registrados.</p>
-          <button className="btn btn-primary" onClick={handleNew}>
-            <FiUserPlus size={15} /> Crear el primero
-          </button>
+        <div className="aur-sheet aur-sheet--empty">
+          <div className="usr-empty">
+            <FiUserPlus size={36} />
+            <p>No hay usuarios registrados.</p>
+            <button type="button" className="aur-btn-pill" onClick={handleNew}>
+              <FiUserPlus size={14} /> Crear el primero
+            </button>
+          </div>
         </div>
       )}
 
@@ -295,8 +341,8 @@ function UserManagement() {
       {!loading && users.length > 0 && view !== 'form' && (
         <div className="usr-page-header">
           <h1 className="usr-page-title">Gestión de Usuarios</h1>
-          <button className="btn btn-primary" onClick={handleNew}>
-            <FiUserPlus size={15} /> Nuevo Usuario
+          <button type="button" className="aur-btn-pill" onClick={handleNew}>
+            <FiUserPlus size={14} /> Nuevo Usuario
           </button>
         </div>
       )}
@@ -307,63 +353,115 @@ function UserManagement() {
 
           {/* Izquierda: formulario o hub de detalle */}
           {view === 'form' && (
-            <div className="form-card">
-              <h2>{isEditing ? 'Editando Usuario' : 'Nuevo Usuario'}</h2>
-              <form onSubmit={handleSubmit} className="lote-form">
-                <div className="form-grid">
-                  <div className="form-control">
-                    <label htmlFor="nombre">Nombre Completo</label>
-                    <input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} maxLength={LIMITS.nombre} required />
-                  </div>
-                  <div className="form-control">
-                    <label htmlFor="email">Email</label>
-                    <input id="email" name="email" value={formData.email} onChange={handleInputChange} type="email" maxLength={LIMITS.email} required />
-                  </div>
-                  <div className="form-control">
-                    <label htmlFor="telefono">Teléfono</label>
-                    <input id="telefono" name="telefono" value={formData.telefono} onChange={handleInputChange} type="tel" maxLength={LIMITS.telefono} required />
-                  </div>
-                  <div className="form-control">
-                    <label htmlFor="rol">Rol</label>
-                    <select id="rol" name="rol" value={formData.rol} onChange={handleInputChange}>
-                      <option value="trabajador">Trabajador</option>
-                      <option value="encargado">Encargado</option>
-                      <option value="supervisor">Supervisor</option>
-                      <option value="rrhh">RR.HH.</option>
-                      <option value="administrador">Administrador</option>
-                    </select>
-                  </div>
+            <div className="aur-sheet">
+              <header className="aur-sheet-header">
+                <div className="aur-sheet-header-text">
+                  <h1 className="aur-sheet-title">{isEditing ? 'Editando Usuario' : 'Nuevo Usuario'}</h1>
                 </div>
+              </header>
 
-                <div className="form-control form-control--full modules-section">
-                  <label>Acceso por módulo (opcional)</label>
-                  <p className="form-hint">
+              <form onSubmit={handleSubmit}>
+                <section className="aur-section">
+                  <div className="aur-section-header">
+                    <span className="aur-section-num">01</span>
+                    <h3>Identidad</h3>
+                  </div>
+                  <div className="aur-list">
+                    <div className="aur-row aur-row--multiline">
+                      <label className="aur-row-label" htmlFor="usr-nombre">Nombre completo</label>
+                      <input
+                        id="usr-nombre"
+                        className="aur-input"
+                        name="nombre"
+                        value={formData.nombre}
+                        onChange={handleInputChange}
+                        maxLength={LIMITS.nombre}
+                        required
+                      />
+                    </div>
+                    <div className="aur-row aur-row--multiline">
+                      <label className="aur-row-label" htmlFor="usr-email">Email</label>
+                      <input
+                        id="usr-email"
+                        className="aur-input"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        maxLength={LIMITS.email}
+                        required
+                      />
+                    </div>
+                    <div className="aur-row aur-row--multiline">
+                      <label className="aur-row-label" htmlFor="usr-telefono">Teléfono</label>
+                      <input
+                        id="usr-telefono"
+                        className="aur-input"
+                        name="telefono"
+                        type="tel"
+                        value={formData.telefono}
+                        onChange={handleInputChange}
+                        maxLength={LIMITS.telefono}
+                        required
+                      />
+                    </div>
+                    <div className="aur-row aur-row--multiline">
+                      <label className="aur-row-label" htmlFor="usr-rol">Rol</label>
+                      <select
+                        id="usr-rol"
+                        className="aur-select"
+                        name="rol"
+                        value={formData.rol}
+                        onChange={handleInputChange}
+                      >
+                        <option value="trabajador">Trabajador</option>
+                        <option value="encargado">Encargado</option>
+                        <option value="supervisor">Supervisor</option>
+                        <option value="rrhh">RR.HH.</option>
+                        <option value="administrador">Administrador</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="aur-section">
+                  <div className="aur-section-header">
+                    <span className="aur-section-num">02</span>
+                    <h3>Acceso por módulo</h3>
+                    <span className="aur-section-count">{formData.restrictedTo.length}/{MODULES.length}</span>
+                  </div>
+                  <p className="usr-modules-hint">
                     Si no marcas ninguno, el usuario verá todos los módulos que su rol permita.
                     Si marcas uno o más, solo verá esos.
                   </p>
-                  <div className="module-checkboxes">
+                  <div className="aur-list">
                     {MODULES.map(mod => {
                       const checked = formData.restrictedTo.includes(mod.id);
                       return (
-                        <label key={mod.id} className={`module-checkbox${checked ? ' module-checkbox--on' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleModule(mod.id)}
-                          />
-                          <span>{mod.nombre}</span>
-                        </label>
+                        <div key={mod.id} className="aur-row">
+                          <span className="aur-row-label">{mod.nombre}</span>
+                          <label className="aur-toggle">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleModule(mod.id)}
+                            />
+                            <span className="aur-toggle-track"><span className="aur-toggle-thumb" /></span>
+                          </label>
+                        </div>
                       );
                     })}
                   </div>
-                </div>
+                </section>
 
-                <div className="form-actions">
-                  <button type="submit" className="btn btn-primary" disabled={submitting}>
-                    <FiUserPlus />
+                <div className="aur-form-actions">
+                  <button type="button" className="aur-btn-text" onClick={resetForm} disabled={submitting}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="aur-btn-pill" disabled={submitting}>
+                    <FiUserPlus size={14} />
                     {submitting ? 'Guardando...' : (isEditing ? 'Actualizar Usuario' : 'Guardar Usuario')}
                   </button>
-                  <button type="button" onClick={resetForm} className="btn btn-secondary" disabled={submitting}>Cancelar</button>
                 </div>
               </form>
             </div>
@@ -373,20 +471,26 @@ function UserManagement() {
           {/* Derecha: lista de usuarios */}
           {view !== 'form' && (
             <div className="lote-list-panel">
-<ul className="lote-list">
-                {users.map(user => (
-                  <li
-                    key={user.id}
-                    className={`lote-list-item${selectedUser?.id === user.id ? ' active' : ''}`}
-                    onClick={() => selectedUser?.id === user.id ? setSelectedUser(null) : handleSelectUser(user)}
-                  >
-                    <div className="usr-list-info">
-                      <span className="lote-list-code">{user.nombre}</span>
-                      <span className="lote-list-name">{ROLE_LABELS[user.rol] || 'Trabajador'}</span>
-                    </div>
-                    <FiChevronRight size={14} className="lote-list-arrow" />
-                  </li>
-                ))}
+              <ul className="lote-list">
+                {users.map(user => {
+                  const roleKey = user.rol || 'trabajador';
+                  const badgeVariant = ROLE_BADGE_VARIANT[roleKey] || 'aur-badge--gray';
+                  return (
+                    <li
+                      key={user.id}
+                      className={`lote-list-item${selectedUser?.id === user.id ? ' active' : ''}`}
+                      onClick={() => selectedUser?.id === user.id ? setSelectedUser(null) : handleSelectUser(user)}
+                    >
+                      <div className="usr-list-info">
+                        <span className="lote-list-code">{user.nombre}</span>
+                        <span className={`aur-badge ${badgeVariant} usr-list-role`}>
+                          {ROLE_LABELS[roleKey] || 'Trabajador'}
+                        </span>
+                      </div>
+                      <FiChevronRight size={14} className="lote-list-arrow" />
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
