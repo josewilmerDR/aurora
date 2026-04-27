@@ -1,44 +1,74 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    CEO DASHBOARD — Fase 6.5.
 
-   Reusa el grid + widget shell legacy fin-widget* (defined en
-   finance-dashboard.css) mientras los 5 widgets siguen vivos sobre ese
-   chrome. PR B y PR C migran cada widget a aur-section + .aur-* primitives,
-   y PR D elimina el @import cross-domain definitivamente. Por ahora,
-   ceo-dashboard.css mantiene únicamente:
+   El dashboard observabilidad del meta-agente corre sobre <section
+   className="aur-section"> + primitivas .aur-* del sistema (aur-icon-btn,
+   aur-btn-pill, aur-btn-text, aur-badge, aur-banner, aur-input, aur-select).
 
-     · ceo-grid             — override del grid de finance (5 widgets, no 4)
-                              con el quinto ocupando 2 columnas en desktop.
-     · ceo-urgency-badge    — badge de urgencia (none/low/medium/high/critical).
-                              Reusa la paleta semántica de aur-badge.
+   Aquí queda slim sólo lo que las primitivas no cubren:
+
+     · ceo-grid             — grid 2x2 de widgets con el quinto ocupando 2
+                              columnas (5 widgets en lugar de los 4 estándar
+                              de finance/procurement). Self-contained: no
+                              depende de fin-dashboard-grid externo.
+     · ceo-widget-{primary, — sub-classes del shell aur-section: number/text
+        sub, loading, error,  destacado, sub-text, loading/error/empty
+        empty, cta-row}       states, fila CTA al pie. aur-section provee
+                              el chrome (bg/border/padding); estas slim
+                              añaden la tipografía interna de un widget.
+     · ceo-status-block /   — agrupa primary + sub + meta del Orchestrator
+       ceo-status-text        widget (texto status, no número grande).
+     · ceo-window-select    — select compacto que encaja en aur-section-header
+                              (la primitive .aur-select tiene padding full-size).
+     · ceo-kpi-scroll       — scroll container del KPI list.
+     · ceo-urgency-badge    — badge de urgencia (none/low/medium/high/critical)
+                              sobre la paleta semántica de aur-badge.
+     · ceo-status-badge     — badge de estado de cadenas/proposals con 11
+                              variantes (planned/executing/completed/failed/
+                              rolled_back/etc.) sobre paleta semántica.
      · ceo-domain-chip      — chip compacto magenta para identificar dominio.
-     · ceo-score-row /      — fila de score (label + barra + valor + meta) con
+     · ceo-score-row /      — fila score (label + bar + value + meta) con
        -bar / -bar-fill /     gradient rojo→amarillo→verde para hit-rate.
        -value / -meta
-     · ceo-chain-row /      — fila de cadena cross-domain (objetivo + status
-       -objective / -meta     badge + chevron expandible).
-     · ceo-status-badge     — badge de estado de cadena/proposal con 11
-                              variantes (planned, executing, completed,
-                              partial, aborted, expired, etc.). Reusa la
-                              paleta semántica de aur-badge.
-     · ceo-proposal-row /   — fila de propuesta de guardrail con direction
-       -key / -change /       relax/tighten coloreada.
+     · ceo-chain-{scroll,   — lista expandible de cadenas cross-domain
+        row, chevron,         con detail con rationale/steps/rollback.
+        detail, rollback}
+     · ceo-guardrails-grid  — 2-column layout pending proposals / corridor
+       / -scroll / -col-       reference dentro del DynamicGuardrails widget.
+        title / -empty
+     · ceo-corridor-row /   — fila de rango permitido (mín / actual / máx).
+       -key / -values
+     · ceo-proposal-row /   — fila de propuesta con direction relax/tighten.
+       -key / -change /
        -actions
      · ceo-kpi-row /        — fila compacta de hit-rate por actionType.
-       -type / -count / -rate
-     · ceo-signals /        — grid de tiles auto-fill con badge por dominio.
-       -signal-tile / -domain
+       -type / -count
+     · ceo-signals /        — grid auto-fill de tiles con badge urgency
+       -signal-tile /         por dominio.
+       -signal-tile-domain
 
-   Tokens migrados a --aur-* y hardcoded colors reemplazados por la paleta
-   --aur-badge-*-bg/-fg del sistema; font-sizes a la escala 11/13/15.
+   Tokens y paletas son del sistema aurora (--aur-*); la única excepción
+   es el fondo opaco del page-container que vive como token global
+   (--aurora-dark-blue) para compatibilidad con el resto del producto.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import '../../finance/styles/finance-dashboard.css';
-
-/* ── Grid override: 5 widgets, quinto span 2 ────────────────────────────── */
+/* ── Grid de widgets (self-contained, sin @import cross-domain) ─────────── */
 .ceo-grid {
+  display: grid;
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: minmax(240px, auto);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* aur-section provee bg/border/radius/padding; cuando es hijo directo del
+   grid asegura altura mínima común y apila el contenido con gap consistente
+   para que los 5 widgets queden visualmente balanceados. */
+.ceo-grid > .aur-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 220px;
 }
 
 .ceo-grid > :nth-child(5) {
@@ -50,7 +80,89 @@
   .ceo-grid > :nth-child(5) { grid-column: auto; }
 }
 
-/* ── Urgency tier badges (shared across widgets) ────────────────────────── */
+/* ── Widget sub-classes (number, sub, loading, error, empty, cta) ───────── */
+
+/* Number/value destacado del widget. */
+.ceo-widget-primary {
+  font-size: var(--aur-fs-title3);
+  font-weight: 700;
+  color: var(--aur-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Texto descriptivo bajo el primary. */
+.ceo-widget-sub {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+
+/* Loading / empty: mismo layout (centrado, padding generoso). */
+.ceo-widget-loading,
+.ceo-widget-empty {
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-footnote);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.ceo-widget-error {
+  color: var(--aur-danger);
+  font-size: var(--aur-fs-footnote);
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* Fila de CTAs al pie del widget — empuja al fondo del flex column del
+   .ceo-grid > .aur-section. */
+.ceo-widget-cta-row {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+.ceo-widget-cta-row > .aur-btn-pill,
+.ceo-widget-cta-row > .aur-btn-text {
+  flex: 1;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ── OrchestratorStatusWidget — bloque status (texto, no número) ────────── */
+/* El primary del orquestador es texto status ("Acciones realizadas"), no un
+   número grande, por lo que no usamos .ceo-widget-primary. Slim agrupa los
+   3 elementos con gap pequeño y aplica callout al primary. */
+.ceo-status-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ceo-status-text {
+  font-size: var(--aur-fs-callout);
+  font-weight: 700;
+  color: var(--aur-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ── KpiAccuracyWidget — window selector compacto + scroll container ────── */
+/* La primitive .aur-select tiene padding generoso (12px 14px) para input
+   full-size; aquí necesitamos un select inline compacto que encaje en el
+   aur-section-header. Slim ajusta padding y font sin tocar el dropdown
+   arrow del primitive. */
+.ceo-window-select {
+  width: auto;
+  padding: 4px 28px 4px 8px;
+  font-size: var(--aur-fs-caption);
+  background-position: right 6px center;
+}
+
+.ceo-kpi-scroll {
+  overflow-y: auto;
+  max-height: 180px;
+}
+
+/* ── Urgency tier badges (paleta semántica de aur-badge) ────────────────── */
 .ceo-urgency-badge {
   font-size: var(--aur-fs-caption);
   font-weight: 600;
@@ -75,40 +187,6 @@
   letter-spacing: 0.2px;
 }
 
-/* ── OrchestratorStatusWidget — bloque status (primary text + sub + meta) ─
-   El primary del orquestador es texto status ("Acciones realizadas"), no un
-   número grande, por lo que no usamos fin-widget-primary. Slim agrupa
-   los 3 elementos con gap pequeño y aplica callout al primary. */
-.ceo-status-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.ceo-status-text {
-  font-size: var(--aur-fs-callout);
-  font-weight: 700;
-  color: var(--aur-accent);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-/* ── KpiAccuracyWidget — window selector compacto + scroll container ───── */
-/* La primitive .aur-select tiene padding generoso (12px 14px) para input
-   full-size; aquí necesitamos un select inline compacto que encaje en el
-   aur-section-header. Slim ajusta padding y font sin tocar el dropdown
-   arrow del primitive. */
-.ceo-window-select {
-  width: auto;
-  padding: 4px 28px 4px 8px;
-  font-size: var(--aur-fs-caption);
-  background-position: right 6px center;
-}
-
-.ceo-kpi-scroll {
-  overflow-y: auto;
-  max-height: 180px;
-}
-
 /* ── Score bars (trust + hit-rate) ──────────────────────────────────────── */
 .ceo-score-row {
   display: grid;
@@ -131,9 +209,8 @@
 }
 /* Gradient rojo→amarillo→verde representa quality del hit-rate (0→1).
    Es semántico — un score mejor = más verde — y no es replicable con un
-   solo token. Conserva las variables semánticas del sistema en lugar de
-   colores hardcoded: magenta para crítico, warn para amber, accent para
-   verde. */
+   solo token. Conserva las variables semánticas del sistema (magenta para
+   crítico, warn para amber, accent para verde). */
 .ceo-score-bar-fill {
   height: 100%;
   background: linear-gradient(90deg,
@@ -157,8 +234,7 @@
   color: var(--aur-text-3);
 }
 /* Cuando el meta vive dentro de .ceo-score-row (grid de 3 columnas), se
-   expande a la fila completa para que aparezca bajo el row. Reemplaza el
-   inline style={{ gridColumn: '1 / -1' }} legacy. */
+   expande a la fila completa para que aparezca bajo el row. */
 .ceo-score-meta--row {
   grid-column: 1 / -1;
 }
@@ -232,30 +308,6 @@
   color: var(--aur-danger);
 }
 
-/* ── Status badges (chains + proposals: 11 variantes) ───────────────────── */
-.ceo-status-badge {
-  font-size: var(--aur-fs-caption);
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-.ceo-status-badge--completed,
-.ceo-status-badge--executed              { background: var(--aur-badge-green-bg);   color: var(--aur-badge-green-fg); }
-.ceo-status-badge--executing             { background: var(--aur-badge-blue-bg);    color: var(--aur-badge-blue-fg); }
-.ceo-status-badge--planned,
-.ceo-status-badge--preflight_ok          { background: var(--aur-badge-gray-bg);    color: var(--aur-text); }
-.ceo-status-badge--preflight_blocked,
-.ceo-status-badge--failed,
-.ceo-status-badge--rolled_back,
-.ceo-status-badge--rolled_back_partial,
-.ceo-status-badge--invalid               { background: var(--aur-badge-magenta-bg); color: var(--aur-badge-magenta-fg); }
-.ceo-status-badge--aborted,
-.ceo-status-badge--expired               { background: var(--aur-badge-yellow-bg);  color: var(--aur-badge-yellow-fg); }
-.ceo-status-badge--proposed              { background: var(--aur-badge-violet-bg);  color: var(--aur-badge-violet-fg); }
-.ceo-status-badge--rejected              { background: var(--aur-badge-gray-bg);    color: var(--aur-text-3); }
-
 /* ── DynamicGuardrailsWidget — 2-column grid + corridor reference ──────── */
 .ceo-guardrails-grid {
   display: grid;
@@ -296,6 +348,30 @@
   color: var(--aur-text-3);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Status badges (chains + proposals: 11 variantes) ───────────────────── */
+.ceo-status-badge {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.ceo-status-badge--completed,
+.ceo-status-badge--executed              { background: var(--aur-badge-green-bg);   color: var(--aur-badge-green-fg); }
+.ceo-status-badge--executing             { background: var(--aur-badge-blue-bg);    color: var(--aur-badge-blue-fg); }
+.ceo-status-badge--planned,
+.ceo-status-badge--preflight_ok          { background: var(--aur-badge-gray-bg);    color: var(--aur-text); }
+.ceo-status-badge--preflight_blocked,
+.ceo-status-badge--failed,
+.ceo-status-badge--rolled_back,
+.ceo-status-badge--rolled_back_partial,
+.ceo-status-badge--invalid               { background: var(--aur-badge-magenta-bg); color: var(--aur-badge-magenta-fg); }
+.ceo-status-badge--aborted,
+.ceo-status-badge--expired               { background: var(--aur-badge-yellow-bg);  color: var(--aur-badge-yellow-fg); }
+.ceo-status-badge--proposed              { background: var(--aur-badge-violet-bg);  color: var(--aur-badge-violet-fg); }
+.ceo-status-badge--rejected              { background: var(--aur-badge-gray-bg);    color: var(--aur-text-3); }
 
 /* ── Guardrail proposals ────────────────────────────────────────────────── */
 .ceo-proposal-row {
@@ -344,10 +420,6 @@
   font-size: var(--aur-fs-caption);
   color: var(--aur-text-3);
   font-variant-numeric: tabular-nums;
-}
-.ceo-kpi-rate {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
 }
 
 /* ── Signal tiles ───────────────────────────────────────────────────────── */

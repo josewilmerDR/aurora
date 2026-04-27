@@ -84,12 +84,12 @@ function ChainHistoryWidget() {
         </div>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {loading && <div className="ceo-widget-loading">Cargando…</div>}
+      {error && <div className="ceo-widget-error">{error}</div>}
 
       {!loading && !error && (
         rows.length === 0 ? (
-          <div className="fin-widget-empty">
+          <div className="ceo-widget-empty">
             Aún no hay tareas en cadena. Una cadena es cuando el Copilot une varias acciones para resolver algo grande
             (ejemplo: si la caja baja → revisa gastos, posterga compras y reasigna personal).
           </div>
@@ -119,7 +119,7 @@ function ChainHistoryWidget() {
                 {expandedId === r.id && (
                   <div className="ceo-chain-detail">
                     {detailLoading && <div>Cargando detalle…</div>}
-                    {detail?.error && <div className="fin-widget-error">{detail.error}</div>}
+                    {detail?.error && <div className="ceo-widget-error">{detail.error}</div>}
                     {detail && !detail.error && (
                       <>
                         {detail.plan?.overallRationale && (

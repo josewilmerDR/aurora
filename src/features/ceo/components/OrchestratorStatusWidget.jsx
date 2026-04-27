@@ -74,13 +74,13 @@ function OrchestratorStatusWidget() {
         </div>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {loading && <div className="ceo-widget-loading">Cargando…</div>}
+      {error && <div className="ceo-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
           {!latest ? (
-            <div className="fin-widget-empty">
+            <div className="ceo-widget-empty">
               El Copilot todavía no ha hecho su revisión automática. La hace cada 6 horas.
             </div>
           ) : (
@@ -89,7 +89,7 @@ function OrchestratorStatusWidget() {
                 <div className="ceo-status-text">
                   {latest.status === 'dispatched' ? 'Acciones realizadas' : latest.status === 'partial' ? 'Acciones a medias' : 'Solo recomendación'}
                 </div>
-                <div className="fin-widget-sub">
+                <div className="ceo-widget-sub">
                   {latest.topUrgency ? (
                     <>Lo más urgente: <UrgencyBadge urgency={latest.topUrgency} /> · {latest.stepCount} pasos en el plan</>
                   ) : 'Todo bajo control'}
@@ -118,7 +118,7 @@ function OrchestratorStatusWidget() {
                 </div>
               )}
 
-              <div className="fin-widget-cta-row">
+              <div className="ceo-widget-cta-row">
                 <Link to="/autopilot" className="aur-btn-text">
                   Ver acciones del Copilot
                 </Link>

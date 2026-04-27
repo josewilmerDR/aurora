@@ -34,7 +34,7 @@ function CeoDashboard() {
         </span>
       </div>
 
-      <div className="fin-dashboard-grid ceo-grid">
+      <div className="ceo-grid">
         <OrchestratorStatusWidget />
         <TrustScoreWidget />
         <KpiAccuracyWidget />

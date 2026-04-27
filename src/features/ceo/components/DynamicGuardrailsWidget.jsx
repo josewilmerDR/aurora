@@ -80,16 +80,16 @@ function DynamicGuardrailsWidget() {
         </div>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {loading && <div className="ceo-widget-loading">Cargando…</div>}
+      {error && <div className="ceo-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
           <div>
-            <div className="fin-widget-primary">
+            <div className="ceo-widget-primary">
               {pending.length}
             </div>
-            <div className="fin-widget-sub">
+            <div className="ceo-widget-sub">
               Cambios pendientes · {executed.length} aplicados recientemente · {corridor.length} reglas configurables
             </div>
           </div>
@@ -99,7 +99,7 @@ function DynamicGuardrailsWidget() {
             <div className="ceo-guardrails-scroll">
               <div className="ceo-guardrails-col-title">Cambios pendientes</div>
               {pending.length === 0 ? (
-                <div className="fin-widget-empty ceo-guardrails-empty">
+                <div className="ceo-widget-empty ceo-guardrails-empty">
                   Sin cambios propuestos por ahora.
                 </div>
               ) : (

@@ -80,12 +80,12 @@ function TrustScoreWidget() {
         </div>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {loading && <div className="ceo-widget-loading">Cargando…</div>}
+      {error && <div className="ceo-widget-error">{error}</div>}
 
       {!loading && !error && scores && (
         <>
-          <div className="fin-widget-sub">
+          <div className="ceo-widget-sub">
             {observationCount > 0
               ? `${observationCount} decisiones evaluadas en los últimos ${scores.sinceDays || 365} días · da más peso a las recientes`
               : 'Aún no hay datos. El Copilot revisa cada día qué tan acertadas fueron sus decisiones.'}
@@ -110,7 +110,7 @@ function TrustScoreWidget() {
           </div>
 
           {canRecompute && (
-            <div className="fin-widget-cta-row">
+            <div className="ceo-widget-cta-row">
               <button
                 type="button"
                 className="aur-btn-pill"
