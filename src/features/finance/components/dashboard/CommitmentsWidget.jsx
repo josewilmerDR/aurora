@@ -47,14 +47,15 @@ function CommitmentsWidget() {
   const totalOutflows = outflows.reduce((s, ev) => s + (Number(ev.amount) || 0), 0);
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiCalendar size={14} /> Compromisos próximos</span>
-        <span className="fin-widget-sub">4 semanas</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiCalendar size={14} /></span>
+        <h3 className="aur-section-title">Compromisos próximos</h3>
+        <span className="aur-section-count">4 semanas</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (
         <>
@@ -85,15 +86,13 @@ function CommitmentsWidget() {
                 </div>
               ))}
               {outflows.length > top.length && (
-                <div className="fin-widget-sub" style={{ textAlign: 'center', marginTop: 4 }}>
-                  +{outflows.length - top.length} más
-                </div>
+                <div className="fin-commits-more">+{outflows.length - top.length} más</div>
               )}
             </div>
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

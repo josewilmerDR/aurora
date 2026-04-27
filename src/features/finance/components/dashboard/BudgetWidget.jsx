@@ -56,14 +56,15 @@ function BudgetWidget() {
   const summary = data?.summary;
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiTrendingUp size={14} /> Presupuesto</span>
-        <span className="fin-widget-sub">{period}</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiTrendingUp size={14} /></span>
+        <h3 className="aur-section-title">Presupuesto</h3>
+        <span className="aur-section-count">{period}</span>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (
         <>
@@ -106,7 +107,7 @@ function BudgetWidget() {
                         {pct != null ? `${pct.toFixed(0)}%` : '—'}
                       </span>
                     </div>
-                    <span className="finance-progress" style={{ gridColumn: '1 / -1', width: '100%' }}>
+                    <span className="finance-progress fin-budget-row-bar">
                       <span className={fillCls} style={{ width: `${widthPct}%` }} />
                     </span>
                   </div>
@@ -116,7 +117,7 @@ function BudgetWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

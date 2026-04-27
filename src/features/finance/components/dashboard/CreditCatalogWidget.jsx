@@ -38,55 +38,54 @@ function CreditCatalogWidget() {
   const fmtPlazo = (min, max) => (min === max ? `${min}m` : `${min}-${max}m`);
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiPackage size={14} /> Ofertas de crédito</span>
-        <span className="fin-widget-sub">{products.length ? `${products.length} activas` : ''}</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiPackage size={14} /></span>
+        <h3 className="aur-section-title">Ofertas de crédito</h3>
+        {products.length ? <span className="aur-section-count">{products.length} activas</span> : null}
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
           {products.length === 0 ? (
-            <div className="fin-widget-empty" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <span>Aún no hay ofertas registradas. Ingresá las cotizaciones que hayas recibido de bancos o cooperativas.</span>
-              <Link
-                to="/finance/financing/ofertas"
-                className="btn btn-secondary"
-                style={{ textAlign: 'center' }}
-              >
-                Registrar ofertas
-              </Link>
-            </div>
+            <>
+              <div className="fin-widget-empty">
+                Aún no hay ofertas registradas. Ingresá las cotizaciones que hayas recibido de bancos o cooperativas.
+              </div>
+              <div className="fin-widget-cta-row">
+                <Link to="/finance/financing/ofertas" className="aur-btn-pill">
+                  Registrar ofertas
+                </Link>
+              </div>
+            </>
           ) : (
             <>
               <div className="fin-recent-list">
                 {top.map(p => (
                   <div key={p.id} className="fin-recent-row">
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div className="fin-recent-row-text">
                       <strong>{p.providerName}</strong>
                       <span className="fin-widget-sub">
                         {TIPO_LABELS[p.tipo] || p.tipo} · APR {fmtRange(p.aprMin, p.aprMax)}
                       </span>
                     </div>
-                    <span className="fin-recent-tag">{fmtPlazo(p.plazoMesesMin, p.plazoMesesMax)}</span>
+                    <span className="aur-badge aur-badge--gray">{fmtPlazo(p.plazoMesesMin, p.plazoMesesMax)}</span>
                   </div>
                 ))}
               </div>
-              <Link
-                to="/finance/financing/ofertas"
-                className="btn btn-secondary"
-                style={{ marginTop: 'auto', textAlign: 'center' }}
-              >
-                Ver todas las ofertas
-              </Link>
+              <div className="fin-widget-cta-row">
+                <Link to="/finance/financing/ofertas" className="aur-btn-text">
+                  Ver todas las ofertas
+                </Link>
+              </div>
             </>
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 

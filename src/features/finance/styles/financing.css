@@ -1,6 +1,15 @@
-/* Fase 5.5 — estilos específicos del Financing Dashboard. Se cargan ADEMÁS
-   del finance.css común (fin-widget, fin-dashboard-grid, etc.). */
+/* Estilos específicos del Financing Dashboard. Se cargan ADEMÁS del
+   finance-dashboard.css común (fin-widget, fin-recent-list, etc.). */
 
+/* aur-banner--info ya provee bg/color/border/typography para el banner;
+   este slim sólo añade el margen vertical específico del dashboard de
+   financiamiento, donde el banner queda entre el page-header y el grid. */
+.aur-banner.fin-financing-banner {
+  margin: 12px 0 20px;
+}
+
+/* fin-policy-banner se mantiene como clase legacy: el dominio CEO la
+   referencia directamente (CeoDashboard.jsx) sin componer aur-banner. */
 .fin-policy-banner {
   display: flex;
   align-items: center;
@@ -8,18 +17,17 @@
   padding: 10px 14px;
   margin: 12px 0 20px 0;
   background: rgba(51, 255, 153, 0.06);
-  border: 1px solid var(--aurora-border);
-  border-left: 3px solid var(--aurora-green);
-  border-radius: 8px;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
+  border: 1px solid var(--aur-divider);
+  border-left: 3px solid var(--aur-accent);
+  border-radius: var(--aur-r-input);
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
   line-height: 1.4;
 }
+.fin-policy-banner strong { color: var(--aur-accent); }
 
-.fin-policy-banner strong {
-  color: var(--aurora-green);
-}
-
+/* Lista de items recientes — usada por widgets de profile/credit/eligibility/
+   simulaciones. Patrón: row con texto a la izquierda y badge/CTA a la derecha. */
 .fin-recent-list {
   display: flex;
   flex-direction: column;
@@ -32,66 +40,84 @@
   align-items: center;
   gap: 12px;
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 6px;
-  font-size: 0.82rem;
+  background: var(--aur-bg-input);
+  border-radius: var(--aur-r-input);
+  font-size: var(--aur-fs-caption);
 }
 
-.fin-recent-tag {
-  font-size: 0.75rem;
-  opacity: 0.7;
-  white-space: nowrap;
+.fin-recent-row-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
 }
 
-.fin-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+.fin-recent-row-trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.fin-badge--ok {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-  border: 1px solid rgba(51, 255, 153, 0.25);
-}
-
-.fin-badge--warn {
-  background: rgba(245, 180, 0, 0.12);
-  color: #f5b400;
-  border: 1px solid rgba(245, 180, 0, 0.25);
-}
-
-.fin-badge--bad {
-  background: rgba(255, 77, 77, 0.12);
-  color: #ff6b6b;
-  border: 1px solid rgba(255, 77, 77, 0.25);
-}
-
-.finance-back-link {
+.fin-recent-row-delta {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  text-decoration: none;
-  transition: opacity 0.15s ease;
+  gap: 3px;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--aur-accent);
 }
-
-.finance-back-link:hover {
-  opacity: 1;
-  color: var(--aurora-green);
-}
+.fin-recent-row-delta--negative { color: var(--aur-danger); }
 
 .fin-recent-row--link {
   text-decoration: none;
   color: inherit;
   transition: background 0.15s ease;
 }
-
 .fin-recent-row--link:hover {
-  background: rgba(51, 255, 153, 0.06);
+  background: var(--aur-bg-hover);
+}
+
+/* finance-back-link: usada por las páginas CreditOffers/DebtSimulations
+   (PR D); se mantiene refrescada a tokens del sistema. */
+.finance-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.finance-back-link:hover {
+  color: var(--aur-accent);
+}
+
+/* fin-badge: legacy badge usado por DebtSimulationDetail/DebtSimulations
+   (migración pendiente en PR D) y por el dominio CEO (KpiAccuracyWidget,
+   CeoDashboard). Se conserva con tokens del sistema; al cerrar PR D el
+   uso interno de finance migrará a aur-badge--{green,yellow,gray}. */
+.fin-badge {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--aur-r-pill);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.fin-badge--ok {
+  background: var(--aur-badge-green-bg);
+  color: var(--aur-badge-green-fg);
+}
+
+.fin-badge--warn {
+  background: var(--aur-badge-yellow-bg);
+  color: var(--aur-badge-yellow-fg);
+}
+
+.fin-badge--bad {
+  background: var(--aur-badge-gray-bg);
+  color: var(--aur-badge-gray-fg);
 }

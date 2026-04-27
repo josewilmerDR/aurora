@@ -18,10 +18,10 @@ const fmtDate = (iso) => {
   } catch { return iso; }
 };
 
-const RECOMMENDATION_LABELS = {
-  tomar: { label: 'Tomar', cls: 'fin-badge--ok' },
-  tomar_condicional: { label: 'Condicional', cls: 'fin-badge--warn' },
-  no_tomar: { label: 'No tomar', cls: 'fin-badge--bad' },
+const RECOMMENDATION_BADGE_VARIANT = {
+  tomar:             { label: 'Tomar',       cls: 'aur-badge--green' },
+  tomar_condicional: { label: 'Condicional', cls: 'aur-badge--yellow' },
+  no_tomar:          { label: 'No tomar',    cls: 'aur-badge--gray' },
 };
 
 function DebtSimulationsWidget() {
@@ -41,33 +41,34 @@ function DebtSimulationsWidget() {
   const top = sims.slice(0, 5);
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiTrendingUp size={14} /> Simulaciones de deuda</span>
-        <span className="fin-widget-sub">{sims.length ? `${sims.length} recientes` : ''}</span>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiTrendingUp size={14} /></span>
+        <h3 className="aur-section-title">Simulaciones de deuda</h3>
+        {sims.length ? <span className="aur-section-count">{sims.length} recientes</span> : null}
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (
         <>
           {top.length === 0 ? (
-            <div className="fin-widget-empty" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <span>Sin simulaciones. Elegí una oferta registrada y corré Monte Carlo contra el perfil financiero.</span>
-              <Link
-                to="/finance/financing/simulaciones"
-                className="btn btn-secondary"
-                style={{ textAlign: 'center' }}
-              >
-                Nueva simulación
-              </Link>
-            </div>
+            <>
+              <div className="fin-widget-empty">
+                Sin simulaciones. Elegí una oferta registrada y corré Monte Carlo contra el perfil financiero.
+              </div>
+              <div className="fin-widget-cta-row">
+                <Link to="/finance/financing/simulaciones" className="aur-btn-pill">
+                  Nueva simulación
+                </Link>
+              </div>
+            </>
           ) : (
             <>
               <div className="fin-recent-list">
                 {top.map(s => {
-                  const rec = RECOMMENDATION_LABELS[s.recommendation] || null;
+                  const rec = RECOMMENDATION_BADGE_VARIANT[s.recommendation] || null;
                   const positive = Number(s.marginDelta) >= 0;
                   return (
                     <Link
@@ -75,35 +76,32 @@ function DebtSimulationsWidget() {
                       to="/finance/financing/simulaciones"
                       className="fin-recent-row fin-recent-row--link"
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                      <div className="fin-recent-row-text">
                         <strong>{fmtMoney(s.amount)} · {s.plazoMeses}m</strong>
                         <span className="fin-widget-sub">
                           {s.providerName || 'producto ' + (s.creditProductId || '').slice(0, 6)} · {fmtDate(s.createdAt)}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className={positive ? 'fin-widget-primary' : 'fin-widget-primary--negative'}
-                              style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                      <div className="fin-recent-row-trail">
+                        <span className={`fin-recent-row-delta${positive ? '' : ' fin-recent-row-delta--negative'}`}>
                           {positive ? <FiTrendingUp size={12} /> : <FiTrendingDown size={12} />} {fmtMoney(s.marginDelta)}
                         </span>
-                        {rec && <span className={`fin-badge ${rec.cls}`}>{rec.label}</span>}
+                        {rec && <span className={`aur-badge ${rec.cls}`}>{rec.label}</span>}
                       </div>
                     </Link>
                   );
                 })}
               </div>
-              <Link
-                to="/finance/financing/simulaciones"
-                className="btn btn-secondary"
-                style={{ marginTop: 'auto', textAlign: 'center' }}
-              >
-                Ver todas / nueva simulación
-              </Link>
+              <div className="fin-widget-cta-row">
+                <Link to="/finance/financing/simulaciones" className="aur-btn-text">
+                  Ver todas / nueva simulación
+                </Link>
+              </div>
             </>
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
