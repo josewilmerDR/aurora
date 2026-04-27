@@ -25,11 +25,11 @@ function fmtHitRate(v) {
   return `${pct.toFixed(1)}%`;
 }
 
-function hitRateClass(v) {
-  if (v == null) return '';
-  if (v >= 0.85) return 'fin-badge fin-badge--ok';
-  if (v >= 0.6) return 'fin-badge fin-badge--warn';
-  return 'fin-badge fin-badge--bad';
+function hitRateBadgeClass(v) {
+  if (v == null) return 'aur-badge';
+  if (v >= 0.85) return 'aur-badge aur-badge--green';
+  if (v >= 0.6)  return 'aur-badge aur-badge--yellow';
+  return 'aur-badge aur-badge--magenta';
 }
 
 function KpiAccuracyWidget() {
@@ -57,32 +57,33 @@ function KpiAccuracyWidget() {
     .sort((a, b) => (b.total || 0) - (a.total || 0));
 
   return (
-    <div className="fin-widget">
-      <div className="fin-widget-header">
-        <span className="fin-widget-title"><FiCheckCircle size={14} /> Aciertos del Copilot</span>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiCheckCircle size={14} /></span>
+        <h3 className="aur-section-title">Aciertos del Copilot</h3>
+        <div className="aur-section-actions">
           <select
+            className="aur-select ceo-window-select"
             value={window}
             onChange={e => setWindow(e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'transparent', color: 'var(--aurora-light)', border: '1px solid var(--aurora-border)', borderRadius: 4 }}
           >
             <option value="30">30 días</option>
             <option value="90">90 días</option>
             <option value="365">1 año</option>
           </select>
-          <button type="button" className="btn-icon" onClick={load} disabled={loading} title="Recargar">
-            <FiRefreshCw size={12} />
+          <button type="button" className="aur-icon-btn" onClick={load} disabled={loading} title="Recargar">
+            <FiRefreshCw size={14} />
           </button>
         </div>
       </div>
 
       {loading && <div className="fin-widget-loading">Cargando…</div>}
-      {error && <div className="fin-widget-loading fin-widget-error">{error}</div>}
+      {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (
         <>
           <div>
-            <div className="fin-widget-primary" style={{ fontSize: '1.4rem' }}>
+            <div className="fin-widget-primary">
               {fmtHitRate(data.overall?.hitRate)}
             </div>
             <div className="fin-widget-sub">
@@ -98,7 +99,7 @@ function KpiAccuracyWidget() {
               Todavía no hay datos para evaluar. El Copilot revisa los resultados cada día.
             </div>
           ) : (
-            <div style={{ overflowY: 'auto', maxHeight: 180 }}>
+            <div className="ceo-kpi-scroll">
               {rows.map(r => (
                 <div className="ceo-kpi-row" key={r.type}>
                   <span className="ceo-kpi-type">
@@ -107,7 +108,7 @@ function KpiAccuracyWidget() {
                   <span className="ceo-kpi-count">
                     {r.match} aciertos de {r.decidedCount} · {r.pending} por evaluar
                   </span>
-                  <span className={`ceo-kpi-rate ${hitRateClass(r.hitRate)}`}>
+                  <span className={hitRateBadgeClass(r.hitRate)}>
                     {fmtHitRate(r.hitRate)}
                   </span>
                 </div>
@@ -116,7 +117,7 @@ function KpiAccuracyWidget() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
