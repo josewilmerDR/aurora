@@ -1,177 +1,76 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PARAMETERS — slim modifiers sobre primitivas aurora.
 
-/* ── Page layout: two columns ── */
-.param-page-layout {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 20px;
-  align-items: start;
-}
+   La página vive ahora sobre aur-sheet + aur-sheet-header + aur-section +
+   aur-list + aur-row + aur-input/aur-input--num + aur-toggle (gate del
+   UnlockModal) + AuroraConfirmModal + aur-table (tabla de diff dentro del
+   SaveModal). Aquí sólo queda lo que las primitivas no cubren:
 
-@media (max-width: 860px) {
-  .param-page-layout {
-    grid-template-columns: 1fr;
-  }
-}
+     · param-kpi-placeholder — texto en gris dentro del row del KPI
+                               (placeholder hasta que existan KPIs reales).
+     · param-row-value / -num / -unit — composición valor + unidad cuando NO
+                               estamos en editMode; tabular-nums + alineado
+                               a la derecha para matching visual con el input.
+     · param-modal-gate     — wrapper del aur-toggle dentro del UnlockModal
+                               para añadir padding equivalente al body.
+     · param-diff-wrap / -old / -new — tabla de diff dentro del SaveModal.
+                               aur-table cubre la base; slim afina el padding
+                               del wrap, el strikethrough del valor anterior y
+                               el peso/color del nuevo valor.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── KPI card (left) ── */
-.param-kpi-card {
-  min-height: 220px;
-}
-
+/* ── KPI placeholder ─────────────────────────────────────────────────────── */
 .param-kpi-placeholder {
-  margin-top: 12px;
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  opacity: 0.45;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  font-style: italic;
 }
 
-/* ── Parameters list (right) ── */
-.param-list-card {
-  padding: 20px;
-}
-
-.param-list-header {
-  display: flex;
+/* ── Valor read-only (cuando NO estamos en editMode) ─────────────────────── */
+.param-row-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 16px;
+  font-variant-numeric: tabular-nums;
 }
-
-.btn-sm {
-  padding: 5px 10px;
-  font-size: 0.8rem;
-  gap: 5px;
-}
-
-.param-list-section {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--aurora-green);
-  margin: 18px 0 6px;
-}
-
-.param-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.param-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.param-list-row:last-child {
-  border-bottom: none;
-}
-
-.param-list-label {
-  font-size: 0.83rem;
-  color: var(--aurora-light);
-  opacity: 0.8;
-  flex: 1;
-}
-
-.param-list-value {
-  font-size: 0.88rem;
+.param-row-num {
+  font-size: var(--aur-fs-body);
   font-weight: 600;
-  color: var(--aurora-light);
-  white-space: nowrap;
-  flex-shrink: 0;
+  color: var(--aur-text);
+}
+.param-row-unit {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  font-weight: 500;
 }
 
-.param-list-unit {
-  font-size: 0.75rem;
-  font-weight: 400;
-  opacity: 0.5;
-  margin-left: 2px;
+/* ── Slot del UnlockModal: aur-toggle alineado al body ──────────────────── */
+.param-modal-gate {
+  padding: 0 22px 8px 22px;
 }
 
-.param-list-input {
-  width: 80px;
-  padding: 4px 8px;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-green);
-  border-radius: 4px;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  text-align: right;
-  flex-shrink: 0;
+/* ── Slot del SaveModal: tabla de diff ───────────────────────────────────── */
+.param-diff-wrap {
+  padding: 0 22px 8px 22px;
 }
 
-.param-list-input:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-  box-shadow: 0 0 0 2px rgba(51, 255, 153, 0.15);
-}
-
-/* ── Checkbox (slot dentro de AuroraConfirmModal en UnlockModal) ── */
-.param-modal-check {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 22px 8px 22px;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  cursor: pointer;
-}
-
-.param-modal-check input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--aurora-green);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-/* ── Diff table (slot dentro de AuroraConfirmModal en SaveModal) ── */
-.param-diff-table {
-  width: calc(100% - 44px);
-  margin: 0 22px 8px 22px;
-  border-collapse: collapse;
-  font-size: 0.83rem;
-}
-
-.param-diff-table th {
-  text-align: left;
-  padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.2);
-  color: var(--aurora-light);
-  opacity: 0.6;
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
+/* aur-table provee structure/typography; aquí sólo afinamos padding compacto
+   para que la tabla quepa cómoda dentro del modal --wide. */
+.param-diff-table th,
 .param-diff-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-}
-
-.param-diff-table tr:last-child td {
-  border-bottom: none;
+  padding: 6px 10px;
 }
 
 .param-diff-old {
-  color: var(--aurora-light) !important;
-  opacity: 0.45;
+  color: var(--aur-text-3);
   text-decoration: line-through;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
+/* aur-td-strong ya provee tabular-nums + 600 + accent; aquí sólo añadimos
+   nowrap para el par valor+unidad sin partirse en dos líneas. */
 .param-diff-new {
-  color: var(--aurora-green) !important;
-  font-weight: 600;
   white-space: nowrap;
 }
