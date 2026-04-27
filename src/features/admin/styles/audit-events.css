@@ -13,17 +13,13 @@
                          expandido del evento.
      · audit-event-ids — strip de IDs monospace al pie del body.
      · audit-empty     — wrapping interno de aur-sheet--empty (icono + text).
-     · audit-spin      — keyframe local para el icono del botón refresh
-                         (alias del aur-spin de aurora.css por compatibilidad
-                         de ciclos previos).
+     · audit-spin      — clase que dispara el keyframe global aur-spin sobre
+                         el icono del botón refresh (no necesita keyframe
+                         propio: la animación ya vive en aurora.css).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .audit-spin {
-  animation: audit-spin 0.8s linear infinite;
-}
-
-@keyframes audit-spin {
-  to { transform: rotate(360deg); }
+  animation: aur-spin 0.8s linear infinite;
 }
 
 /* ── Empty state (interior de aur-sheet--empty) ──────────────────────────── */
