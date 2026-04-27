@@ -216,69 +216,98 @@ function ProveedoresList() {
   const renderMainPanel = () => {
     if (view === 'form') {
       return (
-        <div className="form-card">
-          <h2>{isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="prov-form-grid">
+        <form onSubmit={handleSubmit} className="prov-form">
+          <h2 className="prov-form-title">{isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h2>
 
-              {/* ── Datos básicos ── */}
-              <div className="prov-field prov-field--full">
-                <label>Nombre <span className="prov-required">*</span></label>
-                <input name="nombre" value={form.nombre} onChange={handleChange} placeholder="Razón social o nombre comercial" required maxLength={150} />
-              </div>
-              <div className="prov-field">
-                <label>RUC / Cédula Jurídica</label>
-                <input name="ruc" value={form.ruc} onChange={handleChange} placeholder="Ej. 3-101-123456" maxLength={50} />
-              </div>
-              <div className="prov-field">
-                <label>Teléfono</label>
-                <input name="telefono" value={form.telefono} onChange={handleChange} placeholder="+506 2222-3333" maxLength={30} />
-              </div>
-              <div className="prov-field">
-                <label>Correo electrónico</label>
-                <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="ventas@proveedor.com" maxLength={200} />
-              </div>
-              <div className="prov-field">
-                <label>Moneda <span className="prov-required">*</span></label>
-                <select name="moneda" value={form.moneda} onChange={handleChange}>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">01</span>
+              <h3 className="aur-section-title">Datos básicos</h3>
+            </header>
+            <ul className="aur-list">
+              <li className="aur-row">
+                <span className="aur-row-label">Nombre *</span>
+                <input className="aur-input" name="nombre" value={form.nombre} onChange={handleChange}
+                  placeholder="Razón social o nombre comercial" required maxLength={150} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">RUC / Cédula Jurídica</span>
+                <input className="aur-input" name="ruc" value={form.ruc} onChange={handleChange}
+                  placeholder="Ej. 3-101-123456" maxLength={50} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Teléfono</span>
+                <input className="aur-input" name="telefono" value={form.telefono} onChange={handleChange}
+                  placeholder="+506 2222-3333" maxLength={30} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Correo electrónico</span>
+                <input type="email" className="aur-input" name="email" value={form.email} onChange={handleChange}
+                  placeholder="ventas@proveedor.com" maxLength={200} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Moneda *</span>
+                <select className="aur-select" name="moneda" value={form.moneda} onChange={handleChange}>
                   <option value="USD">USD — Dólar</option>
                   <option value="CRC">CRC — Colón</option>
                 </select>
-              </div>
-              <div className="prov-field">
-                <label>Tipo de pago</label>
-                <select name="tipoPago" value={form.tipoPago} onChange={handleChange}>
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Tipo de pago</span>
+                <select className="aur-select" name="tipoPago" value={form.tipoPago} onChange={handleChange}>
                   <option value="contado">Contado</option>
                   <option value="credito">Crédito</option>
                 </select>
-              </div>
+              </li>
               {form.tipoPago === 'credito' && (
-                <div className="prov-field">
-                  <label>Días de crédito</label>
-                  <input type="number" name="diasCredito" value={form.diasCredito} onChange={handleChange} min="1" max="365" step="1" placeholder="30" />
-                </div>
+                <li className="aur-row">
+                  <span className="aur-row-label">Días de crédito</span>
+                  <input type="number" className="aur-input aur-input--num" name="diasCredito"
+                    value={form.diasCredito} onChange={handleChange}
+                    min="1" max="365" step="1" placeholder="30" />
+                </li>
               )}
+              <li className="aur-row aur-row--multiline">
+                <span className="aur-row-label">Dirección</span>
+                <input className="aur-input" name="direccion" value={form.direccion} onChange={handleChange}
+                  placeholder="Dirección física o provincia" maxLength={300} />
+              </li>
+            </ul>
+          </section>
 
-              {/* ── Contacto comercial ── */}
-              <div className="prov-form-divider prov-field--full"><span>Contacto comercial</span></div>
-              <div className="prov-field">
-                <label>Persona de contacto</label>
-                <input name="contacto" value={form.contacto} onChange={handleChange} placeholder="Nombre del representante" maxLength={200} />
-              </div>
-              <div className="prov-field">
-                <label>WhatsApp</label>
-                <input name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+506 8888-7777" maxLength={30} />
-              </div>
-              <div className="prov-field prov-field--full">
-                <label>Sitio web</label>
-                <input type="url" name="sitioWeb" value={form.sitioWeb} onChange={handleChange} placeholder="https://proveedor.com" maxLength={300} />
-              </div>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">02</span>
+              <h3 className="aur-section-title">Contacto comercial</h3>
+            </header>
+            <ul className="aur-list">
+              <li className="aur-row">
+                <span className="aur-row-label">Persona de contacto</span>
+                <input className="aur-input" name="contacto" value={form.contacto} onChange={handleChange}
+                  placeholder="Nombre del representante" maxLength={200} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">WhatsApp</span>
+                <input className="aur-input" name="whatsapp" value={form.whatsapp} onChange={handleChange}
+                  placeholder="+506 8888-7777" maxLength={30} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Sitio web</span>
+                <input type="url" className="aur-input" name="sitioWeb" value={form.sitioWeb} onChange={handleChange}
+                  placeholder="https://proveedor.com" maxLength={300} />
+              </li>
+            </ul>
+          </section>
 
-              {/* ── Clasificación ── */}
-              <div className="prov-form-divider prov-field--full"><span>Clasificación</span></div>
-              <div className="prov-field">
-                <label>Categoría</label>
-                <select name="categoria" value={form.categoria} onChange={handleChange}>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">03</span>
+              <h3 className="aur-section-title">Clasificación</h3>
+            </header>
+            <ul className="aur-list">
+              <li className="aur-row">
+                <span className="aur-row-label">Categoría</span>
+                <select className="aur-select" name="categoria" value={form.categoria} onChange={handleChange}>
                   <option value="">— Sin categoría —</option>
                   <option value="agroquimicos">Agroquímicos</option>
                   <option value="fertilizantes">Fertilizantes</option>
@@ -288,62 +317,74 @@ function ProveedoresList() {
                   <option value="semillas">Semillas</option>
                   <option value="otros">Otros</option>
                 </select>
-              </div>
-              <div className="prov-field">
-                <label>Estado</label>
-                <select name="estado" value={form.estado} onChange={handleChange}>
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Estado</span>
+                <select className="aur-select" name="estado" value={form.estado} onChange={handleChange}>
                   <option value="activo">Activo</option>
                   <option value="inactivo">Inactivo</option>
                 </select>
-              </div>
-              <div className="prov-field">
-                <label>País de origen</label>
-                <input name="paisOrigen" value={form.paisOrigen} onChange={handleChange} placeholder="Ej. Costa Rica, EE.UU." maxLength={200} />
-              </div>
-              <div className="prov-field">
-                <label>Tiempo de entrega (días)</label>
-                <input type="number" name="tiempoEntregaDias" value={form.tiempoEntregaDias} onChange={handleChange} min="0" max="365" step="1" placeholder="3" />
-              </div>
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">País de origen</span>
+                <input className="aur-input" name="paisOrigen" value={form.paisOrigen} onChange={handleChange}
+                  placeholder="Ej. Costa Rica, EE.UU." maxLength={200} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Tiempo de entrega (días)</span>
+                <input type="number" className="aur-input aur-input--num" name="tiempoEntregaDias"
+                  value={form.tiempoEntregaDias} onChange={handleChange}
+                  min="0" max="365" step="1" placeholder="3" />
+              </li>
+            </ul>
+          </section>
 
-              {/* ── Financiero ── */}
-              <div className="prov-form-divider prov-field--full"><span>Financiero</span></div>
-              <div className="prov-field">
-                <label>Límite de crédito</label>
-                <input type="number" name="limiteCredito" value={form.limiteCredito} onChange={handleChange} min="0" step="0.01" placeholder="0.00" />
-              </div>
-              <div className="prov-field">
-                <label>Descuento habitual (%)</label>
-                <input type="number" name="descuentoHabitual" value={form.descuentoHabitual} onChange={handleChange} min="0" max="100" step="0.01" placeholder="0" />
-              </div>
-              <div className="prov-field">
-                <label>Banco</label>
-                <input name="banco" value={form.banco} onChange={handleChange} placeholder="Ej. BCR, BAC, Davivienda" maxLength={200} />
-              </div>
-              <div className="prov-field">
-                <label>Cuenta bancaria</label>
-                <input name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange} placeholder="Número de cuenta o IBAN" maxLength={100} />
-              </div>
+          <section className="aur-section">
+            <header className="aur-section-header">
+              <span className="aur-section-num">04</span>
+              <h3 className="aur-section-title">Financiero</h3>
+            </header>
+            <ul className="aur-list">
+              <li className="aur-row">
+                <span className="aur-row-label">Límite de crédito</span>
+                <input type="number" className="aur-input aur-input--num" name="limiteCredito"
+                  value={form.limiteCredito} onChange={handleChange}
+                  min="0" step="0.01" placeholder="0.00" />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Descuento habitual (%)</span>
+                <input type="number" className="aur-input aur-input--num" name="descuentoHabitual"
+                  value={form.descuentoHabitual} onChange={handleChange}
+                  min="0" max="100" step="0.01" placeholder="0" />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Banco</span>
+                <input className="aur-input" name="banco" value={form.banco} onChange={handleChange}
+                  placeholder="Ej. BCR, BAC, Davivienda" maxLength={200} />
+              </li>
+              <li className="aur-row">
+                <span className="aur-row-label">Cuenta bancaria</span>
+                <input className="aur-input" name="cuentaBancaria" value={form.cuentaBancaria} onChange={handleChange}
+                  placeholder="Número de cuenta o IBAN" maxLength={100} />
+              </li>
+              <li className="aur-row aur-row--multiline">
+                <span className="aur-row-label">Notas</span>
+                <textarea className="aur-textarea" name="notas" value={form.notas} onChange={handleChange}
+                  placeholder="Condiciones especiales, productos que provee, contacto comercial…"
+                  rows={2} maxLength={2000} />
+              </li>
+            </ul>
+          </section>
 
-              <div className="prov-field prov-field--full">
-                <label>Dirección</label>
-                <input name="direccion" value={form.direccion} onChange={handleChange} placeholder="Dirección física o provincia" maxLength={300} />
-              </div>
-              <div className="prov-field prov-field--full">
-                <label>Notas</label>
-                <textarea name="notas" value={form.notas} onChange={handleChange} placeholder="Condiciones especiales, productos que provee, contacto comercial…" rows={2} maxLength={2000} />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button type="submit" className="aur-btn-pill" disabled={saving}>
-                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar Proveedor' : 'Crear Proveedor'}
-              </button>
-              <button type="button" onClick={resetForm} className="aur-btn-text">
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="aur-form-actions">
+            <button type="button" onClick={resetForm} className="aur-btn-text">
+              Cancelar
+            </button>
+            <button type="submit" className="aur-btn-pill" disabled={saving}>
+              <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar Proveedor' : 'Crear Proveedor'}
+            </button>
+          </div>
+        </form>
       );
     }
 

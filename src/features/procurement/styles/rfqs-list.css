@@ -11,22 +11,22 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
 }
 
 .rfq-toolbar select {
-  background: var(--aurora-background);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
+  background: var(--aur-bg-input);
+  color: var(--aur-text);
+  border: 1px solid var(--aur-divider);
   border-radius: 4px;
   padding: 4px 8px;
 }
 
 .rfq-count {
   margin-left: auto;
-  font-size: 0.85rem;
-  opacity: 0.7;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
 }
 
 .rfq-list {
@@ -36,8 +36,8 @@
 }
 
 .rfq-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -55,20 +55,20 @@
 }
 
 .rfq-card-head:hover {
-  background: rgba(51, 255, 153, 0.04);
+  background: var(--aur-bg-hover);
 }
 
 .rfq-card-meta {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 0.8rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text);
 }
 
 .rfq-badge {
   padding: 2px 10px;
-  border: 1px solid var(--aurora-border);
+  border: 1px solid var(--aur-divider);
   border-radius: 12px;
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -77,7 +77,7 @@
 
 .rfq-card-body {
   padding: 0 16px 16px 16px;
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -89,16 +89,15 @@
 
 .rfq-section h4 {
   margin: 0 0 8px 0;
-  font-size: 0.85rem;
+  font-size: var(--aur-fs-footnote);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--aurora-light);
-  opacity: 0.8;
+  color: var(--aur-text-2);
 }
 
 .rfq-close-result {
-  background: rgba(51, 255, 153, 0.06);
-  border-left: 3px solid var(--aurora-green);
+  background: var(--aur-accent-tint);
+  border-left: 3px solid var(--aur-accent);
   padding: 8px 12px;
   border-radius: 4px;
 }
@@ -109,205 +108,80 @@
   padding-top: 8px;
 }
 
-.rfq-primary-btn,
-.rfq-danger-btn {
-  background: transparent;
-  border: 1px solid var(--aurora-green);
-  color: var(--aurora-green);
-  padding: 6px 14px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.rfq-danger-btn {
-  border-color: #ff8080;
-  color: #ff8080;
-}
-
-.rfq-primary-btn:disabled,
-.rfq-danger-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.rfq-response-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rfq-response-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.rfq-response-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  flex: 1;
-}
-
-.rfq-response-form input,
-.rfq-response-form select {
-  background: var(--aurora-dark-blue);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  border-radius: 4px;
-  padding: 6px 10px;
-}
-
 .rfq-badge--oc {
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
 }
 
 .rfq-oc-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  opacity: 0.9;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
 }
 
-/* ── Nueva cotización modal ───────────────────────────────────────────── */
-.rfq-create-card {
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 12px;
-  padding: 24px 28px;
-  max-width: 640px;
-  width: 92%;
-  max-height: 90vh;
-  overflow-y: auto;
-  animation: card-in 0.2s ease;
-}
-
-.rfq-create-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.rfq-create-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--aurora-light);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.rfq-create-close {
-  background: transparent;
-  border: none;
-  color: var(--aurora-light);
-  cursor: pointer;
-  padding: 4px;
-  opacity: 0.7;
-}
-
-.rfq-create-close:hover:not(:disabled) {
-  opacity: 1;
-}
-
-.rfq-create-form {
+/* ── Response form slims sobre aur-list/aur-row ─────────────────────────── */
+.rfq-response-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
-.rfq-create-row {
+/* ── Create-modal: supplier checkboxes (aur-list slim) ──────────────────── */
+.rfq-supplier-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.rfq-supplier-row {
+  padding: 6px 12px;
+}
+
+.rfq-supplier-label {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  width: 100%;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+}
+
+.rfq-supplier-label input[type="checkbox"] {
+  accent-color: var(--aur-accent);
+  flex-shrink: 0;
+  width: auto;
+  margin: 0;
+  border: none;
+  background: none;
+}
+
+.rfq-supplier-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
-.rfq-create-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.8rem;
-  color: var(--aurora-light);
-  flex: 1;
-  min-width: 140px;
+.rfq-supplier-meta {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
 }
 
-.rfq-create-form input,
-.rfq-create-form select,
-.rfq-create-form textarea {
-  background: var(--aurora-dark-blue);
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  border-radius: 4px;
-  padding: 6px 10px;
-  font-family: inherit;
-  font-size: 0.9rem;
-}
-
-.rfq-create-form textarea {
-  resize: vertical;
-}
-
-.rfq-create-suppliers {
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  padding: 10px 12px;
-}
-
-.rfq-create-suppliers-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  margin-bottom: 8px;
-}
-
-.rfq-create-supplier-list {
-  list-style: none;
-  padding: 0;
+.rfq-create-empty,
+.rfq-create-loading {
   margin: 0;
-  max-height: 180px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  padding: 12px 4px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  text-align: center;
 }
 
-.rfq-create-supplier-list li label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-direction: row;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 0.85rem;
+/* Outcome chip — verde si entregado, gris si no */
+.rfq-outcome {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
 }
-
-.rfq-create-supplier-list li label:hover {
-  background: rgba(51, 255, 153, 0.05);
-}
-
-.rfq-create-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
-}
-
-.rfq-create-outcomes h4 {
-  margin: 0 0 8px 0;
-  color: var(--aurora-green);
-  font-size: 0.95rem;
-}
+.rfq-outcome--ok   { color: var(--aur-accent); }
+.rfq-outcome--fail { color: var(--aur-text-3); }

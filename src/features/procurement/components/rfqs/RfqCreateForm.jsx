@@ -2,10 +2,6 @@ import { useEffect, useState } from 'react';
 import { FiSend, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
-// Modal form to create a new RFQ. Hits POST /api/rfqs which fans out a
-// WhatsApp message to every selected supplier. On success we show the
-// delivery outcomes so the user sees which contacts landed.
-
 const MAX_SUPPLIERS = 20;
 const MONEDAS = ['CRC', 'USD', 'EUR'];
 
@@ -107,136 +103,223 @@ function RfqCreateForm({ onCreated, onClose }) {
 
   return (
     <div className="aur-modal-backdrop" onPointerDown={busy ? undefined : onClose}>
-      <div className="rfq-create-card" onPointerDown={e => e.stopPropagation()}>
-        <div className="rfq-create-header">
-          <h3><FiSend /> Nueva cotización</h3>
-          <button className="rfq-create-close" onClick={onClose} disabled={busy} aria-label="Cerrar">
-            <FiX size={18} />
+      <div className="aur-modal aur-modal--lg" onPointerDown={e => e.stopPropagation()}>
+        <header className="aur-modal-header">
+          <span className="aur-modal-icon"><FiSend size={16} /></span>
+          <h3 className="aur-modal-title">Nueva cotización</h3>
+          <button
+            type="button"
+            className="aur-icon-btn aur-icon-btn--sm aur-modal-close"
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Cerrar"
+          >
+            <FiX size={16} />
           </button>
-        </div>
+        </header>
 
-        {loading && <div className="empty-state">Cargando…</div>}
-        {loadError && <div className="fin-widget-error">{loadError}</div>}
+        {loading && (
+          <div className="aur-modal-content">
+            <p className="rfq-create-loading">Cargando…</p>
+          </div>
+        )}
+
+        {loadError && (
+          <div className="aur-modal-content">
+            <div className="aur-banner aur-banner--danger">{loadError}</div>
+          </div>
+        )}
 
         {!loading && !loadError && !outcomes && (
-          <form onSubmit={submit} className="rfq-create-form">
-            <div className="rfq-create-row">
-              <label>
-                Producto
-                <select value={productoId} onChange={e => handleProductChange(e.target.value)} required>
-                  <option value="">— Seleccionar —</option>
-                  {productos.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombreComercial} {p.idProducto ? `(${p.idProducto})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="rfq-create-row">
-              <label>
-                Cantidad
-                <input type="number" step="any" min="0" value={cantidad}
-                  onChange={e => setCantidad(e.target.value)} required />
-              </label>
-              <label>
-                Unidad
-                <input type="text" value={unidad} onChange={e => setUnidad(e.target.value)}
-                  maxLength={20} required />
-              </label>
-              <label>
-                Moneda
-                <select value={currency} onChange={e => setCurrency(e.target.value)}>
-                  {MONEDAS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
-            </div>
-
-            <div className="rfq-create-row">
-              <label>
-                Fecha de cierre
-                <input type="date" value={deadline} min={todayYmd()}
-                  onChange={e => setDeadline(e.target.value)} required />
-              </label>
-              <label>
-                Plazo máx. entrega (días, opcional)
-                <input type="number" min="0" step="1" value={maxLeadTimeDays}
-                  onChange={e => setMaxLeadTimeDays(e.target.value)} />
-              </label>
-            </div>
-
-            <label>
-              Notas
-              <textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)}
-                maxLength={500} placeholder="opcional — contexto para el proveedor" />
-            </label>
-
-            <div className="rfq-create-suppliers">
-              <div className="rfq-create-suppliers-head">
-                <span>Proveedores a contactar</span>
-                <span className="fin-widget-sub">
-                  {selectedSuppliers.length}/{Math.min(proveedores.length, MAX_SUPPLIERS)} seleccionado(s)
-                </span>
-              </div>
-              {proveedores.length === 0 ? (
-                <div className="empty-state">No hay proveedores registrados.</div>
-              ) : (
-                <ul className="rfq-create-supplier-list">
-                  {proveedores.map(p => {
-                    const checked = selectedSuppliers.includes(p.id);
-                    const disabled = !checked && selectedSuppliers.length >= MAX_SUPPLIERS;
-                    return (
-                      <li key={p.id}>
-                        <label>
-                          <input type="checkbox" checked={checked} disabled={disabled}
-                            onChange={() => toggleSupplier(p.id)} />
-                          <span>
-                            <strong>{p.nombre}</strong>
-                            {p.telefono && <span className="fin-widget-sub"> · {p.telefono}</span>}
-                          </span>
-                        </label>
-                      </li>
-                    );
-                  })}
+          <form onSubmit={submit} style={{ display: 'contents' }}>
+            <div className="aur-modal-content">
+              <section className="aur-section">
+                <header className="aur-section-header">
+                  <span className="aur-section-num">01</span>
+                  <h3 className="aur-section-title">Producto y cantidad</h3>
+                </header>
+                <ul className="aur-list">
+                  <li className="aur-row">
+                    <span className="aur-row-label">Producto</span>
+                    <select
+                      className="aur-select"
+                      value={productoId}
+                      onChange={e => handleProductChange(e.target.value)}
+                      required
+                    >
+                      <option value="">— Seleccionar —</option>
+                      {productos.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombreComercial} {p.idProducto ? `(${p.idProducto})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </li>
+                  <li className="aur-row">
+                    <span className="aur-row-label">Cantidad</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="aur-input aur-input--num"
+                      value={cantidad}
+                      onChange={e => setCantidad(e.target.value)}
+                      required
+                    />
+                  </li>
+                  <li className="aur-row">
+                    <span className="aur-row-label">Unidad</span>
+                    <input
+                      type="text"
+                      className="aur-input"
+                      value={unidad}
+                      onChange={e => setUnidad(e.target.value)}
+                      maxLength={20}
+                      required
+                    />
+                  </li>
+                  <li className="aur-row">
+                    <span className="aur-row-label">Moneda</span>
+                    <select
+                      className="aur-select"
+                      value={currency}
+                      onChange={e => setCurrency(e.target.value)}
+                    >
+                      {MONEDAS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </li>
                 </ul>
-              )}
+              </section>
+
+              <section className="aur-section">
+                <header className="aur-section-header">
+                  <span className="aur-section-num">02</span>
+                  <h3 className="aur-section-title">Plazos</h3>
+                </header>
+                <ul className="aur-list">
+                  <li className="aur-row">
+                    <span className="aur-row-label">Fecha de cierre</span>
+                    <input
+                      type="date"
+                      className="aur-input"
+                      value={deadline}
+                      min={todayYmd()}
+                      onChange={e => setDeadline(e.target.value)}
+                      required
+                    />
+                  </li>
+                  <li className="aur-row">
+                    <span className="aur-row-label">Plazo máx. entrega (días)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="aur-input aur-input--num"
+                      value={maxLeadTimeDays}
+                      onChange={e => setMaxLeadTimeDays(e.target.value)}
+                    />
+                  </li>
+                </ul>
+              </section>
+
+              <section className="aur-section">
+                <header className="aur-section-header">
+                  <span className="aur-section-num">03</span>
+                  <h3 className="aur-section-title">Notas</h3>
+                </header>
+                <ul className="aur-list">
+                  <li className="aur-row aur-row--multiline">
+                    <span className="aur-row-label">Mensaje al proveedor</span>
+                    <textarea
+                      rows={2}
+                      className="aur-textarea"
+                      value={notas}
+                      onChange={e => setNotas(e.target.value)}
+                      maxLength={500}
+                      placeholder="opcional — contexto para el proveedor"
+                    />
+                  </li>
+                </ul>
+              </section>
+
+              <section className="aur-section">
+                <header className="aur-section-header">
+                  <span className="aur-section-num">04</span>
+                  <h3 className="aur-section-title">Proveedores a contactar</h3>
+                  <span className="aur-section-count">
+                    {selectedSuppliers.length}/{Math.min(proveedores.length, MAX_SUPPLIERS)}
+                  </span>
+                </header>
+                {proveedores.length === 0 ? (
+                  <p className="rfq-create-empty">No hay proveedores registrados.</p>
+                ) : (
+                  <ul className="aur-list rfq-supplier-list">
+                    {proveedores.map(p => {
+                      const checked = selectedSuppliers.includes(p.id);
+                      const disabled = !checked && selectedSuppliers.length >= MAX_SUPPLIERS;
+                      return (
+                        <li key={p.id} className="aur-row rfq-supplier-row">
+                          <label className="rfq-supplier-label">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={disabled}
+                              onChange={() => toggleSupplier(p.id)}
+                            />
+                            <span className="rfq-supplier-name">
+                              <strong>{p.nombre}</strong>
+                              {p.telefono && <span className="rfq-supplier-meta"> · {p.telefono}</span>}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              {error && <div className="aur-banner aur-banner--danger">{error}</div>}
             </div>
 
-            {error && <div className="fin-widget-error">{error}</div>}
-
-            <div className="rfq-create-actions">
+            <div className="aur-modal-actions">
               <button type="button" className="aur-btn-text" onClick={onClose} disabled={busy}>
                 Cancelar
               </button>
-              <button type="submit" className="rfq-primary-btn" disabled={busy}>
-                <FiSend size={12} /> {busy ? 'Enviando…' : 'Crear y enviar'}
+              <button type="submit" className="aur-btn-pill" disabled={busy}>
+                <FiSend size={14} /> {busy ? 'Enviando…' : 'Crear y enviar'}
               </button>
             </div>
           </form>
         )}
 
         {outcomes && (
-          <div className="rfq-create-outcomes">
-            <h4>Cotización creada</h4>
-            <p className="fin-widget-sub">
-              Estado: <strong>{outcomes.estado === 'sent' ? 'Enviada' : 'Sin envío'}</strong>
-            </p>
-            <ul className="info-list">
-              {(outcomes.suppliersContacted || []).map(o => (
-                <li key={o.supplierId}>
-                  <strong>{o.supplierName}</strong>
-                  {' — '}
-                  {o.sent ? 'enviado' : `no enviado (${o.reason || 'sin motivo'})`}
-                </li>
-              ))}
-            </ul>
-            <div className="rfq-create-actions">
-              <button type="button" className="rfq-primary-btn" onClick={onClose}>
+          <>
+            <div className="aur-modal-content">
+              <section className="aur-section">
+                <header className="aur-section-header">
+                  <h3 className="aur-section-title">Cotización creada</h3>
+                  <span className={`aur-badge ${outcomes.estado === 'sent' ? 'aur-badge--green' : 'aur-badge--gray'}`}>
+                    {outcomes.estado === 'sent' ? 'Enviada' : 'Sin envío'}
+                  </span>
+                </header>
+                <ul className="aur-list">
+                  {(outcomes.suppliersContacted || []).map(o => (
+                    <li key={o.supplierId} className="aur-row">
+                      <span className="aur-row-label">{o.supplierName}</span>
+                      <span className={`rfq-outcome ${o.sent ? 'rfq-outcome--ok' : 'rfq-outcome--fail'}`}>
+                        {o.sent ? 'enviado' : (o.reason || 'no enviado')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+            <div className="aur-modal-actions">
+              <button type="button" className="aur-btn-pill" onClick={onClose}>
                 Cerrar
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
