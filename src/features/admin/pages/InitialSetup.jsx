@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -31,18 +31,18 @@ const normalizeTipo = (val) => {
 // ── Normalización rol de usuario ─────────────────────────────────────────────
 const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
 const normalizeRol = (val) => {
-  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   return ROLES_VALIDOS.find(r => r === s) ?? 'trabajador';
 };
 
 // ── Normalización proveedor ───────────────────────────────────────────────────
 const CATEGORIAS_PROV = ['agroquimicos', 'fertilizantes', 'maquinaria', 'servicios', 'combustible', 'semillas', 'otros'];
 const normalizeCategoriaProv = (val) => {
-  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   return CATEGORIAS_PROV.find(c => c === s) ?? '';
 };
 const normalizeTipoPago = (val) => {
-  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   return s === 'credito' ? 'credito' : 'contado';
 };
 
@@ -281,6 +281,87 @@ const ENTIDADES = [
   },
 ];
 
+// ── Subcomponentes presentacionales reutilizables ────────────────────────────
+
+function CardHeader({ icon: Icon, title, count, link, linkTitle = 'Ir a gestión completa' }) {
+  return (
+    <div className="ci-card-header">
+      <span className="ci-card-icon"><Icon size={18} /></span>
+      <span className="ci-card-title">{title}</span>
+      {count !== null && count !== undefined && (
+        <span className="aur-badge aur-badge--green ci-card-count">{count}</span>
+      )}
+      {link && (
+        <Link to={link} className="aur-icon-btn aur-icon-btn--sm" title={linkTitle}>
+          <FiExternalLink size={13} />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function ImportButtons({ onDownload, onImportClick, importing, fileInputRef, onFileChange }) {
+  return (
+    <div className="ci-import-row">
+      <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={onDownload}>
+        <FiDownload size={13} /> Plantilla
+      </button>
+      <button
+        type="button"
+        className="aur-btn-pill aur-btn-pill--sm"
+        onClick={onImportClick}
+        disabled={importing}
+      >
+        <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        style={{ display: 'none' }}
+        onChange={onFileChange}
+      />
+    </div>
+  );
+}
+
+function ImportResultBanner({ result }) {
+  if (!result) return null;
+  if (result.error) {
+    return (
+      <div className="aur-banner aur-banner--danger">
+        <FiAlertCircle size={14} />
+        <span>{result.msg || 'No se pudo leer el archivo. Usa la plantilla.'}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="aur-banner aur-banner--info">
+      <FiCheckCircle size={14} />
+      <span>{result.msg}</span>
+    </div>
+  );
+}
+
+function NavPrompt({ entityName, targetPath, onConfirm, onDismiss }) {
+  return (
+    <div className="aur-banner aur-banner--info">
+      <FiArrowRight size={14} />
+      <div className="ci-nav-prompt-body">
+        <span>¿Ir a <strong>{entityName}</strong> para revisar los datos?</span>
+        <div className="ci-nav-prompt-actions">
+          <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={onConfirm}>
+            <FiArrowRight size={13} /> Ir ahora
+          </button>
+          <button type="button" className="aur-btn-text" onClick={onDismiss}>
+            <FiX size={13} /> No, continuar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Tarjeta por entidad ───────────────────────────────────────────────────────
 function EntidadCard({ entidad }) {
   const apiFetch = useApiFetch();
@@ -352,58 +433,25 @@ function EntidadCard({ entidad }) {
     }
   };
 
-  const Icon = entidad.icon;
-
   return (
     <div className="ci-card">
-      <div className="ci-card-header">
-        <span className="ci-card-icon"><Icon size={18} /></span>
-        <span className="ci-card-nombre">{entidad.nombre}</span>
-        {count !== null && <span className="ci-card-count">{count}</span>}
-        <Link to={entidad.adminPath} className="ci-card-link" title="Ir a gestión completa">
-          <FiExternalLink size={13} />
-        </Link>
-      </div>
+      <CardHeader icon={entidad.icon} title={entidad.nombre} count={count} link={entidad.adminPath} />
       <p className="ci-card-desc">{entidad.descripcion}</p>
-      <div className="ci-import-row">
-        <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
-          <FiDownload size={13} /> Plantilla
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-        >
-          <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          style={{ display: 'none' }}
-          onChange={handleImport}
-        />
-      </div>
-      {importResult && (
-        <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
-          {importResult.error
-            ? `⚠ ${importResult.msg || 'No se pudo leer el archivo. Usa la plantilla.'}`
-            : `✓ ${importResult.msg}`}
-        </p>
-      )}
+      <ImportButtons
+        onDownload={handleDownloadTemplate}
+        onImportClick={() => fileInputRef.current?.click()}
+        importing={importing}
+        fileInputRef={fileInputRef}
+        onFileChange={handleImport}
+      />
+      <ImportResultBanner result={importResult} />
       {showNavPrompt && (
-        <div className="ci-nav-prompt">
-          <span>¿Ir a <strong>{entidad.nombre}</strong> para revisar los datos?</span>
-          <div className="ci-nav-prompt-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => navigate(entidad.adminPath)}>
-              <FiArrowRight size={13} /> Ir ahora
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowNavPrompt(false)}>
-              <FiX size={13} /> No, continuar
-            </button>
-          </div>
-        </div>
+        <NavPrompt
+          entityName={entidad.nombre}
+          targetPath={entidad.adminPath}
+          onConfirm={() => navigate(entidad.adminPath)}
+          onDismiss={() => setShowNavPrompt(false)}
+        />
       )}
     </div>
   );
@@ -701,55 +749,25 @@ function LotesGruposCard() {
 
   return (
     <div className="ci-card">
-      <div className="ci-card-header">
-        <span className="ci-card-icon"><FiLayers size={18} /></span>
-        <span className="ci-card-nombre">Lotes, Grupos y Bloques</span>
-        <Link to="/lotes" className="ci-card-link" title="Ir a Gestión de Lotes">
-          <FiExternalLink size={13} />
-        </Link>
-      </div>
+      <CardHeader icon={FiLayers} title="Lotes, Grupos y Bloques" link="/lotes" linkTitle="Ir a Gestión de Lotes" />
       <p className="ci-card-desc">
         Carga combinada: lotes, grupos de producción y bloques de siembra. Un grupo se crea una sola vez aunque aparezca en varios renglones.
       </p>
-      <div className="ci-import-row">
-        <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
-          <FiDownload size={13} /> Plantilla
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-        >
-          <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          style={{ display: 'none' }}
-          onChange={handleImport}
-        />
-      </div>
-      {importResult && (
-        <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
-          {importResult.error
-            ? `⚠ ${importResult.msg || 'No se pudo procesar el archivo.'}`
-            : `✓ ${importResult.msg}`}
-        </p>
-      )}
+      <ImportButtons
+        onDownload={handleDownloadTemplate}
+        onImportClick={() => fileInputRef.current?.click()}
+        importing={importing}
+        fileInputRef={fileInputRef}
+        onFileChange={handleImport}
+      />
+      <ImportResultBanner result={importResult} />
       {showNavPrompt && (
-        <div className="ci-nav-prompt">
-          <span>¿Ir a <strong>Gestión de Lotes</strong> para revisar los datos?</span>
-          <div className="ci-nav-prompt-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/lotes')}>
-              <FiArrowRight size={13} /> Ir ahora
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowNavPrompt(false)}>
-              <FiX size={13} /> No, continuar
-            </button>
-          </div>
-        </div>
+        <NavPrompt
+          entityName="Gestión de Lotes"
+          targetPath="/lotes"
+          onConfirm={() => navigate('/lotes')}
+          onDismiss={() => setShowNavPrompt(false)}
+        />
       )}
     </div>
   );
@@ -868,56 +886,25 @@ function EmpleadosCard() {
 
   return (
     <div className="ci-card">
-      <div className="ci-card-header">
-        <span className="ci-card-icon"><FiUserPlus size={18} /></span>
-        <span className="ci-card-nombre">Empleados (Planilla)</span>
-        {count !== null && <span className="ci-card-count">{count}</span>}
-        <Link to="/hr/ficha" className="ci-card-link" title="Ir a Ficha del Trabajador">
-          <FiExternalLink size={13} />
-        </Link>
-      </div>
+      <CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={count} link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />
       <p className="ci-card-desc">
         Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso.
       </p>
-      <div className="ci-import-row">
-        <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
-          <FiDownload size={13} /> Plantilla
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-        >
-          <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          style={{ display: 'none' }}
-          onChange={handleImport}
-        />
-      </div>
-      {importResult && (
-        <p className={`ci-import-result ${importResult.error ? 'ci-import-error' : 'ci-import-ok'}`}>
-          {importResult.error
-            ? `⚠ ${importResult.msg || 'No se pudo leer el archivo. Usa la plantilla.'}`
-            : `✓ ${importResult.msg}`}
-        </p>
-      )}
+      <ImportButtons
+        onDownload={handleDownloadTemplate}
+        onImportClick={() => fileInputRef.current?.click()}
+        importing={importing}
+        fileInputRef={fileInputRef}
+        onFileChange={handleImport}
+      />
+      <ImportResultBanner result={importResult} />
       {showNavPrompt && (
-        <div className="ci-nav-prompt">
-          <span>¿Ir a <strong>Ficha del Trabajador</strong> para revisar los datos?</span>
-          <div className="ci-nav-prompt-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/hr/ficha')}>
-              <FiArrowRight size={13} /> Ir ahora
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowNavPrompt(false)}>
-              <FiX size={13} /> No, continuar
-            </button>
-          </div>
-        </div>
+        <NavPrompt
+          entityName="Ficha del Trabajador"
+          targetPath="/hr/ficha"
+          onConfirm={() => navigate('/hr/ficha')}
+          onDismiss={() => setShowNavPrompt(false)}
+        />
       )}
     </div>
   );
@@ -926,23 +913,38 @@ function EmpleadosCard() {
 // ── Página principal ──────────────────────────────────────────────────────────
 function InitialSetup() {
   return (
-    <div className="ci-wrap">
-      <div className="ci-intro">
-        <FiSettings size={18} />
-        <p>
-          Carga masiva de datos para la configuración inicial de la finca. Descarga la plantilla de
-          cada entidad, complétala y súbela para poblar la base de datos. Si un registro ya existe
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title">Configuración inicial</h2>
+          <p className="aur-sheet-subtitle">
+            Carga masiva de datos para poblar la base de datos de la finca.
+          </p>
+        </div>
+      </header>
+
+      <div className="aur-banner aur-banner--info ci-intro">
+        <FiSettings size={14} />
+        <span>
+          Descarga la plantilla de cada entidad, complétala y súbela. Si un registro ya existe
           (mismo ID o código), se actualizará en lugar de duplicarse.
-        </p>
+        </span>
       </div>
 
-      <div className="ci-grid">
-        {ENTIDADES.map(entidad => (
-          <EntidadCard key={entidad.key} entidad={entidad} />
-        ))}
-        <LotesGruposCard />
-        <EmpleadosCard />
-      </div>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">01</span>
+          <h3>Entidades</h3>
+          <span className="aur-section-count">{ENTIDADES.length + 2}</span>
+        </div>
+        <div className="ci-grid">
+          {ENTIDADES.map(entidad => (
+            <EntidadCard key={entidad.key} entidad={entidad} />
+          ))}
+          <LotesGruposCard />
+          <EmpleadosCard />
+        </div>
+      </section>
     </div>
   );
 }
