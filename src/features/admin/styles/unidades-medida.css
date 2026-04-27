@@ -1,227 +1,132 @@
-/* ── Wrapper de página ── */
-.um-page-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   UNIDADES DE MEDIDA — slim modifiers sobre primitivas aurora.
 
-/* ── Page loading spinner ── */
-.um-page-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
-}
-.um-page-loading::after {
-  content: '';
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(51, 255, 153, 0.2);
-  border-top-color: var(--aurora-green);
-  border-radius: 50%;
-  animation: app-loading-spin 0.75s linear infinite;
-}
+   La página vive ahora sobre aur-sheet + aur-sheet-header + aur-section +
+   aur-list/aur-row(--multiline) + aur-input/aur-textarea/aur-select +
+   aur-input--num + aur-combo* (LaborCombobox) + aur-form-actions +
+   aur-icon-btn(--danger) + AuroraConfirmModal (delete).
 
-/* ── Page empty state ── */
-.um-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 60vh;
-  color: rgba(230, 242, 255, 0.3);
-  text-align: center;
-}
-.um-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.45);
-  margin: 0;
-}
-
-/* ── Encabezado de página con botón ── */
-.um-page-header {
-  display: flex;
-  justify-content: flex-end;
-  min-height: 36px;
-}
-
-/* ── Override columna izquierda más ancha ── */
-.um-layout {
-  grid-template-columns: 1fr 300px;
-}
-
-@media (max-width: 768px) {
-  .um-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── Llamado a la acción (CTA) ── */
-.um-cta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-  padding: 40px 24px;
-}
-
-.um-cta--secondary {
-  padding: 32px 24px;
-  opacity: 0.75;
-}
-
-.um-cta-icon {
-  color: var(--aurora-green);
-  opacity: 0.6;
-}
-
-.um-cta--secondary .um-cta-icon {
-  color: rgba(230, 242, 255, 0.3);
-}
-
-.um-cta-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-}
-
-.um-cta-desc {
-  margin: 0;
-  font-size: 0.85rem;
-  color: rgba(230, 242, 255, 0.5);
-  line-height: 1.55;
-  max-width: 280px;
-}
-
-/* ── Contador en el encabezado de lista ── */
-.um-list-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 8px;
-  padding: 1px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-  border-radius: 10px;
-  vertical-align: middle;
-}
-
-/* Ocultar spinners en inputs numéricos del formulario */
-.um-form-card input[type="number"]::-webkit-inner-spin-button,
-.um-form-card input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.um-form-card input[type="number"] {
-  -moz-appearance: textfield;
-}
-
-.um-form-card {
-  max-width: 680px;
-  margin-bottom: 24px;
-}
-
-.um-form-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.um-form-header h3 {
-  margin: 0;
-  font-size: 0.95rem;
-}
+   Aquí sólo queda:
+     · um-required           — asterisco magenta del label "Nombre *".
+     · um-empty / um-empty-line — placeholders dentro de aur-sheet--empty
+                                 y dentro de la sección de lista cuando se
+                                 abre el form sin items.
+     · um-labor-combo        — alias bag para el LaborCombobox (no agrega
+                                 propiedades; queda como hook de tema por si
+                                 en el futuro queremos override del width).
+     · um-list / um-item / um-item-main / um-item-title / um-item-meta /
+       um-meta-* / um-item-actions — lista iOS-style para registros con
+                                 metadata composition (nombre + descripción
+                                 + conversión + precio + labor + acciones).
+                                 No usamos aur-row porque su grilla rígida
+                                 label/control no encaja con un row tipo
+                                 ficha multi-meta.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .um-required {
-  color: #ff6b6b;
+  color: var(--aur-danger);
+  margin-left: 2px;
 }
 
-.um-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+/* ── Empty / no-results inline ───────────────────────────────────────────── */
+.um-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--aur-text-3);
+}
+.um-empty p {
+  margin: 0;
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
 }
 
-@media (max-width: 520px) {
-  .um-form-grid {
-    grid-template-columns: 1fr;
-  }
+.um-empty-line {
+  margin: 0;
+  padding: 24px 4px;
+  text-align: center;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
 }
 
-.um-field-full {
-  grid-column: 1 / -1;
+/* ── LaborCombobox: alias del aur-combo (placeholder) ───────────────────── */
+.um-labor-combo {
+  display: block;
 }
 
-/* ── Metadatos en la lista ── */
+/* ── Lista de unidades (ficha tipo iOS feed) ─────────────────────────────── */
+.um-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: var(--aur-bg-input);
+  border-radius: var(--aur-r-card);
+  border: 1px solid var(--aur-divider);
+  overflow: hidden;
+}
+
+.um-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--aur-divider);
+  transition: background 0.15s ease;
+}
+.um-item:last-child { border-bottom: none; }
+.um-item:hover { background: var(--aur-bg-hover); }
+
+.um-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.um-item-title {
+  font-size: var(--aur-fs-body);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+
 .um-item-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 3px;
-  font-size: 0.82rem;
-  color: var(--aurora-light);
-  opacity: 0.6;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
 }
 
-.um-meta-sep {
-  opacity: 0.4;
+.um-meta-sep { color: var(--aur-text-3); }
+
+.um-meta-conversion {
+  color: var(--aur-badge-magenta-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.um-meta-precio {
+  font-variant-numeric: tabular-nums;
 }
 
 .um-meta-labor {
-  color: var(--aurora-green);
-  opacity: 0.85;
+  color: var(--aur-accent);
 }
 
-.um-meta-conversion {
-  color: var(--aurora-magenta);
-  opacity: 0.85;
-}
-
-/* ── Combobox labor ── */
-.um-labor-dropdown {
-  position: absolute;
-  min-width: 240px;
-  max-height: 220px;
-  overflow-y: auto;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-green);
-  border-radius: 6px;
-  padding: 4px 0;
-  margin: 0;
-  list-style: none;
-  z-index: 1200;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-}
-
-.um-labor-dropdown-item {
+.um-item-actions {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 7px 12px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-}
-
-.um-labor-dropdown-item:hover,
-.um-labor-dropdown-item--active {
-  background: rgba(51, 255, 153, 0.12);
-  color: var(--aurora-green);
-}
-
-.um-labor-desc {
-  flex: 1;
-}
-
-.um-labor-codigo {
-  font-size: 0.75rem;
-  opacity: 0.55;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .um-item {
+    padding: 12px 14px;
+    gap: 8px;
+  }
 }
