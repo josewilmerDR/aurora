@@ -230,9 +230,25 @@
 }
 .strategy-card--issued      { border-left-color: var(--aur-accent); }
 .strategy-card--executed    { border-left-color: var(--aur-accent); opacity: 0.85; }
+.strategy-card--scheduled   { border-left-color: var(--aur-warn); }
 .strategy-card--failed      { border-left-color: var(--aur-danger); }
 .strategy-card--rejected    { border-left-color: var(--aur-divider); opacity: 0.55; }
 .strategy-card--rolled_back { border-left-color: var(--aur-divider); opacity: 0.55; }
+
+/* Versión <details>: el card actúa como collapsible. summary suprime el
+   marker nativo y respeta el padding/flex del strategy-card-header. */
+.strategy-card--collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.strategy-card--collapsible > summary::-webkit-details-marker { display: none; }
+.strategy-card--collapsible[open] > summary {
+  border-bottom: 1px solid var(--aur-divider);
+}
+.strategy-card-summary-meta {
+  margin-left: auto;
+}
 
 .strategy-card-header {
   display: flex;
@@ -390,6 +406,74 @@
    del body del modal. */
 .strategy-reject-field {
   margin-top: 8px;
+}
+
+/* ── Sub-secciones de un VersionCard del plan anual ─────────────────────
+   Cada sección del plan (escenarioBase, presupuesto, cultivos, rotaciones,
+   hitos, supuestos) es un mini-bloque con left-border tonal según la
+   semántica brand-specific del Nivel 3:
+     · safe   → border verde: secciones que N3 puede modificar libremente
+                (supuestos, hitos, escenarioBase — señalización).
+     · unsafe → border magenta: secciones que requieren delay 24h en N3
+                (presupuesto, cultivos, rotaciones — modifican el plan).
+   `--aurora-magenta` directo se permite aquí como semántica brand: no es
+   destructivo (no es danger), es "sección sensible que requiere delay". */
+.strategy-section-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.strategy-section-card {
+  border: 1px solid var(--aur-divider);
+  border-left-width: 3px;
+  border-radius: var(--aur-r-input);
+  padding: 8px 12px;
+  background: var(--aur-bg);
+}
+.strategy-section-card--safe   { border-left-color: var(--aur-accent); }
+.strategy-section-card--unsafe { border-left-color: var(--aurora-magenta); }
+.strategy-section-card-title {
+  font-size: var(--aur-fs-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aur-text-3);
+  margin-bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.strategy-section-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+.strategy-section-list li { margin: 2px 0; }
+
+/* ── Changelog inmutable de un plan anual ────────────────────────────
+   Lista de entradas con border-left para visual cronológico. */
+.strategy-changelog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.strategy-changelog-entry {
+  border-left: 2px solid var(--aur-divider);
+  padding-left: 10px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+.strategy-changelog-entry strong {
+  color: var(--aur-text);
+}
+.strategy-changelog-entry code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--aur-fs-caption);
+  background: var(--aur-bg-input);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--aur-text-2);
 }
 
 .strategy-empty {
