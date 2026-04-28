@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { FiMenu, FiUser, FiSearch, FiArrowLeft, FiCpu } from 'react-icons/fi';
-import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, useNavigate, Navigate, NavLink } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
 import UserManagement from './features/admin/pages/UserManagement';
 import PackageManagement from './features/applications/pages/PackageManagement';
 import LoteManagement from './features/fields/pages/LoteManagement';
@@ -86,14 +85,14 @@ import RfqsList from './features/procurement/pages/RfqsList';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
+import AppHeader from './components/AppHeader';
 import AutopilotPanel from './features/autopilot/components/AutopilotPanel';
-import { useApiFetch } from './hooks/useApiFetch';
 import ReminderNotification from './components/ReminderNotification';
 import { useReminderPoller } from './hooks/useReminderPoller';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { RemindersProvider, useReminders } from './contexts/RemindersContext';
-import { MODULES, ALL_ITEMS } from './components/Sidebar';
+import { ALL_ITEMS } from './components/Sidebar';
 
 import './index.css';
 import './App.css';
@@ -143,82 +142,6 @@ const ROUTE_MIN_ROLE = {
   '/strategy/plan-anual': 'supervisor',
 };
 
-// Route → human-readable title mapping (displayed in the app header).
-const routeTitles = {
-  '/': 'Panel de Control',
-  '/users': 'Gestión de Usuarios',
-  '/packages': 'Paquetes de Aplicaciones',
-  '/lotes': 'Gestión de Lotes',
-  '/tasks': 'Seguimiento de Tareas',
-  '/productos': 'Inventario Agroquímicos',
-  '/productos/todos': 'Inventario Completo',
-  '/ingreso-productos': 'Recepción de Mercancía',
-  '/productos/movimientos': 'Historial de Movimientos',
-  '/bodega/agroquimicos/existencias': 'Existencias — Agroquímicos',
-  '/bodega/agroquimicos/recepcion': 'Recepción de Mercancía',
-  '/bodega/agroquimicos/movimientos': 'Historial de Movimientos',
-  '/admin/bodegas': 'Administrar Bodegas',
-  '/ordenes-compra': 'Órdenes de Compra',
-  '/ordenes-compra/historial': 'Historial de Órdenes de Compra',
-  '/proveedores': 'Proveedores',
-  '/costos': 'Centro de Costos',
-  '/finance/dashboard': 'Dashboard Financiero',
-  '/finance/presupuestos': 'Presupuestos',
-  '/finance/tesoreria': 'Tesorería',
-  '/finance/ingresos': 'Ingresos',
-  '/finance/compradores': 'Compradores',
-  '/finance/financing': 'Financiamiento',
-  '/finance/financing/ofertas': 'Ofertas de crédito',
-  '/finance/financing/simulaciones': 'Simulador de deuda',
-  '/ceo': 'Resumen del Copilot',
-  '/hr/ficha': 'Ficha del Trabajador',
-  '/hr/permisos': 'Permisos y Vacaciones',
-  '/hr/planilla': 'Cálculo de Planilla',
-  '/hr/planilla/fijo': 'Planilla — Salario Fijo',
-  '/hr/planilla/horas': 'Planilla — Por Hora / Unidad',
-  '/hr/historial-pagos': 'Historial de Pagos',
-  '/monitoreo/historial': 'Historial de Muestreos',
-  '/monitoreo/config': 'Plantilla de Muestreos',
-  '/monitoreo/paquetes': 'Paquete de Muestreos',
-  '/monitoreo/muestreos': 'Centro de Monitoreo',
-  '/config/cuenta': 'Configuración de Cuenta',
-  '/admin/parametros': 'Parámetros y KPI',
-  '/admin/config-inicial': 'Configuración Inicial',
-  '/admin/maquinaria': 'Lista de Activos',
-  '/admin/labores': 'Lista de Labores',
-  '/admin/unidades-medida': 'Unidades de Medida',
-  '/admin/calibraciones': 'Calibraciones',
-  '/admin/auditoria': 'Registro de Auditoría',
-  '/grupos': 'Grupos',
-  '/aplicaciones/cedulas': 'Cédulas de Aplicación',
-  '/aplicaciones/historial': 'Historial de Aplicaciones',
-  '/siembra': 'Registro de Siembra',
-  '/siembra/materiales': 'Materiales de Siembra',
-  '/siembra/historial': 'Historial de Siembra',
-  '/cosecha/registro': 'Registro de Cosecha',
-  '/cosecha/despacho': 'Despacho de Cosecha',
-  '/cosecha/proyeccion': 'Proyección de Cosecha',
-  '/cosecha/historial': 'Historial de Cosecha',
-  '/cosecha/historial-despachos': 'Historial de Despachos',
-  '/operaciones/horimetro': 'Horímetros',
-  '/operaciones/horimetro/registro': 'Registro de Horímetro',
-  '/operaciones/horimetro/historial': 'Historial de Horímetros',
-  '/autopilot': 'Aurora Copilot',
-  '/autopilot/configuracion': 'Configuración — Aurora Copilot',
-  '/procurement/dashboard': 'Abastecimiento',
-  '/procurement/rfqs': 'Cotizaciones',
-  '/hr/performance': 'RR.HH. — Desempeño',
-  '/hr/my-performance': 'Mi desempeño',
-  '/strategy/rendimiento': 'Rendimiento Histórico',
-  '/strategy/temporadas': 'Temporadas',
-  '/strategy/rotacion/restricciones': 'Rotación — Restricciones Agronómicas',
-  '/strategy/rotacion/recomendador': 'Rotación — Recomendador',
-  '/strategy/senales/fuentes': 'Señales — Fuentes',
-  '/strategy/senales': 'Señales — Observaciones',
-  '/strategy/escenarios': 'Escenarios What-if',
-  '/strategy/plan-anual': 'Plan Anual Vivo',
-};
-
 // --- Route guards ---
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn, isLoading, needsOrgSelection, firebaseUser, activeFincaId, currentUser } = useUser();
@@ -249,15 +172,11 @@ const LogoutRoute = () => {
 // --- Layouts ---
 
 const MainLayout = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [profileOpen, setProfileOpen] = useState(false);
   const [autopilotOpen, setAutopilotOpen] = useState(false);
-  const [autopilotPendingCount, setAutopilotPendingCount] = useState(0);
   const { pendingReminders, dismissReminder } = useReminderPoller();
-  const { overdueCount, reload: reloadReminders } = useReminders();
+  const { reload: reloadReminders } = useReminders();
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
     localStorage.getItem('aurora_push_prompt_dismissed') === 'true'
@@ -266,7 +185,6 @@ const MainLayout = () => {
 
   const [swUpdateVisible, setSwUpdateVisible] = useState(false);
   useEffect(() => {
-    // Check if onNeedRefresh fired before React mounted
     if (window.__swUpdatePending) setSwUpdateVisible(true);
     const handler = () => setSwUpdateVisible(true);
     window.addEventListener('sw-update-available', handler);
@@ -276,43 +194,15 @@ const MainLayout = () => {
     localStorage.setItem('aurora_push_prompt_dismissed', 'true');
     setPushPromptDismissed(true);
   };
-  const title = routeTitles[location.pathname]
-    || (location.pathname.startsWith('/aplicaciones/cedula/') ? 'Cédula de Aplicación'
-    : location.pathname.startsWith('/bodega/') && !location.pathname.includes('/agroquimicos') ? 'Bodega'
-    : 'Aurora');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchActiveIdx, setSearchActiveIdx] = useState(-1);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const searchInputRef = useRef(null);
-  const wrapperRef = useRef(null);
+
   const userRole = currentUser?.rol || 'trabajador';
   const canSeeAutopilot = hasMinRole(userRole, 'encargado');
-
-  // Refresh the pending-actions badge from /api/autopilot/actions
-  const refreshAutopilotPending = useCallback(() => {
-    if (!canSeeAutopilot) return;
-    apiFetch('/api/autopilot/actions')
-      .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        if (Array.isArray(data)) {
-          setAutopilotPendingCount(data.filter(a => a.status === 'proposed').length);
-        }
-      })
-      .catch(() => { });
-  }, [apiFetch, canSeeAutopilot]);
-
-  useEffect(() => {
-    refreshAutopilotPending();
-    window.addEventListener('aurora-autopilot-changed', refreshAutopilotPending);
-    return () => window.removeEventListener('aurora-autopilot-changed', refreshAutopilotPending);
-  }, [refreshAutopilotPending]);
 
   const openAutopilot = () => {
     setProfileOpen(false);
     setAutopilotOpen(true);
   };
-  const openProfile = () => {
+  const toggleProfile = () => {
     setAutopilotOpen(false);
     setProfileOpen(o => {
       const next = !o;
@@ -333,168 +223,16 @@ const MainLayout = () => {
     return next;
   });
 
-  // Filter nav items by query and role
-  useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults([]); return; }
-    const q = searchQuery.toLowerCase();
-    const results = [];
-    MODULES.forEach(mod => {
-      const modMatches = mod.nombre.toLowerCase().includes(q);
-      mod.items.forEach(item => {
-        if (item.children) {
-          const groupMatches = item.label.toLowerCase().includes(q);
-          item.children.forEach(child => {
-            if (hasMinRole(userRole, child.minRole) && (child.label.toLowerCase().includes(q) || groupMatches || modMatches)) {
-              results.push({ label: child.label, to: child.to, tag: `${mod.nombre} > ${item.label}` });
-            }
-          });
-        } else {
-          if (hasMinRole(userRole, item.minRole) && (item.label.toLowerCase().includes(q) || modMatches)) {
-            results.push({ label: item.label, to: item.to, tag: mod.nombre });
-          }
-        }
-      });
-    });
-    setSearchResults(results.slice(0, 8));
-    setSearchActiveIdx(-1);
-  }, [searchQuery, userRole]);
-
-  // Close dropdown on outside click — only active when dropdown is visible
-  useEffect(() => {
-    if (searchResults.length === 0) return;
-    const handler = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setSearchResults([]);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [searchResults.length]);
-
-  const handleSelect = (to) => {
-    navigate(to);
-    setSearchQuery('');
-    setSearchResults([]);
-    setSearchActiveIdx(-1);
-  };
-
-  const closeMobileSearch = () => {
-    setMobileSearchOpen(false);
-    setSearchQuery('');
-    setSearchResults([]);
-  };
-
-  const openMobileSearch = () => {
-    setMobileSearchOpen(true);
-    setTimeout(() => searchInputRef.current?.focus(), 50);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape') {
-      setSearchQuery('');
-      setSearchResults([]);
-      setSearchActiveIdx(-1);
-      setMobileSearchOpen(false);
-    } else if (e.key === 'ArrowDown' && searchResults.length > 0) {
-      e.preventDefault();
-      setSearchActiveIdx(i => Math.min(i + 1, searchResults.length - 1));
-    } else if (e.key === 'ArrowUp' && searchResults.length > 0) {
-      e.preventDefault();
-      setSearchActiveIdx(i => Math.max(i - 1, -1));
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (searchActiveIdx >= 0 && searchResults[searchActiveIdx]) {
-      handleSelect(searchResults[searchActiveIdx].to);
-    } else if (searchResults.length > 0) {
-      handleSelect(searchResults[0].to);
-    } else if (searchQuery.trim()) {
-      window.dispatchEvent(new CustomEvent('aurora:open', { detail: { query: searchQuery } }));
-      setSearchQuery('');
-      setSearchResults([]);
-    }
-  };
-
   return (
     <div className="app-wrapper">
-
-      {/* ── Top header ── */}
-      <header className={`app-header${mobileSearchOpen ? ' mobile-search-open' : ''}`}>
-        <button className="app-header-menu-btn" onClick={toggleCollapse} title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}>
-          <FiMenu size={20} />
-        </button>
-        <NavLink to="/" className="app-header-brand">
-          <img src="/aurora-logo.png" alt="Aurora" className="app-header-logo" />
-          <span className="app-header-name">Aurora</span>
-        </NavLink>
-
-        {/* Desktop search + expanded mobile search */}
-        <div className="app-header-search" ref={wrapperRef}>
-          <button className="app-header-search-back" onClick={closeMobileSearch} title="Cerrar búsqueda">
-            <FiArrowLeft size={18} />
-          </button>
-          <form className="main-search-bar" onSubmit={handleSubmit}>
-            <span className="main-search-icon">🔍</span>
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Buscar funciones o preguntar a Aurora..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-          </form>
-          {searchResults.length > 0 && (
-            <div className="search-dropdown">
-              {searchResults.map((item, idx) => (
-                <button
-                  key={item.to}
-                  className={`search-result-item${idx === searchActiveIdx ? ' search-result-item--active' : ''}`}
-                  onMouseDown={() => handleSelect(item.to)}
-                  onMouseEnter={() => setSearchActiveIdx(idx)}
-                >
-                  <span className="search-result-label">{item.label}</span>
-                  {item.tag && <span className="search-result-tag">{item.tag}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Mobile search toggle (visible only on mobile when search is closed) */}
-        <button className="app-header-search-toggle" onClick={openMobileSearch} title="Buscar">
-          <FiSearch size={19} />
-        </button>
-
-        {canSeeAutopilot && (
-          <button
-            className={`app-header-autopilot-btn${autopilotOpen ? ' active' : ''}`}
-            onClick={openAutopilot}
-            title="Aurora Copilot"
-          >
-            <FiCpu size={17} />
-            {autopilotPendingCount > 0 && (
-              <span className="app-header-autopilot-badge">
-                {autopilotPendingCount > 99 ? '99+' : autopilotPendingCount}
-              </span>
-            )}
-          </button>
-        )}
-
-        <button
-          className={`app-header-profile-btn${profileOpen ? ' active' : ''}`}
-          onClick={openProfile}
-          title={overdueCount > 0 ? `Mi perfil — ${overdueCount} recordatorio(s) vencido(s)` : 'Mi perfil'}
-        >
-          <FiUser size={17} />
-          <span className="app-header-profile-name">{currentUser?.nombre?.split(' ')[0] || 'Perfil'}</span>
-          {overdueCount > 0 && (
-            <span className="app-header-profile-badge" aria-label={`${overdueCount} recordatorios vencidos`}>
-              {overdueCount > 9 ? '9+' : overdueCount}
-            </span>
-          )}
-        </button>
-      </header>
+      <AppHeader
+        isCollapsed={isCollapsed}
+        toggleCollapse={toggleCollapse}
+        profileOpen={profileOpen}
+        onToggleProfile={toggleProfile}
+        autopilotOpen={autopilotOpen}
+        onOpenAutopilot={openAutopilot}
+      />
 
       {/* ── Body ── */}
       <div className="app-layout">
