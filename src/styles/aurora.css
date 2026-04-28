@@ -515,6 +515,28 @@
   background: var(--aur-bg-hover);
 }
 
+/* Variante IA — para botones de lectura/escaneo con Claude.
+   Estilo "tinted" inspirado en iOS/macOS: misma forma de chip, pero
+   con material translúcido más denso, hairline sólido y un highlight
+   superior interno (glass edge). Gana peso por densidad, no por color. */
+.aur-chip--ai {
+  background: var(--aur-bg-strong);
+  border-color: var(--aur-divider-3);
+  color: var(--aur-text);
+  font-weight: 600;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.aur-chip--ai:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--aur-text);
+}
+.aur-chip--ai:focus-visible {
+  border-color: var(--aur-accent);
+  box-shadow: var(--aur-ring),
+              0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
 /* Chip como <select> con chevron SVG inline */
 select.aur-chip {
   padding-right: 28px;

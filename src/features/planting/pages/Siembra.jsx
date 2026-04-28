@@ -692,7 +692,7 @@ function Siembra() {
                   <span className="psb-row-hint-text">Carga una foto del formulario y se extraen las filas.</span>
                   <button
                     type="button"
-                    className="aur-chip aur-chip--ghost"
+                    className="aur-chip aur-chip--ai"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={scanning || saving}
                   >
