@@ -474,50 +474,70 @@ function TaskTracking() {
 
       {/* ── Formulario de nueva tarea de aplicación ── */}
       {showNewTask && (
-        <div className="nueva-aplicacion-panel">
-          <div className="na-main-layout">
-            {/* ── Columna izquierda: campos + productos ── */}
-            <div className="na-left-col">
-              <div className="na-form-grid">
-                <div className="form-group">
-                  <label>Nombre de la tarea *</label>
+        <section className="aur-section nueva-task-panel">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiPlus size={14} /></span>
+            <h3 className="aur-section-title">Nueva tarea</h3>
+          </div>
+
+          <div className="nueva-task-grid">
+            {/* ── Columna principal: campos + productos ── */}
+            <div className="nueva-task-main">
+              <div className="nueva-task-fields">
+                <div className="aur-field">
+                  <label className="aur-field-label" htmlFor="nt-nombre">Nombre de la tarea *</label>
                   <input
+                    id="nt-nombre"
                     type="text"
+                    className="aur-input"
                     placeholder="Ej: Fertilización Lote L2601"
                     value={formData.nombre}
                     onChange={e => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
                   />
                 </div>
-                <div className="form-group">
-                  <label>Lote</label>
-                  <select value={formData.loteId} onChange={e => setFormData(prev => ({ ...prev, loteId: e.target.value }))}>
-                    <option value="">-- Seleccionar lote --</option>
+                <div className="aur-field">
+                  <label className="aur-field-label" htmlFor="nt-lote">Lote</label>
+                  <select
+                    id="nt-lote"
+                    className="aur-select"
+                    value={formData.loteId}
+                    onChange={e => setFormData(prev => ({ ...prev, loteId: e.target.value }))}
+                  >
+                    <option value="">— Seleccionar lote —</option>
                     {formLotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Responsable</label>
-                  <select value={formData.responsableId} onChange={e => setFormData(prev => ({ ...prev, responsableId: e.target.value }))}>
-                    <option value="">-- Sin asignar --</option>
+                <div className="aur-field">
+                  <label className="aur-field-label" htmlFor="nt-resp">Responsable</label>
+                  <select
+                    id="nt-resp"
+                    className="aur-select"
+                    value={formData.responsableId}
+                    onChange={e => setFormData(prev => ({ ...prev, responsableId: e.target.value }))}
+                  >
+                    <option value="">— Sin asignar —</option>
                     {formUsers.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Fecha de ejecución *</label>
+                <div className="aur-field">
+                  <label className="aur-field-label" htmlFor="nt-fecha">Fecha de ejecución *</label>
                   <input
+                    id="nt-fecha"
                     type="date"
+                    className="aur-input"
                     value={formData.fecha}
                     onChange={e => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
                   />
                 </div>
               </div>
 
-              <div className="na-productos-section">
-                <label className="na-productos-label">Productos a aplicar</label>
-                <div className="na-producto-search-wrapper">
+              <div className="aur-field nueva-task-products">
+                <label className="aur-field-label" htmlFor="nt-prod-search">Productos a aplicar</label>
+                <div className="nueva-task-prod-search">
                   <input
-                    className="na-producto-search-input"
+                    id="nt-prod-search"
                     type="text"
+                    className="aur-input nueva-task-prod-input"
                     placeholder="🔍 Buscar producto del catálogo..."
                     value={prodSearch}
                     onChange={e => { setProdSearch(e.target.value); setShowProdDropdown(true); }}
@@ -525,104 +545,129 @@ function TaskTracking() {
                     onBlur={() => setTimeout(() => setShowProdDropdown(false), 150)}
                   />
                   {showProdDropdown && (
-                    <div className="na-producto-dropdown">
+                    <div className="nueva-task-prod-dropdown">
                       {availableProductos
                         .filter(p => p.nombreComercial.toLowerCase().includes(prodSearch.toLowerCase()))
                         .map(p => (
                           <button
                             key={p.id}
                             type="button"
-                            className="na-producto-option"
+                            className="nueva-task-prod-option"
                             onMouseDown={() => addProductLine(p.id)}
                           >
                             <span>{p.nombreComercial}</span>
-                            <span className="na-producto-stock">stock: {p.stockActual} {p.unidad}</span>
+                            <span className="nueva-task-prod-stock">stock: {p.stockActual} {p.unidad}</span>
                           </button>
                         ))
                       }
                       {availableProductos.filter(p => p.nombreComercial.toLowerCase().includes(prodSearch.toLowerCase())).length === 0 && (
-                        <p className="na-producto-empty">Sin resultados</p>
+                        <p className="nueva-task-prod-empty">Sin resultados</p>
                       )}
                     </div>
                   )}
                 </div>
 
                 {formData.productos.length > 0 && (
-                  <table className="na-productos-table">
-                    <thead>
-                      <tr>
-                        <th>Producto</th>
-                        <th>Cantidad</th>
-                        <th>Unidad</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {formData.productos.map(p => (
-                        <tr key={p.productoId}>
-                          <td>{p.nombreComercial}</td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0"
-                              value={p.cantidad}
-                              onChange={e => updateProductCantidad(p.productoId, e.target.value)}
-                              className="na-qty-input"
-                            />
-                          </td>
-                          <td>{p.unidad}</td>
-                          <td>
-                            <button className="na-btn-remove" onClick={() => removeProductLine(p.productoId)}>
-                              <FiX size={14} />
-                            </button>
-                          </td>
+                  <div className="aur-table-wrap nueva-task-prod-table">
+                    <table className="aur-table">
+                      <thead>
+                        <tr>
+                          <th>Producto</th>
+                          <th className="aur-td-num">Cantidad</th>
+                          <th>Unidad</th>
+                          <th></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>{/* fin na-left-col */}
-
-            {/* ── Columna derecha: plantillas ── */}
-            <div className="na-right-col">
-              <span className="na-plantillas-label">Plantillas guardadas</span>
-              <div className="na-plantillas-list">
-                {plantillas.length === 0 && (
-                  <p className="na-plantillas-empty">Aún no hay plantillas guardadas.</p>
-                )}
-                {plantillas.map(p => (
-                  <div key={p.id} className="na-plantilla-chip">
-                    <button className="na-plantilla-apply" onClick={() => aplicarPlantilla(p)}>
-                      ⚗ {p.nombre}
-                    </button>
-                    <button className="na-plantilla-delete" onClick={() => eliminarPlantilla(p.id)} title="Eliminar plantilla">
-                      <FiX size={11} />
-                    </button>
+                      </thead>
+                      <tbody>
+                        {formData.productos.map(p => (
+                          <tr key={p.productoId}>
+                            <td>{p.nombreComercial}</td>
+                            <td className="aur-td-num">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                                className="aur-input aur-input--num nueva-task-qty"
+                                value={p.cantidad}
+                                onChange={e => updateProductCantidad(p.productoId, e.target.value)}
+                              />
+                            </td>
+                            <td>{p.unidad}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                                onClick={() => removeProductLine(p.productoId)}
+                                title="Quitar producto"
+                              >
+                                <FiX size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                ))}
+                )}
               </div>
-            </div>{/* fin na-right-col */}
-          </div>{/* fin na-main-layout */}
+            </div>
 
-          <div className="na-form-actions">
+            {/* ── Columna lateral: plantillas ── */}
+            <aside className="nueva-task-aside">
+              <div className="nueva-task-aside-label">Plantillas guardadas</div>
+              {plantillas.length === 0 ? (
+                <p className="nueva-task-empty-msg">Aún no hay plantillas guardadas.</p>
+              ) : (
+                <div className="nueva-task-plantillas-list">
+                  {plantillas.map(p => (
+                    <div key={p.id} className="nueva-task-plantilla-chip">
+                      <button
+                        type="button"
+                        className="nueva-task-plantilla-apply"
+                        onClick={() => aplicarPlantilla(p)}
+                      >
+                        ⚗ {p.nombre}
+                      </button>
+                      <button
+                        type="button"
+                        className="nueva-task-plantilla-delete"
+                        onClick={() => eliminarPlantilla(p.id)}
+                        title="Eliminar plantilla"
+                      >
+                        <FiX size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </aside>
+          </div>
+
+          <div className="aur-form-actions nueva-task-actions">
             <button
-              className={`btn-guardar-plantilla${plantillaSaved ? ' saved' : ''}`}
+              type="button"
+              className={`aur-chip aur-chip--ghost nueva-task-save-tpl${plantillaSaved ? ' is-saved' : ''}`}
               onClick={guardarComoPlantilla}
               disabled={savingPlantilla || !formData.nombre}
               title="Guardar como plantilla reutilizable"
             >
-              {plantillaSaved ? '✓ Guardada' : savingPlantilla ? 'Guardando...' : '📋 Guardar como plantilla'}
+              {plantillaSaved ? '✓ Guardada' : savingPlantilla ? 'Guardando…' : '📋 Guardar como plantilla'}
             </button>
-            <div className="na-form-actions-spacer" />
-            <button className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
-            <button className="btn btn-primary" onClick={handleCreateTask} disabled={formSaving || !canSubmit}>
-              {formSaving ? 'Guardando...' : 'Crear Tarea'}
+            <div className="nueva-task-actions-spacer" />
+            <button type="button" className="aur-btn-text" onClick={resetForm} disabled={formSaving}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="aur-btn-pill"
+              onClick={handleCreateTask}
+              disabled={formSaving || !canSubmit}
+            >
+              {formSaving ? 'Guardando…' : 'Crear tarea'}
             </button>
           </div>
-        </div>
+        </section>
       )}
 
       {!showNewTask && (
