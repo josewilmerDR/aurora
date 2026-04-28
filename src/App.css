@@ -58,10 +58,11 @@
 }
 
 /* Toggle/back ocultos en todas las viewports: el flag mobile-search-open
-   existe en JSX pero ninguna media query actualmente los muestra. Se preserva
-   el comportamiento previo a la migración. */
-.aur-header-search-back,
-.aur-header-search-toggle {
+   existe en JSX pero ninguna media query actualmente los muestra. Compound
+   selector (.aur-icon-btn.X) bumpea specificity sobre .aur-icon-btn (que trae
+   display:inline-flex) sin depender del orden de carga aurora.css→App.css. */
+.aur-icon-btn.aur-header-search-back,
+.aur-icon-btn.aur-header-search-toggle {
   display: none;
 }
 
@@ -293,7 +294,9 @@
   }
 
   /* ── Elementos del header ── */
-  .aur-header-menu-btn   { display: none; }
+  /* Compound selector (.aur-icon-btn.X) para vencer el display:inline-flex
+     base de .aur-icon-btn sin depender del orden de carga aurora.css→App.css. */
+  .aur-icon-btn.aur-header-menu-btn { display: none; }
   .aur-header-brand-name { display: none; }
 
   /* Barra de búsqueda siempre visible, ocupa el espacio libre */
