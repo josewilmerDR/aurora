@@ -11,7 +11,7 @@
    pintan el count y un border-color tonal, similar a cost-kpi--accent. */
 .dash-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -115,6 +115,31 @@
   .dash-stat-icon { width: 30px; height: 30px; }
   .dash-stat-count { font-size: var(--aur-fs-callout); }
   .dash-stat-label { font-size: 10px; }
+}
+
+/* En pantallas angostas, el layout horizontal (icono | texto) no cabe con 3
+   cards en fila. Cambiamos a layout vertical compacto: icono arriba, count
+   y label centrados debajo. Permite mantener las 3 cards visibles sin
+   desbordar el contenedor. */
+@media (max-width: 520px) {
+  .dash-stats-grid { gap: 8px; }
+  .dash-stat-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    justify-items: center;
+    text-align: center;
+    padding: 12px 8px;
+    row-gap: 6px;
+  }
+  .dash-stat-icon {
+    grid-row: auto;
+    width: 32px;
+    height: 32px;
+  }
+  .dash-stat-label {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
 }
 
 /* ── Feed: actividad reciente ──────────────────────────────────────────
