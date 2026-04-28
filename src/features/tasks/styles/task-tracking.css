@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════
    Tasks tracking — slim modifiers sobre primitivas .aur-*
-   PR A (shell + lista + filtros + tags) cierra todas las clases que vivían
-   antes en este archivo EXCEPTO el panel "Nueva tarea" (.nueva-aplicacion-
-   panel y descendientes .na-*), que migra en PR B.
+   PR A cerró shell + lista + filtros + tags + kebab + archived shortcuts.
+   PR B cierra el panel "Nueva tarea" (aur-section + aur-field + aur-table
+   + aur-form-actions) y todos los slim de plantillas / dropdown productos.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Botón "Nueva tarea" en aur-sheet-header-actions ────────────────────
@@ -13,151 +13,90 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Panel "Nueva tarea" — LEGACY, migra en PR B
+   Panel "Nueva tarea" — slim sobre aur-section + aur-field + aur-table
    ═══════════════════════════════════════════════════════════════════════ */
 
-.nueva-aplicacion-panel {
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 28px;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.na-main-layout {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  min-width: 0;
-}
-
-.na-left-col {
-  flex: 1;
-  min-width: 0;
-}
-
-.na-right-col {
-  width: 210px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--aurora-border);
-  padding-left: 20px;
-}
-
-.na-plantillas-empty {
-  font-size: 0.8rem;
-  opacity: 0.45;
-  margin: 4px 0 0;
-}
-
-.na-form-grid {
+/* Layout 2-col: campos + productos a la izquierda, plantillas a la
+   derecha. Colapsa a 1-col en <960px porque la columna lateral de
+   plantillas pierde sentido cuando es delgada. */
+.nueva-task-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .nueva-task-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.na-form-grid .form-group {
+.nueva-task-main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  gap: 6px;
+  gap: 18px;
 }
 
-.na-form-grid .form-group label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+/* Grid de 4 campos (nombre / lote / responsable / fecha). Cada hijo es
+   un aur-field; el slim sólo aporta el grid responsive. */
+.nueva-task-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 960px) {
+  .nueva-task-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .nueva-task-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.na-form-grid input,
-.na-form-grid select {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  color: var(--aurora-light);
-  padding: 9px 12px;
-  font-size: 0.95rem;
-  text-overflow: ellipsis;
+/* Sección de productos: aur-field envuelve label + buscador + tabla. */
+.nueva-task-products {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-/* iOS Safari ignora width:100% en inputs nativos (text/date/number) si
-   mantienen su apariencia intrínseca: el control usa un ancho menor que
-   el contenedor. Reseteamos la apariencia sólo en los inputs de texto —
-   el select se deja intacto para conservar su flecha nativa. */
-.na-form-grid input {
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.na-form-grid input:focus,
-.na-form-grid select:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
-/* Sección de productos */
-.na-productos-section {
-  margin-bottom: 20px;
-}
-
-.na-productos-label {
-  display: block;
-  font-size: 0.82rem;
-  font-weight: 600;
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 10px;
-}
-
-/* Buscador de productos */
-.na-producto-search-wrapper {
+/* Wrapper del buscador (relative para anclar el dropdown). */
+.nueva-task-prod-search {
   position: relative;
-  margin-bottom: 12px;
 }
 
-.na-producto-search-input {
-  width: 100%;
-  background-color: var(--aurora-background);
-  border: 1px dashed var(--aurora-green);
-  border-radius: 8px;
-  color: var(--aurora-light);
-  padding: 10px 14px;
-  font-size: 0.9rem;
-  box-sizing: border-box;
-  transition: border-style 0.15s;
+/* Slim sobre aur-input: dashed border verde para señalar que es un
+   "buscador / añadir". aur-input ya provee bg/padding/radius/focus-ring. */
+.aur-input.nueva-task-prod-input {
+  border: 1px dashed var(--aur-accent);
+  background: transparent;
 }
-
-.na-producto-search-input:focus {
-  outline: none;
+.aur-input.nueva-task-prod-input:focus {
   border-style: solid;
 }
 
-.na-producto-dropdown {
+/* Dropdown contextual con resultados — mismo lenguaje visual que el
+   kebab dropdown y el filter-bar dropdown (--aur-bg-modal + blur). */
+.nueva-task-prod-dropdown {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  background: var(--aur-bg-modal);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: var(--aur-r-input);
   max-height: 220px;
   overflow-y: auto;
   z-index: 200;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--aur-shadow-modal);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
-.na-producto-option {
+.nueva-task-prod-option {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -166,15 +105,16 @@
   padding: 10px 14px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: var(--aurora-light);
+  border-bottom: 1px solid var(--aur-divider);
+  color: var(--aur-text);
   cursor: pointer;
   text-align: left;
-  font-size: 0.9rem;
-  transition: background 0.15s, color 0.15s;
+  font-size: var(--aur-fs-footnote);
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.na-producto-option > span:first-child {
+.nueva-task-prod-option > span:first-child {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -182,199 +122,175 @@
   white-space: nowrap;
 }
 
-.na-producto-option:last-child {
+.nueva-task-prod-option:last-child {
   border-bottom: none;
 }
 
-.na-producto-option:hover {
-  background: rgba(51, 255, 153, 0.08);
-  color: var(--aurora-green);
+.nueva-task-prod-option:hover {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
 }
 
-.na-producto-stock {
-  font-size: 0.8rem;
-  opacity: 0.55;
+.nueva-task-prod-stock {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   white-space: nowrap;
   margin-left: 12px;
 }
 
-.na-producto-empty {
+.nueva-task-prod-empty {
   padding: 12px 14px;
-  font-size: 0.85rem;
-  opacity: 0.5;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
   margin: 0;
 }
 
-.na-productos-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
+/* Slim sobre aur-table-wrap: la tabla del aur-table primitivo encajaría
+   sticky-thead pero dentro del panel queremos un wrap card simple. La
+   primitiva aur-table-wrap ya provee bg/border/radius/scroll. */
+.aur-table-wrap.nueva-task-prod-table {
+  margin-top: 4px;
 }
 
-.na-productos-table th {
-  text-align: left;
-  padding: 8px 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  opacity: 0.6;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--aurora-border);
+/* Slim sobre aur-input--num: el qty-input vive dentro de un td de tabla
+   y necesita ancho compacto. aur-input ya provee bg/padding/radius/
+   tabular-nums. */
+.aur-input.nueva-task-qty {
+  width: 100px;
+  min-width: 0;
 }
 
-.na-productos-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  vertical-align: middle;
-}
-
-.na-qty-input {
-  width: 90px;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 6px 10px;
-  font-size: 0.9rem;
-}
-
-.na-qty-input:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
-
-.na-btn-remove {
+/* ── Aside: plantillas guardadas ──────────────────────────────────────── */
+.nueva-task-aside {
+  border-left: 1px solid var(--aur-divider);
+  padding-left: 20px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  background-color: transparent;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  cursor: pointer;
-  transition: border-color 0.2s, opacity 0.2s, color 0.2s;
-  padding: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 960px) {
+  .nueva-task-aside {
+    border-left: none;
+    border-top: 1px solid var(--aur-divider);
+    padding-left: 0;
+    padding-top: 16px;
+  }
 }
 
-.na-btn-remove:hover {
-  border-color: var(--aurora-magenta);
-  color: var(--aurora-magenta);
-  opacity: 1;
-}
-
-.na-form-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--aurora-border);
-}
-
-.na-form-actions-spacer {
-  flex: 1;
-}
-
-/* ── Plantillas guardadas ── */
-.na-plantillas-section {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--aurora-border);
-}
-
-.na-plantillas-label {
-  display: block;
-  font-size: 0.78rem;
+.nueva-task-aside-label {
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
-  opacity: 0.55;
+  color: var(--aur-text-3);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
+  letter-spacing: 0.10em;
 }
 
-.na-plantillas-list {
+.nueva-task-empty-msg {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  margin: 4px 0 0;
+}
+
+.nueva-task-plantillas-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.na-plantilla-chip {
-  display: flex;
+/* Plantilla chip: par botón apply + botón delete unidos en un pill.
+   El layout es bespoke porque combina dos botones dentro de un border
+   compartido (no encaja con aur-chip que es single-button). */
+.nueva-task-plantilla-chip {
+  display: inline-flex;
   align-items: stretch;
-  border: 1px solid var(--aurora-border);
-  border-radius: 20px;
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-pill);
   overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.nueva-task-plantilla-chip:hover {
+  border-color: var(--aur-divider-2);
 }
 
-.na-plantilla-apply {
+.nueva-task-plantilla-apply {
   background: transparent;
   border: none;
   padding: 5px 12px;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-caption);
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nueva-task-plantilla-apply:hover {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
 }
 
-.na-plantilla-apply:hover {
-  background-color: rgba(51, 255, 153, 0.08);
-  color: var(--aurora-green);
-}
-
-.na-plantilla-delete {
+.nueva-task-plantilla-delete {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 26px;
   background: transparent;
   border: none;
-  border-left: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-  opacity: 0.45;
+  border-left: 1px solid var(--aur-divider);
+  color: var(--aur-text-3);
   cursor: pointer;
-  transition: color 0.2s, opacity 0.2s;
-  padding: 0;
+  font-family: inherit;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.nueva-task-plantilla-delete:hover {
+  color: var(--aur-danger);
+  background: var(--aur-danger-tint);
 }
 
-.na-plantilla-delete:hover {
-  color: var(--aurora-magenta);
-  opacity: 1;
+/* ── Form actions: slim sobre aur-form-actions ────────────────────────── */
+
+/* Override de aur-form-actions: alinea el "Guardar plantilla" a la
+   izquierda y los acciones primaria/secundaria a la derecha mediante
+   spacer. aur-form-actions ya provee padding-top + border-top + gap. */
+.aur-form-actions.nueva-task-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
-/* Botón "Guardar como plantilla" */
-.btn-guardar-plantilla {
-  background: transparent;
-  border: 1.5px dashed var(--aurora-light);
-  border-radius: 8px;
-  color: var(--aurora-light);
-  padding: 10px 18px;
-  font-size: 0.9rem;
+.nueva-task-actions-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Slim sobre aur-chip aur-chip--ghost: el "Guardar como plantilla" ya
+   tiene dashed border (aur-chip--ghost). is-saved tiñe accent cuando
+   acaba de guardarse para feedback breve. */
+.aur-chip.nueva-task-save-tpl {
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  padding: 6px 14px;
 }
-
-.btn-guardar-plantilla:hover:not(:disabled) {
+.aur-chip.nueva-task-save-tpl.is-saved {
   border-style: solid;
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.06);
+  border-color: var(--aur-accent);
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
 }
 
-.btn-guardar-plantilla:disabled {
-  cursor: default;
-  opacity: 0.3;
-}
-
-.btn-guardar-plantilla.saved {
-  border-style: solid;
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.06);
+@media (max-width: 768px) {
+  /* En mobile el spacer desaparece y los botones primario/secundario
+     se reparten el ancho restante; el "Guardar plantilla" ocupa fila
+     completa arriba. */
+  .nueva-task-actions-spacer {
+    display: none;
+  }
+  .aur-chip.nueva-task-save-tpl {
+    width: 100%;
+    justify-content: center;
+  }
+  .aur-form-actions.nueva-task-actions .aur-btn-text,
+  .aur-form-actions.nueva-task-actions .aur-btn-pill {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -738,7 +654,6 @@
     padding: 12px 14px;
   }
 
-  /* dot: ocupa las 3 filas, centrado */
   .task-row__dot {
     grid-column: 1;
     grid-row: 1 / 4;
@@ -783,84 +698,9 @@
     padding-top: 1px;
   }
 
-  /* kebab: ocupa las 3 filas, columna extrema */
   .task-kebab-menu {
     grid-column: 4;
     grid-row: 1 / 4;
     align-self: center;
-  }
-
-  .nueva-aplicacion-panel {
-    padding: 16px;
-  }
-
-  .na-main-layout {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .na-right-col {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid var(--aurora-border);
-    padding-left: 0;
-    padding-top: 16px;
-  }
-
-  .na-left-col,
-  .na-form-grid,
-  .na-form-grid .form-group {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .na-form-grid input,
-  .na-form-grid select {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-  }
-
-  .na-form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .na-productos-table {
-    table-layout: fixed;
-    width: 100%;
-  }
-
-  .na-productos-table th,
-  .na-productos-table td {
-    overflow-wrap: anywhere;
-    padding: 8px 6px;
-  }
-
-  .na-qty-input {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-  }
-
-  .na-form-actions-spacer {
-    display: none;
-  }
-
-  .btn-guardar-plantilla {
-    width: 100%;
-  }
-
-  .na-form-actions .btn-secondary,
-  .na-form-actions .btn-primary {
-    flex: 1 1 0;
-    min-width: 0;
-    width: auto;
-  }
-}
-
-/* Pantallas muy angostas (≤420px): el form grid colapsa a una sola columna */
-@media (max-width: 420px) {
-  .na-form-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
