@@ -29,6 +29,8 @@
   flex-direction: column;
 }
 
+/* .app-header shell — conservamos el classname (no aur-*) porque
+   cedula-viewer.css lo referencia en @media print { display:none !important }. */
 .app-header {
   position: fixed;
   top: 0;
@@ -41,31 +43,29 @@
   gap: 14px;
   padding: 0 16px;
   background-color: var(--aurora-dark-blue);
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
 }
 
-.app-header-menu-btn {
-  flex-shrink: 0;
+/* aur-icon-btn ya provee bg/color/transitions/focus; aquí sólo afinamos a
+   34px (vs 30px default) para alinear con la altura 62px del header. */
+.aur-header-menu-btn,
+.aur-header-search-toggle,
+.aur-header-search-back {
   width: 34px;
   height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  cursor: pointer;
   border-radius: 6px;
-  transition: opacity 0.2s, background 0.2s;
+  flex-shrink: 0;
 }
 
-.app-header-menu-btn:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.07);
+/* Toggle/back ocultos en todas las viewports: el flag mobile-search-open
+   existe en JSX pero ninguna media query actualmente los muestra. Se preserva
+   el comportamiento previo a la migración. */
+.aur-header-search-back,
+.aur-header-search-toggle {
+  display: none;
 }
 
-.app-header-brand {
+.aur-header-brand {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -74,22 +74,23 @@
   cursor: pointer;
 }
 
-.app-header-logo {
+.aur-header-brand-logo {
   width: 38px;
   height: 38px;
   object-fit: contain;
   border-radius: 50%;
 }
 
-.app-header-name {
-  font-size: 1.15rem;
+.aur-header-brand-name {
+  font-size: var(--aur-fs-callout);
   font-weight: 700;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   letter-spacing: 1px;
   white-space: nowrap;
 }
 
-.app-header-search {
+/* Wrapper centrado del search en desktop. */
+.aur-header-search {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -99,104 +100,85 @@
   max-width: 760px;
 }
 
-/* ── Header search toggle & back (mobile only) ───────────────────────────── */
-.app-header-search-toggle {
-  display: none; /* hidden on desktop */
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.7;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: opacity 0.2s, background 0.2s;
-}
-
-.app-header-search-toggle:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.app-header-search-back {
-  display: none; /* shown only in mobile-search-open */
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.75;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: opacity 0.2s;
-}
-
-.app-header-search-back:hover { opacity: 1; }
-
-/* ── Header profile button ───────────────────────────────────────────────── */
-.app-header-profile-btn {
+/* Profile pill — chrome de header con icono+nombre+counter anchored.
+   No usa aur-btn-pill porque éste es para CTA primario; aquí es chrome. */
+.aur-header-profile-btn {
   position: relative;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--aurora-border);
-  border-radius: 20px;
-  color: var(--aurora-light);
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-pill);
+  color: var(--aur-text);
   padding: 5px 12px 5px 9px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-family: inherit;
+  font-size: var(--aur-fs-footnote);
   font-weight: 500;
   white-space: nowrap;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.aur-header-profile-btn:hover {
+  background: var(--aur-bg-strong);
+  border-color: var(--aur-divider-3);
+}
+.aur-header-profile-btn.is-active {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+  border-color: var(--aur-accent-tint-3);
 }
 
-.app-header-profile-badge {
+.aur-header-profile-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* aur-icon-btn(--success) ya da bg/color/transitions/hover; aquí sólo afinamos
+   a 34px circular con bg var(--aur-bg-hover) (vs transparent default) para que
+   el botón sea visible sobre el header opaco. position:relative para que el
+   counter absolute se anchore al botón. */
+.aur-header-autopilot-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+}
+.aur-header-autopilot-btn:hover:not(:disabled) {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-3);
+}
+.aur-header-autopilot-btn.is-active {
+  background: var(--aur-accent-tint-2);
+  border-color: var(--aur-accent-tint-3);
+}
+
+/* Counter badge anchored sobre autopilot/profile. aur-badge--{magenta,yellow}
+   ya provee bg/fg/tabular-nums; aquí sólo damos posición + borde grueso para
+   "recortar" el badge contra el header opaco. */
+.aur-header-counter {
   position: absolute;
   top: -4px;
   right: -4px;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: #ff4d4f;
-  color: #fff;
   border: 2px solid var(--aurora-dark-blue);
-  border-radius: 9px;
   font-size: 0.65rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
   line-height: 1;
 }
 
-.app-header-profile-btn:hover {
-  background: rgba(255, 255, 255, 0.11);
-  border-color: rgba(230, 242, 255, 0.3);
-}
-
-.app-header-profile-name {
-  max-width: 110px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Al sacar el search del flujo flex (desktop), empujamos al primer botón visible
-   del lado derecho hacia el borde. Si autopilot está presente, solo él lleva
-   margin-left:auto; si no, lo lleva profile. */
-.app-header-autopilot-btn,
-.app-header-profile-btn {
+/* Si autopilot está presente, sólo él lleva margin-left:auto; si no,
+   lo lleva profile. */
+.aur-header-autopilot-btn,
+.aur-header-profile-btn {
   margin-left: auto;
 }
-.app-header-autopilot-btn ~ .app-header-profile-btn {
+.aur-header-autopilot-btn ~ .aur-header-profile-btn {
   margin-left: 0;
 }
 
@@ -234,98 +216,31 @@
   white-space: nowrap;
 }
 
-.main-search-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  transition: border-color 0.2s;
-}
-
-.main-search-bar:focus-within {
-  border-color: var(--aurora-green);
-}
-
-.main-search-icon {
-  font-size: 1rem;
-  opacity: 0.5;
-  flex-shrink: 0;
-}
-
-.main-search-bar input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 0.95rem;
-  color: var(--aurora-light);
-}
-
-.main-search-bar input::placeholder {
-  color: var(--aurora-light);
-  opacity: 0.4;
-}
-
-.main-search-wrapper {
+/* Slim sobre aur-combo-input-wrap: ocupa el ancho del .aur-header-search wrapper
+   (vs min-width:180px default), y position:relative para anchorar el dropdown. */
+.aur-header-search-wrap {
+  width: 100%;
   position: relative;
-  flex: 1;
+  min-width: 0;
 }
 
-.search-dropdown {
-  position: absolute;
+/* Slim sobre aur-combo-dropdown: alineado al ancho del input wrap (vs
+   min-width:240px default que lo haría desbordar en pantallas estrechas). */
+.aur-header-search-dropdown {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  overflow: hidden;
-  z-index: 1000;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 0;
+  max-height: 320px;
 }
 
-.search-result-item {
-  display: flex;
+/* Slim sobre aur-combo-option: layout horizontal label+badge en lugar
+   de columna (default de aur-combo-option es flex-direction:column). */
+.aur-header-search-option {
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  width: 100%;
-  padding: 11px 16px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 0.15s;
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-}
-
-.search-result-item:hover,
-.search-result-item--active {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.search-result-label {
-  font-size: 0.95rem;
-}
-
-.search-result-tag {
-  font-size: 0.72rem;
-  color: #8aab3c;
-  background-color: rgba(138, 171, 60, 0.12);
-  border: 1px solid rgba(138, 171, 60, 0.25);
-  border-radius: 4px;
-  padding: 2px 7px;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .page-content {
@@ -378,11 +293,11 @@
   }
 
   /* ── Elementos del header ── */
-  .app-header-menu-btn { display: none; }
-  .app-header-name     { display: none; }
+  .aur-header-menu-btn   { display: none; }
+  .aur-header-brand-name { display: none; }
 
   /* Barra de búsqueda siempre visible, ocupa el espacio libre */
-  .app-header-search {
+  .aur-header-search {
     position: static;
     transform: none;
     display: flex;
@@ -395,29 +310,19 @@
   }
 
   /* En mobile los botones del header vuelven a su flujo flex normal */
-  .app-header-autopilot-btn,
-  .app-header-profile-btn {
+  .aur-header-autopilot-btn,
+  .aur-header-profile-btn {
     margin-left: 0;
   }
-  .app-header-search-back   { display: none; }
-  .app-header-search-toggle { display: none; }
-  .main-search-bar          { flex: 1; min-width: 0; }
-  .main-search-bar input    { min-width: 0; }
 
-  .app-header-profile-name { display: none; }
-  .app-header-profile-btn {
+  .aur-header-profile-name { display: none; }
+  .aur-header-profile-btn {
     padding: 6px 8px;
     border-radius: 50%;
   }
 
   .main-header { flex-wrap: wrap; }
   .main-header h1 { font-size: 1.5rem; }
-  .main-header .main-search-bar { flex-basis: 100%; }
-}
-
-@keyframes mobileSearchIn {
-  from { opacity: 0; transform: translateX(16px); }
-  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* ── Push notification prompt ─────────────────────────────────────────────── */
@@ -551,12 +456,6 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-/* active state for the profile button */
-.app-header-profile-btn.active {
-  background: rgba(51, 255, 153, 0.1);
-  color: var(--aurora-green);
 }
 
 @media (max-width: 768px) {
