@@ -203,7 +203,7 @@ export default function MobileNav() {
           <div className="mn-sheet-handle" />
           <div className="mn-sheet-header">
             <span className="mn-sheet-title">{sheetTitles[sheet]}</span>
-            <button className="mn-sheet-close" onClick={() => setSheet(null)}><FiX size={18} /></button>
+            <button className="aur-icon-btn" onClick={() => setSheet(null)} title="Cerrar"><FiX size={18} /></button>
           </div>
           <div className="mn-sheet-body">
             {sheet === 'favoritos' && <FavoritosSheet />}
