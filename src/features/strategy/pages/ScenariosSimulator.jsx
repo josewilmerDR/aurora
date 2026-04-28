@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { FiGitBranch, FiCpu, FiRefreshCw, FiEye, FiX } from 'react-icons/fi';
+import {
+  FiGitBranch, FiCpu, FiRefreshCw, FiEye, FiX, FiSliders, FiList,
+  FiBarChart2, FiActivity,
+} from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
-// Paletas por escenario para consistencia visual.
+// Paletas por escenario para consistencia visual. Pesimista usa amber
+// (--aur-warn) en lugar de un rojo arbitrario; Base preserva magenta como
+// línea baseline brand-specific; Optimista usa verde Aurora.
 const SCENARIO_STYLE = {
-  Pesimista: { color: '#ff8080', badge: 'temporada-badge--archived' },
-  Base: { color: 'var(--aurora-magenta)', badge: 'temporada-badge--auto' },
-  Optimista: { color: 'var(--aurora-green)', badge: 'temporada-badge--manual' },
+  Pesimista: { color: 'var(--aur-warn)',       badge: 'aur-badge--yellow' },
+  Base:      { color: 'var(--aurora-magenta)', badge: 'aur-badge--violet' },
+  Optimista: { color: 'var(--aur-accent)',     badge: 'aur-badge--green' },
 };
 
 function fmtN(n) {
@@ -27,7 +32,7 @@ function fmtTs(ts) {
 
 // Mini-gráfico SVG de la proyección de caja mensual. Mantiene el patrón
 // "sin Chart.js" del resto de la app.
-function CashSparkline({ series, horizonteMeses, highlightIdx = -1 }) {
+function CashSparkline({ series, horizonteMeses }) {
   if (!Array.isArray(series) || series.length === 0) return null;
   const rows = series.filter(s => Array.isArray(s.data) && s.data.length > 0);
   if (rows.length === 0) return null;
@@ -40,12 +45,15 @@ function CashSparkline({ series, horizonteMeses, highlightIdx = -1 }) {
   const y = v => height - pad - ((v - min) / span) * (height - 2 * pad);
 
   return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
-      {/* Eje cero */}
+    <svg className="strategy-sparkline" width="100%" viewBox={`0 0 ${width} ${height}`}>
       {min < 0 && max > 0 && (
-        <line x1={pad} x2={width - pad} y1={y(0)} y2={y(0)} stroke="var(--aurora-border)" strokeDasharray="3 3" />
+        <line
+          x1={pad} x2={width - pad}
+          y1={y(0)} y2={y(0)}
+          stroke="var(--aur-divider-2)"
+          strokeDasharray="3 3"
+        />
       )}
-      {/* Series */}
       {rows.map((row, rIdx) => {
         const pts = row.data.map((v, i) => `${pad + i * xStep},${y(v)}`).join(' ');
         return (
@@ -71,7 +79,6 @@ function ScenariosSimulator() {
   const [detail, setDetail] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // Parámetros de la corrida.
   const [name, setName] = useState('');
   const [horizonteMeses, setHorizonteMeses] = useState(12);
   const [nTrials, setNTrials] = useState(500);
@@ -117,86 +124,154 @@ function ScenariosSimulator() {
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2><FiGitBranch /> Escenarios What-if</h2>
-      </div>
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title"><FiGitBranch /> Escenarios What-if</h2>
+          <p className="aur-sheet-subtitle">
+            Genera 3 escenarios anuales (Pesimista / Base / Optimista) con Monte Carlo sobre el rendimiento
+            histórico, la tesorería actual y los compromisos conocidos. Claude sintetiza trade-offs y sugiere
+            prioridad.
+          </p>
+        </div>
+        <div className="aur-sheet-header-actions">
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            onClick={load}
+            disabled={loading}
+          >
+            <FiRefreshCw size={14} /> Refrescar
+          </button>
+        </div>
+      </header>
 
-      <p className="strategy-empty" style={{ padding: 0, textAlign: 'left', marginBottom: 14 }}>
-        Genera 3 escenarios anuales (Pesimista / Base / Optimista) con Monte Carlo sobre el rendimiento histórico,
-        la tesorería actual y los compromisos conocidos. Claude sintetiza trade-offs y sugiere prioridad.
-      </p>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiSliders size={14} /></span>
+          <h3 className="aur-section-title">Nueva simulación</h3>
+        </div>
+        <div className="aur-list">
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="ss-name">Nombre</label>
+            <div className="aur-field">
+              <input
+                id="ss-name"
+                type="text"
+                className="aur-input"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Plan 2026-Q1"
+              />
+              <p className="aur-field-hint">Opcional. Se autogenera si lo dejas vacío.</p>
+            </div>
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="ss-horizonte">Horizonte (meses)</label>
+            <div className="aur-field">
+              <input
+                id="ss-horizonte"
+                type="number"
+                min={1}
+                max={24}
+                className="aur-input aur-input--num"
+                value={horizonteMeses}
+                onChange={e => setHorizonteMeses(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="ss-trials">Nº de trials</label>
+            <div className="aur-field">
+              <input
+                id="ss-trials"
+                type="number"
+                min={10}
+                max={5000}
+                className="aur-input aur-input--num"
+                value={nTrials}
+                onChange={e => setNTrials(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="ss-seed">Semilla</label>
+            <div className="aur-field">
+              <input
+                id="ss-seed"
+                type="number"
+                className="aur-input aur-input--num"
+                value={seed}
+                onChange={e => setSeed(e.target.value)}
+                placeholder="aleatoria"
+              />
+              <p className="aur-field-hint">Opcional. Reproducibilidad para auditoría.</p>
+            </div>
+          </div>
+        </div>
+        <div className="aur-form-actions">
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            onClick={runSimulate}
+            disabled={running}
+          >
+            <FiCpu size={14} /> {running ? 'Simulando…' : 'Simular'}
+          </button>
+        </div>
+      </section>
 
-      {/* ── Generador ─────────────────────────────────────────────── */}
-      <div className="strategy-filters">
-        <div className="strategy-field" style={{ minWidth: 220 }}>
-          <label>Nombre (opcional)</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Plan 2026-Q1" />
-        </div>
-        <div className="strategy-field">
-          <label>Horizonte (meses)</label>
-          <input type="number" min={1} max={24} value={horizonteMeses} onChange={e => setHorizonteMeses(e.target.value)} />
-        </div>
-        <div className="strategy-field">
-          <label>Nº de trials</label>
-          <input type="number" min={10} max={5000} value={nTrials} onChange={e => setNTrials(e.target.value)} />
-        </div>
-        <div className="strategy-field">
-          <label>Semilla (opcional)</label>
-          <input type="number" value={seed} onChange={e => setSeed(e.target.value)} placeholder="aleatoria" />
-        </div>
-        <button className="primary-button" onClick={runSimulate} disabled={running}>
-          <FiCpu /> {running ? 'Simulando…' : 'Simular'}
-        </button>
-        <button className="primary-button" onClick={load} disabled={loading}>
-          <FiRefreshCw /> Refrescar
-        </button>
-      </div>
-
-      {/* ── Detalle seleccionado ─────────────────────────────────── */}
       {detail && <ScenarioDetail detail={detail} onClose={() => setDetail(null)} />}
 
-      {/* ── Historial ────────────────────────────────────────────── */}
-      <h3 style={{ margin: '18px 0 10px', fontSize: 14, opacity: 0.75 }}>
-        Corridas previas ({runs.length})
-      </h3>
-      {loading ? (
-        <div className="strategy-empty">Cargando…</div>
-      ) : runs.length === 0 ? (
-        <div className="strategy-empty">Todavía no has corrido ninguna simulación.</div>
-      ) : (
-        <div className="temporadas-list">
-          {runs.map(r => (
-            <div key={r.id} className="temporada-card">
-              <div>
-                <div className="temporada-card-header">
-                  <span className="temporada-name">{r.name}</span>
-                  <span className="temporada-badge temporada-badge--auto">{r.nTrials} trials</span>
-                  <span className="temporada-badge temporada-badge--manual">{r.horizonteMeses}m</span>
-                </div>
-                <div className="temporada-range">
-                  {fmtTs(r.createdAt)} · seed {r.seed} · margen mediano {fmtN(r.resumen?.margenMedio)}
-                </div>
-                {r.claudeAnalysis?.recomendacion?.escenarioPreferido && (
-                  <div className="temporada-meta">
-                    Claude recomienda: <strong>{r.claudeAnalysis.recomendacion.escenarioPreferido}</strong>
-                  </div>
-                )}
-                {r.warnings?.length > 0 && (
-                  <div className="temporada-meta" style={{ color: '#e0b000' }}>
-                    {r.warnings.length} warning(s) — ver detalle
-                  </div>
-                )}
-              </div>
-              <div className="temporada-actions">
-                <button className="primary-button" onClick={() => setDetail(r)}>
-                  <FiEye /> Ver
-                </button>
-              </div>
-            </div>
-          ))}
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiList size={14} /></span>
+          <h3 className="aur-section-title">Corridas previas</h3>
+          {runs.length > 0 && <span className="aur-section-count">{runs.length}</span>}
         </div>
-      )}
+
+        {loading ? (
+          <p className="strategy-empty">Cargando…</p>
+        ) : runs.length === 0 ? (
+          <p className="strategy-empty">Todavía no has corrido ninguna simulación.</p>
+        ) : (
+          <div className="aur-list">
+            {runs.map(r => (
+              <div key={r.id} className="aur-row strategy-item-row">
+                <div className="strategy-item-info">
+                  <div className="strategy-item-head">
+                    <span className="strategy-item-title">{r.name}</span>
+                    <span className="aur-badge aur-badge--violet">{r.nTrials} trials</span>
+                    <span className="aur-badge aur-badge--blue">{r.horizonteMeses}m</span>
+                  </div>
+                  <div className="strategy-item-sub">
+                    {fmtTs(r.createdAt)} · seed {r.seed} · margen mediano {fmtN(r.resumen?.margenMedio)}
+                  </div>
+                  {r.claudeAnalysis?.recomendacion?.escenarioPreferido && (
+                    <div className="strategy-item-meta">
+                      Claude recomienda: <strong>{r.claudeAnalysis.recomendacion.escenarioPreferido}</strong>
+                    </div>
+                  )}
+                  {r.warnings?.length > 0 && (
+                    <div className="strategy-item-meta strategy-num--warn">
+                      {r.warnings.length} warning(s) — ver detalle
+                    </div>
+                  )}
+                </div>
+                <div className="strategy-item-actions">
+                  <button
+                    type="button"
+                    className="aur-btn-pill aur-btn-pill--sm"
+                    onClick={() => setDetail(r)}
+                  >
+                    <FiEye size={14} /> Ver
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
     </div>
@@ -214,148 +289,141 @@ function ScenarioDetail({ detail, onClose }) {
       highlight: true,
     })),
     ...(detail.trialsAggregate?.cashByMonthMedian
-      ? [{ name: 'Mediana global', data: detail.trialsAggregate.cashByMonthMedian, color: 'var(--aurora-light)', highlight: false }]
+      ? [{ name: 'Mediana global', data: detail.trialsAggregate.cashByMonthMedian, color: 'var(--aur-text)', highlight: false }]
       : []
     ),
   ]), [detail, scenarios]);
 
   return (
-    <div className="temporada-card" style={{ gridTemplateColumns: '1fr', marginBottom: 18 }}>
-      <div>
-        <div className="temporada-card-header" style={{ justifyContent: 'space-between' }}>
-          <div>
-            <span className="temporada-name">{detail.name || 'Simulación'}</span>
-            <span className="temporada-meta" style={{ marginLeft: 10 }}>
-              {detail.nTrials} trials · seed {detail.seed}
-            </span>
-          </div>
-          <button className="primary-button" onClick={onClose}>
-            <FiX /> Cerrar
+    <section className="aur-section">
+      <div className="aur-section-header">
+        <span className="aur-section-num"><FiBarChart2 size={14} /></span>
+        <h3 className="aur-section-title">{detail.name || 'Simulación'}</h3>
+        <div className="aur-section-actions">
+          <span className="strategy-meta-text">
+            {detail.nTrials} trials · seed {detail.seed}
+          </span>
+          <button
+            type="button"
+            className="aur-icon-btn aur-icon-btn--sm"
+            onClick={onClose}
+            title="Cerrar"
+          >
+            <FiX size={14} />
           </button>
         </div>
+      </div>
 
-        {detail.warnings?.length > 0 && (
-          <div className="temporada-meta" style={{ marginTop: 8, color: '#e0b000' }}>
-            Warnings: {detail.warnings.join(' · ')}
-          </div>
-        )}
-
-        {/* KPIs globales */}
-        <div className="strategy-kpis" style={{ marginTop: 12 }}>
-          <div className="strategy-kpi">
-            <span className="strategy-kpi-label">Ingreso mediano</span>
-            <span className="strategy-kpi-value">{fmtN(detail.resumen?.ingresoMedio)}</span>
-          </div>
-          <div className="strategy-kpi">
-            <span className="strategy-kpi-label">Costo mediano</span>
-            <span className="strategy-kpi-value">{fmtN(detail.resumen?.costoMedio)}</span>
-          </div>
-          <div className="strategy-kpi">
-            <span className="strategy-kpi-label">Margen mediano</span>
-            <span className={`strategy-kpi-value ${detail.resumen?.margenMedio < 0 ? 'strategy-kpi-value--neg' : 'strategy-kpi-value--pos'}`}>
-              {fmtN(detail.resumen?.margenMedio)}
-            </span>
-          </div>
-          <div className="strategy-kpi">
-            <span className="strategy-kpi-label">Caja final mediana</span>
-            <span className={`strategy-kpi-value ${detail.resumen?.cajaFinalMedia < 0 ? 'strategy-kpi-value--neg' : ''}`}>
-              {fmtN(detail.resumen?.cajaFinalMedia)}
-            </span>
-          </div>
+      {detail.warnings?.length > 0 && (
+        <div className="aur-banner aur-banner--warn">
+          <FiActivity size={14} />
+          <div>Warnings: {detail.warnings.join(' · ')}</div>
         </div>
+      )}
 
-        {/* Chart */}
-        <div style={{ marginTop: 12, background: 'var(--aurora-dark-blue)', border: '1px solid var(--aurora-border)', borderRadius: 10, padding: 10 }}>
-          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
-            Proyección de caja (mediana mensual por escenario)
-          </div>
-          <CashSparkline series={sparkSeries} horizonteMeses={horizonteMeses} />
-          <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 11, flexWrap: 'wrap' }}>
-            {sparkSeries.map(s => (
-              <span key={s.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ display: 'inline-block', width: 12, height: 3, background: s.color }} />
-                {s.name}
-              </span>
-            ))}
-          </div>
+      <div className="strategy-kpis">
+        <div className="strategy-kpi">
+          <span className="strategy-kpi-label">Ingreso mediano</span>
+          <span className="strategy-kpi-value">{fmtN(detail.resumen?.ingresoMedio)}</span>
         </div>
+        <div className="strategy-kpi">
+          <span className="strategy-kpi-label">Costo mediano</span>
+          <span className="strategy-kpi-value">{fmtN(detail.resumen?.costoMedio)}</span>
+        </div>
+        <div className="strategy-kpi">
+          <span className="strategy-kpi-label">Margen mediano</span>
+          <span className={`strategy-kpi-value ${detail.resumen?.margenMedio < 0 ? 'strategy-kpi-value--neg' : 'strategy-kpi-value--pos'}`}>
+            {fmtN(detail.resumen?.margenMedio)}
+          </span>
+        </div>
+        <div className="strategy-kpi">
+          <span className="strategy-kpi-label">Caja final mediana</span>
+          <span className={`strategy-kpi-value ${detail.resumen?.cajaFinalMedia < 0 ? 'strategy-kpi-value--neg' : ''}`}>
+            {fmtN(detail.resumen?.cajaFinalMedia)}
+          </span>
+        </div>
+      </div>
 
-        {/* Escenarios */}
-        <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
-          {scenarios.map(s => (
-            <div key={s.name} className="temporada-proposal" style={{ gridTemplateColumns: '1fr' }}>
-              <div>
-                <div className="temporada-card-header">
-                  <span className="temporada-name" style={{ color: SCENARIO_STYLE[s.name]?.color }}>{s.name}</span>
-                  <span className={`temporada-badge ${SCENARIO_STYLE[s.name]?.badge || ''}`}>
-                    Prob. {fmtPct(s.probabilidad)}
-                  </span>
-                </div>
-                <div className="temporada-range">
-                  Ingreso {fmtN(s.ingresoProyectado)} · Costo {fmtN(s.costoProyectado)} · Margen {fmtN(s.margenProyectado)}
-                </div>
-                <div className="temporada-meta">
-                  Caja final p10/p50/p90: {fmtN(s.percentiles?.cajaFinal?.p10)} / {fmtN(s.percentiles?.cajaFinal?.p50)} / {fmtN(s.percentiles?.cajaFinal?.p90)}
-                </div>
-                {s.riesgos?.length > 0 && (
-                  <div className="temporada-meta" style={{ marginTop: 4, color: '#ff8080' }}>
-                    Riesgos: {s.riesgos.join(' · ')}
-                  </div>
-                )}
-                {s.supuestos?.length > 0 && (
-                  <details style={{ marginTop: 4 }}>
-                    <summary style={{ cursor: 'pointer', fontSize: 11, opacity: 0.6 }}>Supuestos</summary>
-                    <ul style={{ marginTop: 6, fontSize: 12 }}>
-                      {s.supuestos.map((sup, i) => <li key={i}>{sup}</li>)}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            </div>
+      <div className="strategy-chart">
+        <div className="strategy-chart-title">Proyección de caja (mediana mensual por escenario)</div>
+        <CashSparkline series={sparkSeries} horizonteMeses={horizonteMeses} />
+        <div className="strategy-chart-legend">
+          {sparkSeries.map(s => (
+            <span key={s.name} className="strategy-chart-legend-item">
+              <span className="strategy-chart-swatch" style={{ background: s.color }} />
+              {s.name}
+            </span>
           ))}
         </div>
+      </div>
 
-        {/* Análisis de Claude */}
-        {detail.claudeAnalysis && !detail.claudeAnalysis.error && (
-          <div style={{ marginTop: 14, padding: 12, background: 'var(--aurora-dark-blue)', border: '1px solid var(--aurora-border)', borderRadius: 10 }}>
-            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Análisis estratégico (Claude)</div>
-            <div>{detail.claudeAnalysis.comentario}</div>
-            {detail.claudeAnalysis.recomendacion && (
-              <div style={{ marginTop: 8 }}>
-                <strong>Recomendación:</strong> {detail.claudeAnalysis.recomendacion.escenarioPreferido}
-                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
-                  {detail.claudeAnalysis.recomendacion.razon}
-                </div>
-                {detail.claudeAnalysis.recomendacion.accionesSugeridas?.length > 0 && (
-                  <ul style={{ fontSize: 12, marginTop: 6 }}>
-                    {detail.claudeAnalysis.recomendacion.accionesSugeridas.map((a, i) => <li key={i}>{a}</li>)}
-                  </ul>
-                )}
+      <div className="strategy-proposals">
+        {scenarios.map(s => (
+          <div key={s.name} className="strategy-proposal">
+            <div className="strategy-item-head">
+              <span className="strategy-item-title">{s.name}</span>
+              <span className={`aur-badge ${SCENARIO_STYLE[s.name]?.badge || 'aur-badge--gray'}`}>
+                Prob. {fmtPct(s.probabilidad)}
+              </span>
+            </div>
+            <div className="strategy-item-sub">
+              Ingreso {fmtN(s.ingresoProyectado)} · Costo {fmtN(s.costoProyectado)} · Margen {fmtN(s.margenProyectado)}
+            </div>
+            <div className="strategy-item-meta">
+              Caja final p10/p50/p90: {fmtN(s.percentiles?.cajaFinal?.p10)} / {fmtN(s.percentiles?.cajaFinal?.p50)} / {fmtN(s.percentiles?.cajaFinal?.p90)}
+            </div>
+            {s.riesgos?.length > 0 && (
+              <div className="strategy-item-meta strategy-num--neg">
+                Riesgos: {s.riesgos.join(' · ')}
               </div>
             )}
-            {detail.claudeAnalysis.tradeOffs?.length > 0 && (
-              <details style={{ marginTop: 8 }}>
-                <summary style={{ cursor: 'pointer', fontSize: 12, opacity: 0.7 }}>Trade-offs</summary>
-                <ul style={{ fontSize: 12, marginTop: 6 }}>
-                  {detail.claudeAnalysis.tradeOffs.map((t, i) => <li key={i}>{t}</li>)}
+            {s.supuestos?.length > 0 && (
+              <details className="strategy-reasoning strategy-reasoning--inline">
+                <summary>Supuestos</summary>
+                <ul className="strategy-reasoning-list">
+                  {s.supuestos.map((sup, i) => <li key={i}>{sup}</li>)}
                 </ul>
               </details>
             )}
           </div>
-        )}
-
-        {detail.reasoning?.thinking && (
-          <details style={{ marginTop: 10 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, opacity: 0.7 }}>Razonamiento del modelo</summary>
-            <pre style={{
-              whiteSpace: 'pre-wrap', fontSize: 12, marginTop: 6,
-              padding: 10, background: 'var(--aurora-dark-blue)',
-              border: '1px solid var(--aurora-border)', borderRadius: 6,
-            }}>{detail.reasoning.thinking}</pre>
-          </details>
-        )}
+        ))}
       </div>
-    </div>
+
+      {detail.claudeAnalysis && !detail.claudeAnalysis.error && (
+        <div className="strategy-analysis">
+          <div className="strategy-analysis-label">Análisis estratégico (Claude)</div>
+          <div className="strategy-analysis-body">{detail.claudeAnalysis.comentario}</div>
+          {detail.claudeAnalysis.recomendacion && (
+            <div className="strategy-analysis-reco">
+              <strong>Recomendación:</strong> {detail.claudeAnalysis.recomendacion.escenarioPreferido}
+              <div className="strategy-item-meta">
+                {detail.claudeAnalysis.recomendacion.razon}
+              </div>
+              {detail.claudeAnalysis.recomendacion.accionesSugeridas?.length > 0 && (
+                <ul className="strategy-reasoning-list">
+                  {detail.claudeAnalysis.recomendacion.accionesSugeridas.map((a, i) => <li key={i}>{a}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+          {detail.claudeAnalysis.tradeOffs?.length > 0 && (
+            <details className="strategy-reasoning strategy-reasoning--inline">
+              <summary>Trade-offs</summary>
+              <ul className="strategy-reasoning-list">
+                {detail.claudeAnalysis.tradeOffs.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {detail.reasoning?.thinking && (
+        <details className="strategy-reasoning">
+          <summary>Razonamiento del modelo</summary>
+          <pre className="strategy-reasoning-pre">{detail.reasoning.thinking}</pre>
+        </details>
+      )}
+    </section>
   );
 }
 

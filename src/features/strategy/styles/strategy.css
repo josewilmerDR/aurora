@@ -204,6 +204,194 @@
   gap: 6px;
 }
 
+/* `strategy-num--warn` añade el tono amber del sistema sobre celdas/notas
+   donde la severidad es "warn" en vez de "block" (e.g., guardrail soft, run
+   warnings). Equivalente warn de strategy-num--neg. */
+.strategy-num--warn { color: var(--aur-warn); }
+
+/* ── Card compleja (recomendaciones / corridas con bloque interno) ──────
+   Patrón equivalente a `ap-action-card` de autopilot: contenedor independiente
+   con header + body + actions. Útil cuando un item tiene contenido interno
+   demasiado denso para `aur-row strategy-item-row` (sub-listas, banners,
+   reasoning details). Reusa tokens; `strategy-card--<status>` tiñe el border
+   izquierdo con semántica del flujo. */
+.strategy-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.strategy-card {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-left-width: 3px;
+  border-left-color: var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  overflow: hidden;
+}
+.strategy-card--issued      { border-left-color: var(--aur-accent); }
+.strategy-card--executed    { border-left-color: var(--aur-accent); opacity: 0.85; }
+.strategy-card--failed      { border-left-color: var(--aur-danger); }
+.strategy-card--rejected    { border-left-color: var(--aur-divider); opacity: 0.55; }
+.strategy-card--rolled_back { border-left-color: var(--aur-divider); opacity: 0.55; }
+
+.strategy-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--aur-divider);
+}
+.strategy-card-title {
+  font-size: var(--aur-fs-body);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.strategy-card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.strategy-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px solid var(--aur-divider);
+}
+.strategy-card-quote {
+  font-style: italic;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  border-left: 2px solid var(--aur-divider-2);
+  padding-left: 10px;
+}
+
+/* Lista de propuestas / escenarios anidados dentro de una `strategy-card`
+   o de un detalle en `aur-section`. Cada `strategy-proposal` es un sub-card
+   más sutil que la card principal. */
+.strategy-proposals {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.strategy-proposal {
+  background: var(--aur-bg);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  padding: 10px 12px;
+}
+
+/* `<details>` con el resumen del razonamiento del modelo y `<pre>` con el
+   thinking serializado. `strategy-reasoning--inline` afina el espaciado para
+   cuando vive anidado dentro de otra card. */
+.strategy-reasoning {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+.strategy-reasoning > summary {
+  cursor: pointer;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  user-select: none;
+}
+.strategy-reasoning > summary:hover {
+  color: var(--aur-text-2);
+}
+.strategy-reasoning--inline {
+  margin: 0;
+}
+.strategy-reasoning-pre {
+  white-space: pre-wrap;
+  font-size: var(--aur-fs-caption);
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--aur-bg);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  color: var(--aur-text-2);
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.strategy-reasoning-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+.strategy-reasoning-list li { margin: 2px 0; }
+
+/* Bloque del análisis estratégico de Claude — una mini-card sutil con
+   título y body. Tipográficamente coherente con strategy-proposal. */
+.strategy-analysis {
+  background: var(--aur-bg);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.strategy-analysis-label {
+  font-size: var(--aur-fs-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aur-text-3);
+  font-weight: 700;
+}
+.strategy-analysis-body {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  line-height: 1.5;
+}
+.strategy-analysis-reco {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+}
+
+/* Wrapper para el SVG sparkline + título + leyenda. SVG coloreado en
+   inline (--aur-warn / --aur-accent / --aurora-magenta brand-baseline). */
+.strategy-chart {
+  background: var(--aur-bg);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 10px 12px;
+}
+.strategy-chart-title {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  margin-bottom: 4px;
+}
+.strategy-sparkline { display: block; }
+.strategy-chart-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: var(--aur-fs-caption);
+  flex-wrap: wrap;
+  color: var(--aur-text-2);
+}
+.strategy-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.strategy-chart-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 1px;
+}
+
+/* Padding del field cuando vive dentro de AuroraConfirmModal — el modal ya
+   provee su propio padding/gap; aquí sólo separamos vertical el textarea
+   del body del modal. */
+.strategy-reject-field {
+  margin-top: 8px;
+}
+
 .strategy-empty {
   text-align: center;
   padding: 32px;
@@ -288,21 +476,10 @@
   color: var(--aurora-light);
 }
 
-.temporada-range {
-  font-size: 12px;
-  color: var(--aurora-light);
-  opacity: 0.7;
-}
-
 .temporada-meta {
   font-size: 11px;
   color: var(--aurora-light);
   opacity: 0.55;
-}
-
-.temporada-actions {
-  display: flex;
-  gap: 6px;
 }
 
 .temporada-badge {
@@ -318,25 +495,4 @@
 .temporada-badge--auto   { background: rgba(204, 51, 255, 0.15); color: var(--aurora-magenta); }
 .temporada-badge--manual { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
 .temporada-badge--archived { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
-
-.temporada-proposal-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.temporada-proposal {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.temporada-proposal--existing {
-  opacity: 0.55;
-}
 
