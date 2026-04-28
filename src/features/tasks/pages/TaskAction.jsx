@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import {
+  FiArrowLeft, FiInfo, FiDroplet, FiSettings, FiCalendar, FiUser,
+  FiShoppingCart, FiFileText, FiCheck, FiAlertCircle, FiAlertTriangle, FiHome,
+} from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/task-action.css';
 
@@ -142,8 +146,22 @@ const TaskAction = () => {
 
   const today = localToday();
 
-  if (loading) return <div className="task-action-state">Cargando detalles de la tarea...</div>;
-  if (loadError || !task) return <div className="task-action-state error">Error: {loadError || 'Tarea no disponible.'}</div>;
+  if (loading) {
+    return (
+      <div className="task-action-page">
+        <div className="aur-page-loading" />
+      </div>
+    );
+  }
+  if (loadError || !task) {
+    return (
+      <div className="task-action-page">
+        <div className="task-action-state task-action-state--error">
+          <FiAlertCircle size={18} /> {loadError || 'Tarea no disponible.'}
+        </div>
+      </div>
+    );
+  }
 
   const isCompleted = task.status === 'completed_by_user';
   const isSolicitudCompra = task.type === 'SOLICITUD_COMPRA';
@@ -152,198 +170,253 @@ const TaskAction = () => {
   const loteHectareas = task.loteHectareas || 1;
 
   return (
-    <div className="task-action-wrapper">
-      <div className="task-action-card">
-        <button className="btn-back-nav" onClick={() => navigate('/tasks')}>
-          ← Volver a Seguimiento de Tareas
+    <div className="task-action-page">
+      <div className="aur-sheet task-action-sheet">
+        <button
+          type="button"
+          className="aur-btn-text task-action-back"
+          onClick={() => navigate('/tasks')}
+        >
+          <FiArrowLeft size={14} /> Volver a Seguimiento de Tareas
         </button>
-        <h1>Gestionar Tarea</h1>
 
-        <div className="task-info-grid">
-          <span className="task-info-label">Tarea</span>
-          <span className="task-info-value">{task.activityName}</span>
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">Gestionar tarea</h1>
+            <p className="aur-sheet-subtitle">{task.activityName}</p>
+          </div>
+        </header>
 
-          {!isSolicitudCompra && (
-            <>
-              <span className="task-info-label">Lote</span>
-              <span className="task-info-value">{task.loteName}</span>
-            </>
-          )}
+        {/* ── Información ─────────────────────────────────────────────── */}
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiInfo size={14} /></span>
+            <h3 className="aur-section-title">Información</h3>
+          </div>
+          <div className="aur-list">
+            <div className="aur-row task-action-info-row">
+              <div className="aur-row-label">Tarea</div>
+              <div className="task-action-info-value">{task.activityName}</div>
+            </div>
+            {!isSolicitudCompra && (
+              <div className="aur-row task-action-info-row">
+                <div className="aur-row-label">Lote</div>
+                <div className="task-action-info-value">{task.loteName}</div>
+              </div>
+            )}
+            <div className="aur-row task-action-info-row">
+              <div className="aur-row-label">Responsable</div>
+              <div className="task-action-info-value">{task.responsableName}</div>
+            </div>
+            <div className="aur-row task-action-info-row">
+              <div className="aur-row-label">Vencimiento</div>
+              <div className="task-action-info-value">
+                {new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+            <div className="aur-row task-action-info-row">
+              <div className="aur-row-label">Estado</div>
+              <div className="task-action-info-value">
+                <span className={`aur-badge ${isCompleted ? 'aur-badge--green' : 'aur-badge--yellow'}`}>
+                  {isCompleted ? 'Completada' : 'Pendiente'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-          <span className="task-info-label">Responsable</span>
-          <span className="task-info-value">{task.responsableName}</span>
-
-          <span className="task-info-label">Vencimiento</span>
-          <span className="task-info-value">
-            {new Date(task.dueDate).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
-
-          <span className="task-info-label">Estado</span>
-          <span className="task-info-value">
-            <span className={`task-status-badge-action ${isCompleted ? 'completed' : ''}`}>
-              {isCompleted ? 'Completada' : 'Pendiente'}
-            </span>
-          </span>
-        </div>
-
+        {/* ── Success message (reemplaza acciones cuando hay éxito) ───── */}
         {successMessage && (
-          <div className="success-message">
-            {successMessage}
-            <br />
-            <button className="btn-back" onClick={() => navigate('/')}>
-              Volver al Panel de Control
+          <div className="task-action-success" role="status">
+            <span className="task-action-success-icon"><FiCheck size={18} /></span>
+            <span>{successMessage}</span>
+            <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => navigate('/')}>
+              <FiHome size={14} /> Volver al panel
             </button>
           </div>
         )}
 
+        {/* ── Recipe panel: aplicación con productos ──────────────────── */}
         {isAplicacion && task.activity?.productos?.length > 0 && (() => {
           // Tarea ad-hoc: cantidad absoluta por producto (sin cantidadPorHa)
           const isAdHoc = task.activity.productos.every(p => p.cantidad !== undefined);
           return (
-            <div className="recipe-panel">
-              <h2 className="recipe-title">Instrucciones de Mezcla</h2>
-              {!isAdHoc && (
-                <p className="recipe-subtitle">
-                  Área del lote: <strong>{loteHectareas} ha</strong>
-                </p>
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <span className="aur-section-num"><FiDroplet size={14} /></span>
+                <h3 className="aur-section-title">Instrucciones de mezcla</h3>
+                {!isAdHoc && (
+                  <span className="aur-section-count">{loteHectareas} ha</span>
+                )}
+              </div>
+              <div className="aur-table-wrap">
+                <table className="aur-table">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      {!isAdHoc && <th className="aur-td-num">Dosis/Ha</th>}
+                      <th className="aur-td-num">Cantidad total</th>
+                      <th>Unidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {task.activity.productos.map(p => {
+                      const total = isAdHoc
+                        ? p.cantidad
+                        : (p.cantidadPorHa * loteHectareas).toFixed(2);
+                      return (
+                        <tr key={p.productoId}>
+                          <td>{p.nombreComercial}</td>
+                          {!isAdHoc && <td className="aur-td-num">{p.cantidadPorHa}</td>}
+                          <td className="aur-td-num task-action-recipe-total">{total}</td>
+                          <td>{p.unidad}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {(task.activity.productos.some(p => p.periodoReingreso > 0)
+                || task.activity.productos.some(p => p.periodoACosecha > 0)) && (
+                <div className="task-action-warnings">
+                  {task.activity.productos.some(p => p.periodoReingreso > 0) && (
+                    <span className="task-action-warning">
+                      <FiAlertTriangle size={13} /> Reingreso: {Math.max(...task.activity.productos.map(p => p.periodoReingreso || 0))} h
+                    </span>
+                  )}
+                  {task.activity.productos.some(p => p.periodoACosecha > 0) && (
+                    <span className="task-action-warning">
+                      <FiAlertTriangle size={13} /> Carencia: {Math.max(...task.activity.productos.map(p => p.periodoACosecha || 0))} días
+                    </span>
+                  )}
+                </div>
               )}
-              <table className="recipe-table">
+            </section>
+          );
+        })()}
+
+        {/* ── Solicitud de compra: productos solicitados ──────────────── */}
+        {isSolicitudCompra && task.activity?.productos?.length > 0 && (
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num"><FiShoppingCart size={14} /></span>
+              <h3 className="aur-section-title">Productos solicitados</h3>
+            </div>
+            {task.notas && (
+              <p className="task-action-notas">
+                Nota del bodeguero: <em>{task.notas}</em>
+              </p>
+            )}
+            <div className="aur-table-wrap">
+              <table className="aur-table">
                 <thead>
                   <tr>
                     <th>Producto</th>
-                    {!isAdHoc && <th>Dosis/Ha</th>}
-                    <th>Cantidad total</th>
-                    <th>Unidad</th>
+                    <th className="aur-td-num">Stock actual</th>
+                    <th className="aur-td-num">Cantidad solicitada</th>
                   </tr>
                 </thead>
                 <tbody>
                   {task.activity.productos.map(p => {
-                    const total = isAdHoc
-                      ? p.cantidad
-                      : (p.cantidadPorHa * loteHectareas).toFixed(2);
+                    const isLow = p.stockActual <= p.stockMinimo;
                     return (
                       <tr key={p.productoId}>
                         <td>{p.nombreComercial}</td>
-                        {!isAdHoc && <td>{p.cantidadPorHa}</td>}
-                        <td><strong>{total}</strong></td>
-                        <td>{p.unidad}</td>
+                        <td className={`aur-td-num${isLow ? ' task-action-stock-low' : ''}`}>
+                          {isLow && <FiAlertTriangle size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />}
+                          {p.stockActual} {p.unidad}
+                        </td>
+                        <td className="aur-td-num task-action-recipe-total">{p.cantidad} {p.unidad}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              <div className="recipe-warnings">
-                {task.activity.productos.some(p => p.periodoReingreso > 0) && (
-                  <span className="recipe-warning">
-                    ⚠ Reingreso: {Math.max(...task.activity.productos.map(p => p.periodoReingreso || 0))} h
-                  </span>
-                )}
-                {task.activity.productos.some(p => p.periodoACosecha > 0) && (
-                  <span className="recipe-warning">
-                    ⚠ Carencia: {Math.max(...task.activity.productos.map(p => p.periodoACosecha || 0))} días
-                  </span>
-                )}
-              </div>
             </div>
-          );
-        })()}
-
-        {isSolicitudCompra && task.activity?.productos?.length > 0 && (
-          <div className="recipe-panel">
-            <h2 className="recipe-title">🛒 Productos Solicitados</h2>
-            {task.notas && (
-              <p className="recipe-subtitle">
-                Nota del bodeguero: <em>{task.notas}</em>
-              </p>
-            )}
-            <table className="recipe-table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Stock actual</th>
-                  <th>Cantidad solicitada</th>
-                </tr>
-              </thead>
-              <tbody>
-                {task.activity.productos.map(p => {
-                  const isLow = p.stockActual <= p.stockMinimo;
-                  return (
-                    <tr key={p.productoId}>
-                      <td>{p.nombreComercial}</td>
-                      <td style={{ color: isLow ? '#ff6b6b' : 'inherit' }}>
-                        {isLow ? '⚠ ' : ''}{p.stockActual} {p.unidad}
-                      </td>
-                      <td><strong>{p.cantidad} {p.unidad}</strong></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          </section>
         )}
 
+        {/* ── Acciones ────────────────────────────────────────────────── */}
         {!successMessage && (
-          <div className="task-actions-section">
-            <h2>Acciones</h2>
+          <section className="aur-section">
+            <div className="aur-section-header">
+              <span className="aur-section-num"><FiSettings size={14} /></span>
+              <h3 className="aur-section-title">Acciones</h3>
+            </div>
 
             {actionError && (
-              <div className="action-error" role="alert">{actionError}</div>
+              <div className="task-action-error" role="alert">
+                <FiAlertCircle size={14} /> {actionError}
+              </div>
             )}
 
             {!isCompleted && !isAplicacion && (
-              <button className="btn-complete" onClick={handleCompleteTask} disabled={saving}>
-                {saving ? 'Guardando…' : '✓ Marcar como Hecha'}
+              <button
+                type="button"
+                className="aur-btn-pill task-action-complete"
+                onClick={handleCompleteTask}
+                disabled={saving}
+              >
+                <FiCheck size={14} /> {saving ? 'Guardando…' : 'Marcar como hecha'}
               </button>
             )}
 
-            <div className="action-buttons-row">
+            <div className="task-action-buttons-row">
               {!isCompleted && (
                 <>
                   {!isAplicacion && (
                     <button
-                      className={`btn-action reschedule ${action === 'reschedule' ? 'active' : ''}`}
+                      type="button"
+                      className={`aur-btn-pill task-action-btn task-action-btn--info${action === 'reschedule' ? ' is-active' : ''}`}
                       onClick={() => setAction(action === 'reschedule' ? null : 'reschedule')}
                     >
-                      📅 Reprogramar
+                      <FiCalendar size={14} /> Reprogramar
                     </button>
                   )}
                   <button
-                    className={`btn-action reassign ${action === 'reassign' ? 'active' : ''}`}
+                    type="button"
+                    className={`aur-btn-pill task-action-btn task-action-btn--magenta${action === 'reassign' ? ' is-active' : ''}`}
                     onClick={() => setAction(action === 'reassign' ? null : 'reassign')}
                   >
-                    👤 Reasignar
+                    <FiUser size={14} /> Reasignar
                   </button>
                 </>
               )}
               {isSolicitudCompra && (
                 <button
-                  className="btn-action generate-po"
+                  type="button"
+                  className="aur-btn-pill task-action-btn task-action-btn--accent"
                   onClick={() => navigate('/ordenes-compra', { state: { autoLoadTaskId: taskId } })}
                 >
-                  🛒 Crear Orden de Compra
+                  <FiShoppingCart size={14} /> Crear orden de compra
                 </button>
               )}
               {isAplicacion && (
                 <Link
                   to={`/aplicaciones/cedulas?open=${taskId}`}
-                  className="btn-action cedula"
+                  className="aur-btn-pill task-action-btn task-action-btn--magenta"
                 >
-                  📋 Ver Cédula de Aplicación
+                  <FiFileText size={14} /> Ver cédula de aplicación
                 </Link>
               )}
             </div>
 
             {!isCompleted && !isAplicacion && action === 'reschedule' && (
-              <div className="action-panel">
-                <label>Nueva fecha</label>
-                <input
-                  type="date"
-                  min={today}
-                  value={newDate}
-                  onChange={e => setNewDate(e.target.value)}
-                />
+              <div className="task-action-panel">
+                <div className="aur-field">
+                  <label className="aur-field-label" htmlFor="ta-reschedule-date">Nueva fecha</label>
+                  <input
+                    id="ta-reschedule-date"
+                    type="date"
+                    className="aur-input"
+                    min={today}
+                    value={newDate}
+                    onChange={e => setNewDate(e.target.value)}
+                  />
+                </div>
                 <button
-                  className="btn-confirm reschedule"
+                  type="button"
+                  className="aur-btn-pill task-action-confirm"
                   onClick={handleReschedule}
                   disabled={!newDate || saving}
                 >
@@ -353,21 +426,26 @@ const TaskAction = () => {
             )}
 
             {!isCompleted && action === 'reassign' && (
-              <div className="action-panel">
-                <label>Nuevo responsable</label>
-                <select
-                  value={newUserId}
-                  onChange={e => setNewUserId(e.target.value)}
-                >
-                  <option value="">-- Seleccionar usuario --</option>
-                  {users.filter(u => u.id !== task.activity?.responsableId).map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombre}{u.telefono ? ` · ${u.telefono}` : ''}
-                    </option>
-                  ))}
-                </select>
+              <div className="task-action-panel">
+                <div className="aur-field">
+                  <label className="aur-field-label" htmlFor="ta-reassign-user">Nuevo responsable</label>
+                  <select
+                    id="ta-reassign-user"
+                    className="aur-select"
+                    value={newUserId}
+                    onChange={e => setNewUserId(e.target.value)}
+                  >
+                    <option value="">— Seleccionar usuario —</option>
+                    {users.filter(u => u.id !== task.activity?.responsableId).map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.nombre}{u.telefono ? ` · ${u.telefono}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
-                  className="btn-confirm reassign"
+                  type="button"
+                  className="aur-btn-pill task-action-confirm"
                   onClick={handleReassign}
                   disabled={!newUserId || saving}
                 >
@@ -375,7 +453,7 @@ const TaskAction = () => {
                 </button>
               </div>
             )}
-          </div>
+          </section>
         )}
       </div>
     </div>
