@@ -120,23 +120,42 @@
   border-color: var(--aurora-green);
 }
 
-.strategy-amount {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
+/* aur-table-wrap + aur-table + aur-td-num ya cubren la tabla con tokens del
+   sistema; la sign-coloring de celdas (margen<0, margen>0) se delega a estos
+   slim modifiers que sólo añaden color sobre `aur-td-num`. */
+.strategy-num--neg { color: var(--aur-danger); }
+.strategy-num--pos { color: var(--aur-accent); }
+
+/* `aur-table` no rompe linea en celdas de metadata JSON serializada larga;
+   este modifier compacta la celda con ellipsis y un ancho máximo razonable. */
+.strategy-meta-cell {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
 }
 
-.strategy-amount--neg {
-  color: #ff8080;
+/* Cluster horizontal de `aur-chip` actuando como segmented control. No
+   replica el bg/borde/radio de `aur-chip` — sólo la fila contenedora. */
+.strategy-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .strategy-empty {
   text-align: center;
   padding: 32px;
-  color: var(--aurora-light);
-  opacity: 0.6;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  margin: 0;
 }
 
-/* ── KPI strip (resumen en la cabecera) ──────────────────────────────────── */
+/* ── KPI strip (resumen sobre la tabla) ──────────────────────────────────
+   Patrón compartido con `cost-kpis` de costos/finance. Aquí lo conservamos
+   con tokens del sistema; YieldHistory + ScenariosSimulator lo consumen. */
 .strategy-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -145,79 +164,30 @@
 }
 
 .strategy-kpi {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
   padding: 12px 14px;
 }
 
 .strategy-kpi-label {
   display: block;
-  font-size: 11px;
+  font-size: var(--aur-fs-caption);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: var(--aurora-light);
-  opacity: 0.65;
+  color: var(--aur-text-3);
   margin-bottom: 4px;
 }
 
 .strategy-kpi-value {
-  font-size: 20px;
+  font-size: var(--aur-fs-title3);
   font-weight: 700;
-  color: var(--aurora-light);
+  color: var(--aur-text);
   font-variant-numeric: tabular-nums;
 }
 
-.strategy-kpi-value--neg { color: #ff8080; }
-.strategy-kpi-value--pos { color: var(--aurora-green); }
-
-/* ── Tabla de yield ─────────────────────────────────────────────────────── */
-.strategy-table-wrap {
-  overflow-x: auto;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-}
-
-.strategy-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 900px;
-  font-size: 13px;
-}
-
-.strategy-table thead th {
-  text-align: right;
-  padding: 10px 12px;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.75;
-  border-bottom: 1px solid var(--aurora-border);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.3px;
-}
-
-.strategy-table thead th:first-child {
-  text-align: left;
-}
-
-.strategy-table tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(42, 74, 106, 0.3);
-  text-align: right;
-  color: var(--aurora-light);
-  font-variant-numeric: tabular-nums;
-}
-
-.strategy-table tbody td:first-child {
-  text-align: left;
-  font-weight: 600;
-}
-
-.strategy-table tbody tr:hover {
-  background: rgba(51, 255, 153, 0.04);
-}
+.strategy-kpi-value--neg { color: var(--aur-danger); }
+.strategy-kpi-value--pos { color: var(--aur-accent); }
 
 /* ── Temporadas ─────────────────────────────────────────────────────────── */
 .temporadas-header-actions {
@@ -311,29 +281,3 @@
   opacity: 0.55;
 }
 
-/* ── Segmented control (groupBy) ────────────────────────────────────────── */
-.strategy-segmented {
-  display: inline-flex;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  padding: 2px;
-}
-
-.strategy-segmented button {
-  background: transparent;
-  border: none;
-  color: var(--aurora-light);
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  opacity: 0.65;
-}
-
-.strategy-segmented button.active {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  opacity: 1;
-  font-weight: 700;
-}

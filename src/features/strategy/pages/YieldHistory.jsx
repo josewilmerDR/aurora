@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { FiBarChart2, FiRefreshCw } from 'react-icons/fi';
+import { FiBarChart2, FiRefreshCw, FiFilter, FiList } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
-// ─── Formateos ─────────────────────────────────────────────────────────────
 const fmtNumber = (n, digits = 0) => {
   const v = Number(n);
   if (!Number.isFinite(v)) return '—';
@@ -32,6 +31,9 @@ const GROUP_OPTIONS = [
   { value: 'cultivo', label: 'Por cultivo' },
   { value: 'temporada', label: 'Por temporada' },
 ];
+
+const numNegClass = (v) => (v != null && Number(v) < 0 ? 'strategy-num--neg' : '');
+const numPosClass = (v) => (v != null && Number(v) > 0 ? 'strategy-num--pos' : '');
 
 function YieldHistory() {
   const apiFetch = useApiFetch();
@@ -62,47 +64,81 @@ function YieldHistory() {
 
   const resumen = data?.resumen;
   const rows = data?.rows || [];
+  const groupLabel = GROUP_OPTIONS.find(o => o.value === groupBy)?.label?.replace('Por ', '') || '';
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2><FiBarChart2 /> Rendimiento Histórico</h2>
-      </div>
-
-      <p className="strategy-empty" style={{ padding: 0, textAlign: 'left', marginBottom: 14 }}>
-        Rendimiento físico y económico agregado por distintas dimensiones. Los costos e ingresos reutilizan la
-        misma atribución que el ROI en vivo.
-      </p>
-
-      <div className="strategy-filters">
-        <div className="strategy-field">
-          <label>Desde</label>
-          <input type="date" value={desde} onChange={e => setDesde(e.target.value)} />
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title"><FiBarChart2 /> Rendimiento Histórico</h2>
+          <p className="aur-sheet-subtitle">
+            Rendimiento físico y económico agregado por distintas dimensiones. Los costos e ingresos reutilizan
+            la misma atribución que el ROI en vivo.
+          </p>
         </div>
-        <div className="strategy-field">
-          <label>Hasta</label>
-          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} />
+        <div className="aur-sheet-header-actions">
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            onClick={load}
+            disabled={loading}
+          >
+            <FiRefreshCw size={14} /> {loading ? 'Cargando…' : 'Actualizar'}
+          </button>
         </div>
-        <div className="strategy-field">
-          <label>Agrupar por</label>
-          <div className="strategy-segmented">
-            {GROUP_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                className={groupBy === opt.value ? 'active' : ''}
-                onClick={() => setGroupBy(opt.value)}
-              >
-                {opt.label}
-              </button>
-            ))}
+      </header>
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiFilter size={14} /></span>
+          <h3 className="aur-section-title">Filtros</h3>
+        </div>
+        <div className="aur-list">
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="yh-desde">Desde</label>
+            <div className="aur-field">
+              <input
+                id="yh-desde"
+                type="date"
+                className="aur-input"
+                value={desde}
+                onChange={e => setDesde(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <label className="aur-row-label" htmlFor="yh-hasta">Hasta</label>
+            <div className="aur-field">
+              <input
+                id="yh-hasta"
+                type="date"
+                className="aur-input"
+                value={hasta}
+                onChange={e => setHasta(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="aur-row aur-row--multiline">
+            <span className="aur-row-label">Agrupar por</span>
+            <div className="aur-field">
+              <div className="strategy-chips-row">
+                {GROUP_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`aur-chip${groupBy === opt.value ? '' : ' aur-chip--ghost'}`}
+                    onClick={() => setGroupBy(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        <button className="primary-button" onClick={load} disabled={loading}>
-          <FiRefreshCw /> {loading ? 'Cargando…' : 'Actualizar'}
-        </button>
-      </div>
+      </section>
 
-      {error && <div className="strategy-empty" style={{ color: '#ff8080' }}>{error}</div>}
+      {error && <div className="aur-banner aur-banner--danger">{error}</div>}
 
       {resumen && (
         <div className="strategy-kpis">
@@ -137,56 +173,64 @@ function YieldHistory() {
         </div>
       )}
 
-      {!loading && rows.length === 0 && !error && (
-        <div className="strategy-empty">Sin datos para el rango y agrupación seleccionados.</div>
-      )}
-
-      {rows.length > 0 && (
-        <div className="strategy-table-wrap">
-          <table className="strategy-table">
-            <thead>
-              <tr>
-                <th>{GROUP_OPTIONS.find(o => o.value === groupBy)?.label?.replace('Por ', '') || ''}</th>
-                <th>Ha</th>
-                <th>Kg</th>
-                <th>Kg/ha</th>
-                <th>Ingreso</th>
-                <th>Costo</th>
-                <th>Margen</th>
-                <th>Margen/ha</th>
-                <th>Margen %</th>
-                <th>Días ciclo</th>
-                <th>Cosechas</th>
-                <th>Aplicac.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.key}>
-                  <td>{r.label}</td>
-                  <td>{fmtNumber(r.hectareas, 2)}</td>
-                  <td>{fmtNumber(r.kg)}</td>
-                  <td>{r.kgPorHa == null ? '—' : fmtNumber(r.kgPorHa)}</td>
-                  <td>{fmtNumber(r.ingreso)}</td>
-                  <td>{fmtNumber(r.costo)}</td>
-                  <td className={`strategy-amount ${r.margen < 0 ? 'strategy-amount--neg' : ''}`}>
-                    {fmtNumber(r.margen)}
-                  </td>
-                  <td className={`strategy-amount ${r.margenPorHa != null && r.margenPorHa < 0 ? 'strategy-amount--neg' : ''}`}>
-                    {r.margenPorHa == null ? '—' : fmtNumber(r.margenPorHa)}
-                  </td>
-                  <td className={`strategy-amount ${r.margenPct != null && r.margenPct < 0 ? 'strategy-amount--neg' : ''}`}>
-                    {fmtPct(r.margenPct)}
-                  </td>
-                  <td>{fmtDias(r.diasCiclo)}</td>
-                  <td>{r.nCosechas}</td>
-                  <td>{r.nAplicaciones}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiList size={14} /></span>
+          <h3 className="aur-section-title">Detalle</h3>
+          {rows.length > 0 && <span className="aur-section-count">{rows.length}</span>}
         </div>
-      )}
+
+        {!loading && rows.length === 0 && !error && (
+          <p className="strategy-empty">Sin datos para el rango y agrupación seleccionados.</p>
+        )}
+
+        {rows.length > 0 && (
+          <div className="aur-table-wrap">
+            <table className="aur-table">
+              <thead>
+                <tr>
+                  <th>{groupLabel}</th>
+                  <th className="aur-td-num">Ha</th>
+                  <th className="aur-td-num">Kg</th>
+                  <th className="aur-td-num">Kg/ha</th>
+                  <th className="aur-td-num">Ingreso</th>
+                  <th className="aur-td-num">Costo</th>
+                  <th className="aur-td-num">Margen</th>
+                  <th className="aur-td-num">Margen/ha</th>
+                  <th className="aur-td-num">Margen %</th>
+                  <th className="aur-td-num">Días ciclo</th>
+                  <th className="aur-td-num">Cosechas</th>
+                  <th className="aur-td-num">Aplicac.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.key}>
+                    <td className="aur-td-strong">{r.label}</td>
+                    <td className="aur-td-num">{fmtNumber(r.hectareas, 2)}</td>
+                    <td className="aur-td-num">{fmtNumber(r.kg)}</td>
+                    <td className="aur-td-num">{r.kgPorHa == null ? '—' : fmtNumber(r.kgPorHa)}</td>
+                    <td className="aur-td-num">{fmtNumber(r.ingreso)}</td>
+                    <td className="aur-td-num">{fmtNumber(r.costo)}</td>
+                    <td className={`aur-td-num ${numNegClass(r.margen)} ${numPosClass(r.margen)}`}>
+                      {fmtNumber(r.margen)}
+                    </td>
+                    <td className={`aur-td-num ${numNegClass(r.margenPorHa)}`}>
+                      {r.margenPorHa == null ? '—' : fmtNumber(r.margenPorHa)}
+                    </td>
+                    <td className={`aur-td-num ${numNegClass(r.margenPct)}`}>
+                      {fmtPct(r.margenPct)}
+                    </td>
+                    <td className="aur-td-num">{fmtDias(r.diasCiclo)}</td>
+                    <td className="aur-td-num">{r.nCosechas}</td>
+                    <td className="aur-td-num">{r.nAplicaciones}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
