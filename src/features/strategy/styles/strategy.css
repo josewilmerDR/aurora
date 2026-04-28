@@ -1,124 +1,18 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Strategy domain — slim modifiers sobre primitivas .aur-*
 
-/* ── Strategy — botones compartidos ──────────────────────────────────────── */
+   Esta hoja sólo contiene modificadores SLIM que afinan primitivas del
+   sistema (aur-row, aur-table, aur-section, aur-card, aur-modal-actions,
+   etc.) o pequeñas piezas bespoke que no tienen primitiva equivalente
+   (KPI strip, sparkline, sub-secciones tonales del plan anual).
 
-.primary-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s, transform 0.1s, opacity 0.15s;
-}
-
-.primary-button:hover:not(:disabled) {
-  background: #5affb0;
-}
-
-.primary-button:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.primary-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.secondary-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: transparent;
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
-}
-
-.secondary-button:hover:not(:disabled) {
-  background: rgba(51, 255, 153, 0.06);
-  border-color: var(--aurora-green);
-}
-
-.secondary-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: transparent;
-  color: var(--aurora-light);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  cursor: pointer;
-  opacity: 0.75;
-  transition: color 0.15s, opacity 0.15s, border-color 0.15s, background-color 0.15s;
-}
-
-.icon-button:hover {
-  opacity: 1;
-  color: var(--aurora-green);
-  border-color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.06);
-}
-
-.icon-button.danger:hover {
-  color: var(--aurora-magenta);
-  border-color: var(--aurora-magenta);
-  background: rgba(204, 51, 255, 0.08);
-}
-
-/* ── Strategy — layout compartido ────────────────────────────────────────── */
-
-.strategy-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: end;
-  margin-bottom: 16px;
-}
-
-.strategy-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.strategy-field label {
-  font-size: 12px;
-  color: var(--aurora-light);
-  opacity: 0.75;
-}
-
-.strategy-field input,
-.strategy-field select {
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  padding: 8px 10px;
-  font-size: 14px;
-}
-
-.strategy-field input:focus,
-.strategy-field select:focus {
-  outline: none;
-  border-color: var(--aurora-green);
-}
+   Reglas de oro:
+     · NO duplicar tokens (--aurora-*) cuando hay equivalente --aur-*.
+     · NO repetir bg/color/padding/radius si la primitiva ya los provee.
+     · Cada slim que sobreviva DEBE incluir comentario "Why" justificando
+       por qué no migra a primitiva. Sin comentario, es candidato a borrar
+       en el próximo cleanup.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 /* aur-table-wrap + aur-table + aur-td-num ya cubren la tabla con tokens del
    sistema; la sign-coloring de celdas (margen<0, margen>0) se delega a estos
@@ -519,64 +413,4 @@
 
 .strategy-kpi-value--neg { color: var(--aur-danger); }
 .strategy-kpi-value--pos { color: var(--aur-accent); }
-
-/* ── Temporadas ─────────────────────────────────────────────────────────── */
-.temporadas-header-actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.temporadas-list {
-  display: grid;
-  gap: 10px;
-}
-
-.temporada-card {
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 12px 14px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.temporada-card--archived {
-  opacity: 0.55;
-}
-
-.temporada-card-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.temporada-name {
-  font-weight: 700;
-  color: var(--aurora-light);
-}
-
-.temporada-meta {
-  font-size: 11px;
-  color: var(--aurora-light);
-  opacity: 0.55;
-}
-
-.temporada-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.temporada-badge--auto   { background: rgba(204, 51, 255, 0.15); color: var(--aurora-magenta); }
-.temporada-badge--manual { background: rgba(51, 255, 153, 0.15); color: var(--aurora-green); }
-.temporada-badge--archived { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
 
