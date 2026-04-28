@@ -1,6 +1,13 @@
-.task-action-wrapper {
+/* ═══════════════════════════════════════════════════════════════════════
+   TaskAction — slim modifiers sobre primitivas .aur-*
+   Página standalone (renderiza dentro de SimpleLayout sin sidebar) accesible
+   por deep-link de WhatsApp. Por eso usa un wrapper full-bleed propio que
+   centra el aur-sheet con max-width.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Wrapper full-bleed standalone ────────────────────────────────────── */
+.task-action-page {
   min-height: 100vh;
-  background-color: var(--aurora-dark-blue);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -8,383 +15,275 @@
   overflow-x: hidden;
 }
 
-.task-action-card {
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 12px;
-  padding: 32px;
+/* Slim sobre aur-sheet: el sheet primitivo no impone max-width. Aquí lo
+   acotamos para que la lectura sea cómoda en pantallas grandes. */
+.aur-sheet.task-action-sheet {
   width: 100%;
-  max-width: 600px;
-  min-width: 0;
+  max-width: 640px;
 }
 
-/* Back nav button */
-.btn-back-nav {
+/* ── Back navigation ─────────────────────────────────────────────────── */
+
+/* Slim sobre aur-btn-text: aur-btn-text ya provee color/cursor/font-size.
+   Aquí solo aportamos margen-bottom para separarlo del header. */
+.aur-btn-text.task-action-back {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  font-size: 0.9rem;
-  cursor: pointer;
+  margin-bottom: 12px;
   padding: 0;
-  margin-bottom: 20px;
-  transition: opacity 0.2s;
 }
 
-.btn-back-nav:hover {
-  opacity: 1;
+/* ── States standalone (loading + error) ─────────────────────────────── */
+.task-action-state {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-body);
+  padding: 40px 20px;
+}
+.task-action-state--error {
+  color: var(--aur-danger);
 }
 
-/* Header */
-.task-action-card h1 {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--aurora-green);
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--aurora-border);
+/* ═══════════════════════════════════════════════════════════════════════
+   Información (aur-list + aur-row con grid override)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Override del grid del aur-row primitivo (180px / 1fr) por una variante
+   que permita que el valor tome más ancho cuando la página es estrecha.
+   aur-row ya provee padding/border-bottom/hover/rounding. */
+.aur-row.task-action-info-row {
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  cursor: default;
+}
+.aur-row.task-action-info-row:hover {
+  background: transparent;
 }
 
-/* Info grid */
-.task-info-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px 20px;
-  margin-bottom: 28px;
-}
-
-.task-info-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.6;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.task-info-value {
-  font-size: 1rem;
-  color: var(--aurora-light);
+.task-action-info-value {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text);
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.task-status-badge-action {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background-color: #f0ad4e;
-  color: var(--aurora-dark-blue);
+@media (max-width: 560px) {
+  /* En mobile el row colapsa a stack vertical: label arriba, value abajo.
+     Manteniendo aur-row primitivo + override permite reusar todo el chrome
+     (padding, border-bottom, rounding) sin reescribir. */
+  .aur-row.task-action-info-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 4px;
+  }
 }
 
-.task-status-badge-action.completed {
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   Recipe panel — tabla de mezcla / productos solicitados
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* Recipe panel for application tasks */
-.recipe-panel {
-  margin-bottom: 24px;
-  padding: 20px;
-  background-color: rgba(100, 181, 246, 0.06);
-  border: 1px solid rgba(100, 181, 246, 0.35);
-  border-radius: 10px;
-}
-
-.recipe-title {
-  font-size: 1rem;
+/* Slim sobre aur-td-num: la columna "Cantidad total" del recipe se
+   destaca con accent + tabular-nums. aur-td-num ya provee align/tabular. */
+.aur-td-num.task-action-recipe-total {
+  color: var(--aur-accent);
   font-weight: 700;
-  color: #64b5f6;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0;
 }
 
-.recipe-subtitle {
-  font-size: 0.9rem;
-  color: var(--aurora-light);
-  opacity: 0.7;
-  margin-bottom: 14px;
-  overflow-wrap: anywhere;
+.task-action-stock-low {
+  color: var(--aur-danger);
 }
 
-.recipe-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-  margin-bottom: 14px;
+.task-action-notas {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  margin: 0 0 12px 0;
+  padding: 0 4px;
 }
 
-.recipe-table th {
-  text-align: left;
-  padding: 6px 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  opacity: 0.6;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid rgba(100, 181, 246, 0.2);
-}
-
-.recipe-table td {
-  padding: 8px 10px;
-  color: var(--aurora-light);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.recipe-table tr:last-child td {
-  border-bottom: none;
-}
-
-.recipe-table td strong {
-  color: #64b5f6;
-  font-size: 1rem;
-}
-
-.recipe-warnings {
+/* ── Recipe warnings (badges warn) ───────────────────────────────────── */
+.task-action-warnings {
   display: flex;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+
+.task-action-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 600;
+  color: var(--aur-warn);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Notices: success (accent) + error (danger)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.task-action-success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--aur-accent-tint);
+  border: 1px solid var(--aur-accent);
+  border-radius: var(--aur-r-card);
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-footnote);
+  font-weight: 600;
+  margin-bottom: 24px;
   flex-wrap: wrap;
 }
 
-.recipe-warning {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #f0ad4e;
-  overflow-wrap: anywhere;
-}
-
-/* Actions section */
-.task-actions-section {
-  border-top: 1px solid var(--aurora-border);
-  padding-top: 24px;
-}
-
-.task-actions-section h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.8;
-  margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.action-error {
-  margin-bottom: 14px;
-  padding: 10px 14px;
-  background-color: rgba(204, 51, 255, 0.1);
-  border: 1px solid var(--aurora-magenta);
-  border-radius: 6px;
-  color: var(--aurora-magenta);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-/* Buttons */
-.btn-complete {
-  width: 100%;
-  padding: 14px;
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  font-weight: 700;
-  font-size: 1rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-  margin-bottom: 12px;
-}
-
-.btn-complete:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-.action-buttons-row {
-  display: flex;
-  gap: 10px;
-}
-
-.btn-action {
+.task-action-success > span:not(.task-action-success-icon) {
   flex: 1;
-  padding: 10px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  border: 1px solid var(--aurora-border);
+  min-width: 0;
 }
 
-.btn-action.reschedule {
-  background-color: transparent;
-  color: #64b5f6;
-  border-color: #64b5f6;
-}
-.btn-action.reschedule:hover,
-.btn-action.reschedule.active {
-  background-color: #64b5f6;
-  color: var(--aurora-dark-blue);
-}
-
-.btn-action.reassign {
-  background-color: transparent;
-  color: var(--aurora-magenta);
-  border-color: var(--aurora-magenta);
-}
-.btn-action.reassign:hover,
-.btn-action.reassign.active {
-  background-color: var(--aurora-magenta);
-  color: white;
-}
-
-.btn-action.generate-po {
-  background-color: transparent;
-  color: var(--aurora-green);
-  border-color: var(--aurora-green);
-}
-.btn-action.generate-po:hover {
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-}
-
-.btn-action.cedula {
-  background-color: transparent;
-  color: #cc33ff;
-  border-color: #cc33ff;
-  text-decoration: none;
+.task-action-success-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-.btn-action.cedula:hover {
-  background-color: #cc33ff;
-  color: white;
-}
-
-/* Action panels */
-.action-panel {
-  margin-top: 16px;
-  padding: 20px;
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  background: var(--aur-accent-tint-2);
+  color: var(--aur-accent);
+  flex-shrink: 0;
 }
 
-.action-panel label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  opacity: 0.7;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.action-panel input[type="date"],
-.action-panel select {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  padding: 10px 14px;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 6px;
-  color: var(--aurora-light);
-  font-size: 1rem;
+.task-action-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-  text-overflow: ellipsis;
-}
-
-.action-panel input[type="date"]:focus,
-.action-panel select:focus {
-  border-color: var(--aurora-green);
-}
-
-.action-panel select option {
-  background-color: var(--aurora-background);
-}
-
-.btn-confirm {
-  width: 100%;
-  padding: 11px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.btn-confirm:disabled {
-  background-color: var(--aurora-border);
-  color: var(--aurora-light);
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.btn-confirm.reschedule {
-  background-color: #64b5f6;
-  color: var(--aurora-dark-blue);
-}
-
-.btn-confirm.reassign {
-  background-color: var(--aurora-magenta);
-  color: white;
-}
-
-.btn-confirm:not(:disabled):hover {
-  opacity: 0.85;
-}
-
-/* Success message */
-.success-message {
-  margin-top: 20px;
-  padding: 20px;
-  background-color: rgba(51, 255, 153, 0.1);
-  border: 1px solid var(--aurora-green);
-  border-radius: 8px;
-  text-align: center;
-  color: var(--aurora-green);
+  padding: 10px 14px;
+  background: var(--aur-danger-tint);
+  border: 1px solid var(--aur-danger);
+  border-radius: var(--aur-r-input);
+  color: var(--aur-danger);
+  font-size: var(--aur-fs-footnote);
   font-weight: 600;
-  font-size: 1rem;
 }
 
-.btn-back {
-  display: inline-block;
-  margin-top: 14px;
-  padding: 10px 24px;
-  background-color: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  font-weight: 700;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: opacity 0.2s;
+/* ═══════════════════════════════════════════════════════════════════════
+   Action buttons (Marcar como hecha + reschedule + reassign + cedula)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Slim sobre aur-btn-pill: "Marcar como hecha" es la acción primaria
+   destacada (verde accent fill, ancho completo). aur-btn-pill default ya
+   trae bg accent + color contrast canónico. */
+.aur-btn-pill.task-action-complete {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 12px;
+  padding: 12px 18px;
 }
 
-.btn-back:hover {
-  opacity: 0.85;
+/* Fila de acciones secundarias (outline tonal). Stack en column en mobile. */
+.task-action-buttons-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .task-action-buttons-row {
+    flex-direction: column;
+  }
+}
+
+/* Override base de aur-btn-pill para los botones de acción secundaria:
+   pasan de fill accent a outline neutro; los modifiers tonales aportan
+   el border + color tonal y un fill suave en hover/is-active. */
+.aur-btn-pill.task-action-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--aur-divider);
+  color: var(--aur-text);
+  justify-content: center;
+  text-decoration: none;
+}
+.aur-btn-pill.task-action-btn:hover:not(:disabled) {
+  background: var(--aur-bg-hover);
+}
+
+.aur-btn-pill.task-action-btn--info {
+  border-color: var(--aur-badge-blue-fg);
+  color: var(--aur-badge-blue-fg);
+}
+.aur-btn-pill.task-action-btn--info:hover:not(:disabled),
+.aur-btn-pill.task-action-btn--info.is-active {
+  background: var(--aur-badge-blue-bg);
+  color: var(--aur-badge-blue-fg);
+}
+
+.aur-btn-pill.task-action-btn--magenta {
+  border-color: var(--aur-badge-magenta-fg);
+  color: var(--aur-badge-magenta-fg);
+}
+.aur-btn-pill.task-action-btn--magenta:hover:not(:disabled),
+.aur-btn-pill.task-action-btn--magenta.is-active {
+  background: var(--aur-badge-magenta-bg);
+  color: var(--aur-badge-magenta-fg);
+}
+
+.aur-btn-pill.task-action-btn--accent {
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+}
+.aur-btn-pill.task-action-btn--accent:hover:not(:disabled),
+.aur-btn-pill.task-action-btn--accent.is-active {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Action panel — sub-form para reschedule / reassign
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.task-action-panel {
+  margin-top: 16px;
+  padding: 18px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Slim sobre aur-btn-pill: el botón confirmar del sub-form ocupa ancho
+   completo (consistente con el "Marcar como hecha") para señalar acción
+   única del panel. */
+.aur-btn-pill.task-action-confirm {
+  width: 100%;
+  justify-content: center;
+  padding: 11px 18px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Mobile (≤768px)
+   ═══════════════════════════════════════════════════════════════════════ */
+
 @media (max-width: 768px) {
-  .task-action-wrapper {
+  /* En mobile el sheet va edge-to-edge para aprovechar el ancho completo
+     (el header del SimpleLayout no consume espacio). */
+  .task-action-page {
     padding: 0;
     align-items: stretch;
   }
 
-  .task-action-card {
+  .aur-sheet.task-action-sheet {
     border-radius: 0;
     border-left: none;
     border-right: none;
@@ -392,77 +291,4 @@
     padding: 20px 16px 32px;
     max-width: 100%;
   }
-
-  .task-action-card h1 {
-    font-size: 1.25rem;
-    margin-bottom: 18px;
-    padding-bottom: 14px;
-  }
-
-  /* Info grid: etiqueta encima del valor. minmax(0, 1fr) permite que el
-     contenido se recorte/rompa en vez de forzar el ancho de la columna. */
-  .task-info-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-    margin-bottom: 20px;
-  }
-
-  .task-info-label {
-    margin-top: 12px;
-    margin-bottom: 2px;
-    font-size: 0.72rem;
-  }
-
-  .task-info-value {
-    font-size: 0.95rem;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--aurora-border);
-  }
-
-  .task-info-grid > :last-child {
-    border-bottom: none;
-  }
-
-  /* Tabla de receta: scroll horizontal contenido dentro del panel */
-  .recipe-panel {
-    padding: 14px 12px;
-    overflow-x: auto;
-    max-width: 100%;
-  }
-
-  .recipe-table {
-    min-width: 280px;
-    font-size: 0.83rem;
-  }
-
-  .recipe-table th,
-  .recipe-table td {
-    padding: 6px 8px;
-  }
-
-  /* Botones de acción: se apilan en columna */
-  .action-buttons-row {
-    flex-direction: column;
-  }
-
-  .btn-action {
-    width: 100%;
-    padding: 12px;
-  }
-}
-
-/* States */
-.task-action-state {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--aurora-light);
-  opacity: 0.7;
-  font-size: 1.1rem;
-}
-
-.task-action-state.error {
-  color: var(--aurora-magenta);
-  opacity: 1;
 }
