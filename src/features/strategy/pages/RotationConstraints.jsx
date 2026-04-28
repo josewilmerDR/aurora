@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiShield, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX } from 'react-icons/fi';
+import { FiShield, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX, FiList } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
-// Estado vacío del formulario.
 function emptyForm() {
   return {
     id: null,
@@ -92,148 +91,218 @@ function RotationConstraints() {
     }
   };
 
+  const isEditing = !!form?.id;
+
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2><FiShield /> Restricciones de Rotación</h2>
-      </div>
-
-      <p className="strategy-empty" style={{ padding: 0, textAlign: 'left', marginBottom: 14 }}>
-        Reglas agronómicas usadas por el recomendador de rotación: familia botánica, descanso mínimo entre ciclos
-        del mismo cultivo y cultivos incompatibles. La carga inicial la hace un agrónomo; el agente las respeta al
-        proponer rotaciones.
-      </p>
-
-      <div className="temporadas-header-actions">
-        <button className="primary-button" onClick={() => setForm(emptyForm())}>
-          <FiPlus /> Nueva restricción
-        </button>
-      </div>
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title"><FiShield /> Restricciones de Rotación</h2>
+          <p className="aur-sheet-subtitle">
+            Reglas agronómicas usadas por el recomendador de rotación: familia botánica, descanso mínimo entre
+            ciclos del mismo cultivo y cultivos incompatibles. La carga inicial la hace un agrónomo; el agente las
+            respeta al proponer rotaciones.
+          </p>
+        </div>
+        {!form && (
+          <div className="aur-sheet-header-actions">
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => setForm(emptyForm())}
+            >
+              <FiPlus size={14} /> Nueva restricción
+            </button>
+          </div>
+        )}
+      </header>
 
       {form && (
-        <div className="temporada-card" style={{ gridTemplateColumns: '1fr', marginBottom: 14 }}>
-          <div>
-            <div className="strategy-filters">
-              <div className="strategy-field">
-                <label>Cultivo</label>
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiShield size={14} /></span>
+            <h3 className="aur-section-title">{isEditing ? 'Editar restricción' : 'Nueva restricción'}</h3>
+            <div className="aur-section-actions">
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={() => setForm(null)}
+                title="Cancelar"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="aur-list">
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="rc-cultivo">Cultivo</label>
+              <div className="aur-field">
                 <input
+                  id="rc-cultivo"
                   type="text"
+                  className="aur-input"
                   value={form.cultivo}
                   onChange={e => setForm({ ...form, cultivo: e.target.value })}
                   placeholder="I Cosecha, Tomate, etc."
                 />
               </div>
-              <div className="strategy-field">
-                <label>Familia botánica</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="rc-familia">Familia botánica</label>
+              <div className="aur-field">
                 <input
+                  id="rc-familia"
                   type="text"
+                  className="aur-input"
                   value={form.familiaBotanica}
                   onChange={e => setForm({ ...form, familiaBotanica: e.target.value })}
                   placeholder="Solanaceae, Asteraceae…"
                 />
               </div>
-              <div className="strategy-field">
-                <label>Descanso mín. ciclos</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="rc-ciclos">Descanso mín. ciclos</label>
+              <div className="aur-field">
                 <input
+                  id="rc-ciclos"
                   type="number"
                   min={0}
                   max={6}
+                  className="aur-input aur-input--num"
                   value={form.descansoMinCiclos}
                   onChange={e => setForm({ ...form, descansoMinCiclos: e.target.value })}
                 />
               </div>
-              <div className="strategy-field">
-                <label>Descanso mín. días</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="rc-dias">Descanso mín. días</label>
+              <div className="aur-field">
                 <input
+                  id="rc-dias"
                   type="number"
                   min={0}
                   max={1095}
+                  className="aur-input aur-input--num"
                   value={form.descansoMinDias}
                   onChange={e => setForm({ ...form, descansoMinDias: e.target.value })}
                 />
               </div>
-              <div className="strategy-field" style={{ flex: '1 1 260px' }}>
-                <label>Incompatible con (coma separado)</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="rc-incomp">Incompatible con</label>
+              <div className="aur-field">
                 <input
+                  id="rc-incomp"
                   type="text"
+                  className="aur-input"
                   value={form.incompatibleCon}
                   onChange={e => setForm({ ...form, incompatibleCon: e.target.value })}
                   placeholder="papa, berenjena"
                 />
+                <p className="aur-field-hint">Lista separada por comas.</p>
               </div>
-              <div className="strategy-field" style={{ flex: '1 1 260px' }}>
-                <label>Notas</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="rc-notas">Notas</label>
+              <div className="aur-field">
                 <input
+                  id="rc-notas"
                   type="text"
+                  className="aur-input"
                   maxLength={512}
                   value={form.notas}
                   onChange={e => setForm({ ...form, notas: e.target.value })}
                 />
               </div>
             </div>
-            <div className="temporadas-header-actions" style={{ marginTop: 8, marginBottom: 0 }}>
-              <button className="primary-button" onClick={handleSave} disabled={saving}>
-                <FiCheck /> {saving ? 'Guardando…' : 'Guardar'}
-              </button>
-              <button className="primary-button" onClick={() => setForm(null)}>
-                <FiX /> Cancelar
-              </button>
-            </div>
           </div>
-        </div>
+
+          <div className="aur-form-actions">
+            <button
+              type="button"
+              className="aur-btn-text"
+              onClick={() => setForm(null)}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              <FiCheck size={14} /> {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </section>
       )}
 
-      {loading ? (
-        <div className="strategy-empty">Cargando…</div>
-      ) : items.length === 0 ? (
-        <div className="strategy-empty">
-          Todavía no hay restricciones cargadas. El recomendador usará criterio conservador hasta que registres al menos una.
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiList size={14} /></span>
+          <h3 className="aur-section-title">Restricciones registradas</h3>
+          {items.length > 0 && <span className="aur-section-count">{items.length}</span>}
         </div>
-      ) : (
-        <div className="temporadas-list">
-          {items.map(c => (
-            <div key={c.id} className="temporada-card">
-              <div>
-                <div className="temporada-card-header">
-                  <span className="temporada-name">{c.cultivo}</span>
-                  <span className="temporada-badge temporada-badge--manual">{c.familiaBotanica}</span>
-                </div>
-                <div className="temporada-range">
-                  Descanso: {c.descansoMinCiclos || 0} ciclo(s) · {c.descansoMinDias || 0} día(s)
-                </div>
-                {Array.isArray(c.incompatibleCon) && c.incompatibleCon.length > 0 && (
-                  <div className="temporada-meta">
-                    Incompatible con: {c.incompatibleCon.join(', ')}
+
+        {loading ? (
+          <p className="strategy-empty">Cargando…</p>
+        ) : items.length === 0 ? (
+          <p className="strategy-empty">
+            Todavía no hay restricciones cargadas. El recomendador usará criterio conservador hasta que registres
+            al menos una.
+          </p>
+        ) : (
+          <div className="aur-list">
+            {items.map(c => (
+              <div key={c.id} className="aur-row strategy-item-row">
+                <div className="strategy-item-info">
+                  <div className="strategy-item-head">
+                    <span className="strategy-item-title">{c.cultivo}</span>
+                    <span className="aur-badge aur-badge--blue">{c.familiaBotanica}</span>
                   </div>
-                )}
-                {c.notas && <div className="temporada-meta">{c.notas}</div>}
+                  <div className="strategy-item-sub">
+                    Descanso: {c.descansoMinCiclos || 0} ciclo(s) · {c.descansoMinDias || 0} día(s)
+                  </div>
+                  {Array.isArray(c.incompatibleCon) && c.incompatibleCon.length > 0 && (
+                    <div className="strategy-item-meta">
+                      Incompatible con: {c.incompatibleCon.join(', ')}
+                    </div>
+                  )}
+                  {c.notas && <div className="strategy-item-meta">{c.notas}</div>}
+                </div>
+                <div className="strategy-item-actions">
+                  <button
+                    type="button"
+                    className="aur-icon-btn aur-icon-btn--sm"
+                    title="Editar"
+                    onClick={() => setForm({
+                      id: c.id,
+                      cultivo: c.cultivo,
+                      familiaBotanica: c.familiaBotanica,
+                      descansoMinCiclos: c.descansoMinCiclos || 0,
+                      descansoMinDias: c.descansoMinDias || 0,
+                      incompatibleCon: (c.incompatibleCon || []).join(', '),
+                      notas: c.notas || '',
+                    })}
+                  >
+                    <FiEdit2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                    title="Eliminar"
+                    onClick={() => setConfirmDelete(c)}
+                  >
+                    <FiTrash2 size={14} />
+                  </button>
+                </div>
               </div>
-              <div className="temporada-actions">
-                <button
-                  className="primary-button"
-                  onClick={() => setForm({
-                    id: c.id,
-                    cultivo: c.cultivo,
-                    familiaBotanica: c.familiaBotanica,
-                    descansoMinCiclos: c.descansoMinCiclos || 0,
-                    descansoMinDias: c.descansoMinDias || 0,
-                    incompatibleCon: (c.incompatibleCon || []).join(', '),
-                    notas: c.notas || '',
-                  })}
-                >
-                  <FiEdit2 />
-                </button>
-                <button
-                  className="primary-button"
-                  onClick={() => setConfirmDelete(c)}
-                >
-                  <FiTrash2 />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmDelete && (

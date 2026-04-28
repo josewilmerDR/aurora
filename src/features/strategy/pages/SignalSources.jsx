@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiRadio, FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiPlay, FiCloudOff, FiCloud } from 'react-icons/fi';
+import {
+  FiRadio, FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiPlay,
+  FiPower, FiList, FiSliders,
+} from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -10,6 +13,10 @@ const SIGNAL_TYPE_LABELS = {
   commodity_price: 'Precio de commodity',
   fertilizer_price: 'Precio de fertilizante',
 };
+
+// Tipo de señal = categoría informativa (azul); proveedor = origen del dato (violeta).
+const SIGNAL_TYPE_VARIANT = 'aur-badge--blue';
+const PROVIDER_VARIANT = 'aur-badge--violet';
 
 function emptyForm() {
   return {
@@ -158,61 +165,116 @@ function SignalSources() {
     }
   };
 
+  const isEditing = !!form?.id;
+
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2><FiRadio /> Fuentes de Señales Externas</h2>
-      </div>
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title"><FiRadio /> Fuentes de Señales Externas</h2>
+          <p className="aur-sheet-subtitle">
+            Configura fuentes externas (clima, precios) que alimentan al recomendador y disparan alertas cuando
+            cruzan umbrales. El cron corre cada hora; cada fuente respeta su propio intervalo.
+          </p>
+        </div>
+        {!form && (
+          <div className="aur-sheet-header-actions">
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => setForm(emptyForm())}
+            >
+              <FiPlus size={14} /> Nueva fuente
+            </button>
+          </div>
+        )}
+      </header>
 
-      <p className="strategy-empty" style={{ padding: 0, textAlign: 'left', marginBottom: 14 }}>
-        Configura fuentes externas (clima, precios) que alimentan al recomendador y disparan alertas cuando cruzan umbrales.
-        El cron corre cada hora; cada fuente respeta su propio intervalo.
-      </p>
-
-      <div className="temporadas-header-actions">
-        <button
-          className="primary-button"
-          onClick={toggleKillSwitch}
-          title={killSwitchEnabled ? 'Pausar todas las ingestas' : 'Reanudar todas las ingestas'}
-        >
-          {killSwitchEnabled ? <FiCloud /> : <FiCloudOff />}
-          {killSwitchEnabled ? 'Señales activadas' : 'Señales pausadas'}
-        </button>
-        <button className="primary-button" onClick={() => setForm(emptyForm())}>
-          <FiPlus /> Nueva fuente
-        </button>
-      </div>
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiPower size={14} /></span>
+          <h3 className="aur-section-title">Estado del sistema</h3>
+        </div>
+        <div className="aur-list">
+          <div className="aur-row aur-row--multiline">
+            <span className="aur-row-label">Señales externas</span>
+            <div className="strategy-toggle-control">
+              <label className="aur-toggle">
+                <input
+                  type="checkbox"
+                  checked={killSwitchEnabled}
+                  onChange={toggleKillSwitch}
+                />
+                <span className="aur-toggle-track"><span className="aur-toggle-thumb" /></span>
+                <span className="aur-toggle-label">
+                  {killSwitchEnabled ? 'Activadas' : 'Pausadas'}
+                </span>
+              </label>
+              <p className="aur-field-hint">
+                Pausar detiene todas las ingestas (cron + manuales). Las observaciones ya registradas no se
+                modifican.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {form && (
-        <div className="temporada-card" style={{ gridTemplateColumns: '1fr', marginBottom: 14 }}>
-          <div>
-            <div className="strategy-filters">
-              <div className="strategy-field" style={{ minWidth: 220 }}>
-                <label>Nombre</label>
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiSliders size={14} /></span>
+            <h3 className="aur-section-title">{isEditing ? 'Editar fuente' : 'Nueva fuente'}</h3>
+            <div className="aur-section-actions">
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={() => setForm(null)}
+                title="Cancelar"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="aur-list">
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="ss-nombre">Nombre</label>
+              <div className="aur-field">
                 <input
+                  id="ss-nombre"
                   type="text"
+                  className="aur-input"
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="Clima Santa Cruz"
                 />
               </div>
-              <div className="strategy-field">
-                <label>Tipo</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="ss-tipo">Tipo</label>
+              <div className="aur-field">
                 <select
+                  id="ss-tipo"
+                  className="aur-select"
                   value={form.signalType}
-                  disabled={!!form.id}
+                  disabled={isEditing}
                   onChange={e => setForm({ ...form, signalType: e.target.value })}
                 >
                   {Object.entries(SIGNAL_TYPE_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
                   ))}
                 </select>
+                {isEditing && <p className="aur-field-hint">No editable después de crear.</p>}
               </div>
-              <div className="strategy-field">
-                <label>Proveedor</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="ss-provider">Proveedor</label>
+              <div className="aur-field">
                 <select
+                  id="ss-provider"
+                  className="aur-select"
                   value={form.provider}
-                  disabled={!!form.id}
+                  disabled={isEditing}
                   onChange={e => setForm({ ...form, provider: e.target.value })}
                 >
                   {providers
@@ -220,183 +282,290 @@ function SignalSources() {
                     .map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
                 </select>
               </div>
-              <div className="strategy-field">
-                <label>Intervalo (días)</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="ss-intervalo">Intervalo (días)</label>
+              <div className="aur-field">
                 <input
+                  id="ss-intervalo"
                   type="number"
                   min={1}
                   max={90}
+                  className="aur-input aur-input--num"
                   value={form.ingestIntervalDays}
                   onChange={e => setForm({ ...form, ingestIntervalDays: e.target.value })}
                 />
               </div>
-              <div className="strategy-field">
-                <label>Activa</label>
-                <select
-                  value={form.enabled ? '1' : '0'}
-                  onChange={e => setForm({ ...form, enabled: e.target.value === '1' })}
-                >
-                  <option value="1">Sí</option>
-                  <option value="0">No</option>
-                </select>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <span className="aur-row-label">Activa</span>
+              <div className="strategy-toggle-control">
+                <label className="aur-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!!form.enabled}
+                    onChange={e => setForm({ ...form, enabled: e.target.checked })}
+                  />
+                  <span className="aur-toggle-track"><span className="aur-toggle-thumb" /></span>
+                  <span className="aur-toggle-label">{form.enabled ? 'Sí' : 'No'}</span>
+                </label>
               </div>
             </div>
 
             {form.provider === 'openweathermap' && (
-              <div className="strategy-filters" style={{ marginTop: 8 }}>
-                <div className="strategy-field">
-                  <label>Latitud</label>
-                  <input
-                    type="number" step="any"
-                    value={form.config.lat}
-                    onChange={e => setForm({ ...form, config: { ...form.config, lat: e.target.value } })}
-                  />
+              <>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-lat">Latitud</label>
+                  <div className="aur-field">
+                    <input
+                      id="ss-lat"
+                      type="number"
+                      step="any"
+                      className="aur-input aur-input--num"
+                      value={form.config.lat}
+                      onChange={e => setForm({ ...form, config: { ...form.config, lat: e.target.value } })}
+                    />
+                  </div>
                 </div>
-                <div className="strategy-field">
-                  <label>Longitud</label>
-                  <input
-                    type="number" step="any"
-                    value={form.config.lon}
-                    onChange={e => setForm({ ...form, config: { ...form.config, lon: e.target.value } })}
-                  />
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-lon">Longitud</label>
+                  <div className="aur-field">
+                    <input
+                      id="ss-lon"
+                      type="number"
+                      step="any"
+                      className="aur-input aur-input--num"
+                      value={form.config.lon}
+                      onChange={e => setForm({ ...form, config: { ...form.config, lon: e.target.value } })}
+                    />
+                  </div>
                 </div>
-                <div className="strategy-field" style={{ flex: '1 1 200px' }}>
-                  <label>Ciudad (etiqueta)</label>
-                  <input
-                    type="text"
-                    value={form.config.city || ''}
-                    onChange={e => setForm({ ...form, config: { ...form.config, city: e.target.value } })}
-                  />
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-ciudad">Ciudad (etiqueta)</label>
+                  <div className="aur-field">
+                    <input
+                      id="ss-ciudad"
+                      type="text"
+                      className="aur-input"
+                      value={form.config.city || ''}
+                      onChange={e => setForm({ ...form, config: { ...form.config, city: e.target.value } })}
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
-            <div className="strategy-filters" style={{ marginTop: 8 }}>
-              {form.signalType === 'weather' ? (
-                <>
-                  <div className="strategy-field">
-                    <label>Umbral lluvia (mm/24h)</label>
+            {form.signalType === 'weather' ? (
+              <>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-rain">Umbral lluvia (mm/24h)</label>
+                  <div className="aur-field">
                     <input
-                      type="number" min={0}
+                      id="ss-rain"
+                      type="number"
+                      min={0}
+                      className="aur-input aur-input--num"
                       value={form.alertThresholds.rainfallMm24h ?? ''}
-                      onChange={e => setForm({ ...form, alertThresholds: { ...form.alertThresholds, rainfallMm24h: e.target.value === '' ? undefined : Number(e.target.value) } })}
+                      onChange={e => setForm({
+                        ...form,
+                        alertThresholds: {
+                          ...form.alertThresholds,
+                          rainfallMm24h: e.target.value === '' ? undefined : Number(e.target.value),
+                        },
+                      })}
                     />
                   </div>
-                  <div className="strategy-field">
-                    <label>Umbral temp. mínima (°C)</label>
+                </div>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-tmin">Umbral temp. mínima (°C)</label>
+                  <div className="aur-field">
                     <input
-                      type="number" step="any"
+                      id="ss-tmin"
+                      type="number"
+                      step="any"
+                      className="aur-input aur-input--num"
                       value={form.alertThresholds.tempMinC ?? ''}
-                      onChange={e => setForm({ ...form, alertThresholds: { ...form.alertThresholds, tempMinC: e.target.value === '' ? undefined : Number(e.target.value) } })}
+                      onChange={e => setForm({
+                        ...form,
+                        alertThresholds: {
+                          ...form.alertThresholds,
+                          tempMinC: e.target.value === '' ? undefined : Number(e.target.value),
+                        },
+                      })}
                     />
                   </div>
-                  <div className="strategy-field">
-                    <label>Umbral temp. máxima (°C)</label>
+                </div>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-tmax">Umbral temp. máxima (°C)</label>
+                  <div className="aur-field">
                     <input
-                      type="number" step="any"
+                      id="ss-tmax"
+                      type="number"
+                      step="any"
+                      className="aur-input aur-input--num"
                       value={form.alertThresholds.tempMaxC ?? ''}
-                      onChange={e => setForm({ ...form, alertThresholds: { ...form.alertThresholds, tempMaxC: e.target.value === '' ? undefined : Number(e.target.value) } })}
+                      onChange={e => setForm({
+                        ...form,
+                        alertThresholds: {
+                          ...form.alertThresholds,
+                          tempMaxC: e.target.value === '' ? undefined : Number(e.target.value),
+                        },
+                      })}
                     />
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="strategy-field">
-                    <label>Umbral caída precio (%)</label>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-drop">Umbral caída precio (%)</label>
+                  <div className="aur-field">
                     <input
-                      type="number" min={0}
+                      id="ss-drop"
+                      type="number"
+                      min={0}
+                      className="aur-input aur-input--num"
                       value={form.alertThresholds.dropPct ?? ''}
-                      onChange={e => setForm({ ...form, alertThresholds: { ...form.alertThresholds, dropPct: e.target.value === '' ? undefined : Number(e.target.value) } })}
+                      onChange={e => setForm({
+                        ...form,
+                        alertThresholds: {
+                          ...form.alertThresholds,
+                          dropPct: e.target.value === '' ? undefined : Number(e.target.value),
+                        },
+                      })}
                     />
                   </div>
-                  <div className="strategy-field">
-                    <label>Umbral subida precio (%)</label>
+                </div>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="ss-rise">Umbral subida precio (%)</label>
+                  <div className="aur-field">
                     <input
-                      type="number" min={0}
+                      id="ss-rise"
+                      type="number"
+                      min={0}
+                      className="aur-input aur-input--num"
                       value={form.alertThresholds.risePct ?? ''}
-                      onChange={e => setForm({ ...form, alertThresholds: { ...form.alertThresholds, risePct: e.target.value === '' ? undefined : Number(e.target.value) } })}
+                      onChange={e => setForm({
+                        ...form,
+                        alertThresholds: {
+                          ...form.alertThresholds,
+                          risePct: e.target.value === '' ? undefined : Number(e.target.value),
+                        },
+                      })}
                     />
                   </div>
-                </>
-              )}
-            </div>
-
-            <div className="temporadas-header-actions" style={{ marginTop: 8, marginBottom: 0 }}>
-              <button className="primary-button" onClick={handleSave} disabled={saving}>
-                <FiCheck /> {saving ? 'Guardando…' : 'Guardar'}
-              </button>
-              <button className="primary-button" onClick={() => setForm(null)}>
-                <FiX /> Cancelar
-              </button>
-            </div>
+                </div>
+              </>
+            )}
           </div>
-        </div>
+
+          <div className="aur-form-actions">
+            <button
+              type="button"
+              className="aur-btn-text"
+              onClick={() => setForm(null)}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              <FiCheck size={14} /> {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </section>
       )}
 
-      {loading ? (
-        <div className="strategy-empty">Cargando…</div>
-      ) : sources.length === 0 ? (
-        <div className="strategy-empty">
-          No hay fuentes configuradas. Crea una para empezar a recibir señales.
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiList size={14} /></span>
+          <h3 className="aur-section-title">Fuentes configuradas</h3>
+          {sources.length > 0 && <span className="aur-section-count">{sources.length}</span>}
         </div>
-      ) : (
-        <div className="temporadas-list">
-          {sources.map(s => (
-            <div key={s.id} className={`temporada-card ${!s.enabled ? 'temporada-card--archived' : ''}`}>
-              <div>
-                <div className="temporada-card-header">
-                  <span className="temporada-name">{s.name}</span>
-                  <span className="temporada-badge temporada-badge--manual">
-                    {SIGNAL_TYPE_LABELS[s.signalType] || s.signalType}
-                  </span>
-                  <span className="temporada-badge temporada-badge--auto">{s.provider}</span>
-                  {!s.enabled && <span className="temporada-badge temporada-badge--archived">Desactivada</span>}
-                </div>
-                <div className="temporada-range">
-                  Intervalo: {s.ingestIntervalDays} día(s) · Última: {fmtTs(s.lastSuccessfulFetchAt)}
-                  {s.consecutiveFailures > 0 && ` · ${s.consecutiveFailures} fallo(s) consecutivo(s)`}
-                </div>
-                {s.lastError && (
-                  <div className="temporada-meta" style={{ color: '#ff8080' }}>
-                    Último error: {s.lastError}
-                  </div>
-                )}
-              </div>
-              <div className="temporada-actions">
-                {s.provider !== 'manual' && (
-                  <button
-                    className="primary-button"
-                    disabled={triggering === s.id || !killSwitchEnabled}
-                    onClick={() => triggerIngest(s)}
-                    title={killSwitchEnabled ? 'Refrescar ahora' : 'Señales pausadas'}
-                  >
-                    <FiPlay />
-                  </button>
-                )}
-                <button
-                  className="primary-button"
-                  onClick={() => setForm({
-                    id: s.id,
-                    name: s.name,
-                    signalType: s.signalType,
-                    provider: s.provider,
-                    enabled: s.enabled !== false,
-                    ingestIntervalDays: s.ingestIntervalDays || 1,
-                    config: s.config || {},
-                    alertThresholds: s.alertThresholds || {},
-                    notas: s.notas || '',
-                  })}
+
+        {loading ? (
+          <p className="strategy-empty">Cargando…</p>
+        ) : sources.length === 0 ? (
+          <p className="strategy-empty">
+            No hay fuentes configuradas. Crea una para empezar a recibir señales.
+          </p>
+        ) : (
+          <div className="aur-list">
+            {sources.map(s => {
+              const disabled = !s.enabled;
+              return (
+                <div
+                  key={s.id}
+                  className={`aur-row strategy-item-row${disabled ? ' is-archived' : ''}`}
                 >
-                  <FiEdit2 />
-                </button>
-                <button className="primary-button" onClick={() => setConfirmDelete(s)}>
-                  <FiTrash2 />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                  <div className="strategy-item-info">
+                    <div className="strategy-item-head">
+                      <span className="strategy-item-title">{s.name}</span>
+                      <span className={`aur-badge ${SIGNAL_TYPE_VARIANT}`}>
+                        {SIGNAL_TYPE_LABELS[s.signalType] || s.signalType}
+                      </span>
+                      <span className={`aur-badge ${PROVIDER_VARIANT}`}>{s.provider}</span>
+                      {disabled && <span className="aur-badge aur-badge--gray">Desactivada</span>}
+                    </div>
+                    <div className="strategy-item-sub">
+                      Intervalo: {s.ingestIntervalDays} día(s) · Última: {fmtTs(s.lastSuccessfulFetchAt)}
+                      {s.consecutiveFailures > 0 && ` · ${s.consecutiveFailures} fallo(s) consecutivo(s)`}
+                    </div>
+                    {s.lastError && (
+                      <div className="strategy-item-meta strategy-num--neg">
+                        Último error: {s.lastError}
+                      </div>
+                    )}
+                  </div>
+                  <div className="strategy-item-actions">
+                    {s.provider !== 'manual' && (
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm"
+                        disabled={triggering === s.id || !killSwitchEnabled}
+                        onClick={() => triggerIngest(s)}
+                        title={killSwitchEnabled ? 'Refrescar ahora' : 'Señales pausadas'}
+                      >
+                        <FiPlay size={14} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm"
+                      title="Editar"
+                      onClick={() => setForm({
+                        id: s.id,
+                        name: s.name,
+                        signalType: s.signalType,
+                        provider: s.provider,
+                        enabled: s.enabled !== false,
+                        ingestIntervalDays: s.ingestIntervalDays || 1,
+                        config: s.config || {},
+                        alertThresholds: s.alertThresholds || {},
+                        notas: s.notas || '',
+                      })}
+                    >
+                      <FiEdit2 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                      title="Eliminar"
+                      onClick={() => setConfirmDelete(s)}
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmDelete && (
