@@ -145,6 +145,65 @@
   gap: 6px;
 }
 
+/* List-item row para CRUD (Temporadas, Constraints, Fuentes, Recomendaciones,
+   Versiones). Override del grid 180px/1fr de `aur-row` por "info | actions";
+   `aur-row` ya provee padding/divider/hover/rounded. */
+.aur-row.strategy-item-row {
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+.aur-row.strategy-item-row.is-archived {
+  opacity: 0.55;
+}
+
+.strategy-item-info {
+  min-width: 0;
+}
+.strategy-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.strategy-item-title {
+  font-weight: 600;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
+}
+.strategy-item-sub {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+.strategy-item-meta {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  margin-top: 2px;
+}
+.strategy-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Texto secundario inline para `aur-section-header` (ej. "N registros
+   analizados" junto al close button). */
+.strategy-meta-text {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+}
+
+/* Wrapper para `aur-toggle` cuando va dentro de `aur-row--multiline` con un
+   hint debajo. `aur-toggle` ya provee track/thumb/label; aquí sólo apilamos
+   verticalmente con el hint. */
+.strategy-toggle-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .strategy-empty {
   text-align: center;
   padding: 32px;

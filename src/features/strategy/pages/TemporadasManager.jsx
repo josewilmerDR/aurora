@@ -1,16 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiCalendar, FiCompass, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX } from 'react-icons/fi';
+import { FiCalendar, FiCompass, FiEdit2, FiTrash2, FiPlus, FiCheck, FiX, FiList, FiGitMerge } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/strategy.css';
 
-// Formateos compartidos.
 const fmtRange = (inicio, fin) => `${inicio} → ${fin}`;
 const fmtKg = (kg) => {
   const v = Number(kg);
   if (!Number.isFinite(v)) return '—';
   return `${v.toLocaleString('en-US', { maximumFractionDigits: 0 })} kg`;
+};
+
+// Mapeo de origen/estado a variantes del sistema. Manual=trabajo humano,
+// Auto=detectado por el agente, Archivada=preservada por integridad.
+const SOURCE_BADGE_VARIANT = {
+  manual: 'aur-badge--green',
+  auto: 'aur-badge--violet',
+};
+const STATUS_BADGE_VARIANT = {
+  archived: 'aur-badge--gray',
 };
 
 function emptyForm() {
@@ -135,63 +144,92 @@ function TemporadasManager() {
     }
   };
 
+  const isEditing = !!form?.id;
+
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h2><FiCalendar /> Temporadas</h2>
-      </div>
-
-      <p className="strategy-empty" style={{ padding: 0, textAlign: 'left', marginBottom: 14 }}>
-        Ciclos productivos usados por el análisis de rendimiento. Puedes detectarlas automáticamente a partir de
-        los registros de cosecha o crearlas manualmente.
-      </p>
-
-      <div className="temporadas-header-actions">
-        <button
-          className="primary-button"
-          onClick={runDetect}
-          disabled={detecting}
-        >
-          <FiCompass /> {detecting ? 'Detectando…' : 'Detectar temporadas'}
-        </button>
-        <button
-          className="primary-button"
-          onClick={() => setForm(emptyForm())}
-        >
-          <FiPlus /> Nueva temporada
-        </button>
-      </div>
+    <div className="aur-sheet">
+      <header className="aur-sheet-header">
+        <div className="aur-sheet-header-text">
+          <h2 className="aur-sheet-title"><FiCalendar /> Temporadas</h2>
+          <p className="aur-sheet-subtitle">
+            Ciclos productivos usados por el análisis de rendimiento. Puedes detectarlas automáticamente a partir
+            de los registros de cosecha o crearlas manualmente.
+          </p>
+        </div>
+        <div className="aur-sheet-header-actions">
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            onClick={runDetect}
+            disabled={detecting}
+          >
+            <FiCompass size={14} /> {detecting ? 'Detectando…' : 'Detectar temporadas'}
+          </button>
+          {!form && (
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => setForm(emptyForm())}
+            >
+              <FiPlus size={14} /> Nueva temporada
+            </button>
+          )}
+        </div>
+      </header>
 
       {proposals && (
-        <div style={{ marginBottom: 18 }}>
-          <h3 style={{ margin: '10px 0', fontSize: 14, opacity: 0.75 }}>
-            Propuestas ({proposals.proposals.length}) — {proposals.totalRegistros} registros analizados
-          </h3>
-          {proposals.proposals.length === 0 ? (
-            <div className="strategy-empty">
-              No se detectaron temporadas con los registros actuales. Necesitas al menos 3 cosechas en ≥ 45 días sin huecos de 30+ días.
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiGitMerge size={14} /></span>
+            <h3 className="aur-section-title">Propuestas detectadas</h3>
+            {proposals.proposals.length > 0 && (
+              <span className="aur-section-count">{proposals.proposals.length}</span>
+            )}
+            <div className="aur-section-actions">
+              <span className="strategy-meta-text">
+                {proposals.totalRegistros} registros analizados
+              </span>
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={() => setProposals(null)}
+                title="Cerrar propuestas"
+              >
+                <FiX size={14} />
+              </button>
             </div>
+          </div>
+
+          {proposals.proposals.length === 0 ? (
+            <p className="strategy-empty">
+              No se detectaron temporadas con los registros actuales. Necesitas al menos 3 cosechas en ≥ 45 días sin
+              huecos de 30+ días.
+            </p>
           ) : (
-            <div className="temporada-proposal-list">
+            <div className="aur-list">
               {proposals.proposals.map(p => (
                 <div
                   key={`${p.fechaInicio}_${p.fechaFin}`}
-                  className={`temporada-proposal ${p.existing ? 'temporada-proposal--existing' : ''}`}
+                  className={`aur-row strategy-item-row${p.existing ? ' is-archived' : ''}`}
                 >
-                  <div>
-                    <div className="temporada-card-header">
-                      <span className="temporada-name">{p.nombre}</span>
-                      {p.existing && <span className="temporada-badge temporada-badge--manual">Ya registrada</span>}
+                  <div className="strategy-item-info">
+                    <div className="strategy-item-head">
+                      <span className="strategy-item-title">{p.nombre}</span>
+                      {p.existing && <span className="aur-badge aur-badge--green">Ya registrada</span>}
                     </div>
-                    <div className="temporada-range">{fmtRange(p.fechaInicio, p.fechaFin)}</div>
-                    <div className="temporada-meta">
+                    <div className="strategy-item-sub">{fmtRange(p.fechaInicio, p.fechaFin)}</div>
+                    <div className="strategy-item-meta">
                       {p.nRegistros} cosechas · {fmtKg(p.totalKg)}
                     </div>
                   </div>
-                  <div className="temporada-actions">
+                  <div className="strategy-item-actions">
                     {!p.existing && (
-                      <button className="primary-button" onClick={() => acceptProposal(p)}>
-                        <FiCheck /> Aceptar
+                      <button
+                        type="button"
+                        className="aur-btn-pill aur-btn-pill--sm"
+                        onClick={() => acceptProposal(p)}
+                      >
+                        <FiCheck size={14} /> Aceptar
                       </button>
                     )}
                   </div>
@@ -199,117 +237,163 @@ function TemporadasManager() {
               ))}
             </div>
           )}
-          <button
-            className="secondary-button"
-            style={{ marginTop: 12 }}
-            onClick={() => setProposals(null)}
-          >
-            <FiX /> Cerrar propuestas
-          </button>
-        </div>
+        </section>
       )}
 
       {form && (
-        <div className="temporada-card" style={{ gridTemplateColumns: '1fr', marginBottom: 14 }}>
-          <div>
-            <div className="strategy-filters">
-              <div className="strategy-field">
-                <label>Nombre</label>
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <span className="aur-section-num"><FiCalendar size={14} /></span>
+            <h3 className="aur-section-title">{isEditing ? 'Editar temporada' : 'Nueva temporada'}</h3>
+            <div className="aur-section-actions">
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={() => setForm(null)}
+                title="Cancelar"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="aur-list">
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="tm-nombre">Nombre</label>
+              <div className="aur-field">
                 <input
+                  id="tm-nombre"
                   type="text"
+                  className="aur-input"
                   value={form.nombre}
                   onChange={e => setForm({ ...form, nombre: e.target.value })}
                   placeholder="2024-A"
                 />
               </div>
-              <div className="strategy-field">
-                <label>Desde</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="tm-desde">Desde</label>
+              <div className="aur-field">
                 <input
+                  id="tm-desde"
                   type="date"
+                  className="aur-input"
                   value={form.fechaInicio}
                   onChange={e => setForm({ ...form, fechaInicio: e.target.value })}
                 />
               </div>
-              <div className="strategy-field">
-                <label>Hasta</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="tm-hasta">Hasta</label>
+              <div className="aur-field">
                 <input
+                  id="tm-hasta"
                   type="date"
+                  className="aur-input"
                   value={form.fechaFin}
                   onChange={e => setForm({ ...form, fechaFin: e.target.value })}
                 />
               </div>
-              <div className="strategy-field" style={{ flex: '1 1 260px' }}>
-                <label>Notas</label>
+            </div>
+            <div className="aur-row aur-row--multiline">
+              <label className="aur-row-label" htmlFor="tm-notas">Notas</label>
+              <div className="aur-field">
                 <input
+                  id="tm-notas"
                   type="text"
+                  className="aur-input"
                   maxLength={512}
                   value={form.notas}
                   onChange={e => setForm({ ...form, notas: e.target.value })}
                 />
               </div>
             </div>
-            <div className="temporadas-header-actions" style={{ marginTop: 8, marginBottom: 0 }}>
-              <button className="primary-button" onClick={handleSave} disabled={saving}>
-                <FiCheck /> {saving ? 'Guardando…' : 'Guardar'}
-              </button>
-              <button className="secondary-button" onClick={() => setForm(null)}>
-                <FiX /> Cancelar
-              </button>
-            </div>
           </div>
-        </div>
+
+          <div className="aur-form-actions">
+            <button
+              type="button"
+              className="aur-btn-text"
+              onClick={() => setForm(null)}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              <FiCheck size={14} /> {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </section>
       )}
 
-      {loading ? (
-        <div className="strategy-empty">Cargando…</div>
-      ) : temporadas.length === 0 ? (
-        <div className="strategy-empty">Todavía no hay temporadas. Detecta o crea una para empezar.</div>
-      ) : (
-        <div className="temporadas-list">
-          {temporadas.map(t => (
-            <div
-              key={t.id}
-              className={`temporada-card ${t.status === 'archived' ? 'temporada-card--archived' : ''}`}
-            >
-              <div>
-                <div className="temporada-card-header">
-                  <span className="temporada-name">{t.nombre}</span>
-                  <span className={`temporada-badge temporada-badge--${t.autoDetected ? 'auto' : 'manual'}`}>
-                    {t.autoDetected ? 'Auto' : 'Manual'}
-                  </span>
-                  {t.status === 'archived' && (
-                    <span className="temporada-badge temporada-badge--archived">Archivada</span>
-                  )}
-                </div>
-                <div className="temporada-range">{fmtRange(t.fechaInicio, t.fechaFin)}</div>
-                {t.notas && <div className="temporada-meta">{t.notas}</div>}
-              </div>
-              <div className="temporada-actions">
-                <button
-                  className="icon-button"
-                  title="Editar"
-                  onClick={() => setForm({
-                    id: t.id,
-                    nombre: t.nombre,
-                    fechaInicio: t.fechaInicio,
-                    fechaFin: t.fechaFin,
-                    notas: t.notas || '',
-                  })}
-                >
-                  <FiEdit2 />
-                </button>
-                <button
-                  className="icon-button danger"
-                  title={t.autoDetected ? 'Eliminar' : 'Archivar'}
-                  onClick={() => setConfirmDelete(t)}
-                >
-                  <FiTrash2 />
-                </button>
-              </div>
-            </div>
-          ))}
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num"><FiList size={14} /></span>
+          <h3 className="aur-section-title">Temporadas registradas</h3>
+          {temporadas.length > 0 && <span className="aur-section-count">{temporadas.length}</span>}
         </div>
-      )}
+
+        {loading ? (
+          <p className="strategy-empty">Cargando…</p>
+        ) : temporadas.length === 0 ? (
+          <p className="strategy-empty">Todavía no hay temporadas. Detecta o crea una para empezar.</p>
+        ) : (
+          <div className="aur-list">
+            {temporadas.map(t => {
+              const archived = t.status === 'archived';
+              return (
+                <div
+                  key={t.id}
+                  className={`aur-row strategy-item-row${archived ? ' is-archived' : ''}`}
+                >
+                  <div className="strategy-item-info">
+                    <div className="strategy-item-head">
+                      <span className="strategy-item-title">{t.nombre}</span>
+                      <span className={`aur-badge ${SOURCE_BADGE_VARIANT[t.autoDetected ? 'auto' : 'manual']}`}>
+                        {t.autoDetected ? 'Auto' : 'Manual'}
+                      </span>
+                      {archived && (
+                        <span className={`aur-badge ${STATUS_BADGE_VARIANT.archived}`}>Archivada</span>
+                      )}
+                    </div>
+                    <div className="strategy-item-sub">{fmtRange(t.fechaInicio, t.fechaFin)}</div>
+                    {t.notas && <div className="strategy-item-meta">{t.notas}</div>}
+                  </div>
+                  <div className="strategy-item-actions">
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm"
+                      title="Editar"
+                      onClick={() => setForm({
+                        id: t.id,
+                        nombre: t.nombre,
+                        fechaInicio: t.fechaInicio,
+                        fechaFin: t.fechaFin,
+                        notas: t.notas || '',
+                      })}
+                    >
+                      <FiEdit2 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                      title={t.autoDetected ? 'Eliminar' : 'Archivar'}
+                      onClick={() => setConfirmDelete(t)}
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       {confirmDelete && (
