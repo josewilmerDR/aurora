@@ -1,4 +1,10 @@
-/* Only active on mobile */
+/* ── Bottom-nav móvil — sólo activa ≤ 768px ────────────────────────────────
+   Conservamos los classnames raíz (mn-bar, mn-sheet, mn-backdrop) sin renombrar
+   porque cedula-viewer.css los referencia en @media print { display:none !important }.
+   El resto migró a tokens --aur-* del sistema; `aur-icon-btn` (sheet close)
+   reemplazó el shell custom de cerrar.
+   ───────────────────────────────────────────────────────────────────────── */
+
 .mn-bar,
 .mn-sheet,
 .mn-backdrop {
@@ -15,10 +21,10 @@
   left: 0;
   right: 0;
   height: 62px;
-  background: var(--aurora-background);
-  border-top: 1px solid var(--aurora-border);
+  background: var(--aur-bg-modal);
+  border-top: 1px solid var(--aur-divider);
   z-index: 1000;
-  padding-bottom: env(safe-area-inset-bottom); /* iPhone notch */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .mn-tab {
@@ -30,8 +36,8 @@
   gap: 3px;
   background: none;
   border: none;
-  color: rgba(230, 242, 255, 0.45);
-  font-size: 0.65rem;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s;
@@ -40,11 +46,11 @@
 
 .mn-tab:hover,
 .mn-tab.active {
-  color: var(--aurora-green);
+  color: var(--aur-accent);
 }
 
 .mn-tab.active svg {
-  filter: drop-shadow(0 0 6px var(--aurora-green));
+  filter: drop-shadow(0 0 6px var(--aur-accent));
 }
 
 /* ── Backdrop ─────────────────────────────────────────────────────────────── */
@@ -52,7 +58,7 @@
   display: block;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--aur-bg-overlay);
   z-index: 1010;
   animation: mnFadeIn 0.2s ease;
 }
@@ -71,12 +77,13 @@
   left: 0;
   right: 0;
   max-height: 80vh;
-  background: var(--aurora-background);
-  border-top: 1px solid var(--aurora-border);
+  background: var(--aur-bg-modal);
+  border-top: 1px solid var(--aur-divider);
   border-radius: 16px 16px 0 0;
   z-index: 1020;
   animation: mnSlideUp 0.22s ease-out;
   overflow: hidden;
+  box-shadow: var(--aur-shadow-modal);
 }
 
 @keyframes mnSlideUp {
@@ -87,7 +94,7 @@
 .mn-sheet-handle {
   width: 36px;
   height: 4px;
-  background: var(--aurora-border);
+  background: var(--aur-divider-2);
   border-radius: 2px;
   margin: 10px auto 0;
   flex-shrink: 0;
@@ -98,30 +105,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px 8px;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
   flex-shrink: 0;
 }
 
 .mn-sheet-title {
   font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--aurora-light);
-}
-
-.mn-sheet-close {
-  background: none;
-  border: none;
-  color: rgba(230, 242, 255, 0.5);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  border-radius: 6px;
-}
-
-.mn-sheet-close:hover {
-  color: var(--aurora-light);
-  background: var(--aurora-border);
+  font-size: var(--aur-fs-callout);
+  color: var(--aur-text);
 }
 
 .mn-sheet-body {
@@ -131,7 +122,7 @@
 }
 
 .mn-sheet-body::-webkit-scrollbar { width: 6px; }
-.mn-sheet-body::-webkit-scrollbar-thumb { background: var(--aurora-border); border-radius: 3px; }
+.mn-sheet-body::-webkit-scrollbar-thumb { background: var(--aur-divider-2); border-radius: 3px; }
 
 /* ── Sheet sections ───────────────────────────────────────────────────────── */
 .mn-sheet-section {
@@ -142,26 +133,29 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.72rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(230, 242, 255, 0.4);
+  color: var(--aur-text-3);
   padding: 4px 16px 6px;
 }
 
 .mn-sheet-empty {
-  font-size: 0.82rem;
-  color: rgba(230, 242, 255, 0.4);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
   padding: 4px 16px;
   margin: 0;
 }
 
+/* Inline link — botón dentro de un <p>; aur-btn-text trae padding/border-radius
+   incompatibles con flujo inline, por eso mantenemos slim modernizado. */
 .mn-inline-link {
   background: none;
   border: none;
-  color: var(--aurora-green);
+  color: var(--aur-accent);
   font-size: inherit;
+  font-family: inherit;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
@@ -179,42 +173,43 @@
   align-items: center;
   gap: 12px;
   padding: 11px 16px;
-  color: rgba(230, 242, 255, 0.75);
+  color: var(--aur-text-2);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: var(--aur-fs-footnote);
   border-radius: 0;
   transition: background 0.12s, color 0.12s;
 }
 
 .mn-link:hover {
-  background: rgba(230, 242, 255, 0.05);
-  color: var(--aurora-light);
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
 }
 
 .mn-link.active {
-  color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.08);
+  color: var(--aur-accent);
+  background: var(--aur-accent-tint);
 }
 
 .mn-pin-btn {
   background: none;
   border: none;
-  color: rgba(230, 242, 255, 0.25);
+  color: var(--aur-text-3);
   cursor: pointer;
   padding: 10px 14px 10px 6px;
   display: flex;
   align-items: center;
+  font-family: inherit;
   transition: color 0.15s;
 }
 
 .mn-pin-btn.pinned,
 .mn-pin-btn:hover {
-  color: var(--aurora-green);
+  color: var(--aur-accent);
 }
 
 /* ── Modules ──────────────────────────────────────────────────────────────── */
 .mn-module {
-  border-bottom: 1px solid rgba(42, 74, 106, 0.4);
+  border-bottom: 1px solid var(--aur-divider);
 }
 
 .mn-module-header {
@@ -225,8 +220,8 @@
   padding: 12px 16px;
   background: none;
   border: none;
-  color: rgba(230, 242, 255, 0.6);
-  font-size: 0.85rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
   font-weight: 600;
   text-align: left;
   cursor: pointer;
@@ -234,8 +229,8 @@
 }
 
 .mn-module-header:hover {
-  color: var(--aurora-light);
-  background: rgba(230, 242, 255, 0.04);
+  color: var(--aur-text);
+  background: var(--aur-bg-hover);
 }
 
 .mn-module-header svg:last-child {
@@ -256,8 +251,8 @@
   padding: 10px 16px;
   background: none;
   border: none;
-  color: rgba(230, 242, 255, 0.5);
-  font-size: 0.83rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -280,7 +275,7 @@
   align-items: center;
   gap: 14px;
   padding: 12px 16px 16px;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
   margin-bottom: 8px;
 }
 
@@ -288,10 +283,10 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(51, 255, 153, 0.15);
-  border: 1.5px solid var(--aurora-green);
-  color: var(--aurora-green);
-  font-size: 1.2rem;
+  background: var(--aur-accent-tint);
+  border: 1.5px solid var(--aur-accent);
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-callout);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -301,13 +296,13 @@
 
 .mn-config-name {
   font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-callout);
+  color: var(--aur-text);
 }
 
 .mn-config-role {
-  font-size: 0.78rem;
-  color: rgba(230, 242, 255, 0.45);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
   margin-top: 2px;
 }
 
@@ -319,8 +314,8 @@
   padding: 13px 16px;
   background: none;
   border: none;
-  color: rgba(230, 242, 255, 0.75);
-  font-size: 0.92rem;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-body);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
@@ -328,17 +323,19 @@
 }
 
 .mn-config-action:hover {
-  background: rgba(230, 242, 255, 0.05);
-  color: var(--aurora-light);
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
 }
 
+/* Logout — el sistema usa magenta para acciones destructivas (--aur-danger);
+   esto reemplaza el #ff7070 red original alineando con el resto de la app. */
 .mn-config-logout {
-  color: #ff7070;
+  color: var(--aur-danger);
 }
 
 .mn-config-logout:hover {
-  color: #ff9090;
-  background: rgba(255, 80, 80, 0.08);
+  color: var(--aur-danger);
+  background: var(--aur-danger-tint);
 }
 
 } /* end @media (max-width: 768px) */
