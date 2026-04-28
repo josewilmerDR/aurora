@@ -244,10 +244,6 @@
   gap: 12px;
 }
 
-.page-content {
-  /* Este div contendrá el contenido específico de la página (las tarjetas, etc) */
-}
-
 /* SimpleLayout no tiene header ni nav inferior: necesita su propio scroll */
 @media (max-width: 768px) {
   .SimpleApp {
