@@ -468,9 +468,9 @@ export default function AuroraChat() {
         <div className="aurora-chat-panel" ref={panelRef}>
           <div className="aurora-chat-header">
             <span className="aurora-chat-header-title">✦ Aurora</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <div className="aurora-chat-header-actions">
               <button
-                className={`aurora-chat-btn aurora-chat-pin-btn${pinned ? ' pinned' : ''}`}
+                className={`aur-icon-btn aur-icon-btn--sm aurora-chat-pin-btn${pinned ? ' aur-icon-btn--success' : ''}`}
                 onClick={() => {
                   const next = !pinned;
                   setPinned(next);
@@ -478,10 +478,14 @@ export default function AuroraChat() {
                 }}
                 title={pinned ? 'Desfijar chat' : 'Fijar chat (mantener abierto)'}
               >
-                <FiMapPin size={15} />
+                <FiMapPin size={14} />
               </button>
-              <button className="aurora-chat-btn" onClick={() => setOpen(false)} title="Cerrar">
-                <FiX size={16} />
+              <button
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={() => setOpen(false)}
+                title="Cerrar"
+              >
+                <FiX size={15} />
               </button>
             </div>
           </div>

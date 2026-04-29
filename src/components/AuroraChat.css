@@ -1,4 +1,5 @@
 /* ── Floating Action Button ─────────────────────────────────────────────────── */
+/* No hay primitiva FAB en aurora.css; este shell consume tokens del sistema. */
 .aurora-chat-fab {
   position: fixed;
   bottom: 24px;
@@ -6,26 +7,41 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
+  background: var(--aur-accent);
+  color: var(--aur-bg-modal);
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 20px rgba(51, 255, 153, 0.35);
+  box-shadow: var(--aur-shadow-pill);
   z-index: 1100;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s var(--aur-ease), box-shadow 0.2s var(--aur-ease);
 }
 
-/* ── Badge de recordatorios en el FAB ───────────────────────────────────────── */
+.aurora-chat-fab:hover {
+  transform: scale(1.08);
+  box-shadow: var(--aur-shadow-pill-hover);
+}
+
+.aurora-chat-fab:focus-visible {
+  outline: none;
+  box-shadow: var(--aur-shadow-pill), var(--aur-ring);
+}
+
+.aurora-chat-fab-open {
+  background: var(--aur-bg-strong);
+  color: var(--aur-text);
+  box-shadow: var(--aur-shadow-popover);
+}
+
+/* Badge de recordatorios sobre el FAB. aur-badge--yellow ya provee bg/fg
+   amber; aquí solo afinamos posicionamiento absoluto y tamaño compacto. */
 .aurora-chat-fab-badge {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #f59e0b;
-  color: #0d1a26;
-  font-size: 0.68rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 700;
   min-width: 18px;
   height: 18px;
@@ -35,19 +51,10 @@
   justify-content: center;
   padding: 0 4px;
   line-height: 1;
-  border: 2px solid var(--aurora-dark-blue);
+  background: var(--aur-warn);
+  color: var(--aur-bg-modal);
+  border: 2px solid var(--aur-bg-modal);
   pointer-events: none;
-}
-
-.aurora-chat-fab:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 24px rgba(51, 255, 153, 0.5);
-}
-
-.aurora-chat-fab-open {
-  background: var(--aurora-border);
-  color: var(--aurora-light);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Chat Panel ─────────────────────────────────────────────────────────────── */
@@ -76,19 +83,25 @@
 /* ── Header ─────────────────────────────────────────────────────────────────── */
 .aurora-chat-header {
   padding: 13px 14px;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aur-divider);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--aurora-dark-blue);
+  background: var(--aur-bg-modal);
   flex-shrink: 0;
 }
 
 .aurora-chat-header-title {
   font-weight: 600;
-  color: var(--aurora-green);
-  font-size: 0.92rem;
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-callout);
   letter-spacing: 0.01em;
+}
+
+.aurora-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* ── Messages ───────────────────────────────────────────────────────────────── */
@@ -319,16 +332,8 @@
 }
 
 /* ── Pin button (desktop only) ───────────────────────────────────────────────── */
-.aurora-chat-pin-btn {
-  opacity: 0.4;
-  transition: opacity 0.15s, color 0.15s;
-}
-.aurora-chat-pin-btn:hover { opacity: 0.8; }
-.aurora-chat-pin-btn.pinned {
-  opacity: 1;
-  color: var(--aurora-green);
-}
-
+/* aur-icon-btn + --sm + --success ya proveen bg/color/hover/state; este
+   selector existe SÓLO para ocultarlo en móvil (no aplica el patrón pin allí). */
 @media (max-width: 480px) {
   .aurora-chat-pin-btn { display: none; }
 }
