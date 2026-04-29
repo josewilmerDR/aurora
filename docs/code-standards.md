@@ -337,15 +337,15 @@ src/
 
 **CI gate (F7):** [scripts/check-routes-loc.cjs](../scripts/check-routes-loc.cjs) runs in `.github/workflows/tests.yml` on every PR. It fails if any file under `functions/routes/**` exceeds 500 LOC (the hard limit), unless the file is in `ALLOWLIST_OVER_500` with a follow-up reference. **New entries to the allowlist are not accepted in PRs** — split the file or argue the exception explicitly.
 
-Current allowlisted exceptions (all are documented refactor targets):
+**Allowlist status (as of F8): empty.** Every previously-grandfathered monolith was split into its own sub-domain directory:
 
-- [functions/routes/autopilot/analyze.js](../functions/routes/autopilot/analyze.js) (792) — F5 follow-up: split per nivel
-- [functions/routes/field-records.js](../functions/routes/field-records.js) (1193) — F8 follow-up: legacy `cedulas` monolith
-- [functions/routes/procurement-invoices.js](../functions/routes/procurement-invoices.js) (870) — F8 follow-up: legacy `compras` monolith
-- [functions/routes/monitoring.js](../functions/routes/monitoring.js) (792) — F8 follow-up: legacy `monitoreo` monolith
-- [functions/routes/strategy.js](../functions/routes/strategy.js) (609) — F8 follow-up
-- [functions/routes/products.js](../functions/routes/products.js) (607) — F8 follow-up: legacy `productos` monolith
-- [functions/routes/hr/payroll-unit.js](../functions/routes/hr/payroll-unit.js) (557) — F8 follow-up: secondary split inside hr/
+- `routes/field-records/` (was `cedulas.js`, 1193 LOC) — read / create / mix / apply / void
+- `routes/procurement-invoices/` (was `compras.js`, 870 LOC) — invoices / purchase-requests / movements / purchase-orders / receipts
+- `routes/monitoring/` (was `monitoreo.js`, 792 LOC) — types / packages / sampling / records
+- `routes/autopilot/analyze/` (was 792 LOC) — snapshot / nivel1 / nivel2 / nivel3
+- `routes/strategy/` (609 LOC) — constraints / recommend / decisions
+- `routes/products/` (was `productos.js`, 607 LOC) — crud / ai / adjustment / intake
+- `routes/hr/payroll-unit/` (557 LOC, secondary split inside hr/) — reads / mutations / templates
 
 The script also fails if a previously-allowlisted file has been split below the limit but the entry is still in the list — keeps the allowlist honest.
 
@@ -368,8 +368,8 @@ This document is the target. The existing 50+ routers don't all match it today. 
    - F5: Split monoliths into domains (✅ completed — hr/, autopilot/, chat/)
    - F6: ES → EN file renames per §2 table (✅ completed for backend route file names)
    - F7: CI tests + coverage thresholds + LOC budget gate (✅ completed via [.github/workflows/tests.yml](../.github/workflows/tests.yml))
-   - F8 (next): split the remaining monoliths in the LOC allowlist; migrate the rest of the domains to Zod + repository pattern.
-   - Cross-cutting follow-ups: HTTP route URL rename `/api/compras → /api/procurement-invoices` etc. (FE+BE coordinated PR), Firestore collection/field rename data migration, ESLint adoption for richer style rules.
+   - F8: split the 7 remaining monoliths in the LOC allowlist (✅ completed — allowlist is now empty)
+   - Cross-cutting follow-ups (no fixed phase): migrate the rest of the domains to Zod + repository pattern; HTTP route URL rename `/api/compras → /api/procurement-invoices` etc. (FE+BE coordinated PR); Firestore collection/field rename data migration; ESLint adoption for richer style rules. Tackle these opportunistically when touching a domain rather than as bulk migrations.
 4. **Don't refactor speculatively.** A refactor PR is OK; a refactor PR bundled with feature work is not. Keep diffs reviewable.
 
 ---
