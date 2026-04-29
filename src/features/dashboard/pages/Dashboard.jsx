@@ -129,9 +129,8 @@ function Dashboard() {
                 <span className="dash-stat-count">{stats.pending}</span>
                 <span className="dash-stat-label">Tareas pendientes</span>
               </Link>
-              <Link to="/tasks?new=1" className="dash-stat-card dash-stat-card--accent">
+              <Link to="/tasks?new=1" className="dash-stat-card dash-stat-card--accent dash-stat-card--action">
                 <span className="dash-stat-icon"><FiPlus size={18} /></span>
-                <span className="dash-stat-count dash-stat-count--symbol">+</span>
                 <span className="dash-stat-label">Nueva tarea</span>
               </Link>
             </div>

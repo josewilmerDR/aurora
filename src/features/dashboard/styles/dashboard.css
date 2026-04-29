@@ -60,10 +60,15 @@
   font-variant-numeric: tabular-nums;
   color: var(--aur-text);
 }
-/* Símbolo "+" del card "Nueva tarea" — más liviano que el numérico. */
-.dash-stat-count--symbol {
-  font-weight: 400;
-  font-variant-numeric: normal;
+
+/* Card de acción ("Nueva tarea") — sin count numérico. Override del grid:
+   ícono y label en una sola fila centrada para evitar fila inferior vacía. */
+.dash-stat-card--action {
+  grid-template-rows: 1fr;
+  align-items: center;
+}
+.dash-stat-card--action .dash-stat-icon {
+  grid-row: 1;
 }
 
 .dash-stat-label {
