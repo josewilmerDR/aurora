@@ -377,14 +377,14 @@ export default function AuroraChat() {
         ) : (
           <div className="aurora-draft-actions">
             <button
-              className="aurora-draft-btn aurora-draft-btn-primary"
+              className="aur-btn-pill aur-btn-pill--sm"
               onClick={() => handlePlanillaSave(draft, msgIndex)}
               disabled={state === 'saving'}
             >
               <FiCheck size={13} /> {state === 'saving' ? 'Guardando…' : 'Guardar borrador'}
             </button>
             <button
-              className="aurora-draft-btn aurora-draft-btn-secondary"
+              className="aur-btn-text"
               onClick={() => handlePlanillaReview(draft)}
             >
               <FiEdit2 size={13} /> Abrir en formulario
@@ -444,14 +444,14 @@ export default function AuroraChat() {
         ) : (
           <div className="aurora-draft-actions">
             <button
-              className="aurora-draft-btn aurora-draft-btn-primary"
+              className="aur-btn-pill aur-btn-pill--sm"
               onClick={() => handleDraftSave(filas, msgIndex)}
               disabled={state === 'saving'}
             >
               <FiCheck size={13} /> {state === 'saving' ? 'Guardando…' : filas.length > 1 ? `Guardar ${filas.length} registros` : 'Guardar'}
             </button>
             <button
-              className="aurora-draft-btn aurora-draft-btn-secondary"
+              className="aur-btn-text"
               onClick={() => handleDraftReview(filas)}
             >
               <FiEdit2 size={13} /> Revisar en formulario

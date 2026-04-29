@@ -333,23 +333,26 @@
   }
 }
 
-/* ── Horímetro preview card ──────────────────────────────────────────────────── */
+/* ── Horímetro / Planilla preview card ──────────────────────────────────────── */
+/* Card inline dentro de un assistant bubble (no es aur-section ni aur-list,
+   ya que vive embebida en otro contenedor con corner-asymmetric). Shell
+   bespoke consumiendo tokens del sistema. */
 .aurora-draft-card {
   margin-top: 10px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
   overflow: hidden;
-  font-size: 0.82rem;
+  font-size: var(--aur-fs-footnote);
 }
 
 .aurora-draft-title {
   margin: 0;
   padding: 8px 12px;
   font-weight: 600;
-  color: var(--aurora-green);
-  border-bottom: 1px solid var(--aurora-border);
-  font-size: 0.83rem;
+  color: var(--aur-accent);
+  border-bottom: 1px solid var(--aur-divider);
+  font-size: var(--aur-fs-footnote);
 }
 
 .aurora-draft-table {
@@ -358,83 +361,61 @@
 }
 
 .aurora-draft-table tr:not(:last-child) td {
-  border-bottom: 1px solid rgba(42, 74, 106, 0.5);
+  border-bottom: 1px solid var(--aur-divider);
 }
 
 .aurora-draft-label {
   padding: 5px 12px;
-  color: var(--aurora-light);
-  opacity: 0.55;
+  color: var(--aur-text-2);
   white-space: nowrap;
   width: 1%;
-  font-size: 0.78rem;
+  font-size: var(--aur-fs-caption);
 }
 
 .aurora-draft-value {
   padding: 5px 12px 5px 4px;
-  color: var(--aurora-light);
-  font-size: 0.82rem;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-footnote);
 }
 
+/* Compact action footer. NO se reduce a aur-form-actions porque ese
+   primitivo asume contexto form-stack (margin-top 28px + padding-top
+   20px); aquí vivimos dentro de un message bubble compacto. */
 .aurora-draft-actions {
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
 }
-
-.aurora-draft-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  border: none;
-  border-radius: 5px;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  font-weight: 500;
-  transition: opacity 0.15s;
-}
-
-.aurora-draft-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.aurora-draft-btn-primary {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-}
-
-.aurora-draft-btn-secondary {
-  background: transparent;
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
-}
-
-.aurora-draft-btn-secondary:hover { border-color: var(--aurora-light); }
 
 .aurora-draft-saved {
   margin: 0;
   padding: 10px 12px;
-  color: var(--aurora-green);
-  font-size: 0.82rem;
-  border-top: 1px solid var(--aurora-border);
+  color: var(--aur-accent);
+  font-size: var(--aur-fs-footnote);
+  border-top: 1px solid var(--aur-divider);
 }
 
 .aurora-draft-error {
   margin: 0;
   padding: 10px 12px;
-  color: #ff6b6b;
-  font-size: 0.82rem;
-  border-top: 1px solid var(--aurora-border);
+  color: var(--aur-danger);
+  font-size: var(--aur-fs-footnote);
+  border-top: 1px solid var(--aur-divider);
 }
 
 .aurora-draft-fila {
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
 }
 
+/* --aurora-magenta directo: enumeración de filas múltiples (Fila 1, Fila 2,
+   …); semánticamente brand-accent (no error, no danger), por eso no se
+   migra a --aur-danger ni a --aur-accent. Mantiene diferenciación visual
+   respecto del title accent verde. */
 .aurora-draft-fila-num {
   margin: 0;
   padding: 4px 12px;
-  font-size: 0.74rem;
+  font-size: var(--aur-fs-caption);
   font-weight: 600;
   color: var(--aurora-magenta);
   opacity: 0.8;
