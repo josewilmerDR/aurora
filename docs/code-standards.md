@@ -240,9 +240,26 @@ In handlers, prefer `try { ... } catch (err) { handleApiError(res, err, 'Failed 
 
 ### 7.2 Frameworks
 
-- **Backend:** Jest 29 (already configured in [functions/jest.config.js](../functions/jest.config.js)).
-- **Frontend:** Vitest + React Testing Library (to be added in F4 of the production-grade plan). Don't add another runner.
+- **Backend:** Jest 29 (configured in [functions/jest.config.js](../functions/jest.config.js)).
+- **Frontend:** Vitest 3 + React Testing Library + jsdom (configured in [vitest.config.js](../vitest.config.js), setup in [src/test-setup.js](../src/test-setup.js)).
 - **No Mocha, Vitest-on-backend, or Cypress.** Adding a runner needs a doc update first.
+
+**Frontend test commands** (run from repo root):
+```bash
+npm test                # one-shot run (CI)
+npm run test:watch      # watch mode (dev)
+npm run test:coverage   # with v8 coverage report
+```
+
+**Frontend mocking patterns:**
+- Mock cross-cutting hooks (`useApiFetch`, `useUser`) with `vi.mock(...)` BEFORE the component import. Vitest hoists the mock to the top of the module so subsequent imports see the mocked version.
+- Use `vi.importActual(...)` inside the factory when you want to keep some named exports real (e.g. keep `hasMinRole` real but stub `useUser`).
+- `apiFetch` mock helper pattern: return `vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(data) })` to simulate a successful backend response without hitting fetch.
+
+Reference smoke tests:
+- Pure logic: [src/lib/errorMessages.test.js](../src/lib/errorMessages.test.js), [src/contexts/UserContext.test.js](../src/contexts/UserContext.test.js)
+- Visual component: [src/features/finance/components/__tests__/BudgetProgressBar.test.jsx](../src/features/finance/components/__tests__/BudgetProgressBar.test.jsx)
+- Component with hook mocks: [src/features/hr/components/dashboard/__tests__/PerformanceAlertsCard.test.jsx](../src/features/hr/components/dashboard/__tests__/PerformanceAlertsCard.test.jsx)
 
 ### 7.3 Conventions
 

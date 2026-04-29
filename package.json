@@ -14,7 +14,10 @@
     "deploy:functions": "firebase deploy --only functions",
     "deploy:hosting": "npm run build && firebase deploy --only hosting",
     "deploy:indexes": "firebase deploy --only firestore:auroradatabase:indexes",
-    "deploy:rules": "firebase deploy --only firestore:auroradatabase:rules"
+    "deploy:rules": "firebase deploy --only firestore:auroradatabase:rules",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@google/generative-ai": "^0.11.2",
@@ -32,11 +35,16 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.3",
+    "jsdom": "^25.0.1",
     "vite": "^4.4.5",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^3.2.4",
     "workbox-cacheable-response": "^7.4.0",
     "workbox-expiration": "^7.4.0",
     "workbox-precaching": "^7.4.0",
