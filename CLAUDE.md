@@ -26,9 +26,15 @@ npm run build && firebase deploy
 
 **Tests:**
 ```bash
+# Backend (Jest)
 cd functions && npm test               # unit + integration (assumes emulator running)
 cd functions && npm run test:emulator  # boots emulator, runs tests, tears down
 cd functions && npm run test:coverage  # with coverage report
+
+# Frontend (Vitest + React Testing Library)
+npm test                # one-shot run
+npm run test:watch      # watch mode
+npm run test:coverage   # with coverage report
 ```
 
 Test conventions and target structure: see [docs/code-standards.md §7](docs/code-standards.md).
