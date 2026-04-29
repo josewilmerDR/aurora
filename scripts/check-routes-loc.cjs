@@ -35,6 +35,11 @@ const ALLOWLIST_OVER_500 = new Map([
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    // Path traversal is not a concern here: this script runs in CI on the
+    // local checkout we just produced; entry.name comes from readdirSync
+    // on a fixed, internal directory (functions/routes), not from external
+    // input. We also only read (statSync via readFileSync), never write.
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(p, out);
     else if (entry.isFile() && p.endsWith('.js')) out.push(p);

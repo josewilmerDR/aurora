@@ -61,7 +61,19 @@ jobs:
       # Runs vitest with coverage reporters. Thresholds in vitest.config.js
       # are anti-regression: globally low (matching today's baseline) and
       # 100% on stable utilities like errorMessages.js.
+      #
+      # Dummy Firebase env vars: src/firebase.js calls getAuth(app) at module
+      # load time, which throws on an empty apiKey. Tests never call Firebase
+      # — the real env (.env.local) is what locals use; CI just needs the
+      # SDK init to not throw. Real secrets are not required and not provided.
       - name: Run tests with coverage
+        env:
+          VITE_FIREBASE_API_KEY: test-api-key-for-ci-only
+          VITE_FIREBASE_AUTH_DOMAIN: test.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: test-project
+          VITE_FIREBASE_STORAGE_BUCKET: test.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '0'
+          VITE_FIREBASE_APP_ID: 1:0:web:test
         run: npm run test:coverage
 
   loc-budget:
