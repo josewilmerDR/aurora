@@ -1,10 +1,18 @@
-// Pure validator for `credit_products` documents. Returns { error, data }
-// following the same pattern as income/budgets validators.
+// Validador de payloads `credit_products` con Zod.
 //
-// Range policy (intentionally wide to accept real-world Latin American
-// agricultural credit): APR 0-80%, term 1-60 months, amount up to 1e9.
-// All 3 amortization schemes supported: cuota_fija | amortizacion_constante |
-// bullet (interest only monthly, principal at maturity).
+// Range policy (intencionalmente amplia para aceptar crédito agropecuario
+// latinoamericano real): APR 0-80%, plazo 1-60 meses, monto hasta 1e9. Soporta
+// los tres esquemas de amortización: cuota_fija | amortizacion_constante |
+// bullet (sólo intereses mensuales, principal al vencimiento).
+//
+// Los chequeos individuales por campo viven en la schema de Zod; las reglas
+// cross-field (min ≤ max, isInteger en plazos) se ejecutan en buildCreditProductDoc()
+// después del parse. El orden en el que la schema declara los campos coincide
+// con el orden de los chequeos del validador imperativo anterior, así
+// `parsed.error.issues[0]` siempre corresponde al primer error que el código
+// previo habría devuelto.
+
+const { z } = require('zod');
 
 const VALID_TIPOS = new Set(['agricola', 'capital_trabajo', 'leasing', 'rotativo']);
 const VALID_PROVIDER_TYPES = new Set(['banco', 'cooperativa', 'microfinanciera', 'fintech']);
@@ -17,9 +25,11 @@ const MAX_DESCRIPCION = 500;
 const MAX_CODIGO = 64;
 const MAX_REQUISITOS = 30;
 const MAX_MONEDA = 1e9;
-const MAX_APR = 0.80;   // 80% APR ceiling — real products rarely exceed this.
+const MAX_APR = 0.80;   // 80% APR ceiling — productos reales raramente lo exceden.
 const MIN_PLAZO = 1;
-const MAX_PLAZO = 60;   // 5 years. Longer-term agricultural loans are rare.
+const MAX_PLAZO = 60;   // 5 años. Préstamos agropecuarios a más largo son raros.
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
 
 function str(v, max) {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
@@ -31,7 +41,9 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Validate a single requisito. Returns the normalized object or an error string.
+// Valida un único requisito y devuelve el objeto normalizado o un código de
+// error como string. Se exporta vía `_internals` para que los tests lo prueben
+// directamente.
 function normalizeRequisito(raw) {
   if (!raw || typeof raw !== 'object') return 'invalid_shape';
   const tipo = str(raw.tipo, 32);
@@ -43,128 +55,174 @@ function normalizeRequisito(raw) {
   return { tipo, codigo, descripcion };
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────
+// ─── Reusable Zod fragments ───────────────────────────────────────────────
+
+const enumOneOf = (validSet, fieldName) =>
+  z.unknown().refine((v) => validSet.has(v), {
+    message: `${fieldName} must be one of: ${[...validSet].join(', ')}.`,
+  });
+
+const moneyAmountField = (fieldName) =>
+  z.unknown().transform((v, ctx) => {
+    const n = num(v);
+    if (n === null || n <= 0 || n > MAX_MONEDA) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${fieldName} must be > 0.` });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+const plazoField = (fieldName) =>
+  z.unknown().transform((v, ctx) => {
+    const n = num(v);
+    if (n === null || n < MIN_PLAZO || n > MAX_PLAZO) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${fieldName} must be in [${MIN_PLAZO}, ${MAX_PLAZO}].`,
+      });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+const aprField = (fieldName) =>
+  z.unknown().transform((v, ctx) => {
+    const n = num(v);
+    if (n === null || n < 0 || n > MAX_APR) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${fieldName} must be in [0, ${MAX_APR}] (decimal, e.g. 0.18 for 18%).`,
+      });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+// Array de requisitos — usa normalizeRequisito por elemento para mantener una
+// sola fuente de verdad sobre qué shape es válido.
+const requisitosField = z.unknown().transform((raw, ctx) => {
+  const arr = Array.isArray(raw) ? raw : [];
+  if (arr.length > MAX_REQUISITOS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Too many requisitos (max ${MAX_REQUISITOS}).`,
+    });
+    return z.NEVER;
+  }
+  const out = [];
+  for (let i = 0; i < arr.length; i += 1) {
+    const r = normalizeRequisito(arr[i]);
+    if (typeof r === 'string') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `requisitos[${i}] ${r}.` });
+      return z.NEVER;
+    }
+    out.push(r);
+  }
+  return out;
+});
+
+const fuenteField = z.unknown().transform((v, ctx) => {
+  const f = str(v, 64) || 'manual';
+  if (f !== 'manual' && !f.startsWith('api:')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'fuente must be "manual" or start with "api:".',
+    });
+    return z.NEVER;
+  }
+  return f;
+});
+
+// ─── Schema ───────────────────────────────────────────────────────────────
+// El orden de los campos importa: si varios campos fallan, Zod reporta los
+// issues en orden de declaración, y devolvemos `issues[0]` al wrapper. Mantén
+// este orden alineado con la secuencia de chequeos del validador previo para
+// que los tests que matchean por nombre de campo sigan pasando.
+
+const creditProductInputSchema = z.object({
+  providerName: z.unknown().transform((v, ctx) => {
+    const s = str(v, MAX_NAME);
+    if (!s) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'providerName is required.' });
+      return z.NEVER;
+    }
+    return s;
+  }),
+  providerType: enumOneOf(VALID_PROVIDER_TYPES, 'providerType'),
+  tipo: enumOneOf(VALID_TIPOS, 'tipo'),
+  esquemaAmortizacion: enumOneOf(VALID_ESQUEMAS, 'esquemaAmortizacion'),
+  moneda: z.unknown().transform((v) => (VALID_MONEDAS.has(v) ? v : 'USD')),
+  monedaMin: moneyAmountField('monedaMin'),
+  monedaMax: moneyAmountField('monedaMax'),
+  plazoMesesMin: plazoField('plazoMesesMin'),
+  plazoMesesMax: plazoField('plazoMesesMax'),
+  aprMin: aprField('aprMin'),
+  aprMax: aprField('aprMax'),
+  requisitos: requisitosField,
+  fuente: fuenteField,
+  activo: z.unknown().transform((v) => v !== false),
+  descripcion: z.unknown().transform((v) => str(v, MAX_DESCRIPCION) || null),
+});
+
+// ─── Wrapper ──────────────────────────────────────────────────────────────
 
 function buildCreditProductDoc(body) {
   if (!body || typeof body !== 'object') {
     return { error: 'Body is required.' };
   }
 
-  const providerName = str(body.providerName, MAX_NAME);
-  if (!providerName) return { error: 'providerName is required.' };
-
-  const providerType = str(body.providerType, 32);
-  if (!VALID_PROVIDER_TYPES.has(providerType)) {
-    return { error: `providerType must be one of: ${[...VALID_PROVIDER_TYPES].join(', ')}.` };
+  const parsed = creditProductInputSchema.safeParse(body);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
   }
+  const v = parsed.data;
 
-  const tipo = str(body.tipo, 32);
-  if (!VALID_TIPOS.has(tipo)) {
-    return { error: `tipo must be one of: ${[...VALID_TIPOS].join(', ')}.` };
-  }
-
-  const esquemaAmortizacion = str(body.esquemaAmortizacion, 32);
-  if (!VALID_ESQUEMAS.has(esquemaAmortizacion)) {
-    return { error: `esquemaAmortizacion must be one of: ${[...VALID_ESQUEMAS].join(', ')}.` };
-  }
-
-  const moneda = VALID_MONEDAS.has(body.moneda) ? body.moneda : 'USD';
-
-  // Amount bounds.
-  const monedaMin = num(body.monedaMin);
-  const monedaMax = num(body.monedaMax);
-  if (monedaMin === null || monedaMin <= 0 || monedaMin > MAX_MONEDA) {
-    return { error: 'monedaMin must be > 0.' };
-  }
-  if (monedaMax === null || monedaMax <= 0 || monedaMax > MAX_MONEDA) {
-    return { error: 'monedaMax must be > 0.' };
-  }
-  if (monedaMin > monedaMax) {
+  // Cross-field rules — Zod no encaja naturalmente con "min ≤ max" porque cada
+  // campo se valida en aislamiento. Aplicamos en el orden histórico para
+  // preservar los mensajes que esperan los tests.
+  if (v.monedaMin > v.monedaMax) {
     return { error: 'monedaMin cannot exceed monedaMax.' };
   }
-
-  // Term bounds.
-  const plazoMesesMin = num(body.plazoMesesMin);
-  const plazoMesesMax = num(body.plazoMesesMax);
-  if (plazoMesesMin === null || plazoMesesMin < MIN_PLAZO || plazoMesesMin > MAX_PLAZO) {
-    return { error: `plazoMesesMin must be in [${MIN_PLAZO}, ${MAX_PLAZO}].` };
-  }
-  if (plazoMesesMax === null || plazoMesesMax < MIN_PLAZO || plazoMesesMax > MAX_PLAZO) {
-    return { error: `plazoMesesMax must be in [${MIN_PLAZO}, ${MAX_PLAZO}].` };
-  }
-  if (plazoMesesMin > plazoMesesMax) {
+  if (v.plazoMesesMin > v.plazoMesesMax) {
     return { error: 'plazoMesesMin cannot exceed plazoMesesMax.' };
   }
-  if (!Number.isInteger(plazoMesesMin) || !Number.isInteger(plazoMesesMax)) {
+  if (!Number.isInteger(v.plazoMesesMin) || !Number.isInteger(v.plazoMesesMax)) {
     return { error: 'plazo bounds must be integers (months).' };
   }
-
-  // APR bounds (as decimals, e.g. 0.18 = 18%).
-  const aprMin = num(body.aprMin);
-  const aprMax = num(body.aprMax);
-  if (aprMin === null || aprMin < 0 || aprMin > MAX_APR) {
-    return { error: `aprMin must be in [0, ${MAX_APR}] (decimal, e.g. 0.18 for 18%).` };
-  }
-  if (aprMax === null || aprMax < 0 || aprMax > MAX_APR) {
-    return { error: `aprMax must be in [0, ${MAX_APR}] (decimal).` };
-  }
-  if (aprMin > aprMax) {
+  if (v.aprMin > v.aprMax) {
     return { error: 'aprMin cannot exceed aprMax.' };
   }
 
-  // Requisitos array.
-  const rawReqs = Array.isArray(body.requisitos) ? body.requisitos : [];
-  if (rawReqs.length > MAX_REQUISITOS) {
-    return { error: `Too many requisitos (max ${MAX_REQUISITOS}).` };
-  }
-  const requisitos = [];
-  for (let i = 0; i < rawReqs.length; i += 1) {
-    const r = normalizeRequisito(rawReqs[i]);
-    if (typeof r === 'string') {
-      return { error: `requisitos[${i}] ${r}.` };
-    }
-    requisitos.push(r);
-  }
-
-  // fuente — 'manual' default; 'api:xxx' for provider-ingested entries.
-  const fuenteRaw = str(body.fuente, 64);
-  const fuente = fuenteRaw || 'manual';
-  if (fuente !== 'manual' && !fuente.startsWith('api:')) {
-    return { error: 'fuente must be "manual" or start with "api:".' };
-  }
-
-  const activo = body.activo !== false; // default true
-  const descripcion = str(body.descripcion, MAX_DESCRIPCION);
-
   return {
     data: {
-      providerName,
-      providerType,
-      tipo,
-      esquemaAmortizacion,
-      moneda,
-      monedaMin,
-      monedaMax,
-      plazoMesesMin,
-      plazoMesesMax,
-      aprMin,
-      aprMax,
-      requisitos,
-      fuente,
-      activo,
-      descripcion: descripcion || null,
+      providerName: v.providerName,
+      providerType: v.providerType,
+      tipo: v.tipo,
+      esquemaAmortizacion: v.esquemaAmortizacion,
+      moneda: v.moneda,
+      monedaMin: v.monedaMin,
+      monedaMax: v.monedaMax,
+      plazoMesesMin: v.plazoMesesMin,
+      plazoMesesMax: v.plazoMesesMax,
+      aprMin: v.aprMin,
+      aprMax: v.aprMax,
+      requisitos: v.requisitos,
+      fuente: v.fuente,
+      activo: v.activo,
+      descripcion: v.descripcion,
     },
   };
 }
 
 module.exports = {
   buildCreditProductDoc,
+  creditProductInputSchema,
   VALID_TIPOS,
   VALID_PROVIDER_TYPES,
   VALID_ESQUEMAS,
   VALID_MONEDAS,
   VALID_REQ_TIPOS,
-  // internals exported for tests
+  // Internos exportados para tests directos.
   _internals: { normalizeRequisito },
   _limits: { MAX_APR, MIN_PLAZO, MAX_PLAZO, MAX_MONEDA, MAX_REQUISITOS },
 };

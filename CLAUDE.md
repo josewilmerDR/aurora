@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Code standards are authoritative in [docs/code-standards.md](docs/code-standards.md).** Read it before adding new domains, validators, repositories, or tests. When the rules below and that document disagree, the standards doc wins (this file is a quick-reference snapshot).
+
 ## Development Commands
 
 **Start local development (2 terminals required):**
@@ -22,7 +24,14 @@ npm run build && firebase deploy
 **Frontend dev:** http://localhost:5173
 **Functions (local):** http://127.0.0.1:5001/aurora-7dc9b/us-central1/api
 
-There are no unit tests configured in this project.
+**Tests:**
+```bash
+cd functions && npm test               # unit + integration (assumes emulator running)
+cd functions && npm run test:emulator  # boots emulator, runs tests, tears down
+cd functions && npm run test:coverage  # with coverage report
+```
+
+Test conventions and target structure: see [docs/code-standards.md §7](docs/code-standards.md).
 
 ## Architecture Overview
 
@@ -31,6 +40,19 @@ There are no unit tests configured in this project.
 ### Backend: `functions/`
 
 Modular Express app split into domain-specific route files. All routes share one Express instance exported as a Cloud Function named `api`.
+
+**Target structure for new and migrated domains** ([docs/code-standards.md §1](docs/code-standards.md)):
+```
+functions/routes/<domain>/
+  index.js          — Router; mounted by functions/index.js
+  schemas.js        — Zod schemas (single source of truth for payloads)
+  routes.js         — Thin handlers: parse → validate → service → respond
+  service.js        — Business logic (optional; required when handlers do >1 thing)
+  repository.js     — Only file in the domain that touches db.collection()
+  __tests__/        — Collocated unit + integration tests
+```
+
+Reference implementation: [functions/routes/budgets/](functions/routes/budgets/). When in doubt, copy that layout.
 
 **Structure:**
 ```
@@ -63,6 +85,8 @@ functions/
 - Invoice scanning (`POST /api/compras/escanear`) uses Claude vision to extract line items
 - Secrets loaded with Firebase `defineSecret()`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `ANTHROPIC_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
 - Local emulator secrets go in `functions/.env.local`
+- **Validation:** Zod schemas in `<domain>/schemas.js`. Hand-rolled `if (!req.body.x)` checks are legacy — convert to Zod when you touch the file. Pattern: [docs/code-standards.md §3](docs/code-standards.md).
+- **Errors:** every error response goes through `sendApiError(res, code, devMessage, status)` from [functions/lib/errors.js](functions/lib/errors.js). Codes are English; the frontend maps them to Spanish in [src/lib/errorMessages.js](src/lib/errorMessages.js).
 
 ### Frontend: `src/`
 
