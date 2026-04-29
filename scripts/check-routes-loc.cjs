@@ -19,18 +19,12 @@ const MAX_LOC = 500;
 
 // Pre-existing files that exceed MAX_LOC. Each entry MUST be tied to a
 // follow-up. Do not add to this list without explicit team agreement.
-const ALLOWLIST_OVER_500 = new Map([
-  // F5 follow-up: split per-mode (nivel1/nivel2/nivel3) into separate files.
-  ['functions/routes/autopilot/analyze.js',          'F5 follow-up — split per nivel'],
-  // F8 follow-up — legacy monoliths still pending the same mechanical split
-  // applied to hr/, autopilot/, chat/.
-  ['functions/routes/field-records.js',              'F8 follow-up — legacy cedulas monolith'],
-  ['functions/routes/procurement-invoices.js',       'F8 follow-up — legacy compras monolith'],
-  ['functions/routes/monitoring.js',                 'F8 follow-up — legacy monitoreo monolith'],
-  ['functions/routes/strategy.js',                   'F8 follow-up — strategy module split'],
-  ['functions/routes/products.js',                   'F8 follow-up — legacy productos monolith'],
-  ['functions/routes/hr/payroll-unit.js',            'F8 follow-up — payroll-unit secondary split'],
-]);
+//
+// F8 emptied this allowlist by splitting all 7 grandfathered monoliths
+// (field-records, procurement-invoices, monitoring, autopilot/analyze,
+// strategy, products, hr/payroll-unit) into their own directories. New
+// entries should be exceptional and require explicit justification.
+const ALLOWLIST_OVER_500 = new Map();
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
