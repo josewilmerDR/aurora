@@ -191,7 +191,7 @@
   gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
 }
 
 .aurora-img-preview {
@@ -203,118 +203,86 @@
   width: 56px;
   height: 56px;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid var(--aurora-border);
+  border-radius: var(--aur-r-input);
+  border: 1px solid var(--aur-divider);
   display: block;
 }
 
+/* aur-icon-btn--sm provee shape/transition/focus; aquí solo añadimos
+   posicionamiento absoluto sobre el thumb y bg always-on (debe ser
+   visible permanentemente sobre la imagen, no solo en hover). */
 .aurora-img-preview-remove {
   position: absolute;
   top: -6px;
   right: -6px;
-  background: #c0392b;
-  color: white;
-  border: none;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  width: 17px;
-  height: 17px;
-  font-size: 11px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  background: var(--aur-danger);
+  color: var(--aur-text);
+}
+
+.aurora-img-preview-remove:hover:not(:disabled) {
+  background: var(--aur-danger);
+  color: var(--aur-text);
 }
 
 /* ── Input area ─────────────────────────────────────────────────────────────── */
 .aurora-chat-input-area {
   padding: 10px 10px;
-  border-top: 1px solid var(--aurora-border);
+  border-top: 1px solid var(--aur-divider);
   display: flex;
   gap: 6px;
   align-items: flex-end;
   flex-shrink: 0;
-  background: var(--aurora-dark-blue);
+  background: var(--aur-bg-modal);
 }
 
+/* aur-textarea provee bg/border/radius/color/focus-ring/placeholder; aquí
+   sólo afinamos el flex-grow, el min-height compacto (36px vs 64px del
+   form-stack) y el auto-grow cap a 100px específico del chat. */
 .aurora-chat-input {
   flex: 1;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  color: var(--aurora-light);
-  padding: 8px 10px;
-  font-size: 0.855rem;
-  resize: none;
   min-height: 36px;
   max-height: 100px;
-  font-family: inherit;
+  padding: 8px 10px;
+  font-size: var(--aur-fs-footnote);
   line-height: 1.4;
-  overflow-y: auto;
+  resize: none;
 }
 
-.aurora-chat-input:focus {
-  outline: none;
-  border-color: rgba(51, 255, 153, 0.5);
-}
-
-.aurora-chat-input::placeholder {
-  color: rgba(230, 242, 255, 0.35);
-  font-size: 0.82rem;
-}
-
-.aurora-chat-input:disabled {
-  opacity: 0.5;
-}
-
-/* ── Buttons ────────────────────────────────────────────────────────────────── */
-.aurora-chat-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--aurora-light);
-  opacity: 0.65;
-  padding: 7px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: opacity 0.15s, background 0.15s;
-}
-
-.aurora-chat-btn:hover:not(:disabled) {
-  opacity: 1;
-  background: var(--aurora-border);
-}
-
-.aurora-chat-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.3;
-}
-
+/* ── Send button ────────────────────────────────────────────────────────────── */
+/* aur-icon-btn provee shape/size/transition; aquí lo invertimos a CTA
+   sólido (bg accent, fg dark) — el send es la acción primaria del chat
+   y debe destacar como pill verde, no como icon-ghost. */
 .aurora-chat-send {
-  background: var(--aurora-green);
-  color: var(--aurora-dark-blue);
-  opacity: 1;
+  background: var(--aur-accent);
+  color: var(--aur-bg-modal);
+  box-shadow: var(--aur-shadow-pill);
 }
 
 .aurora-chat-send:hover:not(:disabled) {
-  background: #55ffaa;
-  opacity: 1;
+  background: var(--aur-accent);
+  color: var(--aur-bg-modal);
+  box-shadow: var(--aur-shadow-pill-hover);
 }
 
 .aurora-chat-send:disabled {
-  background: var(--aurora-border);
-  color: var(--aurora-light);
-  opacity: 0.35;
+  background: var(--aur-bg-strong);
+  color: var(--aur-text-3);
+  box-shadow: none;
 }
 
 /* ── Microphone active state ────────────────────────────────────────────────── */
+/* aur-icon-btn provee base; este slim añade pulso + danger persistente
+   mientras el SpeechRecognition está activo (estado críticamente visible). */
 .aurora-chat-mic-active {
-  color: #ff4444 !important;
-  opacity: 1 !important;
+  color: var(--aur-danger);
   animation: micPulse 1.2s ease-in-out infinite;
+}
+
+.aurora-chat-mic-active:hover:not(:disabled) {
+  color: var(--aur-danger);
 }
 
 @keyframes micPulse {
@@ -325,10 +293,10 @@
 /* ── Speech error ───────────────────────────────────────────────────────────── */
 .aurora-speech-error {
   padding: 5px 12px;
-  font-size: 0.78rem;
-  color: #ff7070;
-  border-top: 1px solid var(--aurora-border);
-  background: var(--aurora-dark-blue);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-danger);
+  border-top: 1px solid var(--aur-divider);
+  background: var(--aur-bg-modal);
 }
 
 /* ── Pin button (desktop only) ───────────────────────────────────────────────── */

@@ -524,10 +524,12 @@ export default function AuroraChat() {
               <div className="aurora-img-preview">
                 <img src={image.previewUrl} alt="imagen adjunta" />
                 <button
-                  className="aurora-img-preview-remove"
+                  className="aur-icon-btn aur-icon-btn--sm aurora-img-preview-remove"
                   onClick={() => setImage(null)}
                   title="Quitar imagen"
-                >×</button>
+                >
+                  <FiX size={11} />
+                </button>
               </div>
             </div>
           )}
@@ -538,12 +540,12 @@ export default function AuroraChat() {
 
           <div className="aurora-chat-input-area">
             <button
-              className="aurora-chat-btn"
+              className="aur-icon-btn"
               onClick={() => fileRef.current?.click()}
               title="Adjuntar imagen"
               disabled={thinking || recording}
             >
-              <FiPaperclip size={17} />
+              <FiPaperclip size={16} />
             </button>
             <input
               ref={fileRef}
@@ -556,7 +558,7 @@ export default function AuroraChat() {
 
             <textarea
               ref={textareaRef}
-              className="aurora-chat-input"
+              className="aur-textarea aurora-chat-input"
               placeholder={recording ? 'Escuchando…' : 'Escribe o usa el micrófono…'}
               value={input}
               onChange={handleInputChange}
@@ -567,22 +569,22 @@ export default function AuroraChat() {
 
             {speechSupported && (
               <button
-                className={`aurora-chat-btn${recording ? ' aurora-chat-mic-active' : ''}`}
+                className={`aur-icon-btn${recording ? ' aurora-chat-mic-active' : ''}`}
                 onClick={toggleRecording}
                 title={recording ? 'Detener grabación' : 'Hablar'}
                 disabled={thinking}
               >
-                {recording ? <FiMicOff size={17} /> : <FiMic size={17} />}
+                {recording ? <FiMicOff size={16} /> : <FiMic size={16} />}
               </button>
             )}
 
             <button
-              className="aurora-chat-btn aurora-chat-send"
+              className="aur-icon-btn aurora-chat-send"
               onClick={() => handleSend()}
               disabled={thinking || recording || (!input.trim() && !image)}
               title="Enviar"
             >
-              <FiSend size={16} />
+              <FiSend size={15} />
             </button>
           </div>
         </div>
