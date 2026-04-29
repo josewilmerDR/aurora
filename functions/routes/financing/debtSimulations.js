@@ -5,7 +5,6 @@
 // full output append-only. All actions here are N1 recommendations only —
 // 5.5 enforces the hard-coded policy.
 
-const { db, FieldValue } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { isPaused } = require('../../lib/autopilotKillSwitch');
@@ -18,6 +17,7 @@ const {
   refineWithClaude,
   heuristicRecommendation,
 } = require('../../lib/financing/debtRoiReasoner');
+const repo = require('./repository');
 
 const VALID_USECASE_TIPOS = new Set(['compra_insumos', 'siembra', 'infraestructura', 'liquidez']);
 const VALID_RETURN_KINDS = new Set(['linear', 'delayed_revenue', 'cost_reduction', 'none']);
@@ -33,8 +33,7 @@ async function assertAllowed(fincaId) {
   if (await isPaused(fincaId)) {
     return { blocked: true, reason: 'Autopilot paused for this finca.' };
   }
-  const cfgDoc = await db.collection('autopilot_config').doc(fincaId).get();
-  const cfg = cfgDoc.exists ? cfgDoc.data() : {};
+  const cfg = await repo.getAutopilotConfig(fincaId);
   if (!isFinancingDomainActive(cfg)) {
     return { blocked: true, reason: 'Financing domain disabled.' };
   }
@@ -212,8 +211,10 @@ async function simulateDebtRoiHandler(req, res) {
     }
 
     // Persist — append-only.
-    const docRef = await db.collection('debt_simulations').add({
-      fincaId: req.fincaId,
+    const id = await repo.createDebtSimulation(req.fincaId, {
+      uid: req.uid,
+      userEmail: req.userEmail,
+    }, {
       creditProductId,
       providerName: product.providerName || null,
       snapshotId,
@@ -235,13 +236,10 @@ async function simulateDebtRoiHandler(req, res) {
       warnings: simulation.warnings,
       recommendation,
       usedClaude: useClaude,
-      createdBy: req.uid,
-      createdByEmail: req.userEmail || '',
-      createdAt: FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({
-      id: docRef.id,
+      id,
       creditProductId,
       snapshotId,
       amount: round2(amount),
@@ -273,27 +271,20 @@ async function listDebtSimulations(req, res) {
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Requires supervisor role or above.', 403);
     }
-    const snap = await db.collection('debt_simulations')
-      .where('fincaId', '==', req.fincaId)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
-    const rows = snap.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        creditProductId: data.creditProductId,
-        providerName: data.providerName || null,
-        snapshotId: data.snapshotId,
-        amount: data.amount,
-        plazoMeses: data.plazoMeses,
-        apr: data.apr,
-        recommendation: data.recommendation?.recommendation || null,
-        marginDelta: data.delta?.resumen?.margenMedio?.delta ?? 0,
-        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
-        usedClaude: !!data.usedClaude,
-      };
-    });
+    const docs = await repo.listDebtSimulations(req.fincaId);
+    const rows = docs.map(({ id, data }) => ({
+      id,
+      creditProductId: data.creditProductId,
+      providerName: data.providerName || null,
+      snapshotId: data.snapshotId,
+      amount: data.amount,
+      plazoMeses: data.plazoMeses,
+      apr: data.apr,
+      recommendation: data.recommendation?.recommendation || null,
+      marginDelta: data.delta?.resumen?.margenMedio?.delta ?? 0,
+      createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
+      usedClaude: !!data.usedClaude,
+    }));
     res.json(rows);
   } catch (error) {
     console.error('[FINANCING] debt-simulations list failed:', error);

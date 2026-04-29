@@ -185,6 +185,7 @@ module.exports = { listByFinca, create };
 **Allowed exceptions** (don't extract a repository for these):
 - One-shot scripts in `functions/seed.js`, `functions/dump-seed.js`.
 - Scheduled functions in `functions/scheduled/` that run a single query — those are the repository.
+- `verifyOwnership(collection, id, fincaId)` from [lib/helpers.js](../functions/lib/helpers.js) is a shared cross-cutting reader and may be called directly from handlers. The pattern (load doc by id + verify it belongs to the caller's finca) is universal across domains and not worth duplicating per repository. Treat it like `authenticate` middleware: a boundary helper, not a domain repository call.
 
 ---
 

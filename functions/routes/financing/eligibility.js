@@ -10,7 +10,6 @@
 // Kill switches honored: global autopilot pause AND financing domain
 // kill-switch. Either one triggers HTTP 423 (Locked).
 
-const { db, FieldValue } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { isPaused } = require('../../lib/autopilotKillSwitch');
@@ -24,6 +23,7 @@ const {
   isFinancingDomainActive,
   assertNivelAllowed,
 } = require('../../lib/financing/financingDomainGuards');
+const repo = require('./repository');
 
 // ─── Kill switch checks ───────────────────────────────────────────────────
 
@@ -32,8 +32,7 @@ async function assertAllowed(fincaId) {
   if (await isPaused(fincaId)) {
     return { blocked: true, reason: 'Autopilot paused for this finca.' };
   }
-  const cfgDoc = await db.collection('autopilot_config').doc(fincaId).get();
-  const cfg = cfgDoc.exists ? cfgDoc.data() : {};
+  const cfg = await repo.getAutopilotConfig(fincaId);
   // Financing-specific domain toggle.
   if (!isFinancingDomainActive(cfg)) {
     return { blocked: true, reason: 'Financing domain disabled (dominios.financing.activo = false).' };
@@ -81,12 +80,7 @@ async function analyzeEligibility(req, res) {
     const snapshot = ownership.doc.data();
 
     // Catalog — only active products for this finca.
-    const prodSnap = await db.collection('credit_products')
-      .where('fincaId', '==', req.fincaId)
-      .get();
-    const products = prodSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(p => p.activo !== false);
+    const products = await repo.listActiveCreditProducts(req.fincaId);
 
     const summary = summarizeSnapshot(snapshot);
     const deterministic = rankProducts({ summary, products, targetAmount, targetUse });
@@ -127,8 +121,10 @@ async function analyzeEligibility(req, res) {
     });
 
     // Persist — append-only.
-    const docRef = await db.collection('eligibility_analyses').add({
-      fincaId: req.fincaId,
+    const id = await repo.createEligibilityAnalysis(req.fincaId, {
+      uid: req.uid,
+      userEmail: req.userEmail,
+    }, {
       snapshotId,
       snapshotAsOf: snapshot.asOf || null,
       targetAmount,
@@ -138,13 +134,10 @@ async function analyzeEligibility(req, res) {
       productsEvaluated: products.length,
       borderlineCount: refinements.length,
       usedClaude: useClaude,
-      createdBy: req.uid,
-      createdByEmail: req.userEmail || '',
-      createdAt: FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({
-      id: docRef.id,
+      id,
       snapshotId,
       targetAmount,
       targetUse,
@@ -167,30 +160,22 @@ async function listEligibilityAnalyses(req, res) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Requires supervisor role or above.', 403);
     }
 
-    const snap = await db.collection('eligibility_analyses')
-      .where('fincaId', '==', req.fincaId)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
-
-    const rows = snap.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        snapshotId: data.snapshotId,
-        snapshotAsOf: data.snapshotAsOf,
-        targetAmount: data.targetAmount,
-        targetUse: data.targetUse,
-        productsEvaluated: data.productsEvaluated || 0,
-        borderlineCount: data.borderlineCount || 0,
-        usedClaude: !!data.usedClaude,
-        createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
-        createdByEmail: data.createdByEmail || '',
-        topScore: Array.isArray(data.results) && data.results.length > 0
-          ? data.results[0].score
-          : 0,
-      };
-    });
+    const docs = await repo.listEligibilityAnalyses(req.fincaId);
+    const rows = docs.map(({ id, data }) => ({
+      id,
+      snapshotId: data.snapshotId,
+      snapshotAsOf: data.snapshotAsOf,
+      targetAmount: data.targetAmount,
+      targetUse: data.targetUse,
+      productsEvaluated: data.productsEvaluated || 0,
+      borderlineCount: data.borderlineCount || 0,
+      usedClaude: !!data.usedClaude,
+      createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
+      createdByEmail: data.createdByEmail || '',
+      topScore: Array.isArray(data.results) && data.results.length > 0
+        ? data.results[0].score
+        : 0,
+    }));
     res.json(rows);
   } catch (error) {
     console.error('[FINANCING] eligibility list failed:', error);
