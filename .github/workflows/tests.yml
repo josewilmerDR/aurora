@@ -1,0 +1,90 @@
+name: Tests & quality gates
+
+# Regression gate. Runs on every PR and on push to main.
+# Fast-failing: backend unit tests + frontend tests + static checks (LOC budget,
+# frontend coverage thresholds). Backend integration tests need the Firestore
+# emulator and are run locally via `npm run test:emulator`.
+#
+# This workflow is what F7 of the production-grade audit wires up. Coverage
+# thresholds are anti-regression (set at current baseline); they ratchet up
+# as test density grows. See docs/code-standards.md §7.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-unit:
+    name: Backend — unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install backend deps
+        working-directory: functions
+        run: npm ci
+
+      # Unit tests only — integration tests need the Firestore emulator and
+      # are out of scope for this fast PR gate. They are runnable locally
+      # via `npm run test:emulator`. Per-file coverage thresholds in
+      # jest.config.js assume the emulator-backed coverage path; we do NOT
+      # pass --coverage here, since unit-only coverage trips them by design.
+      - name: Run unit tests
+        working-directory: functions
+        run: npx jest tests/unit
+
+  frontend:
+    name: Frontend — vitest + coverage thresholds
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci
+
+      # Runs vitest with coverage reporters. Thresholds in vitest.config.js
+      # are anti-regression: globally low (matching today's baseline) and
+      # 100% on stable utilities like errorMessages.js.
+      #
+      # Dummy Firebase env vars: src/firebase.js calls getAuth(app) at module
+      # load time, which throws on an empty apiKey. Tests never call Firebase
+      # — the real env (.env.local) is what locals use; CI just needs the
+      # SDK init to not throw. Real secrets are not required and not provided.
+      - name: Run tests with coverage
+        env:
+          VITE_FIREBASE_API_KEY: test-api-key-for-ci-only
+          VITE_FIREBASE_AUTH_DOMAIN: test.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: test-project
+          VITE_FIREBASE_STORAGE_BUCKET: test.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '0'
+          VITE_FIREBASE_APP_ID: 1:0:web:test
+        run: npm run test:coverage
+
+  loc-budget:
+    name: Routes — <500 LOC budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check routes/ LOC budget
+        run: node scripts/check-routes-loc.cjs
