@@ -271,9 +271,14 @@ Reference smoke tests:
 
 ### 7.4 Coverage
 
-- Global threshold (to be enforced in CI, F7): `statements 60 / branches 50 / functions 60 / lines 60`.
-- Per-domain overrides for safety-critical code (autopilot guardrails, financing, killswitch): `statements 80 / branches 70`.
-- Coverage is reported per PR but failing thresholds is **only blocking on CI**, not locally — running `npm test` should be fast.
+**Enforced in CI (F7):**
+- **Frontend (vitest):** anti-regression thresholds set at the current baseline (see [vitest.config.js](../vitest.config.js)). The `coverage.thresholds` block fails the build if global coverage drops below the floor — today branches ≥ 20%, functions ≥ 5%, statements/lines at 0% pending more smoke tests. Per-file at 100% on stable utilities like [src/lib/errorMessages.js](../src/lib/errorMessages.js). Numbers ratchet upward as test density grows.
+- **Backend (jest):** unit tests run on every PR (`tests/unit/`). The per-file thresholds in [jest.config.js](../functions/jest.config.js) (autopilot guardrails, killswitch, etc.) target **emulator-backed runs** (`npm run test:coverage:emulator`) — they assume integration coverage that the unit-only PR job can't provide. Running locally before merging is the contract.
+- **Routes LOC budget:** see §9 below — `scripts/check-routes-loc.cjs` runs in CI.
+
+**Aspirational targets** (long-term, not enforced today): `statements 60 / branches 50 / functions 60 / lines 60` global, with `statements 80 / branches 70` for safety-critical code (autopilot guardrails, financing policy, killswitch). To get there we need more tests, not stricter numbers — bumping thresholds without bumping tests just causes flaky CI.
+
+Coverage is reported per PR but tests must be **fast locally** — running `npm test` (no coverage) at root or in `functions/` should complete in seconds.
 
 ### 7.5 Fixtures
 
@@ -330,7 +335,19 @@ src/
 | React component | 250 LOC | 400 LOC |
 | React page | 400 LOC | 600 LOC |
 
-Hard-limit violators today: [routes/autopilot.js](../functions/routes/autopilot.js) (2085), [routes/hr.js](../functions/routes/hr.js) (1898), [routes/chat.js](../functions/routes/chat.js) (1341), [routes/cedulas.js](../functions/routes/cedulas.js) (1193), [routes/compras.js](../functions/routes/compras.js) (870). These are explicit refactor targets in F5.
+**CI gate (F7):** [scripts/check-routes-loc.cjs](../scripts/check-routes-loc.cjs) runs in `.github/workflows/tests.yml` on every PR. It fails if any file under `functions/routes/**` exceeds 500 LOC (the hard limit), unless the file is in `ALLOWLIST_OVER_500` with a follow-up reference. **New entries to the allowlist are not accepted in PRs** — split the file or argue the exception explicitly.
+
+Current allowlisted exceptions (all are documented refactor targets):
+
+- [functions/routes/autopilot/analyze.js](../functions/routes/autopilot/analyze.js) (792) — F5 follow-up: split per nivel
+- [functions/routes/field-records.js](../functions/routes/field-records.js) (1193) — F8 follow-up: legacy `cedulas` monolith
+- [functions/routes/procurement-invoices.js](../functions/routes/procurement-invoices.js) (870) — F8 follow-up: legacy `compras` monolith
+- [functions/routes/monitoring.js](../functions/routes/monitoring.js) (792) — F8 follow-up: legacy `monitoreo` monolith
+- [functions/routes/strategy.js](../functions/routes/strategy.js) (609) — F8 follow-up
+- [functions/routes/products.js](../functions/routes/products.js) (607) — F8 follow-up: legacy `productos` monolith
+- [functions/routes/hr/payroll-unit.js](../functions/routes/hr/payroll-unit.js) (557) — F8 follow-up: secondary split inside hr/
+
+The script also fails if a previously-allowlisted file has been split below the limit but the entry is still in the list — keeps the allowlist honest.
 
 ---
 
@@ -343,13 +360,16 @@ This document is the target. The existing 50+ routers don't all match it today. 
    - Adding a handler to `routes/hr.js`? Extract the relevant schema to a new `routes/hr/schemas.js` first.
    - Fixing a bug in `routes/compras.js`? Convert that endpoint's validation to Zod.
    - Renaming Spanish → English happens last; not while fixing bugs.
-3. **Scheduled migrations** (F2-F7 of the production-grade plan):
-   - F2: Zod for all currently-modular domains.
-   - F3: Repository pattern for the same domains.
-   - F4: Frontend testing setup + 3 smoke suites.
-   - F5: Split monoliths into domains.
-   - F6: ES → EN renames.
-   - F7: CI coverage thresholds.
+3. **Scheduled migrations** (production-grade plan):
+   - F1: Document this standard (✅ completed)
+   - F2: Zod for the 3 already-modular pilot domains (✅ completed — budgets, buyers, financing)
+   - F3: Repository pattern for the same pilot domains (✅ completed)
+   - F4: Frontend testing setup (Vitest + RTL) + 3 smoke suites (✅ completed)
+   - F5: Split monoliths into domains (✅ completed — hr/, autopilot/, chat/)
+   - F6: ES → EN file renames per §2 table (✅ completed for backend route file names)
+   - F7: CI tests + coverage thresholds + LOC budget gate (✅ completed via [.github/workflows/tests.yml](../.github/workflows/tests.yml))
+   - F8 (next): split the remaining monoliths in the LOC allowlist; migrate the rest of the domains to Zod + repository pattern.
+   - Cross-cutting follow-ups: HTTP route URL rename `/api/compras → /api/procurement-invoices` etc. (FE+BE coordinated PR), Firestore collection/field rename data migration, ESLint adoption for richer style rules.
 4. **Don't refactor speculatively.** A refactor PR is OK; a refactor PR bundled with feature work is not. Keep diffs reviewable.
 
 ---

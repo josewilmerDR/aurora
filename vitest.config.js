@@ -37,12 +37,23 @@ export default defineConfig({
         'src/sw.js',       // Service worker
         'src/main.jsx',    // Entry point
       ],
-      // Threshold informativo durante rollout — F7 lo hará bloqueante en CI.
+      // Anti-regression thresholds (F7). Globals están al piso del baseline
+      // actual — el frontend tiene pocos tests todavía y no queremos forzar
+      // un threshold aspiracional que rompa CI sin valor real. A medida que
+      // crece la cobertura (más smoke tests por feature), estos números
+      // suben en pasos pequeños.
+      //
+      // Per-file: cubrimos al 100% utilidades estables y testeadas (e.g.
+      // errorMessages.js). Esto previene que un refactor accidentalmente
+      // borre cobertura de un módulo crítico.
       thresholds: {
         statements: 0,
-        branches: 0,
-        functions: 0,
+        branches: 20,   // baseline ~21.7%
+        functions: 5,   // baseline ~5.2%
         lines: 0,
+        'src/lib/errorMessages.js': {
+          statements: 100, branches: 100, functions: 100, lines: 100,
+        },
       },
     },
   },
