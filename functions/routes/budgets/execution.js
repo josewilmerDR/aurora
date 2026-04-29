@@ -1,11 +1,11 @@
 // Endpoint de ejecución presupuestaria: cruza los budgets del período contra
 // los costos reales computados por `lib/finance/periodCosts.js`.
 
-const { db } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { periodToDateRange } = require('../../lib/finance/periodRange');
 const { computePeriodCosts } = require('../../lib/finance/periodCosts');
 const { buildExecutionReport, summarizeExecution } = require('../../lib/finance/budgetConsumption');
+const repo = require('./repository');
 
 async function getExecution(req, res) {
   try {
@@ -20,15 +20,11 @@ async function getExecution(req, res) {
       );
     }
 
-    const [budgetsSnap, costs] = await Promise.all([
-      db.collection('budgets')
-        .where('fincaId', '==', req.fincaId)
-        .where('period', '==', period)
-        .get(),
+    const [budgets, costs] = await Promise.all([
+      repo.listForPeriod(req.fincaId, period),
       computePeriodCosts(req.fincaId, range),
     ]);
 
-    const budgets = budgetsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const rows = buildExecutionReport(budgets, costs);
     const summary = summarizeExecution(rows);
 

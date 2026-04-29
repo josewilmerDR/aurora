@@ -7,11 +7,11 @@
 //   GET  /api/financing/profile/snapshots/:id
 //   GET  /api/financing/profile/snapshots/:id/export?format=json|html
 
-const { db, FieldValue } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { buildFinancialProfile } = require('../../lib/financing/financialProfileBuilder');
 const { toHtml, toJson } = require('../../lib/financing/profileExporter');
+const repo = require('./repository');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -58,23 +58,13 @@ async function createSnapshot(req, res) {
 
     const profile = await buildFinancialProfile(req.fincaId, { asOf });
 
-    const docRef = await db.collection('financial_profile_snapshots').add({
-      fincaId: req.fincaId,
-      generatedBy: req.uid,
-      generatedByEmail: req.userEmail || '',
-      generatedByRole: req.userRole,
-      generatedAt: FieldValue.serverTimestamp(),
-      asOf: profile.asOf,
-      historyRange: profile.historyRange,
-      projectionRange: profile.projectionRange,
-      balanceSheet: profile.balanceSheet,
-      incomeStatement: profile.incomeStatement,
-      cashFlow: profile.cashFlow,
-      inputsHash: profile.inputsHash,
-      sourceCounts: profile.sourceCounts,
-    });
+    const id = await repo.createSnapshot(req.fincaId, {
+      uid: req.uid,
+      userEmail: req.userEmail,
+      userRole: req.userRole,
+    }, profile);
 
-    res.status(201).json({ id: docRef.id, ...profile });
+    res.status(201).json({ id, ...profile });
   } catch (error) {
     console.error('[FINANCING] snapshot create failed:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create financial snapshot.', 500);
@@ -89,26 +79,18 @@ async function listSnapshots(req, res) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Requires supervisor role or above.', 403);
     }
 
-    const snap = await db.collection('financial_profile_snapshots')
-      .where('fincaId', '==', req.fincaId)
-      .orderBy('generatedAt', 'desc')
-      .limit(50)
-      .get();
-
-    const rows = snap.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        asOf: data.asOf,
-        generatedAt: data.generatedAt?.toDate?.()?.toISOString?.() || null,
-        generatedByEmail: data.generatedByEmail || '',
-        inputsHash: data.inputsHash,
-        totalAssets: data.balanceSheet?.assets?.totalAssets ?? 0,
-        totalEquity: data.balanceSheet?.equity?.totalEquity ?? 0,
-        revenue: data.incomeStatement?.revenue?.amount ?? 0,
-        netMargin: data.incomeStatement?.netMargin ?? 0,
-      };
-    });
+    const docs = await repo.listSnapshots(req.fincaId);
+    const rows = docs.map(({ id, data }) => ({
+      id,
+      asOf: data.asOf,
+      generatedAt: data.generatedAt?.toDate?.()?.toISOString?.() || null,
+      generatedByEmail: data.generatedByEmail || '',
+      inputsHash: data.inputsHash,
+      totalAssets: data.balanceSheet?.assets?.totalAssets ?? 0,
+      totalEquity: data.balanceSheet?.equity?.totalEquity ?? 0,
+      revenue: data.incomeStatement?.revenue?.amount ?? 0,
+      netMargin: data.incomeStatement?.netMargin ?? 0,
+    }));
 
     res.json(rows);
   } catch (error) {
