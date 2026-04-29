@@ -229,7 +229,6 @@
 
 .aurora-img-preview-remove:hover:not(:disabled) {
   background: var(--aur-danger);
-  color: var(--aur-text);
 }
 
 /* ── Input area ─────────────────────────────────────────────────────────────── */
@@ -304,13 +303,6 @@
   background: var(--aur-bg-modal);
 }
 
-/* ── Pin button (desktop only) ───────────────────────────────────────────────── */
-/* aur-icon-btn + --sm + --success ya proveen bg/color/hover/state; este
-   selector existe SÓLO para ocultarlo en móvil (no aplica el patrón pin allí). */
-@media (max-width: 480px) {
-  .aurora-chat-pin-btn { display: none; }
-}
-
 /* ── Responsive: mobile ─────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .aurora-chat-panel {
@@ -326,9 +318,10 @@
     right: 16px;
   }
 
-  /* On mobile, when the panel is open, the FAB is hidden:
-     the panel header already has its own close button. */
-  .aurora-chat-fab-open {
+  /* Panel abierto: FAB se oculta porque el header del panel ya provee
+     un botón de cerrar — y el patrón pin no aplica en móvil. */
+  .aurora-chat-fab-open,
+  .aurora-chat-pin-btn {
     display: none;
   }
 }
