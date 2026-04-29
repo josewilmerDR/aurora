@@ -58,19 +58,22 @@
 }
 
 /* ── Chat Panel ─────────────────────────────────────────────────────────────── */
+/* Shell flotante. No hay primitiva de panel persistente en aurora.css
+   (no es modal, no es sheet, no es popover); aquí consume tokens del
+   sistema con shadow modal-like + border-radius card. */
 .aurora-chat-panel {
   position: fixed;
   bottom: 88px;
   right: 24px;
   width: 360px;
   height: 520px;
-  background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 16px;
+  background: var(--aur-bg-modal);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: var(--aur-r-card);
   display: flex;
   flex-direction: column;
   z-index: 1100;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--aur-shadow-modal);
   overflow: hidden;
   animation: chatSlideUp 0.2s ease-out;
 }
@@ -114,8 +117,10 @@
   gap: 8px;
 }
 
+/* Scrollbar alineada al patrón estándar (aur-modal-content): 6px width,
+   thumb --aur-divider-2, radius 999px. */
 .aurora-chat-messages::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .aurora-chat-messages::-webkit-scrollbar-track {
@@ -123,15 +128,15 @@
 }
 
 .aurora-chat-messages::-webkit-scrollbar-thumb {
-  background: var(--aurora-border);
-  border-radius: 4px;
+  background: var(--aur-divider-2);
+  border-radius: 999px;
 }
 
 .aurora-msg {
   max-width: 82%;
   padding: 9px 12px;
-  border-radius: 12px;
-  font-size: 0.855rem;
+  border-radius: var(--aur-r-input);
+  font-size: var(--aur-fs-footnote);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -139,34 +144,34 @@
 
 .aurora-msg-user {
   align-self: flex-end;
-  background: rgba(51, 255, 153, 0.12);
-  border: 1px solid rgba(51, 255, 153, 0.25);
-  color: var(--aurora-light);
+  background: var(--aur-accent-tint);
+  border: 1px solid var(--aur-accent-tint-2);
+  color: var(--aur-text);
   border-bottom-right-radius: 4px;
 }
 
 .aurora-msg-assistant {
   align-self: flex-start;
-  background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  color: var(--aurora-light);
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  color: var(--aur-text);
   border-bottom-left-radius: 4px;
 }
 
 .aurora-msg-image {
   width: 100%;
   max-width: 180px;
-  border-radius: 8px;
+  border-radius: var(--aur-r-input);
   margin-bottom: 6px;
   display: block;
-  border: 1px solid var(--aurora-border);
+  border: 1px solid var(--aur-divider);
 }
 
 /* ── Thinking indicator ─────────────────────────────────────────────────────── */
 .aurora-chat-thinking {
   align-self: flex-start;
-  font-size: 0.82rem;
-  color: var(--aurora-green);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-accent);
   opacity: 0.75;
   font-style: italic;
   padding: 4px 2px;
@@ -313,7 +318,7 @@
     bottom: 0;
     width: 100%;
     height: 70vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--aur-r-card) var(--aur-r-card) 0 0;
   }
 
   .aurora-chat-fab {
@@ -443,9 +448,9 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  border-radius: 12px;
+  background: var(--aur-warn-tint);
+  border: 1px solid var(--aur-warn);
+  border-radius: var(--aur-r-input);
   border-bottom-left-radius: 4px;
   padding: 10px 13px;
   max-width: 88%;
@@ -458,7 +463,7 @@
 }
 
 .aurora-reminder-icon {
-  color: #f59e0b;
+  color: var(--aur-warn);
   display: flex;
   align-items: center;
   margin-top: 1px;
@@ -468,22 +473,21 @@
 .aurora-reminder-body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  align-items: flex-start;
 }
 
+/* aur-badge--yellow ya provee bg/fg/padding/radius/font-size/weight;
+   aquí sólo afinamos uppercase + letter-spacing brand para que la
+   etiqueta lea como header de sección, no como tag ocasional. */
 .aurora-reminder-label {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #f59e0b;
-  opacity: 0.85;
 }
 
 .aurora-reminder-text {
   margin: 0;
-  font-size: 0.855rem;
-  color: var(--aurora-light);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
   line-height: 1.45;
 }

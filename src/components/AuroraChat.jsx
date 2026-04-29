@@ -496,7 +496,7 @@ export default function AuroraChat() {
                 <div key={i} className="aurora-reminder-card">
                   <span className="aurora-reminder-icon"><FiBell size={14} /></span>
                   <div className="aurora-reminder-body">
-                    <p className="aurora-reminder-label">Recordatorio</p>
+                    <span className="aur-badge aur-badge--yellow aurora-reminder-label">Recordatorio</span>
                     <p className="aurora-reminder-text">{msg.text}</p>
                   </div>
                 </div>
