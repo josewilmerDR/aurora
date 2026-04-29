@@ -651,12 +651,28 @@ function Siembra() {
           <header className="aur-sheet-header">
             <div className="aur-sheet-header-text">
               <h2 className="aur-sheet-title">Registro de siembra</h2>
-              <p className="aur-sheet-subtitle">Captura las filas del día y guárdalas en lote.</p>
             </div>
             <div className="aur-sheet-header-actions">
               <Link to="/siembra/historial" className="aur-chip aur-chip--ghost">
                 <FiClock size={12} /> Historial
               </Link>
+              <button
+                type="button"
+                className="aur-chip aur-chip--ai"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={scanning || saving}
+                title="Carga una foto del formulario y se extraen las filas."
+              >
+                <FiCpu size={12} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleScanFile}
+              />
             </div>
           </header>
 
@@ -673,7 +689,7 @@ function Siembra() {
           <section className="aur-section">
             <div className="aur-section-header">
               <span className="aur-section-num">01</span>
-              <h3>Fecha y origen</h3>
+              <h3>Fecha</h3>
             </div>
             <div className="aur-list">
               <div className="aur-row">
@@ -685,28 +701,6 @@ function Siembra() {
                   value={fecha}
                   onChange={e => setFecha(e.target.value)}
                 />
-              </div>
-              <div className="aur-row aur-row--action">
-                <span className="aur-row-label">Escaneo con IA</span>
-                <div className="aur-row-content">
-                  <span className="psb-row-hint-text">Carga una foto del formulario y se extraen las filas.</span>
-                  <button
-                    type="button"
-                    className="aur-chip aur-chip--ai"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={scanning || saving}
-                  >
-                    <FiCpu size={12} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    style={{ display: 'none' }}
-                    onChange={handleScanFile}
-                  />
-                </div>
               </div>
             </div>
           </section>

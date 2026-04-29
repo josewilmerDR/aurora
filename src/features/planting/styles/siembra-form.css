@@ -306,6 +306,10 @@
     padding: 20px 16px;
     border-radius: 18px;
   }
+  .psb-sheet .aur-sheet-header-actions > .aur-chip {
+    flex: 1;
+    justify-content: center;
+  }
   .psb-row-head {
     flex-wrap: wrap;
   }
