@@ -7,7 +7,7 @@ import {
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
-  FiShoppingCart, FiSend, FiCpu, FiShield,
+  FiShoppingCart, FiCpu, FiShield,
 } from 'react-icons/fi';
 
 // Icon map for generic bodegas (string key → React component)
