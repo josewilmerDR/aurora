@@ -1,6 +1,7 @@
 // --- AURORA BACKEND — ENTRY POINT ---
 const { functions, allSecrets } = require('./lib/firebase');
 const { verifyAppCheck } = require('./lib/appcheck');
+const { isAdvanced } = require('./lib/features');
 const express = require('express');
 
 const app = express();
@@ -62,14 +63,19 @@ app.use(require('./routes/autopilot-procurement'));
 app.use(require('./routes/autopilot-hr'));
 app.use(require('./routes/rfqs'));
 app.use(require('./routes/analytics'));
-app.use(require('./routes/strategy'));
-app.use(require('./routes/signals'));
-app.use(require('./routes/scenarios'));
-app.use(require('./routes/annualPlans'));
-app.use(require('./routes/financing'));
-app.use(require('./routes/meta'));
-app.use(require('./routes/autopilot-orchestrator'));
 app.use(require('./routes/audit'));
+
+// Advanced surface (Fases 4–6): mounted only when FEATURES_ADVANCED=true.
+// Mirrors the UX gate in src/App.jsx so deep-link calls 404 in v1 builds.
+if (isAdvanced()) {
+  app.use(require('./routes/strategy'));
+  app.use(require('./routes/signals'));
+  app.use(require('./routes/scenarios'));
+  app.use(require('./routes/annualPlans'));
+  app.use(require('./routes/financing'));
+  app.use(require('./routes/meta'));
+  app.use(require('./routes/autopilot-orchestrator'));
+}
 
 // --- EXPORT CLOUD FUNCTIONS ---
 exports.api = functions.https.onRequest(
@@ -80,8 +86,13 @@ exports.api = functions.https.onRequest(
 exports.sendDuePushReminders = require('./scheduled/reminders-cron');
 exports.autopilotMonitor = require('./scheduled/autopilot-monitor');
 exports.hrMonthlyScoring = require('./scheduled/hrMonthlyScoring');
-exports.signalsIngestCron = require('./scheduled/signals-cron');
-exports.annualPlanActivator = require('./scheduled/annualPlanActivator');
-exports.metaKpiSweep = require('./scheduled/metaKpiSweep');
-exports.metaTrustRecompute = require('./scheduled/metaTrustRecompute');
-exports.metaOrchestratorTick = require('./scheduled/metaOrchestratorTick');
+
+// Advanced crons (Fases 4–6): exported only when FEATURES_ADVANCED=true so a
+// v1 deploy does not provision schedulers for features hidden in the UI.
+if (isAdvanced()) {
+  exports.signalsIngestCron = require('./scheduled/signals-cron');
+  exports.annualPlanActivator = require('./scheduled/annualPlanActivator');
+  exports.metaKpiSweep = require('./scheduled/metaKpiSweep');
+  exports.metaTrustRecompute = require('./scheduled/metaTrustRecompute');
+  exports.metaOrchestratorTick = require('./scheduled/metaOrchestratorTick');
+}
