@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiArrowRight, FiX } from 'react-icons/fi';
+import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiArrowRight, FiX, FiPackage } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import '../styles/dashboard.css';
@@ -53,7 +53,7 @@ function FeedEvent({ event }) {
 function Dashboard() {
   const apiFetch = useApiFetch();
   const { firebaseUser, currentUser } = useUser();
-  const [stats, setStats] = useState({ overdue: 0, pending: 0 });
+  const [stats, setStats] = useState({ overdue: 0, pending: 0, lowStock: 0 });
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -94,12 +94,13 @@ function Dashboard() {
       apiFetch('/api/tasks').then(res => res.json()),
       apiFetch('/api/feed').then(res => res.json()),
       lotesPromise,
-    ]).then(([tasksData, feedData, lotesData]) => {
+      apiFetch('/api/productos').then(res => res.json()).catch(() => []),
+    ]).then(([tasksData, feedData, lotesData, productosData]) => {
       const archivedIds = new Set(
         JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')
       );
 
-      const taskStats = { overdue: 0, pending: 0 };
+      const taskStats = { overdue: 0, pending: 0, lowStock: 0 };
       tasksData
         .filter(task => task.type !== 'REMINDER_3_DAY' && task.status !== 'skipped' && !archivedIds.has(task.id))
         .forEach(task => {
@@ -107,6 +108,9 @@ function Dashboard() {
           if (status === 'overdue') taskStats.overdue++;
           else if (status === 'pending') taskStats.pending++;
         });
+      if (Array.isArray(productosData)) {
+        taskStats.lowStock = productosData.filter(p => p.stockActual <= p.stockMinimo).length;
+      }
 
       setStats(taskStats);
       setFeed(Array.isArray(feedData) ? feedData : []);
@@ -159,11 +163,14 @@ function Dashboard() {
 
       {!loading && !error && (
         <>
-          {/* ── Stats: tareas ──────────────────────────────────────────── */}
+          {/* ── Stats: indicadores accionables ─────────────────────────
+              Cards que ligan el Dashboard con los módulos donde se
+              actúa: tareas vencidas/pendientes → /tasks, stock bajo →
+              existencias, y un acceso directo para crear una nueva tarea. */}
           <section className="aur-section">
             <div className="aur-section-header">
               <span className="aur-section-num"><FiInbox size={14} /></span>
-              <h3 className="aur-section-title">Tareas</h3>
+              <h3 className="aur-section-title">Resumen</h3>
             </div>
             <div className="dash-stats-grid">
               <Link to="/tasks?filter=overdue" className="dash-stat-card dash-stat-card--danger">
@@ -175,6 +182,11 @@ function Dashboard() {
                 <span className="dash-stat-icon"><FiClock size={18} /></span>
                 <span className="dash-stat-count">{stats.pending}</span>
                 <span className="dash-stat-label">Tareas pendientes</span>
+              </Link>
+              <Link to="/bodega/agroquimicos/existencias" className="dash-stat-card dash-stat-card--warn">
+                <span className="dash-stat-icon"><FiPackage size={18} /></span>
+                <span className="dash-stat-count">{stats.lowStock}</span>
+                <span className="dash-stat-label">Productos en stock bajo</span>
               </Link>
               <Link to="/tasks?new=1" className="dash-stat-card dash-stat-card--accent dash-stat-card--action">
                 <span className="dash-stat-icon"><FiPlus size={18} /></span>
