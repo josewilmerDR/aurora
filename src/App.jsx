@@ -82,6 +82,7 @@ import SignalsDashboard from './features/strategy/pages/SignalsDashboard';
 import ScenariosSimulator from './features/strategy/pages/ScenariosSimulator';
 import AnnualPlan from './features/strategy/pages/AnnualPlan';
 import RfqsList from './features/procurement/pages/RfqsList';
+import ProcurementHub from './features/procurement/pages/ProcurementHub';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
@@ -119,9 +120,9 @@ const ROUTE_MIN_ROLE = {
   // Autopilot — accessed via header icon, not sidebar
   '/autopilot': 'encargado',
   '/autopilot/configuracion': 'supervisor',
-  // Procurement
-  '/procurement/dashboard': 'encargado',
-  '/procurement/rfqs': 'encargado',
+  // Procurement hub — children inherit the role gate from the parent route,
+  // so only the canonical entry needs an explicit minRole here.
+  '/procurement': 'encargado',
   // HR (phase 3.6) — supervisor for the team dashboard, any authenticated
   // user for their own score
   '/hr/performance': 'supervisor',
@@ -345,9 +346,21 @@ function App() {
             <Route path="/ingreso-productos" element={<Navigate to="/bodega/agroquimicos/recepcion" replace />} />
             <Route path="/productos/movimientos" element={<Navigate to="/bodega/agroquimicos/movimientos" replace />} />
             <Route path="/productos/todos" element={<RoleRoute path="/productos/todos"><ProductosCatalogo /></RoleRoute>} />
-            <Route path="/ordenes-compra" element={<RoleRoute path="/ordenes-compra"><OCNueva /></RoleRoute>} />
-            <Route path="/ordenes-compra/historial" element={<RoleRoute path="/ordenes-compra/historial"><OCHistorial /></RoleRoute>} />
-            <Route path="/proveedores" element={<RoleRoute path="/proveedores"><ProveedoresList /></RoleRoute>} />
+            {/* Compras hub — single canonical entry point with tabs.
+                Old standalone URLs redirect to the hub-aware route below. */}
+            <Route path="/procurement" element={<RoleRoute path="/procurement"><ProcurementHub /></RoleRoute>}>
+              <Route index element={<ProcurementDashboard />} />
+              <Route path="ordenes" element={<OCNueva />} />
+              <Route path="ordenes/historial" element={<OCHistorial />} />
+              <Route path="cotizaciones" element={<RfqsList />} />
+              <Route path="proveedores" element={<ProveedoresList />} />
+            </Route>
+            {/* Backward-compat redirects for bookmarks and push-notification deep-links. */}
+            <Route path="/procurement/dashboard" element={<Navigate to="/procurement" replace />} />
+            <Route path="/procurement/rfqs" element={<Navigate to="/procurement/cotizaciones" replace />} />
+            <Route path="/ordenes-compra" element={<Navigate to="/procurement/ordenes" replace />} />
+            <Route path="/ordenes-compra/historial" element={<Navigate to="/procurement/ordenes/historial" replace />} />
+            <Route path="/proveedores" element={<Navigate to="/procurement/proveedores" replace />} />
             <Route path="/costos" element={<RoleRoute path="/costos"><CostCenter /></RoleRoute>} />
             <Route path="/finance/dashboard" element={<RoleRoute path="/finance/dashboard"><FinanceDashboard /></RoleRoute>} />
             <Route path="/finance/presupuestos" element={<RoleRoute path="/finance/presupuestos"><Budgets /></RoleRoute>} />
@@ -389,10 +402,8 @@ function App() {
             {/* Autopilot (gated by ADVANCED_ENABLED for the v1 public release) */}
             <Route path="/autopilot" element={<AdvancedRoute><RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/autopilot/configuracion" element={<AdvancedRoute><RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute></AdvancedRoute>} />
-            <Route path="/procurement/dashboard" element={<RoleRoute path="/procurement/dashboard"><ProcurementDashboard /></RoleRoute>} />
             <Route path="/hr/performance" element={<RoleRoute path="/hr/performance"><PerformanceDashboard /></RoleRoute>} />
             <Route path="/hr/my-performance" element={<RoleRoute path="/hr/my-performance"><MyPerformance /></RoleRoute>} />
-            <Route path="/procurement/rfqs" element={<RoleRoute path="/procurement/rfqs"><RfqsList /></RoleRoute>} />
             {/* Strategy (phase 4.1) — gated by ADVANCED_ENABLED for v1 */}
             <Route path="/strategy/rendimiento" element={<AdvancedRoute><RoleRoute path="/strategy/rendimiento"><YieldHistory /></RoleRoute></AdvancedRoute>} />
             <Route path="/strategy/temporadas" element={<AdvancedRoute><RoleRoute path="/strategy/temporadas"><TemporadasManager /></RoleRoute></AdvancedRoute>} />

@@ -113,14 +113,7 @@ const ALL_MODULES = [
       { label: 'Ingresos', to: '/finance/ingresos', icon: FiDollarSign, minRole: 'encargado' },
       { label: 'Compradores', to: '/finance/compradores', icon: FiUsers, minRole: 'encargado' },
       { label: 'Financiamiento', to: '/finance/financing', icon: FiBriefcase, minRole: 'supervisor' },
-      {
-        label: 'Abastecimiento', icon: FiShoppingCart, minRole: 'encargado', children: [
-          { label: 'Dashboard', to: '/procurement/dashboard', icon: FiGrid, minRole: 'encargado' },
-          { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
-          { label: 'Cotizaciones', to: '/procurement/rfqs', icon: FiSend, minRole: 'encargado' },
-          { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
-        ]
-      },
+      { label: 'Compras', to: '/procurement', icon: FiShoppingCart, minRole: 'encargado', draftKey: ['proveedor-nuevo', 'oc-nueva'] },
     ],
   },
   {
