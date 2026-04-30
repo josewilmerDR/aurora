@@ -73,7 +73,9 @@
     { "collectionGroup": "meta_chains",                 "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
     { "collectionGroup": "audit_events",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "timestamp",    "order": "DESCENDING" }] },
     { "collectionGroup": "audit_events",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "action",       "order": "ASCENDING"  }, { "fieldPath": "timestamp", "order": "DESCENDING" }] },
-    { "collectionGroup": "audit_events",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "severity",     "order": "ASCENDING"  }, { "fieldPath": "timestamp", "order": "DESCENDING" }] }
+    { "collectionGroup": "audit_events",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "severity",     "order": "ASCENDING"  }, { "fieldPath": "timestamp", "order": "DESCENDING" }] },
+    { "collectionGroup": "scheduled_tasks",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "executeAt",    "order": "ASCENDING"  }] },
+    { "collectionGroup": "budgets",                     "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "period",       "order": "ASCENDING"  }, { "fieldPath": "category", "order": "ASCENDING" }] }
   ],
   "fieldOverrides": []
 }
