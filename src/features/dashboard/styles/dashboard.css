@@ -275,3 +275,70 @@
     gap: 6px;
   }
 }
+
+/* ── Onboarding banner (admin + zero lotes) ───────────────────────────
+   Sits above the stats grid, dismissible and goes away once a lote
+   exists. Uses the accent border treatment from .dash-stat-card--accent
+   so it reads as an inviting nudge, not an error. */
+.dash-onboarding-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-left: 3px solid var(--aur-accent, var(--aurora-green));
+  border-radius: var(--aur-r-card);
+}
+
+.dash-onboarding-text {
+  flex: 1;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
+  line-height: 1.45;
+}
+
+.dash-onboarding-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--aur-r-button, 8px);
+  background: var(--aur-accent, var(--aurora-green));
+  color: var(--aur-on-accent, #0d1a26);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dash-onboarding-cta:hover {
+  filter: brightness(1.05);
+}
+
+.dash-onboarding-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--aur-text-2);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.dash-onboarding-dismiss:hover {
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+
+@media (max-width: 768px) {
+  .dash-onboarding-banner {
+    flex-wrap: wrap;
+  }
+  .dash-onboarding-text {
+    flex-basis: 100%;
+  }
+}
