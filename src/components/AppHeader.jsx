@@ -4,6 +4,7 @@ import { useNavigate, NavLink } from 'react-router-dom';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import { useReminders } from '../contexts/RemindersContext';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { ADVANCED_ENABLED } from '../lib/features';
 import { MODULES } from './Sidebar';
 
 export default function AppHeader({
@@ -20,7 +21,8 @@ export default function AppHeader({
   const { overdueCount } = useReminders();
 
   const userRole = currentUser?.rol || 'trabajador';
-  const canSeeAutopilot = hasMinRole(userRole, 'encargado');
+  // v1 public release: Autopilot is hidden behind the advanced-features flag.
+  const canSeeAutopilot = ADVANCED_ENABLED && hasMinRole(userRole, 'encargado');
 
   const [autopilotPendingCount, setAutopilotPendingCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');

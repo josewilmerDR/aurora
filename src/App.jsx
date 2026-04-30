@@ -93,6 +93,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { RemindersProvider, useReminders } from './contexts/RemindersContext';
 import { ALL_ITEMS } from './components/Sidebar';
+import { ADVANCED_ENABLED } from './lib/features';
 
 import './index.css';
 import './App.css';
@@ -162,6 +163,13 @@ const RoleRoute = ({ path, children }) => {
   return children;
 };
 
+// v1 public release: wraps routes for Estrategia / Financiamiento / CEO /
+// Autopilot. When ADVANCED_ENABLED is false, deep-links redirect to home.
+const AdvancedRoute = ({ children }) => {
+  if (!ADVANCED_ENABLED) return <Navigate to="/" replace />;
+  return children;
+};
+
 // --- Logout handler ---
 const LogoutRoute = () => {
   const { logout } = useUser();
@@ -196,7 +204,9 @@ const MainLayout = () => {
   };
 
   const userRole = currentUser?.rol || 'trabajador';
-  const canSeeAutopilot = hasMinRole(userRole, 'encargado');
+  // v1 public release: Autopilot panel only renders when advanced features
+  // are enabled; mirrors the gate on the header button in AppHeader.jsx.
+  const canSeeAutopilot = ADVANCED_ENABLED && hasMinRole(userRole, 'encargado');
 
   const openAutopilot = () => {
     setProfileOpen(false);
@@ -344,10 +354,10 @@ function App() {
             <Route path="/finance/tesoreria" element={<RoleRoute path="/finance/tesoreria"><Treasury /></RoleRoute>} />
             <Route path="/finance/ingresos" element={<RoleRoute path="/finance/ingresos"><IncomeRecords /></RoleRoute>} />
             <Route path="/finance/compradores" element={<RoleRoute path="/finance/compradores"><BuyersList /></RoleRoute>} />
-            <Route path="/finance/financing" element={<RoleRoute path="/finance/financing"><FinancingDashboard /></RoleRoute>} />
-            <Route path="/finance/financing/ofertas" element={<RoleRoute path="/finance/financing/ofertas"><CreditOffers /></RoleRoute>} />
-            <Route path="/finance/financing/simulaciones" element={<RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute>} />
-            <Route path="/ceo" element={<RoleRoute path="/ceo"><CeoDashboard /></RoleRoute>} />
+            <Route path="/finance/financing" element={<AdvancedRoute><RoleRoute path="/finance/financing"><FinancingDashboard /></RoleRoute></AdvancedRoute>} />
+            <Route path="/finance/financing/ofertas" element={<AdvancedRoute><RoleRoute path="/finance/financing/ofertas"><CreditOffers /></RoleRoute></AdvancedRoute>} />
+            <Route path="/finance/financing/simulaciones" element={<AdvancedRoute><RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute></AdvancedRoute>} />
+            <Route path="/ceo" element={<AdvancedRoute><RoleRoute path="/ceo"><CeoDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><EmployeeProfile /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><LeaveRequests /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><SamplingHistory /></RoleRoute>} />
@@ -376,22 +386,22 @@ function App() {
             <Route path="/admin/labores" element={<RoleRoute path="/admin/labores"><LaborList /></RoleRoute>} />
             <Route path="/admin/unidades-medida" element={<RoleRoute path="/admin/unidades-medida"><UnidadesMedida /></RoleRoute>} />
             <Route path="/admin/calibraciones" element={<RoleRoute path="/admin/calibraciones"><Calibraciones /></RoleRoute>} />
-            {/* Autopilot */}
-            <Route path="/autopilot" element={<RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute>} />
-            <Route path="/autopilot/configuracion" element={<RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute>} />
+            {/* Autopilot (gated by ADVANCED_ENABLED for the v1 public release) */}
+            <Route path="/autopilot" element={<AdvancedRoute><RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute></AdvancedRoute>} />
+            <Route path="/autopilot/configuracion" element={<AdvancedRoute><RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute></AdvancedRoute>} />
             <Route path="/procurement/dashboard" element={<RoleRoute path="/procurement/dashboard"><ProcurementDashboard /></RoleRoute>} />
             <Route path="/hr/performance" element={<RoleRoute path="/hr/performance"><PerformanceDashboard /></RoleRoute>} />
             <Route path="/hr/my-performance" element={<RoleRoute path="/hr/my-performance"><MyPerformance /></RoleRoute>} />
             <Route path="/procurement/rfqs" element={<RoleRoute path="/procurement/rfqs"><RfqsList /></RoleRoute>} />
-            {/* Strategy (phase 4.1) */}
-            <Route path="/strategy/rendimiento" element={<RoleRoute path="/strategy/rendimiento"><YieldHistory /></RoleRoute>} />
-            <Route path="/strategy/temporadas" element={<RoleRoute path="/strategy/temporadas"><TemporadasManager /></RoleRoute>} />
-            <Route path="/strategy/rotacion/restricciones" element={<RoleRoute path="/strategy/rotacion/restricciones"><RotationConstraints /></RoleRoute>} />
-            <Route path="/strategy/rotacion/recomendador" element={<RoleRoute path="/strategy/rotacion/recomendador"><RotationRecommender /></RoleRoute>} />
-            <Route path="/strategy/senales/fuentes" element={<RoleRoute path="/strategy/senales/fuentes"><SignalSources /></RoleRoute>} />
-            <Route path="/strategy/senales" element={<RoleRoute path="/strategy/senales"><SignalsDashboard /></RoleRoute>} />
-            <Route path="/strategy/escenarios" element={<RoleRoute path="/strategy/escenarios"><ScenariosSimulator /></RoleRoute>} />
-            <Route path="/strategy/plan-anual" element={<RoleRoute path="/strategy/plan-anual"><AnnualPlan /></RoleRoute>} />
+            {/* Strategy (phase 4.1) — gated by ADVANCED_ENABLED for v1 */}
+            <Route path="/strategy/rendimiento" element={<AdvancedRoute><RoleRoute path="/strategy/rendimiento"><YieldHistory /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/temporadas" element={<AdvancedRoute><RoleRoute path="/strategy/temporadas"><TemporadasManager /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/rotacion/restricciones" element={<AdvancedRoute><RoleRoute path="/strategy/rotacion/restricciones"><RotationConstraints /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/rotacion/recomendador" element={<AdvancedRoute><RoleRoute path="/strategy/rotacion/recomendador"><RotationRecommender /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/senales/fuentes" element={<AdvancedRoute><RoleRoute path="/strategy/senales/fuentes"><SignalSources /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/senales" element={<AdvancedRoute><RoleRoute path="/strategy/senales"><SignalsDashboard /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/escenarios" element={<AdvancedRoute><RoleRoute path="/strategy/escenarios"><ScenariosSimulator /></RoleRoute></AdvancedRoute>} />
+            <Route path="/strategy/plan-anual" element={<AdvancedRoute><RoleRoute path="/strategy/plan-anual"><AnnualPlan /></RoleRoute></AdvancedRoute>} />
             {/* administrador */}
             <Route path="/admin/bodegas" element={<RoleRoute path="/admin/bodegas"><BodegasAdmin /></RoleRoute>} />
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />
