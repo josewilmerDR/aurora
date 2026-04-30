@@ -1938,7 +1938,7 @@ select.pg-input option {
   gap: 0;
   overflow-y: auto;
   flex: 1;
-  padding-right: 2px;
+  padding: 4px 22px 18px 22px;
 }
 
 .ep-section-title {
@@ -2056,6 +2056,10 @@ select.pg-input option {
     max-width: 100vw;
     max-height: 100vh;
     border-radius: 0;
+  }
+
+  .edit-producto-form {
+    padding: 4px 16px 16px 16px;
   }
 
   .ep-grid {
