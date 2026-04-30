@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiPackage, FiChevronRight, FiChevronDown, FiArrowLeft } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -526,24 +526,11 @@ function PackageManagement() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="pkg-page-loading" />}
 
-      {/* ── Estado vacío ── */}
-      {!loading && packages.length === 0 && !isFormOpen && (
-        <div className="pkg-empty-state">
-          <FiPackage size={36} />
-          <p>No hay paquetes de aplicaciones creados aún.</p>
-          <button className="aur-btn-pill" onClick={handleNew}>
-            <FiPlus size={15} /> Crear el primero
-          </button>
-        </div>
-      )}
-
-      {!loading && (packages.length > 0 || isFormOpen) && !(isFormOpen && !selectedPkg) && <div className="pkg-page-header">
+      {!loading && !(isFormOpen && !selectedPkg) && <div className="pkg-page-header">
         <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
-        {packages.length > 0 && (
-          <button className="aur-btn-pill" onClick={handleNew}>
-            <FiPlus size={14} /> Nuevo Paquete
-          </button>
-        )}
+        <button className="aur-btn-pill" onClick={handleNew}>
+          <FiPlus size={14} /> Nuevo Paquete
+        </button>
       </div>}
       {/* ── Mobile sticky carousel ── */}
       {!loading && isFormOpen && packages.length > 0 && (

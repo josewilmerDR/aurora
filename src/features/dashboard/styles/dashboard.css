@@ -276,69 +276,283 @@
   }
 }
 
-/* ── Onboarding banner (admin + zero lotes) ───────────────────────────
-   Sits above the stats grid, dismissible and goes away once a lote
-   exists. Uses the accent border treatment from .dash-stat-card--accent
-   so it reads as an inviting nudge, not an error. */
-.dash-onboarding-banner {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
+/* Anclaje para el badge minimizado del onboarding (position: absolute). */
+.dash-sheet {
+  position: relative;
+}
+
+/* ── Onboarding checklist (admin, hasta 11/11) ─────────────────────────
+   Card multipaso arriba del grid de stats. El admin puede minimizar →
+   reaparece como un anillo de progreso flotante en la esquina inferior
+   derecha del sheet. Cuando alcanza 11/11 se oculta para siempre
+   (flag sticky en localStorage). */
+.dash-onboarding-card {
+  position: relative;
   background: var(--aur-bg-card);
-  border: 1px solid var(--aur-divider);
-  border-left: 3px solid var(--aur-accent, var(--aurora-green));
-  border-radius: var(--aur-r-card);
+  border-top: 1px solid var(--aur-divider);
+  border-bottom: 1px solid var(--aur-divider);
+  border-radius: 0;
+  padding: 10px 14px 12px;
+  margin-bottom: 14px;
 }
 
-.dash-onboarding-text {
-  flex: 1;
+.dash-onboarding-hint {
+  margin: 0 32px 8px 0;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-small, 12px);
+  line-height: 1.4;
+  text-align: center;
+}
+.dash-onboarding-hint-count {
   color: var(--aur-text);
-  font-size: var(--aur-fs-body);
-  line-height: 1.45;
-}
-
-.dash-onboarding-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--aur-r-button, 8px);
-  background: var(--aur-accent, var(--aurora-green));
-  color: var(--aur-on-accent, #0d1a26);
   font-weight: 600;
-  text-decoration: none;
   white-space: nowrap;
 }
 
-.dash-onboarding-cta:hover {
-  filter: brightness(1.05);
-}
-
-.dash-onboarding-dismiss {
+.dash-onboarding-minimize {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
   color: var(--aur-text-2);
   cursor: pointer;
   border-radius: 6px;
+  z-index: 1;
 }
-
-.dash-onboarding-dismiss:hover {
+.dash-onboarding-minimize:hover {
   background: var(--aur-bg-hover);
   color: var(--aur-text);
 }
 
-@media (max-width: 768px) {
-  .dash-onboarding-banner {
-    flex-wrap: wrap;
+/* Carrusel: 3 columnas visibles + flechas a los lados.
+   Cada columna tiene texto arriba y un riel (línea + dot) en la base.
+   El riel está partido en dos mitades por columna para colorear segmentos
+   independientemente: la izquierda se enciende si el paso anterior está
+   completado; la derecha si el paso actual está completado. */
+.dash-onboarding-carousel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.dash-onboarding-track {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  min-width: 0;
+}
+
+.dash-onboarding-nav {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  align-self: stretch;
+  border: none;
+  background: transparent;
+  color: var(--aur-text-2);
+  cursor: pointer;
+  padding: 0;
+}
+.dash-onboarding-nav:hover:not(:disabled) {
+  color: var(--aur-text);
+}
+.dash-onboarding-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.dash-onboarding-col {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 12px 0;
+  text-align: center;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--aur-r-input, 8px);
+}
+.dash-onboarding-col:hover .dash-onboarding-col-title:not(.is-future) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.dash-onboarding-col-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 10px;
+}
+
+.dash-onboarding-col-title {
+  font-size: var(--aur-fs-body);
+  line-height: 1.25;
+  font-weight: 500;
+}
+.dash-onboarding-col-title.is-done {
+  color: var(--aur-text);
+  font-weight: 600;
+}
+.dash-onboarding-col-title.is-active {
+  color: var(--aur-text);
+  font-weight: 700;
+}
+.dash-onboarding-col-title.is-future {
+  color: var(--aur-text-2);
+  font-weight: 500;
+}
+
+.dash-onboarding-col-hint {
+  font-size: var(--aur-fs-small, 12px);
+  color: var(--aur-text-2);
+  line-height: 1.35;
+}
+
+.dash-onboarding-col-rail {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 22px;
+  margin: 0 -12px;
+}
+
+.dash-onboarding-rail-half {
+  height: 2px;
+  background: var(--aur-divider);
+  border-radius: 1px;
+  transition: background 0.25s ease;
+}
+.dash-onboarding-rail-half.is-on {
+  background: var(--aur-accent, var(--aurora-green));
+}
+.dash-onboarding-rail-half.is-edge {
+  background: transparent;
+}
+
+.dash-onboarding-col-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--aur-divider);
+  background: var(--aur-bg-card);
+  color: transparent;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.dash-onboarding-col-dot.is-done {
+  background: var(--aur-accent, var(--aurora-green));
+  border-color: var(--aur-accent, var(--aurora-green));
+  color: var(--aur-on-accent, #0d1a26);
+}
+.dash-onboarding-col-dot.is-active {
+  border-color: var(--aur-accent, var(--aurora-green));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aur-accent, var(--aurora-green)) 22%, transparent);
+}
+
+/* ── Badge minimizado: anillo de progreso flotante ──────────────────────
+   Se ancla a la esquina inferior derecha del .aur-sheet (que es position:
+   relative en MainLayout). Pequeño, clickeable, abre el card de nuevo. */
+.dash-onboarding-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--aur-divider);
+  background: var(--aur-bg-card);
+  color: var(--aur-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+}
+.dash-onboarding-badge:hover {
+  background: var(--aur-bg-hover);
+}
+.dash-onboarding-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.dash-onboarding-ring-bg {
+  fill: none;
+  stroke: var(--aur-divider);
+  stroke-width: 4;
+}
+.dash-onboarding-ring-fg {
+  fill: none;
+  stroke: var(--aur-accent, var(--aurora-green));
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s var(--aur-ease, ease);
+}
+.dash-onboarding-badge-count {
+  position: relative;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aur-text);
+  line-height: 1;
+}
+
+/* En mobile (≤640px) el carrusel pasa a viewSize=1 (vía useResponsiveViewSize):
+   se muestra un solo paso a la vez con padding cómodo y los chevrons compactos.
+   Las flechas siguen siendo navegables; mantienen contexto del avance global
+   gracias al hint con "[X/N]" arriba. */
+@media (max-width: 640px) {
+  .dash-onboarding-card {
+    padding: 10px 12px 12px;
   }
-  .dash-onboarding-text {
-    flex-basis: 100%;
+  .dash-onboarding-hint {
+    margin-right: 28px;
+    text-align: left;
+    font-size: 12px;
+  }
+  .dash-onboarding-carousel {
+    gap: 4px;
+  }
+  .dash-onboarding-col {
+    padding: 4px 8px 0;
+  }
+  .dash-onboarding-col-text {
+    padding-bottom: 8px;
+  }
+  .dash-onboarding-col-rail {
+    margin: 0 -8px;
+  }
+  .dash-onboarding-col-title {
+    font-size: 14px;
+  }
+  .dash-onboarding-col-hint {
+    font-size: 12px;
+  }
+  .dash-onboarding-nav {
+    width: 22px;
+  }
+  .dash-onboarding-badge {
+    top: 12px;
+    right: 12px;
   }
 }
