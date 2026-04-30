@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2, FiBell, FiMapPin } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { markVisited as markOnboardingVisited } from '../features/dashboard/lib/onboardingState';
 import './AuroraChat.css';
 
 const MAX_IMAGE_PX = 1200;
@@ -38,7 +39,7 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 
 export default function AuroraChat() {
   const apiFetch = useApiFetch();
-  const { currentUser, activeFincaId } = useUser();
+  const { currentUser, firebaseUser, activeFincaId } = useUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -196,6 +197,7 @@ export default function AuroraChat() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      if (firebaseUser?.uid) markOnboardingVisited(firebaseUser.uid, 'chat');
       const newMsg = { role: 'assistant', text: data.reply || 'No pude procesar la solicitud.' };
       if (data.horimetroDraft) newMsg.horimetroDraft = data.horimetroDraft;
       if (data.planillaDraft) newMsg.planillaDraft = data.planillaDraft;
@@ -205,7 +207,7 @@ export default function AuroraChat() {
     } finally {
       setThinking(false);
     }
-  }, [input, image, thinking, messages, currentUser, apiFetch]);
+  }, [input, image, thinking, messages, currentUser, firebaseUser, apiFetch]);
 
   // Listen for external open requests (e.g. from dashboard search bar)
   useEffect(() => {

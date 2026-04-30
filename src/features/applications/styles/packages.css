@@ -52,23 +52,6 @@
   animation: app-loading-spin 0.75s linear infinite;
 }
 
-/* ── Page empty state ─────────────────────────────────────────────────────── */
-.pkg-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 60vh;
-  color: rgba(230, 242, 255, 0.3);
-  text-align: center;
-}
-.pkg-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.45);
-  margin: 0;
-}
-
 /* ── Desktop: grid layout when form + list are both visible ─────────────── */
 @media (min-width: 769px) {
   .pkg-page--selected.pkg-page--has-packages .lote-management-layout {

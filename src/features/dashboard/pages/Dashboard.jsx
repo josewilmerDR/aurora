@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiArrowRight, FiX, FiPackage } from 'react-icons/fi';
+import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import OnboardingChecklist from '../components/OnboardingChecklist';
 import '../styles/dashboard.css';
-
-const onboardingDismissedKey = (uid) => `aurora_onboarding_dismissed_${uid}`;
 
 const EVENT_LABELS = {
   aplicacion: { text: 'completó una aplicación', icon: '🧪' },
@@ -57,21 +56,9 @@ function Dashboard() {
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [needsSetup, setNeedsSetup] = useState(false);
 
   const uid = firebaseUser?.uid || 'guest';
   const isAdmin = hasMinRole(currentUser?.rol, 'administrador');
-  const onboardingDismissed = (() => {
-    try { return localStorage.getItem(onboardingDismissedKey(uid)) === 'true'; }
-    catch { return false; }
-  })();
-  const showOnboarding = isAdmin && needsSetup && !onboardingDismissed;
-
-  const dismissOnboarding = () => {
-    try { localStorage.setItem(onboardingDismissedKey(uid), 'true'); }
-    catch { /* ignore */ }
-    setNeedsSetup(false);
-  };
 
   const getTaskStatus = (task) => {
     if (task.status === 'completed_by_user') return 'completed';
@@ -85,17 +72,11 @@ function Dashboard() {
 
   useEffect(() => {
     setLoading(true);
-    // /api/lotes runs in parallel only for admins so the onboarding banner
-    // can decide whether to surface "Aún no tienes lotes configurados".
-    const lotesPromise = isAdmin
-      ? apiFetch('/api/lotes').then(res => res.json()).catch(() => [])
-      : Promise.resolve(null);
     Promise.all([
       apiFetch('/api/tasks').then(res => res.json()),
       apiFetch('/api/feed').then(res => res.json()),
-      lotesPromise,
       apiFetch('/api/productos').then(res => res.json()).catch(() => []),
-    ]).then(([tasksData, feedData, lotesData, productosData]) => {
+    ]).then(([tasksData, feedData, productosData]) => {
       const archivedIds = new Set(
         JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')
       );
@@ -114,19 +95,16 @@ function Dashboard() {
 
       setStats(taskStats);
       setFeed(Array.isArray(feedData) ? feedData : []);
-      if (isAdmin) {
-        setNeedsSetup(Array.isArray(lotesData) && lotesData.length === 0);
-      }
       setLoading(false);
     }).catch(err => {
       console.error("Error fetching dashboard data:", err);
       setError("No se pudieron cargar los datos del dashboard.");
       setLoading(false);
     });
-  }, [firebaseUser?.uid, isAdmin]);
+  }, [firebaseUser?.uid]);
 
   return (
-    <div className="aur-sheet">
+    <div className="aur-sheet dash-sheet">
       <header className="aur-sheet-header">
         <div className="aur-sheet-header-text">
           <h1 className="aur-sheet-title">Dashboard</h1>
@@ -140,26 +118,7 @@ function Dashboard() {
 
       {!loading && error && <div className="empty-state">{error}</div>}
 
-      {!loading && !error && showOnboarding && (
-        <div className="dash-onboarding-banner" role="region" aria-label="Configuración inicial">
-          <div className="dash-onboarding-text">
-            <strong>👋 Bienvenido a Aurora.</strong>{' '}
-            Aún no tienes lotes configurados. Empieza por la configuración inicial.
-          </div>
-          <Link to="/admin/config-inicial" className="dash-onboarding-cta">
-            Empezar configuración <FiArrowRight size={14} />
-          </Link>
-          <button
-            type="button"
-            className="dash-onboarding-dismiss"
-            onClick={dismissOnboarding}
-            title="Cerrar"
-            aria-label="Cerrar banner de configuración"
-          >
-            <FiX size={16} />
-          </button>
-        </div>
-      )}
+      {!loading && !error && isAdmin && <OnboardingChecklist uid={uid} />}
 
       {!loading && !error && (
         <>

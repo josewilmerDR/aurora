@@ -3,6 +3,8 @@ import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPl
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import { markVisited as markOnboardingVisited } from '../../dashboard/lib/onboardingState';
 import '../styles/initial-setup.css';
 
 // ── Import guardrails ────────────────────────────────────────────────────────
@@ -912,6 +914,11 @@ function EmpleadosCard() {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 function InitialSetup() {
+  const { firebaseUser } = useUser();
+  useEffect(() => {
+    if (firebaseUser?.uid) markOnboardingVisited(firebaseUser.uid, 'bulkUpload');
+  }, [firebaseUser?.uid]);
+
   return (
     <div className="aur-sheet">
       <header className="aur-sheet-header">
