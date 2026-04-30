@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
@@ -61,7 +61,6 @@ function loadVisibleCols() {
 }
 
 function Existencias() {
-  const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -496,23 +495,10 @@ function Existencias() {
   return (
     <div className="lote-management-layout">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <button className="page-close-btn" onClick={() => navigate(-1)} title="Volver atrás">
-        <FiX size={16} />
-      </button>
 
       {loading && <div className="pg-page-loading" />}
 
-      {!loading && productos.length === 0 && (
-        <div className="pg-empty-state">
-          <FiClipboard size={36} />
-          <p>No hay productos que mostrar</p>
-          <button className="aur-btn-pill" onClick={() => setShowNuevoModal(true)}>
-            <FiPlus size={14} /> Crear el primero
-          </button>
-        </div>
-      )}
-
-      {!loading && productos.length > 0 && (
+      {!loading && (
         <>
           <div className="product-list-header">
               <div className="product-title-group">
@@ -629,7 +615,11 @@ function Existencias() {
                 </tbody>
               </table>
               {filteredActivos.length === 0 && (
-                <p className="empty-state" style={{ padding: '20px' }}>Sin resultados para la búsqueda actual.</p>
+                <p className="empty-state" style={{ padding: '20px' }}>
+                  {(searchQuery || filterTipo || Object.keys(colFilters).length > 0)
+                    ? 'Sin resultados para la búsqueda actual.'
+                    : 'No hay productos creados aún.'}
+                </p>
               )}
             </div>
 
