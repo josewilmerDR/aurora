@@ -7,7 +7,7 @@ import {
   FiStar, FiClock, FiBriefcase, FiUser, FiCalendar, FiDollarSign,
   FiAlertTriangle, FiPaperclip, FiList, FiUmbrella,
   FiActivity, FiBarChart2, FiSliders, FiSunrise, FiTool, FiTrendingUp,
-  FiShoppingCart, FiSend, FiCpu, FiShield,
+  FiShoppingCart, FiCpu, FiShield,
 } from 'react-icons/fi';
 
 // Icon map for generic bodegas (string key → React component)
@@ -15,12 +15,13 @@ const BODEGA_ICON_MAP = { FiBox, FiTool, FiTruck, FiDroplet, FiPackage };
 const getBodegaIcon = (key) => BODEGA_ICON_MAP[key] || FiBox;
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
+import { ADVANCED_ENABLED } from '../lib/features';
 import './Sidebar.css';
 
 // ─── Module definitions ───────────────────────────────────────────────────────
 export const DASHBOARD_ITEM = { label: 'Home', to: '/', icon: FiHome, minRole: 'trabajador' };
 
-export const MODULES = [
+const ALL_MODULES = [
   {
     id: 'campo',
     nombre: 'Operaciones de Campo',
@@ -112,14 +113,7 @@ export const MODULES = [
       { label: 'Ingresos', to: '/finance/ingresos', icon: FiDollarSign, minRole: 'encargado' },
       { label: 'Compradores', to: '/finance/compradores', icon: FiUsers, minRole: 'encargado' },
       { label: 'Financiamiento', to: '/finance/financing', icon: FiBriefcase, minRole: 'supervisor' },
-      {
-        label: 'Abastecimiento', icon: FiShoppingCart, minRole: 'encargado', children: [
-          { label: 'Dashboard', to: '/procurement/dashboard', icon: FiGrid, minRole: 'encargado' },
-          { label: 'Proveedores', to: '/proveedores', icon: FiTruck, minRole: 'encargado', draftKey: 'proveedor-nuevo' },
-          { label: 'Cotizaciones', to: '/procurement/rfqs', icon: FiSend, minRole: 'encargado' },
-          { label: 'Órdenes de Compra', to: '/ordenes-compra', icon: FiFileText, minRole: 'encargado', draftKey: 'oc-nueva' },
-        ]
-      },
+      { label: 'Compras', to: '/procurement', icon: FiShoppingCart, minRole: 'encargado', draftKey: ['proveedor-nuevo', 'oc-nueva'] },
     ],
   },
   {
@@ -170,6 +164,19 @@ export const MODULES = [
     ],
   },
 ];
+
+// Apply the v1 public release feature flag: when ADVANCED_ENABLED is false,
+// drop the Estrategia module and the Financiamiento item under Contabilidad.
+// The matching routes are also gated in App.jsx so deep-links redirect.
+export const MODULES = ADVANCED_ENABLED
+  ? ALL_MODULES
+  : ALL_MODULES
+      .filter((m) => m.id !== 'estrategia')
+      .map((m) =>
+        m.id === 'contabilidad'
+          ? { ...m, items: m.items.filter((it) => it.to !== '/finance/financing') }
+          : m
+      );
 
 export const ALL_ITEMS = [
   DASHBOARD_ITEM,

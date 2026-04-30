@@ -1,0 +1,55 @@
+/* Hub layout: tab strip on top, page content below.
+   Mirrors the sidebar tabs visual language so the surface feels native. */
+
+.procurement-hub {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.procurement-hub-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--aur-divider);
+  background: var(--aur-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.procurement-hub-tab {
+  padding: 12px 16px;
+  font-size: var(--aur-fs-body);
+  font-weight: 500;
+  color: var(--aur-text-2);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.procurement-hub-tab:hover {
+  color: var(--aur-text);
+}
+
+.procurement-hub-tab.is-active {
+  color: var(--aur-accent, var(--aurora-green));
+  border-bottom-color: var(--aur-accent, var(--aurora-green));
+}
+
+.procurement-hub-body {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 600px) {
+  .procurement-hub-tabs {
+    overflow-x: auto;
+    padding: 0 8px;
+  }
+  .procurement-hub-tab {
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+}
