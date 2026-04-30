@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiUpload, FiSave, FiX, FiImage } from 'react-icons/fi';
+import { FiUpload, FiSave, FiX, FiImage, FiEdit2 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/account-settings.css';
@@ -14,22 +14,26 @@ const COMPANY_FIELDS = [
   { name: 'correo',             label: 'Correo electrónico',     placeholder: 'Ej: contacto@fincaaurora.com',   type: 'email' },
 ];
 
+const EMPTY_FORM = { nombreEmpresa: '', identificacion: '', representanteLegal: '', administrador: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 };
+
 function AccountSettings() {
   const apiFetch = useApiFetch();
-  const [form, setForm]       = useState({ nombreEmpresa: '', identificacion: '', representanteLegal: '', administrador: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 });
-  const [logoUrl, setLogoUrl] = useState('');
-  const [preview, setPreview] = useState('');
-  const [logoFile, setLogoFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast]     = useState(null);
-  const fileRef               = useRef();
+  const [form, setForm]           = useState(EMPTY_FORM);
+  const [savedForm, setSavedForm] = useState(EMPTY_FORM);
+  const [logoUrl, setLogoUrl]     = useState('');
+  const [preview, setPreview]     = useState('');
+  const [logoFile, setLogoFile]   = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [editMode, setEditMode]   = useState(false);
+  const [toast, setToast]         = useState(null);
+  const fileRef                   = useRef();
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
     apiFetch('/api/config')
       .then(r => r.json())
       .then(data => {
-        setForm({
+        const next = {
           nombreEmpresa:    data.nombreEmpresa    || '',
           identificacion:   data.identificacion   || '',
           representanteLegal: data.representanteLegal || '',
@@ -40,7 +44,9 @@ function AccountSettings() {
           diasIDesarrollo:  data.diasIDesarrollo  ?? 250,
           diasIIDesarrollo: data.diasIIDesarrollo ?? 215,
           diasPostForza:    data.diasPostForza    ?? 150,
-        });
+        };
+        setForm(next);
+        setSavedForm(next);
         if (data.logoUrl) setLogoUrl(data.logoUrl);
       })
       .catch(console.error);
@@ -64,6 +70,14 @@ function AccountSettings() {
     setLogoFile(null);
     setPreview('');
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const handleEdit = () => setEditMode(true);
+
+  const handleCancel = () => {
+    setForm(savedForm);
+    clearLogo();
+    setEditMode(false);
   };
 
   const handleSubmit = async (e) => {
@@ -91,6 +105,8 @@ function AccountSettings() {
       if (!res.ok) throw new Error();
       const updated = await res.json();
       if (updated.logoUrl) { setLogoUrl(updated.logoUrl); clearLogo(); }
+      setSavedForm(form);
+      setEditMode(false);
       showToast('Configuración guardada correctamente.');
     } catch {
       showToast('Error al guardar la configuración.', 'error');
@@ -106,7 +122,25 @@ function AccountSettings() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <form onSubmit={handleSubmit} className="account-form">
-        <h2 className="account-form-title">Configuración de la cuenta</h2>
+        <header className="account-form-header">
+          <h2 className="account-form-title">Configuración de la cuenta</h2>
+          <div className="account-form-header-actions">
+            {editMode ? (
+              <>
+                <button type="button" className="aur-btn-text" onClick={handleCancel} disabled={loading}>
+                  <FiX size={14} /> Cancelar
+                </button>
+                <button type="submit" className="aur-btn-pill aur-btn-pill--sm" disabled={loading}>
+                  <FiSave size={14} /> {loading ? 'Guardando…' : 'Guardar'}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleEdit}>
+                <FiEdit2 size={14} /> Editar
+              </button>
+            )}
+          </div>
+        </header>
 
         <section className="aur-section">
           <header className="aur-section-header">
@@ -117,7 +151,7 @@ function AccountSettings() {
             {activeLogo ? (
               <div className="account-logo-preview-wrap">
                 <img src={activeLogo} alt="Logo" className="account-logo-preview" />
-                {preview && (
+                {preview && editMode && (
                   <button
                     type="button"
                     className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger account-logo-clear"
@@ -136,11 +170,15 @@ function AccountSettings() {
               </div>
             )}
             <div className="account-logo-controls">
-              <button type="button" className="aur-btn-text" onClick={() => fileRef.current.click()}>
-                <FiUpload size={15} />
-                {activeLogo ? 'Cambiar logo' : 'Subir logo'}
-              </button>
-              <p className="account-logo-hint">PNG o JPG · Máx. 2 MB · Recomendado: fondo transparente</p>
+              {editMode && (
+                <>
+                  <button type="button" className="aur-btn-text" onClick={() => fileRef.current.click()}>
+                    <FiUpload size={15} />
+                    {activeLogo ? 'Cambiar logo' : 'Subir logo'}
+                  </button>
+                  <p className="account-logo-hint">PNG o JPG · Máx. 2 MB · Recomendado: fondo transparente</p>
+                </>
+              )}
               <input
                 ref={fileRef}
                 type="file"
@@ -161,26 +199,25 @@ function AccountSettings() {
             {COMPANY_FIELDS.map(f => (
               <li key={f.name} className="aur-row">
                 <span className="aur-row-label">{f.label}</span>
-                <input
-                  className="aur-input"
-                  id={f.name}
-                  name={f.name}
-                  type={f.type}
-                  value={form[f.name]}
-                  onChange={handleChange}
-                  placeholder={f.placeholder}
-                />
+                {editMode ? (
+                  <input
+                    className="aur-input"
+                    id={f.name}
+                    name={f.name}
+                    type={f.type}
+                    value={form[f.name]}
+                    onChange={handleChange}
+                    placeholder={f.placeholder}
+                  />
+                ) : (
+                  <span className={`account-row-value${form[f.name] ? '' : ' account-row-value--empty'}`}>
+                    {form[f.name] || '—'}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
         </section>
-
-        <div className="aur-form-actions">
-          <button type="submit" className="aur-btn-pill" disabled={loading}>
-            <FiSave size={15} />
-            {loading ? 'Guardando…' : 'Guardar configuración'}
-          </button>
-        </div>
       </form>
     </div>
   );

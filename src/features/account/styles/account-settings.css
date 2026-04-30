@@ -1,11 +1,37 @@
 
+/* ── Form header: título + acciones (Editar / Cancelar+Guardar) ──────────── */
+.account-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px 0;
+  flex-wrap: wrap;
+}
+
+.account-form-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ── Form title slim sobre h2 ─────────────────────────────────────────────── */
 .account-form-title {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: var(--aur-fs-title3);
   color: var(--aur-text);
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+/* ── Valor read-only (cuando NO estamos en editMode) ─────────────────────── */
+.account-row-value {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text);
+  word-break: break-word;
+}
+.account-row-value--empty {
+  color: var(--aur-text-3);
 }
 
 /* ── Logo upload ───────────────────────────────────────────────────────────── */
