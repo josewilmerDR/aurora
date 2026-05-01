@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -527,7 +527,13 @@ function PackageManagement() {
       {loading && <div className="pkg-page-loading" />}
 
       {!loading && !(isFormOpen && !selectedPkg) && <div className="pkg-page-header">
-        <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
+        <div className="pkg-page-header-text">
+          <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
+          <p className="pkg-page-subtitle">
+            Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa.
+            Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click.
+          </p>
+        </div>
         <button className="aur-btn-pill" onClick={handleNew}>
           <FiPlus size={14} /> Nuevo Paquete
         </button>
@@ -560,7 +566,7 @@ function PackageManagement() {
         </div>
       )}
 
-      {!loading && (packages.length > 0 || isFormOpen) && <div className="lote-management-layout">
+      {!loading && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
         <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
           <header className="aur-sheet-header">
@@ -569,7 +575,7 @@ function PackageManagement() {
               <p className="aur-sheet-subtitle">
                 {isEditing
                   ? 'Modifica la información del paquete y su programa de actividades.'
-                  : 'Define un programa de aplicaciones reutilizable para tus lotes.'}
+                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.'}
               </p>
             </div>
           </header>
@@ -651,6 +657,13 @@ function PackageManagement() {
             <div className="aur-section-header">
               <h3>Programa de actividades</h3>
               <span className="aur-section-count">{formData.activities.length}</span>
+              <span
+                className="pkg-day-hint"
+                title={'El "Día" se cuenta desde la fecha de creación del grupo o lote al que se aplique este paquete (Día 0). Ejemplo: si el grupo se crea el 5 de mayo y la actividad es "Día 15", se ejecutará el 20 de mayo.'}
+                aria-label="Información sobre el campo Día"
+              >
+                <FiInfo size={13} />
+              </span>
             </div>
             <ul className="pkg-act-list">
               {formData.activities.map((activity, index) => {
@@ -677,6 +690,7 @@ function PackageManagement() {
                           value={activity.day}
                           onChange={(e) => handleActivityChange(index, 'day', e.target.value)}
                           aria-label="Día"
+                          placeholder="0"
                           required
                         />
                         <span className="pkg-act-day-suffix">día</span>
@@ -991,9 +1005,13 @@ function PackageManagement() {
         </div>
       )}
 
-      {packages.length > 0 && (
+      {(packages.length > 0 || !isFormOpen) && (
         <div className="lote-list-panel">
-          <h3 className="lote-list-title">Paquetes</h3>
+          {packages.length === 0 ? (
+            <p className="empty-state">
+              No hay paquetes de aplicaciones creados. Crea el primero dando click en "Nuevo Paquete".
+            </p>
+          ) : (
           <ul className="lote-list">
             {packages.map(pkg => (
               <li
@@ -1031,6 +1049,7 @@ function PackageManagement() {
               </li>
             ))}
           </ul>
+          )}
         </div>
       )}
       </div>}

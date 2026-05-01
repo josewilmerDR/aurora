@@ -1149,28 +1149,13 @@ function CedulasAplicacion() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="cedulas-page-loading" />}
 
-      {/* ── Estado vacío ── */}
-      {!loading && aplicacionTasks.length === 0 && (
-        <div className="aur-sheet aur-sheet--empty">
-          <div className="ca-empty">
-            <FiFileText size={36} />
-            <p>No hay cédulas de aplicación aún.</p>
-            {hasMinRole(currentUser?.rol, 'encargado') && (
-              <button type="button" className="aur-btn-pill" onClick={() => setShowNuevaModal(true)}>
-                <FiPlusCircle size={14} /> Crear la primera
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── Contenido principal ── */}
-      {!loading && aplicacionTasks.length > 0 && (
+      {!loading && (
         <div className="aur-sheet">
           <header className="aur-sheet-header">
             <div className="aur-sheet-header-text">
               <h2 className="aur-sheet-title">Cédulas de aplicación</h2>
-              <p className="aur-sheet-subtitle">Genera, prepara y aplica las cédulas pendientes del período.</p>
+              <p className="aur-sheet-subtitle">Aquí están las cédulas (u órdenes) de aplicación pendientes para tus cultivos, según los Paquetes de aplicaciones definidos. También puedes crear nuevas cédulas o modificar las existentes.</p>
             </div>
             <div className="aur-sheet-header-actions">
               <Link to="/aplicaciones/historial" className="aur-chip aur-chip--ghost">
@@ -1224,7 +1209,13 @@ function CedulasAplicacion() {
             {visibleTasks.length === 0 ? (
               <div className="aur-banner">
                 <FiFileText size={14} />
-                <span>No hay aplicaciones programadas para este período.</span>
+                <span>
+                  {aplicacionTasks.length === 0
+                    ? (hasMinRole(currentUser?.rol, 'encargado')
+                        ? 'Aún no hay cédulas de aplicación para tus cultivos. Crea la primera con el botón "Nueva cédula" de arriba.'
+                        : 'Aún no hay cédulas de aplicación para tus cultivos.')
+                    : 'No hay aplicaciones programadas para este período.'}
+                </span>
               </div>
             ) : (
               <div className="ca-cedula-list">

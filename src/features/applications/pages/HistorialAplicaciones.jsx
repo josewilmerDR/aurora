@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, Link } from 'react-router-dom';
-import { FiArrowLeft, FiFilter, FiX, FiPackage } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiFilter, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/historial.css';
 
@@ -66,7 +66,6 @@ const prodLabel = (p) => p
 
 // ─────────────────────────────────────────────────────────────────────────────
 function HistorialAplicaciones() {
-  const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const [cedulas,  setCedulas]  = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -349,21 +348,8 @@ function HistorialAplicaciones() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="historial-page-loading" />}
 
-      {/* ── Estado vacío ── */}
-      {!loading && cedulas.length === 0 && (
-        <div className="aur-sheet aur-sheet--empty">
-          <div className="ha-empty">
-            <FiPackage size={36} />
-            <p>No hay cédulas aplicadas aún. Crea la primera en Cédulas de Aplicación.</p>
-            <Link to="/aplicaciones/cedulas" state={{ openModal: true }} className="aur-btn-pill">
-              Ir a Cédulas de Aplicación
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* ── Contenido principal ── */}
-      {!loading && cedulas.length > 0 && (
+      {!loading && (
     <div className="aur-sheet">
 
       <header className="aur-sheet-header">
@@ -371,9 +357,9 @@ function HistorialAplicaciones() {
           <h2 className="aur-sheet-title">Historial de aplicaciones</h2>
           <p className="aur-sheet-subtitle">Cédulas aplicadas con detalle por producto, cambios respecto al plan original y condiciones de campo.</p>
         </div>
-        <button type="button" className="aur-chip aur-chip--ghost" onClick={() => navigate(-1)}>
-          <FiArrowLeft size={12} /> Volver
-        </button>
+        <Link to="/aplicaciones/cedulas" className="aur-chip aur-chip--ghost">
+          Cédulas de aplicación
+        </Link>
       </header>
 
       <section className="aur-section">
@@ -443,7 +429,16 @@ function HistorialAplicaciones() {
 
         <div className="ha-count">
           {sorted.length === 0
-            ? 'Sin resultados para los filtros aplicados.'
+            ? (cedulas.length === 0
+                ? (
+                  <>
+                    Aún no hay aplicaciones registradas. Registra la primera desde{' '}
+                    <Link to="/aplicaciones/cedulas" state={{ openModal: true }} className="historial-cedula-link">
+                      Cédulas de aplicación
+                    </Link>.
+                  </>
+                )
+                : 'Sin resultados para los filtros aplicados.')
             : `Mostrando ${visible.length} de ${sorted.length} fila${sorted.length !== 1 ? 's' : ''} · ${cedulas.length} cédula${cedulas.length !== 1 ? 's' : ''}`
           }
         </div>
