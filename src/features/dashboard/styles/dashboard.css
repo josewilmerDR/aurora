@@ -351,13 +351,13 @@
 }
 
 /* Inline mode: card embebida al final del Dashboard en la primera visita.
-   Sin position fixed; ancho fluido (limitado para no sentirse sobreestirada
-   en pantallas anchas). Mantiene el gradiente y el glow para mantener la
-   identidad visual del onboarding. */
+   Sin position fixed; toma todo el ancho del canvas (igual que el resto de
+   secciones del Dashboard) para no quedar pegada a la izquierda. Mantiene
+   gradiente y glow para reforzar su naturaleza temporal. */
 .dash-onboarding-inline {
   margin-top: 24px;
   padding: 18px 20px 20px;
-  max-width: 720px;
+  width: 100%;
   animation:
     dash-onboarding-popover-in 0.18s ease-out,
     dash-onboarding-glow 3.2s ease-in-out infinite 0.18s;
