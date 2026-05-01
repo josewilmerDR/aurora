@@ -171,7 +171,7 @@ function AccountSettings() {
             <div className="account-logo-controls">
               {editMode && (
                 <>
-                  <button type="button" className="aur-btn-text" onClick={() => fileRef.current.click()}>
+                  <button type="button" className="aur-btn-pill" onClick={() => fileRef.current.click()}>
                     <FiUpload size={15} />
                     {activeLogo ? 'Cambiar logo' : 'Subir logo'}
                   </button>
