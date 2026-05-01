@@ -933,7 +933,6 @@ function InitialSetup() {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">01</span>
           <h3>Entidades</h3>
           <span className="aur-section-count">{ENTIDADES.length + 2}</span>
         </div>

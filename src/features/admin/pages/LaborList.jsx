@@ -159,7 +159,6 @@ function LaborList() {
         {showForm && (
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">01</span>
               <h3>{isEditing ? 'Editar labor' : 'Nueva labor'}</h3>
               <div className="aur-section-actions">
                 <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={resetForm} title="Cancelar">

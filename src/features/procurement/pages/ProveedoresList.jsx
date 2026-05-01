@@ -221,7 +221,6 @@ function ProveedoresList() {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">01</span>
               <h3 className="aur-section-title">Datos básicos</h3>
             </header>
             <ul className="aur-list">
@@ -277,7 +276,6 @@ function ProveedoresList() {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">02</span>
               <h3 className="aur-section-title">Contacto comercial</h3>
             </header>
             <ul className="aur-list">
@@ -301,7 +299,6 @@ function ProveedoresList() {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">03</span>
               <h3 className="aur-section-title">Clasificación</h3>
             </header>
             <ul className="aur-list">
@@ -341,7 +338,6 @@ function ProveedoresList() {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">04</span>
               <h3 className="aur-section-title">Financiero</h3>
             </header>
             <ul className="aur-list">

@@ -171,7 +171,7 @@ const TaskAction = () => {
 
   return (
     <div className="task-action-page">
-      <div className="aur-sheet task-action-sheet">
+      <div className="aur-sheet aur-sheet--card task-action-sheet">
         <button
           type="button"
           className="aur-btn-text task-action-back"

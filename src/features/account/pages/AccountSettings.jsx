@@ -144,7 +144,6 @@ function AccountSettings() {
 
         <section className="aur-section">
           <header className="aur-section-header">
-            <span className="aur-section-num">01</span>
             <h3 className="aur-section-title">Logo de la empresa</h3>
           </header>
           <div className="account-logo-area">
@@ -192,7 +191,6 @@ function AccountSettings() {
 
         <section className="aur-section">
           <header className="aur-section-header">
-            <span className="aur-section-num">02</span>
             <h3 className="aur-section-title">Datos de la empresa</h3>
           </header>
           <ul className="aur-list">

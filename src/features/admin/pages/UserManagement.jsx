@@ -365,7 +365,6 @@ function UserManagement() {
               <form onSubmit={handleSubmit}>
                 <section className="aur-section">
                   <div className="aur-section-header">
-                    <span className="aur-section-num">01</span>
                     <h3>Identidad</h3>
                   </div>
                   <div className="aur-list">
@@ -428,7 +427,6 @@ function UserManagement() {
 
                 <section className="aur-section">
                   <div className="aur-section-header">
-                    <span className="aur-section-num">02</span>
                     <h3>Acceso por módulo</h3>
                     <span className="aur-section-count">{formData.restrictedTo.length}/{MODULES.length}</span>
                   </div>

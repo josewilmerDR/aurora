@@ -65,7 +65,6 @@ function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
     <form onSubmit={handleSubmit} noValidate>
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">01</span>
           <h3 className="aur-section-title">{initial ? 'Editar presupuesto' : 'Nuevo presupuesto'}</h3>
         </div>
         <div className="aur-list">
@@ -117,7 +116,6 @@ function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">02</span>
           <h3 className="aur-section-title">Monto y moneda</h3>
         </div>
         <div className="aur-list">
@@ -169,7 +167,6 @@ function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">03</span>
           <h3 className="aur-section-title">Asignación y notas</h3>
         </div>
         <div className="aur-list">

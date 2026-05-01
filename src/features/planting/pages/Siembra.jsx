@@ -688,7 +688,6 @@ function Siembra() {
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">01</span>
               <h3>Fecha</h3>
             </div>
             <div className="aur-list">
@@ -707,7 +706,6 @@ function Siembra() {
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">02</span>
               <h3>Filas de siembra</h3>
               <span className="aur-section-count">{rows.length}</span>
             </div>

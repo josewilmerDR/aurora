@@ -270,7 +270,6 @@ export default function CosechaRegistro() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">01</span>
             <h3 className="aur-section-title">Fecha y ubicación</h3>
           </div>
           <div className="aur-list">
@@ -339,7 +338,6 @@ export default function CosechaRegistro() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">02</span>
             <h3 className="aur-section-title">Cantidad cosechada</h3>
           </div>
           <div className="aur-list">
@@ -374,7 +372,6 @@ export default function CosechaRegistro() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">03</span>
             <h3 className="aur-section-title">Operario y maquinaria</h3>
           </div>
           <div className="aur-list">
@@ -413,7 +410,6 @@ export default function CosechaRegistro() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">04</span>
             <h3 className="aur-section-title">Observaciones</h3>
           </div>
           <div className="aur-list">

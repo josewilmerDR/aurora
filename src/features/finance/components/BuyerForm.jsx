@@ -36,7 +36,6 @@ function BuyerForm({ initial, onSubmit, onCancel, saving }) {
     <form onSubmit={handleSubmit} noValidate>
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">01</span>
           <h3 className="aur-section-title">Identificación</h3>
         </div>
         <div className="aur-list">
@@ -88,7 +87,6 @@ function BuyerForm({ initial, onSubmit, onCancel, saving }) {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">02</span>
           <h3 className="aur-section-title">Contacto</h3>
         </div>
         <div className="aur-list">
@@ -157,7 +155,6 @@ function BuyerForm({ initial, onSubmit, onCancel, saving }) {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">03</span>
           <h3 className="aur-section-title">Pago y crédito</h3>
         </div>
         <div className="aur-list">
