@@ -110,7 +110,6 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
     <form onSubmit={handleSubmit} noValidate>
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">01</span>
           <h3 className="aur-section-title">Insumos</h3>
         </div>
         <div className="aur-list">
@@ -175,7 +174,6 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">02</span>
           <h3 className="aur-section-title">Destino y retorno</h3>
         </div>
         <div className="aur-list">
@@ -293,7 +291,6 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">03</span>
           <h3 className="aur-section-title">Parámetros avanzados</h3>
           <button
             type="button"

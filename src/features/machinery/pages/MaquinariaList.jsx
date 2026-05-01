@@ -381,7 +381,6 @@ function MaquinariaList() {
           <form onSubmit={handleSubmit} noValidate>
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">01</span>
                 <h3 className="aur-section-title">Identificación</h3>
               </div>
               <div className="aur-list">
@@ -452,7 +451,6 @@ function MaquinariaList() {
 
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">02</span>
                 <h3 className="aur-section-title">Valor y vida útil</h3>
               </div>
               <div className="aur-list">
@@ -561,7 +559,6 @@ function MaquinariaList() {
 
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">03</span>
                 <h3 className="aur-section-title">Observación</h3>
               </div>
               <div className="aur-list">

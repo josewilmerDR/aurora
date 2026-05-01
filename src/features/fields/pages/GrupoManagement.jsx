@@ -579,7 +579,6 @@ function GrupoManagement() {
           <form onSubmit={handleSubmit} noValidate>
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">01</span>
                 <h3 className="aur-section-title">Identificación</h3>
               </div>
               <div className="aur-list">
@@ -654,7 +653,6 @@ function GrupoManagement() {
 
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">02</span>
                 <h3 className="aur-section-title">Paquetes</h3>
               </div>
               <div className="aur-list">
@@ -692,7 +690,6 @@ function GrupoManagement() {
             {/* ── Sección 3: Bloques del grupo ── */}
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">03</span>
                 <h3 className="aur-section-title">Bloques del grupo</h3>
                 <span className="aur-section-count">{selectedBlockCount} asignado(s)</span>
               </div>
@@ -754,7 +751,6 @@ function GrupoManagement() {
             {showLibres && Object.keys(byLoteLibres).length > 0 && (
               <section className="aur-section">
                 <div className="aur-section-header">
-                  <span className="aur-section-num">04</span>
                   <h3 className="aur-section-title">Lotes y bloques sin agrupar</h3>
                   <span className="aur-section-count">
                     {Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0)} disponible(s)

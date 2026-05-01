@@ -576,7 +576,6 @@ function PackageManagement() {
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">01</span>
               <h3>Identidad</h3>
             </div>
             <div className="aur-list">
@@ -611,7 +610,6 @@ function PackageManagement() {
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">02</span>
               <h3>Clasificación</h3>
             </div>
             <div className="aur-list">
@@ -651,7 +649,6 @@ function PackageManagement() {
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">03</span>
               <h3>Programa de actividades</h3>
               <span className="aur-section-count">{formData.activities.length}</span>
             </div>

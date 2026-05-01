@@ -214,7 +214,6 @@ export default function CierreCombustible() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">01</span>
             <h3 className="aur-section-title">Periodo</h3>
           </div>
           <div className="aur-list">
@@ -263,7 +262,6 @@ export default function CierreCombustible() {
         {preview && (
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">02</span>
               <h3 className="aur-section-title">Resumen del cierre</h3>
               <span className="aur-section-count">{periodo}</span>
             </div>

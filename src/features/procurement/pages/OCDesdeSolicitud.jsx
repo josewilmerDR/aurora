@@ -298,7 +298,6 @@ const PurchaseOrder = () => {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">01</span>
               <h3 className="aur-section-title">Encabezado</h3>
             </header>
             <ul className="aur-list">
@@ -341,7 +340,6 @@ const PurchaseOrder = () => {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">02</span>
               <h3 className="aur-section-title">Líneas de producto</h3>
               <span className="aur-section-count">{items.length}</span>
             </header>
@@ -445,7 +443,6 @@ const PurchaseOrder = () => {
 
           <section className="aur-section">
             <header className="aur-section-header">
-              <span className="aur-section-num">03</span>
               <h3 className="aur-section-title">Notas / Condiciones</h3>
             </header>
             <ul className="aur-list">

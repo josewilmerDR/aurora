@@ -378,7 +378,6 @@ function HistorialAplicaciones() {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">01</span>
           <h3>Filtros</h3>
           {(filterFrom || filterTo) && (
             <div className="aur-section-actions">
@@ -427,7 +426,6 @@ function HistorialAplicaciones() {
 
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num">02</span>
           <h3>Historial</h3>
           <span className="aur-section-count">{sorted.length}</span>
           {Object.values(colFilters).some(v => v.trim()) && (

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
-  FiDownload, FiPrinter, FiFilter, FiChevronLeft, FiX, FiShare2, FiEdit2, FiPackage, FiSliders,
+  FiDownload, FiPrinter, FiFilter, FiX, FiShare2, FiEdit2, FiSliders,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -579,20 +579,6 @@ function SiembraHistorial() {
     XLSX.writeFile(wb, `siembras_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const exportCSV = () => {
-    const rows = buildExportRows();
-    const csv = [EXPORT_HEADERS, ...rows]
-      .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `siembras_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
   const SortTh = ({ col, children }) => {
     const isSort   = sortField === col.key;
     const hasFilt  = !!colFilters[col.key];
@@ -643,16 +629,6 @@ function SiembraHistorial() {
 
       {loading ? (
         <div className="shp-loading" />
-      ) : registros.length === 0 ? (
-        <div className="aur-sheet aur-sheet--empty shp-historial">
-          <div className="shp-empty">
-            <FiPackage size={36} />
-            <p>No hay registros aún. Crea el primero en Registro de Siembra.</p>
-            <Link to="/siembra" state={{ openForm: true }} className="aur-btn-pill">
-              Ir a Registro de Siembra
-            </Link>
-          </div>
-        </div>
       ) : (
         <div className="aur-sheet shp-historial">
 
@@ -662,15 +638,14 @@ function SiembraHistorial() {
               <p className="aur-sheet-subtitle">Consulta, filtra, exporta y comparte los registros guardados.</p>
             </div>
             <div className="aur-sheet-header-actions">
-              <Link to="/siembra" className="aur-chip aur-chip--ghost">
-                <FiChevronLeft size={12} /> Registro
+              <Link to="/siembra" className="aur-chip">
+                Registro
               </Link>
             </div>
           </header>
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">01</span>
               <h3>Resumen</h3>
             </div>
             <div className="shp-stats">
@@ -695,15 +670,11 @@ function SiembraHistorial() {
 
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num">02</span>
               <h3>Registros</h3>
               <span className="aur-section-count">{displayData.length}</span>
               <div className="aur-section-actions print-hide">
                 <button type="button" className="aur-chip" onClick={exportXLSX} title="Exportar a Excel">
                   <FiDownload size={12} /> Excel
-                </button>
-                <button type="button" className="aur-chip" onClick={exportCSV} title="Exportar a CSV">
-                  <FiDownload size={12} /> CSV
                 </button>
                 <button type="button" className="aur-chip" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
                   <FiShare2 size={12} /> Compartir
@@ -726,7 +697,18 @@ function SiembraHistorial() {
               </div>
 
               {displayData.length === 0 ? (
-                <p className="shp-table-empty">No hay registros con los filtros aplicados.</p>
+                <p className="shp-table-empty">
+                  {registros.length === 0 ? (
+                    <>
+                      Aún no hay registros que mostrar. Crea el primero en{' '}
+                      <Link to="/siembra" state={{ openForm: true }} className="aur-btn-text">
+                        Registro de siembra
+                      </Link>.
+                    </>
+                  ) : (
+                    'No hay registros con los filtros aplicados.'
+                  )}
+                </p>
               ) : (
                 <div className="siembra-table-wrapper">
                   <table className="siembra-table siembra-table-historial">

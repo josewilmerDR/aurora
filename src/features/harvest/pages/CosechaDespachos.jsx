@@ -200,7 +200,6 @@ export default function CosechaDespachos() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">01</span>
             <h3 className="aur-section-title">Fecha y comprador</h3>
           </div>
           <div className="aur-list">
@@ -245,7 +244,6 @@ export default function CosechaDespachos() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">02</span>
             <h3 className="aur-section-title">Camión</h3>
           </div>
           <div className="aur-list">
@@ -280,7 +278,6 @@ export default function CosechaDespachos() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">03</span>
             <h3 className="aur-section-title">Boletas de cosecha</h3>
             <span className="aur-section-count">{form.boletas.length}</span>
           </div>
@@ -294,7 +291,6 @@ export default function CosechaDespachos() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">04</span>
             <h3 className="aur-section-title">Cantidad despachada</h3>
           </div>
           <div className="aur-list">
@@ -329,7 +325,6 @@ export default function CosechaDespachos() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">05</span>
             <h3 className="aur-section-title">Responsables</h3>
           </div>
           <div className="aur-list">
@@ -358,7 +353,6 @@ export default function CosechaDespachos() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">06</span>
             <h3 className="aur-section-title">Observaciones</h3>
           </div>
           <div className="aur-list">

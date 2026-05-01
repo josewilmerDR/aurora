@@ -135,7 +135,6 @@ function RfqCreateForm({ onCreated, onClose }) {
             <div className="aur-modal-content">
               <section className="aur-section">
                 <header className="aur-section-header">
-                  <span className="aur-section-num">01</span>
                   <h3 className="aur-section-title">Producto y cantidad</h3>
                 </header>
                 <ul className="aur-list">
@@ -193,7 +192,6 @@ function RfqCreateForm({ onCreated, onClose }) {
 
               <section className="aur-section">
                 <header className="aur-section-header">
-                  <span className="aur-section-num">02</span>
                   <h3 className="aur-section-title">Plazos</h3>
                 </header>
                 <ul className="aur-list">
@@ -224,7 +222,6 @@ function RfqCreateForm({ onCreated, onClose }) {
 
               <section className="aur-section">
                 <header className="aur-section-header">
-                  <span className="aur-section-num">03</span>
                   <h3 className="aur-section-title">Notas</h3>
                 </header>
                 <ul className="aur-list">
@@ -244,7 +241,6 @@ function RfqCreateForm({ onCreated, onClose }) {
 
               <section className="aur-section">
                 <header className="aur-section-header">
-                  <span className="aur-section-num">04</span>
                   <h3 className="aur-section-title">Proveedores a contactar</h3>
                   <span className="aur-section-count">
                     {selectedSuppliers.length}/{Math.min(proveedores.length, MAX_SUPPLIERS)}

@@ -119,26 +119,28 @@
   align-items: center;
   gap: 12px;
 }
+/* Marcador de fila (no interactivo). Mismo lenguaje visual que .aur-section-num
+   para que se lea como etiqueta y no como un control con fondo. */
 .psb-row-num {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
   flex-shrink: 0;
-  min-width: 56px;
-  padding: 4px 10px;
-  background: var(--aur-bg-hover);
-  border-radius: var(--aur-r-pill);
+  padding: 0 4px 0 0;
+  user-select: none;
 }
 .psb-row-num-val {
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--aur-text);
+  color: var(--aur-text-2);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 .psb-row-num-suffix {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--aur-text-3);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
 }
 .psb-row-lote {
   flex: 1;
@@ -302,10 +304,6 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-  .psb-sheet {
-    padding: 20px 16px;
-    border-radius: 18px;
-  }
   .psb-sheet .aur-sheet-header-actions > .aur-chip {
     flex: 1;
     justify-content: center;

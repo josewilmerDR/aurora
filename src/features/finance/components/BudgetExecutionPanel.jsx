@@ -78,7 +78,6 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
   return (
     <section className="aur-section">
       <div className="aur-section-header">
-        <span className="aur-section-num">01</span>
         <h3 className="aur-section-title">Ejecución presupuestaria — {formatPeriod(period)}</h3>
         {data?.range && (
           <span className="aur-section-count">

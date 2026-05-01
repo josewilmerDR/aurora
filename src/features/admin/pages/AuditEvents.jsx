@@ -216,7 +216,6 @@ function AuditEvents() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">01</span>
             <h3>Filtros</h3>
             {hasFilters && (
               <div className="aur-section-actions">
@@ -293,7 +292,6 @@ function AuditEvents() {
 
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">02</span>
             <h3>Eventos</h3>
             <span className="aur-section-count">{events.length}</span>
           </div>

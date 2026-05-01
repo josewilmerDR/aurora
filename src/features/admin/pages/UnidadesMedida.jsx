@@ -321,7 +321,6 @@ function UnidadesMedida() {
           <form onSubmit={handleSubmit}>
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">01</span>
                 <h3>{isEditing ? 'Editar unidad' : 'Nueva unidad'}</h3>
                 <div className="aur-section-actions">
                   <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={resetForm} title="Cancelar">
@@ -363,7 +362,6 @@ function UnidadesMedida() {
 
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">02</span>
                 <h3>Conversión</h3>
               </div>
               <div className="aur-list">
@@ -405,7 +403,6 @@ function UnidadesMedida() {
 
             <section className="aur-section">
               <div className="aur-section-header">
-                <span className="aur-section-num">03</span>
                 <h3>Asociación</h3>
               </div>
               <div className="aur-list">
