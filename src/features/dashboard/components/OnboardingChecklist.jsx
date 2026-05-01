@@ -2,11 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiChevronLeft, FiChevronRight, FiCheck, FiX } from 'react-icons/fi';
 import { useOnboardingProgress } from '../../../hooks/useOnboardingProgress';
-import {
-  isMinimized as readMinimized,
-  setMinimized as writeMinimized,
-  setCompletedSticky,
-} from '../lib/onboardingState';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import { setCompletedSticky } from '../lib/onboardingState';
 
 // En mobile mostramos 1 paso a la vez (el activo); en desktop 3.
 // El breakpoint replica el del CSS para mantener la coherencia visual.
@@ -47,7 +44,7 @@ function ProgressRing({ percent }) {
 // Una columna del carrusel: título arriba, hint solo si activo, dot+línea abajo.
 // `prevDone` colorea la mitad izquierda; `step.completed` colorea la mitad derecha.
 // `isGlobalFirst`/`isGlobalLast` ocultan la mitad correspondiente (no hay paso anterior/siguiente real).
-function StepColumn({ step, isActive, isGlobalFirst, isGlobalLast, prevDone }) {
+function StepColumn({ step, isActive, isGlobalFirst, isGlobalLast, prevDone, onNavigate }) {
   const state = step.completed ? 'done' : isActive ? 'active' : 'future';
   const leftOn  = !isGlobalFirst && prevDone;
   const rightOn = !isGlobalLast && step.completed;
@@ -56,8 +53,8 @@ function StepColumn({ step, isActive, isGlobalFirst, isGlobalLast, prevDone }) {
     <>
       <div className="dash-onboarding-col-text">
         <div className={`dash-onboarding-col-title is-${state}`}>{step.label}</div>
-        {isActive && step.description && (
-          <div className="dash-onboarding-col-hint">{step.description}</div>
+        {step.description && (
+          <div className={`dash-onboarding-col-hint is-${state}`}>{step.description}</div>
         )}
       </div>
       <div className="dash-onboarding-col-rail" aria-hidden="true">
@@ -76,30 +73,39 @@ function StepColumn({ step, isActive, isGlobalFirst, isGlobalLast, prevDone }) {
       <button
         type="button"
         className={`dash-onboarding-col is-${state}`}
-        onClick={() => window.dispatchEvent(new CustomEvent('aurora:open'))}
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent('aurora:open'));
+          onNavigate?.();
+        }}
       >
         {inner}
       </button>
     );
   }
   return (
-    <Link to={step.to} className={`dash-onboarding-col is-${state}`}>
+    <Link to={step.to} className={`dash-onboarding-col is-${state}`} onClick={() => onNavigate?.()}>
       {inner}
     </Link>
   );
 }
 
-function OnboardingChecklist({ uid }) {
-  const enabled = Boolean(uid);
+function OnboardingChecklist() {
+  const { firebaseUser, currentUser } = useUser();
+  const uid = firebaseUser?.uid || null;
+  const isAdmin = hasMinRole(currentUser?.rol, 'administrador');
+  const enabled = Boolean(uid && isAdmin);
+
   const { steps, completedCount, total, percent, completedSticky, loading } =
     useOnboardingProgress({ enabled, uid });
   const viewSize = useResponsiveViewSize();
 
-  const [minimized, setMinimizedState] = useState(() => (enabled ? readMinimized(uid) : false));
-  // null → ventana derivada del paso activo. Number → el usuario navegó manualmente.
+  // El badge es FAB global (siempre visible mientras enabled). El popover se
+  // abre/cierra con `open`. No persistimos el estado: cada sesión arranca con
+  // el badge contraído, igual que el chat de Aurora.
+  const [open, setOpen] = useState(false);
   const [windowOverride, setWindowOverride] = useState(null);
 
-  // Una vez 11/11, sellar para siempre.
+  // Una vez 12/12, sellar para siempre.
   useEffect(() => {
     if (!enabled) return;
     if (!loading && total > 0 && completedCount === total) {
@@ -115,23 +121,17 @@ function OnboardingChecklist({ uid }) {
   if (completedSticky) return null;
   if (total > 0 && completedCount === total) return null;
 
-  const minimize = () => { writeMinimized(uid, true); setMinimizedState(true); };
-  const expand   = () => { writeMinimized(uid, false); setMinimizedState(false); };
-
-  if (minimized) {
-    return (
-      <button
-        type="button"
-        className="dash-onboarding-badge"
-        onClick={expand}
-        title={`Onboarding · ${completedCount}/${total} pasos completados`}
-        aria-label={`Abrir onboarding, ${completedCount} de ${total} pasos completados`}
-      >
-        <ProgressRing percent={percent} />
-        <span className="dash-onboarding-badge-count">{completedCount}/{total}</span>
-      </button>
-    );
-  }
+  const toggle = () => setOpen(o => {
+    const next = !o;
+    // Al abrir, fuerza un refetch del progreso por si el usuario completó
+    // un paso en la página actual sin navegar (p.ej. crear un lote en /lotes).
+    if (next) {
+      try { window.dispatchEvent(new CustomEvent('aurora:onboarding-refresh')); }
+      catch { /* ignore */ }
+    }
+    return next;
+  });
+  const close  = () => setOpen(false);
 
   // Ventana visible. En desktop son 3 columnas centradas en el paso activo;
   // en mobile es 1, mostrando solo el activo (o el seleccionado por el usuario).
@@ -148,63 +148,86 @@ function OnboardingChecklist({ uid }) {
   const goNext = () => canNext && setWindowOverride(Math.min(maxStart, start + 1));
 
   return (
-    <section className="dash-onboarding-card" role="region" aria-label="Configuración inicial">
+    <>
+      {/* FAB siempre visible, como el chat de Aurora. Click → toggle popover. */}
       <button
         type="button"
-        className="dash-onboarding-minimize"
-        onClick={minimize}
-        title="Cerrar"
-        aria-label="Cerrar onboarding"
+        className={`dash-onboarding-badge${open ? ' is-open' : ''}`}
+        onClick={toggle}
+        title={`Onboarding · ${completedCount}/${total} pasos completados`}
+        aria-label={open ? 'Cerrar onboarding' : `Abrir onboarding, ${completedCount} de ${total} pasos completados`}
+        aria-expanded={open}
       >
-        <FiX size={16} />
+        <ProgressRing percent={percent} />
+        <span className="dash-onboarding-badge-count">{completedCount}/{total}</span>
       </button>
 
-      <p className="dash-onboarding-hint">
-        Haz este recorrido guiado por las funciones principales de Aurora para conocer mejor la plataforma
-        {' '}
-        <span className="dash-onboarding-hint-count">[{completedCount}/{total}]</span>
-      </p>
+      {/* Popover flotante anclado sobre el FAB (mismo patrón que aurora-chat-panel). */}
+      {open && (
+        <section
+          className="dash-onboarding-card dash-onboarding-popover"
+          role="region"
+          aria-label="Configuración inicial"
+        >
+          <button
+            type="button"
+            className="dash-onboarding-minimize"
+            onClick={close}
+            title="Cerrar"
+            aria-label="Cerrar onboarding"
+          >
+            <FiX size={16} />
+          </button>
 
-      <div className="dash-onboarding-carousel">
-        <button
-          type="button"
-          className="dash-onboarding-nav"
-          onClick={goPrev}
-          disabled={!canPrev}
-          aria-label="Pasos anteriores"
-        >
-          <FiChevronLeft size={18} />
-        </button>
-        <div
-          className="dash-onboarding-track"
-          style={{ gridTemplateColumns: `repeat(${viewSize}, 1fr)` }}
-        >
-          {visible.map((step, i) => {
-            const absoluteIndex = start + i;
-            const prevStep = absoluteIndex > 0 ? steps[absoluteIndex - 1] : null;
-            return (
-              <StepColumn
-                key={step.key}
-                step={step}
-                isActive={absoluteIndex === activeIndex}
-                isGlobalFirst={absoluteIndex === 0}
-                isGlobalLast={absoluteIndex === total - 1}
-                prevDone={Boolean(prevStep?.completed)}
-              />
-            );
-          })}
-        </div>
-        <button
-          type="button"
-          className="dash-onboarding-nav"
-          onClick={goNext}
-          disabled={!canNext}
-          aria-label="Pasos siguientes"
-        >
-          <FiChevronRight size={18} />
-        </button>
-      </div>
-    </section>
+          <p className="dash-onboarding-hint">
+            Haz este recorrido guiado por las funciones principales de Aurora para conocer mejor la plataforma
+            {' '}
+            <span className="dash-onboarding-hint-count">[{completedCount}/{total}]</span>
+          </p>
+
+          <div className="dash-onboarding-carousel">
+            <button
+              type="button"
+              className="dash-onboarding-nav"
+              onClick={goPrev}
+              disabled={!canPrev}
+              aria-label="Pasos anteriores"
+            >
+              <FiChevronLeft size={18} />
+            </button>
+            <div
+              className="dash-onboarding-track"
+              style={{ gridTemplateColumns: `repeat(${viewSize}, 1fr)` }}
+            >
+              {visible.map((step, i) => {
+                const absoluteIndex = start + i;
+                const prevStep = absoluteIndex > 0 ? steps[absoluteIndex - 1] : null;
+                return (
+                  <StepColumn
+                    key={step.key}
+                    step={step}
+                    isActive={absoluteIndex === activeIndex}
+                    isGlobalFirst={absoluteIndex === 0}
+                    isGlobalLast={absoluteIndex === total - 1}
+                    prevDone={Boolean(prevStep?.completed)}
+                    onNavigate={close}
+                  />
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className="dash-onboarding-nav"
+              onClick={goNext}
+              disabled={!canNext}
+              aria-label="Pasos siguientes"
+            >
+              <FiChevronRight size={18} />
+            </button>
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 

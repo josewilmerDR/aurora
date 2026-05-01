@@ -8,7 +8,6 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { useUser } from '../../../contexts/UserContext';
-import { markVisited as markOnboardingVisited } from '../../dashboard/lib/onboardingState';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', restrictedTo: [] };
@@ -45,9 +44,6 @@ const firstName = (nombre) => {
 function UserManagement() {
   const apiFetch = useApiFetch();
   const { firebaseUser } = useUser();
-  useEffect(() => {
-    if (firebaseUser?.uid) markOnboardingVisited(firebaseUser.uid, 'inviteUser');
-  }, [firebaseUser?.uid]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
