@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   FiSettings, FiUsers, FiUpload, FiMessageCircle, FiMap, FiPackage,
-  FiClipboard, FiLayers, FiCheckSquare, FiDroplet, FiTool, FiSun,
+  FiClipboard, FiLayers, FiCheckSquare, FiDroplet, FiTool, FiSun, FiStar,
 } from 'react-icons/fi';
 import { getVisited, markVisited, isCompletedSticky } from '../features/dashboard/lib/onboardingState';
 
-// Definición declarativa de los 12 pasos en orden.
+// Definición declarativa de los pasos del onboarding en orden.
 //
 // Modelo "soft": un paso se marca como completado con solo visitar la página
 // correspondiente (`to`). Reduce la fricción a costa de no garantizar que el
@@ -21,6 +21,7 @@ const STEPS_DEF = [
   { key: 'invitar',      visitKey: 'inviteUser',   label: 'Invitar a tu equipo',                  to: '/users',                           icon: FiUsers,         description: 'Invita a personas a formar parte del equipo de trabajo y asígnales un rol de usuario.' },
   { key: 'cargaMasiva',  visitKey: 'bulkUpload',   label: 'Carga masiva de información',          to: '/admin/config-inicial',            icon: FiUpload,        description: 'Crea cientos o miles de registros con un par de clics.' },
   { key: 'chat',         visitKey: 'chat',         label: 'Chatea con Aurora',                    to: null,                               icon: FiMessageCircle, description: 'Pídele a Aurora que haga algo, como crear un lote o un recordatorio.' },
+  { key: 'favoritos',    visitKey: 'favoritos',    label: 'Favoritos y últimas funciones realizadas', to: null,                            icon: FiStar,          description: <>Marca como favoritos (<FiStar size={11} style={{ verticalAlign: '-1px' }} />) las funciones que más uses y tenlas siempre a un click.</> },
   { key: 'lote',         visitKey: 'lote',         label: 'Crear un lote',                        to: '/lotes',                           icon: FiMap,           description: 'Los lotes son espacios físicos donde viven tus cultivos.' },
   { key: 'producto',     visitKey: 'producto',     label: 'Crear un producto',                    to: '/bodega/agroquimicos/existencias', icon: FiDroplet,       description: 'Crea o actualiza un producto para ser usado en las aplicaciones.' },
   { key: 'calibracion',  visitKey: 'calibracion',  label: 'Crear una calibración',                to: '/admin/calibraciones',             icon: FiTool,          description: 'Crea una calibración para ser usada en tus aplicaciones; es útil para calcular la cantidad en la que deben ser mezclados los agroquímicos.' },

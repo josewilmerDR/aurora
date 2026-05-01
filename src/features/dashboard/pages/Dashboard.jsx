@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import OnboardingChecklist from '../components/OnboardingChecklist';
 import '../styles/dashboard.css';
 
 const EVENT_LABELS = {
@@ -167,6 +168,10 @@ function Dashboard() {
               <div className="empty-state">Aún no hay actividad registrada.</div>
             )}
           </section>
+
+          {/* ── Onboarding inline: sólo en la primera visita; tras cerrarlo
+              el componente cede el render al FAB global montado en App.jsx. */}
+          <OnboardingChecklist mode="inline" />
         </>
       )}
     </div>
