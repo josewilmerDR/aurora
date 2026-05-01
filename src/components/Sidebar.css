@@ -3,7 +3,16 @@
    Tipografía 11/13/15/17/22 · sheet translúcida · rows tipo source list
    con active fill rounded · single chevron rotando · acento único verde.
    Class names preservados; el estilo se actualiza in-place.
+
+   Ancho: variable global `--sidebar-width` (default 290px) controlada desde
+   Sidebar.jsx (drag handler + localStorage). El `.content-area` la consume
+   en App.css. Durante el drag, `html.is-resizing-sidebar` desactiva las
+   transiciones para que el redimensionado se sienta directo.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --sidebar-width: 290px;
+}
 
 .sidebar {
   /* Tokens locales */
@@ -26,7 +35,7 @@
 
   display: flex;
   flex-direction: column;
-  width: 260px;
+  width: var(--sidebar-width, 290px);
   height: calc(100vh - 62px);
   position: fixed;
   top: 62px;
@@ -61,6 +70,33 @@ html[data-theme="light"] .sidebar {
 
 .sidebar.collapsed {
   width: 64px;
+}
+
+/* ── Resize handle (right edge) ──────────────────────────────────────────
+   Tira vertical de 4px sobre el borde derecho del sidebar. Cursor `col-resize`
+   y un sutil tinte accent al hover/drag para descubrirla sin ruido visual. */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+  z-index: 10;
+  touch-action: none;
+}
+.sidebar-resizer:hover,
+html.is-resizing-sidebar .sidebar-resizer {
+  background: var(--sb-accent-tint-2);
+}
+
+/* Durante el drag, desactivamos las transiciones de width/margin para que el
+   movimiento siga el cursor sin lag. Aplica al sidebar y al content-area. */
+html.is-resizing-sidebar .sidebar,
+html.is-resizing-sidebar .content-area {
+  transition: none;
 }
 
 /* ── Icon wrapper (draft badge holder) ──────────────────────────────────── */
@@ -117,6 +153,40 @@ html[data-theme="light"] .sidebar {
   transform: translateX(100%);
 }
 
+/* Pin de "Favoritos como menú predeterminado". Aparece sólo cuando el tab
+   activo es Favoritos. Posicionado absoluto sobre el borde derecho del thumb
+   para no afectar el layout flex de los dos tabs. */
+.sidebar-tabs-pin {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: calc(50% - 22px);
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--sb-text-3);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+}
+.sidebar-tabs-pin:hover {
+  color: var(--sb-text);
+  background: var(--sb-bg-hover);
+}
+.sidebar-tabs-pin.is-pinned {
+  color: var(--sb-accent);
+}
+.sidebar-tabs-pin.is-pinned svg {
+  fill: currentColor;
+}
+
 .sidebar-tab {
   flex: 1;
   position: relative;
@@ -151,18 +221,36 @@ html[data-theme="light"] .sidebar {
   overflow-x: hidden;
   padding: 0 8px;
 }
+/* Scrollbar: el ancho/track se mantiene constante para no provocar layout
+   shift, pero el thumb es invisible por defecto y sólo aparece cuando el
+   sidebar tiene puntero encima (:hover) o foco de teclado (:focus-within). */
+.sidebar-links {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
 .sidebar-links::-webkit-scrollbar {
-  width: 6px;
+  width: 24px;
 }
 .sidebar-links::-webkit-scrollbar-track {
   background: transparent;
 }
 .sidebar-links::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
   border-radius: 999px;
+  transition: background 0.18s ease;
 }
-.sidebar-links::-webkit-scrollbar-thumb:hover {
+
+.sidebar:hover .sidebar-links,
+.sidebar:focus-within .sidebar-links {
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+.sidebar:hover .sidebar-links::-webkit-scrollbar-thumb,
+.sidebar:focus-within .sidebar-links::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.16);
+}
+.sidebar:hover .sidebar-links::-webkit-scrollbar-thumb:hover,
+.sidebar:focus-within .sidebar-links::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .tab-content {

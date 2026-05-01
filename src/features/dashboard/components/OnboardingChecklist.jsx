@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiChevronLeft, FiChevronRight, FiCheck, FiX } from 'react-icons/fi';
 import { useOnboardingProgress } from '../../../hooks/useOnboardingProgress';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
-import { setCompletedSticky } from '../lib/onboardingState';
+import { setCompletedSticky, isFirstViewDismissed, setFirstViewDismissed } from '../lib/onboardingState';
 
 // En mobile mostramos 1 paso a la vez (el activo); en desktop 3.
 // El breakpoint replica el del CSS para mantener la coherencia visual.
@@ -89,7 +89,7 @@ function StepColumn({ step, isActive, isGlobalFirst, isGlobalLast, prevDone, onN
   );
 }
 
-function OnboardingChecklist() {
+function OnboardingChecklist({ mode = 'fab' }) {
   const { firebaseUser, currentUser } = useUser();
   const uid = firebaseUser?.uid || null;
   const isAdmin = hasMinRole(currentUser?.rol, 'administrador');
@@ -99,13 +99,30 @@ function OnboardingChecklist() {
     useOnboardingProgress({ enabled, uid });
   const viewSize = useResponsiveViewSize();
 
+  // Render mode:
+  //   - "inline": card embebida al final del Dashboard, mostrada hasta que el
+  //     usuario la cierre por primera vez. Tras cerrarla, cede el render al FAB.
+  //   - "fab" (default): badge global flotante con popover (comportamiento
+  //     original); sólo aparece después de que el usuario cerró la card inline.
+  const isInline = mode === 'inline';
+  // `firstViewDismissedTick` re-lee el flag cuando dispatchamos
+  // 'aurora:onboarding-refresh' (incluye `setFirstViewDismissed`).
+  const [firstViewTick, setFirstViewTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setFirstViewTick(t => t + 1);
+    window.addEventListener('aurora:onboarding-refresh', bump);
+    return () => window.removeEventListener('aurora:onboarding-refresh', bump);
+  }, []);
+  void firstViewTick;
+  const firstViewDismissed = enabled ? isFirstViewDismissed(uid) : true;
+
   // El badge es FAB global (siempre visible mientras enabled). El popover se
   // abre/cierra con `open`. No persistimos el estado: cada sesión arranca con
   // el badge contraído, igual que el chat de Aurora.
   const [open, setOpen] = useState(false);
   const [windowOverride, setWindowOverride] = useState(null);
 
-  // Una vez 12/12, sellar para siempre.
+  // Una vez completados todos los pasos, sellar para siempre.
   useEffect(() => {
     if (!enabled) return;
     if (!loading && total > 0 && completedCount === total) {
@@ -120,6 +137,11 @@ function OnboardingChecklist() {
   if (loading) return null;
   if (completedSticky) return null;
   if (total > 0 && completedCount === total) return null;
+  // Una sola instancia se rinde a la vez según el flag de "primera vista":
+  //   - mode=inline → sólo si el usuario aún no la ha cerrado.
+  //   - mode=fab    → sólo después de cerrar la inline.
+  if (isInline && firstViewDismissed) return null;
+  if (!isInline && !firstViewDismissed) return null;
 
   const toggle = () => setOpen(o => {
     const next = !o;
@@ -147,9 +169,87 @@ function OnboardingChecklist() {
   const goPrev = () => canPrev && setWindowOverride(Math.max(0, start - 1));
   const goNext = () => canNext && setWindowOverride(Math.min(maxStart, start + 1));
 
+  // Cierre desde el modo inline → marca el flag de "primera vista cerrada" y
+  // re-renderiza ambos modos: este componente desaparece y el FAB toma el relevo.
+  const closeInline = () => setFirstViewDismissed(uid);
+
+  // Card body: hint + carrusel. Compartido entre el render inline y el popover.
+  const cardContent = (
+    <>
+      <p className="dash-onboarding-hint">
+        Haz este recorrido guiado por las funciones principales de Aurora para conocer mejor la plataforma
+        {' '}
+        <span className="dash-onboarding-hint-count">[{completedCount}/{total}]</span>
+      </p>
+
+      <div className="dash-onboarding-carousel">
+        <button
+          type="button"
+          className="dash-onboarding-nav"
+          onClick={goPrev}
+          disabled={!canPrev}
+          aria-label="Pasos anteriores"
+        >
+          <FiChevronLeft size={18} />
+        </button>
+        <div
+          className="dash-onboarding-track"
+          style={{ gridTemplateColumns: `repeat(${viewSize}, 1fr)` }}
+        >
+          {visible.map((step, i) => {
+            const absoluteIndex = start + i;
+            const prevStep = absoluteIndex > 0 ? steps[absoluteIndex - 1] : null;
+            return (
+              <StepColumn
+                key={step.key}
+                step={step}
+                isActive={absoluteIndex === activeIndex}
+                isGlobalFirst={absoluteIndex === 0}
+                isGlobalLast={absoluteIndex === total - 1}
+                prevDone={Boolean(prevStep?.completed)}
+                onNavigate={isInline ? undefined : close}
+              />
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="dash-onboarding-nav"
+          onClick={goNext}
+          disabled={!canNext}
+          aria-label="Pasos siguientes"
+        >
+          <FiChevronRight size={18} />
+        </button>
+      </div>
+    </>
+  );
+
+  // ── Inline mode (Dashboard, primera vista) ──────────────────────────────
+  if (isInline) {
+    return (
+      <section
+        className="dash-onboarding-card dash-onboarding-inline"
+        role="region"
+        aria-label="Configuración inicial"
+      >
+        <button
+          type="button"
+          className="dash-onboarding-minimize"
+          onClick={closeInline}
+          title="Cerrar"
+          aria-label="Cerrar onboarding"
+        >
+          <FiX size={16} />
+        </button>
+        {cardContent}
+      </section>
+    );
+  }
+
+  // ── FAB mode (global, tras cerrar la inline) ────────────────────────────
   return (
     <>
-      {/* FAB siempre visible, como el chat de Aurora. Click → toggle popover. */}
       <button
         type="button"
         className={`dash-onboarding-badge${open ? ' is-open' : ''}`}
@@ -162,7 +262,6 @@ function OnboardingChecklist() {
         <span className="dash-onboarding-badge-count">{completedCount}/{total}</span>
       </button>
 
-      {/* Popover flotante anclado sobre el FAB (mismo patrón que aurora-chat-panel). */}
       {open && (
         <section
           className="dash-onboarding-card dash-onboarding-popover"
@@ -178,53 +277,7 @@ function OnboardingChecklist() {
           >
             <FiX size={16} />
           </button>
-
-          <p className="dash-onboarding-hint">
-            Haz este recorrido guiado por las funciones principales de Aurora para conocer mejor la plataforma
-            {' '}
-            <span className="dash-onboarding-hint-count">[{completedCount}/{total}]</span>
-          </p>
-
-          <div className="dash-onboarding-carousel">
-            <button
-              type="button"
-              className="dash-onboarding-nav"
-              onClick={goPrev}
-              disabled={!canPrev}
-              aria-label="Pasos anteriores"
-            >
-              <FiChevronLeft size={18} />
-            </button>
-            <div
-              className="dash-onboarding-track"
-              style={{ gridTemplateColumns: `repeat(${viewSize}, 1fr)` }}
-            >
-              {visible.map((step, i) => {
-                const absoluteIndex = start + i;
-                const prevStep = absoluteIndex > 0 ? steps[absoluteIndex - 1] : null;
-                return (
-                  <StepColumn
-                    key={step.key}
-                    step={step}
-                    isActive={absoluteIndex === activeIndex}
-                    isGlobalFirst={absoluteIndex === 0}
-                    isGlobalLast={absoluteIndex === total - 1}
-                    prevDone={Boolean(prevStep?.completed)}
-                    onNavigate={close}
-                  />
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              className="dash-onboarding-nav"
-              onClick={goNext}
-              disabled={!canNext}
-              aria-label="Pasos siguientes"
-            >
-              <FiChevronRight size={18} />
-            </button>
-          </div>
+          {cardContent}
         </section>
       )}
     </>

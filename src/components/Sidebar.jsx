@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   FiHome, FiGrid, FiPackage, FiUsers, FiArchive,
@@ -16,6 +16,7 @@ const getBodegaIcon = (key) => BODEGA_ICON_MAP[key] || FiBox;
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { ADVANCED_ENABLED } from '../lib/features';
+import { markVisited as markOnboardingVisited } from '../features/dashboard/lib/onboardingState';
 import './Sidebar.css';
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -189,6 +190,36 @@ export const getRecents = (uid) => { try { return JSON.parse(localStorage.getIte
 export const savePinned  = (uid, arr) => localStorage.setItem(`aurora_pinned_${uid}`, JSON.stringify(arr));
 export const saveRecents = (uid, arr) => localStorage.setItem(`aurora_recent_${uid}`, JSON.stringify(arr));
 
+// ─── Default tab preference ───────────────────────────────────────────────────
+// Si el usuario "fija" la pestaña Favoritos (estrella en el segmented control),
+// se guarda como su pestaña predeterminada al arrancar la app. Si no, arranca
+// en "Todas las funciones".
+const DEFAULT_TAB_KEY = (uid) => `aurora_default_tab_${uid}`;
+function loadDefaultTab(uid) {
+  try {
+    const v = localStorage.getItem(DEFAULT_TAB_KEY(uid));
+    if (v === 'favoritos') return 'favoritos';
+  } catch {}
+  return 'todas';
+}
+
+// ─── Resize state ─────────────────────────────────────────────────────────────
+// Ancho persistente del sidebar (sólo aplica en modo expandido). El default es
+// el ancho original 260px + 30px solicitado. Mín y máx evitan que el drag deje
+// el sidebar inservible o que se coma medio canvas.
+const SIDEBAR_WIDTH_DEFAULT = 290;
+const SIDEBAR_WIDTH_MIN     = 220;
+const SIDEBAR_WIDTH_MAX     = 480;
+const SIDEBAR_WIDTH_KEY     = 'aurora_sidebar_width';
+
+function loadSavedSidebarWidth() {
+  try {
+    const v = parseInt(localStorage.getItem(SIDEBAR_WIDTH_KEY), 10);
+    if (Number.isFinite(v) && v >= SIDEBAR_WIDTH_MIN && v <= SIDEBAR_WIDTH_MAX) return v;
+  } catch {}
+  return SIDEBAR_WIDTH_DEFAULT;
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const apiFetch = useApiFetch();
@@ -208,9 +239,72 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     ? MODULES.filter(m => restrictedTo.includes(m.id))
     : MODULES;
 
-  const [activeTab, setActiveTab] = useState('favoritos');
+  // El tab inicial respeta la preferencia del usuario: si fijó "Favoritos"
+  // como predeterminado, arranca ahí; de lo contrario en "Todas las funciones".
+  const [activeTab, setActiveTab] = useState(() => loadDefaultTab(uid));
+  const [favoritesPinned, setFavoritesPinned] = useState(() => loadDefaultTab(uid) === 'favoritos');
+
+  const toggleFavoritesPinned = (e) => {
+    e.stopPropagation();
+    setFavoritesPinned((prev) => {
+      const next = !prev;
+      try {
+        if (next) localStorage.setItem(DEFAULT_TAB_KEY(uid), 'favoritos');
+        else localStorage.removeItem(DEFAULT_TAB_KEY(uid));
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const [expandedMods, setExpandedMods] = useState(() => new Set());
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+
+  // ── Resize state ────────────────────────────────────────────────────────
+  // El ancho se publica en `--sidebar-width` (consumida por .sidebar y .content-area).
+  // Durante el drag se setea `html.is-resizing-sidebar` para apagar transiciones.
+  const [sidebarWidth, setSidebarWidth] = useState(loadSavedSidebarWidth);
+  const sidebarWidthRef = useRef(sidebarWidth);
+  sidebarWidthRef.current = sidebarWidth;
+  const dragActiveRef = useRef(false);
+
+  useLayoutEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragActiveRef.current) return;
+      e.preventDefault();
+      const w = Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, e.clientX));
+      setSidebarWidth(w);
+    };
+    const onUp = () => {
+      if (!dragActiveRef.current) return;
+      dragActiveRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.documentElement.classList.remove('is-resizing-sidebar');
+      try { localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidthRef.current)); } catch {}
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, []);
+
+  const handleResizerPointerDown = useCallback((e) => {
+    if (isCollapsed) return;
+    e.preventDefault();
+    dragActiveRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.documentElement.classList.add('is-resizing-sidebar');
+  }, [isCollapsed]);
+
   const [pinnedRoutes, setPinnedRoutes] = useState(() => getPinned(uid));
   const [recentRoutes, setRecentRoutes] = useState(() => getRecents(uid));
   const [stockBajoCount, setStockBajoCount] = useState(0);
@@ -346,8 +440,12 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   const togglePin = (to) =>
     setPinnedRoutes((prev) => {
-      const next = prev.includes(to) ? prev.filter((r) => r !== to) : [...prev, to];
+      const adding = !prev.includes(to);
+      const next = adding ? [...prev, to] : prev.filter((r) => r !== to);
       savePinned(uid, next);
+      // Marca el paso del onboarding la primera vez que el usuario pina algo.
+      // Usa firebaseUser.uid (la llave que usa el hook), no currentUser.id.
+      if (adding && firebaseUser?.uid) markOnboardingVisited(firebaseUser.uid, 'favoritos');
       return next;
     });
 
@@ -587,6 +685,18 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             >
               Favoritos
             </button>
+            {activeTab === 'favoritos' && (
+              <button
+                type="button"
+                className={`sidebar-tabs-pin${favoritesPinned ? ' is-pinned' : ''}`}
+                onClick={toggleFavoritesPinned}
+                title={favoritesPinned ? 'Quitar como menú predeterminado' : 'Fijar como menú predeterminado'}
+                aria-label={favoritesPinned ? 'Menú predeterminado fijado' : 'Fijar como menú predeterminado'}
+                aria-pressed={favoritesPinned}
+              >
+                <FiStar size={11} />
+              </button>
+            )}
             <button
               type="button"
               className={`sidebar-tab${activeTab === 'todas' ? ' active' : ''}`}
@@ -599,6 +709,17 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             {activeTab === 'favoritos' ? <FavoritosTab /> : <TodasTab />}
           </div>
         </>
+      )}
+
+      {/* ── Resize handle (right edge, sólo expandido) ── */}
+      {!isCollapsed && (
+        <div
+          className="sidebar-resizer"
+          onPointerDown={handleResizerPointerDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Redimensionar sidebar"
+        />
       )}
 
       {/* ── Footer ── */}

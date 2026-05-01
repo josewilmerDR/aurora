@@ -349,6 +349,19 @@
     dash-onboarding-popover-in 0.18s ease-out,
     dash-onboarding-glow 3.2s ease-in-out infinite 0.18s;
 }
+
+/* Inline mode: card embebida al final del Dashboard en la primera visita.
+   Sin position fixed; ancho fluido (limitado para no sentirse sobreestirada
+   en pantallas anchas). Mantiene el gradiente y el glow para mantener la
+   identidad visual del onboarding. */
+.dash-onboarding-inline {
+  margin-top: 24px;
+  padding: 18px 20px 20px;
+  max-width: 720px;
+  animation:
+    dash-onboarding-popover-in 0.18s ease-out,
+    dash-onboarding-glow 3.2s ease-in-out infinite 0.18s;
+}
 @keyframes dash-onboarding-popover-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -359,7 +372,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .dash-onboarding-card,
-  .dash-onboarding-popover { animation: none; }
+  .dash-onboarding-popover,
+  .dash-onboarding-inline { animation: none; }
 }
 
 .dash-onboarding-hint {

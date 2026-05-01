@@ -1,10 +1,14 @@
 // Helpers para el estado del onboarding del Dashboard.
 // Persistimos en localStorage por uid:
-//   - aurora_onboarding_visited_${uid}    → JSON {chat?, bulkUpload?, inviteUser?}
-//   - aurora_onboarding_completed_${uid}  → 'true' una vez alcanzado 100% (sticky)
+//   - aurora_onboarding_visited_${uid}     → JSON {chat?, bulkUpload?, inviteUser?}
+//   - aurora_onboarding_completed_${uid}   → 'true' una vez alcanzado 100% (sticky)
+//   - aurora_onboarding_first_view_${uid}  → 'true' cuando el usuario cierra el
+//     render inline en el Dashboard. Hasta entonces, el onboarding aparece como
+//     una card al final del Dashboard; tras cerrarlo se vuelve FAB minimizado.
 
-const VISITED_KEY    = (uid) => `aurora_onboarding_visited_${uid}`;
-const COMPLETED_KEY  = (uid) => `aurora_onboarding_completed_${uid}`;
+const VISITED_KEY        = (uid) => `aurora_onboarding_visited_${uid}`;
+const COMPLETED_KEY      = (uid) => `aurora_onboarding_completed_${uid}`;
+const FIRST_VIEW_KEY     = (uid) => `aurora_onboarding_first_view_${uid}`;
 
 function safeRead(key) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -37,4 +41,16 @@ export function isCompletedSticky(uid) {
 
 export function setCompletedSticky(uid) {
   safeWrite(COMPLETED_KEY(uid), 'true');
+}
+
+export function isFirstViewDismissed(uid) {
+  return safeRead(FIRST_VIEW_KEY(uid)) === 'true';
+}
+
+export function setFirstViewDismissed(uid) {
+  if (!uid) return;
+  safeWrite(FIRST_VIEW_KEY(uid), 'true');
+  try {
+    window.dispatchEvent(new CustomEvent('aurora:onboarding-refresh'));
+  } catch { /* SSR / entornos sin window */ }
 }

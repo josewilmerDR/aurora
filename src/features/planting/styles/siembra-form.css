@@ -9,11 +9,6 @@
    Tokens: usa --aur-* heredados; sin variables locales.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.psb-sheet {
-  max-width: 1180px;
-  margin: 0 auto;
-}
-
 /* ── Required asterisk en labels del modal ───────────────────────────────── */
 .psb-required {
   color: var(--aur-danger);

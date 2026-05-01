@@ -195,7 +195,7 @@
   min-height: calc(100vh - 62px);
   overflow-x: hidden;
   padding: 30px;
-  margin-left: 260px;
+  margin-left: var(--sidebar-width, 290px);
   background-color: var(--aur-bg-canvas);
   transition: margin-left 0.3s ease;
 }
