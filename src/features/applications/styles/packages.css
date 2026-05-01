@@ -24,8 +24,16 @@
 
 .pkg-page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
+}
+
+.pkg-page-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .pkg-page-title {
@@ -33,6 +41,42 @@
   font-weight: 600;
   color: var(--aurora-light);
   margin: 0;
+}
+
+.pkg-page-subtitle {
+  font-size: var(--aur-fs-footnote, 0.85rem);
+  color: var(--aur-text-2, #9fb3c8);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+/* Quita los bordes laterales e inferior del panel de lista en esta página */
+.pkg-page-wrapper .lote-list-panel {
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
+}
+
+/* Quita los bordes laterales e inferior del hub de detalle en esta página */
+.pkg-page-wrapper .lote-hub {
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
+}
+
+/* Ícono de info junto al header de "Programa de actividades" */
+.pkg-day-hint {
+  display: inline-flex;
+  align-items: center;
+  color: var(--aur-text-2, #9fb3c8);
+  cursor: help;
+  margin-left: 4px;
+}
+.pkg-day-hint:hover {
+  color: var(--aurora-green);
 }
 
 /* ── Page loading spinner (reuses @keyframes app-loading-spin de App.css) ── */
@@ -276,6 +320,10 @@
   -webkit-appearance: none;
   margin: 0;
 }
+.pkg-act-day input::placeholder {
+  color: var(--aur-accent);
+  opacity: 0.45;
+}
 .pkg-act-day-suffix {
   font-size: 9px;
   color: var(--aur-accent);
@@ -302,16 +350,20 @@
   font-weight: 500;
   letter-spacing: -0.01em;
   padding: 4px 0;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s ease;
+  border-bottom: 1px dashed var(--aur-divider-2, var(--aur-divider));
+  transition: border-color 0.2s ease, border-bottom-style 0.2s ease;
   width: 100%;
   font-family: inherit;
 }
+.pkg-act-name:hover {
+  border-bottom-color: var(--aur-text-2);
+}
 .pkg-act-name:focus {
-  border-bottom-color: var(--aur-accent);
+  border-bottom: 1px solid var(--aur-accent);
 }
 .pkg-act-name::placeholder {
   color: var(--aur-text-3);
+  font-style: italic;
 }
 
 .pkg-act-meta {
@@ -476,14 +528,29 @@
 }
 
 /* Combobox (.aur-combo) dentro del card de productos: bloque y margen sutil
-   para que no quede pegado a la última fila. El estilo del input/dropdown
-   viene de .aur-combo-* en aurora.css. */
+   para que no quede pegado a la última fila. El estilo base del input/dropdown
+   viene de .aur-combo-* en aurora.css; aquí refuerzo el peso visual para que
+   el campo se lea claramente como editable a primera vista. */
 .pkg-form .pkg-prod-combo {
   margin-top: 6px;
   display: block;
 }
 .pkg-form .pkg-prod-combo .aur-combo-input-wrap {
   width: 100%;
+  border-color: var(--aur-text-3, var(--aur-divider));
+  padding: 8px 12px;
+}
+.pkg-form .pkg-prod-combo .aur-combo-input-wrap:hover {
+  border-color: var(--aur-text-2);
+  background: var(--aur-bg-hover, var(--aur-bg-input));
+}
+.pkg-form .pkg-prod-combo .aur-combo-input-wrap > svg {
+  opacity: 0.85;
+  color: var(--aur-accent);
+}
+.pkg-form .pkg-prod-combo .aur-combo-input::placeholder {
+  color: var(--aur-text-2);
+  font-style: italic;
 }
 
 /* ── Add activity (botón ghost) ─────────────────────────────────────────── */
