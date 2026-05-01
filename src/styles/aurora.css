@@ -101,6 +101,98 @@
 
   /* ── Easing ────────────────────────────────────────────────────────────── */
   --aur-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ── Theme-flippable surfaces ──────────────────────────────────────────── */
+  /* Solid bg used for portaled popovers (combo-dropdown, filter-popover,
+     col-menu, tp-dropdown). In dark mode reuses --aurora-dark-blue tinted
+     translucent; in light mode flips to white tinted translucent. */
+  --aur-bg-popover-solid: rgba(13, 26, 38, 0.96);
+  /* color-scheme used by inputs/textarea/select to match native UI affordances
+     (date pickers, scrollbars). */
+  --aur-color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — token overrides applied when <html data-theme="light">
+
+   Strategy: redefine the same --aur-* tokens with light-mode equivalents.
+   Surfaces flip from rgba(255,…) (alpha-on-dark) to rgba(0,…) (alpha-on-light);
+   text flips from white-alpha to navy-alpha. The accent shifts to a darker
+   emerald (#0aa05c) so it passes AA contrast against white surfaces. Brand
+   tokens (--aurora-green, --aurora-magenta, --aurora-dark-blue) stay constant.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html[data-theme="light"] {
+  /* Surfaces — alpha-on-navy ink for subtle layering on white */
+  --aur-bg:            rgba(13, 26, 38, 0.025);
+  --aur-bg-input:      rgba(13, 26, 38, 0.04);
+  --aur-bg-hover:      rgba(13, 26, 38, 0.06);
+  --aur-bg-strong:     rgba(13, 26, 38, 0.10);
+  --aur-bg-overlay:    rgba(13, 26, 38, 0.32);
+  --aur-bg-modal:      rgba(255, 255, 255, 0.96);
+
+  /* Dividers */
+  --aur-divider:       rgba(13, 26, 38, 0.08);
+  --aur-divider-2:     rgba(13, 26, 38, 0.12);
+  --aur-divider-3:     rgba(13, 26, 38, 0.18);
+
+  /* Text */
+  --aur-text:          rgba(13, 26, 38, 0.92);
+  --aur-text-2:        rgba(13, 26, 38, 0.62);
+  --aur-text-3:        rgba(13, 26, 38, 0.42);
+
+  /* Accent — darker emerald for AA contrast on light surfaces */
+  --aur-accent:        #0aa05c;
+  --aur-accent-tint:   rgba(10, 160, 92, 0.10);
+  --aur-accent-tint-2: rgba(10, 160, 92, 0.18);
+  --aur-accent-tint-3: rgba(10, 160, 92, 0.30);
+
+  /* Danger — darker magenta for AA on light */
+  --aur-danger:        #b01ed8;
+  --aur-danger-tint:   rgba(176, 30, 216, 0.10);
+  --aur-danger-tint-2: rgba(176, 30, 216, 0.18);
+
+  /* Warn — darker amber */
+  --aur-warn:          #b56b00;
+  --aur-warn-tint:     rgba(181, 107, 0, 0.12);
+
+  /* Badges — darker fg for legibility on tinted bg */
+  --aur-badge-green-bg:    rgba(10, 160, 92, 0.12);
+  --aur-badge-green-fg:    #088450;
+  --aur-badge-yellow-bg:   rgba(181, 107, 0, 0.14);
+  --aur-badge-yellow-fg:   #8a5300;
+  --aur-badge-blue-bg:     rgba(25, 118, 210, 0.12);
+  --aur-badge-blue-fg:     #1565c0;
+  --aur-badge-magenta-bg:  rgba(176, 30, 216, 0.12);
+  --aur-badge-magenta-fg:  #8e1ab0;
+  --aur-badge-violet-bg:   rgba(108, 76, 178, 0.14);
+  --aur-badge-violet-fg:   #5d3fa8;
+  --aur-badge-gray-bg:     rgba(13, 26, 38, 0.06);
+  --aur-badge-gray-fg:     rgba(13, 26, 38, 0.70);
+
+  /* Shadows — softer & cool-tinted to read on white */
+  --aur-shadow-sheet: 0 8px 24px rgba(15, 30, 50, 0.08),
+                      0 1px 0 rgba(13, 26, 38, 0.03) inset;
+  --aur-shadow-modal: 0 24px 56px rgba(15, 30, 50, 0.18),
+                      0 1px 0 rgba(13, 26, 38, 0.04) inset;
+  --aur-shadow-popover: 0 12px 32px rgba(15, 30, 50, 0.18),
+                        0 1px 0 rgba(13, 26, 38, 0.04) inset;
+  --aur-shadow-pill:  0 4px 14px rgba(10, 160, 92, 0.30),
+                      0 1px 0 rgba(255, 255, 255, 0.40) inset;
+  --aur-shadow-pill-hover: 0 6px 22px rgba(10, 160, 92, 0.42),
+                           0 1px 0 rgba(255, 255, 255, 0.40) inset;
+  --aur-shadow-pill-danger: 0 4px 14px rgba(176, 30, 216, 0.32),
+                            0 1px 0 rgba(255, 255, 255, 0.40) inset;
+  --aur-shadow-pill-danger-hover: 0 6px 22px rgba(176, 30, 216, 0.44),
+                                  0 1px 0 rgba(255, 255, 255, 0.40) inset;
+
+  /* Focus rings */
+  --aur-ring:        0 0 0 3px rgba(10, 160, 92, 0.28);
+  --aur-ring-danger: 0 0 0 3px rgba(176, 30, 216, 0.28);
+
+  /* Theme-flippable surfaces */
+  --aur-bg-popover-solid: rgba(255, 255, 255, 0.96);
+  --aur-color-scheme: light;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -303,7 +395,7 @@
   font-family: inherit;
   letter-spacing: -0.01em;
   box-sizing: border-box;
-  color-scheme: dark;
+  color-scheme: var(--aur-color-scheme);
 }
 .aur-input::placeholder,
 .aur-textarea::placeholder {
@@ -358,8 +450,11 @@
   padding-right: 36px;
   cursor: pointer;
 }
+html[data-theme="light"] .aur-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230d1a2680' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+}
 .aur-select option {
-  background: var(--aurora-dark-blue);
+  background: var(--aurora-background);
   color: var(--aur-text);
 }
 
@@ -547,8 +642,11 @@ select.aur-chip {
   text-overflow: ellipsis;
   overflow: hidden;
 }
+html[data-theme="light"] select.aur-chip {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%230d1a2680' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+}
 select.aur-chip option {
-  background: var(--aurora-dark-blue);
+  background: var(--aurora-background);
   color: var(--aur-text);
 }
 
@@ -768,6 +866,9 @@ select.aur-chip option {
   border-top: 1px solid var(--aur-divider);
   background: rgba(0, 0, 0, 0.18);
 }
+html[data-theme="light"] .aur-modal-actions {
+  background: rgba(13, 26, 38, 0.03);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TOGGLE — switch iOS-style (track + thumb deslizante)
@@ -965,7 +1066,7 @@ select.aur-chip option {
   min-width: 240px;
   max-height: 240px;
   overflow-y: auto;
-  background: rgba(13, 26, 38, 0.96);
+  background: var(--aur-bg-popover-solid);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--aur-divider-2);
@@ -1200,7 +1301,7 @@ select.aur-chip option {
   gap: 8px;
   padding: 8px 10px;
   min-width: 240px;
-  background: rgba(13, 26, 38, 0.96);
+  background: var(--aur-bg-popover-solid);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--aur-divider-2);
@@ -1228,7 +1329,7 @@ select.aur-chip option {
   font-family: inherit;
   letter-spacing: -0.01em;
   transition: background 0.15s ease, box-shadow 0.15s ease;
-  color-scheme: dark;
+  color-scheme: var(--aur-color-scheme);
   min-width: 0;
 }
 .aur-filter-input::placeholder {
@@ -1422,7 +1523,7 @@ select.aur-chip option {
   position: fixed;
   z-index: 1200;
   min-width: 200px;
-  background: rgba(13, 26, 38, 0.96);
+  background: var(--aur-bg-popover-solid);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--aur-divider-2);
@@ -1762,7 +1863,7 @@ select.aur-chip option {
 /* Dropdown portaled (absolute fijo en viewport) */
 .aur-tp-dropdown {
   min-width: 140px;
-  background: rgba(13, 26, 38, 0.96);
+  background: var(--aur-bg-popover-solid);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--aur-divider-2);
