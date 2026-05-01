@@ -5,15 +5,46 @@
    ancho cómodo del sheet, grid de cards de material y layout inline-edit.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.mat-sheet {
-  max-width: 720px;
-  margin: 0 auto;
+/* Header: título a la izquierda, chips de acción siempre a la derecha
+   (sobreescribe el wrap móvil que apila los chips bajo el título). */
+.mat-sheet .aur-sheet-header {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mat-sheet .aur-sheet-header-actions {
+  width: auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 /* ── Required asterisk en labels ─────────────────────────────────────────── */
 .mat-required {
   color: var(--aur-danger);
   margin-left: 2px;
+}
+
+/* ── Chip "Nuevo material" en verde Aurora sólido (CTA primaria) ─────────
+   Compound selector .aur-chip.mat-chip-add para superar la especificidad
+   de .aur-chip:hover:not(:disabled) que reescribe color/border en hover. */
+.aur-chip.mat-chip-add {
+  background: var(--aur-accent);
+  border-color: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+  font-weight: 600;
+  box-shadow: var(--aur-shadow-pill);
+}
+.aur-chip.mat-chip-add:hover:not(:disabled) {
+  background: var(--aur-accent);
+  border-color: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+  filter: brightness(1.08);
+  box-shadow: var(--aur-shadow-pill-hover);
+}
+.aur-chip.mat-chip-add:focus-visible {
+  border-color: var(--aur-accent);
+  box-shadow: var(--aur-ring), var(--aur-shadow-pill);
 }
 
 /* ── Form actions (cancelar + crear) ─────────────────────────────────────── */
@@ -104,12 +135,25 @@
   flex-shrink: 0;
 }
 
-/* ── Mobile (≤600px) ────────────────────────────────────────────────────── */
-@media (max-width: 600px) {
-  .mat-sheet {
-    padding: 20px;
-    border-radius: 16px;
+/* ── Mobile (≤768px) ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* En móvil los chips bajan a una fila propia debajo del título + hint
+     y se reparten el 100% del ancho del dispositivo equitativamente. */
+  .mat-sheet .aur-sheet-header {
+    flex-wrap: wrap;
   }
+  .mat-sheet .aur-sheet-header-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: stretch;
+  }
+  .mat-sheet .aur-sheet-header-actions > .aur-chip {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
   .mat-card {
     flex-direction: column;
     align-items: stretch;
