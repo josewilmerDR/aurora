@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { useUser, hasMinRole } from '../../../contexts/UserContext';
-import OnboardingChecklist from '../components/OnboardingChecklist';
+import { useUser } from '../../../contexts/UserContext';
 import '../styles/dashboard.css';
 
 const EVENT_LABELS = {
@@ -51,14 +50,13 @@ function FeedEvent({ event }) {
 
 function Dashboard() {
   const apiFetch = useApiFetch();
-  const { firebaseUser, currentUser } = useUser();
+  const { firebaseUser } = useUser();
   const [stats, setStats] = useState({ overdue: 0, pending: 0, lowStock: 0 });
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const uid = firebaseUser?.uid || 'guest';
-  const isAdmin = hasMinRole(currentUser?.rol, 'administrador');
 
   const getTaskStatus = (task) => {
     if (task.status === 'completed_by_user') return 'completed';
@@ -117,8 +115,6 @@ function Dashboard() {
       {loading && <div className="aur-page-loading" />}
 
       {!loading && error && <div className="empty-state">{error}</div>}
-
-      {!loading && !error && isAdmin && <OnboardingChecklist uid={uid} />}
 
       {!loading && !error && (
         <>

@@ -1,25 +1,16 @@
 // Helpers para el estado del onboarding del Dashboard.
 // Persistimos en localStorage por uid:
 //   - aurora_onboarding_visited_${uid}    → JSON {chat?, bulkUpload?, inviteUser?}
-//   - aurora_onboarding_minimized_${uid}  → 'true' cuando el usuario cierra el card
 //   - aurora_onboarding_completed_${uid}  → 'true' una vez alcanzado 100% (sticky)
-//
-// Migración: la versión anterior usaba aurora_onboarding_dismissed_${uid}.
-// Si está presente, se traduce a "minimizado" y se borra.
 
 const VISITED_KEY    = (uid) => `aurora_onboarding_visited_${uid}`;
-const MINIMIZED_KEY  = (uid) => `aurora_onboarding_minimized_${uid}`;
 const COMPLETED_KEY  = (uid) => `aurora_onboarding_completed_${uid}`;
-const LEGACY_KEY     = (uid) => `aurora_onboarding_dismissed_${uid}`;
 
 function safeRead(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 function safeWrite(key, value) {
   try { localStorage.setItem(key, value); } catch { /* ignore */ }
-}
-function safeRemove(key) {
-  try { localStorage.removeItem(key); } catch { /* ignore */ }
 }
 
 export function getVisited(uid) {
@@ -33,22 +24,11 @@ export function markVisited(uid, key) {
   const current = getVisited(uid);
   if (current[key]) return;
   safeWrite(VISITED_KEY(uid), JSON.stringify({ ...current, [key]: true }));
-}
-
-export function isMinimized(uid) {
-  if (safeRead(MINIMIZED_KEY(uid)) === 'true') return true;
-  // Migración del flag legacy de "dismiss".
-  if (safeRead(LEGACY_KEY(uid)) === 'true') {
-    safeWrite(MINIMIZED_KEY(uid), 'true');
-    safeRemove(LEGACY_KEY(uid));
-    return true;
-  }
-  return false;
-}
-
-export function setMinimized(uid, value) {
-  if (value) safeWrite(MINIMIZED_KEY(uid), 'true');
-  else safeRemove(MINIMIZED_KEY(uid));
+  // Notifica al hook que se montó el badge global para refrescar el progreso
+  // sin recargar la app. El evento storage no dispara en la misma pestaña.
+  try {
+    window.dispatchEvent(new CustomEvent('aurora:onboarding-refresh'));
+  } catch { /* SSR / entornos sin window */ }
 }
 
 export function isCompletedSticky(uid) {

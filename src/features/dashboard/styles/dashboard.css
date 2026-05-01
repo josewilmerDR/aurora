@@ -16,9 +16,9 @@
 }
 
 .dash-stat-card {
-  background: var(--aur-bg-card);
+  background: var(--aur-bg-input);
   border: 1px solid var(--aur-divider);
-  border-radius: var(--aur-r-card);
+  border-radius: 0;
   padding: 16px 18px;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -43,7 +43,7 @@
   grid-row: 1 / span 2;
   width: 36px;
   height: 36px;
-  border-radius: var(--aur-r-input);
+  border-radius: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,6 +156,7 @@
   grid-template-columns: 36px 1fr auto auto;
   gap: 12px;
   align-items: center;
+  border-radius: 0;
 }
 .aur-row.dash-feed-row.is-autopilot {
   background: var(--aur-badge-magenta-bg);
@@ -276,9 +277,43 @@
   }
 }
 
-/* Anclaje para el badge minimizado del onboarding (position: absolute). */
-.dash-sheet {
+/* Override del primitive .aur-sheet: el Dashboard se renderiza edge-to-edge
+   dentro del .content-area en vez de como card inset. Quitamos bg/borde/
+   sombra/blur/radius y el padding propio del sheet, y aplicamos margin
+   negativo para cancelar el padding del .content-area (30px desktop, 15px
+   en móvil — el bottom móvil se preserva para no ocultar contenido bajo
+   la barra inferior fija). Selector compuesto .aur-sheet.dash-sheet
+   (specificity 0,2,0) para vencer cualquier override tardío del primitive
+   en aurora.css. */
+.aur-sheet.dash-sheet {
   position: relative;
+  padding: 24px;
+  margin: -30px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+@media (max-width: 768px) {
+  .aur-sheet.dash-sheet {
+    margin: -15px -15px 0;
+    border-radius: 0;
+    padding: 16px;
+  }
+}
+
+/* Barrido defensivo: cualquier descendiente del dashboard que herede esquinas
+   redondeadas de un primitive (aur-sheet anidado, aur-row, aur-card, etc.)
+   queda plano. Las formas circulares (avatar, badge minimizado) se preservan
+   porque usan border-radius: 50% que matchea esa regla específicamente. */
+.dash-sheet .aur-sheet,
+.dash-sheet .aur-card,
+.dash-sheet .aur-row,
+.dash-sheet .aur-row:first-child,
+.dash-sheet .aur-row:last-child {
+  border-radius: 0;
 }
 
 /* ── Onboarding checklist (admin, hasta 11/11) ─────────────────────────
@@ -286,26 +321,58 @@
    reaparece como un anillo de progreso flotante en la esquina inferior
    derecha del sheet. Cuando alcanza 11/11 se oculta para siempre
    (flag sticky en localStorage). */
+/* Card del onboarding. Ahora vive como popover flotante anclado sobre el FAB
+   global (mismo patrón que aurora-chat-panel). Borde accent + pulse del
+   box-shadow para señalar su naturaleza temporal: una vez completados los
+   12 pasos desaparece. La animación respeta prefers-reduced-motion. */
 .dash-onboarding-card {
   position: relative;
-  background: var(--aur-bg-card);
-  border-top: 1px solid var(--aur-divider);
-  border-bottom: 1px solid var(--aur-divider);
-  border-radius: 0;
-  padding: 10px 14px 12px;
-  margin-bottom: 14px;
+  background:
+    linear-gradient(180deg, var(--aur-accent-tint) 0%, transparent 100%),
+    var(--aur-bg-modal);
+  border: 1px solid var(--aur-accent-tint-3);
+  border-radius: var(--aur-r-card);
+  padding: 14px 16px 14px;
+  box-shadow:
+    var(--aur-shadow-modal),
+    0 0 18px -4px var(--aur-accent-tint-2);
+  animation: dash-onboarding-glow 3.2s ease-in-out infinite;
+}
+.dash-onboarding-popover {
+  position: fixed;
+  bottom: 156px;
+  right: 24px;
+  width: 480px;
+  max-width: calc(100vw - 48px);
+  z-index: 1050;
+  animation:
+    dash-onboarding-popover-in 0.18s ease-out,
+    dash-onboarding-glow 3.2s ease-in-out infinite 0.18s;
+}
+@keyframes dash-onboarding-popover-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dash-onboarding-glow {
+  0%, 100% { box-shadow: var(--aur-shadow-modal), 0 0 14px -6px var(--aur-accent-tint); }
+  50%      { box-shadow: var(--aur-shadow-modal), 0 0 26px -2px var(--aur-accent-tint-2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-onboarding-card,
+  .dash-onboarding-popover { animation: none; }
 }
 
 .dash-onboarding-hint {
-  margin: 0 32px 8px 0;
-  color: var(--aur-text-2);
+  margin: 0 32px 18px 0;
+  color: var(--aur-accent);
   font-size: var(--aur-fs-small, 12px);
   line-height: 1.4;
   text-align: center;
+  font-weight: 500;
 }
 .dash-onboarding-hint-count {
-  color: var(--aur-text);
-  font-weight: 600;
+  color: var(--aur-accent);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -416,10 +483,20 @@
   font-weight: 500;
 }
 
+/* El hint se muestra siempre (todos los pasos), pero su color varía con el
+   estado para preservar jerarquía: el activo más prominente, done/future
+   más apagados. */
 .dash-onboarding-col-hint {
   font-size: var(--aur-fs-small, 12px);
   color: var(--aur-text-2);
   line-height: 1.35;
+}
+.dash-onboarding-col-hint.is-active {
+  color: var(--aur-text-2);
+}
+.dash-onboarding-col-hint.is-done,
+.dash-onboarding-col-hint.is-future {
+  color: var(--aur-text-3);
 }
 
 .dash-onboarding-col-rail {
@@ -452,7 +529,7 @@
   align-items: center;
   justify-content: center;
   border: 2px solid var(--aur-divider);
-  background: var(--aur-bg-card);
+  background: var(--aur-bg-input);
   color: transparent;
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
@@ -466,29 +543,39 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--aur-accent, var(--aurora-green)) 22%, transparent);
 }
 
-/* ── Badge minimizado: anillo de progreso flotante ──────────────────────
-   Se ancla a la esquina inferior derecha del .aur-sheet (que es position:
-   relative en MainLayout). Pequeño, clickeable, abre el card de nuevo. */
+/* ── Badge: FAB global anclado sobre el chat de Aurora ──────────────────
+   Siempre visible (mientras el usuario sea admin y queden pasos), igual
+   patrón que aurora-chat-fab. Se posiciona arriba del chat FAB para no
+   chocar con su panel cuando éste se expande horizontalmente. */
 .dash-onboarding-badge {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid var(--aur-divider);
-  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-accent-tint-3);
+  background: var(--aur-bg-modal);
   color: var(--aur-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  z-index: 10;
+  box-shadow:
+    var(--aur-shadow-pill, 0 4px 12px rgba(0, 0, 0, 0.25)),
+    0 0 14px -4px var(--aur-accent-tint-2);
+  z-index: 1050;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 .dash-onboarding-badge:hover {
-  background: var(--aur-bg-hover);
+  transform: scale(1.06);
+  box-shadow:
+    var(--aur-shadow-pill-hover, 0 6px 18px rgba(0, 0, 0, 0.3)),
+    0 0 22px -2px var(--aur-accent-tint-2);
+}
+.dash-onboarding-badge.is-open {
+  border-color: var(--aur-accent);
 }
 .dash-onboarding-ring-svg {
   position: absolute;
@@ -551,8 +638,17 @@
   .dash-onboarding-nav {
     width: 22px;
   }
+  /* Mobile: el chat FAB sube a bottom: 76px (sobre el bottom-nav fijo).
+     El badge del onboarding se apila encima del chat con 12px de gap. */
   .dash-onboarding-badge {
-    top: 12px;
-    right: 12px;
+    bottom: 144px;
+    right: 16px;
+  }
+  .dash-onboarding-popover {
+    bottom: 212px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-width: none;
   }
 }

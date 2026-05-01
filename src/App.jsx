@@ -86,6 +86,7 @@ import ProcurementHub from './features/procurement/pages/ProcurementHub';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
+import OnboardingChecklist from './features/dashboard/components/OnboardingChecklist';
 import AppHeader from './components/AppHeader';
 import AutopilotPanel from './features/autopilot/components/AutopilotPanel';
 import ReminderNotification from './components/ReminderNotification';
@@ -255,6 +256,7 @@ const MainLayout = () => {
 
       <MobileNav />
       <AuroraChat />
+      <OnboardingChecklist />
       <ReminderNotification reminders={pendingReminders} onDismiss={dismissReminder} />
 
       {/* ── Profile panel ── */}
