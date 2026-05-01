@@ -1145,7 +1145,7 @@ function CedulasAplicacion() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div>
+    <div className="ca-page">
       {/* ── Spinner de carga ── */}
       {loading && <div className="cedulas-page-loading" />}
 

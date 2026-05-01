@@ -350,16 +350,18 @@ function HistorialAplicaciones() {
 
       {/* ── Contenido principal ── */}
       {!loading && (
-    <div className="aur-sheet">
+    <div className="aur-sheet ha-page">
 
       <header className="aur-sheet-header">
         <div className="aur-sheet-header-text">
           <h2 className="aur-sheet-title">Historial de aplicaciones</h2>
-          <p className="aur-sheet-subtitle">Cédulas aplicadas con detalle por producto, cambios respecto al plan original y condiciones de campo.</p>
+          <p className="aur-sheet-subtitle">
+            Cédulas aplicadas con detalle por producto, cambios respecto al plan original y condiciones de campo.{' '}
+            <Link to="/aplicaciones/cedulas" className="ha-header-link">
+              [Ir a Cédulas de aplicación →]
+            </Link>
+          </p>
         </div>
-        <Link to="/aplicaciones/cedulas" className="aur-chip aur-chip--ghost">
-          Cédulas de aplicación
-        </Link>
       </header>
 
       <section className="aur-section">

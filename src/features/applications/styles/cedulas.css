@@ -733,6 +733,20 @@
 
 /* ── Mobile: preview modal full-screen + Nueva Cédula compacto ───────────── */
 @media (max-width: 600px) {
+  /* Header actions ocupan el ancho completo, repartido entre Historial
+     y "Nueva cédula" cuando ambos están visibles. */
+  .ca-page .aur-sheet-header-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .ca-page .aur-sheet-header-actions > .aur-chip,
+  .ca-page .aur-sheet-header-actions > .aur-btn-pill {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+  }
+
   /* Preview modal: pantalla completa */
   .ca-preview-backdrop {
     padding: 0;
