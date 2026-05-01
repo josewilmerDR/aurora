@@ -170,6 +170,17 @@
   animation: app-loading-spin 0.75s linear infinite;
 }
 
+/* Link "Ir a Cédulas de aplicación" inline al final del subtítulo */
+.ha-header-link {
+  color: var(--aurora-green);
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ha-header-link:hover {
+  text-decoration: underline;
+}
+
 /* Mobile: la tabla sigue requiriendo scroll horizontal — solo ajustamos padding */
 @media (max-width: 640px) {
   .ha-table-wrap {
