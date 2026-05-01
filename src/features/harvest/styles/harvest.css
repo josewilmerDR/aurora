@@ -9,7 +9,7 @@
 
      · Layout de página (.harvest-page)
      · Boletas multi-select (CosechaDespachos)
-     · Inline-edit "cantidad recibida en planta" (CosechaHistorial)
+     · Inline-edit "cantidad recibida en planta" (CosechaRegistro)
      · Nota expandible
      · Badges de estado de despacho
      · Cell helpers (consec, empty, na)
@@ -124,7 +124,7 @@
   opacity: 1;
 }
 
-/* ── Inline-edit "cantidad recibida en planta" (CosechaHistorial) ──────── */
+/* ── Inline-edit "cantidad recibida en planta" (CosechaRegistro) ──────── */
 .harvest-inline-cell {
   display: inline-flex;
   align-items: center;
@@ -175,7 +175,7 @@
   box-shadow: var(--aur-ring);
 }
 
-/* ── Nota expandible (CosechaHistorial) ────────────────────────────────── */
+/* ── Nota expandible (CosechaRegistro) ────────────────────────────────── */
 .harvest-nota {
   display: flex;
   flex-direction: column;
@@ -247,6 +247,13 @@
   opacity: 0.55;
 }
 
+/* ── CosechaRegistro: tabla sin bordes laterales ───────────────────────── */
+.harvest-registro-page .aur-table-wrap {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
 /* ── Cell helpers ──────────────────────────────────────────────────────── */
 .harvest-td-consec {
   font-variant-numeric: tabular-nums;
@@ -299,5 +306,10 @@
 @media (max-width: 768px) {
   .harvest-nota {
     max-width: 220px;
+  }
+  .harvest-registro-page .aur-sheet-header-actions .aur-btn-pill,
+  .harvest-despacho-page .aur-sheet-header-actions .aur-btn-pill {
+    width: 100%;
+    justify-content: center;
   }
 }

@@ -54,10 +54,8 @@ import Siembra from './features/planting/pages/Siembra';
 import SiembraMateriales from './features/planting/pages/SiembraMateriales';
 import SiembraHistorial from './features/planting/pages/SiembraHistorial';
 import CosechaProyeccion from './features/harvest/pages/CosechaProyeccion';
-import CosechaHistorial from './features/harvest/pages/CosechaHistorial';
 import CosechaRegistro from './features/harvest/pages/CosechaRegistro';
 import CosechaDespachos from './features/harvest/pages/CosechaDespachos';
-import CosechaHistorialDespacho from './features/harvest/pages/CosechaHistorialDespacho';
 import CostCenter from './features/costs/pages/CostCenter';
 import Budgets from './features/finance/pages/Budgets';
 import FinanceDashboard from './features/finance/pages/FinanceDashboard';
@@ -382,11 +380,9 @@ function App() {
             <Route path="/siembra" element={<RoleRoute path="/siembra"><Siembra /></RoleRoute>} />
             <Route path="/siembra/materiales" element={<RoleRoute path="/siembra/materiales"><SiembraMateriales /></RoleRoute>} />
             <Route path="/siembra/historial" element={<RoleRoute path="/siembra/historial"><SiembraHistorial /></RoleRoute>} />
-            <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><CosechaRegistro /></RoleRoute>} />
             <Route path="/cosecha/despacho" element={<RoleRoute path="/cosecha/despacho"><CosechaDespachos /></RoleRoute>} />
             <Route path="/cosecha/proyeccion" element={<RoleRoute path="/cosecha/proyeccion"><CosechaProyeccion /></RoleRoute>} />
-            <Route path="/cosecha/historial" element={<RoleRoute path="/cosecha/historial"><CosechaHistorial /></RoleRoute>} />
-            <Route path="/cosecha/historial-despachos" element={<RoleRoute path="/cosecha/historial-despachos"><CosechaHistorialDespacho /></RoleRoute>} />
+            <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><CosechaRegistro /></RoleRoute>} />
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
             <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><FixedPayroll /></RoleRoute>} />
