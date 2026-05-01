@@ -43,6 +43,22 @@
   color: var(--sb-text);
 }
 
+html[data-theme="light"] .sidebar {
+  --sb-bg:            rgba(255, 255, 255, 0.78);
+  --sb-bg-input:      rgba(13, 26, 38, 0.04);
+  --sb-bg-hover:      rgba(13, 26, 38, 0.06);
+  --sb-divider:       rgba(13, 26, 38, 0.08);
+  --sb-divider-2:     rgba(13, 26, 38, 0.12);
+  --sb-text:          rgba(13, 26, 38, 0.92);
+  --sb-text-2:        rgba(13, 26, 38, 0.60);
+  --sb-text-3:        rgba(13, 26, 38, 0.42);
+  --sb-accent:        #0aa05c;
+  --sb-accent-tint:   rgba(10, 160, 92, 0.10);
+  --sb-accent-tint-2: rgba(10, 160, 92, 0.18);
+  --sb-danger:        #d83838;
+  --sb-danger-tint:   rgba(216, 56, 56, 0.10);
+}
+
 .sidebar.collapsed {
   width: 64px;
 }

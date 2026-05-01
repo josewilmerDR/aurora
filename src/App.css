@@ -1,7 +1,7 @@
 /* ── Full-page loading spinner ───────────────────────────────────────────── */
 .app-loading {
   min-height: 100vh;
-  background-color: var(--aurora-dark-blue);
+  background-color: var(--aur-page-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -42,7 +42,7 @@
   align-items: center;
   gap: 14px;
   padding: 0 16px;
-  background-color: var(--aurora-dark-blue);
+  background-color: var(--aur-page-bg);
   border-bottom: 1px solid var(--aur-divider);
 }
 
@@ -168,7 +168,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border: 2px solid var(--aurora-dark-blue);
+  border: 2px solid var(--aur-page-bg);
   font-size: 0.65rem;
   line-height: 1;
 }

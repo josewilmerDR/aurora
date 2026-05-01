@@ -4,8 +4,9 @@ import { auth, googleProvider } from '../../../firebase';
 import { useUser } from '../../../contexts/UserContext';
 import { useReminders } from '../../../contexts/RemindersContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { FiBell, FiTrash2, FiPlus, FiX, FiCheck, FiChevronDown, FiChevronUp, FiUser, FiKey, FiInfo } from 'react-icons/fi';
+import { FiBell, FiTrash2, FiPlus, FiX, FiCheck, FiChevronDown, FiChevronUp, FiUser, FiKey, FiInfo, FiSun, FiMoon } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import { useTheme } from '../../../hooks/useTheme';
 import '../styles/profile.css';
 
 const GOOGLE_PROVIDER_ID = 'google.com';
@@ -36,6 +37,7 @@ function formatReminderDate(isoString) {
 export default function Profile() {
   const { firebaseUser, currentUser } = useUser();
   const apiFetch = useApiFetch();
+  const { theme, setTheme } = useTheme();
   const {
     reminders, setReminders,
     doneReminders, setDoneReminders,
@@ -201,6 +203,36 @@ export default function Profile() {
             <li className="aur-row">
               <span className="aur-row-label">Rol</span>
               <span>{currentUser?.rol || '—'}</span>
+            </li>
+          </ul>
+        </section>
+
+        <section className="aur-section">
+          <header className="aur-section-header">
+            <span className="aur-section-num">{theme === 'light' ? <FiSun size={14} /> : <FiMoon size={14} />}</span>
+            <h3 className="aur-section-title">Apariencia</h3>
+          </header>
+          <ul className="aur-list">
+            <li className="aur-row aur-row--action">
+              <span className="aur-row-label">Tema</span>
+              <div className="aur-row-content profile-theme-switch">
+                <button
+                  type="button"
+                  className={`aur-chip${theme === 'dark' ? ' is-active' : ''}`}
+                  onClick={() => setTheme('dark')}
+                  aria-pressed={theme === 'dark'}
+                >
+                  <FiMoon size={13} /> Oscuro
+                </button>
+                <button
+                  type="button"
+                  className={`aur-chip${theme === 'light' ? ' is-active' : ''}`}
+                  onClick={() => setTheme('light')}
+                  aria-pressed={theme === 'light'}
+                >
+                  <FiSun size={13} /> Claro
+                </button>
+              </div>
             </li>
           </ul>
         </section>

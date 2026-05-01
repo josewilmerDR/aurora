@@ -144,3 +144,21 @@
 .profile-reminders-done-list {
   margin-top: 10px;
 }
+
+/* ── Theme switch (segmented dark/light chips) ────────────────────────────── */
+/* Wraps two .aur-chip buttons; the .is-active state is profile-local because
+   .aur-chip in aurora.css has no built-in active variant — we reuse the
+   accent-tint look from .aur-combo-option:hover for visual consistency. */
+.profile-theme-switch {
+  gap: 6px;
+}
+.profile-theme-switch .aur-chip.is-active {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-3);
+  color: var(--aur-accent);
+}
+.profile-theme-switch .aur-chip.is-active:hover {
+  background: var(--aur-accent-tint-2);
+  border-color: var(--aur-accent-tint-3);
+  color: var(--aur-accent);
+}

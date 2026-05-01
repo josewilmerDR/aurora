@@ -6,6 +6,19 @@
   --aurora-magenta: #cc33ff;
   --aurora-light: #e6f2ff;
   --aurora-border: #2a4a6a;
+
+  /* Page bg / "ink" — tokens that flip per theme. --aurora-dark-blue keeps
+     its navy value across themes (used as text on accent surfaces). */
+  --aur-page-bg: var(--aurora-dark-blue);
+  --aur-ink: var(--aurora-light);
+}
+
+html[data-theme="light"] {
+  --aurora-background: #ffffff;
+  --aurora-light: #0d1a26;
+  --aurora-border: #d6dde6;
+  --aur-page-bg: #f5f7fa;
+  --aur-ink: #0d1a26;
 }
 
 * {
@@ -25,7 +38,7 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--aurora-dark-blue);
+  background-color: var(--aur-page-bg);
   color: var(--aurora-light);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -41,4 +54,14 @@ input[type="month"],
 input[type="time"] {
   color-scheme: dark;
   accent-color: var(--aurora-green);
+}
+
+html[data-theme="light"] a {
+  color: #0aa05c;
+}
+
+html[data-theme="light"] input[type="date"],
+html[data-theme="light"] input[type="month"],
+html[data-theme="light"] input[type="time"] {
+  color-scheme: light;
 }

@@ -19,6 +19,16 @@
     <meta name="apple-mobile-web-app-title" content="Aurora" />
 
     <title>Aurora</title>
+
+    <!-- Apply persisted theme before paint to avoid flash-of-wrong-theme. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('aurora_theme');
+          if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
