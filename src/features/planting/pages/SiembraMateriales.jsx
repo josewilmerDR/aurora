@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -99,12 +99,12 @@ function SiembraMateriales() {
           <p className="aur-sheet-subtitle">Catálogo de variedades y rangos de peso usados en los registros.</p>
         </div>
         <div className="aur-sheet-header-actions">
-          <Link to="/siembra" className="aur-chip aur-chip--ghost">
-            <FiArrowLeft size={12} /> Registro
+          <Link to="/siembra" className="aur-chip">
+            Volver
           </Link>
           {!showForm && (
-            <button type="button" className="aur-btn-pill" onClick={() => setShowForm(true)}>
-              <FiPlus size={14} /> Nuevo material
+            <button type="button" className="aur-chip mat-chip-add" onClick={() => setShowForm(true)}>
+              <FiPlus size={12} /> Nuevo material
             </button>
           )}
         </div>
@@ -113,7 +113,6 @@ function SiembraMateriales() {
       {showForm && (
         <section className="aur-section">
           <div className="aur-section-header">
-            <span className="aur-section-num">+</span>
             <h3>Nuevo material</h3>
             <div className="aur-section-actions">
               <button
@@ -172,12 +171,6 @@ function SiembraMateriales() {
       )}
 
       <section className="aur-section">
-        <div className="aur-section-header">
-          <span className="aur-section-num">{showForm ? '02' : '01'}</span>
-          <h3>Catálogo</h3>
-          <span className="aur-section-count">{materiales.length}</span>
-        </div>
-
         {materiales.length === 0 ? (
           <div className="mat-empty">
             <p>No hay materiales registrados.</p>

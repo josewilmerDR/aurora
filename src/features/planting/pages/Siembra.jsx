@@ -651,6 +651,7 @@ function Siembra() {
           <header className="aur-sheet-header">
             <div className="aur-sheet-header-text">
               <h2 className="aur-sheet-title">Registro de siembra</h2>
+              <p className="aur-sheet-subtitle">Anota cada siembra el día que ocurre. Cuando un bloque quede totalmente sembrado, márcalo como "cerrado" para habilitarlo para aplicaciones y monitoreos.</p>
             </div>
             <div className="aur-sheet-header-actions">
               <Link to="/siembra/historial" className="aur-chip aur-chip--ghost">

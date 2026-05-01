@@ -635,12 +635,10 @@ function SiembraHistorial() {
           <header className="aur-sheet-header">
             <div className="aur-sheet-header-text">
               <h2 className="aur-sheet-title">Historial de siembra</h2>
-              <p className="aur-sheet-subtitle">Consulta, filtra, exporta y comparte los registros guardados.</p>
-            </div>
-            <div className="aur-sheet-header-actions">
-              <Link to="/siembra" className="aur-chip">
-                Registro
-              </Link>
+              <p className="aur-sheet-subtitle">
+                Consulta, filtra, exporta y comparte los registros guardados.{' '}
+                <Link to="/siembra" className="aur-btn-text" style={{ color: 'var(--aur-accent)' }}>[Ir a registro de siembra]</Link>
+              </p>
             </div>
           </header>
 
