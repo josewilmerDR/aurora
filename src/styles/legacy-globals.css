@@ -45,12 +45,42 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+}
+
+.lote-page-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .lote-page-title {
   margin: 0;
   font-size: 1.4rem;
   color: var(--aurora-light);
+}
+
+.lote-page-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  max-width: 60ch;
+}
+
+@media (max-width: 768px) {
+  .lote-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .lote-page-header .aur-btn-pill {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .lote-management-layout {
@@ -77,8 +107,7 @@
 /* ── Panel lateral con la lista ──────────────────────────────────────────── */
 .lote-list-panel {
   background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  border-top: 1px solid var(--aurora-border);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -285,8 +314,7 @@
 
 .lote-hub {
   background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  border-top: 1px solid var(--aurora-border);
   padding: 24px;
   min-height: 400px;
 }
