@@ -672,7 +672,12 @@ function LoteManagement() {
       {/* ── Page header ── */}
       {view !== 'form' && (
         <div className="lote-page-header">
-          <h2 className="lote-page-title">Lotes Activos</h2>
+          <div className="lote-page-title-block">
+            <h2 className="lote-page-title">Lotes Activos</h2>
+            <p className="lote-page-hint">
+              Espacios físicos donde viven tus cultivos y la unidad básica para registrar actividades y costos.
+            </p>
+          </div>
           <button onClick={handleNewLote} className="aur-btn-pill">
             <FiPlus size={14} /> Nuevo Lote
           </button>
