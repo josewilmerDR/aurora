@@ -194,7 +194,7 @@ export default function HistorialHorimetros() {
   );
 
   return (
-    <div className="machinery-page">
+    <div className="machinery-page machinery-historial-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {confirmDelete && (
