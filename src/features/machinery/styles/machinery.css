@@ -749,6 +749,14 @@
   cursor: not-allowed;
 }
 
+/* HistorialHorimetros: la tabla del historial se renderiza sin bordes
+   laterales para dar sensación de que ocupa el ancho completo del sheet. */
+.machinery-historial-page .aur-table-wrap {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════════════════ */
