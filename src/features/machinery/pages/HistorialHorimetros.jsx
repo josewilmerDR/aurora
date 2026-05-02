@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiClipboard, FiEdit, FiTrash2, FiPlus } from 'react-icons/fi';
+import { useNavigate, Link } from 'react-router-dom';
+import { FiEdit, FiTrash2 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraDataTable from '../../../components/AuroraDataTable';
@@ -214,35 +214,13 @@ export default function HistorialHorimetros() {
           <div className="aur-sheet-header-text">
             <h1 className="aur-sheet-title">Historial de horímetros</h1>
             <p className="aur-sheet-subtitle">
-              {loading ? 'Cargando…' : `${records.length} registro${records.length !== 1 ? 's' : ''}.`}
+              Consulta y analiza el historial de horímetros en busca de patrones o anomalías. <Link to="/operaciones/horimetro/registro">Ir a registro de horímetro</Link>.
             </p>
-          </div>
-          <div className="aur-sheet-header-actions">
-            <button
-              type="button"
-              className="aur-btn-pill aur-btn-pill--sm"
-              onClick={() => navigate('/operaciones/horimetro/registro')}
-            >
-              <FiPlus size={14} /> Nuevo registro
-            </button>
           </div>
         </header>
 
         {loading ? (
           <div className="aur-page-loading" />
-        ) : records.length === 0 ? (
-          <div className="machinery-empty">
-            <FiClipboard size={40} />
-            <p className="machinery-empty-text">No hay registros aún.</p>
-            <p className="machinery-empty-sub">Empieza por crear el primero.</p>
-            <button
-              type="button"
-              className="aur-btn-pill aur-btn-pill--sm"
-              onClick={() => navigate('/operaciones/horimetro/registro')}
-            >
-              <FiPlus size={14} /> Crear el primero
-            </button>
-          </div>
         ) : (
           <AuroraDataTable
             columns={COLUMNS}
@@ -252,6 +230,11 @@ export default function HistorialHorimetros() {
             firstClickDir="desc"
             renderRow={renderRow}
             trailingCell={trailingCell}
+            emptyText={
+              records.length === 0
+                ? <>No hay registros de horímetros creados aún. Crea el primero en <Link to="/operaciones/horimetro/registro">Registro de Horímetro</Link>.</>
+                : 'No hay registros con los filtros aplicados.'
+            }
           />
         )}
       </div>
