@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import {
-  FiClock, FiPlus, FiX, FiCheck, FiCamera, FiUpload, FiCpu,
+  FiClock, FiPlus, FiX, FiCheck, FiCpu,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -86,14 +86,10 @@ function RegistroHorimetro() {
   const { currentUser: _ } = useUser(); // eslint-disable-line no-unused-vars
   const location = useLocation();
 
-  // Scan state
+  // Refs
   const scanFileRef = useRef(null);
-  const [scanStep,   setScanStep]    = useState(null);
-  const [scanImage,  setScanImage]   = useState(null);
-  const [scanRows,   setScanRows]    = useState([]);
-  const [scanning,   setScanning]    = useState(false);
-  const [scanError,  setScanError]   = useState(null);
-  const [savingBatch, setSavingBatch] = useState(false);
+  const lineasSectionRef = useRef(null);
+  const [scanning, setScanning] = useState(false);
 
   // Catalog data
   const [tractores,  setTractores]  = useState([]);
@@ -110,10 +106,11 @@ function RegistroHorimetro() {
   const fuelBodegaId = localStorage.getItem('aurora_fuel_bodegaId') || '';
   const [tasasCombustible, setTasasCombustible] = useState({});
 
-  // Form — abre por defecto al montar, restaura draft si existe
+  // Form — restaura draft si existe
   const _draft = loadDraft();
-  const [showForm, setShowForm]   = useState(true);
-  const [form, setForm]           = useState(_draft?.form     ?? EMPTY_FORM);
+  // Cada línea (form + pending) lleva un `_no` estable asignado al momento de
+  // crearla — preserva el orden de entrada aunque el usuario haga swap-edit.
+  const [form, setForm]           = useState(_draft?.form     ?? { ...EMPTY_FORM, _no: 1 });
   const [isEditing, setIsEditing] = useState(_draft?.isEditing ?? false);
   const [saving, setSaving]       = useState(false);
 
@@ -164,33 +161,26 @@ function RegistroHorimetro() {
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pre-fill from Aurora chat "Revisar en formulario" (passed via router state)
+  // Pre-fill from Aurora chat "Revisar en formulario" (passed via router state).
+  // Carga 1+ filas directamente en el form: la primera queda activa, el resto
+  // como líneas pendientes — mismo flujo que el escaneo IA.
   useEffect(() => {
     const draft = location.state?.horimetroDraft;
     if (!draft) return;
     window.history.replaceState({}, '');
-    if (Array.isArray(draft) && draft.length > 1) {
-      setScanRows(draft);
-      setScanStep('review');
-      setShowForm(false);
-    } else {
-      const single = Array.isArray(draft) ? draft[0] : draft;
-      setForm(prev => ({ ...prev, ...single, id: null }));
-      setShowForm(true);
-      setScanStep(null);
-    }
-  }, [location.state?.horimetroDraft]);
+    const filas = Array.isArray(draft) ? draft : [draft];
+    loadFilasIntoForm(filas);
+  }, [location.state?.horimetroDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill from Historial "Editar" button
   useEffect(() => {
     const rec = location.state?.editRecord;
     if (!rec) return;
     window.history.replaceState({}, '');
-    const editForm = { ...EMPTY_FORM, ...rec };
+    const editForm = { ...EMPTY_FORM, ...rec, _no: 1 };
     saveDraft(editForm, true);
     setForm(editForm);
     setIsEditing(true);
-    setShowForm(true);
   }, [location.state?.editRecord]);
 
   const getLastHorimetroFinal = useCallback((tractorId) => {
@@ -243,16 +233,39 @@ function RegistroHorimetro() {
   };
 
   const handleTractorChange = (id) => {
-    const lastFin = !isEditing && id ? getLastHorimetroFinal(id) : null;
-    if (!isEditing) setLastHorimetroFinal(lastFin);
     const t = tractores.find(x => x.id === id);
+
+    // Línea inmediatamente previa en la sesión actual (mayor _no entre las
+    // pendientes con _no menor al del form). Si su tractor coincide, sus
+    // valores de cierre se usan como apertura del form.
+    const previousLine = !isEditing && id
+      ? pendingLines
+          .filter(l => (l._no || 0) < (form._no || 0))
+          .reduce((best, cur) => (!best || (cur._no || 0) > (best._no || 0)) ? cur : best, null)
+      : null;
+    const sessionMatch = !!(previousLine && previousLine.tractorId === id);
+
+    // Fallback histórico: si no hay match de sesión, busca el último horímetro
+    // final guardado para este tractor.
+    const lastFin = !isEditing && id && !sessionMatch ? getLastHorimetroFinal(id) : null;
+    if (!isEditing) setLastHorimetroFinal(lastFin);
+
     setForm(prev => {
       const next = {
         ...prev,
         tractorId: id,
         tractorNombre: t ? t.descripcion : '',
       };
-      if (!isEditing && lastFin != null) {
+      if (sessionMatch) {
+        if (previousLine.horimetroFinal !== '' && previousLine.horimetroFinal != null) {
+          next.horimetroInicial = String(previousLine.horimetroFinal);
+          next.horimetroFinal   = String(previousLine.horimetroFinal);
+        }
+        if (previousLine.horaFinal) {
+          next.horaInicio = previousLine.horaFinal;
+          next.horaFinal  = previousLine.horaFinal;
+        }
+      } else if (!isEditing && lastFin != null) {
         next.horimetroInicial = String(lastFin);
         next.horimetroFinal   = String(lastFin);
       }
@@ -304,7 +317,7 @@ function RegistroHorimetro() {
 
   const resetForm = () => {
     clearDraft();
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, _no: 1 });
     setIsEditing(false);
     setPendingLines([]);
   };
@@ -330,7 +343,8 @@ function RegistroHorimetro() {
     try {
       if (isEditing) {
         const combustible = buildCombustiblePayload(form);
-        const payload = { ...form, ...(combustible ? { combustible } : {}) };
+        const { _no: _ignore, ...formPayload } = form;
+        const payload = { ...formPayload, ...(combustible ? { combustible } : {}) };
         const res = await apiFetch(`/api/horimetro/${form.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -339,10 +353,17 @@ function RegistroHorimetro() {
         if (!res.ok) throw new Error();
         showToast('Registro actualizado.');
       } else {
-        const allLines = [...pendingLines, form];
+        // Filtra líneas sin tractor — pueden ser resultado de "Limpiar línea"
+        // sobre una línea que el usuario decidió descartar.
+        const allLines = [...pendingLines, form].filter(line => line.tractorId);
+        if (allLines.length === 0) {
+          showToast('No hay líneas con datos para guardar.', 'error');
+          return;
+        }
         for (const line of allLines) {
           const combustible = buildCombustiblePayload(line);
-          const payload = { ...line, ...(combustible ? { combustible } : {}) };
+          const { _no: _ignore, ...linePayload } = line;
+          const payload = { ...linePayload, ...(combustible ? { combustible } : {}) };
           const res = await apiFetch('/api/horimetro', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -392,7 +413,19 @@ function RegistroHorimetro() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.fecha || !form.tractorId) {
+    // Caso: la línea activa está vacía (resultado de "Limpiar línea" cuando el
+    // usuario decidió descartarla). Si hay líneas pendientes válidas, saltamos
+    // la validación del form y guardamos solo las pendientes — doSave filtra
+    // las vacías. Si tampoco hay pendientes, error.
+    if (!form.tractorId) {
+      if (pendingLines.length === 0) {
+        showToast('Fecha y tractor son obligatorios.', 'error');
+        return;
+      }
+      doSave();
+      return;
+    }
+    if (!form.fecha) {
       showToast('Fecha y tractor son obligatorios.', 'error');
       return;
     }
@@ -429,6 +462,38 @@ function RegistroHorimetro() {
     checkMismatchAndSave();
   };
 
+  // Trae una línea pendiente de vuelta al form activo y deja en su slot
+  // el contenido actual del form (swap in-place — preserva orden visual).
+  const handleEditPendingLine = (idx) => {
+    const lineToEdit = pendingLines[idx];
+    if (!lineToEdit) return;
+    const currentForm = { ...form };
+    setPendingLines(prev => prev.map((line, i) => i === idx ? currentForm : line));
+    setForm(lineToEdit);
+    saveDraft(lineToEdit, isEditing);
+  };
+
+  // Descarta la línea activa.
+  // - Si es la única línea: la deja vacía (preservando _no y fecha) — el
+  //   botón "Limpiar" del footer es lo que limpia todo.
+  // - Si hay otras líneas: elimina la activa y promueve la pendiente más
+  //   reciente (mayor _no) al form. Evita dejar un form en blanco "fantasma"
+  //   en la lista cuando hay otras líneas legítimas.
+  const handleClearActiveLine = () => {
+    if (pendingLines.length === 0) {
+      setForm(prev => {
+        const cleared = { ...EMPTY_FORM, fecha: prev.fecha, _no: prev._no };
+        saveDraft(cleared, isEditing);
+        return cleared;
+      });
+      return;
+    }
+    const newest = pendingLines.reduce((a, b) => ((a._no || 0) > (b._no || 0) ? a : b));
+    setPendingLines(prev => prev.filter(l => l._no !== newest._no));
+    setForm(newest);
+    saveDraft(newest, isEditing);
+  };
+
   const handleAddLine = () => {
     if (!form.fecha || !form.tractorId) {
       showToast('Fecha y tractor son obligatorios.', 'error');
@@ -440,32 +505,31 @@ function RegistroHorimetro() {
       showToast('El horímetro inicial no puede ser mayor que el final.', 'error');
       return;
     }
+    const maxNo = Math.max(form._no || 0, ...pendingLines.map(l => l._no || 0));
     setPendingLines(prev => [...prev, { ...form }]);
+    // Form en blanco — solo preservamos la fecha (típicamente compartida en una
+    // jornada). El carryover de tractor/horímetros/horas ahora vive en
+    // handleTractorChange: cuando el usuario seleccione el mismo tractor que la
+    // línea anterior, se autollena el horímetro inicial y la hora inicial.
     setForm(prev => ({
       ...EMPTY_FORM,
-      fecha:           prev.fecha,
-      tractorId:       prev.tractorId,
-      tractorNombre:   prev.tractorNombre,
-      implementoId:    prev.implementoId,
-      implemento:      prev.implemento,
-      operarioId:      prev.operarioId,
-      operarioNombre:  prev.operarioNombre,
-      horimetroInicial: prev.horimetroFinal ?? '',
-      horimetroFinal:   prev.horimetroFinal ?? '',
-      horaInicio:      prev.horaFinal ?? '',
-      horaFinal:       prev.horaFinal ?? '',
-      diaSiguiente:    prev.diaSiguiente ?? false,
+      fecha: prev.fecha,
+      _no:   maxNo + 1,
     }));
+    // Scroll a la sección "Líneas" para que el usuario vea la línea anterior
+    // minimizada y la nueva línea con la marca "Editando ahora".
+    requestAnimationFrame(() => {
+      lineasSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   // ── Derived asset lists ────────────────────────────────────────────────────
-  const tractoresLista = useMemo(() =>
-    tractores.filter(t => /tractor/i.test(t.tipo) || /otra maquinaria/i.test(t.tipo)),
-    [tractores]);
-
-  const implementosLista = useMemo(() =>
-    tractores.filter(t => /implemento/i.test(t.tipo)),
-    [tractores]);
+  // Ambos comboboxes muestran la lista completa de activos — el filtro por
+  // `tipo` resultaba frágil porque depende de que el admin haya tecleado
+  // exactamente "tractor de llantas" / "implemento" al crear el activo, y un
+  // tipo vacío o mal escrito ocultaba activos válidos del usuario.
+  const tractoresLista    = tractores;
+  const implementosLista  = tractores;
 
   const gruposDelLote = useMemo(() => {
     if (!form.loteId) return grupos;
@@ -504,101 +568,73 @@ function RegistroHorimetro() {
       : g.nombreGrupo;
   };
 
-  const gruposParaFila = (loteId) => {
-    if (!loteId) return grupos;
-    const ids = new Set(siembras.filter(s => s.loteId === loteId).map(s => s.id));
-    return grupos.filter(g => Array.isArray(g.bloques) && g.bloques.some(b => ids.has(b)));
-  };
-
   // labor value es ID derivado de la descripcion guardada en form.labor
   const laborValue = useMemo(() => {
     if (!form.labor) return '';
     return labores.find(l => l.descripcion === form.labor)?.id || '';
   }, [form.labor, labores]);
 
-  // ── Scan handlers ──────────────────────────────────────────────────────────
+  // ── Scan IA: pipeline directo (sin pantalla intermedia) ───────────────────
+  // Hidrata los nombres de display (tractor/implemento/lote/operario) cuando la
+  // IA solo devuelve los IDs.
+  const enrichLine = (fila) => {
+    const next = { ...EMPTY_FORM, ...fila, id: null };
+    if (next.tractorId) {
+      const t = tractoresLista.find(x => x.id === next.tractorId);
+      if (t) next.tractorNombre = t.descripcion;
+    }
+    if (next.implementoId) {
+      const t = implementosLista.find(x => x.id === next.implementoId);
+      if (t) next.implemento = t.descripcion;
+    }
+    if (next.loteId) {
+      const l = lotes.find(x => x.id === next.loteId);
+      if (l) next.loteNombre = l.nombreLote;
+    }
+    if (next.operarioId) {
+      const u = usuarios.find(x => x.id === next.operarioId);
+      if (u) next.operarioNombre = u.nombre;
+    }
+    return next;
+  };
+
+  // Carga 1+ filas en form (la primera) + pendingLines (el resto).
+  const loadFilasIntoForm = (filas) => {
+    if (!Array.isArray(filas) || filas.length === 0) return;
+    const lines = filas.map((f, i) => ({ ...enrichLine(f), _no: i + 1 }));
+    const [first, ...rest] = lines;
+    setForm(first);
+    setPendingLines(rest);
+    saveDraft(first, false);
+  };
+
+  // Click "Leer con IA" → file picker → auto procesa → carga en form.
   const handleScanFile = async (e) => {
-    const file = e.target.files?.[0] || e.dataTransfer?.files?.[0];
-    if (!file) return;
-    setScanError(null);
-    try { setScanImage(await compressImage(file)); }
-    catch { setScanError('No se pudo procesar la imagen. Intenta con otro archivo.'); }
+    const file = e.target.files?.[0];
     if (e.target) e.target.value = '';
-  };
-
-  const handleScanDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith('image/')) handleScanFile({ dataTransfer: e.dataTransfer });
-  };
-
-  const handleScan = async () => {
-    if (!scanImage) return;
-    setScanning(true); setScanError(null);
+    if (!file) return;
+    setScanning(true);
     try {
+      const imageData = await compressImage(file);
       const res = await apiFetch('/api/horimetro/escanear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: scanImage.base64, mediaType: scanImage.mediaType }),
+        body: JSON.stringify({ imageBase64: imageData.base64, mediaType: imageData.mediaType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error del servidor');
-      setScanRows(data.filas || []);
-      setScanStep('review');
+      const filas = data.filas || [];
+      if (filas.length === 0) {
+        showToast('La IA no encontró filas en la imagen.', 'error');
+        return;
+      }
+      loadFilasIntoForm(filas);
+      showToast(`${filas.length} fila(s) cargadas. Revisa los datos y guarda.`);
     } catch (err) {
-      setScanError(err.message || 'Error al escanear el formulario.');
+      showToast(err.message || 'Error al escanear el formulario.', 'error');
     } finally {
       setScanning(false);
     }
-  };
-
-  const updateScanRow = (idx, field, value) => {
-    setScanRows(prev => {
-      const next = [...prev];
-      const row = { ...next[idx], [field]: value };
-      if (field === 'tractorId') {
-        const t = tractoresLista.find(x => x.id === value);
-        row.tractorNombre = t ? t.descripcion : '';
-      }
-      if (field === 'implementoId') {
-        const t = implementosLista.find(x => x.id === value);
-        row.implemento = t ? t.descripcion : '';
-      }
-      if (field === 'loteId') {
-        const l = lotes.find(x => x.id === value);
-        row.loteNombre = l ? l.nombreLote : '';
-        row.grupo = '';
-        row.bloques = [];
-      }
-      if (field === 'operarioId') {
-        const u = usuarios.find(x => x.id === value);
-        row.operarioNombre = u ? u.nombre : '';
-      }
-      next[idx] = row;
-      return next;
-    });
-  };
-
-  const removeScanRow = (idx) => setScanRows(prev => prev.filter((_, i) => i !== idx));
-
-  const handleBatchSave = async () => {
-    const validas = scanRows.filter(r => r.fecha && r.tractorId);
-    if (!validas.length) { showToast('Ninguna fila tiene fecha y tractor.', 'error'); return; }
-    setSavingBatch(true);
-    let ok = 0, fail = 0;
-    for (const row of validas) {
-      try {
-        const res = await apiFetch('/api/horimetro', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(row),
-        });
-        if (res.ok) ok++; else fail++;
-      } catch { fail++; }
-    }
-    setSavingBatch(false);
-    showToast(`${ok} registro(s) guardado(s)${fail ? ` · ${fail} error(es)` : ''}.`, fail ? 'error' : 'success');
-    if (ok) { setScanStep(null); setScanImage(null); setScanRows([]); fetchRecords(); }
   };
 
   // ── Inline validation ─────────────────────────────────────────────────────
@@ -621,18 +657,13 @@ function RegistroHorimetro() {
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  const sheetTitle = scanStep === 'upload' ? 'Escanear formulario'
-                  : scanStep === 'review' ? 'Revisar registros extraídos'
-                  : isEditing             ? 'Editar registro de horímetro'
-                  :                          'Registro de horímetro';
-
-  const sheetSubtitle = scanStep === 'upload' ? 'Carga una foto del formulario y deja que la IA extraiga las filas.'
-                      : scanStep === 'review' ? `${scanRows.length} fila${scanRows.length !== 1 ? 's' : ''} extraída${scanRows.length !== 1 ? 's' : ''}. Revísalas antes de guardar.`
-                      : isEditing             ? 'Modifica los datos del registro existente.'
-                      :                          'Captura horas trabajadas, ubicación y combustible para un activo.';
+  const sheetTitle = isEditing ? 'Editar registro de horímetro' : 'Registro de horímetro';
+  const sheetSubtitle = isEditing
+    ? 'Modifica los datos del registro existente.'
+    : 'Captura horas trabajadas, ubicación y combustible para un activo.';
 
   return (
-    <div className="machinery-page">
+    <div className="machinery-page machinery-registro-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {rangeConfirm && (
@@ -661,28 +692,29 @@ function RegistroHorimetro() {
             <p className="aur-sheet-subtitle">{sheetSubtitle}</p>
           </div>
           <div className="aur-sheet-header-actions">
-            {scanStep === null && !isEditing && (
-              <button
-                type="button"
-                className="aur-chip"
-                onClick={() => { resetForm(); setShowForm(false); setScanStep('upload'); setScanImage(null); setScanError(null); }}
-                title="Leer formulario con IA"
-              >
-                <FiCpu size={12} /> Leer con IA
-              </button>
-            )}
-            <Link to="/operaciones/horimetro/historial" className="aur-chip">
+            <Link to="/operaciones/horimetro/historial" className="aur-chip aur-chip--ghost">
               <FiClock size={12} /> Historial
             </Link>
-            {(scanStep === 'upload' || scanStep === 'review') && (
-              <button
-                type="button"
-                className="aur-icon-btn"
-                onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); setShowForm(true); }}
-                title="Cancelar"
-              >
-                <FiX size={16} />
-              </button>
+            {!isEditing && (
+              <>
+                <button
+                  type="button"
+                  className="aur-chip aur-chip--ai"
+                  onClick={() => scanFileRef.current?.click()}
+                  disabled={scanning || saving}
+                  title="Leer formulario con IA"
+                >
+                  <FiCpu size={12} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
+                </button>
+                <input
+                  ref={scanFileRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleScanFile}
+                />
+              </>
             )}
           </div>
         </header>
@@ -690,15 +722,13 @@ function RegistroHorimetro() {
         {/* ═══════════════════════════════════════════════════════════════════
              FORM MODE
              ═══════════════════════════════════════════════════════════════════ */}
-        {showForm && scanStep === null && (
-          <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate>
             <section className="aur-section">
               <div className="aur-section-header">
                 <h3 className="aur-section-title">Fecha y operario</h3>
               </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-fecha">Fecha</label>
+              <div className="machinery-form-grid">
+                <div className="machinery-field machinery-field--no-label">
                   <input
                     id="rh-fecha"
                     type="date"
@@ -710,8 +740,7 @@ function RegistroHorimetro() {
                     required
                   />
                 </div>
-                <div className="aur-row">
-                  <label className="aur-row-label">Operario</label>
+                <div className="machinery-field machinery-field--no-label">
                   <AuroraCombobox
                     value={form.operarioId}
                     onChange={handleOperarioChange}
@@ -723,45 +752,73 @@ function RegistroHorimetro() {
               </div>
             </section>
 
-            {pendingLines.length > 0 && (
-              <section className="aur-section">
-                <div className="aur-section-header">
-                  <span className="aur-section-num">·</span>
-                  <h3 className="aur-section-title">Líneas pendientes</h3>
-                  <span className="aur-section-count">{pendingLines.length}</span>
-                </div>
-                <div className="machinery-pending-list">
-                  {pendingLines.map((line, idx) => (
-                    <div key={idx} className="machinery-pending-item">
-                      <span className="machinery-pending-num">{idx + 1}</span>
-                      <span className="machinery-pending-detail">
-                        {[line.labor, line.loteNombre, line.grupo].filter(Boolean).join(' · ') || '—'}
-                      </span>
-                      <span className="machinery-pending-times">
-                        {line.horimetroInicial}–{line.horimetroFinal}
-                        {(line.horaInicio || line.horaFinal) && ` · ${line.horaInicio || '?'}–${line.horaFinal || '?'}`}
-                      </span>
-                      <button
-                        type="button"
-                        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                        onClick={() => setPendingLines(prev => prev.filter((_, i) => i !== idx))}
-                        title="Quitar línea"
-                      >
-                        <FiX size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            {pendingLines.length > 0 && (() => {
+              // Lista combinada (pending + form) ordenada por _no estable.
+              // El número visible es la posición en la lista — siempre 1..N.
+              const allLines = [...pendingLines, form].sort((a, b) => (a._no || 0) - (b._no || 0));
+              return (
+                <section className="aur-section" ref={lineasSectionRef}>
+                  <div className="aur-section-header">
+                    <span className="aur-section-num">·</span>
+                    <h3 className="aur-section-title">Líneas</h3>
+                    <span className="aur-section-count">{allLines.length}</span>
+                  </div>
+                  <div className="machinery-pending-list">
+                    {allLines.map((line, displayIdx) => {
+                      const isActive = line._no === form._no;
+                      const pendingIdx = isActive ? -1 : pendingLines.findIndex(p => p._no === line._no);
+                      return (
+                        <div
+                          key={line._no ?? displayIdx}
+                          className={`machinery-pending-item${isActive ? ' machinery-pending-item--active' : ''}`}
+                          onClick={isActive ? undefined : () => handleEditPendingLine(pendingIdx)}
+                          role={isActive ? undefined : 'button'}
+                          tabIndex={isActive ? undefined : 0}
+                          onKeyDown={isActive ? undefined : (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleEditPendingLine(pendingIdx);
+                            }
+                          }}
+                        >
+                          <span className="machinery-pending-num">{displayIdx + 1}</span>
+                          {isActive ? (
+                            <span className="machinery-pending-detail machinery-pending-detail--active">
+                              Editando ahora
+                            </span>
+                          ) : (
+                            <>
+                              <span className="machinery-pending-detail">
+                                {[line.labor, line.loteNombre, line.grupo].filter(Boolean).join(' · ') || '—'}
+                              </span>
+                              <span className="machinery-pending-times">
+                                {line.horimetroInicial}–{line.horimetroFinal}
+                                {(line.horaInicio || line.horaFinal) && ` · ${line.horaInicio || '?'}–${line.horaFinal || '?'}`}
+                              </span>
+                              <button
+                                type="button"
+                                className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                                onClick={(e) => { e.stopPropagation(); setPendingLines(prev => prev.filter((_, i) => i !== pendingIdx)); }}
+                                title="Quitar línea"
+                              >
+                                <FiX size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })()}
 
             <section className="aur-section">
               <div className="aur-section-header">
                 <h3 className="aur-section-title">Maquinaria</h3>
               </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label">Tractor</label>
+              <div className="machinery-form-grid">
+                <div className="machinery-field machinery-field--no-label">
                   <AuroraCombobox
                     value={form.tractorId}
                     onChange={handleTractorChange}
@@ -770,18 +827,16 @@ function RegistroHorimetro() {
                     placeholder="— Seleccionar tractor —"
                   />
                 </div>
-                <div className="aur-row">
-                  <label className="aur-row-label">Implemento</label>
+                <div className="machinery-field machinery-field--no-label">
                   <AuroraCombobox
                     value={form.implementoId}
                     onChange={handleImplementoChange}
                     items={implementosLista}
                     labelFn={tractorLabel}
-                    placeholder="— Sin implemento —"
+                    placeholder="— Seleccionar implemento —"
                   />
                 </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-hor-ini">Horímetro inicial</label>
+                <div className="machinery-field machinery-field--no-label">
                   <input
                     id="rh-hor-ini"
                     type="number"
@@ -792,11 +847,10 @@ function RegistroHorimetro() {
                     min="0"
                     max="99999"
                     step="0.1"
-                    placeholder="0.0"
+                    placeholder="Horímetro inicial"
                   />
                 </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-hor-fin">Horímetro final</label>
+                <div className="machinery-field machinery-field--no-label">
                   <input
                     id="rh-hor-fin"
                     type="number"
@@ -807,15 +861,12 @@ function RegistroHorimetro() {
                     min="0"
                     max="99999"
                     step="0.1"
-                    placeholder="0.0"
+                    placeholder="Horímetro final"
                   />
+                  {errHorimetro && (
+                    <span className="machinery-field-error">El horímetro final debe ser mayor que el inicial.</span>
+                  )}
                 </div>
-                {errHorimetro && (
-                  <div className="aur-row aur-row--multiline">
-                    <span className="aur-row-label" />
-                    <span className="aur-field-error">El horímetro final debe ser mayor que el inicial.</span>
-                  </div>
-                )}
               </div>
             </section>
 
@@ -857,9 +908,8 @@ function RegistroHorimetro() {
               <div className="aur-section-header">
                 <h3 className="aur-section-title">Ubicación</h3>
               </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-lote">Lote</label>
+              <div className="machinery-form-grid">
+                <div className="machinery-field machinery-field--no-label">
                   <select
                     id="rh-lote"
                     name="loteId"
@@ -867,31 +917,40 @@ function RegistroHorimetro() {
                     value={form.loteId}
                     onChange={handleChange}
                   >
-                    <option value="">— Seleccionar —</option>
+                    <option value="">— Seleccionar lote —</option>
                     {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                   </select>
                 </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-grupo">Grupo</label>
+                <div className="machinery-field machinery-field--no-label">
                   <select
                     id="rh-grupo"
                     name="grupo"
-                    className="aur-select"
+                    className={`aur-select${!form.loteId ? ' machinery-select--locked' : ''}`}
                     value={form.grupo}
                     onChange={handleChange}
-                    disabled={!form.loteId}
+                    onMouseDown={(e) => {
+                      if (!form.loteId) {
+                        e.preventDefault();
+                        showToast('Selecciona un lote primero', 'error');
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (!form.loteId && (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                        e.preventDefault();
+                        showToast('Selecciona un lote primero', 'error');
+                      }
+                    }}
                   >
-                    <option value="">{form.loteId ? '— Sin grupo —' : '— Seleccione un lote primero —'}</option>
+                    <option value="">— Selecciona un grupo —</option>
                     {gruposDelLote.map(g => (
                       <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
                     ))}
                   </select>
                 </div>
-                <div className="aur-row aur-row--multiline">
-                  <label className="aur-row-label">Bloques</label>
+                <div className="machinery-field machinery-field--full machinery-field--no-label">
                   <div className="machinery-bloques-list">
                     {!form.grupo ? (
-                      <p className="machinery-bloques-empty">Seleccione un grupo primero.</p>
+                      <p className="machinery-bloques-empty">Selecciona un grupo para ver sus bloques.</p>
                     ) : bloquesDelGrupo.length === 0 ? (
                       <p className="machinery-bloques-empty">Este grupo no tiene bloques.</p>
                     ) : bloquesDelGrupo.map(s => {
@@ -916,9 +975,8 @@ function RegistroHorimetro() {
               <div className="aur-section-header">
                 <h3 className="aur-section-title">Labor y horas</h3>
               </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label">Labor</label>
+              <div className="machinery-form-grid">
+                <div className="machinery-field machinery-field--full machinery-field--no-label">
                   <AuroraCombobox
                     value={laborValue}
                     onChange={handleLaborChange}
@@ -927,34 +985,34 @@ function RegistroHorimetro() {
                     placeholder="— Buscar labor —"
                   />
                 </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-h-ini">Hora inicial</label>
-                  <AuroraTimePicker
-                    id="rh-h-ini"
-                    name="horaInicio"
-                    value={form.horaInicio}
-                    onChange={handleTimeChange('horaInicio')}
-                  />
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="rh-h-fin">Hora final</label>
-                  <AuroraTimePicker
-                    id="rh-h-fin"
-                    name="horaFinal"
-                    value={form.horaFinal}
-                    onChange={handleTimeChange('horaFinal')}
-                    hasError={errHora}
-                  />
-                </div>
-                {errHora && (
-                  <div className="aur-row aur-row--multiline">
-                    <span className="aur-row-label" />
-                    <span className="aur-field-error">La hora final debe ser mayor que la inicial.</span>
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-h-ini">Hora inicial:</label>
+                  <div className="machinery-field-input-group">
+                    <AuroraTimePicker
+                      id="rh-h-ini"
+                      name="horaInicio"
+                      value={form.horaInicio}
+                      onChange={handleTimeChange('horaInicio')}
+                    />
                   </div>
-                )}
+                </div>
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-h-fin">Hora final:</label>
+                  <div className="machinery-field-input-group">
+                    <AuroraTimePicker
+                      id="rh-h-fin"
+                      name="horaFinal"
+                      value={form.horaFinal}
+                      onChange={handleTimeChange('horaFinal')}
+                      hasError={errHora}
+                    />
+                    {errHora && (
+                      <span className="machinery-field-error">La hora final debe ser mayor que la inicial.</span>
+                    )}
+                  </div>
+                </div>
                 {form.horaInicio && form.horaFinal && form.horaFinal < form.horaInicio && (
-                  <div className="aur-row">
-                    <span className="aur-row-label" />
+                  <div className="machinery-field machinery-field--full">
                     <label className="machinery-toggle-label">
                       <input
                         type="checkbox"
@@ -981,202 +1039,26 @@ function RegistroHorimetro() {
               })()}
             </section>
 
-            <div className="aur-form-actions">
-              {!isEditing && (
-                <button type="button" className="aur-btn-text" onClick={handleAddLine}>
-                  <FiPlus size={14} /> Agregar línea
+            {!isEditing && (
+              <div className="machinery-row-actions">
+                <button type="button" className="machinery-add-row" onClick={handleAddLine}>
+                  <FiPlus size={14} /> Agregar fila
                 </button>
-              )}
+                <button type="button" className="machinery-add-row" onClick={handleClearActiveLine}>
+                  <FiX size={14} /> {pendingLines.length > 0 ? 'Eliminar línea' : 'Limpiar línea'}
+                </button>
+              </div>
+            )}
+
+            <div className="aur-form-actions">
               <button type="button" className="aur-btn-text" onClick={resetForm}>
-                Cancelar
+                Limpiar
               </button>
               <button type="submit" className="aur-btn-pill" disabled={saving}>
                 <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : pendingLines.length > 0 ? `Guardar ${pendingLines.length + 1} líneas` : 'Registrar'}
               </button>
             </div>
-          </form>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════════
-             SCAN UPLOAD MODE
-             ═══════════════════════════════════════════════════════════════════ */}
-        {scanStep === 'upload' && (
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <span className="aur-section-num">·</span>
-              <h3 className="aur-section-title"><FiCamera size={14} style={{ verticalAlign: -2, marginRight: 6 }} />Cargar imagen del formulario</h3>
-            </div>
-            <div
-              className={`machinery-scan-dropzone${scanImage ? ' has-image' : ''}`}
-              onDrop={handleScanDrop}
-              onDragOver={(e) => e.preventDefault()}
-              onClick={() => !scanImage && scanFileRef.current?.click()}
-            >
-              {scanImage ? (
-                <div className="machinery-scan-preview-wrap">
-                  <img src={scanImage.previewUrl} alt="Formulario" className="machinery-scan-preview" />
-                  <button
-                    type="button"
-                    className="aur-chip"
-                    onClick={(e) => { e.stopPropagation(); setScanImage(null); }}
-                  >
-                    <FiX size={12} /> Cambiar imagen
-                  </button>
-                </div>
-              ) : (
-                <div className="machinery-scan-hint">
-                  <FiUpload size={28} />
-                  <p>Arrastra la foto del formulario aquí o <strong>haz clic para seleccionar</strong></p>
-                  <span>JPG, PNG, WEBP</span>
-                </div>
-              )}
-            </div>
-            <input
-              ref={scanFileRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handleScanFile}
-            />
-            {scanError && <p className="aur-field-error" style={{ marginTop: 12 }}>{scanError}</p>}
-            <div className="aur-form-actions">
-              <button
-                type="button"
-                className="aur-btn-text"
-                onClick={() => { setScanStep(null); setScanImage(null); setScanError(null); setShowForm(true); }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="aur-btn-pill"
-                onClick={handleScan}
-                disabled={!scanImage || scanning}
-              >
-                <FiCpu size={14} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════════
-             SCAN REVIEW MODE — batch-editable table
-             ═══════════════════════════════════════════════════════════════════ */}
-        {scanStep === 'review' && (
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <span className="aur-section-num">·</span>
-              <h3 className="aur-section-title">Filas extraídas</h3>
-              <span className="aur-section-count">{scanRows.length}</span>
-            </div>
-            <div className="aur-table-wrap machinery-batch-wrap">
-              <table className="aur-table machinery-batch-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Fecha</th>
-                    <th>Tractor</th>
-                    <th>Implemento</th>
-                    <th style={{ textAlign: 'right' }}>Hor. ini</th>
-                    <th style={{ textAlign: 'right' }}>Hor. fin</th>
-                    <th>Lote</th>
-                    <th>Grupo</th>
-                    <th>Labor</th>
-                    <th>H. inicio</th>
-                    <th>H. final</th>
-                    <th>Operario</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {scanRows.map((row, idx) => (
-                    <tr key={idx} className={!row.tractorId ? 'machinery-batch-row-warn' : ''}>
-                      <td className="machinery-td-num">{idx + 1}</td>
-                      <td>
-                        <input type="date" className="machinery-batch-input" value={row.fecha || ''} max={TODAY()} onChange={e => updateScanRow(idx, 'fecha', e.target.value)} />
-                      </td>
-                      <td>
-                        <select className="machinery-batch-select" value={row.tractorId || ''} onChange={e => updateScanRow(idx, 'tractorId', e.target.value)}>
-                          <option value="">—</option>
-                          {tractoresLista.map(t => <option key={t.id} value={t.id}>{tractorLabel(t)}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select className="machinery-batch-select" value={row.implementoId || ''} onChange={e => updateScanRow(idx, 'implementoId', e.target.value)}>
-                          <option value="">—</option>
-                          {implementosLista.map(t => <option key={t.id} value={t.id}>{tractorLabel(t)}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <input type="number" className="machinery-batch-input machinery-batch-num" value={row.horimetroInicial ?? ''} onChange={e => updateScanRow(idx, 'horimetroInicial', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
-                      </td>
-                      <td>
-                        <input type="number" className="machinery-batch-input machinery-batch-num" value={row.horimetroFinal ?? ''} onChange={e => updateScanRow(idx, 'horimetroFinal', e.target.value === '' ? null : parseFloat(e.target.value))} step="0.1" />
-                      </td>
-                      <td>
-                        <select className="machinery-batch-select" value={row.loteId || ''} onChange={e => updateScanRow(idx, 'loteId', e.target.value)}>
-                          <option value="">—</option>
-                          {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select className="machinery-batch-select" value={row.grupo || ''} onChange={e => updateScanRow(idx, 'grupo', e.target.value)}>
-                          <option value="">—</option>
-                          {gruposParaFila(row.loteId).map(g => <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select className="machinery-batch-select machinery-batch-select-wide" value={row.labor || ''} onChange={e => updateScanRow(idx, 'labor', e.target.value)}>
-                          <option value="">—</option>
-                          {labores.map(l => <option key={l.id} value={l.descripcion}>{laborLabel(l)}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <input type="time" className="machinery-batch-input" value={row.horaInicio || ''} onChange={e => updateScanRow(idx, 'horaInicio', e.target.value)} />
-                      </td>
-                      <td>
-                        <input type="time" className="machinery-batch-input" value={row.horaFinal || ''} onChange={e => updateScanRow(idx, 'horaFinal', e.target.value)} />
-                      </td>
-                      <td>
-                        <select className="machinery-batch-select" value={row.operarioId || ''} onChange={e => updateScanRow(idx, 'operarioId', e.target.value)}>
-                          <option value="">—</option>
-                          {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                          onClick={() => removeScanRow(idx)}
-                          title="Eliminar fila"
-                        >
-                          <FiX size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="machinery-batch-hint">
-              Las filas en magenta requieren seleccionar un tractor para guardarse.
-            </p>
-            {scanError && <p className="aur-field-error">{scanError}</p>}
-            <div className="aur-form-actions">
-              <button type="button" className="aur-btn-text" onClick={() => setScanStep('upload')}>
-                ← Volver
-              </button>
-              <button
-                type="button"
-                className="aur-btn-pill"
-                onClick={handleBatchSave}
-                disabled={savingBatch || scanRows.length === 0}
-              >
-                <FiCheck size={14} /> {savingBatch ? 'Guardando…' : `Registrar ${scanRows.filter(r => r.tractorId).length} registro(s)`}
-              </button>
-            </div>
-          </section>
-        )}
+        </form>
       </div>
     </div>
   );

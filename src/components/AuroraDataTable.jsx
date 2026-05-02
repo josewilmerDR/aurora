@@ -151,11 +151,13 @@ export default function AuroraDataTable({
   return (
     <section className="aur-section">
       <div className="aur-table-toolbar">
-        <span className="aur-table-result-count">
-          {resultLabel
-            ? resultLabel(filteredCount, total)
-            : (filteredCount === total ? `${total} registros` : `${filteredCount} de ${total} registros`)}
-        </span>
+        {(resultLabel || total > 0) && (
+          <span className="aur-table-result-count">
+            {resultLabel
+              ? resultLabel(filteredCount, total)
+              : (filteredCount === total ? `${total} registros` : `${filteredCount} de ${total} registros`)}
+          </span>
+        )}
         {Object.keys(colFilters).length > 0 && (
           <button
             className="aur-btn-text"

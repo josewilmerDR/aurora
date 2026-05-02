@@ -298,6 +298,27 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   letter-spacing: -0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.machinery-pending-item[role="button"] {
+  cursor: pointer;
+}
+.machinery-pending-item[role="button"]:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.machinery-pending-item[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--aur-ring);
+}
+.machinery-pending-item--active {
+  background: var(--aur-accent-tint);
+  border: 1px solid var(--aur-accent-tint-2);
+  padding: 5px 7px;
+}
+.machinery-pending-detail--active {
+  color: var(--aur-accent);
+  font-weight: 600;
+  font-style: italic;
 }
 .machinery-pending-num {
   flex-shrink: 0;
@@ -327,6 +348,76 @@
   color: var(--aur-text-3);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FORM GRID — RegistroHorimetro: grid de 2 columnas para compactar el form
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.machinery-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  padding: 14px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+}
+.machinery-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.machinery-field-label {
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  color: var(--aur-text-2);
+  letter-spacing: -0.01em;
+}
+.machinery-field--full {
+  grid-column: 1 / -1;
+}
+.machinery-field--no-label {
+  /* Sin label, el control queda alineado al fondo de la fila para coincidir
+     con el input de las celdas vecinas que sí tienen label. */
+  align-self: end;
+}
+/* Select que se ve deshabilitado pero permanece clickeable para mostrar
+   un aviso ("selecciona un lote primero") en vez de absorber el click. */
+.machinery-select--locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Cell con label inline (label : input en una sola línea) — para campos
+   como time picker donde el placeholder no es confiable cross-browser. */
+.machinery-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.machinery-field--inline > .machinery-field-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.machinery-field--inline > .machinery-field-input-group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.machinery-field-error {
+  font-size: 11px;
+  color: var(--aur-danger);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 640px) {
+  .machinery-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -452,143 +543,6 @@
   border-radius: var(--aur-r-input);
   padding: 8px 12px;
   margin: 12px 0 0;
-  letter-spacing: -0.01em;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SCAN DROPZONE — IA scan upload (RegistroHorimetro)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.machinery-scan-dropzone {
-  border: 2px dashed var(--aur-divider-2);
-  border-radius: var(--aur-r-card);
-  min-height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-  background: var(--aur-bg-input);
-}
-.machinery-scan-dropzone:not(.has-image):hover {
-  border-color: var(--aur-accent);
-  background: var(--aur-bg-hover);
-}
-.machinery-scan-dropzone.has-image {
-  cursor: default;
-  border-style: solid;
-  border-color: var(--aur-divider);
-}
-.machinery-scan-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: var(--aur-text-3);
-  text-align: center;
-  padding: 24px;
-  letter-spacing: -0.01em;
-}
-.machinery-scan-hint p {
-  font-size: var(--aur-fs-footnote);
-  margin: 0;
-  color: var(--aur-text-2);
-}
-.machinery-scan-hint strong {
-  color: var(--aur-accent);
-  font-weight: 600;
-}
-.machinery-scan-hint span {
-  font-size: 11px;
-}
-.machinery-scan-preview-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  width: 100%;
-}
-.machinery-scan-preview {
-  max-height: 280px;
-  max-width: 100%;
-  border-radius: var(--aur-r-input);
-  object-fit: contain;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   BATCH TABLE — IA scan review: grid de celdas inline-editables (13 cols)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.machinery-batch-wrap {
-  /* hereda de .aur-table-wrap; sólo refuerza min-width para no comprimir */
-}
-.machinery-batch-table {
-  min-width: 1320px;
-}
-.machinery-batch-table thead th {
-  white-space: nowrap;
-}
-.machinery-batch-table tbody td {
-  padding: 6px 8px;
-  vertical-align: middle;
-}
-.machinery-batch-input,
-.machinery-batch-select {
-  width: 100%;
-  background: var(--aur-bg-input);
-  border: 1px solid transparent;
-  color: var(--aur-text);
-  font-size: 12px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  outline: none;
-  font-family: inherit;
-  letter-spacing: -0.01em;
-  box-sizing: border-box;
-  color-scheme: dark;
-  transition: background 0.12s ease, box-shadow 0.12s ease;
-}
-.machinery-batch-input:focus,
-.machinery-batch-select:focus {
-  background: var(--aur-bg-hover);
-  box-shadow: 0 0 0 2px var(--aur-accent-tint-2);
-}
-.machinery-batch-num {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  -moz-appearance: textfield;
-}
-.machinery-batch-num::-webkit-outer-spin-button,
-.machinery-batch-num::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.machinery-batch-select {
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23ffffff80' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-  padding-right: 22px;
-  cursor: pointer;
-  min-width: 110px;
-}
-.machinery-batch-select option {
-  background: var(--aurora-dark-blue);
-  color: var(--aur-text);
-}
-.machinery-batch-select-wide {
-  min-width: 180px;
-}
-.machinery-batch-row-warn td {
-  background: var(--aur-danger-tint);
-}
-.machinery-batch-hint {
-  font-size: 11px;
-  color: var(--aur-text-3);
-  margin: 12px 0 0;
-  font-style: italic;
   letter-spacing: -0.01em;
 }
 
@@ -759,11 +713,58 @@
   letter-spacing: -0.01em;
 }
 
+/* ── Acciones de línea (Agregar fila + Limpiar línea) ──────────────────── */
+.machinery-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+  align-self: flex-start;
+}
+
+/* ── "Agregar fila" / "Limpiar línea" — botón pill dentro del form ─────── */
+.machinery-add-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed var(--aur-divider-2);
+  border-radius: var(--aur-r-pill);
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  font-family: inherit;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.machinery-add-row:hover:not(:disabled) {
+  color: var(--aur-accent);
+  border-color: var(--aur-accent);
+  background: var(--aur-accent-tint);
+}
+.machinery-add-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
+  /* RegistroHorimetro: los chips "Historial" + "Leer con IA" del header se
+     reparten 50/50 el ancho del dispositivo para aprovechar la fila completa. */
+  .machinery-registro-page .aur-sheet-header-actions {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .machinery-registro-page .aur-sheet-header-actions > .aur-chip {
+    flex: 1;
+    justify-content: center;
+  }
+
   .machinery-toolbar {
     flex-direction: column;
     align-items: stretch;

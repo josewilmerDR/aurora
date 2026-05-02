@@ -211,9 +211,17 @@ router.post('/api/horimetro/escanear', authenticate, rateLimit('horimetro_scan',
       db.collection('users').where('fincaId', '==', req.fincaId).get(),
     ]);
 
-    const maq = maqSnap.docs.map(d => ({ id: d.id, ...pick(d.data(), ['idMaquina', 'codigo', 'descripcion', 'tipo']) }));
-    const tractores  = maq.filter(m => /tractor|otra maquinaria/i.test(m.tipo));
-    const implementos = maq.filter(m => /implemento/i.test(m.tipo));
+    const maq = maqSnap.docs.map(d => ({ id: d.id, ...pick(d.data(), ['codigo', 'descripcion', 'tipo']) }));
+    // Pool de matching con fallback: si el filtro por `tipo` produce al menos
+    // un activo, lo usamos (caso "implementos bien tageados") — eso evita que
+    // un tractor con código parecido al implemento gane el match. Si el filtro
+    // queda vacío (caso "tractores sin tipo"), caemos a la lista completa para
+    // que el matching siga funcionando aunque el admin no haya llenado el
+    // campo `tipo`.
+    const filteredTractores   = maq.filter(m => /tractor|otra maquinaria/i.test(m.tipo));
+    const filteredImplementos = maq.filter(m => /implemento/i.test(m.tipo));
+    const tractores   = filteredTractores.length   > 0 ? filteredTractores   : maq;
+    const implementos = filteredImplementos.length > 0 ? filteredImplementos : maq;
     const lotes = lotesSnap.docs.map(d => ({ id: d.id, nombreLote: d.data().nombreLote || '', codigoLote: d.data().codigoLote || '' }));
     const siembraMap = {};
     siembrasSnap.docs.forEach(d => { siembraMap[d.id] = { loteNombre: d.data().loteNombre || '' }; });
@@ -226,52 +234,37 @@ router.post('/api/horimetro/escanear', authenticate, rateLimit('horimetro_scan',
     const operarios = usersSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombre || '' }));
     const today = new Date().toISOString().slice(0, 10);
 
-    const prompt = `Eres un asistente agrícola. Analiza este formulario físico de registro de horímetro de maquinaria.
+    // ── Two-pass: la IA solo transcribe texto plano de cada celda; el matching
+    // contra catálogo lo hace el backend con estrategias en cascada. Esto evita
+    // que descripciones con seriales/modelos ("JD 6015J - ee35105") confundan a
+    // Claude cuando el operario solo escribió el código corto ("5-10").
+    const prompt = `Eres un asistente agrícola que transcribe formularios físicos de registro de horímetro.
 
-TRACTORES:
-${tractores.map(t => `ID:"${t.id}"|Código:"${t.codigo}"|IDActivo:"${t.idMaquina}"|Nombre:"${t.descripcion}"`).join('\n') || '(ninguno)'}
+NO intentes hacer matching contra ningún catálogo. Solo transcribe el texto que aparece en cada celda, EXACTAMENTE como está escrito. El sistema hará el matching después.
 
-IMPLEMENTOS:
-${implementos.map(t => `ID:"${t.id}"|Código:"${t.codigo}"|IDActivo:"${t.idMaquina}"|Nombre:"${t.descripcion}"`).join('\n') || '(ninguno)'}
-
-LOTES:
-${lotes.map(l => `ID:"${l.id}"|Código:"${l.codigoLote}"|Nombre:"${l.nombreLote}"`).join('\n') || '(ninguno)'}
-
-GRUPOS:
-${grupos.map(g => `ID:"${g.id}"|Nombre:"${g.nombreGrupo}"|Lotes:[${g.lotes.join(',')}]`).join('\n') || '(ninguno)'}
-
-LABORES:
-${labores.map(l => `ID:"${l.id}"|Código:"${l.codigo}"|Desc:"${l.descripcion}"`).join('\n') || '(ninguno)'}
-
-OPERARIOS:
-${operarios.map(u => `ID:"${u.id}"|Nombre:"${u.nombre}"`).join('\n') || '(ninguno)'}
-
-Extrae cada fila del formulario y devuelve un arreglo JSON con este formato exacto:
+Devuelve un arreglo JSON con una entrada por cada fila del formulario, en este formato:
 [
   {
     "fecha": "YYYY-MM-DD (busca la fecha en el encabezado; si no aparece usa ${today})",
-    "tractorId": "ID del tractor del catálogo o null",
-    "tractorNombre": "nombre del tractor tal como aparece o del catálogo si coincide",
-    "implemento": "nombre del implemento del catálogo si coincide, o texto del formulario, o cadena vacía",
+    "tractor": "texto literal de la celda 'tractor' o 'activo' (puede ser un código corto como '5-10', un nombre completo, una placa, o cualquier cosa que esté escrita)",
+    "implemento": "texto literal de la celda 'implemento' (igual, puede ser código o nombre)",
     "horimetroInicial": número o null,
     "horimetroFinal": número o null,
-    "loteId": "ID del lote si coincide, o null",
-    "loteNombre": "nombre del lote tal como aparece",
-    "grupo": "nombreGrupo del catálogo si coincide, o texto del formulario, o cadena vacía",
-    "bloques": [],
-    "labor": "descripción de la labor del catálogo si coincide, o texto del formulario, o cadena vacía",
+    "lote": "texto literal de la celda 'lote'",
+    "grupo": "texto literal de la celda 'grupo'",
+    "labor": "texto literal de la celda 'labor' (puede ser código o descripción)",
     "horaInicio": "HH:MM en 24h, o cadena vacía",
     "horaFinal": "HH:MM en 24h, o cadena vacía",
-    "operarioId": "ID del operario si coincide, o null",
-    "operarioNombre": "nombre del operario tal como aparece"
+    "operario": "texto literal de la celda 'operario' o 'responsable'"
   }
 ]
+
 Reglas:
 1. Cada fila del formulario es un objeto separado en el arreglo.
 2. horimetroInicial y horimetroFinal deben ser números (float), no cadenas. Usa null si no aparece.
 3. Horas en formato 24h: "5am"→"05:00", "2pm"→"14:00".
 4. Si hay una fecha común en el encabezado, aplícala a todas las filas.
-5. Resuelve tractor, lote, grupo, labor y operario usando coincidencia aproximada con los catálogos.
+5. Para los campos de texto (tractor, implemento, lote, grupo, labor, operario): transcribe LITERALMENTE lo escrito, sin interpretarlo, sin completarlo, sin "corregirlo". Si el operario escribió "5-10", devuelve "5-10". Si escribió "tractor rojo", devuelve "tractor rojo". Si la celda está vacía, devuelve cadena vacía.
 6. Devuelve SOLO el arreglo JSON, sin texto adicional ni bloques de código.`;
 
     const response = await anthropicClient.messages.create({
@@ -285,7 +278,129 @@ Reglas:
 
     const rawText = response.content[0].text.trim();
     const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    const filas = JSON.parse(jsonText);
+    const rawFilas = JSON.parse(jsonText);
+
+    // ── Backend matching: cascada de estrategias por campo ─────────────────
+    // 1. Exact match sobre cualquier campo del catálogo (codigo, descripcion, ...)
+    // 2. Prefix match (catálogo empieza con input, o input empieza con catálogo)
+    // 3. Token-contains (todos los tokens del input están en el catálogo)
+    // 4. Fuzzy (Levenshtein) — best score arriba del threshold
+    const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+    const tokens = (s) => norm(s).split(/[\s\-–—_/.,;|]+/).filter(Boolean);
+
+    const levenshtein = (a, b) => {
+      if (a === b) return 0;
+      if (!a.length) return b.length;
+      if (!b.length) return a.length;
+      const m = Array.from({ length: b.length + 1 }, (_, i) => [i]);
+      for (let j = 0; j <= a.length; j++) m[0][j] = j;
+      for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+          m[i][j] = b[i - 1] === a[j - 1]
+            ? m[i - 1][j - 1]
+            : Math.min(m[i - 1][j - 1] + 1, m[i][j - 1] + 1, m[i - 1][j] + 1);
+        }
+      }
+      return m[b.length][a.length];
+    };
+    const similarity = (a, b) => {
+      const max = Math.max(a.length, b.length);
+      return max === 0 ? 1 : 1 - levenshtein(a, b) / max;
+    };
+
+    // bestMatch ejecuta la cascada. fields = lista de campos del item (en orden
+    // de prioridad) contra los que se intentará match. Devuelve {item, score, strategy}
+    // o null si nada arriba del threshold (default 0.78).
+    const bestMatch = (input, items, fields, threshold = 0.78) => {
+      const q = norm(input);
+      if (!q || !items.length) return null;
+
+      // 1. Exact
+      for (const f of fields) {
+        const hit = items.find(i => norm(i[f]) === q);
+        if (hit) return { item: hit, score: 1, strategy: `exact:${f}` };
+      }
+      // 2. Prefix
+      for (const f of fields) {
+        const hit = items.find(i => {
+          const v = norm(i[f]);
+          return v && (v.startsWith(q) || q.startsWith(v));
+        });
+        if (hit) return { item: hit, score: 0.95, strategy: `prefix:${f}` };
+      }
+      // 3. Token-contains: todos los tokens del input aparecen como tokens del catálogo
+      const qTokens = tokens(input);
+      if (qTokens.length) {
+        for (const f of fields) {
+          const hit = items.find(i => {
+            const vTokens = tokens(i[f]);
+            return vTokens.length && qTokens.every(t => vTokens.includes(t));
+          });
+          if (hit) return { item: hit, score: 0.9, strategy: `tokens:${f}` };
+        }
+      }
+      // 4. Fuzzy: best score sobre todos los campos
+      let best = null;
+      for (const item of items) {
+        for (const f of fields) {
+          const v = norm(item[f]);
+          if (!v) continue;
+          const s = similarity(q, v);
+          if (s >= threshold && (!best || s > best.score)) {
+            best = { item, score: s, strategy: `fuzzy:${f}` };
+          }
+        }
+      }
+      return best;
+    };
+
+    const filas = (Array.isArray(rawFilas) ? rawFilas : []).map(f => {
+      const out = {
+        fecha: f.fecha || today,
+        tractorId: null,
+        tractorNombre: f.tractor || '',
+        implementoId: null,
+        implemento: f.implemento || '',
+        horimetroInicial: f.horimetroInicial ?? null,
+        horimetroFinal:   f.horimetroFinal ?? null,
+        loteId: null,
+        loteNombre: f.lote || '',
+        grupo: f.grupo || '',
+        bloques: [],
+        labor: f.labor || '',
+        horaInicio: f.horaInicio || '',
+        horaFinal:  f.horaFinal  || '',
+        operarioId: null,
+        operarioNombre: f.operario || '',
+      };
+
+      // Tractor: priorizar codigo (códigos cortos como "5-10"), después descripcion
+      const tractorM = bestMatch(f.tractor, tractores, ['codigo', 'descripcion']);
+      if (tractorM) { out.tractorId = tractorM.item.id; out.tractorNombre = tractorM.item.descripcion; }
+
+      // Implemento
+      const implM = bestMatch(f.implemento, implementos, ['codigo', 'descripcion']);
+      if (implM) { out.implementoId = implM.item.id; out.implemento = implM.item.descripcion; }
+
+      // Lote
+      const loteM = bestMatch(f.lote, lotes, ['codigoLote', 'nombreLote']);
+      if (loteM) { out.loteId = loteM.item.id; out.loteNombre = loteM.item.nombreLote; }
+
+      // Grupo (no tiene código, solo nombre)
+      const grupoM = bestMatch(f.grupo, grupos, ['nombreGrupo']);
+      if (grupoM) out.grupo = grupoM.item.nombreGrupo;
+
+      // Labor: el form guarda la descripción (no el ID)
+      const laborM = bestMatch(f.labor, labores, ['codigo', 'descripcion']);
+      if (laborM) out.labor = laborM.item.descripcion;
+
+      // Operario
+      const opM = bestMatch(f.operario, operarios, ['nombre']);
+      if (opM) { out.operarioId = opM.item.id; out.operarioNombre = opM.item.nombre; }
+
+      return out;
+    });
+
     res.json({ filas });
   } catch (error) {
     console.error('Error scanning horímetro:', error);
