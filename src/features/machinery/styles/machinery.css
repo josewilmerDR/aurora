@@ -300,6 +300,16 @@
   letter-spacing: -0.01em;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
+.machinery-pending-item[role="button"] {
+  cursor: pointer;
+}
+.machinery-pending-item[role="button"]:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.machinery-pending-item[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--aur-ring);
+}
 .machinery-pending-item--active {
   background: var(--aur-accent-tint);
   border: 1px solid var(--aur-accent-tint-2);

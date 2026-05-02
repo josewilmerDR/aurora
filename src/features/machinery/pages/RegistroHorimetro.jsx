@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import {
-  FiClock, FiPlus, FiX, FiCheck, FiCpu, FiEdit2,
+  FiClock, FiPlus, FiX, FiCheck, FiCpu,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -524,18 +524,12 @@ function RegistroHorimetro() {
   };
 
   // ── Derived asset lists ────────────────────────────────────────────────────
-  // Si ningún activo califica como "tractor" (por tipo mal etiquetado o vacío),
-  // mostramos toda la lista de activos en vez de un combobox vacío que bloquearía
-  // el form.
-  const tractoresLista = useMemo(() => {
-    const matches = tractores.filter(t => /tractor/i.test(t.tipo) || /otra maquinaria/i.test(t.tipo));
-    return matches.length > 0 ? matches : tractores;
-  }, [tractores]);
-
-  const implementosLista = useMemo(() => {
-    const matches = tractores.filter(t => /implemento/i.test(t.tipo));
-    return matches.length > 0 ? matches : tractores;
-  }, [tractores]);
+  // Ambos comboboxes muestran la lista completa de activos — el filtro por
+  // `tipo` resultaba frágil porque depende de que el admin haya tecleado
+  // exactamente "tractor de llantas" / "implemento" al crear el activo, y un
+  // tipo vacío o mal escrito ocultaba activos válidos del usuario.
+  const tractoresLista    = tractores;
+  const implementosLista  = tractores;
 
   const gruposDelLote = useMemo(() => {
     if (!form.loteId) return grupos;
@@ -777,6 +771,15 @@ function RegistroHorimetro() {
                         <div
                           key={line._no ?? displayIdx}
                           className={`machinery-pending-item${isActive ? ' machinery-pending-item--active' : ''}`}
+                          onClick={isActive ? undefined : () => handleEditPendingLine(pendingIdx)}
+                          role={isActive ? undefined : 'button'}
+                          tabIndex={isActive ? undefined : 0}
+                          onKeyDown={isActive ? undefined : (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleEditPendingLine(pendingIdx);
+                            }
+                          }}
                         >
                           <span className="machinery-pending-num">{displayIdx + 1}</span>
                           {isActive ? (
@@ -794,16 +797,8 @@ function RegistroHorimetro() {
                               </span>
                               <button
                                 type="button"
-                                className="aur-icon-btn aur-icon-btn--sm"
-                                onClick={() => handleEditPendingLine(pendingIdx)}
-                                title="Editar línea"
-                              >
-                                <FiEdit2 size={12} />
-                              </button>
-                              <button
-                                type="button"
                                 className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                                onClick={() => setPendingLines(prev => prev.filter((_, i) => i !== pendingIdx))}
+                                onClick={(e) => { e.stopPropagation(); setPendingLines(prev => prev.filter((_, i) => i !== pendingIdx)); }}
                                 title="Quitar línea"
                               >
                                 <FiX size={12} />
