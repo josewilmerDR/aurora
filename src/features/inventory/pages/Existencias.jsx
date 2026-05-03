@@ -516,16 +516,16 @@ function Existencias() {
                         <li onClick={() => { setShowTomaFisica(true); setKebabOpen(false); }}>
                           <FiClipboard size={14} /> Toma Física
                         </li>
-                        <li onClick={() => setKebabOpen(false)}>
-                          <Link to="/bodega/agroquimicos/movimientos" className="kebab-link">
-                            <FiList size={14} /> Historial
-                          </Link>
-                        </li>
                       </ul>
                     </>
                   )}
                 </div>
-                <h2>Existencias</h2>
+                <div className="lote-page-title-block">
+                  <h2>Existencias</h2>
+                  <p className="lote-page-hint">
+                    Crea, solicita, haz reajustes y seguimiento a tus agroquímicos todo desde este lugar
+                  </p>
+                </div>
               </div>
               <div className="product-header-actions">
                 {dirtyProducts.length > 0 && (
@@ -534,9 +534,11 @@ function Existencias() {
                     <span className="pg-save-label">Ver cambios </span>({dirtyProducts.length})
                   </button>
                 )}
-                <button className="btn-nuevo-producto" onClick={() => setShowNuevoModal(true)} title="Nuevo Producto">
-                  <FiPlus size={15} />
-                  <span className="btn-nuevo-label">Nuevo Producto</span>
+                <Link to="/bodega/agroquimicos/movimientos" className="aur-chip">
+                  <FiList size={14} /> Historial
+                </Link>
+                <button onClick={() => setShowNuevoModal(true)} className="aur-btn-pill">
+                  <FiPlus size={14} /> Nuevo Producto
                 </button>
               </div>
             </div>

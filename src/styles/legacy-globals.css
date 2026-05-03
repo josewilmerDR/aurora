@@ -70,6 +70,17 @@
   max-width: 60ch;
 }
 
+.lote-page-hint a {
+  color: var(--aurora-green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+
+.lote-page-hint a:hover {
+  text-decoration: none;
+}
+
 @media (max-width: 768px) {
   .lote-page-header {
     flex-direction: column;
