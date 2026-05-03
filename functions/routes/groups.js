@@ -1,10 +1,110 @@
 const { Router } = require('express');
-const { db, Timestamp } = require('../lib/firebase');
+const { db, Timestamp, FieldValue, FieldPath } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, sendNotificationWithLink } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
+
+// ─── Block transitions ───────────────────────────────────────────────────────
+// When a grupo is created or updated with bloques (siembraIds) that currently
+// belong to another grupo, we (a) remove them from their origin grupos and
+// (b) write a `block_transitions` record per origin → destination pair for
+// traceability. Computed BEFORE the destination grupo is written so we can
+// stage everything in a single Firestore batch where possible.
+
+async function findBlockOrigins(fincaId, newBloques, destinationGrupoId) {
+  if (!Array.isArray(newBloques) || newBloques.length === 0) return [];
+  const gruposSnap = await db.collection('grupos').where('fincaId', '==', fincaId).get();
+  const transitions = [];
+  for (const g of gruposSnap.docs) {
+    if (g.id === destinationGrupoId) continue;
+    const data = g.data();
+    const owned = Array.isArray(data.bloques) ? data.bloques : [];
+    const moved = owned.filter(id => newBloques.includes(id));
+    if (moved.length > 0) {
+      transitions.push({
+        origenGrupoId: g.id,
+        origenGrupoNombre: data.nombreGrupo || '',
+        siembraIds: moved,
+      });
+    }
+  }
+  return transitions;
+}
+
+async function applyBlockTransitions({ fincaId, transitions, destGrupoId, destGrupoNombre, req }) {
+  if (transitions.length === 0) return;
+
+  // Resolve user identity for the audit trail.
+  let usuarioId = null;
+  let usuarioNombre = req.userEmail || 'Sistema';
+  try {
+    const userSnap = await db.collection('users')
+      .where('uid', '==', req.uid)
+      .where('fincaId', '==', fincaId)
+      .limit(1).get();
+    if (!userSnap.empty) {
+      usuarioId = userSnap.docs[0].id;
+      usuarioNombre = userSnap.docs[0].data().nombre || usuarioNombre;
+    }
+  } catch (err) {
+    console.warn('[transitions] Could not resolve user for audit:', err.message);
+  }
+
+  // Fetch siembra metadata so each transition record carries
+  // human-readable lote/bloque descriptions (Firestore "in" caps at 30).
+  const allSiembraIds = transitions.flatMap(t => t.siembraIds);
+  const siembraMap = new Map();
+  for (let i = 0; i < allSiembraIds.length; i += 30) {
+    const chunk = allSiembraIds.slice(i, i + 30);
+    const snap = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
+    snap.docs.forEach(d => siembraMap.set(d.id, d.data()));
+  }
+
+  const batch = db.batch();
+  const now = Timestamp.now();
+
+  for (const t of transitions) {
+    // Remove blocks from origin grupo's bloques[].
+    batch.update(db.collection('grupos').doc(t.origenGrupoId), {
+      bloques: FieldValue.arrayRemove(...t.siembraIds),
+    });
+
+    // Build de-duplicated lote+bloque description list for this transition.
+    const bloqueMap = new Map();
+    for (const sid of t.siembraIds) {
+      const sdata = siembraMap.get(sid);
+      if (!sdata) continue;
+      const key = `${sdata.loteId}__${sdata.bloque}`;
+      if (!bloqueMap.has(key)) {
+        bloqueMap.set(key, {
+          loteId: sdata.loteId || '',
+          loteNombre: sdata.loteNombre || '',
+          bloque: sdata.bloque || '',
+        });
+      }
+    }
+
+    const transitionRef = db.collection('block_transitions').doc();
+    batch.set(transitionRef, {
+      fincaId,
+      siembraIds: t.siembraIds,
+      bloquesDescritos: [...bloqueMap.values()],
+      origenGrupoId: t.origenGrupoId,
+      origenGrupoNombre: t.origenGrupoNombre,
+      destinoGrupoId: destGrupoId,
+      destinoGrupoNombre: destGrupoNombre,
+      fecha: now,
+      usuarioId,
+      usuarioUid: req.uid,
+      usuarioNombre,
+      usuarioEmail: req.userEmail || '',
+    });
+  }
+
+  await batch.commit();
+}
 
 const MAX_NOMBRE_LEN    = 16;
 const MAX_CATALOG_LEN   = 32;
@@ -78,17 +178,32 @@ router.post('/api/grupos', authenticate, async (req, res) => {
         }
 
         const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = req.body;
+        const incomingBloques = Array.isArray(bloques) ? bloques : [];
+
+        // Detect blocks that currently belong to another grupo so we can
+        // remove them from their origin and audit the transition.
+        const transitions = await findBlockOrigins(req.fincaId, incomingBloques, null);
 
         const grupoRef = await db.collection('grupos').add({
             nombreGrupo: nombreGrupo.trim(),
             cosecha: (cosecha || '').trim(),
             etapa: (etapa || '').trim(),
             fechaCreacion: Timestamp.fromDate(new Date(fechaCreacion)),
-            bloques: Array.isArray(bloques) ? bloques : [],
+            bloques: incomingBloques,
             paqueteId: paqueteId || '',
             paqueteMuestreoId: paqueteMuestreoId || '',
             fincaId: req.fincaId,
         });
+
+        if (transitions.length > 0) {
+            await applyBlockTransitions({
+                fincaId: req.fincaId,
+                transitions,
+                destGrupoId: grupoRef.id,
+                destGrupoNombre: nombreGrupo.trim(),
+                req,
+            });
+        }
 
         // If a package is assigned, create tasks (same logic as lotes)
         if (paqueteId) {
@@ -197,7 +312,30 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
             grupoData.fechaCreacion = Timestamp.fromDate(new Date(grupoData.fechaCreacion));
         }
 
+        // If the bloques array changed, detect transitions from other grupos
+        // BEFORE we write our own update — applyBlockTransitions runs after
+        // and uses arrayRemove, so it works regardless of write order, but
+        // we want the transition records to reference the new destination
+        // name if it was renamed in the same request.
+        let transitions = [];
+        if (Array.isArray(grupoData.bloques)) {
+            transitions = await findBlockOrigins(req.fincaId, grupoData.bloques, id);
+        }
+
         await db.collection('grupos').doc(id).update(grupoData);
+
+        if (transitions.length > 0) {
+            const destNombre = grupoData.nombreGrupo !== undefined
+                ? grupoData.nombreGrupo
+                : (originalData.nombreGrupo || '');
+            await applyBlockTransitions({
+                fincaId: req.fincaId,
+                transitions,
+                destGrupoId: id,
+                destGrupoNombre: destNombre,
+                req,
+            });
+        }
 
         const hasDateChanged = grupoData.fechaCreacion != null
             && originalData.fechaCreacion?.toMillis() !== grupoData.fechaCreacion?.toMillis();

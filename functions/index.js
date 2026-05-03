@@ -32,6 +32,7 @@ app.use(require('./routes/products'));
 app.use(require('./routes/packages'));
 app.use(require('./routes/plots'));
 app.use(require('./routes/groups'));
+app.use(require('./routes/block-transitions'));
 app.use(require('./routes/procurement-invoices'));
 app.use(require('./routes/hr'));
 app.use(require('./routes/config'));

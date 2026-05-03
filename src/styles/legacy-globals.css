@@ -114,6 +114,50 @@
   gap: 12px;
 }
 
+/* ── Llamado a la acción (CTA) ───────────────────────────────────────────── */
+.grupo-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 40px 24px;
+}
+
+.grupo-cta--secondary {
+  padding: 32px 24px;
+  opacity: 0.75;
+}
+
+.grupo-cta-icon {
+  color: var(--aurora-green);
+  opacity: 0.6;
+}
+
+.grupo-cta--secondary .grupo-cta-icon {
+  color: rgba(230, 242, 255, 0.3);
+}
+
+.grupo-cta-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+}
+
+.grupo-cta-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(230, 242, 255, 0.5);
+  line-height: 1.55;
+  max-width: 280px;
+}
+
+.grupo-cta-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .lote-list {
   list-style: none;
   padding: 0;

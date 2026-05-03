@@ -746,7 +746,12 @@ function LoteManagement() {
       {view !== 'form' && <div className="lote-list-panel">
 
           {lotes.length === 0
-          ? <p className="empty-state" style={{ marginTop: '1rem' }}>No hay lotes creados.</p>
+          ? (
+            <div className="grupo-cta">
+              <div className="grupo-cta-icon"><FiPlus size={24} /></div>
+              <p className="grupo-cta-title">Sin lotes creados</p>
+            </div>
+          )
           : (
             <ul className="lote-list">
               {lotes.map(lote => (

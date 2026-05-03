@@ -38,6 +38,43 @@ const calcFechaCosecha = (grupo, config) => {
   return result;
 };
 
+// Consolida un arreglo de siembras (varios registros para el mismo lote+bloque)
+// en una fila única por bloque físico. Las áreas y plantas se suman; los
+// materiales/variedades distintos se concatenan con " · ".
+function consolidateSiembrasByBloque(siembras) {
+  const map = new Map();
+  for (const s of siembras) {
+    if (!s) continue;
+    const key = `${s.loteId}__${s.bloque}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        id: `${s.loteId}__${s.bloque}`,
+        siembraIds: [],
+        loteId: s.loteId,
+        loteNombre: s.loteNombre || s.loteId,
+        bloque: s.bloque,
+        plantas: 0,
+        areaCalculada: 0,
+        _materiales: new Set(),
+        _variedades: new Set(),
+      });
+    }
+    const entry = map.get(key);
+    entry.siembraIds.push(s.id);
+    entry.plantas += (s.plantas || 0);
+    entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
+    if (s.materialNombre) entry._materiales.add(s.materialNombre);
+    if (s.variedad) entry._variedades.add(s.variedad);
+  }
+  return [...map.values()].map(e => {
+    const materialNombre = [...e._materiales].join(' · ');
+    const variedad = [...e._variedades].join(' · ');
+    delete e._materiales;
+    delete e._variedades;
+    return { ...e, materialNombre, variedad };
+  });
+}
+
 // ── Tabla de bloques: helpers de ordenamiento / filtrado ─────────────────────
 function compare(a, b, field) {
   const av = a[field] ?? '';
@@ -116,12 +153,15 @@ function GrupoManagement() {
   const navigate = useNavigate();
   const [grupos,            setGrupos]            = useState([]);
   const [siembras,          setSiembras]          = useState([]);
+  const [bloquesDisponibles, setBloquesDisponibles] = useState([]);
   const [packages,          setPackages]          = useState([]);
   const [monitoreoPackages, setMonitoreoPackages] = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
   const [selectedGrupo, setSelectedGrupo] = useState(null);
   const [showForm,      setShowForm]      = useState(false);
   const [showLibres,    setShowLibres]    = useState(false);
+  const [showEnAplicacion, setShowEnAplicacion] = useState(false);
+  const [moveModal,     setMoveModal]     = useState(null);
   const [isEditing,     setIsEditing]     = useState(false);
   const [catalogModal,  setCatalogModal]  = useState(null);
   const [localCosechas, setLocalCosechas] = useState([]);
@@ -149,6 +189,7 @@ function GrupoManagement() {
   const fetchAll = () => {
     const gruposP = apiFetch('/api/grupos').then(r => r.json()).then(data => { setGrupos(data); return data; }).catch(console.error).finally(() => setLoading(false));
     apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
+    apiFetch('/api/siembras/disponibles').then(r => r.json()).then(d => setBloquesDisponibles(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
     apiFetch('/api/monitoreo/paquetes').then(r => r.json()).then(setMonitoreoPackages).catch(console.error);
     apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
@@ -165,23 +206,15 @@ function GrupoManagement() {
   }, [selectedGrupo]);
 
   // ── Bloques eligibles ─────────────────────────────────────────────────────
+  // Backward-compat: still expose cerradoSiembras for the empty-state copy
+  // ("ciérralos desde el Historial de Siembra"). Selection now flows through
+  // bloquesDisponibles (enriched with grupo state) instead of recomputing
+  // from raw siembras.
   const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
-
-  const assignedIds = useMemo(() => {
-    const editingId = isEditing ? formData.id : null;
-    return new Set(
-      grupos.filter(g => g.id !== editingId)
-            .flatMap(g => Array.isArray(g.bloques) ? g.bloques : [])
-    );
-  }, [grupos, isEditing, formData.id]);
-
-  const availableSiembras = useMemo(() =>
-    cerradoSiembras.filter(s => !assignedIds.has(s.id)),
-  [cerradoSiembras, assignedIds]);
 
   const consolidatedBloques = useMemo(() => {
     const map = new Map();
-    for (const s of availableSiembras) {
+    for (const s of bloquesDisponibles) {
       const key = `${s.loteId}__${s.bloque}`;
       if (!map.has(key)) {
         map.set(key, {
@@ -194,34 +227,89 @@ function GrupoManagement() {
           areaCalculada: 0,
           variedad: s.variedad || '',
           materialNombre: s.materialNombre || '',
+          estado: 'libre',
+          grupoActualId: null,
+          grupoActualNombre: null,
+          grupoActualEtapa: null,
+          grupoActualCosecha: null,
+          aplicacionesCompletadas: null,
+          aplicacionesTotales: null,
         });
       }
       const entry = map.get(key);
       entry.ids.push(s.id);
       entry.plantas += (s.plantas || 0);
       entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
+
+      // Promote estado to the most "active" of the siembras in this physical
+      // block: en_aplicacion > fuera_aplicacion > libre. In practice all
+      // siembras of a (lote, bloque) share the same grupo so the merge is
+      // a no-op, but guard for the edge case.
+      if (s.estado === 'en_aplicacion') entry.estado = 'en_aplicacion';
+      else if (s.estado === 'fuera_aplicacion' && entry.estado === 'libre') entry.estado = 'fuera_aplicacion';
+
+      if (s.grupoActualId && !entry.grupoActualId) {
+        entry.grupoActualId        = s.grupoActualId;
+        entry.grupoActualNombre    = s.grupoActualNombre;
+        entry.grupoActualEtapa     = s.grupoActualEtapa;
+        entry.grupoActualCosecha   = s.grupoActualCosecha;
+        entry.aplicacionesCompletadas = s.aplicacionesCompletadas;
+        entry.aplicacionesTotales     = s.aplicacionesTotales;
+      }
     }
     return [...map.values()];
-  }, [availableSiembras]);
+  }, [bloquesDisponibles]);
+
+  const editingGrupoId = isEditing ? formData.id : null;
 
   const byLoteSeleccionados = useMemo(() => {
     const sel = consolidatedBloques.filter(b => b.ids.some(id => formData.bloques.includes(id)));
     return sel.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
   }, [consolidatedBloques, formData.bloques]);
 
+  // A bloque is "free for the picker" when it doesn't belong to any other
+  // grupo. Bloques whose grupoActualId matches the grupo being edited are
+  // also treated as free here — they live in form.bloques when selected,
+  // and reappear in this list (rather than in "Otros grupos") if the user
+  // unticks them, since their effective destination after save is "no group".
+  const unselectedBloques = useMemo(
+    () => consolidatedBloques.filter(b => !b.ids.some(id => formData.bloques.includes(id))),
+    [consolidatedBloques, formData.bloques]
+  );
+
   const byLoteLibres = useMemo(() => {
-    const lib = consolidatedBloques.filter(b => !b.ids.some(id => formData.bloques.includes(id)));
-    return lib.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
-  }, [consolidatedBloques, formData.bloques]);
+    const list = unselectedBloques.filter(b =>
+      !b.grupoActualId || b.grupoActualId === editingGrupoId
+    );
+    return list.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
+  }, [unselectedBloques, editingGrupoId]);
+
+  const byLoteFueraAplicacion = useMemo(() => {
+    const list = unselectedBloques.filter(b =>
+      b.grupoActualId && b.grupoActualId !== editingGrupoId && b.estado === 'fuera_aplicacion'
+    );
+    return list.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
+  }, [unselectedBloques, editingGrupoId]);
+
+  const byLoteEnAplicacion = useMemo(() => {
+    const list = unselectedBloques.filter(b =>
+      b.grupoActualId && b.grupoActualId !== editingGrupoId && b.estado === 'en_aplicacion'
+    );
+    return list.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
+  }, [unselectedBloques, editingGrupoId]);
+
+  const libresCount   = Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0);
+  const fueraCount    = Object.values(byLoteFueraAplicacion).reduce((sum, arr) => sum + arr.length, 0);
+  const enAplicacionCount = Object.values(byLoteEnAplicacion).reduce((sum, arr) => sum + arr.length, 0);
 
   const selectedBlockCount = useMemo(() => {
     const keys = new Set();
     for (const id of formData.bloques) {
-      const s = siembras.find(s => s.id === id);
+      const s = bloquesDisponibles.find(x => x.id === id) || siembras.find(x => x.id === id);
       if (s) keys.add(`${s.loteId}__${s.bloque}`);
     }
     return keys.size;
-  }, [formData.bloques, siembras]);
+  }, [formData.bloques, bloquesDisponibles, siembras]);
 
   // ── Paquetes filtrados ────────────────────────────────────────────────────
   const cosechasCatalog = useMemo(() =>
@@ -248,11 +336,16 @@ function GrupoManagement() {
   [packages, formData.cosecha, formData.etapa]);
 
   // ── Datos del grupo seleccionado (hub) ────────────────────────────────────
+  // Un mismo bloque físico (lote+bloque) puede tener varias siembras (registros
+  // separados con materiales distintos o capturas parciales). El hub presenta
+  // una fila por bloque físico con las plantas y el área sumadas, no una fila
+  // por registro de siembra.
   const selectedBloques = useMemo(() => {
     if (!selectedGrupo) return [];
-    return (selectedGrupo.bloques || [])
+    const owned = (selectedGrupo.bloques || [])
       .map(id => siembras.find(s => s.id === id))
       .filter(Boolean);
+    return consolidateSiembrasByBloque(owned);
   }, [selectedGrupo, siembras]);
 
   const selectedFechaCosecha = useMemo(
@@ -370,6 +463,15 @@ function GrupoManagement() {
     });
   };
 
+  const addBloque = (ids) =>
+    setFormData(prev => {
+      const newIds = ids.filter(id => !prev.bloques.includes(id));
+      return { ...prev, bloques: [...prev.bloques, ...newIds] };
+    });
+
+  const removeBloque = (ids) =>
+    setFormData(prev => ({ ...prev, bloques: prev.bloques.filter(id => !ids.includes(id)) }));
+
   const toggleBloque = (ids) =>
     setFormData(prev => {
       const allSelected = ids.every(id => prev.bloques.includes(id));
@@ -380,10 +482,30 @@ function GrupoManagement() {
       return { ...prev, bloques: [...prev.bloques, ...newIds] };
     });
 
+  // Handles "Agregar" clicks on the picker. If the bloque belongs to another
+  // grupo (and the user is not just re-adding one of the editing grupo's
+  // own bloques), open a confirmation modal so the move is explicit and
+  // auditable. Otherwise, add directly.
+  const handleAddBloque = (bloque) => {
+    if (bloque.grupoActualId && bloque.grupoActualId !== editingGrupoId) {
+      setMoveModal(bloque);
+      return;
+    }
+    addBloque(bloque.ids);
+  };
+
+  const confirmMoveBloque = () => {
+    if (!moveModal) return;
+    addBloque(moveModal.ids);
+    setMoveModal(null);
+  };
+
   const resetForm = () => {
     setIsEditing(false);
     setShowForm(false);
     setShowLibres(false);
+    setShowEnAplicacion(false);
+    setMoveModal(null);
     setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
   };
 
@@ -551,9 +673,10 @@ function GrupoManagement() {
 
   const previewBloques = useMemo(() => {
     if (!previewGrupo) return [];
-    return (previewGrupo.bloques || [])
+    const owned = (previewGrupo.bloques || [])
       .map(id => siembras.find(s => s.id === id))
       .filter(Boolean);
+    return consolidateSiembrasByBloque(owned);
   }, [previewGrupo, siembras]);
 
   const previewFechaCosecha  = previewGrupo ? calcFechaCosecha(previewGrupo, empresaConfig) : null;
@@ -716,13 +839,13 @@ function GrupoManagement() {
               {selectedBlockCount === 0 && (
                 <div className="bloques-empty-wrap">
                   <p className="bloques-empty">
-                    {consolidatedBloques.length === 0
-                      ? cerradoSiembras.length === 0
-                        ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
-                        : 'Todos los bloques cerrados ya están asignados a otros grupos.'
-                      : 'Sin bloques asignados aún.'}
+                    {cerradoSiembras.length === 0
+                      ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
+                      : (libresCount + fueraCount + enAplicacionCount === 0
+                          ? 'No hay bloques disponibles para crear este grupo.'
+                          : 'Sin bloques asignados aún.')}
                   </p>
-                  {Object.keys(byLoteLibres).length > 0 && (
+                  {(libresCount + fueraCount + enAplicacionCount) > 0 && (
                     <button
                       type="button"
                       className="aur-chip"
@@ -734,7 +857,7 @@ function GrupoManagement() {
                 </div>
               )}
 
-              {selectedBlockCount > 0 && Object.keys(byLoteLibres).length > 0 && (
+              {selectedBlockCount > 0 && (libresCount + fueraCount + enAplicacionCount) > 0 && (
                 <div className="bloques-agregar-wrap">
                   <button
                     type="button"
@@ -747,34 +870,121 @@ function GrupoManagement() {
               )}
             </section>
 
-            {/* ── Sección 4: Lotes y bloques sin agrupar (condicional) ── */}
-            {showLibres && Object.keys(byLoteLibres).length > 0 && (
+            {/* ── Sección 4: Picker tabulado (libres → fuera → en aplicación) ── */}
+            {showLibres && (libresCount + fueraCount + enAplicacionCount) > 0 && (
               <section className="aur-section">
                 <div className="aur-section-header">
-                  <h3 className="aur-section-title">Lotes y bloques sin agrupar</h3>
+                  <h3 className="aur-section-title">Bloques disponibles</h3>
                   <span className="aur-section-count">
-                    {Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0)} disponible(s)
+                    {libresCount + fueraCount + enAplicacionCount} en total
                   </span>
                 </div>
 
-                {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
-                  <div key={loteNombre} className="bloque-lote-group">
-                    <div className="bloque-lote-label">{loteNombre}</div>
-                    {registros.map(s => (
-                      <div key={s.key} className="bloque-checkbox-row">
-                        <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                        <span className="bloque-meta">
-                          {s.plantas?.toLocaleString()} plantas
-                          {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                          {s.variedad ? ` · ${s.variedad}` : ''}
-                        </span>
-                        <button type="button" className="aur-btn-text" onClick={() => toggleBloque(s.ids)}>
-                          Agregar
-                        </button>
+                {/* 4a — Libres / sin grupo */}
+                {libresCount > 0 && (
+                  <div className="bloque-tier">
+                    <div className="bloque-tier-header">
+                      <span className="bloque-tier-title">Sin grupo</span>
+                      <span className="bloque-tier-count">{libresCount}</span>
+                    </div>
+                    {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
+                      <div key={loteNombre} className="bloque-lote-group">
+                        <div className="bloque-lote-label">{loteNombre}</div>
+                        {registros.map(s => (
+                          <div key={s.key} className="bloque-checkbox-row">
+                            <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                            <span className="bloque-meta">
+                              {s.plantas?.toLocaleString()} plantas
+                              {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                              {s.variedad ? ` · ${s.variedad}` : ''}
+                            </span>
+                            <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
+                              Agregar
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
-                ))}
+                )}
+
+                {/* 4b — Fuera de aplicación */}
+                {fueraCount > 0 && (
+                  <div className="bloque-tier bloque-tier--warn">
+                    <div className="bloque-tier-header">
+                      <span className="bloque-tier-title">Fuera de aplicación</span>
+                      <span className="bloque-tier-count">{fueraCount}</span>
+                    </div>
+                    <p className="bloque-tier-hint">
+                      Pertenecen a otros grupos cuyo paquete ya completó todas las aplicaciones. Pueden moverse aquí sin interrumpir aplicaciones pendientes.
+                    </p>
+                    {Object.entries(byLoteFueraAplicacion).map(([loteNombre, registros]) => (
+                      <div key={loteNombre} className="bloque-lote-group">
+                        <div className="bloque-lote-label">{loteNombre}</div>
+                        {registros.map(s => (
+                          <div key={s.key} className="bloque-checkbox-row">
+                            <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                            <span className="bloque-meta">
+                              {s.plantas?.toLocaleString()} plantas
+                              {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                              {s.variedad ? ` · ${s.variedad}` : ''}
+                              {s.grupoActualNombre ? ` · Grupo ${s.grupoActualNombre}` : ''}
+                              {s.aplicacionesTotales ? ` · ${s.aplicacionesCompletadas}/${s.aplicacionesTotales} aplicaciones` : ''}
+                            </span>
+                            <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
+                              Agregar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 4c — En aplicación activa (colapsado por default) */}
+                {enAplicacionCount > 0 && (
+                  <div className="bloque-tier bloque-tier--danger">
+                    <button
+                      type="button"
+                      className="bloque-tier-toggle"
+                      onClick={() => setShowEnAplicacion(v => !v)}
+                    >
+                      <span className="bloque-tier-title">En aplicación activa</span>
+                      <span className="bloque-tier-count">{enAplicacionCount}</span>
+                      <FiChevronRight
+                        size={14}
+                        className={`bloque-tier-chevron${showEnAplicacion ? ' is-open' : ''}`}
+                      />
+                    </button>
+                    {showEnAplicacion && (
+                      <>
+                        <p className="bloque-tier-hint">
+                          Pertenecen a otros grupos con paquete pendiente. Moverlos aquí interrumpe las aplicaciones programadas — usar con precaución.
+                        </p>
+                        {Object.entries(byLoteEnAplicacion).map(([loteNombre, registros]) => (
+                          <div key={loteNombre} className="bloque-lote-group">
+                            <div className="bloque-lote-label">{loteNombre}</div>
+                            {registros.map(s => (
+                              <div key={s.key} className="bloque-checkbox-row">
+                                <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
+                                <span className="bloque-meta">
+                                  {s.plantas?.toLocaleString()} plantas
+                                  {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                                  {s.variedad ? ` · ${s.variedad}` : ''}
+                                  {s.grupoActualNombre ? ` · Grupo ${s.grupoActualNombre}` : ''}
+                                  {s.aplicacionesTotales ? ` · ${s.aplicacionesCompletadas}/${s.aplicacionesTotales} aplicaciones` : ''}
+                                </span>
+                                <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
+                                  Agregar
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
               </section>
             )}
 
@@ -923,6 +1133,25 @@ function GrupoManagement() {
           onCancel={() => setCatalogModal(null)}
         />
       )}
+      {moveModal && (
+        <AuroraConfirmModal
+          danger={moveModal.estado === 'en_aplicacion'}
+          title={`¿Mover este bloque desde "${moveModal.grupoActualNombre}"?`}
+          body={(() => {
+            const ubic = `Bloque ${moveModal.bloque || '—'} de ${moveModal.loteNombre || '—'}`;
+            const apl  = (moveModal.aplicacionesTotales != null && moveModal.aplicacionesTotales > 0)
+              ? ` Lleva ${moveModal.aplicacionesCompletadas}/${moveModal.aplicacionesTotales} aplicaciones del paquete.`
+              : '';
+            const aviso = moveModal.estado === 'en_aplicacion'
+              ? ' El paquete del grupo origen sigue activo: al mover este bloque dejará de recibir las aplicaciones pendientes de ese grupo.'
+              : ' El paquete del grupo origen ya completó sus aplicaciones, así que mover este bloque no interrumpe nada en curso.';
+            return `${ubic} pertenece al grupo "${moveModal.grupoActualNombre}".${apl}${aviso} La transición quedará registrada en el historial.`;
+          })()}
+          confirmLabel={moveModal.estado === 'en_aplicacion' ? 'Mover de todas formas' : 'Mover bloque'}
+          onConfirm={confirmMoveBloque}
+          onCancel={() => setMoveModal(null)}
+        />
+      )}
       {confirmModal && (
         <AuroraConfirmModal
           danger
@@ -1003,17 +1232,6 @@ function GrupoManagement() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="grupo-page-loading" />}
 
-      {/* ── Estado vacío ── */}
-      {!loading && grupos.length === 0 && !showForm && (
-        <div className="grupo-empty-state">
-          <FiLayers size={36} />
-          <p>No hay grupos de producción creados aún.</p>
-          <button className="aur-btn-pill" onClick={handleNewGrupo}>
-            <FiPlus size={15} /> Crear el primero
-          </button>
-        </div>
-      )}
-
       {/* ── Mobile sticky carousel ── */}
       {selectedGrupo && !showForm && (
         <div className="lote-carousel" ref={carouselRef}>
@@ -1035,33 +1253,31 @@ function GrupoManagement() {
       )}
 
       {/* ── Page header ── */}
-      {!loading && grupos.length > 0 && !showForm && (
+      {!loading && !showForm && (
         <div className="lote-page-header">
-          <h2 className="lote-page-title">Grupos</h2>
+          <div className="lote-page-title-block">
+            <h2 className="lote-page-title">Grupos</h2>
+            <p className="lote-page-hint">
+              Organiza los bloques de siembra cerrados en grupos de producción para gestionar aplicaciones, cosechas y costos de producción.
+            </p>
+          </div>
           <button className="aur-btn-pill" onClick={handleNewGrupo}>
             <FiPlus size={14} /> Nuevo Grupo
           </button>
         </div>
       )}
 
-      {!loading && (grupos.length > 0 || showForm) && <div className="lote-management-layout">
+      {!loading && <div className="lote-management-layout">
 
         {/* Hub o formulario */}
         {renderPanel()}
 
         {/* Lista compacta */}
-        <div className="lote-list-panel">
+        {!showForm && <div className="lote-list-panel">
           {grupos.length === 0 ? (
             <div className="grupo-cta">
               <div className="grupo-cta-icon"><FiPlus size={24} /></div>
               <p className="grupo-cta-title">Sin grupos creados</p>
-              <p className="grupo-cta-desc">
-                Organiza los bloques de siembra cerrados en grupos de producción
-                para gestionar aplicaciones, cosechas y reportes.
-              </p>
-              <button className="aur-btn-pill grupo-cta-btn" onClick={handleNewGrupo}>
-                <FiPlus size={15} /> Crear primer grupo
-              </button>
             </div>
           ) : (
             <ul className="lote-list">
@@ -1082,7 +1298,7 @@ function GrupoManagement() {
               ))}
             </ul>
           )}
-        </div>
+        </div>}
 
       </div>}
 

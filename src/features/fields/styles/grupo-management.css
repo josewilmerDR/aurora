@@ -65,51 +65,6 @@
   }
 }
 
-/* ── Llamado a la acción (CTA) ───────────────────────────────────────────── */
-.grupo-cta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-  padding: 40px 24px;
-}
-
-.grupo-cta--secondary {
-  padding: 32px 24px;
-  opacity: 0.75;
-}
-
-.grupo-cta-icon {
-  color: var(--aurora-green);
-  opacity: 0.6;
-}
-
-.grupo-cta--secondary .grupo-cta-icon {
-  color: rgba(230, 242, 255, 0.3);
-}
-
-.grupo-cta-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-}
-
-.grupo-cta-desc {
-  margin: 0;
-  font-size: 0.85rem;
-  color: rgba(230, 242, 255, 0.5);
-  line-height: 1.55;
-  max-width: 280px;
-}
-
-/* ── CTA dentro de panel lateral ─────────────────────────────────────────── */
-.grupo-cta-btn {
-  width: 100%;
-  justify-content: center;
-}
-
 /* ── Modal eliminación: detalles del cuerpo ──────────────────────────────── */
 /* El chrome del modal (backdrop, sheet, header, actions) usa .aur-modal*
    de aurora.css. Aquí sólo viven el listado de cédulas y el hint, que
@@ -216,6 +171,79 @@
   color: var(--aurora-light);
   opacity: 0.5;
   flex: 1;
+}
+
+/* ── Tiered picker (libres → fuera → en aplicación) ──────────────────────── */
+.bloque-tier {
+  border-top: 1px solid var(--aurora-border);
+  padding: 4px 0 8px;
+}
+
+.bloque-tier:first-child {
+  border-top: none;
+}
+
+.bloque-tier-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
+}
+
+.bloque-tier-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aurora-light);
+}
+
+.bloque-tier-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  background: rgba(230, 242, 255, 0.05);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.bloque-tier--warn .bloque-tier-title  { color: #ffcc66; }
+.bloque-tier--danger .bloque-tier-title { color: #ff8e8e; }
+
+.bloque-tier-hint {
+  margin: 0 14px 6px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.bloque-tier-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.bloque-tier-toggle:hover {
+  background: rgba(230, 242, 255, 0.03);
+}
+
+.bloque-tier-chevron {
+  margin-left: auto;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  transition: transform 0.15s ease;
+}
+
+.bloque-tier-chevron.is-open {
+  transform: rotate(90deg);
 }
 
 /* ── Preview modal ── */
@@ -495,8 +523,7 @@
 
 .grupo-hub {
   background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  border-top: 1px solid var(--aurora-border);
   padding: 24px;
 }
 
