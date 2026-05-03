@@ -104,7 +104,7 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
 
         <div className="aur-modal-content">
         <p className="toma-fisica-desc">
-          Ingresa las cantidades reales encontradas en bodega. Solo los productos con diferencia serán ajustados.
+          Ajusta las existencias del sistema para que coincidan con el conteo físico de la bodega.
         </p>
 
         <div className="toma-fisica-nota-wrap">

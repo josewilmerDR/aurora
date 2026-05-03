@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiClipboard, FiFilter, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/agroquimicos.css';
@@ -393,7 +394,13 @@ function MovimientosHistorial() {
 
         {/* ── Encabezado + filtros ── */}
         <div className="mhist-header">
-          <h2>Historial de Movimientos</h2>
+          <div className="lote-page-title-block">
+            <h2>Historial de Movimientos</h2>
+            <p className="lote-page-hint">
+              Rastrea cada entrada, salida y ajuste de existencias en bodega para auditar el movimiento de tus agroquímicos.{' '}
+              <Link to="/bodega/agroquimicos/existencias">Ir a Existencias</Link>
+            </p>
+          </div>
           <div className="mhist-filters">
             <div className="mhist-search-wrap">
               <FiSearch size={14} className="mhist-search-icon" />
@@ -409,10 +416,14 @@ function MovimientosHistorial() {
                 </button>
               )}
             </div>
-            <label className="mhist-date-label">Desde</label>
-            <input type="date" className="mhist-date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
-            <label className="mhist-date-label">Hasta</label>
-            <input type="date" className="mhist-date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} />
+            <div className="mhist-date-field">
+              <label className="mhist-date-label">Desde</label>
+              <input type="date" className="mhist-date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
+            </div>
+            <div className="mhist-date-field">
+              <label className="mhist-date-label">Hasta</label>
+              <input type="date" className="mhist-date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} />
+            </div>
             {hasFilters && (
               <button className="mhist-reset" onClick={() => { setSearchProd(''); setFechaDesde(''); setFechaHasta(''); }}>
                 <FiX size={13} /> Limpiar

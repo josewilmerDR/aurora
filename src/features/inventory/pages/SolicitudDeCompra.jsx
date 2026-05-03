@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  FiSearch, FiPlus, FiTrash2, FiEye, FiX, FiCheck,
+  FiSearch, FiPlus, FiTrash2, FiX, FiCheck,
   FiAlertTriangle, FiShoppingCart, FiUser
 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -81,8 +81,8 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
   };
 
   const getResponsableNombre = () => {
-    if (responsableId === DEPT_PROVEEDURIA) return 'Proveeduría';
-    return usuarios.find(u => u.id === responsableId)?.nombre || 'Proveeduría';
+    if (responsableId === DEPT_PROVEEDURIA) return 'Compra';
+    return usuarios.find(u => u.id === responsableId)?.nombre || 'Compra';
   };
 
   const validItems = orderItems.filter(i => parseFloat(i.cantidadSolicitada) > 0);
@@ -155,7 +155,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
       )}
 
       {/* ══ PANEL IZQUIERDO: catálogo ══ */}
-      <div className="form-card pr-catalog">
+      <div className="pr-catalog">
         <h2>Seleccionar Productos</h2>
 
         {/* Buscador y filtro */}
@@ -218,7 +218,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
       </div>
 
       {/* ══ PANEL DERECHO: orden en construcción ══ */}
-      <div className="form-card pr-order">
+      <div className="pr-order">
         <h2>
           <FiShoppingCart size={18} />
           Solicitud de Compra
@@ -234,7 +234,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
             value={responsableId}
             onChange={e => setResponsableId(e.target.value)}
           >
-            <option value={DEPT_PROVEEDURIA}>Proveeduría (Departamento)</option>
+            <option value={DEPT_PROVEEDURIA}>Compra (Departamento)</option>
             {usuarios.map(u => (
               <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
@@ -242,49 +242,67 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
         </div>
 
         {/* Items de la orden */}
-        {orderItems.length === 0 ? (
-          <div className="pr-order-empty">
-            <FiShoppingCart size={36} />
-            <p>Agrega productos desde el catálogo</p>
-          </div>
-        ) : (
-          <div className="pr-order-items">
-            {orderItems.map(item => {
-              const isLow = item.stockActual <= item.stockMinimo;
-              return (
-                <div key={item.productoId} className="pr-order-item">
-                  <div className="pr-order-item-name">
-                    {isLow && <FiAlertTriangle size={13} className="pr-warn-icon" />}
-                    {item.nombreComercial}
-                    <span className="pr-order-item-stock">
-                      Stock actual: {item.stockActual} {item.unidad}
-                    </span>
-                  </div>
-                  <div className="pr-order-item-controls">
-                    <input
-                      type="number"
-                      min="0"
-                      max="32767"
-                      step="0.1"
-                      placeholder="Cantidad"
-                      value={item.cantidadSolicitada}
-                      onChange={e => updateQuantity(item.productoId, e.target.value)}
-                      className="pr-qty-input"
-                    />
-                    <span className="pr-unit-label">{item.unidad}</span>
-                    <button
-                      className="pr-remove-btn"
-                      onClick={() => removeItem(item.productoId)}
-                      title="Eliminar"
-                    >
-                      <FiTrash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="pr-order-grid-wrap">
+          <table className="pr-order-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orderItems.length === 0 ? (
+                <tr className="pr-order-empty-row">
+                  <td colSpan={2}>
+                    <div className="pr-order-empty">
+                      <FiShoppingCart size={36} />
+                      <p>Agrega productos desde el catálogo</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                orderItems.map(item => {
+                  const isLow = item.stockActual <= item.stockMinimo;
+                  return (
+                    <tr key={item.productoId}>
+                      <td>
+                        <div className="pr-order-item-name">
+                          {isLow && <FiAlertTriangle size={13} className="pr-warn-icon" />}
+                          {item.nombreComercial}
+                          <span className="pr-order-item-stock">
+                            Stock actual: {item.stockActual} {item.unidad}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="pr-order-item-controls">
+                          <input
+                            type="number"
+                            min="0"
+                            max="32767"
+                            step="0.1"
+                            placeholder="Cantidad"
+                            value={item.cantidadSolicitada}
+                            onChange={e => updateQuantity(item.productoId, e.target.value)}
+                            className="pr-qty-input"
+                          />
+                          <span className="pr-unit-label">{item.unidad}</span>
+                          <button
+                            className="pr-remove-btn"
+                            onClick={() => removeItem(item.productoId)}
+                            title="Eliminar"
+                          >
+                            <FiTrash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Notas */}
         <div className="form-control pr-notes">
@@ -300,14 +318,6 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
 
         {/* Acción */}
         <div className="form-actions">
-          <button
-            className="aur-btn-pill"
-            onClick={handleOpenPreview}
-            disabled={orderItems.length === 0}
-          >
-            <FiEye size={16} />
-            Ver resumen
-          </button>
           {orderItems.length > 0 && (
             <button
               className="aur-btn-text"
@@ -317,6 +327,14 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
               Limpiar
             </button>
           )}
+          <button
+            className="aur-btn-pill"
+            onClick={handleOpenPreview}
+            disabled={orderItems.length === 0}
+          >
+            <FiPlus size={16} />
+            Crear solicitud
+          </button>
         </div>
       </div>
 
