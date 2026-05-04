@@ -24,7 +24,13 @@ const MAX_LOC = 500;
 // (field-records, procurement-invoices, monitoring, autopilot/analyze,
 // strategy, products, hr/payroll-unit) into their own directories. New
 // entries should be exceptional and require explicit justification.
-const ALLOWLIST_OVER_500 = new Map();
+const ALLOWLIST_OVER_500 = new Map([
+  // Crossed the 500 LOC budget when block transitions logic + traceability
+  // record writes were added (#495). Follow-up: split into routes/groups/
+  // with transitions helpers in their own file (~160 LOC) and the CRUD
+  // routes in routes.js (~350 LOC), per the standards in §1.
+  ['functions/routes/groups.js', 'follow-up — split block-transitions helpers from CRUD routes'],
+]);
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;

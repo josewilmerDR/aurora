@@ -60,6 +60,7 @@ const ACTIONS = Object.freeze({
   PAYROLL_PAY: 'payroll.pay',
   PURCHASE_ORDER_CREATE: 'purchase_order.create',
   PURCHASE_RECEIPT: 'purchase.receipt',
+  PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
   INCOME_CREATE: 'income.create',
   INCOME_DELETE: 'income.delete',
 

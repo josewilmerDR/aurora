@@ -10,6 +10,7 @@ import Existencias from './features/inventory/pages/Existencias';
 import ProductosCatalogo from './features/inventory/pages/ProductosCatalogo';
 import Recepcion from './features/inventory/pages/Recepcion';
 import MovimientosHistorial from './features/inventory/pages/MovimientosHistorial';
+import RecepcionViewer from './features/inventory/pages/RecepcionViewer';
 import OCDesdeSolicitud from './features/procurement/pages/OCDesdeSolicitud';
 import OCNueva from './features/procurement/pages/OCNueva';
 import OCHistorial from './features/procurement/pages/OCHistorial';
@@ -340,6 +341,7 @@ function App() {
             <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><Existencias /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><Recepcion /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
+            <Route path="/bodega/agroquimicos/recepciones/:id" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><RecepcionViewer /></RoleRoute>} />
             <Route path="/bodega/:bodegaId" element={<RoleRoute path="/bodega/agroquimicos/existencias"><BodegaGenerica /></RoleRoute>} />
             {/* Legacy route redirects → canonical */}
             <Route path="/productos" element={<Navigate to="/bodega/agroquimicos/existencias" replace />} />

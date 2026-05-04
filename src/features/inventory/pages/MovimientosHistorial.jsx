@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
-import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiClipboard, FiFilter, FiSliders } from 'react-icons/fi';
+import { Link, useLocation } from 'react-router-dom';
+import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiFilter, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/agroquimicos.css';
 import '../../planting/styles/siembra-historial.css';
@@ -30,6 +30,7 @@ const COLS_CONSOLIDADO = [
 
 const COLS_INGRESOS = [
   { key: 'fecha',          label: 'Fecha',           type: 'date'   },
+  { key: 'recepcion',      label: 'Recepción',       type: 'text'   },
   { key: 'facturaNumero',  label: 'Factura',         type: 'text'   },
   { key: 'proveedor',      label: 'Proveedor',       type: 'text'   },
   { key: 'ocPoNumber',     label: 'OC',              type: 'text'   },
@@ -83,7 +84,8 @@ function getRowVal(m, key, prodMap) {
     case 'nombreComercial': return (m.nombreComercial || prod?.nombreComercial || '').toLowerCase();
     case 'unidad':          return (m.unidad || prod?.unidad || '').toLowerCase();
     case 'entrada':         return m.tipo === 'ingreso' ? (parseFloat(m.cantidad) || 0) : 0;
-    case 'salida':          return m.tipo === 'egreso'  ? (parseFloat(m.cantidad) || 0) : 0;
+    case 'salida':          return (m.tipo === 'egreso' || m.tipo === 'anulacion_ingreso') ? (parseFloat(m.cantidad) || 0) : 0;
+    case 'recepcion':       return (m.recepcionId || '').toLowerCase();
     case 'facturaNumero':   return (m.facturaNumero || '').toLowerCase();
     case 'proveedor':       return (m.proveedor || '').toLowerCase();
     case 'ocPoNumber':      return (m.ocPoNumber || '').toLowerCase();
@@ -186,7 +188,12 @@ function MovimientosHistorial() {
   const [productos,   setProductos]   = useState([]);
   const [loading,     setLoading]     = useState(true);
 
-  const [tab,        setTab]        = useState('consolidado');
+  const location = useLocation();
+  const initialTab = (() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    return ['consolidado', 'ingresos', 'egresos'].includes(t) ? t : 'consolidado';
+  })();
+  const [tab,        setTab]        = useState(initialTab);
   const [searchProd, setSearchProd] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -196,7 +203,7 @@ function MovimientosHistorial() {
   const [sortDir,       setSortDir]       = useState('desc');
   const [colFilters,    setColFilters]    = useState({});
   const [filterPopover, setFilterPopover] = useState(null);
-  const [visibleCols,   setVisibleCols]   = useState(makeAllVisible(COLS_CONSOLIDADO));
+  const [visibleCols,   setVisibleCols]   = useState(makeAllVisible(getColsForTab(initialTab)));
   const [colMenu,       setColMenu]       = useState(null);
 
   const currentCols = getColsForTab(tab);
@@ -377,15 +384,6 @@ function MovimientosHistorial() {
 
   if (loading) return <div className="pg-page-loading" />;
 
-  if (movimientos.length === 0) {
-    return (
-      <div className="pg-empty-state">
-        <FiClipboard size={36} />
-        <p>No hay movimientos</p>
-      </div>
-    );
-  }
-
   const hiddenCount = Object.values(visibleCols).filter(v => !v).length;
 
   return (
@@ -553,6 +551,7 @@ function ConsolidadoTable({ rows, prodMap, saldoMap, showSaldo, visibleCols, sor
             const idProducto = m.idProducto || prod?.idProducto || '';
             const cant       = parseFloat(m.cantidad) || 0;
             const isIngreso  = m.tipo === 'ingreso';
+            const isAnulacion = m.tipo === 'anulacion_ingreso';
             const referencia = isIngreso
               ? (m.facturaNumero || m.ocPoNumber || <E />)
               : (m.cedulaConsecutivo || (m.tareaId ? `T-${m.tareaId.slice(-6).toUpperCase()}` : <E />));
@@ -563,14 +562,22 @@ function ConsolidadoTable({ rows, prodMap, saldoMap, showSaldo, visibleCols, sor
             const saldo = saldoMap[m.id];
 
             return (
-              <tr key={m.id} className={isIngreso ? 'mhist-row-ingreso' : 'mhist-row-egreso'}>
+              <tr
+                key={m.id}
+                className={[
+                  isIngreso ? 'mhist-row-ingreso' : 'mhist-row-egreso',
+                  m.recepcionAnulada ? 'mhist-row-anulada' : '',
+                ].filter(Boolean).join(' ')}
+              >
                 {visibleCols.fecha && <td className="hist-col-fecha">{formatDate(m.fecha)}</td>}
                 {visibleCols.tipo && (
                   <td>
                     <span className={`mhist-tipo-badge mhist-tipo-badge--${m.tipo}`}>
                       {isIngreso
                         ? <><FiArrowDown size={11} /> Ingreso</>
-                        : <><FiArrowUp   size={11} /> Egreso</>}
+                        : isAnulacion
+                          ? <><FiArrowUp size={11} /> Anulación</>
+                          : <><FiArrowUp size={11} /> Egreso</>}
                     </span>
                   </td>
                 )}
@@ -641,8 +648,21 @@ function IngresoTable({ rows, visibleCols, sortThProps, columns, hiddenCount, on
             const iva        = parseFloat(m.iva)            || 0;
             const total      = cant * precioUnit * (1 + iva / 100);
             return (
-              <tr key={m.id}>
+              <tr key={m.id} className={m.recepcionAnulada ? 'mhist-row-anulada' : ''}>
                 {visibleCols.fecha && <td className="hist-col-fecha">{formatDate(m.fecha)}</td>}
+                {visibleCols.recepcion && (
+                  <td>
+                    {m.recepcionId
+                      ? <Link
+                          to={`/bodega/agroquimicos/recepciones/${m.recepcionId}`}
+                          className="recv-link"
+                          title={m.recepcionId}
+                        >
+                          REC-{m.recepcionId.slice(-6).toUpperCase()}
+                        </Link>
+                      : <E />}
+                  </td>
+                )}
                 {visibleCols.facturaNumero && <td>{m.facturaNumero || <E />}</td>}
                 {visibleCols.proveedor && <td>{m.proveedor || <E />}</td>}
                 {visibleCols.ocPoNumber && <td>{m.ocPoNumber || <E />}</td>}
