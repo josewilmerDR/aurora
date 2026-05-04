@@ -34,6 +34,7 @@
     { "collectionGroup": "reminders",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }, { "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "remindAt", "order": "ASCENDING" }] },
     { "collectionGroup": "users",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "rol",            "order": "ASCENDING"  }] },
     { "collectionGroup": "movimientos",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "cedulaId",       "order": "ASCENDING"  }] },
+    { "collectionGroup": "movimientos",          "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "recepcionId",    "order": "ASCENDING"  }] },
     { "collectionGroup": "productos",            "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "idProducto",     "order": "ASCENDING"  }] },
     { "collectionGroup": "maquinaria",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "idMaquina",      "order": "ASCENDING"  }] },
     { "collectionGroup": "labores",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "codigo",         "order": "ASCENDING"  }] },
