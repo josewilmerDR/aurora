@@ -51,6 +51,7 @@ import CedulaViewer from './features/applications/pages/CedulaViewer';
 import BodegasAdmin from './features/inventory/pages/BodegasAdmin';
 import CierreCombustible from './features/machinery/pages/CierreCombustible';
 import BodegaGenerica from './features/inventory/pages/BodegaGenerica';
+import BodegaCombustibles from './features/inventory/pages/BodegaCombustibles';
 import Siembra from './features/planting/pages/Siembra';
 import SiembraMateriales from './features/planting/pages/SiembraMateriales';
 import SiembraHistorial from './features/planting/pages/SiembraHistorial';
@@ -109,6 +110,7 @@ const ROUTE_MIN_ROLE = {
   '/bodega/agroquimicos/existencias': 'encargado',
   '/bodega/agroquimicos/recepcion': 'encargado',
   '/bodega/agroquimicos/movimientos': 'encargado',
+  '/bodega/combustibles': 'encargado',
   '/admin/bodegas': 'administrador',
   '/cosecha/despacho': 'encargado',
   '/siembra/materiales': 'encargado',
@@ -342,6 +344,7 @@ function App() {
             <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><Recepcion /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/recepciones/:id" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><RecepcionViewer /></RoleRoute>} />
+            <Route path="/bodega/combustibles" element={<RoleRoute path="/bodega/combustibles"><BodegaCombustibles /></RoleRoute>} />
             <Route path="/bodega/:bodegaId" element={<RoleRoute path="/bodega/agroquimicos/existencias"><BodegaGenerica /></RoleRoute>} />
             {/* Legacy route redirects → canonical */}
             <Route path="/productos" element={<Navigate to="/bodega/agroquimicos/existencias" replace />} />

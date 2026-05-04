@@ -72,6 +72,7 @@ const ALL_MODULES = [
           { label: 'Historial de Movimientos', to: '/bodega/agroquimicos/movimientos', icon: FiList, minRole: 'encargado' },
         ],
       },
+      { label: 'Combustibles', to: '/bodega/combustibles', icon: FiDroplet, minRole: 'encargado' },
     ],
   },
   {
@@ -312,7 +313,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const fetchGenericBodegas = useCallback(() => {
     apiFetch('/api/bodegas')
       .then(r => r.json())
-      .then(data => setGenericBodegas(data.filter(b => b.tipo !== 'agroquimicos')))
+      .then(data => setGenericBodegas(data.filter(b => b.tipo === 'generica')))
       .catch(() => {});
   }, [apiFetch]);
   const readActiveDrafts = () => {
