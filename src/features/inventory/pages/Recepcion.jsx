@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiZap, FiCamera, FiMenu, FiArrowLeft } from 'react-icons/fi';
-import InvoiceScan from '../components/InvoiceScan';
+import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiCpu, FiImage, FiList, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -61,8 +60,10 @@ function calcIvaAmount(f) {
 // ── Autocompletado con Portal (escapa del overflow del contenedor) ─────────
 function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder, autoFocus }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [hi, setHi]     = useState(0);
+  const [pos, setPos]   = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef(null);
+  const listRef  = useRef(null);
 
   const filtered = !value.trim()
     ? []
@@ -77,21 +78,61 @@ function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder
     setPos({ top: r.bottom + window.scrollY + 3, left: r.left + window.scrollX, width: Math.max(r.width, 280) });
   };
 
+  // Reset highlight whenever the filtered list changes (e.g., user typed).
+  useEffect(() => { setHi(0); }, [value]);
+
+  // Close on outside click (input or list).
+  useEffect(() => {
+    const handler = (e) => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          listRef.current  && !listRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { calcPos(); setOpen(true); e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (filtered[hi]) { onSelect(filtered[hi]); setOpen(false); e.preventDefault(); }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="ac-wrap">
       <input
         ref={inputRef}
         value={value}
         autoFocus={autoFocus}
+        autoComplete="off"
         onChange={e => { onChange(e.target.value); calcPos(); setOpen(true); }}
         onFocus={() => { calcPos(); setOpen(true); }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
       />
       {open && filtered.length > 0 && createPortal(
-        <ul className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
-          {filtered.map(p => (
-            <li key={p.id} onMouseDown={() => { onSelect(p); setOpen(false); }}>
+        <ul ref={listRef} className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
+          {filtered.map((p, i) => (
+            <li
+              key={p.id}
+              className={i === hi ? 'ac-dropdown-item--active' : ''}
+              onMouseDown={() => { onSelect(p); setOpen(false); }}
+              onMouseEnter={() => setHi(i)}
+            >
               <span className="ac-id">{p.idProducto}</span>
               <span className="ac-name">{p.nombreComercial}</span>
               <span className="ac-unit">{p.unidad}</span>
@@ -364,18 +405,21 @@ function Recepcion() {
   const [toast, setToast] = useState(null);
   const [catalogo, setCatalogo] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  // Cuando se llega desde RecepcionViewer.handleEditar, este state guarda
+  // el contexto del recepción anulado (id, short id) para mostrar un banner.
+  const [editandoRecepcion, setEditandoRecepcion] = useState(null);
   const [unidadesMedida, setUnidadesMedida] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
   const [loadedOrdenId, setLoadedOrdenId] = useState(null);
   const [loadedOrden, setLoadedOrden] = useState(null);
-  const [showScan, setShowScan] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [ocModalOpen, setOcModalOpen] = useState(false);
-  const [kebabOpen, setKebabOpen] = useState(false);
   const [step, setStep] = useState('form');
   const ocVisibles = ordenes.filter(o => o.estado !== 'recibida' && o.estado !== 'completada' && o.estado !== 'cancelada');
   const [invoiceImage, setInvoiceImage] = useState(null); // { base64, mediaType, previewUrl }
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const imageFileInputRef = useRef(null);
+  const scanFileInputRef = useRef(null);
   // Listas de opciones compartidas (persisten durante la sesión)
   const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
 
@@ -403,7 +447,44 @@ function Recepcion() {
       showToast(`${newFilas.length} producto(s) cargado(s) desde la factura. Revisa y guarda.`, 'success');
     }
     if (imgData) setInvoiceImage(imgData);
-    setShowScan(false);
+  };
+
+  const handleScanFile = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Solo se aceptan archivos de imagen.', 'error'); return; }
+    if (file.size > MAX_IMAGE_SIZE) { showToast('La imagen no debe superar 10 MB.', 'error'); return; }
+    setScanning(true);
+    try {
+      const imgData = await compressImage(file);
+      const res = await apiFetch('/api/compras/escanear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: imgData.base64, mediaType: imgData.mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error del servidor');
+
+      const lineasNormalizadas = (data.lineas || []).map(l => ({
+        productoId:        l.productoId || null,
+        nombreFactura:     l.nombreFactura || '',
+        cantidadFactura:   l.cantidadFactura ?? 0,
+        unidadFactura:     l.unidadFactura || '',
+        notas:             l.notas || '',
+        cantidadIngresada: l.cantidadCatalogo ?? l.cantidadFactura ?? 0,
+        unidad:            l.unidadCatalogo || l.unidadFactura || 'L',
+        subtotalLinea:     l.subtotalLinea ?? null,
+        idProducto:        '',
+        nombreComercial:   l.nombreFactura || '',
+      }));
+
+      handleProductsScanned(lineasNormalizadas, data.catalogo || [], imgData);
+    } catch (err) {
+      showToast(err.message || 'Error al escanear la factura.', 'error');
+    } finally {
+      setScanning(false);
+    }
   };
 
   const handleImageFileSelect = async (e) => {
@@ -483,6 +564,27 @@ function Recepcion() {
       }]);
       setProveedor(p.proveedor || '');
       window.scrollTo(0, 0);
+    } else if (location.state?.editandoRecepcion) {
+      const ed = location.state.editandoRecepcion;
+      setEditandoRecepcion({ originalId: ed.originalId, originalShortId: ed.originalShortId });
+      if (ed.fecha) setFecha(ed.fecha);
+      setFactura(ed.factura || '');
+      setProveedor(ed.proveedor || '');
+      const filasCargadas = (ed.items || []).map(it => {
+        const cant   = parseFloat(it.cantidad)       || 0;
+        const precio = parseFloat(it.precioUnitario) || 0;
+        return {
+          ...newRow(),
+          idProducto:      it.idProducto || '',
+          nombreComercial: it.nombreComercial || '',
+          unidad:          it.unidad || 'L',
+          cantidad:        cant > 0 ? String(cant) : '',
+          total:           cant > 0 && precio > 0 ? String(cant * precio) : '',
+          iva:             0,
+        };
+      });
+      if (filasCargadas.length > 0) setFilas(filasCargadas);
+      window.scrollTo(0, 0);
     }
   }, []);
 
@@ -541,19 +643,23 @@ function Recepcion() {
       if (loadedOrden) apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
 
       const backToList = !!loadedOrden;
+      const wasEditando = editandoRecepcion;
       setFilas([newRow()]);
       setFactura('');
       setProveedor('');
       setLoadedOrdenId(null);
       setLoadedOrden(null);
       setInvoiceImage(null);
+      setEditandoRecepcion(null);
       if (backToList) setStep('list');
 
-      const msg = [
-        data.creados   > 0 && `${data.creados} creado(s)`,
-        data.mergeados > 0 && `${data.mergeados} stock actualizado`,
-      ].filter(Boolean).join(' · ');
-      showToast(msg || 'Ingreso registrado.', 'success');
+      const msg = wasEditando
+        ? `Recepción re-registrada. La original (${wasEditando.originalShortId}) queda anulada.`
+        : ([
+            data.creados   > 0 && `${data.creados} creado(s)`,
+            data.mergeados > 0 && `${data.mergeados} stock actualizado`,
+          ].filter(Boolean).join(' · ') || 'Ingreso registrado.');
+      showToast(msg, 'success');
     } catch (err) {
       showToast(err.message || 'Error al registrar el ingreso.', 'error');
     } finally {
@@ -568,21 +674,6 @@ function Recepcion() {
 
       {(step !== 'list' || ocVisibles.length > 0) && (
       <div className="ingreso-title-row">
-        <div className="kebab-menu-wrap">
-          <button className="btn-kebab" onClick={() => setKebabOpen(o => !o)} title="Más opciones">
-            <FiMenu size={17} />
-          </button>
-          {kebabOpen && (
-            <>
-              <div className="kebab-backdrop" onClick={() => setKebabOpen(false)} />
-              <ul className="kebab-dropdown">
-                <li onClick={() => { navigate('/bodega/agroquimicos/movimientos'); setKebabOpen(false); }}>
-                  <FiFileText size={14} /> Ver historial
-                </li>
-              </ul>
-            </>
-          )}
-        </div>
         <h2 className="ingreso-page-title">Recepción de Mercancía</h2>
         {step === 'form' && (
           <button
@@ -597,7 +688,32 @@ function Recepcion() {
             )}
           </button>
         )}
+        <Link
+          to="/bodega/agroquimicos/movimientos?tab=ingresos"
+          className="aur-chip"
+          style={{ marginLeft: 'auto' }}
+        >
+          <FiList size={14} /> Historial
+        </Link>
       </div>
+      )}
+
+      {editandoRecepcion && step === 'form' && (
+        <div className="ingreso-editando-banner">
+          <FiFileText size={14} />
+          <span>
+            Editando — la recepción <strong>{editandoRecepcion.originalShortId}</strong> fue anulada.
+            Guarda para registrarla de nuevo.
+          </span>
+          <button
+            type="button"
+            className="ingreso-editando-dismiss"
+            onClick={() => setEditandoRecepcion(null)}
+            title="Quitar aviso"
+          >
+            <FiX size={14} />
+          </button>
+        </div>
       )}
 
       {/* ── Vista lista ── */}
@@ -647,16 +763,26 @@ function Recepcion() {
             <button
               type="button"
               className="ingreso-scan-btn"
-              onClick={() => setShowScan(true)}
+              onClick={() => scanFileInputRef.current?.click()}
+              disabled={scanning}
+              title="Toma una foto de la factura y se extraen los productos."
             >
-              <FiZap size={14} /> Escanear factura
+              <FiCpu size={14} /> {scanning ? 'Leyendo…' : 'Leer con IA'}
             </button>
+            <input
+              ref={scanFileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleScanFile}
+            />
             <label
               className={`ingreso-scan-btn ingreso-attach-label${invoiceImage ? ' ingreso-attach-label--active' : ''}`}
               htmlFor="invoiceImageInput"
               title="Adjuntar foto de la factura"
             >
-              <FiCamera size={14} /> {invoiceImage ? 'Cambiar imagen' : 'Adjuntar imagen'}
+              <FiImage size={14} /> Adjuntar
             </label>
             <input
               id="invoiceImageInput"
@@ -814,42 +940,44 @@ function Recepcion() {
                   </tr>
                 );
               })}
+              <tr className="ingreso-add-row-tr">
+                <td colSpan={8}>
+                  <button type="button" className="ingreso-add-row-btn" onClick={addFila}>
+                    <FiPlus size={13} /> Agregar fila
+                  </button>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
-        <div className="ingreso-add-row-bar">
-          <button type="button" className="ingreso-add-row-btn" onClick={addFila}>
-            <FiPlus size={13} /> Agregar fila
-          </button>
-        </div>
 
         <div className="ingreso-grid-footer">
-          <div className="ingreso-footer-actions">
-            <button type="button" className="aur-btn-text" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); if (loadedOrdenId) setStep('list'); setLoadedOrdenId(null); setLoadedOrden(null); }} disabled={saving}>
-              <FiX size={15} /> Cancelar
-            </button>
-            <button type="button" className="aur-btn-pill" onClick={handleGuardarTodo} disabled={saving}>
-              <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-          </div>
           {totalGeneral > 0 && (
             <div className="ingreso-totales">
               {ivaTotal > 0 && (
                 <div className="ingreso-total-item">
-                  <span className="ingreso-total-label">Total IVA</span>
+                  <span className="ingreso-total-label">Total IVA:</span>
                   <span className="ingreso-total-value ingreso-total-iva">
                     {ivaTotal.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
               <div className="ingreso-total-item">
-                <span className="ingreso-total-label">Total General</span>
+                <span className="ingreso-total-label">Total General:</span>
                 <span className="ingreso-total-value">
                   {totalGeneral.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
           )}
+          <div className="ingreso-footer-actions">
+            <button type="button" className="aur-btn-text" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); if (loadedOrdenId) setStep('list'); setLoadedOrdenId(null); setLoadedOrden(null); setEditandoRecepcion(null); }} disabled={saving}>
+              <FiX size={15} /> Limpiar
+            </button>
+            <button type="button" className="aur-btn-pill" onClick={handleGuardarTodo} disabled={saving}>
+              <FiCheck size={15} /> {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
         </div>
 
       </div>
@@ -973,25 +1101,6 @@ function Recepcion() {
       </div>
     )}
 
-    {/* Modal: Escanear factura */}
-    {showScan && (
-      <div className="ingreso-scan-overlay" onClick={e => { if (e.target === e.currentTarget) setShowScan(false); }}>
-        <div className="ingreso-scan-modal">
-          <button
-            type="button"
-            className="ingreso-scan-modal-close"
-            onClick={() => setShowScan(false)}
-            aria-label="Cerrar"
-          >
-            <FiX size={18} />
-          </button>
-          <InvoiceScan
-            onDone={() => {}}
-            onProductsScanned={handleProductsScanned}
-          />
-        </div>
-      </div>
-    )}
 
     {/* Lightbox: imagen de factura */}
     {lightboxSrc && (

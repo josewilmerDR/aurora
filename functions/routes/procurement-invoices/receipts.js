@@ -49,6 +49,32 @@ router.get('/api/recepciones', authenticate, async (req, res) => {
   }
 });
 
+router.get('/api/recepciones/:id', authenticate, async (req, res) => {
+  try {
+    const doc = await db.collection('recepciones').doc(req.params.id).get();
+    if (!doc.exists) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
+    }
+    const data = doc.data();
+    if (data.fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
+    }
+    // eslint-disable-next-line no-unused-vars
+    const { imageBase64, mediaType, ...rest } = data;
+    const toIso = (ts) => (ts && typeof ts.toDate === 'function') ? ts.toDate().toISOString() : null;
+    res.status(200).json({
+      id: doc.id,
+      ...rest,
+      fechaRecepcion: toIso(data.fechaRecepcion),
+      createdAt: toIso(data.createdAt),
+      anuladaAt: toIso(data.anuladaAt),
+    });
+  } catch (error) {
+    console.error('[recepciones:get]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch recepción.', 500);
+  }
+});
+
 router.post('/api/recepciones', authenticate, async (req, res) => {
   try {
     const { ordenCompraId, poNumber, proveedor, items, notas, imageBase64, mediaType } = req.body;
@@ -204,6 +230,175 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[recepciones:post]', error);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register the reception.', 500);
+  }
+});
+
+// Anular una recepción. Reglas:
+//   - 404 si no existe o pertenece a otra finca.
+//   - 409 si ya está anulada (idempotencia).
+//   - 422 si algún producto tiene stockActual < cantidadRecibida (no se puede
+//     deshacer un ingreso que ya fue parcialmente consumido). Se devuelve la
+//     lista de productos bloqueantes.
+//   - Reversión por compensating entries: cada item genera un movimiento
+//     `tipo: 'anulacion_ingreso'` con cantidad igual a la recibida; el
+//     stockActual se decrementa con FieldValue.increment. Los movimientos
+//     originales no se mutan (ledger inmutable) excepto por una marca
+//     `recepcionAnulada: true` para que la UI pueda mostrarlos como anulados
+//     sin tener que hacer joins.
+//   - Si la recepción venía de una OC, la cantidadRecibida de cada item se
+//     decrementa y el estado de la OC se recalcula.
+router.post('/api/recepciones/:id/anular', authenticate, async (req, res) => {
+  try {
+    const razon = (req.body?.razon || '').trim();
+    if (!razon) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Razón es requerida.', 400);
+    }
+    if (razon.length > 200) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Razón excede 200 caracteres.', 400);
+    }
+
+    const recepcionRef = db.collection('recepciones').doc(req.params.id);
+    const recepcionDoc = await recepcionRef.get();
+    if (!recepcionDoc.exists) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
+    }
+    const recepcion = recepcionDoc.data();
+    if (recepcion.fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
+    }
+    if (recepcion.anulada) {
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'La recepción ya está anulada.', 409);
+    }
+
+    const items = Array.isArray(recepcion.items) ? recepcion.items : [];
+    const itemsConProducto = items.filter(it => it.productoId);
+
+    // 1. Validar stock disponible en cada producto.
+    const productoDocs = await Promise.all(
+      itemsConProducto.map(it => db.collection('productos').doc(it.productoId).get())
+    );
+    const blocking = [];
+    for (let i = 0; i < itemsConProducto.length; i++) {
+      const item = itemsConProducto[i];
+      const doc = productoDocs[i];
+      const cant = parseFloat(item.cantidadRecibida) || 0;
+      const stock = doc.exists ? (parseFloat(doc.data().stockActual) || 0) : 0;
+      if (stock < cant) {
+        blocking.push({
+          nombreComercial: item.nombreComercial || doc.data()?.nombreComercial || item.idProducto || 'Producto',
+          stockActual: stock,
+          cantidadAReversar: cant,
+          unidad: item.unidad || doc.data()?.unidad || '',
+        });
+      }
+    }
+    if (blocking.length > 0) {
+      const lines = blocking.map(b =>
+        `${b.nombreComercial}: stock ${b.stockActual} ${b.unidad} < a reversar ${b.cantidadAReversar} ${b.unidad}`
+      ).join('; ');
+      return sendApiError(res,
+        ERROR_CODES.VALIDATION_FAILED,
+        `No se puede anular: stock insuficiente. ${lines}`,
+        422
+      );
+    }
+
+    // 2. Localizar movimientos originales (para flag recepcionAnulada).
+    const movsSnap = await db.collection('movimientos')
+      .where('recepcionId', '==', req.params.id)
+      .where('fincaId', '==', req.fincaId)
+      .get();
+
+    const batch = db.batch();
+    const motivo = `Anulación recepción REC-${req.params.id.slice(-6).toUpperCase()}`;
+
+    // 3. Decrementar stock + escribir movimientos compensatorios.
+    for (const item of itemsConProducto) {
+      const cant = parseFloat(item.cantidadRecibida) || 0;
+      batch.update(db.collection('productos').doc(item.productoId), {
+        stockActual: FieldValue.increment(-cant),
+      });
+      batch.set(db.collection('movimientos').doc(), {
+        tipo: 'anulacion_ingreso',
+        productoId: item.productoId,
+        idProducto: item.idProducto || '',
+        nombreComercial: item.nombreComercial || '',
+        cantidad: cant,
+        unidad: item.unidad || '',
+        precioUnitario: parseFloat(item.precioUnitario) || 0,
+        proveedor: recepcion.proveedor || '',
+        fecha: Timestamp.now(),
+        motivo,
+        razon,
+        recepcionId: req.params.id,
+        fincaId: req.fincaId,
+      });
+    }
+
+    // 4. Marcar movimientos originales como anulados (denormalización para lectura).
+    for (const mov of movsSnap.docs) {
+      const d = mov.data();
+      if (d.tipo === 'ingreso') {
+        batch.update(mov.ref, { recepcionAnulada: true });
+      }
+    }
+
+    // 5. Actualizar la recepción.
+    batch.update(recepcionRef, {
+      anulada: true,
+      anuladaAt: Timestamp.now(),
+      anuladaPor: req.uid,
+      anuladaRazon: razon,
+    });
+
+    // 6. Si venía de una OC, decrementar cantidadRecibida y recalcular estado.
+    if (recepcion.ordenCompraId) {
+      const ocRef = db.collection('ordenes_compra').doc(recepcion.ordenCompraId);
+      const ocDoc = await ocRef.get();
+      if (ocDoc.exists && ocDoc.data().fincaId === req.fincaId) {
+        const ocData = ocDoc.data();
+        const ocItems = ocData.items || [];
+        const updatedItems = ocItems.map(ocItem => {
+          const match = items.find(ri =>
+            ri.productoId === ocItem.productoId ||
+            (ri.nombreComercial || '').toLowerCase().trim() === (ocItem.nombreComercial || '').toLowerCase().trim()
+          );
+          if (!match) return ocItem;
+          const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
+          const reverted = parseFloat(match.cantidadRecibida) || 0;
+          return { ...ocItem, cantidadRecibida: Math.max(0, prevReceived - reverted) };
+        });
+        const totalRecibido = updatedItems.reduce((s, i) => s + (parseFloat(i.cantidadRecibida) || 0), 0);
+        const allFull = updatedItems.every(i =>
+          (parseFloat(i.cantidad) || 0) === 0 ||
+          (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
+        );
+        const nextEstado = totalRecibido === 0
+          ? 'pendiente'
+          : (allFull ? 'recibida' : 'recibida_parcialmente');
+        batch.update(ocRef, { estado: nextEstado, items: updatedItems });
+      }
+    }
+
+    await batch.commit();
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PURCHASE_RECEIPT_VOID || 'PURCHASE_RECEIPT_VOID',
+      target: { type: 'recepcion', id: req.params.id },
+      metadata: {
+        proveedor: (recepcion.proveedor || '').slice(0, 200),
+        itemsCount: itemsConProducto.length,
+        razon: razon.slice(0, 200),
+      },
+      severity: SEVERITY.WARNING,
+    });
+
+    res.status(200).json({ id: req.params.id, anulada: true });
+  } catch (error) {
+    console.error('[recepciones:anular]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to void reception.', 500);
   }
 });
 

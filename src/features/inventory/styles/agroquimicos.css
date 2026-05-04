@@ -428,7 +428,11 @@
 
 /* ── Ingreso de productos: grilla editable ─────────────────────────────── */
 
-.ingreso-grid-card {
+.form-card.ingreso-grid-card {
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
 }
 
 .ingreso-grid-header {
@@ -547,8 +551,8 @@
 
 .ingreso-grid-wrapper {
   overflow-x: auto;
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
+  border-top: 1px solid rgba(230, 242, 255, 0.32);
+  border-bottom: 1px solid rgba(230, 242, 255, 0.32);
   min-height: 260px;
 }
 
@@ -573,12 +577,12 @@
   letter-spacing: 0.05em;
   color: var(--aurora-light);
   opacity: 0.55;
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid rgba(230, 242, 255, 0.32);
   white-space: nowrap;
 }
 
 .ingreso-table tbody tr {
-  border-bottom: 1px solid var(--aurora-border);
+  border-bottom: 1px solid rgba(230, 242, 255, 0.32);
   transition: background-color 0.12s;
 }
 
@@ -598,8 +602,8 @@
 .ingreso-table td input,
 .ingreso-table td select {
   width: 100%;
-  background-color: transparent;
-  border: 1px solid transparent;
+  background-color: rgba(13, 26, 38, 0.4);
+  border: 1px solid rgba(230, 242, 255, 0.12);
   border-radius: 6px;
   color: var(--aurora-light);
   padding: 6px 8px;
@@ -690,42 +694,44 @@
   text-align: right;
 }
 
-.ingreso-add-row-bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 4px 6px;
-  border-top: 1px dashed var(--aurora-border);
+/* Fila "agregar" — actúa como un slot vacío justo bajo la última fila
+   activa para invitar al usuario a añadir otra entrada. */
+.ingreso-add-row-tr td {
+  padding: 0 !important;
+  border-bottom: none !important;
 }
 
 .ingreso-add-row-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  width: 100%;
   background: none;
-  border: none;
+  border: 1px dashed transparent;
   color: var(--aurora-green);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 5px;
+  padding: 9px 12px;
   opacity: 0.75;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background-color 0.15s, border-color 0.15s;
+  font-family: inherit;
+  text-align: left;
 }
 
 .ingreso-add-row-btn:hover {
   opacity: 1;
-  background: rgba(51, 255, 153, 0.07);
+  background: rgba(51, 255, 153, 0.06);
+  border-color: rgba(51, 255, 153, 0.4);
 }
 
-/* Footer de la grilla: totales + botones */
+/* Footer de la grilla: totales (arriba) + botones (abajo) */
 .ingreso-grid-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .ingreso-footer-actions {
@@ -749,25 +755,24 @@
 
 .ingreso-totales {
   display: flex;
-  gap: 24px;
-  align-items: center;
+  gap: 18px;
+  align-items: baseline;
+  justify-content: flex-end;
   flex-wrap: wrap;
 }
 
 .ingreso-total-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .ingreso-total-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--aurora-light);
-  opacity: 0.45;
+  opacity: 0.6;
 }
 
 .ingreso-total-value {
@@ -814,8 +819,9 @@
   transition: background-color 0.1s;
 }
 
-.ac-dropdown li:hover {
-  background-color: rgba(51, 255, 153, 0.07);
+.ac-dropdown li:hover,
+.ac-dropdown li.ac-dropdown-item--active {
+  background-color: rgba(51, 255, 153, 0.12);
 }
 
 .ingreso-um-input {
@@ -2355,8 +2361,8 @@ select.pg-input option {
 /* ── OC panel (right column) ────────────────────────────────────────────── */
 .ingreso-oc-panel {
   background: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
+  border-top: 1px solid var(--aurora-border);
+  border-bottom: 1px solid var(--aurora-border);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -2746,8 +2752,26 @@ select.pg-input option {
     flex-direction: column;
   }
 
+  /* Cada wrap (Fecha / Factura / Proveedor) ocupa la fila completa con
+     label inline a la izquierda + input que llena el resto. */
   .ingreso-header-right > div {
     width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ingreso-header-right > div > label {
+    flex: 0 0 5.5rem;
+    margin: 0;
+  }
+
+  .ingreso-header-right .ingreso-fecha-input,
+  .ingreso-header-right .ingreso-factura-input,
+  .ingreso-header-right .ingreso-proveedor-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
   }
 
   .ingreso-grid-footer {
@@ -3197,4 +3221,301 @@ a.btn-historial {
     right: 8px;
     max-width: calc(100vw - 16px);
   }
+}
+
+/* ── Recepción viewer + link en Historial ─────────────────────────────────
+   Snapshot read-only de una recepción. La trazabilidad por línea en el
+   historial usa el mismo recepcionId como link. */
+.recv-link {
+  color: var(--aurora-green);
+  text-decoration: none;
+  border-bottom: 1px dashed transparent;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s ease;
+}
+.recv-link:hover {
+  border-bottom-color: var(--aurora-green);
+}
+
+.recv-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.recv-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  margin: 0;
+}
+
+.recv-id {
+  font-family: 'Menlo', 'Consolas', monospace;
+  font-size: 0.85rem;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+}
+
+.recv-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(230, 242, 255, 0.14);
+  border-bottom: 1px solid rgba(230, 242, 255, 0.14);
+  margin-bottom: 8px;
+}
+
+.recv-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recv-meta-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+}
+
+.recv-meta-value {
+  font-size: 0.95rem;
+  color: var(--aurora-light);
+}
+
+.recv-notas {
+  background: rgba(230, 242, 255, 0.04);
+  border-left: 3px solid rgba(230, 242, 255, 0.18);
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.recv-notas-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin-bottom: 4px;
+}
+
+.recv-notas p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  white-space: pre-wrap;
+}
+
+.recv-total-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 4px 0;
+}
+
+.recv-image-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.recv-image-thumb {
+  background: none;
+  border: 1px solid rgba(230, 242, 255, 0.18);
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  width: fit-content;
+  transition: border-color 0.15s ease;
+}
+
+.recv-image-thumb:hover {
+  border-color: var(--aurora-green);
+}
+
+.recv-image-thumb img {
+  display: block;
+  max-width: 220px;
+  max-height: 160px;
+  object-fit: cover;
+}
+
+.recv-anulada-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ff6680;
+  background: rgba(255, 102, 128, 0.12);
+  border: 1px solid rgba(255, 102, 128, 0.4);
+  padding: 3px 9px;
+  border-radius: 99px;
+}
+
+.recv-anulada-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: rgba(255, 102, 128, 0.08);
+  border-left: 3px solid #ff6680;
+  border-radius: 4px;
+  padding: 12px 14px;
+  color: var(--aurora-light);
+  margin-bottom: 4px;
+}
+
+.recv-anulada-banner svg {
+  color: #ff6680;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.recv-anulada-meta {
+  font-size: 0.82rem;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.recv-anulada-meta em {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.recv-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid rgba(230, 242, 255, 0.14);
+  margin-top: 12px;
+}
+
+.recv-anular-warn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  margin: 0 0 14px;
+}
+
+.recv-anular-warn svg {
+  color: #ffb84d;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.recv-razon-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--aurora-light);
+  position: relative;
+}
+
+.recv-razon-label textarea {
+  width: 100%;
+  background: var(--aurora-dark-blue);
+  border: 1px solid rgba(230, 242, 255, 0.18);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  padding: 9px 11px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.recv-razon-label textarea:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+.recv-razon-count {
+  align-self: flex-end;
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.5;
+  margin-top: -2px;
+}
+
+/* Movimiento original cuyo recepción fue anulada: opacidad reducida + tachado.
+   Sirve como pista visual de que esa entrada de stock fue revertida. */
+.mhist-row-anulada td {
+  opacity: 0.55;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.mhist-row-anulada .recv-link {
+  text-decoration: none;
+}
+
+/* Banner mostrado en el form de Recepción cuando se llega desde el flujo
+   "Editar" del viewer. Indica que la recepción original fue anulada y que
+   guardar va a crear una nueva. */
+.ingreso-editando-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(51, 153, 255, 0.08);
+  border-left: 3px solid rgba(51, 153, 255, 0.7);
+  border-radius: 4px;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+  margin-bottom: 4px;
+}
+
+.ingreso-editando-banner svg {
+  color: rgba(51, 153, 255, 0.9);
+  flex-shrink: 0;
+}
+
+.ingreso-editando-banner strong {
+  font-weight: 600;
+  color: var(--aurora-green);
+  font-family: 'Menlo', 'Consolas', monospace;
+  letter-spacing: 0.02em;
+}
+
+.ingreso-editando-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+}
+
+.ingreso-editando-dismiss:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
 }
