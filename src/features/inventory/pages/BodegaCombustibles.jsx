@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   FiBox, FiTool, FiTruck, FiDroplet, FiPackage,
   FiPlus, FiEdit2, FiTrash2, FiArrowUp, FiArrowDown,
@@ -234,8 +234,7 @@ function MovColMenu({ x, y, visibleCols, onToggle, onClose }) {
   );
 }
 
-function BodegaGenerica() {
-  const { bodegaId } = useParams();
+function BodegaCombustibles() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
 
@@ -244,6 +243,8 @@ function BodegaGenerica() {
   const [movs,     setMovs]     = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [tab,      setTab]      = useState('existencias');
+
+  const bodegaId = bodega?.id;
 
   // Datos para selects del formulario de movimientos
   const [lotes,      setLotes]      = useState([]);
@@ -364,21 +365,21 @@ function BodegaGenerica() {
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchAll = () => {
     setLoading(true);
-    return Promise.all([
-      apiFetch('/api/bodegas').then(r => r.json()),
-      apiFetch(`/api/bodegas/${bodegaId}/items`).then(r => r.json()),
-      apiFetch('/api/lotes').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
-      apiFetch('/api/hr/fichas').then(r => r.json()),
-      apiFetch('/api/maquinaria').then(r => r.json()),
-      apiFetch('/api/labores').then(r => r.json()),
-    ])
-      .then(([bodegas, itemsData, lotesData, usuariosData, fichasData, maquinariaData, laboresData]) => {
-        const b = bodegas.find(x => x.id === bodegaId);
-        if (!b || b.tipo === 'agroquimicos') { navigate('/'); return; }
-        if (b.tipo === 'combustibles') { navigate('/bodega/combustibles', { replace: true }); return; }
+    return apiFetch('/api/bodegas').then(r => r.json())
+      .then(async (bodegas) => {
+        const b = Array.isArray(bodegas) ? bodegas.find(x => x.tipo === 'combustibles') : null;
+        if (!b) { navigate('/'); return; }
         setBodega(b);
-        setItems(itemsData);
+        const [itemsData, lotesData, usuariosData, fichasData, maquinariaData, laboresData] =
+          await Promise.all([
+            apiFetch(`/api/bodegas/${b.id}/items`).then(r => r.json()),
+            apiFetch('/api/lotes').then(r => r.json()),
+            apiFetch('/api/users').then(r => r.json()),
+            apiFetch('/api/hr/fichas').then(r => r.json()),
+            apiFetch('/api/maquinaria').then(r => r.json()),
+            apiFetch('/api/labores').then(r => r.json()),
+          ]);
+        setItems(Array.isArray(itemsData) ? itemsData : []);
         setLotes(Array.isArray(lotesData) ? lotesData : []);
         setUsuarios(Array.isArray(usuariosData) ? usuariosData : []);
         setFichas(Array.isArray(fichasData) ? fichasData : []);
@@ -390,14 +391,15 @@ function BodegaGenerica() {
   };
 
   const fetchMovs = () => {
+    if (!bodegaId) return Promise.resolve();
     return apiFetch(`/api/bodegas/${bodegaId}/movimientos`)
       .then(r => r.json())
       .then(setMovs)
       .catch(() => showToast('Error al cargar movimientos.', 'error'));
   };
 
-  useEffect(() => { fetchAll(); }, [bodegaId]);
-  useEffect(() => { if (tab === 'movimientos') fetchMovs(); }, [tab, bodegaId]);
+  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { if (tab === 'movimientos' && bodegaId) fetchMovs(); }, [tab, bodegaId]);
 
   // ── Item CRUD ─────────────────────────────────────────────────────────────
   const handleSaveItem = async () => {
@@ -1139,4 +1141,4 @@ function BodegaGenerica() {
   );
 }
 
-export default BodegaGenerica;
+export default BodegaCombustibles;

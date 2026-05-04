@@ -31,7 +31,7 @@ function BodegasAdmin() {
   const fetchBodegas = () => {
     apiFetch('/api/bodegas')
       .then(r => r.json())
-      .then(data => setBodegas(data.filter(b => b.tipo !== 'agroquimicos')))
+      .then(data => setBodegas(data.filter(b => b.tipo === 'generica')))
       .catch(() => showToast('Error al cargar bodegas.', 'error'))
       .finally(() => setLoading(false));
   };
