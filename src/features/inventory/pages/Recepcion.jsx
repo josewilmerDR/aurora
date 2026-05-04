@@ -852,7 +852,7 @@ function Recepcion() {
           <table className="ingreso-table">
             <thead>
               <tr>
-                <th className="col-id">ID Producto <span className="col-optional">(opcional)</span></th>
+                <th className="col-id">ID Producto</th>
                 <th className="col-name">Nombre Comercial</th>
                 <th className="col-narrow">UM</th>
                 <th className="col-number">Cantidad</th>
