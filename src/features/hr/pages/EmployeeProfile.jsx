@@ -619,7 +619,7 @@ function EmployeeProfile() {
           {view === 'hub' && renderHubPanel()}
 
           {view === 'form' && (
-            <div className="form-card">
+            <div className="form-card form-card--ficha-edit">
               <h2>{isEditing ? `Editando: ${selectedUser?.nombre || ''}` : 'Nuevo Empleado'}</h2>
               <form onSubmit={handleSubmit} noValidate ref={formRef} className="lote-form" style={{ marginTop: 16 }}>
 
@@ -788,12 +788,12 @@ function EmployeeProfile() {
                 </div>
 
                 <div className="form-actions">
+                  <button type="button" className="aur-btn-text" onClick={handleCancel}>
+                    <FiX /> Cancelar
+                  </button>
                   <button type="submit" className="aur-btn-pill" disabled={saving}>
                     <FiSave />
                     {saving ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Empleado'}
-                  </button>
-                  <button type="button" className="aur-btn-text" onClick={handleCancel}>
-                    <FiX /> Cancelar
                   </button>
                 </div>
               </form>

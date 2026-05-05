@@ -1,4 +1,28 @@
 
+/* ── EmployeeProfile form card: drop side + top borders ────────────────────
+   El form de creación/edición de ficha comparte la clase `.form-card`
+   (legacy-globals) con muchas otras páginas; este modificador elimina los
+   bordes izquierdo, derecho y superior de ese formulario sin tocar el
+   resto. Sólo se conserva el borde inferior. */
+.form-card.form-card--ficha-edit {
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+/* Mobile: Cancelar = 40%, submit (Crear/Guardar) = 60%, side by side. */
+@media (max-width: 600px) {
+  .form-card--ficha-edit .form-actions {
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: 10px;
+  }
+  .form-card--ficha-edit .form-actions > button {
+    min-width: 0;
+    justify-content: center;
+  }
+}
+
 /* ── Remove number input spinners ─────────────────────────────────────────── */
 .ficha-page-layout input[type=number]::-webkit-outer-spin-button,
 .ficha-page-layout input[type=number]::-webkit-inner-spin-button {
