@@ -610,10 +610,7 @@ function BodegaCombustibles() {
         activeItems.length === 0 ? (
           <div className="empty-state">
             <FiBox size={36} />
-            <p>Esta bodega no tiene productos registrados.</p>
-            <button className="aur-btn-pill" onClick={() => setItemModal({ mode: 'create', data: { ...EMPTY_ITEM } })}>
-              <FiPlus size={14} /> Agregar primer producto
-            </button>
+            <p>Sin combustibles registrados</p>
           </div>
         ) : (
           <div className="bg-table-wrap">
