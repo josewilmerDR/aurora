@@ -609,9 +609,6 @@ function BodegaGenerica() {
           <div className="empty-state">
             <FiBox size={36} />
             <p>Esta bodega no tiene productos registrados.</p>
-            <button className="aur-btn-pill" onClick={() => setItemModal({ mode: 'create', data: { ...EMPTY_ITEM } })}>
-              <FiPlus size={14} /> Agregar primer producto
-            </button>
           </div>
         ) : (
           <div className="bg-table-wrap">
@@ -823,7 +820,7 @@ function BodegaGenerica() {
                   className="aur-input"
                   value={itemModal.data.nombre}
                   onChange={e => setItemModal(m => ({ ...m, data: { ...m.data, nombre: e.target.value } }))}
-                  placeholder="Ej: Diesel"
+                  placeholder="Ej: Tornillos 1/4"
                   maxLength={200}
                   autoFocus
                 />
