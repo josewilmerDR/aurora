@@ -226,16 +226,21 @@
   text-align: left;
   cursor: pointer;
   font-family: inherit;
+  transition: background 0.18s ease, color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mn-module-header:hover {
+.mn-module-header:hover,
+.mn-module-header.is-open {
   color: var(--aur-text);
+}
+
+.mn-module-header.is-open {
   background: var(--aur-bg-hover);
 }
 
-.mn-module-header svg:last-child {
-  margin-left: auto;
-  opacity: 0.6;
+.mn-module-header:active {
+  background: var(--aur-bg-hover);
 }
 
 .mn-module-items {
@@ -257,12 +262,70 @@
   text-align: left;
   cursor: pointer;
   font-family: inherit;
+  transition: background 0.18s ease, color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mn-subgroup-header svg:last-child { margin-left: auto; }
+.mn-subgroup-header:hover,
+.mn-subgroup-header.is-open {
+  color: var(--aur-text);
+}
+
+.mn-subgroup-header:active {
+  background: var(--aur-bg-hover);
+}
 
 .mn-subgroup-items {
   padding-left: 12px;
+}
+
+/* ── Chevron rotation + collapse animation ────────────────────────────────
+   Single chevron rotates 90° en lugar de swap right→down. La altura se
+   anima vía grid-template-rows 0fr ↔ 1fr (truco moderno y robusto para
+   contenido de altura desconocida). prefers-reduced-motion deshabilita
+   ambas animaciones para usuarios sensibles a movimiento. */
+.mn-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+}
+
+.mn-module-header.is-open .mn-chevron,
+.mn-subgroup-header.is-open .mn-chevron {
+  transform: rotate(90deg);
+  opacity: 1;
+}
+
+.mn-collapse {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mn-collapse.is-open {
+  max-height: 1200px;
+}
+
+.mn-collapse-inner {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.3s ease 0.08s, transform 0.3s ease 0.08s;
+}
+
+.mn-collapse.is-open .mn-collapse-inner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mn-chevron,
+  .mn-collapse,
+  .mn-collapse-inner,
+  .mn-module-header,
+  .mn-subgroup-header {
+    transition: none;
+  }
 }
 
 /* ── Config sheet ─────────────────────────────────────────────────────────── */
