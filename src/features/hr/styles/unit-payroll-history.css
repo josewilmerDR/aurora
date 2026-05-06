@@ -1,0 +1,210 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   UNIT PAYROLL HISTORY — Historial Salario por Unidad
+
+   Construido sobre las primitives de aurora.css (.aur-sheet, .aur-section,
+   .aur-table, .aur-th-sortable, .aur-input, .aur-chip…). Aquí solo viven
+   los pedazos únicos de la página:
+     · ancho/min-width de la tabla (13 columnas)
+     · helpers de celda (consecutivo monoespaciado, total destacado)
+     · transformación tabla → tarjetas en móvil (≤ 720px)
+
+   Mobile cards: cada <tr> se renderiza como un bloque vertical donde cada
+   <td> usa su `data-label="…"` como etiqueta. Esto evita scroll horizontal
+   en pantallas chicas y es mucho más legible que una tabla de 13 columnas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.uph-page {
+  /* aur-sheet ya provee tipografía y suavizado; sólo aseguramos que el
+     ancho efectivo no se salga del viewport en pantallas chicas. */
+  max-width: 100%;
+}
+
+.uph-header-link {
+  color: var(--aur-accent);
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.uph-header-link:hover {
+  text-decoration: underline;
+}
+
+/* Contador "Mostrando X de Y filas" debajo del section-header. */
+.uph-count {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 10px 4px;
+}
+
+/* ── Tabla ────────────────────────────────────────────────────────────────
+   13 columnas. min-width fuerza scroll horizontal en desktop estrecho y
+   tablet; en móvil colapsamos a tarjetas (ver media query). */
+.uph-table {
+  min-width: 1400px;
+}
+
+.uph-table th,
+.uph-table td {
+  vertical-align: middle;
+}
+
+.uph-td-nowrap {
+  white-space: nowrap;
+}
+
+.uph-td-consecutivo {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--aur-text-2);
+}
+
+/* Total devengado de la fila — destacado en accent. */
+.uph-td-total {
+  font-weight: 600;
+  color: var(--aur-accent);
+  white-space: nowrap;
+}
+
+/* ── Mobile (≤ 720px): tabla → tarjetas ───────────────────────────────────
+   Cada fila se vuelve un bloque vertical. Los <td> apilan label (data-label)
+   y valor en dos columnas internas. Permite leer todos los campos sin scroll
+   horizontal y conserva la jerarquía de la fila vía un encabezado destacado
+   (consecutivo + total). */
+@media (max-width: 720px) {
+  .uph-table-wrap {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .uph-table {
+    display: block;
+    min-width: 0;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .uph-table thead {
+    /* Sólo un screen-reader puede llegar a estos labels — visualmente los
+       reemplazamos por los data-label de cada celda. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .uph-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .uph-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    background: var(--aur-bg-input);
+    border: 1px solid var(--aur-divider);
+    border-radius: var(--aur-r-card);
+    padding: 8px 0;
+    transition: border-color 0.15s ease;
+  }
+  .uph-table tbody tr:hover {
+    background: var(--aur-bg-input);
+    border-color: var(--aur-divider-2);
+  }
+  .uph-table tbody tr:last-child td {
+    /* Anulamos el "border-bottom: none" del último td del tbody global,
+       que deja la última card sin separador entre celdas. */
+    border-bottom: 1px solid var(--aur-divider);
+  }
+  .uph-table tbody tr td:last-child {
+    border-bottom: none;
+  }
+
+  .uph-table tbody tr td {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--aur-divider);
+    text-align: left;
+    white-space: normal;
+    /* Resetea overrides del aur-table (padding-left/right del primer y
+       último td) para que todas las "filas internas" de la tarjeta queden
+       alineadas. */
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  /* Etiqueta a la izquierda — viene del attribute data-label="…" del JSX. */
+  .uph-table tbody tr td::before {
+    content: attr(data-label);
+    font-size: var(--aur-fs-caption);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--aur-text-3);
+  }
+
+  /* En móvil, los aur-td-num pierden el text-align: right (no tiene sentido
+     en una grilla de 2 columnas). Pero conservamos tabular-nums. */
+  .uph-table tbody tr td.aur-td-num {
+    text-align: left;
+  }
+
+  /* Encabezado de la tarjeta: consecutivo destacado y separado del resto
+     con un borde discontinuo. Usa el mismo grid label-valor que las demás
+     celdas para mantener alineación vertical limpia. */
+  .uph-table tbody tr td.uph-td-consecutivo {
+    font-size: var(--aur-fs-callout);
+    font-weight: 700;
+    color: var(--aur-text);
+    border-bottom: 1px dashed var(--aur-divider);
+    padding-bottom: 10px;
+    margin-bottom: 2px;
+  }
+  .uph-table tbody tr td.uph-td-consecutivo::before {
+    color: var(--aur-text-2);
+    font-weight: 700;
+  }
+
+  /* Total resaltado: cierre de tarjeta sin borde inferior, peso visual. */
+  .uph-table tbody tr td.uph-td-total {
+    border-top: 1px dashed var(--aur-divider);
+    margin-top: 4px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: var(--aur-fs-body);
+  }
+
+  /* Compactamos el contador para que respire mejor en pantallas chicas. */
+  .uph-count {
+    margin-left: 0;
+  }
+}
+
+/* ── Mobile chiquito (≤ 380px) — apilar label sobre valor ──────────────── */
+@media (max-width: 380px) {
+  .uph-table tbody tr td {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 8px 12px;
+  }
+  .uph-table tbody tr td::before {
+    margin-bottom: 2px;
+  }
+}
