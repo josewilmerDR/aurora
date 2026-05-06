@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import '../styles/hr.css';
 import {
-  FiSave, FiUserPlus, FiX, FiClipboard,
+  FiSave, FiUserPlus, FiX, FiUsers,
   FiEdit, FiTrash2, FiArrowLeft, FiMail, FiPhone, FiChevronRight,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
@@ -570,15 +570,6 @@ function EmployeeProfile() {
     <div className={`lote-page${selectedId && view === 'hub' ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Estado vacío ── */}
-      {planillaUsers.length === 0 && view !== 'form' && (
-        <div className="ficha-empty-state">
-          <FiClipboard size={36} />
-          <p>No hay empleados registrados aún</p>
-          <button className="aur-btn-pill" onClick={handleNew}>Crear el primero</button>
-        </div>
-      )}
-
       {/* ── Carrusel móvil ── */}
       {selectedId && view === 'hub' && (
         <div className="lote-carousel" ref={carouselRef}>
@@ -602,9 +593,14 @@ function EmployeeProfile() {
       )}
 
       {/* ── Cabecera de página ── */}
-      {planillaUsers.length > 0 && view !== 'form' && (
+      {view !== 'form' && (
         <div className="ficha-page-header">
-          <h2 className="ficha-page-title">Ficha del Trabajador</h2>
+          <div className="lote-page-title-block">
+            <h2 className="ficha-page-title">Ficha del Trabajador</h2>
+            <p className="lote-page-hint">
+              Datos personales, laborales y de horario de cada empleado en planilla.
+            </p>
+          </div>
           <button className="aur-btn-pill" onClick={handleNew}>
             <FiUserPlus /> Nuevo Empleado
           </button>
@@ -612,8 +608,7 @@ function EmployeeProfile() {
       )}
 
       {/* ── Layout principal ── */}
-      {(planillaUsers.length > 0 || view === 'form') && (
-        <div className="lote-management-layout">
+      <div className="lote-management-layout">
 
           {/* Izquierda: detalle o formulario */}
           {view === 'hub' && renderHubPanel()}
@@ -803,6 +798,12 @@ function EmployeeProfile() {
           {/* Derecha: lista de empleados */}
           {view !== 'form' && (
             <div className="lote-list-panel">
+              {planillaUsers.length === 0 ? (
+                <div className="empty-state">
+                  <FiUsers size={36} />
+                  <p>Aún no has registrado ningún empleado.</p>
+                </div>
+              ) : (
               <ul className="lote-list">
                 {[...planillaUsers]
                   .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
@@ -830,11 +831,11 @@ function EmployeeProfile() {
                     );
                   })}
               </ul>
+              )}
             </div>
           )}
 
         </div>
-      )}
 
       {confirmDelete && (
         <AuroraConfirmModal
