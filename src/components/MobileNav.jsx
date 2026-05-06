@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiHome, FiStar, FiGrid, FiSettings, FiLogOut, FiChevronDown, FiChevronRight,
+  FiHome, FiStar, FiGrid, FiSettings, FiLogOut, FiChevronRight,
   FiClock, FiSliders, FiX,
 } from 'react-icons/fi';
 import { useUser, hasMinRole, ROLE_LABELS } from '../contexts/UserContext';
@@ -65,12 +65,16 @@ export default function MobileNav() {
 
   const handleTabPress = (tab) => setSheet(s => s === tab ? null : tab);
 
-  // ── Nav item ──────────────────────────────────────────────────────────────
-  const NavItem = ({ item, showPin = false }) => {
+  // Render helpers — definidos como funciones planas (no componentes) y
+  // llamados via `{renderX(...)}` para que el JSX retornado se reconcilie
+  // como parte del árbol del padre. Si fueran <Componentes/>, su referencia
+  // cambiaría en cada render y React desmontaría/remontaría el subárbol,
+  // matando las transiciones CSS sobre `.mn-collapse`.
+  const renderNavItem = (item, showPin = false) => {
     const Icon = item.icon;
     const pinned = pinnedRoutes.includes(item.to);
     return (
-      <div className="mn-item-row">
+      <div key={item.to} className="mn-item-row">
         <NavLink
           to={item.to}
           end
@@ -92,30 +96,34 @@ export default function MobileNav() {
     );
   };
 
-  // ── Sub-group (e.g. Siembra, Aplicaciones) ────────────────────────────────
-  const GroupItem = ({ item }) => {
+  const renderGroupItem = (item) => {
     const visibleChildren = item.children.filter(canAccess);
     if (!visibleChildren.length) return null;
     const expanded = expandedGroups.has(item.label);
     const Icon = item.icon;
     return (
-      <div className="mn-subgroup">
-        <button className="mn-subgroup-header" onClick={() => toggleGroup(item.label)}>
+      <div key={item.label} className="mn-subgroup">
+        <button
+          className={`mn-subgroup-header${expanded ? ' is-open' : ''}`}
+          onClick={() => toggleGroup(item.label)}
+          aria-expanded={expanded}
+        >
           <Icon size={17} />
           <span>{item.label}</span>
-          {expanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+          <FiChevronRight size={12} className="mn-chevron" />
         </button>
-        {expanded && (
-          <div className="mn-subgroup-items">
-            {visibleChildren.map((c) => <NavItem key={c.to} item={c} showPin />)}
+        <div className={`mn-collapse${expanded ? ' is-open' : ''}`} aria-hidden={!expanded}>
+          <div className="mn-collapse-inner">
+            <div className="mn-subgroup-items">
+              {visibleChildren.map((c) => renderNavItem(c, true))}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     );
   };
 
-  // ── Sheet: "Favoritos" (favorites) ────────────────────────────────────────
-  const FavoritosSheet = () => {
+  const renderFavoritosSheet = () => {
     const pinned = pinnedRoutes.map(itemFor).filter(Boolean).filter(canAccess);
     const recents = recentRoutes.map(itemFor).filter(Boolean).filter(canAccess)
       .filter((i) => !pinnedRoutes.includes(i.to));
@@ -125,52 +133,56 @@ export default function MobileNav() {
           <div className="mn-sheet-section-title"><FiStar size={13} /> Fijados</div>
           {pinned.length === 0
             ? <p className="mn-sheet-empty">Ve a <button className="mn-inline-link" onClick={() => setSheet('todas')}>Todas</button> y fija las que más usas.</p>
-            : pinned.map((item) => <NavItem key={item.to} item={item} />)
+            : pinned.map((item) => renderNavItem(item))
           }
         </div>
         <div className="mn-sheet-section">
           <div className="mn-sheet-section-title"><FiClock size={13} /> Recientes</div>
           {recents.length === 0
             ? <p className="mn-sheet-empty">Aquí aparecerán las páginas que visites.</p>
-            : recents.map((item) => <NavItem key={item.to} item={item} />)
+            : recents.map((item) => renderNavItem(item))
           }
         </div>
       </>
     );
   };
 
-  // ── Sheet: "Todas" (all functions) ────────────────────────────────────────
-  const TodasSheet = () => (
+  const renderTodasSheet = () => (
     <>
-{MODULES.map((mod) => {
+      {MODULES.map((mod) => {
         const visibleItems = mod.items.filter(canAccess);
         if (!visibleItems.length) return null;
         const expanded = expandedMods.has(mod.id);
         const Icon = mod.icon;
         return (
           <div key={mod.id} className="mn-module">
-            <button className="mn-module-header" onClick={() => toggleMod(mod.id)}>
+            <button
+              className={`mn-module-header${expanded ? ' is-open' : ''}`}
+              onClick={() => toggleMod(mod.id)}
+              aria-expanded={expanded}
+            >
               <Icon size={16} />
               <span>{mod.nombre}</span>
-              {expanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
+              <FiChevronRight size={13} className="mn-chevron" />
             </button>
-            {expanded && (
-              <div className="mn-module-items">
-                {visibleItems.map((item) =>
-                  item.children
-                    ? <GroupItem key={item.label} item={item} />
-                    : <NavItem key={item.to} item={item} showPin />
-                )}
+            <div className={`mn-collapse${expanded ? ' is-open' : ''}`} aria-hidden={!expanded}>
+              <div className="mn-collapse-inner">
+                <div className="mn-module-items">
+                  {visibleItems.map((item) =>
+                    item.children
+                      ? renderGroupItem(item)
+                      : renderNavItem(item, true)
+                  )}
+                </div>
               </div>
-            )}
+            </div>
           </div>
         );
       })}
     </>
   );
 
-  // ── Sheet: Config ─────────────────────────────────────────────────────────
-  const ConfigSheet = () => (
+  const renderConfigSheet = () => (
     <div className="mn-config-sheet">
       <div className="mn-config-user">
         <div className="mn-config-avatar">{(currentUser?.nombre || 'U')[0].toUpperCase()}</div>
@@ -206,9 +218,9 @@ export default function MobileNav() {
             <button className="aur-icon-btn" onClick={() => setSheet(null)} title="Cerrar"><FiX size={18} /></button>
           </div>
           <div className="mn-sheet-body">
-            {sheet === 'favoritos' && <FavoritosSheet />}
-            {sheet === 'todas'     && <TodasSheet />}
-            {sheet === 'config'    && <ConfigSheet />}
+            {sheet === 'favoritos' && renderFavoritosSheet()}
+            {sheet === 'todas'     && renderTodasSheet()}
+            {sheet === 'config'    && renderConfigSheet()}
           </div>
         </div>
       )}

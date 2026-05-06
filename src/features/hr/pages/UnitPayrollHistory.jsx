@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { FiFilter, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
-import '../../applications/styles/historial.css';
+import '../styles/unit-payroll-history.css';
 
 const PAGE_SIZE = 50;
 const COL_FILTER_MAX = 100;
@@ -42,7 +43,6 @@ function UnitPayrollHistory() {
   }, []);
 
   const filtered = useMemo(() => {
-    // Pre-normaliza y pre-parsea para no repetir trabajo en cada row.
     const activeCol = Object.entries(colFilters)
       .filter(([, v]) => v && v.trim())
       .map(([field, val]) => [field, val.toLowerCase()]);
@@ -81,6 +81,7 @@ function UnitPayrollHistory() {
   }, [filtered, sorts]);
 
   const visible = useMemo(() => sorted.slice(0, page * PAGE_SIZE), [sorted, page]);
+  const hasColFilters = Object.values(colFilters).some(v => v && v.trim());
 
   const handleThSort = (field) => {
     setSorts(prev => {
@@ -99,7 +100,6 @@ function UnitPayrollHistory() {
     if (filterPopover?.field === field) { setFilterPopover(null); return; }
     const th = e.currentTarget.closest('th') ?? e.currentTarget;
     const rect = th.getBoundingClientRect();
-    // Clamp to viewport to avoid overflow on mobile (360px+).
     const maxX = Math.max(8, window.innerWidth - POPOVER_MIN_WIDTH - 8);
     const x = Math.min(Math.max(8, rect.left), maxX);
     setFilterPopover({ field, x, y: rect.bottom + 4 });
@@ -114,143 +114,178 @@ function UnitPayrollHistory() {
     setPage(1);
   };
 
-  const clearAllFilters = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
+  const clearPeriod = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
 
-  const SortTh = ({ field, children, className }) => {
+  const SortTh = ({ field, children, className, align }) => {
     const head      = sorts[0];
     const active    = head?.field === field;
     const dir       = active ? head.dir : null;
     const hasFilter = !!(colFilters[field]?.trim());
     return (
       <th
-        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}${className ? ' ' + className : ''}`}
+        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}${className ? ' ' + className : ''}`}
+        style={align === 'right' ? { textAlign: 'right' } : undefined}
         onClick={() => handleThSort(field)}
         onContextMenu={e => openFilter(e, field)}
       >
-        {children}
-        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span
-          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
-          onClick={e => openFilter(e, field)}
-          title="Filtrar columna (o clic derecho)"
-        >
-          <FiFilter size={10} />
+        <span className="aur-th-content">
+          {children}
+          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+          <span
+            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
+            onClick={e => openFilter(e, field)}
+            title="Filtrar columna (o clic derecho)"
+          >
+            <FiFilter size={10} />
+          </span>
         </span>
       </th>
     );
   };
 
-  if (loading) return <div className="empty-state">Cargando historial…</div>;
+  if (loading) {
+    return (
+      <div className="aur-sheet uph-page">
+        <div className="aur-page-loading" />
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="historial-wrap">
+      <div className="aur-sheet uph-page">
 
-        {/* ── Controles de fecha ── */}
-        <div className="historial-controls">
-          <div className="historial-control-block">
-            <div className="historial-control-row">
-              <label className="historial-ctrl-label">Fecha de</label>
-              <input
-                type="date"
-                className="historial-date-input"
-                value={filterFrom}
-                onChange={e => { setFilterFrom(e.target.value); setPage(1); }}
-              />
-              <label className="historial-ctrl-label">a</label>
-              <input
-                type="date"
-                className="historial-date-input"
-                value={filterTo}
-                onChange={e => { setFilterTo(e.target.value); setPage(1); }}
-              />
-              {(filterFrom || filterTo) && (
-                <button className="aur-btn-text historial-clear-btn" onClick={clearAllFilters}>
-                  Limpiar
-                </button>
-              )}
-            </div>
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h1 className="aur-sheet-title">Historial Salario por Unidad</h1>
+            <p className="aur-sheet-subtitle">
+              Planillas aprobadas con detalle por fila — encargado, lote, labor, trabajador y total devengado.{' '}
+              <Link to="/hr/planilla/horas" className="uph-header-link">Ir a Salario por Unidad →</Link>
+            </p>
           </div>
-        </div>
+        </header>
 
-        {/* ── Contador + aviso filtros de columna ── */}
-        <div className="historial-count">
-          {sorted.length === 0
-            ? 'Sin resultados para los filtros aplicados.'
-            : `Mostrando ${visible.length} de ${sorted.length} fila${sorted.length !== 1 ? 's' : ''}`
-          }
-          {Object.values(colFilters).some(v => v.trim()) && (
-            <button
-              className="historial-clear-col-filters"
-              onClick={() => { setColFilters({}); setPage(1); }}
-            >
-              <FiX size={11} /> Limpiar filtros de columna
-            </button>
-          )}
-        </div>
-
-        {/* ── Tabla ── */}
-        {sorted.length === 0 ? (
-          <div className="empty-state">No hay planillas aprobadas en el historial.</div>
-        ) : (
-          <>
-            <div className="historial-table-wrap">
-              <table className="historial-table historial-table--wide">
-                <thead>
-                  <tr>
-                    {/* Identificación */}
-                    <SortTh field="consecutivo"     className="historial-th-group">N°</SortTh>
-                    <SortTh field="fecha"           className="historial-th-group">Fecha</SortTh>
-                    <SortTh field="encargadoNombre" className="historial-th-group">Encargado</SortTh>
-                    <SortTh field="aprobadoPor"     className="historial-th-group">Aprobado por</SortTh>
-                    {/* Segmento */}
-                    <SortTh field="loteNombre">Lote</SortTh>
-                    <SortTh field="grupo">Grupo</SortTh>
-                    <SortTh field="labor">Labor</SortTh>
-                    <SortTh field="avanceHa">Avance (Ha)</SortTh>
-                    <SortTh field="unidad">Unidad</SortTh>
-                    <SortTh field="costoUnitario">Costo Unitario</SortTh>
-                    {/* Trabajador */}
-                    <SortTh field="trabajadorNombre">Trabajador</SortTh>
-                    <SortTh field="cantidad">Cantidad</SortTh>
-                    <SortTh field="subtotal">Total</SortTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((row, idx) => (
-                    <tr key={row.id || idx}>
-                      <td className="historial-consecutivo">{row.consecutivo || '—'}</td>
-                      <td className="historial-td-nowrap">{fmtDate(row.fecha)}</td>
-                      <td className="historial-td-nowrap">{row.encargadoNombre || '—'}</td>
-                      <td className="historial-td-nowrap">{row.aprobadoPor    || '—'}</td>
-                      <td className="historial-td-nowrap">{row.loteNombre     || '—'}</td>
-                      <td>{row.grupo  || '—'}</td>
-                      <td>{row.labor  || '—'}</td>
-                      <td className="historial-td-num">
-                        {row.avanceHa ? fmtNum(row.avanceHa) : '—'}
-                      </td>
-                      <td>{row.unidad || '—'}</td>
-                      <td className="historial-td-num">{fmtMoney(row.costoUnitario)}</td>
-                      <td className="historial-td-nowrap">{row.trabajadorNombre || '—'}</td>
-                      <td className="historial-td-num">
-                        {row.cantidad != null ? fmtNum(row.cantidad) : '—'}
-                      </td>
-                      <td className="historial-td-num">{fmtMoney(row.subtotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {visible.length < sorted.length && (
-              <div className="historial-load-more">
-                <button className="aur-btn-text" onClick={() => setPage(p => p + 1)}>
-                  Ver más — {sorted.length - visible.length} restante{sorted.length - visible.length !== 1 ? 's' : ''}
+        {/* ── Filtros de periodo ── */}
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <h3>Filtros</h3>
+            {(filterFrom || filterTo) && (
+              <div className="aur-section-actions">
+                <button type="button" className="aur-chip aur-chip--ghost" onClick={clearPeriod}>
+                  <FiX size={11} /> Limpiar periodo
                 </button>
               </div>
             )}
-          </>
-        )}
+          </div>
+          <div className="aur-list">
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="uph-from">Desde</label>
+              <input
+                id="uph-from"
+                type="date"
+                className="aur-input"
+                value={filterFrom}
+                onChange={e => { setFilterFrom(e.target.value); setPage(1); }}
+              />
+            </div>
+            <div className="aur-row">
+              <label className="aur-row-label" htmlFor="uph-to">Hasta</label>
+              <input
+                id="uph-to"
+                type="date"
+                className="aur-input"
+                value={filterTo}
+                onChange={e => { setFilterTo(e.target.value); setPage(1); }}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Tabla / lista ── */}
+        <section className="aur-section">
+          <div className="aur-section-header">
+            <h3>Historial</h3>
+            <span className="aur-section-count">{sorted.length}</span>
+            {hasColFilters && (
+              <div className="aur-section-actions">
+                <button
+                  type="button"
+                  className="aur-chip aur-chip--ghost"
+                  onClick={() => { setColFilters({}); setPage(1); }}
+                >
+                  <FiX size={11} /> Limpiar filtros de columna
+                </button>
+              </div>
+            )}
+          </div>
+
+          {sorted.length === 0 ? (
+            <p className="empty-state">
+              {rows.length === 0
+                ? 'No hay planillas aprobadas en el historial.'
+                : 'Sin resultados para los filtros aplicados.'}
+            </p>
+          ) : (
+            <>
+              <div className="uph-count">
+                Mostrando {visible.length} de {sorted.length} fila{sorted.length !== 1 ? 's' : ''}
+              </div>
+
+              <div className="aur-table-wrap uph-table-wrap">
+                <table className="aur-table uph-table">
+                  <thead>
+                    <tr>
+                      <SortTh field="consecutivo">N°</SortTh>
+                      <SortTh field="fecha">Fecha</SortTh>
+                      <SortTh field="encargadoNombre">Encargado</SortTh>
+                      <SortTh field="aprobadoPor">Aprobado por</SortTh>
+                      <SortTh field="loteNombre">Lote</SortTh>
+                      <SortTh field="grupo">Grupo</SortTh>
+                      <SortTh field="labor">Labor</SortTh>
+                      <SortTh field="avanceHa" align="right">Avance (Ha)</SortTh>
+                      <SortTh field="unidad">Unidad</SortTh>
+                      <SortTh field="costoUnitario" align="right">Costo Unit.</SortTh>
+                      <SortTh field="trabajadorNombre">Trabajador</SortTh>
+                      <SortTh field="cantidad" align="right">Cantidad</SortTh>
+                      <SortTh field="subtotal" align="right">Total</SortTh>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((row, idx) => (
+                      <tr key={row.id || idx}>
+                        <td data-label="N°"           className="uph-td-consecutivo">{row.consecutivo || '—'}</td>
+                        <td data-label="Fecha"        className="uph-td-nowrap">{fmtDate(row.fecha)}</td>
+                        <td data-label="Encargado"    className="uph-td-nowrap">{row.encargadoNombre || '—'}</td>
+                        <td data-label="Aprobado por" className="uph-td-nowrap">{row.aprobadoPor    || '—'}</td>
+                        <td data-label="Lote"         className="uph-td-nowrap">{row.loteNombre     || '—'}</td>
+                        <td data-label="Grupo">{row.grupo || '—'}</td>
+                        <td data-label="Labor">{row.labor || '—'}</td>
+                        <td data-label="Avance (Ha)" className="aur-td-num">
+                          {row.avanceHa != null ? fmtNum(row.avanceHa) : '—'}
+                        </td>
+                        <td data-label="Unidad">{row.unidad || '—'}</td>
+                        <td data-label="Costo Unit." className="aur-td-num">{fmtMoney(row.costoUnitario)}</td>
+                        <td data-label="Trabajador"  className="uph-td-nowrap">{row.trabajadorNombre || '—'}</td>
+                        <td data-label="Cantidad" className="aur-td-num">
+                          {row.cantidad != null ? fmtNum(row.cantidad) : '—'}
+                        </td>
+                        <td data-label="Total" className="aur-td-num uph-td-total">{fmtMoney(row.subtotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {visible.length < sorted.length && (
+                <div className="aur-pagination-footer">
+                  <button type="button" className="aur-chip" onClick={() => setPage(p => p + 1)}>
+                    Ver más — {sorted.length - visible.length} restante{sorted.length - visible.length !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
 
       </div>
 
