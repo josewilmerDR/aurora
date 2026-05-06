@@ -75,6 +75,7 @@ export default function SamplingCenter() {
         <h3>Órdenes de muestreo</h3>
         <span className="aur-section-count">{filtered.length}</span>
       </div>
+      <p className="mo-section-hint">Registra los hallazgos de cada inspección realizada a tus cultivos</p>
 
       <div className="aur-table-toolbar">
         <div className="mo-search-wrap">

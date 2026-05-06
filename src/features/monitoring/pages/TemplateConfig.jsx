@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiClipboard, FiChevronRight, FiArrowLeft, FiMove, FiLock } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiChevronRight, FiArrowLeft, FiMove, FiLock, FiClipboard } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -290,14 +290,6 @@ function TemplateConfig() {
 
       {loading ? (
         <div className="mon-loading" />
-      ) : tipos.length === 0 && !showNew ? (
-        <div className="mon-empty-state">
-          <FiClipboard size={36} />
-          <p>No hay plantillas de muestreo creadas</p>
-          <button className="aur-btn-pill" onClick={() => setShowNew(true)}>
-            <FiPlus size={14} /> Crear el primero
-          </button>
-        </div>
       ) : (
         <>
           {!selectedTipo && (
@@ -456,21 +448,28 @@ function TemplateConfig() {
 
             {!showNew && (
               <div className="lote-list-panel">
-                <ul className="lote-list">
-                  {tipos.map(tipo => (
-                    <li
-                      key={tipo.id}
-                      className={`lote-list-item${selectedTipo?.id === tipo.id ? ' active' : ''}`}
-                      onClick={() => selectedTipo?.id === tipo.id ? setSelectedTipo(null) : handleSelectTipo(tipo)}
-                    >
-                      <div className="lote-list-info">
-                        <span className={`lote-list-code${!tipo.activo ? ' tipo-inactivo' : ''}`}>{tipo.nombre}</span>
-                        {!tipo.activo && <span className="lote-list-name">Inactivo</span>}
-                      </div>
-                      <FiChevronRight size={14} className="lote-list-arrow" />
-                    </li>
-                  ))}
-                </ul>
+                {tipos.length === 0 ? (
+                  <div className="grupo-cta">
+                    <div className="grupo-cta-icon"><FiClipboard size={24} /></div>
+                    <p className="grupo-cta-title">Aún no has creado ninguna plantilla de muestreo</p>
+                  </div>
+                ) : (
+                  <ul className="lote-list">
+                    {tipos.map(tipo => (
+                      <li
+                        key={tipo.id}
+                        className={`lote-list-item${selectedTipo?.id === tipo.id ? ' active' : ''}`}
+                        onClick={() => selectedTipo?.id === tipo.id ? setSelectedTipo(null) : handleSelectTipo(tipo)}
+                      >
+                        <div className="lote-list-info">
+                          <span className={`lote-list-code${!tipo.activo ? ' tipo-inactivo' : ''}`}>{tipo.nombre}</span>
+                          {!tipo.activo && <span className="lote-list-name">Inactivo</span>}
+                        </div>
+                        <FiChevronRight size={14} className="lote-list-arrow" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import '../../applications/styles/packages.css';
 import {
   FiEdit2, FiTrash2, FiPlus, FiX, FiCopy,
-  FiChevronRight, FiChevronDown, FiArrowLeft, FiCheck, FiClipboard,
+  FiChevronRight, FiChevronDown, FiArrowLeft, FiCheck, FiPackage,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -440,14 +440,6 @@ function SamplingPackages() {
 
       {loading ? (
         <div className="mon-loading" />
-      ) : packages.length === 0 && !showNew ? (
-        <div className="mon-empty-state">
-          <FiClipboard size={36} />
-          <p>No hay paquetes de muestreo creados</p>
-          <button className="aur-btn-pill" onClick={startNew}>
-            <FiPlus size={14} /> Crear el primero
-          </button>
-        </div>
       ) : (
         <>
           {!selectedPkg && !showNew && (
@@ -627,24 +619,31 @@ function SamplingPackages() {
 
             {!showNew && (
               <div className="lote-list-panel">
-                <ul className="lote-list">
-                  {packages.map(pkg => (
-                    <li
-                      key={pkg.id}
-                      className={`lote-list-item${selectedPkg?.id === pkg.id ? ' active' : ''}`}
-                      onClick={() => selectedPkg?.id === pkg.id ? setSelectedPkg(null) : handleSelectPkg(pkg)}
-                    >
-                      <div className="lote-list-info">
-                        <span className="lote-list-code">{pkg.nombrePaquete}</span>
-                        <span className="lote-list-name">
-                          {pkg.activities?.length || 0} actividades
-                          {pkg.tecnicoResponsable ? ` · ${pkg.tecnicoResponsable}` : ''}
-                        </span>
-                      </div>
-                      <FiChevronRight size={14} className="lote-list-arrow" />
-                    </li>
-                  ))}
-                </ul>
+                {packages.length === 0 ? (
+                  <div className="grupo-cta">
+                    <div className="grupo-cta-icon"><FiPackage size={24} /></div>
+                    <p className="grupo-cta-title">Aún no has creado ningún paquete de muestreo</p>
+                  </div>
+                ) : (
+                  <ul className="lote-list">
+                    {packages.map(pkg => (
+                      <li
+                        key={pkg.id}
+                        className={`lote-list-item${selectedPkg?.id === pkg.id ? ' active' : ''}`}
+                        onClick={() => selectedPkg?.id === pkg.id ? setSelectedPkg(null) : handleSelectPkg(pkg)}
+                      >
+                        <div className="lote-list-info">
+                          <span className="lote-list-code">{pkg.nombrePaquete}</span>
+                          <span className="lote-list-name">
+                            {pkg.activities?.length || 0} actividades
+                            {pkg.tecnicoResponsable ? ` · ${pkg.tecnicoResponsable}` : ''}
+                          </span>
+                        </div>
+                        <FiChevronRight size={14} className="lote-list-arrow" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>
