@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import '../styles/hr.css';
-import { FiPlus, FiTrash2, FiCheck, FiX, FiClock } from 'react-icons/fi';
+import '../styles/leave-calendar.css';
+import { FiPlus, FiTrash2, FiCheck, FiX, FiClock, FiList, FiCalendar } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import LeaveCalendar from '../components/LeaveCalendar';
 
 const TIPOS = [
   { value: 'vacaciones',        label: 'Vacaciones',          conGoce: true  },
@@ -64,6 +66,7 @@ function LeaveRequests() {
   const [mes, setMes] = useState(today.slice(5, 7));
   const [anio, setAnio] = useState(today.slice(0, 4));
   const [filtroTrabajador, setFiltroTrabajador] = useState('');
+  const [view, setView] = useState('lista'); // 'lista' | 'calendario'
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [pendingId, setPendingId] = useState(null);
@@ -380,6 +383,45 @@ function LeaveRequests() {
           </div>
         </div>
 
+        <div className="leave-view-toggle" role="tablist" aria-label="Vista">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'lista'}
+            className={`leave-view-tab${view === 'lista' ? ' is-active' : ''}`}
+            onClick={() => setView('lista')}
+          >
+            <FiList size={13} /> Lista
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'calendario'}
+            className={`leave-view-tab${view === 'calendario' ? ' is-active' : ''}`}
+            onClick={() => setView('calendario')}
+          >
+            <FiCalendar size={13} /> Calendario
+          </button>
+        </div>
+
+        {view === 'calendario' ? (
+          <LeaveCalendar
+            permisos={visibles}
+            mes={mes}
+            anio={anio}
+            onMesChange={setMes}
+            onAnioChange={setAnio}
+            canApprove={canApprove}
+            canDelete={canDelete}
+            pendingId={pendingId}
+            onApprove={(id) => handleEstado(id, 'aprobado')}
+            onReject={(id) => handleEstado(id, 'rechazado')}
+            onDelete={(id) => {
+              const p = permisos.find(x => x.id === id);
+              if (p) setConfirmDelete(p);
+            }}
+          />
+        ) : (
         <ul className="info-list">
           {visibles.map(p => {
             const tipoLabel = TIPOS.find(t => t.value === p.tipo)?.label || p.tipo;
@@ -449,7 +491,8 @@ function LeaveRequests() {
             );
           })}
         </ul>
-        {visibles.length === 0 && <p className="empty-state">Sin permisos para este período.</p>}
+        )}
+        {view === 'lista' && visibles.length === 0 && <p className="empty-state">Sin permisos para este período.</p>}
       </div>
 
       {confirmDelete && (
