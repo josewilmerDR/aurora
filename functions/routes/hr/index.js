@@ -16,8 +16,6 @@ const { Router } = require('express');
 const fichasRouter       = require('./fichas');
 const payrollFixedRouter = require('./payroll-fixed');
 const payrollUnitRouter  = require('./payroll-unit');
-const recordsRouter      = require('./records');
-const performanceRouter  = require('./performance');
 const miscRouter         = require('./misc');
 
 const router = Router();
@@ -25,8 +23,6 @@ const router = Router();
 router.use(fichasRouter);
 router.use(payrollFixedRouter);
 router.use(payrollUnitRouter);
-router.use(recordsRouter);
-router.use(performanceRouter);
 router.use(miscRouter);
 
 module.exports = router;

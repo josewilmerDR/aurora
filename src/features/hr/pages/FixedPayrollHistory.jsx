@@ -70,7 +70,7 @@ function FixedPayrollHistory() {
     };
     try {
       sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
-      sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/historial-pagos');
+      sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
     } catch (err) {
       // Private mode / quota exceeded — navigation continues; the report will
       // show the "no data" state handled in FixedPayrollReport.

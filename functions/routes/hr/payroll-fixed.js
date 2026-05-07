@@ -1,14 +1,9 @@
-// HR — Planilla legacy + Planilla salario fijo.
+// HR — Planilla salario fijo.
 //
-// Sub-archivo del split de routes/hr.js. Cubre dos esquemas de planilla con
-// salario fijo:
-//   - hr_planilla         → schema legacy (mes/año + total único). Mantenido
-//                           para no romper datos históricos; sin features
-//                           nuevas en F5.
-//   - hr_planilla_fijo    → schema vigente con período custom, filas por
-//                           empleado, deducciones, CCSS recalculada, audit
-//                           trail e integración con scheduled_tasks para
-//                           generar la tarea de aprobación de pago.
+// Sub-archivo del split de routes/hr.js. Cubre el schema vigente
+// hr_planilla_fijo: período custom, filas por empleado, deducciones, CCSS
+// recalculada, audit trail e integración con scheduled_tasks para generar
+// la tarea de aprobación de pago.
 //
 // La planilla por unidad/hora (hr_planilla_unidad + plantillas) vive en
 // payroll-unit.js — son flujos lo suficientemente distintos como para no
@@ -36,51 +31,6 @@ const {
 } = require('./helpers');
 
 const router = Router();
-
-// ─── Planilla legacy (mes/anio) ──────────────────────────────────────────
-
-router.get('/api/hr/planilla', authenticate, async (req, res) => {
-  try {
-    const { mes, anio } = req.query;
-    let query = db.collection('hr_planilla').where('fincaId', '==', req.fincaId);
-    if (mes) query = query.where('mes', '==', Number(mes));
-    if (anio) query = query.where('anio', '==', Number(anio));
-    const snap = await query.orderBy('createdAt', 'desc').get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null }));
-    res.status(200).json(data);
-  } catch (error) {
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planilla.', 500);
-  }
-});
-
-router.post('/api/hr/planilla', authenticate, async (req, res) => {
-  try {
-    const { trabajadorId, trabajadorNombre, mes, anio, diasTrabajados, horasExtra, salarioBase, deducciones, total } = req.body;
-    if (!trabajadorId || !mes || !anio) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, mes and anio are required.', 400);
-    const ref = await db.collection('hr_planilla').add({
-      trabajadorId, trabajadorNombre: trabajadorNombre || '',
-      mes: Number(mes), anio: Number(anio),
-      diasTrabajados: Number(diasTrabajados) || 0,
-      horasExtra: Number(horasExtra) || 0,
-      salarioBase: Number(salarioBase) || 0,
-      deducciones: Number(deducciones) || 0,
-      total: Number(total) || 0,
-      fincaId: req.fincaId, createdAt: Timestamp.now(),
-    });
-    res.status(201).json({ id: ref.id });
-  } catch (error) {
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save planilla.', 500);
-  }
-});
-
-router.delete('/api/hr/planilla/:id', authenticate, async (req, res) => {
-  try {
-    await db.collection('hr_planilla').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Record deleted.' });
-  } catch (error) {
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
-  }
-});
 
 // ─── Planilla salario fijo (período custom, audit trail) ────────────────
 

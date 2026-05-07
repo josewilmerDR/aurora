@@ -198,50 +198,6 @@ router.delete('/api/hr/asistencia/:id', authenticate, async (req, res) => {
   }
 });
 
-// ─── Horas Extra ─────────────────────────────────────────────────────────
-
-router.get('/api/hr/horas-extra', authenticate, async (req, res) => {
-  try {
-    const { mes, anio } = req.query;
-    let query = db.collection('hr_horas_extra').where('fincaId', '==', req.fincaId);
-    if (mes && anio) {
-      const start = Timestamp.fromDate(new Date(Number(anio), Number(mes) - 1, 1));
-      const end   = Timestamp.fromDate(new Date(Number(anio), Number(mes), 1));
-      query = query.where('fecha', '>=', start).where('fecha', '<', end);
-    }
-    const snap = await query.orderBy('fecha', 'desc').get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: d.data().fecha.toDate().toISOString() }));
-    res.status(200).json(data);
-  } catch (error) {
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch overtime.', 500);
-  }
-});
-
-router.post('/api/hr/horas-extra', authenticate, async (req, res) => {
-  try {
-    const { trabajadorId, trabajadorNombre, fecha, horas, motivo } = req.body;
-    if (!trabajadorId || !fecha || !horas) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, fecha and horas are required.', 400);
-    const ref = await db.collection('hr_horas_extra').add({
-      trabajadorId, trabajadorNombre: trabajadorNombre || '',
-      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
-      horas: Number(horas), motivo: motivo || '',
-      fincaId: req.fincaId, createdAt: Timestamp.now(),
-    });
-    res.status(201).json({ id: ref.id });
-  } catch (error) {
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register overtime.', 500);
-  }
-});
-
-router.delete('/api/hr/horas-extra/:id', authenticate, async (req, res) => {
-  try {
-    await db.collection('hr_horas_extra').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Record deleted.' });
-  } catch (error) {
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete.', 500);
-  }
-});
-
 // ─── Permisos / Vacaciones ───────────────────────────────────────────────
 
 const PERMISO_TIPOS = ['vacaciones', 'enfermedad', 'permiso_con_goce', 'permiso_sin_goce', 'licencia'];

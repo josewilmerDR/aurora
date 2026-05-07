@@ -24,11 +24,9 @@ import OrganizationSelector from './features/auth/pages/OrganizationSelector';
 import NewOrganization from './features/auth/pages/NewOrganization';
 import EmployeeProfile from './features/hr/pages/EmployeeProfile';
 import LeaveRequests from './features/hr/pages/LeaveRequests';
-import FixedPayroll from './features/hr/pages/FixedPayroll';
+import FixedPayrollPage from './features/hr/pages/FixedPayrollPage';
 import FixedPayrollReport from './features/hr/pages/FixedPayrollReport';
-import UnitPayroll from './features/hr/pages/UnitPayroll';
-import FixedPayrollHistory from './features/hr/pages/FixedPayrollHistory';
-import UnitPayrollHistory from './features/hr/pages/UnitPayrollHistory';
+import UnitPayrollPage from './features/hr/pages/UnitPayrollPage';
 import SamplingHistory from './features/monitoring/pages/SamplingHistory';
 import TemplateConfig from './features/monitoring/pages/TemplateConfig';
 import SamplingPackages from './features/monitoring/pages/SamplingPackages';
@@ -71,8 +69,6 @@ import Treasury from './features/finance/pages/Treasury';
 import AutopilotDashboard from './features/autopilot/pages/AutopilotDashboard';
 import AutopilotConfig from './features/autopilot/pages/AutopilotConfig';
 import ProcurementDashboard from './features/procurement/pages/ProcurementDashboard';
-import PerformanceDashboard from './features/hr/pages/PerformanceDashboard';
-import MyPerformance from './features/hr/pages/MyPerformance';
 import YieldHistory from './features/strategy/pages/YieldHistory';
 import TemporadasManager from './features/strategy/pages/TemporadasManager';
 import RotationConstraints from './features/strategy/pages/RotationConstraints';
@@ -125,10 +121,6 @@ const ROUTE_MIN_ROLE = {
   // Procurement hub — children inherit the role gate from the parent route,
   // so only the canonical entry needs an explicit minRole here.
   '/procurement': 'encargado',
-  // HR (phase 3.6) — supervisor for the team dashboard, any authenticated
-  // user for their own score
-  '/hr/performance': 'supervisor',
-  '/hr/my-performance': 'trabajador',
   // Financing (phase 5.5) — supervisor+ can read; admin gates write ops at API layer
   '/finance/financing': 'supervisor',
   '/finance/financing/ofertas': 'supervisor',
@@ -390,10 +382,12 @@ function App() {
             <Route path="/cosecha/registro" element={<RoleRoute path="/cosecha/registro"><CosechaRegistro /></RoleRoute>} />
             {/* supervisor+ */}
             <Route path="/packages" element={<RoleRoute path="/packages"><PackageManagement /></RoleRoute>} />
-            <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><FixedPayroll /></RoleRoute>} />
-            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><UnitPayroll /></RoleRoute>} />
-            <Route path="/hr/planilla/horas/historial" element={<RoleRoute path="/hr/planilla/horas/historial"><UnitPayrollHistory /></RoleRoute>} />
-            <Route path="/hr/historial-pagos" element={<RoleRoute path="/hr/historial-pagos"><FixedPayrollHistory /></RoleRoute>} />
+            <Route path="/hr/planilla/fijo" element={<RoleRoute path="/hr/planilla/fijo"><FixedPayrollPage /></RoleRoute>} />
+            <Route path="/hr/planilla/horas" element={<RoleRoute path="/hr/planilla/horas"><UnitPayrollPage /></RoleRoute>} />
+            {/* Historiales antes vivían en rutas independientes; ahora son tabs dentro
+                de los hubs. Mantenemos redirects para no romper deep-links viejos. */}
+            <Route path="/hr/historial-pagos" element={<Navigate to="/hr/planilla/fijo" replace />} />
+            <Route path="/hr/planilla/horas/historial" element={<Navigate to="/hr/planilla/horas" replace />} />
             <Route path="/monitoreo/config" element={<RoleRoute path="/monitoreo/config"><TemplateConfig /></RoleRoute>} />
             <Route path="/monitoreo/paquetes" element={<RoleRoute path="/monitoreo/paquetes"><SamplingPackages /></RoleRoute>} />
             <Route path="/monitoreo/muestreos" element={<RoleRoute path="/monitoreo/muestreos"><SamplingCenter /></RoleRoute>} />
@@ -405,8 +399,6 @@ function App() {
             {/* Autopilot (gated by ADVANCED_ENABLED for the v1 public release) */}
             <Route path="/autopilot" element={<AdvancedRoute><RoleRoute path="/autopilot"><AutopilotDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/autopilot/configuracion" element={<AdvancedRoute><RoleRoute path="/autopilot/configuracion"><AutopilotConfig /></RoleRoute></AdvancedRoute>} />
-            <Route path="/hr/performance" element={<RoleRoute path="/hr/performance"><PerformanceDashboard /></RoleRoute>} />
-            <Route path="/hr/my-performance" element={<RoleRoute path="/hr/my-performance"><MyPerformance /></RoleRoute>} />
             {/* Strategy (phase 4.1) — gated by ADVANCED_ENABLED for v1 */}
             <Route path="/strategy/rendimiento" element={<AdvancedRoute><RoleRoute path="/strategy/rendimiento"><YieldHistory /></RoleRoute></AdvancedRoute>} />
             <Route path="/strategy/temporadas" element={<AdvancedRoute><RoleRoute path="/strategy/temporadas"><TemporadasManager /></RoleRoute></AdvancedRoute>} />
