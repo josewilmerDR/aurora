@@ -1,0 +1,250 @@
+/* Asistencia diaria — grid de trabajadores con segmented control por fila.
+   Usa los tokens del sistema (--aurora-*) y reusa .hr-stats / .hr-stat-card
+   de hr.css para los counters superiores. */
+
+.asist-page {
+  padding: 24px;
+  color: var(--aurora-light);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.asist-header {
+  margin-bottom: 16px;
+}
+
+.asist-header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--aurora-light);
+}
+
+.asist-subtitle {
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  margin: 0;
+}
+
+/* ── Controls row (fecha + bulk actions) ───────────────────────────────── */
+.asist-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+
+.asist-fecha-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+}
+
+.asist-fecha-label input[type="date"] {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  color-scheme: dark;
+}
+
+.asist-bulk-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.asist-bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  padding: 6px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.asist-bulk-btn:hover {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+/* ── Stats row override ─────────────────────────────────────────────────── */
+.asist-stats {
+  margin-bottom: 16px;
+}
+
+.asist-stats .hr-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+
+/* ── Grid (one row per worker) ─────────────────────────────────────────── */
+.asist-loading {
+  text-align: center;
+  padding: 32px;
+  opacity: 0.6;
+}
+
+.asist-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 80px; /* deja espacio para la barra fija de guardar */
+}
+
+.asist-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) auto auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--aurora-background);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+
+/* Color en el borde izquierdo según estado seleccionado */
+.asist-row--presente    { border-left: 3px solid var(--aurora-green); }
+.asist-row--ausente     { border-left: 3px solid #c0392b; }
+.asist-row--vacaciones  { border-left: 3px solid #f39c12; }
+.asist-row--incapacidad { border-left: 3px solid #9b59b6; }
+.asist-row--permiso     { border-left: 3px solid #3498db; }
+
+.asist-name {
+  font-weight: 600;
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+}
+
+.asist-estados {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--aurora-border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.asist-estado-btn {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: none;
+  border-right: 1px solid var(--aurora-border);
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: background-color 0.15s, opacity 0.15s, color 0.15s;
+}
+
+.asist-estado-btn:last-child { border-right: none; }
+
+.asist-estado-btn:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.asist-estado-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.asist-estado-btn.is-active {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.asist-estado-btn--presente.is-active    { background: var(--aurora-green);   color: var(--aurora-dark-blue); }
+.asist-estado-btn--ausente.is-active     { background: #c0392b;               color: #fff; }
+.asist-estado-btn--vacaciones.is-active  { background: #f39c12;               color: var(--aurora-dark-blue); }
+.asist-estado-btn--incapacidad.is-active { background: #9b59b6;               color: #fff; }
+.asist-estado-btn--permiso.is-active     { background: #3498db;               color: #fff; }
+
+.asist-horas {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--aurora-light);
+  opacity: 0.85;
+}
+
+.asist-horas input {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  width: 70px;
+  font-size: 0.85rem;
+}
+
+.asist-notas-input {
+  background: var(--aurora-dark-blue);
+  color: var(--aurora-light);
+  border: 1px solid var(--aurora-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  width: 100%;
+}
+
+.asist-notas-input::placeholder {
+  opacity: 0.4;
+}
+
+.asist-notas-input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+}
+
+/* ── Save bar (sticky bottom) ──────────────────────────────────────────── */
+.asist-save-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 24px;
+  background: var(--aurora-dark-blue);
+  border-top: 1px solid var(--aurora-border);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 50;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 800px) {
+  .asist-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .asist-estados {
+    flex-wrap: wrap;
+  }
+  .asist-estado-btn {
+    flex: 1 1 auto;
+  }
+  .asist-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .asist-bulk-actions {
+    margin-left: 0;
+  }
+}

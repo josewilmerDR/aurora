@@ -24,6 +24,7 @@ import OrganizationSelector from './features/auth/pages/OrganizationSelector';
 import NewOrganization from './features/auth/pages/NewOrganization';
 import EmployeeProfile from './features/hr/pages/EmployeeProfile';
 import LeaveRequests from './features/hr/pages/LeaveRequests';
+import Asistencia from './features/hr/pages/Asistencia';
 import FixedPayrollPage from './features/hr/pages/FixedPayrollPage';
 import FixedPayrollReport from './features/hr/pages/FixedPayrollReport';
 import UnitPayrollPage from './features/hr/pages/UnitPayrollPage';
@@ -369,6 +370,7 @@ function App() {
             <Route path="/finance/financing/simulaciones" element={<AdvancedRoute><RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute></AdvancedRoute>} />
             <Route path="/ceo" element={<AdvancedRoute><RoleRoute path="/ceo"><CeoDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><EmployeeProfile /></RoleRoute>} />
+            <Route path="/hr/asistencia" element={<RoleRoute path="/hr/asistencia"><Asistencia /></RoleRoute>} />
             <Route path="/hr/permisos" element={<RoleRoute path="/hr/permisos"><LeaveRequests /></RoleRoute>} />
             <Route path="/monitoreo/historial" element={<RoleRoute path="/monitoreo/historial"><SamplingHistory /></RoleRoute>} />
             <Route path="/aplicaciones/cedulas" element={<RoleRoute path="/aplicaciones/cedulas"><CedulasAplicacion /></RoleRoute>} />

@@ -81,6 +81,7 @@ const ALL_MODULES = [
     icon: FiBriefcase,
     items: [
       { label: 'Ficha del Trabajador', to: '/hr/ficha', icon: FiUser, minRole: 'encargado', draftKey: 'hr-ficha' },
+      { label: 'Asistencia diaria', to: '/hr/asistencia', icon: FiCalendar, minRole: 'encargado' },
       { label: 'Permisos y Vacaciones', to: '/hr/permisos', icon: FiUmbrella, minRole: 'encargado' },
       { label: 'Planilla', icon: FiDollarSign, minRole: 'encargado', children: [
         { label: 'Salario Fijo', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
