@@ -50,13 +50,19 @@ export default defineConfig({
       // crece la cobertura (más smoke tests por feature), estos números
       // suben en pasos pequeños.
       //
+      // 2026-05-06: la simplificación de HR (drop performance dashboard)
+      // eliminó PerformanceAlertsCard.test.jsx, que era el test con la
+      // mayor densidad de cobertura del frontend. El nuevo baseline es
+      // ~4% functions / ~14% branches. Cuando se sumen smoke tests por
+      // feature core, estos números volverán a subir.
+      //
       // Per-file: cubrimos al 100% utilidades estables y testeadas (e.g.
       // errorMessages.js). Esto previene que un refactor accidentalmente
       // borre cobertura de un módulo crítico.
       thresholds: {
         statements: 0,
-        branches: 20,   // baseline ~21.7%
-        functions: 5,   // baseline ~5.2%
+        branches: 13,   // baseline ~14.1%
+        functions: 3,   // baseline ~4.0%
         lines: 0,
         'src/lib/errorMessages.js': {
           statements: 100, branches: 100, functions: 100, lines: 100,

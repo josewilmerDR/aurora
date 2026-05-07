@@ -85,8 +85,6 @@ const ALL_MODULES = [
       { label: 'Planilla', icon: FiDollarSign, minRole: 'encargado', children: [
         { label: 'Salario Fijo', to: '/hr/planilla/fijo', icon: FiDollarSign, minRole: 'encargado' },
         { label: 'Salario por Unidad', to: '/hr/planilla/horas', icon: FiClock, minRole: 'encargado', draftKey: 'hr-planilla-unidad' },
-        { label: 'Historial Salario Fijo', to: '/hr/historial-pagos', icon: FiList, minRole: 'supervisor' },
-        { label: 'Historial Salario por Unidad', to: '/hr/planilla/horas/historial', icon: FiList, minRole: 'encargado' },
       ]},
     ],
   },
