@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiPrinter, FiArrowLeft, FiShare2 } from 'react-icons/fi';
+import { FiPrinter, FiArrowLeft, FiShare2, FiDownload } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/fixed-payroll-report.css';
+
+// CSV (RFC 4180): cita campos con coma, comilla o salto de línea; escapa
+// comillas duplicándolas. UTF-8 BOM al inicio del archivo para que Excel
+// detecte la codificación y los acentos no aparezcan rotos.
+function csvEscape(val) {
+  const s = String(val ?? '');
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+function csvRow(cells) {
+  return cells.map(csvEscape).join(',') + '\r\n';
+}
 
 const CCSS_RATE = 0.1083;
 
@@ -69,6 +81,49 @@ export default function FixedPayrollReport() {
 
   const handlePrint = () => window.print();
 
+  // Exporta la planilla completa como CSV. Solo se ofrece en modo planilla
+  // (el comprobante individual se entrega como PDF, no como tabla).
+  // El monto se clampa a >=0 para mantener paridad con el PDF (fmt() también
+  // hace Math.max(0, ...)). Si llegara un negativo desde el editor, ambos
+  // outputs lo muestran igual.
+  const handleExportCSV = () => {
+    const money = (n) => Math.max(0, Math.round(Number(n) || 0));
+    const rows = [];
+    rows.push(csvRow(['N°', 'Nombre', 'Cédula', 'Puesto', 'Ordinario', 'Extraordinario', 'Deducciones', 'Total Neto']));
+    filas.forEach((f, idx) => {
+      rows.push(csvRow([
+        idx + 1,
+        f.trabajadorNombre || '',
+        f.cedula || '',
+        f.puesto || '',
+        money(f.salarioOrdinario),
+        money(f.salarioExtraordinario),
+        money(f.totalDeducciones),
+        money(f.totalNeto),
+      ]));
+    });
+    rows.push(csvRow([
+      'TOTALES', '', '', '',
+      money(totalOrdinario),
+      money(totalExtraordinario),
+      money(totalDeducciones),
+      money(totalGeneral),
+    ]));
+
+    // BOM (U+FEFF) for Excel autodetect encoding when opening the file.
+    const csv = '﻿' + rows.join('');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const safePeriodo = (periodoLabel || 'planilla').replace(/[^\w-]+/g, '_');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `planilla-${reportNumber}-${safePeriodo}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleShare = async () => {
     const title = `Planilla de Salarios — ${periodoLabel}`;
     if (navigator.share) {
@@ -103,6 +158,11 @@ export default function FixedPayrollReport() {
             : `Previsualización de Planilla — ${periodoLabel}`}
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
+          {!isComprobante && (
+            <button className="pr-btn-csv" onClick={handleExportCSV} title="Exportar planilla como CSV">
+              <FiDownload size={16} /> Exportar CSV
+            </button>
+          )}
           <button className="pr-btn-share" onClick={handleShare}>
             <FiShare2 size={16} /> Compartir PDF
           </button>
