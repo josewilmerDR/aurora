@@ -85,6 +85,26 @@
   background-color: rgba(51, 255, 153, 0.1);
 }
 
+.pr-btn-csv {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  padding: 9px 18px;
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.pr-btn-csv:hover {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
 /* ── Alert banner ── */
 .pr-alert-banner {
   background-color: #2a1f00;
