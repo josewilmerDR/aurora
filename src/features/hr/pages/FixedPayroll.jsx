@@ -6,6 +6,7 @@ import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import PayrollStepIndicator from '../components/PayrollStepIndicator';
 
 const CCSS_RATE = 0.1083;
 // Default weekly hours if the ficha has no schedule configured
@@ -594,9 +595,20 @@ function FixedPayroll() {
 
   const filaDetalle = filas.find(f => f.trabajadorId === detalleId);
 
+  // Paso visual del flujo. Se calcula desde el estado existente — no
+  // controla navegación, sólo orienta al usuario.
+  //   1 = configurando período (no hay empleados cargados aún)
+  //   2 = revisando empleados (la planilla está cargada)
+  //   3 = guardando (modal de save abierto, save in flight, o success)
+  const currentStep = (saving || saveConfirmModal || confirmModal)
+    ? 3
+    : (loaded ? 2 : 1);
+
   return (
     <div className="planilla-page-wrap">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      <PayrollStepIndicator currentStep={currentStep} />
 
       {/* ── Configurar período + tabla de resultados ── */}
       <div className="form-card">
