@@ -1,10 +1,11 @@
-// HR — Fichas, asistencia, horas extra y permisos.
+// HR — Fichas, asistencia y permisos.
 //
 // Sub-archivo del split de routes/hr.js. Agrupa los CRUDs "people-baseline"
 // que operan sobre los datos de cada trabajador en la finca:
 //   - hr_fichas         → puesto, salario, horario, contacto de emergencia
-//   - hr_asistencia     → asistencia diaria con horasExtra opcionales
-//   - hr_horas_extra    → registro independiente de horas extras
+//   - hr_asistencia     → asistencia diaria con horasExtra opcionales;
+//                         endpoint batch usa doc id determinista
+//                         `${trabajadorId}_${fecha}` (upsert idempotente)
 //   - hr_permisos       → vacaciones / enfermedad / licencias
 
 const { Router } = require('express');
@@ -186,6 +187,91 @@ router.post('/api/hr/asistencia', authenticate, async (req, res) => {
     res.status(201).json({ id: ref.id });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register attendance.', 500);
+  }
+});
+
+// Batch upsert: registra la asistencia de toda la cuadrilla para una fecha
+// en un solo request. Usa doc id determinista `${trabajadorId}_${fecha}`
+// para que reenviar el mismo día sobreescriba en lugar de duplicar — la
+// asistencia es naturalmente "una por trabajador por día".
+const ASISTENCIA_ESTADOS = ['presente', 'ausente', 'vacaciones', 'incapacidad', 'permiso'];
+const ASISTENCIA_BATCH_MAX = 200;
+const ASISTENCIA_FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ASISTENCIA_NOTAS_MAX = 500;
+
+router.post('/api/hr/asistencia/batch', authenticate, async (req, res) => {
+  try {
+    const { fecha, registros } = req.body || {};
+    if (!fecha || !ASISTENCIA_FECHA_RE.test(String(fecha))) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'fecha must be YYYY-MM-DD.', 400);
+    }
+    if (!Array.isArray(registros) || registros.length === 0) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'registros must be a non-empty array.', 400);
+    }
+    if (registros.length > ASISTENCIA_BATCH_MAX) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `Maximum ${ASISTENCIA_BATCH_MAX} registros per batch.`, 400);
+    }
+
+    // Cargo users de la finca una sola vez para validar trabajadorIds y
+    // canonizar el nombre desde fuente autoritativa (no confío en cliente).
+    const usersSnap = await db.collection('users').where('fincaId', '==', req.fincaId).get();
+    const userMap = new Map(usersSnap.docs.map(d => [d.id, d.data()]));
+
+    const errors = [];
+    const cleaned = [];
+    const seenIds = new Set();
+    for (let i = 0; i < registros.length; i++) {
+      const r = registros[i] || {};
+      const id = String(r.trabajadorId || '').trim();
+      const estado = String(r.estado || '').trim();
+      if (!id || !userMap.has(id)) {
+        errors.push({ index: i, msg: 'trabajadorId inválido o no pertenece a la finca' });
+        continue;
+      }
+      if (seenIds.has(id)) {
+        errors.push({ index: i, msg: 'trabajadorId duplicado en el mismo batch' });
+        continue;
+      }
+      if (!ASISTENCIA_ESTADOS.includes(estado)) {
+        errors.push({ index: i, msg: `estado debe ser uno de: ${ASISTENCIA_ESTADOS.join(', ')}` });
+        continue;
+      }
+      seenIds.add(id);
+      cleaned.push({
+        trabajadorId: id,
+        trabajadorNombre: userMap.get(id).nombre || '',
+        estado,
+        horasExtra: Math.max(0, Math.min(24, Number(r.horasExtra) || 0)),
+        notas: String(r.notas || '').slice(0, ASISTENCIA_NOTAS_MAX),
+      });
+    }
+
+    if (errors.length) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, JSON.stringify(errors), 400);
+    }
+
+    const fechaTs = Timestamp.fromDate(new Date(fecha + 'T12:00:00'));
+    const now = Timestamp.now();
+    const batch = db.batch();
+    cleaned.forEach(r => {
+      const docId = `${r.trabajadorId}_${fecha}`;
+      const ref = db.collection('hr_asistencia').doc(docId);
+      // merge:true sobre id determinista da upsert idempotente. Sólo
+      // escribimos updatedAt; createdAt requeriría un read previo por doc
+      // (~200 reads extra) que no aporta — el doc snapshot ya guarda su
+      // creation time, y el caso operativo (auditoría) usa updatedAt.
+      batch.set(ref, {
+        ...r,
+        fecha: fechaTs,
+        fincaId: req.fincaId,
+        updatedAt: now,
+      }, { merge: true });
+    });
+    await batch.commit();
+
+    res.status(200).json({ saved: cleaned.length });
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save batch attendance.', 500);
   }
 });
 
