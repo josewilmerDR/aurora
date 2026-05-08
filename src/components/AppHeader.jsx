@@ -7,7 +7,7 @@ import { useApiFetch } from '../hooks/useApiFetch';
 import { ADVANCED_ENABLED } from '../lib/features';
 import { MODULES } from './Sidebar';
 
-export default function AppHeader({
+export default function AppHeader({ 
   isCollapsed,
   toggleCollapse,
   profileOpen,
