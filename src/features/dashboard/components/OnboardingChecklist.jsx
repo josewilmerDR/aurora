@@ -246,7 +246,7 @@ function OnboardingChecklist({ mode = 'fab' }) {
       </section>
     );
   }
-  //
+  
   // ── FAB mode (global, tras cerrar la inline) ────────────────────────────
   return (
     <>
