@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import ImageLightbox from '../../../components/ImageLightbox';
 import '../../applications/styles/packages.css';
 import '../styles/sampling-register-modal.css';
 
@@ -71,6 +72,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   const [capturedImage, setCapturedImage] = useState(null); // image to attach on save
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // { src, caption }
 
   // ── Load campos ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -386,7 +388,14 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                       </button>
                     ) : (
                       <div className="fmm-scan-preview">
-                        <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
+                        <button
+                          type="button"
+                          className="fmm-scan-thumb-btn"
+                          onClick={() => setLightbox({ src: scanImage.previewUrl, caption: 'Imagen a procesar' })}
+                          title="Ampliar imagen"
+                        >
+                          <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
+                        </button>
                         <button
                           className="fmm-scan-extract-btn"
                           type="button"
@@ -427,7 +436,14 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                 {/* Imagen adjunta al registro */}
                 {capturedImage && (
                   <div className="fmm-captured-bar">
-                    <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
+                    <button
+                      type="button"
+                      className="fmm-scan-thumb-btn"
+                      onClick={() => setLightbox({ src: capturedImage.previewUrl, caption: 'Imagen adjunta al registro' })}
+                      title="Ampliar imagen"
+                    >
+                      <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
+                    </button>
                     <span className="fmm-captured-label">Imagen adjunta — se guardará con el registro</span>
                     <button
                       type="button"
@@ -524,6 +540,13 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
         </div>
 
       </div>
+      {lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          caption={lightbox.caption}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { FiTrash2, FiImage, FiDownload } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import ImageLightbox from '../../../components/ImageLightbox';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/monitoring.css';
 
@@ -15,6 +16,7 @@ function SamplingHistory() {
   const [toast, setToast]               = useState(null);
   const [tipoCampos, setTipoCampos]     = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // { src, caption }
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
@@ -233,34 +235,52 @@ function SamplingHistory() {
               <tbody>
                 {displayRows.map((row, rowIdx) => {
                   const { mon: r, reg, isFirst, regIdx, regTotal } = row;
+                  const isMultiRow = regTotal > 1;
+                  const isSub = !isFirst;
+                  const rowClass = [
+                    'mh-data-row',
+                    isSub && 'mh-data-row--sub',
+                    isMultiRow && 'mh-data-row--group',
+                    isFirst && isMultiRow && 'mh-data-row--group-start',
+                  ].filter(Boolean).join(' ');
                   return (
-                    <tr
-                      key={`${r.id}-${rowIdx}`}
-                      className={`mh-data-row${isFirst ? '' : ' mh-data-row--sub'}`}
-                    >
-                      <td>{fmt(r.fecha)}</td>
-                      <td>{fmt(r.createdAt)}</td>
-                      <td>{r.responsableNombre || '—'}</td>
-                      <td>{r.supervisorNombre || '—'}</td>
-                      <td>{r.loteNombre || '—'}</td>
-                      <td>{r.bloque || '—'}</td>
-                      <td className="mh-td-notas" title={r.observaciones || undefined}>
-                        {r.observaciones || ''}
+                    <tr key={`${r.id}-${rowIdx}`} className={rowClass}>
+                      <td className="mh-td-fecha">
+                        {isSub ? (
+                          <span className="mh-sub-marker">↳ {regIdx + 1}/{regTotal}</span>
+                        ) : (
+                          <>
+                            {fmt(r.fecha)}
+                            {isMultiRow && (
+                              <span className="mh-multi-badge">1/{regTotal}</span>
+                            )}
+                          </>
+                        )}
+                      </td>
+                      <td>{isSub ? '' : fmt(r.createdAt)}</td>
+                      <td>{isSub ? '' : (r.responsableNombre || '—')}</td>
+                      <td>{isSub ? '' : (r.supervisorNombre || '—')}</td>
+                      <td>{isSub ? '' : (r.loteNombre || '—')}</td>
+                      <td>{isSub ? '' : (r.bloque || '—')}</td>
+                      <td className="mh-td-notas" title={isSub ? undefined : (r.observaciones || undefined)}>
+                        {isSub ? '' : (r.observaciones || '')}
                       </td>
                       {tipoCampos.map(c => (
                         <td key={c.nombre} className="mh-td-dyn">{getDynCell(reg, c.nombre)}</td>
                       ))}
                       <td className="mh-td-actions">
                         {isFirst && r.scanImageUrl && (
-                          <a
-                            href={r.scanImageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
                             className="mh-img-btn"
+                            onClick={() => setLightbox({
+                              src: r.scanImageUrl,
+                              caption: `${r.loteNombre || 'Registro'} · ${fmt(r.fecha)}`,
+                            })}
                             title="Ver imagen de escaneo"
                           >
                             <FiImage size={13} />
-                          </a>
+                          </button>
                         )}
                         <button
                           type="button"
@@ -279,6 +299,15 @@ function SamplingHistory() {
           </div>
         )}
       </section>
+
+      {lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          caption={lightbox.caption}
+          openUrl={lightbox.src}
+          onClose={() => setLightbox(null)}
+        />
+      )}
 
       {confirmDelete && (
         <AuroraConfirmModal
