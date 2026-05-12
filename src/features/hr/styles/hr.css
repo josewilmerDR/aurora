@@ -792,6 +792,69 @@ button.collapsible-section-header:hover { opacity: 1; }
   margin-top: 3px;
 }
 
+/* ── Botón "Registrar permiso" en cabecera del detalle ── */
+.planilla-det-emp-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Form embebido en el modal RegisterPermisoModal ── */
+.planilla-permiso-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+.planilla-permiso-form .form-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.planilla-permiso-form .form-control label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.planilla-permiso-form .form-control input,
+.planilla-permiso-form .form-control select {
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  width: 100%;
+}
+
+.planilla-permiso-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.planilla-permiso-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  cursor: pointer;
+  user-select: none;
+}
+
+.planilla-permiso-toggle input[type="checkbox"] {
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+}
+
 .planilla-det-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--aurora-border);
@@ -859,6 +922,87 @@ button.collapsible-section-header:hover { opacity: 1; }
   font-size: 0.75rem;
   font-style: italic;
   color: #ffc107;
+  opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Pill que se muestra cuando la deducción por horas se topa al salario diario. */
+.planilla-det-tope-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #ff8080;
+  background: rgba(255, 128, 128, 0.12);
+  border: 1px solid rgba(255, 128, 128, 0.4);
+  cursor: help;
+}
+
+/* Botón "X" para revertir un movimiento (ausente o parcial) del día. */
+.planilla-det-revert-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 80, 80, 0.3);
+  background: rgba(255, 80, 80, 0.08);
+  color: #ff8080;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.planilla-det-revert-btn:hover {
+  background: rgba(255, 80, 80, 0.2);
+  border-color: rgba(255, 80, 80, 0.55);
+}
+
+/* Wrapper para alinear el texto "Ausente..." con su botón de revertir. */
+.planilla-det-cell-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+/* Aviso dentro del modal de revertir cuando el permiso abarca múltiples días. */
+.planilla-revert-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  background: rgba(255, 193, 7, 0.07);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 6px;
+}
+
+.planilla-revert-warning > svg {
+  color: #ffc107;
+  flex-shrink: 0;
+}
+
+.planilla-revert-warning ul {
+  margin: 4px 0 0;
+  padding-left: 22px;
+  list-style: disc;
+}
+
+.planilla-revert-warning li {
+  font-size: 0.8rem;
   opacity: 0.85;
 }
 

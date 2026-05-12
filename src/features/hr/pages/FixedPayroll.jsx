@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/hr.css';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle, FiCalendar } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import PayrollStepIndicator from '../components/PayrollStepIndicator';
+import RegisterPermisoModal from '../components/RegisterPermisoModal';
 
 const CCSS_RATE = 0.1083;
-// Default weekly hours if the ficha has no schedule configured
-const JORNADA_HORAS_DEFAULT = 48;
+// Default daily hours if the ficha has no schedule configured (jornada
+// diurna ordinaria: 8h/día, Art. 136 CT).
+const JORNADA_HORAS_DIARIA_DEFAULT = 8;
 const ESTADO_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
 
 // Defensive limits (input validation):
@@ -27,14 +29,23 @@ const clampNonNeg = (v, max = SALARIO_MAX) => {
 };
 
 const DIAS_HORARIO = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
-function calcHorasSemanales(horario = {}) {
-  return DIAS_HORARIO.reduce((sum, key) => {
+
+// Promedio de horas laborables por día sobre los días activos del horario.
+// Para 40h/semana en 5 días → 8h/día. Para jornadas mixtas (ej: 4 días de 8h
+// + 2 días de 4h) devuelve el promedio. Si no hay horario, devuelve 0 y el
+// caller debe usar JORNADA_HORAS_DIARIA_DEFAULT.
+function calcHorasDiarias(horario = {}) {
+  let totalHoras = 0;
+  let diasActivos = 0;
+  for (const key of DIAS_HORARIO) {
     const dia = horario[key];
-    if (!dia?.activo || !dia.inicio || !dia.fin) return sum;
+    if (!dia?.activo || !dia.inicio || !dia.fin) continue;
     const [h1, m1] = dia.inicio.split(':').map(Number);
     const [h2, m2] = dia.fin.split(':').map(Number);
-    return sum + Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60);
-  }, 0);
+    totalHoras += Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60);
+    diasActivos++;
+  }
+  return diasActivos > 0 ? totalHoras / diasActivos : 0;
 }
 
 const fmt      = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
@@ -45,6 +56,8 @@ const dateStr  = (s) => s.substring(0, 10); // normalize to YYYY-MM-DD
 // Build per-day array for the period, marking absent days (approved sin-goce leave).
 // Partial permisos (esParcial) accumulate horasParciales per day instead of marking ausente.
 // efectivoDesde: the actual first day to include (max of period start and fechaIngreso).
+// Each day also tracks permisoIdsAusente/permisoIdsParcial so the UI can revert
+// a specific entry by deleting the underlying permiso(s).
 function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesde) {
   const dias  = [];
   const fin   = new Date(fechaFin      + 'T12:00:00');
@@ -54,27 +67,34 @@ function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesd
     const curStr = cur.toISOString().substring(0, 10);
 
     // Full-day sin-goce: mark the entire day as ausente
-    const ausente = permisos.some(p => {
-      if (p.trabajadorId !== trabajadorId) return false;
-      if (p.estado !== 'aprobado') return false;
-      if (p.conGoce !== false) return false;
-      if (p.esParcial) return false;
-      const pI = dateStr(p.fechaInicio);
-      const pF = dateStr(p.fechaFin);
-      return curStr >= pI && curStr <= pF;
-    });
+    const ausenteList = permisos.filter(p =>
+      p.trabajadorId === trabajadorId &&
+      p.estado === 'aprobado' &&
+      p.conGoce === false &&
+      !p.esParcial &&
+      curStr >= dateStr(p.fechaInicio) &&
+      curStr <= dateStr(p.fechaFin));
+    const ausente = ausenteList.length > 0;
+    const permisoIdsAusente = ausenteList.map(p => p.id).filter(Boolean);
 
     // Partial sin-goce: accumulate hours absent on this specific day
-    const horasParciales = ausente ? 0 : permisos.reduce((sum, p) => {
-      if (p.trabajadorId !== trabajadorId) return sum;
-      if (p.estado !== 'aprobado') return sum;
-      if (p.conGoce !== false) return sum;
-      if (!p.esParcial) return sum;
-      if (dateStr(p.fechaInicio) !== curStr) return sum;
-      return sum + (Number(p.horas) || 0);
-    }, 0);
+    const parcialList = ausente ? [] : permisos.filter(p =>
+      p.trabajadorId === trabajadorId &&
+      p.estado === 'aprobado' &&
+      p.conGoce === false &&
+      p.esParcial &&
+      dateStr(p.fechaInicio) === curStr);
+    const horasParciales    = parcialList.reduce((sum, p) => sum + (Number(p.horas) || 0), 0);
+    const permisoIdsParcial = parcialList.map(p => p.id).filter(Boolean);
 
-    dias.push({ fecha: new Date(cur), ausente, horasParciales, salarioExtra: 0 });
+    dias.push({
+      fecha: new Date(cur),
+      ausente,
+      horasParciales,
+      salarioExtra: 0,
+      permisoIdsAusente,
+      permisoIdsParcial,
+    });
     cur.setDate(cur.getDate() + 1);
   }
   return dias;
@@ -152,9 +172,13 @@ function detectarSolapamientos(nuevasFilas, planillas, editingId, fechaInicio, f
 
 function recalcFila(fila) {
   const diario = fila.salarioDiario ?? (fila.salarioMensual / 30);
-  // Valor-hora = salario mensual × 12 meses / 52 semanas / horas semanales
-  const horasSemanales = Number(fila.horasSemanales) || JORNADA_HORAS_DEFAULT;
-  const valorHora = (fila.salarioMensual * 12) / 52 / horasSemanales;
+  // Valor-hora = (salario mensual / 30) / horas laborables por día.
+  // Para 500 000 con jornada de 8h/día → 16 666.66 / 8 = 2 083.33 por hora.
+  // Compat con planillas legacy guardadas con horasSemanales (÷ 6 días).
+  const horasDiarias = Number(fila.horasDiarias)
+    || (Number(fila.horasSemanales) ? Number(fila.horasSemanales) / 6 : 0)
+    || JORNADA_HORAS_DIARIA_DEFAULT;
+  const valorHora = (fila.salarioMensual / 30) / horasDiarias;
 
   // Apply 30-day convention (Art. 140 of the CR Labor Code):
   // - Full month (1→last): target = 30 days (31st ignored, February is topped up)
@@ -164,21 +188,40 @@ function recalcFila(fila) {
   const aplicarConvencion = mesCompleto || segQuincena;
   const diasObjetivo      = mesCompleto ? 30 : 15;
   const calDias           = fila.dias.length;
-  const salarioDiasReales = fila.dias.reduce((s, d, idx) => {
+
+  // Pre-compute per-day partial deduction with daily cap: horas × valorHora
+  // never exceeds the day's salary (avoids negative day pay or overcharging
+  // when hours are accidentally entered > workday).
+  const diasCalc = fila.dias.map(d => {
+    if (d.ausente) {
+      return { ...d, deduccionParcialBruta: 0, deduccionParcialEfectiva: 0, topeAplicado: false };
+    }
+    const horas = Number(d.horasParciales) || 0;
+    const bruta = horas * valorHora;
+    const efectiva = Math.min(bruta, diario);
+    return {
+      ...d,
+      deduccionParcialBruta:    bruta,
+      deduccionParcialEfectiva: efectiva,
+      topeAplicado:             bruta > diario && horas > 0,
+    };
+  });
+
+  const salarioDiasReales = diasCalc.reduce((s, d, idx) => {
     if (d.ausente) return s;
     if (aplicarConvencion && calDias > diasObjetivo && idx >= diasObjetivo) return s;
-    const deduccionParcial = (d.horasParciales || 0) * valorHora;
-    return s + diario - deduccionParcial;
+    return s + diario - (d.deduccionParcialEfectiva || 0);
   }, 0);
   const diasVirtuales = aplicarConvencion && calDias < diasObjetivo ? diasObjetivo - calDias : 0;
   const salarioOrdinario = salarioDiasReales + diasVirtuales * diario;
-  const salarioExtraordinario = fila.dias.reduce((s, d) => s + (Number(d.salarioExtra) || 0), 0);
+  const salarioExtraordinario = diasCalc.reduce((s, d) => s + (Number(d.salarioExtra) || 0), 0);
   const salarioBruto        = salarioOrdinario + salarioExtraordinario;
   const deduccionCCSS       = salarioBruto * CCSS_RATE;
   const otrasDeduccionesTotal = fila.deduccionesExtra.reduce((s, d) => s + (Number(d.monto) || 0), 0);
   const totalDeducciones    = deduccionCCSS + otrasDeduccionesTotal;
   return {
     ...fila,
+    dias:                   diasCalc,
     salarioOrdinario:       Math.round(salarioOrdinario),
     salarioExtraordinario:  Math.round(salarioExtraordinario),
     salarioBruto:           Math.round(salarioBruto),
@@ -223,6 +266,9 @@ function FixedPayroll() {
   const [confirmEmailSolap, setConfirmEmailSolap]   = useState('');
   const [editarFechas, setEditarFechas]             = useState(false);
   const [planillasLoaded, setPlanillasLoaded]       = useState(false);
+  const [permisoModalFor, setPermisoModalFor]       = useState(null); // {id, nombre} | null
+  const [revertConfirm, setRevertConfirm]           = useState(null); // {trabajadorId, ids, day, multiDayRanges} | null
+  const [reverting, setReverting]                   = useState(false);
   const autoDateDone = useRef(false);
 
   const fetchPlanillas = () =>
@@ -318,7 +364,7 @@ function FixedPayroll() {
           const fi             = ficha.fechaIngreso || '';
           const efectivoDesde  = fi && fi > fechaInicio ? fi : fechaInicio;
           const parcial        = efectivoDesde > fechaInicio;
-          const horasSemanales = calcHorasSemanales(ficha.horarioSemanal);
+          const horasDiarias   = calcHorasDiarias(ficha.horarioSemanal);
           return recalcFila({
             trabajadorId:      u.id,
             trabajadorNombre:  u.nombre,
@@ -326,7 +372,7 @@ function FixedPayroll() {
             puesto:            ficha.puesto  || '',
             salarioMensual:    Number(ficha.salarioBase) || 0,
             salarioDiario:     Number(ficha.salarioBase) / 30 || 0,
-            horasSemanales:    horasSemanales || JORNADA_HORAS_DEFAULT,
+            horasDiarias:      horasDiarias || JORNADA_HORAS_DIARIA_DEFAULT,
             fechaIngreso:      fi,
             periodoParcial:    parcial,
             efectivoDesde:     efectivoDesde,
@@ -407,6 +453,80 @@ function FixedPayroll() {
   const removeDeduccion = (id, idx) =>
     setFilas(prev => prev.map(f => f.trabajadorId !== id ? f :
       recalcFila({ ...f, deduccionesExtra: f.deduccionesExtra.filter((_, i) => i !== idx) })));
+
+  // Abre el modal de confirmación para revertir los permisos de un día puntual.
+  // Para permisos ausente que abarcan varios días, muestra el rango completo
+  // que se eliminará (la eliminación es por permiso, no por día — el endpoint
+  // no soporta "quitar solo este día" de un permiso multi-día).
+  const askRevertirDia = (trabajadorId, dayIdx) => {
+    const fila = filas.find(f => f.trabajadorId === trabajadorId);
+    if (!fila) return;
+    const day = fila.dias[dayIdx];
+    if (!day) return;
+    const ids = [...(day.permisoIdsAusente || []), ...(day.permisoIdsParcial || [])];
+    if (!ids.length) return;
+    const tipo = day.ausente ? 'ausente' : 'parcial';
+    // Para multi-day: calcula el rango de cada permiso afectado
+    const multiDayRanges = day.ausente
+      ? ids.map(id => {
+          const p = allPermisos.find(x => x.id === id);
+          if (!p) return null;
+          const pI = dateStr(p.fechaInicio);
+          const pF = dateStr(p.fechaFin);
+          return pI !== pF ? { id, pI, pF } : null;
+        }).filter(Boolean)
+      : [];
+    setRevertConfirm({ trabajadorId, ids, dayFecha: day.fecha, tipo, horasParciales: day.horasParciales, multiDayRanges });
+  };
+
+  const doRevertir = async () => {
+    if (!revertConfirm || reverting) return;
+    const { trabajadorId, ids } = revertConfirm;
+    setReverting(true);
+    try {
+      const results = await Promise.all(ids.map(id =>
+        apiFetch(`/api/hr/permisos/${id}`, { method: 'DELETE' })
+      ));
+      if (!results.every(r => r.ok)) {
+        showToast('No se pudo eliminar uno o más permisos. Verifique sus permisos de rol.', 'error');
+        return;
+      }
+      const fresh = await apiFetch('/api/hr/permisos').then(r => r.json()).catch(() => null);
+      if (!fresh) { showToast('Eliminados, pero falló el refresco.', 'error'); return; }
+      setAllPermisos(fresh);
+      setFilas(prev => prev.map(f => {
+        if (f.trabajadorId !== trabajadorId) return f;
+        const efectivoDesde = f.fechaIngreso && f.fechaIngreso > fechaInicio ? f.fechaIngreso : fechaInicio;
+        return recalcFila({ ...f, dias: generarDias(fechaInicio, fechaFin, fresh, f.trabajadorId, efectivoDesde) });
+      }));
+      showToast('Movimiento revertido.');
+      setRevertConfirm(null);
+    } catch {
+      showToast('Error al revertir el permiso.', 'error');
+    } finally {
+      setReverting(false);
+    }
+  };
+
+  // Tras registrar (y posiblemente aprobar) un permiso desde el modal, refresca
+  // allPermisos y regenera los dias de la fila afectada usando la lista nueva.
+  // Solo se regenera si autoApproved (los permisos pendientes no impactan).
+  const handlePermisoSuccess = async (trabajadorId, { autoApproved }) => {
+    setPermisoModalFor(null);
+    const fresh = await apiFetch('/api/hr/permisos').then(r => r.json()).catch(() => null);
+    if (!fresh) { showToast('Permiso registrado, pero falló el refresco.', 'error'); return; }
+    setAllPermisos(fresh);
+    if (!autoApproved) {
+      showToast('Permiso registrado en estado pendiente.');
+      return;
+    }
+    setFilas(prev => prev.map(f => {
+      if (f.trabajadorId !== trabajadorId) return f;
+      const efectivoDesde = f.fechaIngreso && f.fechaIngreso > fechaInicio ? f.fechaIngreso : fechaInicio;
+      return recalcFila({ ...f, dias: generarDias(fechaInicio, fechaFin, fresh, f.trabajadorId, efectivoDesde) });
+    }));
+    showToast('Permiso aprobado y aplicado a la planilla.');
+  };
 
   const { label: periodoLabel, inicio: periodoInicio, fin: periodoFin, dias: periodoDias } = getPeriodo();
   // Art. 140 Labor Code: reuses esMesCompleto / esSegundaQuincena by building a
@@ -544,9 +664,15 @@ function FixedPayroll() {
     // salarioDiario and deduccionesExtra from the saved planilla are preserved.
     const restoredFilas = p.filas.map(f => {
       const efectivoDesde = f.fechaIngreso && f.fechaIngreso > inicio ? f.fechaIngreso : inicio;
+      // Compat: planillas guardadas antes del cambio sólo tienen horasSemanales
+      // (jornada legal CR: 48h/sem en 6 días → 8h/día). Las nuevas almacenan
+      // horasDiarias directamente.
+      const horasDiarias = f.horasDiarias
+        || (f.horasSemanales ? f.horasSemanales / 6 : 0)
+        || JORNADA_HORAS_DIARIA_DEFAULT;
       return recalcFila({
         ...f,
-        horasSemanales: f.horasSemanales || JORNADA_HORAS_DEFAULT,
+        horasDiarias,
         deduccionesExtra: f.deduccionesExtra || [],
         dias: generarDias(inicio, fin, allPermisos, f.trabajadorId, efectivoDesde),
       });
@@ -743,6 +869,15 @@ function FixedPayroll() {
                 {filaDetalle.puesto && <span>{filaDetalle.puesto}</span>}
               </div>
             </div>
+            <div className="planilla-det-emp-actions">
+              <button
+                className="aur-btn-text"
+                title="Registrar un permiso o ausencia para este empleado dentro del período"
+                onClick={() => setPermisoModalFor({ id: filaDetalle.trabajadorId, nombre: filaDetalle.trabajadorNombre })}
+              >
+                <FiCalendar size={14} /> Registrar ausencia / permiso
+              </button>
+            </div>
           </div>
 
           {/* Salario diario editable */}
@@ -756,9 +891,9 @@ function FixedPayroll() {
             />
             <span className="planilla-det-diario-hint">
               Base mensual: {fmt(filaDetalle.salarioMensual)} ÷ 30 = {fmt(filaDetalle.salarioMensual / 30)}
-              {filaDetalle.horasSemanales
-                ? ` · Valor/hora: ${fmt((filaDetalle.salarioMensual * 12) / 52 / filaDetalle.horasSemanales)} (${filaDetalle.horasSemanales}h/sem)`
-                : ` · Valor/hora calculado con ${JORNADA_HORAS_DEFAULT}h/sem (horario no configurado)`}
+              {filaDetalle.horasDiarias
+                ? ` · Valor/hora: ${fmt((filaDetalle.salarioMensual / 30) / filaDetalle.horasDiarias)} (${filaDetalle.horasDiarias}h/día)`
+                : ` · Valor/hora calculado con ${JORNADA_HORAS_DIARIA_DEFAULT}h/día (horario no configurado)`}
             </span>
           </div>
 
@@ -775,22 +910,47 @@ function FixedPayroll() {
               <tbody>
                 {filaDetalle.dias.map((d, idx) => {
                   const diario = filaDetalle.salarioDiario ?? (filaDetalle.salarioMensual / 30);
-                  const horasSemanales = Number(filaDetalle.horasSemanales) || JORNADA_HORAS_DEFAULT;
-                  const valorHora = (filaDetalle.salarioMensual * 12) / 52 / horasSemanales;
-                  const deduccionParcial = d.horasParciales > 0
-                    ? d.horasParciales * valorHora
-                    : 0;
+                  // Usa los valores ya capados que calculó recalcFila (incluye
+                  // el tope diario). Fallback al cálculo si por alguna razón
+                  // no están seteados (e.g. fila recién cargada antes del recalc).
+                  const deduccionParcial = d.deduccionParcialEfectiva ?? 0;
+                  const deduccionParcialBruta = d.deduccionParcialBruta ?? 0;
+                  const topeAplicado = !!d.topeAplicado;
                   return (
                     <tr key={idx} className={d.ausente ? 'planilla-det-row--ausente' : d.horasParciales > 0 ? 'planilla-det-row--parcial' : ''}>
                       <td style={{ textAlign: 'left' }}>{fmtShort(d.fecha)}</td>
                       <td>
                         {d.ausente ? (
-                          <span className="planilla-det-ausente">Ausente (sin goce)</span>
+                          <span className="planilla-det-cell-with-action">
+                            <span className="planilla-det-ausente">Ausente (sin goce)</span>
+                            <button
+                              type="button"
+                              className="planilla-det-revert-btn"
+                              title="Revertir esta ausencia"
+                              onClick={() => askRevertirDia(detalleId, idx)}
+                            >
+                              <FiXCircle size={14} />
+                            </button>
+                          </span>
                         ) : d.horasParciales > 0 ? (
                           <span className="planilla-det-parcial-cell">
                             {fmt(diario - deduccionParcial)}
                             <span className="planilla-det-parcial-tag">
                               −{d.horasParciales}h sin goce ({fmt(deduccionParcial)})
+                              {topeAplicado && (
+                                <span className="planilla-det-tope-tag"
+                                  title={`Las ${d.horasParciales}h equivalen a ${fmt(deduccionParcialBruta)}, pero la deducción se topó al salario diario (${fmt(diario)}).`}>
+                                  tope diario
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                className="planilla-det-revert-btn"
+                                title="Revertir las horas registradas para este día"
+                                onClick={() => askRevertirDia(detalleId, idx)}
+                              >
+                                <FiXCircle size={14} />
+                              </button>
                             </span>
                           </span>
                         ) : (
@@ -944,6 +1104,49 @@ function FixedPayroll() {
           onConfirm={() => setConfirmModal(false)}
           onCancel={() => setConfirmModal(false)}
         />
+      )}
+
+      {/* ── Registrar permiso desde la planilla ── */}
+      {permisoModalFor && (
+        <RegisterPermisoModal
+          trabajador={permisoModalFor}
+          defaultFecha={fechaInicio}
+          periodoInicio={fechaInicio}
+          periodoFin={fechaFin}
+          autoApprove={canAprobar}
+          showToast={showToast}
+          onCancel={() => setPermisoModalFor(null)}
+          onSuccess={(result) => handlePermisoSuccess(permisoModalFor.id, result)}
+        />
+      )}
+
+      {/* ── Revertir permiso de un día ── */}
+      {revertConfirm && (
+        <AuroraConfirmModal
+          danger
+          size="wide"
+          title="Revertir movimiento"
+          body={revertConfirm.tipo === 'ausente'
+            ? <>Se eliminará la ausencia registrada para el <strong>{fmtShort(revertConfirm.dayFecha)}</strong>. El empleado volverá a recibir el pago de este día.</>
+            : <>Se eliminarán las <strong>{revertConfirm.horasParciales}h</strong> registradas como sin goce para el <strong>{fmtShort(revertConfirm.dayFecha)}</strong>. Podrá volver a registrar la cantidad correcta.</>}
+          confirmLabel="Revertir"
+          loading={reverting}
+          loadingLabel="Revirtiendo…"
+          icon={<FiXCircle size={16} />}
+          onConfirm={doRevertir}
+          onCancel={() => setRevertConfirm(null)}
+        >
+          {revertConfirm.multiDayRanges.length > 0 && (
+            <div className="planilla-revert-warning">
+              <FiAlertTriangle size={14} /> Atención: el permiso original abarca varios días. Al revertir se eliminará el permiso completo, afectando:
+              <ul>
+                {revertConfirm.multiDayRanges.map(r => (
+                  <li key={r.id}>{fmtShort(new Date(r.pI + 'T12:00:00'))} – {fmtShort(new Date(r.pF + 'T12:00:00'))}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </AuroraConfirmModal>
       )}
 
       {/* ── Solapamiento warning modal ── */}
