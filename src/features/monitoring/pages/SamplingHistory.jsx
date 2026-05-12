@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiTrash2, FiImage } from 'react-icons/fi';
+import { FiTrash2, FiImage, FiDownload } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -116,6 +116,42 @@ function SamplingHistory() {
     return (val !== undefined && val !== '') ? val : '—';
   };
 
+  const csvCell = (v) => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      'F. Programada', 'F. Carga', 'Muestreador', 'Supervisor',
+      'Lote', 'Grupo', 'Notas',
+      ...tipoCampos.map(c => c.nombre),
+    ];
+    const rows = displayRows.map(({ mon: r, reg }) => [
+      fmt(r.fecha),
+      fmt(r.createdAt),
+      r.responsableNombre || '',
+      r.supervisorNombre || '',
+      r.loteNombre || '',
+      r.bloque || '',
+      r.observaciones || '',
+      ...tipoCampos.map(c => reg?.[c.nombre] ?? ''),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+    // BOM (U+FEFF) para que Excel lea acentos correctamente
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const today = new Date().toISOString().split('T')[0];
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `monitoreo-${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mh-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -156,6 +192,16 @@ function SamplingHistory() {
         <div className="aur-section-header">
           <h3>Registros de monitoreo</h3>
           <span className="aur-section-count">{displayRows.length}</span>
+          <button
+            type="button"
+            className="aur-btn-pill aur-btn-pill--sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={handleExportCSV}
+            disabled={displayRows.length === 0}
+            title="Descargar los registros filtrados como CSV"
+          >
+            <FiDownload size={14} /> Exportar CSV
+          </button>
         </div>
 
         {loading ? (

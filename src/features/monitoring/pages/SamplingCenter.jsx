@@ -6,13 +6,38 @@ import '../styles/sampling-center.css';
 
 const fmt = (iso) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', {
-    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC',
+  return new Date(iso).toLocaleDateString('es-CR', {
+    day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
   });
 };
 
 const STATUS_LABEL = { pending: 'Pendiente', completed_by_user: 'Completado', skipped: 'Omitido' };
 const STATUS_BADGE = { pending: 'yellow', completed_by_user: 'green', skipped: 'gray' };
+
+const STATUS_FILTERS = [
+  { value: 'pending',            label: 'Pendientes' },
+  { value: 'completed_by_user',  label: 'Completadas' },
+  { value: 'all',                label: 'Todas' },
+];
+
+const URGENCY = {
+  overdue: { label: 'Atrasada', tone: 'magenta' },
+  today:   { label: 'Hoy',      tone: 'yellow'  },
+  soon:    { label: 'Pronto',   tone: 'blue'    },
+};
+
+const getUrgency = (fechaProgramada, status) => {
+  if (status !== 'pending' || !fechaProgramada) return null;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const fecha = new Date(fechaProgramada);
+  fecha.setUTCHours(0, 0, 0, 0);
+  const diffDays = Math.round((fecha - today) / 86400000);
+  if (diffDays < 0)  return URGENCY.overdue;
+  if (diffDays === 0) return URGENCY.today;
+  if (diffDays <= 3) return URGENCY.soon;
+  return null;
+};
 
 export default function SamplingCenter() {
   const apiFetch = useApiFetch();
@@ -20,6 +45,7 @@ export default function SamplingCenter() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const [search, setSearch]   = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [deleting, setDeleting] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [modalOrden, setModalOrden] = useState(null);
@@ -31,17 +57,36 @@ export default function SamplingCenter() {
       .catch(() => { setError('No se pudieron cargar las órdenes de muestreo.'); setLoading(false); });
   }, []);
 
+  const statusCounts = useMemo(() => {
+    const counts = { pending: 0, completed_by_user: 0, all: ordenes.length };
+    for (const o of ordenes) {
+      if (o.status === 'pending') counts.pending++;
+      else if (o.status === 'completed_by_user') counts.completed_by_user++;
+    }
+    return counts;
+  }, [ordenes]);
+
   const filtered = useMemo(() => {
+    let result = ordenes;
+    if (statusFilter !== 'all') result = result.filter(o => o.status === statusFilter);
     const q = search.trim().toLowerCase();
-    if (!q) return ordenes;
-    return ordenes.filter(o =>
-      o.grupoNombre?.toLowerCase().includes(q) ||
-      o.loteNombre?.toLowerCase().includes(q) ||
-      o.responsableNombre?.toLowerCase().includes(q) ||
-      o.tipoMuestreo?.toLowerCase().includes(q) ||
-      o.nota?.toLowerCase().includes(q)
-    );
-  }, [ordenes, search]);
+    if (q) {
+      result = result.filter(o =>
+        o.grupoNombre?.toLowerCase().includes(q) ||
+        o.loteNombre?.toLowerCase().includes(q) ||
+        o.responsableNombre?.toLowerCase().includes(q) ||
+        o.tipoMuestreo?.toLowerCase().includes(q) ||
+        o.nota?.toLowerCase().includes(q)
+      );
+    }
+    // Pendientes: más urgente primero. Completadas: más recientes primero.
+    const sorted = [...result].sort((a, b) => {
+      const fa = a.fechaProgramada || '';
+      const fb = b.fechaProgramada || '';
+      return statusFilter === 'completed_by_user' ? fb.localeCompare(fa) : fa.localeCompare(fb);
+    });
+    return sorted;
+  }, [ordenes, search, statusFilter]);
 
   const handleComplete = async (id, formularioData = null, metadata = {}) => {
     const res = await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
@@ -76,6 +121,22 @@ export default function SamplingCenter() {
         <span className="aur-section-count">{filtered.length}</span>
       </div>
       <p className="mo-section-hint">Registra los hallazgos de cada inspección realizada a tus cultivos</p>
+
+      <div className="mo-status-filter" role="tablist" aria-label="Filtrar por estado">
+        {STATUS_FILTERS.map(f => (
+          <button
+            key={f.value}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === f.value}
+            className={`mo-status-pill${statusFilter === f.value ? ' is-active' : ''}`}
+            onClick={() => setStatusFilter(f.value)}
+          >
+            {f.label}
+            <span className="mo-status-pill-count">{statusCounts[f.value] ?? 0}</span>
+          </button>
+        ))}
+      </div>
 
       <div className="aur-table-toolbar">
         <div className="mo-search-wrap">
@@ -116,7 +177,13 @@ export default function SamplingCenter() {
         <>
           {filtered.length === 0 ? (
             <div className="mo-state mo-state--empty">
-              {search ? 'Sin resultados para la búsqueda.' : 'No hay órdenes de muestreo programadas.'}
+              {search
+                ? 'Sin resultados para la búsqueda.'
+                : statusFilter === 'pending'
+                  ? 'No hay órdenes pendientes.'
+                  : statusFilter === 'completed_by_user'
+                    ? 'No hay órdenes completadas.'
+                    : 'No hay órdenes de muestreo programadas.'}
             </div>
           ) : (
             <div className="aur-table-wrap">
@@ -143,9 +210,15 @@ export default function SamplingCenter() {
                       <td>{o.tipoMuestreo}</td>
                       <td className="mo-td-nota">{o.nota || <span className="mo-empty-val">—</span>}</td>
                       <td>
-                        <span className={`aur-badge aur-badge--${STATUS_BADGE[o.status] || 'gray'}`}>
-                          {STATUS_LABEL[o.status] || o.status}
-                        </span>
+                        {(() => {
+                          const u = getUrgency(o.fechaProgramada, o.status);
+                          if (u) return <span className={`aur-badge aur-badge--${u.tone}`}>{u.label}</span>;
+                          return (
+                            <span className={`aur-badge aur-badge--${STATUS_BADGE[o.status] || 'gray'}`}>
+                              {STATUS_LABEL[o.status] || o.status}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="mo-td-action">
                         {confirmId === o.id ? (
@@ -173,11 +246,11 @@ export default function SamplingCenter() {
                               <button
                                 type="button"
                                 className="mo-complete-btn"
-                                title="Registrar resultado y marcar como hecha"
+                                title="Registrar resultado del muestreo"
                                 onClick={() => setModalOrden(o)}
                               >
                                 <FiCheckCircle size={14} />
-                                Hecha
+                                Registrar
                               </button>
                             )}
                             <button
