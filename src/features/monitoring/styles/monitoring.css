@@ -91,6 +91,14 @@
   gap: 6px;
 }
 
+/* Hint encima de los chips de "Campos predeterminados" */
+.tpl-campos-hint {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  margin: -4px 0 10px;
+  letter-spacing: -0.01em;
+}
+
 /* Empty state slim */
 .tpl-empty {
   font-size: var(--aur-fs-footnote);
@@ -228,6 +236,45 @@
   background: rgba(204, 51, 255, 0.02);
 }
 
+/* Indicador "↳ X/N" en sub-rows (replaza fecha repetida) */
+.mh-sub-marker {
+  display: inline-block;
+  padding-left: 12px;
+  font-size: 11px;
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Badge "1/N" en la fila inicial de un grupo multi-registro */
+.mh-multi-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 7px;
+  background: rgba(204, 51, 255, 0.10);
+  color: var(--aurora-magenta);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--aur-r-pill);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.mh-td-fecha {
+  white-space: nowrap;
+}
+
+/* Acento lateral en la fila inicial del grupo */
+.mh-data-row--group-start td:first-child {
+  border-left: 3px solid var(--aurora-magenta);
+}
+
+/* Acento más tenue en las sub-rows */
+.mh-data-row--sub td:first-child {
+  border-left: 3px solid rgba(204, 51, 255, 0.35);
+}
+
 /* Acciones (cell delgada, gap entre íconos) — sticky a la derecha para que
    no se pierda cuando hay muchos campos dinámicos */
 .mh-th-actions,
@@ -268,6 +315,10 @@
   transition: color 0.15s;
   text-decoration: none;
   flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .mh-img-btn:hover {

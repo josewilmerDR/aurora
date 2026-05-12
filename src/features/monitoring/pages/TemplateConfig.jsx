@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiChevronRight, FiArrowLeft, FiMove, FiLock, FiClipboard } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiChevronRight, FiChevronUp, FiChevronDown, FiArrowLeft, FiMove, FiLock, FiClipboard } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -54,6 +54,15 @@ function CamposEditor({ campos, onChange, disabled }) {
   const updateCampo = (i, key, val) =>
     onChange(campos.map((c, idx) => idx === i ? { ...c, [key]: val } : c));
 
+  // Fallback de reorden para entornos sin drag-and-drop (touch / mobile)
+  const moveCampo = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= campos.length) return;
+    const next = [...campos];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
   const handleDragStart = (e, i) => {
     dragIdx.current = i;
     e.dataTransfer.effectAllowed = 'move';
@@ -83,27 +92,20 @@ function CamposEditor({ campos, onChange, disabled }) {
           <h3>Campos predeterminados</h3>
           <span className="aur-section-count">{DEFAULT_CAMPOS.length}</span>
         </div>
-        <ul className="tpl-campos-list">
-          {DEFAULT_CAMPOS.map((campo, i) => (
-            <li key={`def-${i}`} className="tpl-campo-card tpl-campo-card--default">
-              <span className="tpl-campo-handle" title="Campo predeterminado del sistema" aria-hidden="true">
-                <FiLock size={12} />
-              </span>
-              <input
-                className="aur-input tpl-campo-name"
-                value={campo.nombre}
-                disabled
-                readOnly
-                aria-label="Nombre del campo"
-              />
-              <select className="aur-chip" value={campo.tipo} disabled aria-label="Tipo">
-                {TIPO_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </li>
+        <p className="tpl-campos-hint">
+          Estos campos vienen siempre en todo registro de muestreo y no se pueden editar.
+        </p>
+        <div className="tpl-chips">
+          {DEFAULT_CAMPOS.map((c, i) => (
+            <span
+              key={`def-${i}`}
+              className="aur-badge aur-badge--gray"
+              title="Campo predeterminado del sistema"
+            >
+              <FiLock size={10} /> {c.nombre}
+            </span>
           ))}
-        </ul>
+        </div>
       </section>
 
       <section className="aur-section">
@@ -148,6 +150,26 @@ function CamposEditor({ campos, onChange, disabled }) {
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  className="aur-icon-btn aur-icon-btn--sm"
+                  onClick={() => moveCampo(i, -1)}
+                  disabled={disabled || i === 0}
+                  title="Subir"
+                  aria-label="Subir campo"
+                >
+                  <FiChevronUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="aur-icon-btn aur-icon-btn--sm"
+                  onClick={() => moveCampo(i, 1)}
+                  disabled={disabled || i === campos.length - 1}
+                  title="Bajar"
+                  aria-label="Bajar campo"
+                >
+                  <FiChevronDown size={13} />
+                </button>
                 <button
                   type="button"
                   className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
@@ -399,7 +421,7 @@ function TemplateConfig() {
                             className="aur-badge aur-badge--gray"
                             title="Campo predeterminado del sistema"
                           >
-                            {c.nombre}
+                            <FiLock size={10} /> {c.nombre}
                           </span>
                         ))}
                       </div>
