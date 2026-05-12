@@ -88,6 +88,9 @@ function ActivitiesEditor({
         <h3>Actividades de muestreo</h3>
         <span className="aur-section-count">{activities.length}</span>
       </div>
+      <p className="pkg-act-hint">
+        Cada actividad se ejecuta <strong>X días después de crear el grupo</strong> al que se aplica el paquete.
+      </p>
       <ul className="pkg-act-list">
         {activities.map((activity, index) => {
           const noPlantillas = (activity.formularios || []).length === 0;
@@ -109,7 +112,8 @@ function ActivitiesEditor({
                     step={1}
                     value={activity.day}
                     onChange={(e) => update(index, 'day', e.target.value)}
-                    aria-label="Día"
+                    aria-label="Día desde creación de grupo"
+                    title="Día desde creación de grupo"
                     required
                   />
                   <span className="pkg-act-day-suffix">día</span>
