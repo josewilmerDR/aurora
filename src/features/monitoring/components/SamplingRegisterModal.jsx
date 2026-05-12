@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import '../../applications/styles/packages.css';
@@ -64,6 +64,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   const [supervisorId, setSupervisorId] = useState('');
   const [supervisorNombre, setSupervisorNombre] = useState('');
   const [supervisorLoading, setSupervisorLoading] = useState(false);
+  const [users, setUsers] = useState([]);
 
   // Scan state
   const [scanImage, setScanImage] = useState(null);
@@ -119,7 +120,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     if (state === 'ready') firstCellRef.current?.focus();
   }, [state]);
 
-  // ── Fetch supervisor ─────────────────────────────────────────────────────
+  // ── Fetch supervisor + users (para fallback de selección manual) ─────────
   useEffect(() => {
     const userId = currentUser?.userId;
     if (!userId) return;
@@ -127,13 +128,19 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     Promise.all([
       apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json()).catch(() => ({})),
       apiFetch('/api/users').then(r => r.json()).catch(() => []),
-    ]).then(([ficha, users]) => {
+    ]).then(([ficha, allUsers]) => {
+      setUsers(Array.isArray(allUsers) ? allUsers : []);
       if (ficha.encargadoId) {
-        const sup = users.find(u => u.id === ficha.encargadoId);
+        const sup = (allUsers || []).find(u => u.id === ficha.encargadoId);
         if (sup) { setSupervisorId(ficha.encargadoId); setSupervisorNombre(sup.nombre); }
       }
     }).finally(() => setSupervisorLoading(false));
   }, [currentUser?.userId]);
+
+  const handleSupervisorPick = (id) => {
+    setSupervisorId(id);
+    setSupervisorNombre(users.find(u => u.id === id)?.nombre || '');
+  };
 
   // ── Registro management ──────────────────────────────────────────────────
   const emptyRow = () => Object.fromEntries(campos.map(c => [c.nombre, '']));
@@ -283,10 +290,25 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                 <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
               </div>
               <div className="aur-row">
-                <span className="aur-row-label">Supervisor</span>
-                <span className="fmm-meta-value">
-                  {supervisorLoading ? '...' : (supervisorNombre || '—')}
-                </span>
+                <label className="aur-row-label" htmlFor="fmm-supervisor">Supervisor</label>
+                {supervisorLoading ? (
+                  <span className="fmm-meta-value">...</span>
+                ) : supervisorId ? (
+                  <span className="fmm-meta-value">{supervisorNombre}</span>
+                ) : (
+                  <select
+                    id="fmm-supervisor"
+                    className="aur-select"
+                    value=""
+                    onChange={e => handleSupervisorPick(e.target.value)}
+                    disabled={submitting}
+                  >
+                    <option value="">Seleccionar supervisor…</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.nombre}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="aur-row">
                 <span className="aur-row-label">Lote</span>
@@ -341,19 +363,9 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
 
             {state === 'ready' && (
               <>
-                {/* Scan toolbar — brand-specific decorative (magenta accent for AI) */}
+                {/* Scan toolbar — un solo CTA según el estado (sin imagen / con imagen) */}
                 <div className="fmm-scan-bar">
                   <div className="fmm-scan-bar-left">
-                    <button
-                      className="btn btn-ia"
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={scanning || submitting}
-                      title="Leer con IA — agrega o rellena la última fila vacía"
-                    >
-                      <FiCpu size={15} />
-                      {scanImage ? 'Cambiar imagen' : 'Leer con IA'}
-                    </button>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -361,7 +373,18 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                       style={{ display: 'none' }}
                       onChange={handleImagePick}
                     />
-                    {scanImage && (
+                    {!scanImage ? (
+                      <button
+                        className="btn btn-ia"
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={scanning || submitting}
+                        title="Subí una foto del formulario lleno para leerlo con IA"
+                      >
+                        <FiUpload size={15} />
+                        Subir imagen
+                      </button>
+                    ) : (
                       <div className="fmm-scan-preview">
                         <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
                         <button
@@ -372,6 +395,15 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                         >
                           <FiCpu size={13} />
                           {scanning ? 'Leyendo…' : 'Leer con IA'}
+                        </button>
+                        <button
+                          type="button"
+                          className="aur-btn-text"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={scanning || submitting}
+                          title="Elegir otra imagen"
+                        >
+                          Cambiar
                         </button>
                         <button
                           type="button"

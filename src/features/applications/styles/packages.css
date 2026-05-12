@@ -255,6 +255,18 @@
 }
 
 /* ── Activities list ────────────────────────────────────────────────────── */
+.pkg-act-hint {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  margin: -4px 4px 12px;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+.pkg-act-hint strong {
+  color: var(--aur-text-2);
+  font-weight: 600;
+}
+
 .pkg-act-list {
   list-style: none;
   margin: 0;

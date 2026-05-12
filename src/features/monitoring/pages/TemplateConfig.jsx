@@ -342,7 +342,14 @@ function TemplateConfig() {
                     ) : (
                       <>
                         <h2 className="hub-lote-code">{selectedTipo.nombre}</h2>
-                        {!selectedTipo.activo && <span className="label-optional">(inactivo)</span>}
+                        {!selectedTipo.activo && (
+                          <span
+                            className="label-optional"
+                            title="No aparece al adjuntar plantillas a paquetes nuevos"
+                          >
+                            (inactiva)
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
@@ -354,7 +361,13 @@ function TemplateConfig() {
                       </>
                     ) : (
                       <>
-                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={() => toggleActivo(selectedTipo)} title={selectedTipo.activo ? 'Desactivar' : 'Activar'}>
+                        <button
+                          className="aur-icon-btn aur-icon-btn--sm"
+                          onClick={() => toggleActivo(selectedTipo)}
+                          title={selectedTipo.activo
+                            ? 'Desactivar: dejará de aparecer al adjuntar plantillas a paquetes. Los registros existentes no se borran.'
+                            : 'Activar: la plantilla volverá a estar disponible para nuevos paquetes.'}
+                        >
                           {selectedTipo.activo
                             ? <FiToggleRight size={18} style={{ color: 'var(--aurora-green)' }} />
                             : <FiToggleLeft size={18} />}
