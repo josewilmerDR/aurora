@@ -228,11 +228,20 @@
   background: rgba(204, 51, 255, 0.02);
 }
 
-/* Acciones (cell delgada, gap entre íconos) */
+/* Acciones (cell delgada, gap entre íconos) — sticky a la derecha para que
+   no se pierda cuando hay muchos campos dinámicos */
 .mh-th-actions,
 .mh-td-actions {
   width: 68px;
   text-align: center;
+  position: sticky;
+  right: 0;
+  background: var(--aur-bg-input);
+  box-shadow: -6px 0 8px -4px rgba(0, 0, 0, 0.25);
+}
+
+.mh-th-actions {
+  z-index: 6; /* sobre thead sticky (z-index: 5) */
 }
 
 .mh-td-actions {
@@ -240,6 +249,12 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  z-index: 1;
+}
+
+/* Mantener el fondo del sticky alineado con hover y sub-rows */
+.aur-table tbody tr:hover .mh-td-actions {
+  background: var(--aur-bg-hover);
 }
 
 /* Link a imagen de scan — ícono decorativo */
