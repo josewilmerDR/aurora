@@ -90,7 +90,11 @@ function ActivitiesEditor({
       </div>
       <ul className="pkg-act-list">
         {activities.map((activity, index) => {
-          const expandedNow = expanded.has(index);
+          const noPlantillas = (activity.formularios || []).length === 0;
+          // Si la actividad no tiene plantillas, la sección queda visible para
+          // que el usuario descubra el selector. Solo se puede colapsar cuando
+          // ya hay plantillas asignadas.
+          const expandedNow = expanded.has(index) || noPlantillas;
           const availablePlantillas = plantillas.filter(
             t => !(activity.formularios || []).find(f => f.tipoId === t.id)
           );
@@ -162,14 +166,16 @@ function ActivitiesEditor({
                       >
                         <FiX size={15} />
                       </button>
-                      <button
-                        type="button"
-                        className={`aur-icon-btn pkg-act-expand${expandedNow ? ' is-open' : ''}`}
-                        onClick={() => toggleExpand(index)}
-                        title={expandedNow ? 'Ocultar plantillas' : 'Plantillas de muestreo'}
-                      >
-                        <FiChevronDown size={14} />
-                      </button>
+                      {!noPlantillas && (
+                        <button
+                          type="button"
+                          className={`aur-icon-btn pkg-act-expand${expandedNow ? ' is-open' : ''}`}
+                          onClick={() => toggleExpand(index)}
+                          title={expandedNow ? 'Ocultar plantillas' : 'Plantillas de muestreo'}
+                        >
+                          <FiChevronDown size={14} />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

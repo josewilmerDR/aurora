@@ -15,6 +15,53 @@
   margin: -8px 4px 12px;
 }
 
+/* ── Status filter (Pendientes / Completadas / Todas) ─────────────────────── */
+.mo-status-filter {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.mo-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--aur-border);
+  color: var(--aur-text-2);
+  border-radius: var(--aur-r-pill);
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mo-status-pill:hover:not(.is-active) {
+  background: var(--aur-bg-2);
+  color: var(--aur-text-1);
+}
+
+.mo-status-pill.is-active {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+  font-weight: 600;
+}
+
+.mo-status-pill-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  font-size: 11px;
+}
+
+.mo-status-pill.is-active .mo-status-pill-count {
+  opacity: 1;
+}
+
 /* ── Search input con icono prefix ────────────────────────────────────────── */
 .mo-search-wrap {
   position: relative;

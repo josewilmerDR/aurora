@@ -9,7 +9,7 @@ const todayIso = () => new Date().toISOString().split('T')[0];
 
 const fmtDate = (iso) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+  return new Date(iso).toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 };
 
 const MAX_IMAGE_PX = 1600;
