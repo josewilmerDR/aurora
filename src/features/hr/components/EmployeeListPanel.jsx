@@ -1,6 +1,14 @@
+import { useState, useMemo } from 'react';
 import { FiUsers, FiChevronRight } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import { getInitials } from '../lib/employeeProfileShared';
+
+// Lowercase + sin tildes para que "Jose" encuentre "José".
+const norm = (s) => (s || '')
+  .toString()
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[̀-ͯ]/g, '');
 
 // Carrusel móvil + lista lateral de empleados. La selección se delega
 // al padre vía onSelect; el padre ya decide si toggle (deselect) o
@@ -32,6 +40,27 @@ export function EmployeeCarousel({ planillaUsers, selectedId, onSelect, onNew, c
 }
 
 export function EmployeeListPanel({ planillaUsers, fichasMap, selectedId, onSelect }) {
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const sorted = [...planillaUsers].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    const q = norm(query).trim();
+    if (!q) return sorted;
+    return sorted.filter(u => {
+      const ficha = fichasMap[u.id] || {};
+      const haystack = norm([
+        u.nombre,
+        u.email,
+        u.telefono,
+        ficha.cedula,
+        ficha.puesto,
+        ficha.departamento,
+        ROLE_LABELS[u.rol] || '',
+      ].filter(Boolean).join(' '));
+      return haystack.includes(q);
+    });
+  }, [planillaUsers, fichasMap, query]);
+
   if (planillaUsers.length === 0) {
     return (
       <div className="lote-list-panel">
@@ -42,12 +71,38 @@ export function EmployeeListPanel({ planillaUsers, fichasMap, selectedId, onSele
       </div>
     );
   }
+
   return (
     <div className="lote-list-panel">
-      <ul className="lote-list">
-        {[...planillaUsers]
-          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-          .map(u => {
+      <div className="empleados-search-wrap">
+        <input
+          type="text"
+          className="empleados-search"
+          placeholder="Buscar por nombre, cédula, puesto, email…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Buscar empleado"
+        />
+        {query && (
+          <button
+            type="button"
+            className="empleados-search-clear"
+            onClick={() => setQuery('')}
+            aria-label="Limpiar búsqueda"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <FiUsers size={28} />
+          <p>Ningún empleado coincide con “{query}”.</p>
+        </div>
+      ) : (
+        <ul className="lote-list">
+          {filtered.map(u => {
             const ficha = fichasMap[u.id] || {};
             const subParts = [
               ficha.cedula && `CI ${ficha.cedula}`,
@@ -70,7 +125,8 @@ export function EmployeeListPanel({ planillaUsers, fichasMap, selectedId, onSele
               </li>
             );
           })}
-      </ul>
+        </ul>
+      )}
     </div>
   );
 }
