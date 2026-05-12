@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiChevronLeft, FiChevronRight, FiCheck, FiX } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiCheck, FiX, FiRotateCcw } from 'react-icons/fi';
 import { useOnboardingProgress } from '../../../hooks/useOnboardingProgress';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { setCompletedSticky, isFirstViewDismissed, setFirstViewDismissed } from '../lib/onboardingState';
@@ -95,8 +95,23 @@ function OnboardingChecklist({ mode = 'fab' }) {
   const isAdmin = hasMinRole(currentUser?.rol, 'administrador');
   const enabled = Boolean(uid && isAdmin);
 
-  const { steps, completedCount, total, percent, completedSticky, loading } =
+  const { steps: baseSteps, completedSticky, loading } =
     useOnboardingProgress({ enabled, uid });
+  const steps = useMemo(() => ([
+    ...baseSteps,
+    {
+      key: 'continue',
+      visitKey: 'continue',
+      label: 'Continue from where you left off.',
+      to: null,
+      icon: FiRotateCcw,
+      description: null,
+      completed: false,
+    },
+  ]), [baseSteps]);
+  const total = steps.length;
+  const completedCount = steps.filter(s => s.completed).length;
+  const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100);
   const viewSize = useResponsiveViewSize();
 
   // Render mode:
@@ -246,7 +261,7 @@ function OnboardingChecklist({ mode = 'fab' }) {
       </section>
     );
   }
-    
+   
   // ── FAB mode (global, tras cerrar la inline) ────────────────────────────
   return (
     <>
