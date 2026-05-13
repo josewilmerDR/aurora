@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiPlusCircle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraCombobox from '../../../components/AuroraCombobox';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 
 // Fecha local en formato YYYY-MM-DD (sin shift por UTC).
 const toLocalISODate = (d) => {
@@ -28,6 +29,24 @@ const isValidISODate = (s) => {
 
 const CANTIDAD_MAX = 16384;
 const NOTA_MAX     = 288;
+
+function validate(form) {
+  const errors = {};
+  if (!form.fecha) {
+    errors.fecha = 'La fecha es requerida.';
+  } else if (!isValidISODate(form.fecha)) {
+    errors.fecha = 'Fecha inválida.';
+  } else if (form.fecha > todayISO()) {
+    errors.fecha = 'No puede ser posterior al día actual.';
+  }
+  if (!form.loteId || !form.loteId.trim()) errors.loteId = 'El lote es requerido.';
+  const cant = Number(form.cantidad);
+  if (!form.cantidad || !Number.isFinite(cant) || cant <= 0 || cant >= CANTIDAD_MAX) {
+    errors.cantidad = `Debe ser mayor a 0 y menor a ${CANTIDAD_MAX}.`;
+  }
+  if ((form.nota || '').length >= NOTA_MAX) errors.nota = `Máx ${NOTA_MAX - 1} caracteres.`;
+  return errors;
+}
 
 const makeEmptyForm = () => ({
   fecha: todayISO(),
@@ -62,6 +81,7 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
   const [saving, setSaving] = useState(false);
   const [toast, setToast]   = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
 
   useEffect(() => {
     if (prereqs) return; // datos ya disponibles vía props
@@ -159,6 +179,7 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
       }
       return next;
     });
+    clearField(name);
   };
 
   const handleOperarioChange = (id) => {
@@ -178,37 +199,10 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
     setForm(prev => ({ ...prev, unidadId: id, unidad: u ? u.nombre : '' }));
   };
 
-  const validateForm = () => {
-    if (!form.fecha) return 'La fecha es requerida.';
-    if (!isValidISODate(form.fecha)) return 'Fecha inválida.';
-    if (form.fecha > todayISO()) {
-      return 'La fecha no puede ser posterior al día actual.';
-    }
-    if (!form.loteId || !form.loteId.trim()) return 'El lote es requerido.';
-    const cant = Number(form.cantidad);
-    if (!Number.isFinite(cant) || cant <= 0 || cant >= CANTIDAD_MAX) {
-      return `La cantidad cosechada debe ser mayor a 0 y menor a ${CANTIDAD_MAX}.`;
-    }
-    if ((form.nota || '').length >= NOTA_MAX) {
-      return `La nota no puede superar ${NOTA_MAX - 1} caracteres.`;
-    }
-    if ((form.grupo || '').length > 128)            return 'El grupo es demasiado largo.';
-    if ((form.bloque || '').length > 64)            return 'El bloque es demasiado largo.';
-    if ((form.unidad || '').length > 64)            return 'La unidad es demasiado larga.';
-    if ((form.operarioNombre || '').length > 128)   return 'El nombre del operario es demasiado largo.';
-    if ((form.activoNombre || '').length > 160)     return 'El nombre del activo es demasiado largo.';
-    if ((form.implementoNombre || '').length > 160) return 'El nombre del implemento es demasiado largo.';
-    return null;
-  };
-
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     if (saving) return;
-    const validationError = validateForm();
-    if (validationError) {
-      showToast(validationError, 'error');
-      return;
-    }
+    if (!validateAll(form)) return;
     setSaving(true);
     try {
       const payload = {
@@ -267,32 +261,36 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
                 <h3 className="aur-section-title">Fecha y ubicación</h3>
               </div>
               <div className="aur-list">
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cr-fecha">Fecha</label>
                   <input
                     id="cr-fecha"
                     type="date"
                     name="fecha"
-                    className="aur-input"
+                    className={inputClass('fecha')}
                     value={form.fecha}
                     onChange={handleChange}
+                    onBlur={() => blurField('fecha', form)}
                     max={todayISO()}
                     required
                   />
+                  {fieldErrors.fecha && <span className="aur-field-error">{fieldErrors.fecha}</span>}
                 </div>
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cr-lote">Lote</label>
                   <select
                     id="cr-lote"
                     name="loteId"
-                    className="aur-select"
+                    className={inputClass('loteId', 'aur-select')}
                     value={form.loteId}
                     onChange={handleChange}
+                    onBlur={() => blurField('loteId', form)}
                     required
                   >
                     <option value="">— Seleccionar —</option>
                     {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                   </select>
+                  {fieldErrors.loteId && <span className="aur-field-error">{fieldErrors.loteId}</span>}
                 </div>
                 <div className="aur-row">
                   <label className="aur-row-label" htmlFor="cr-grupo">Grupo</label>
@@ -335,21 +333,23 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
                 <h3 className="aur-section-title">Cantidad cosechada</h3>
               </div>
               <div className="aur-list">
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cr-cantidad">Cantidad</label>
                   <input
                     id="cr-cantidad"
                     type="number"
                     name="cantidad"
-                    className="aur-input aur-input--num"
+                    className={inputClass('cantidad', 'aur-input aur-input--num')}
                     min="0.0001"
                     max={CANTIDAD_MAX - 0.0001}
                     step="any"
                     value={form.cantidad}
                     onChange={handleChange}
+                    onBlur={() => blurField('cantidad', form)}
                     placeholder="0"
                     required
                   />
+                  {fieldErrors.cantidad && <span className="aur-field-error">{fieldErrors.cantidad}</span>}
                 </div>
                 <div className="aur-row">
                   <label className="aur-row-label">Unidad</label>
@@ -412,13 +412,15 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
                   <textarea
                     id="cr-nota"
                     name="nota"
-                    className="aur-textarea"
+                    className={inputClass('nota', 'aur-textarea')}
                     value={form.nota}
                     onChange={handleChange}
+                    onBlur={() => blurField('nota', form)}
                     placeholder="Observaciones adicionales…"
                     rows={3}
                     maxLength={NOTA_MAX - 1}
                   />
+                  {fieldErrors.nota && <span className="aur-field-error">{fieldErrors.nota}</span>}
                 </div>
               </div>
             </section>

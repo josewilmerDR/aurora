@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FiClock, FiCheckCircle } from 'react-icons/fi';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 
 // Tipos válidos en el backend (functions/routes/hr/fichas.js → PERMISO_TIPOS).
 // Solo `permiso_sin_goce` descuenta de la planilla; los demás se registran
@@ -71,27 +72,38 @@ export default function RegisterPermisoModal({
   const dias  = calcDias(fInicio, fFin);
   const horas = calcHoras(horaInicio, horaFin);
 
-  const validate = () => {
-    if (!fInicio) return 'Seleccione una fecha.';
-    if (fInicio < periodoInicio || fInicio > periodoFin) {
-      return 'La fecha debe estar dentro del período de la planilla.';
+  const validate = (f) => {
+    const errors = {};
+    if (!f.fInicio) {
+      errors.fInicio = 'Seleccione una fecha.';
+    } else if (f.fInicio < periodoInicio || f.fInicio > periodoFin) {
+      errors.fInicio = 'Fuera del período de la planilla.';
     }
-    if (esParcial) {
-      if (horas <= 0) return 'La hora fin debe ser posterior a la hora inicio.';
-      if (horas > 24) return 'Las horas no pueden exceder 24.';
+    if (f.esParcial) {
+      const h = calcHoras(f.horaInicio, f.horaFin);
+      if (h <= 0) errors.horaFin = 'La hora fin debe ser posterior a la hora inicio.';
+      else if (h > 24) errors.horaFin = 'Las horas no pueden exceder 24.';
     } else {
-      if (!fFin) return 'Seleccione la fecha fin.';
-      if (fFin < fInicio) return 'La fecha fin no puede ser anterior a la inicial.';
-      if (fFin > periodoFin) return 'La fecha fin debe estar dentro del período.';
-      if (dias > 365) return 'El rango no puede exceder 365 días.';
+      if (!f.fFin) {
+        errors.fFin = 'Seleccione la fecha fin.';
+      } else if (f.fFin < f.fInicio) {
+        errors.fFin = 'La fecha fin no puede ser anterior a la inicial.';
+      } else if (f.fFin > periodoFin) {
+        errors.fFin = 'La fecha fin debe estar dentro del período.';
+      } else if (calcDias(f.fInicio, f.fFin) > 365) {
+        errors.fFin = 'El rango no puede exceder 365 días.';
+      }
     }
-    if (motivo.length > MOTIVO_MAX) return `El motivo no puede exceder ${MOTIVO_MAX} caracteres.`;
-    return null;
+    if (f.motivo && f.motivo.length > MOTIVO_MAX) errors.motivo = `Máx ${MOTIVO_MAX} caracteres.`;
+    return errors;
   };
 
+  const { fieldErrors, blurField, clearField, validateAll } = useBlurValidation(validate);
+
+  const snap = () => ({ tipo, esParcial, fInicio, fFin, horaInicio, horaFin, motivo });
+
   const handleConfirm = async () => {
-    const err = validate();
-    if (err) { showToast(err, 'error'); return; }
+    if (!validateAll(snap())) return;
     const tipoCfg = TIPOS.find(t => t.value === tipo);
     const payload = {
       trabajadorId: trabajador.id,
@@ -171,8 +183,11 @@ export default function RegisterPermisoModal({
               value={fInicio}
               min={periodoInicio}
               max={periodoFin}
-              onChange={e => setFInicio(e.target.value)}
+              onChange={e => { setFInicio(e.target.value); clearField('fInicio'); }}
+              onBlur={() => blurField('fInicio', snap())}
+              className={fieldErrors.fInicio ? 'aur-input--error' : undefined}
             />
+            {fieldErrors.fInicio && <span className="aur-field-error">{fieldErrors.fInicio}</span>}
           </div>
           {!esParcial ? (
             <div className="form-control">
@@ -182,18 +197,28 @@ export default function RegisterPermisoModal({
                 value={fFin}
                 min={fInicio || periodoInicio}
                 max={periodoFin}
-                onChange={e => setFFin(e.target.value)}
+                onChange={e => { setFFin(e.target.value); clearField('fFin'); }}
+                onBlur={() => blurField('fFin', snap())}
+                className={fieldErrors.fFin ? 'aur-input--error' : undefined}
               />
+              {fieldErrors.fFin && <span className="aur-field-error">{fieldErrors.fFin}</span>}
             </div>
           ) : (
             <>
               <div className="form-control">
                 <label>Hora inicio</label>
-                <input type="time" value={horaInicio} onChange={e => setHoraInicio(e.target.value)} />
+                <input type="time" value={horaInicio} onChange={e => { setHoraInicio(e.target.value); clearField('horaFin'); }} />
               </div>
               <div className="form-control">
                 <label>Hora fin</label>
-                <input type="time" value={horaFin} onChange={e => setHoraFin(e.target.value)} />
+                <input
+                  type="time"
+                  value={horaFin}
+                  onChange={e => { setHoraFin(e.target.value); clearField('horaFin'); }}
+                  onBlur={() => blurField('horaFin', snap())}
+                  className={fieldErrors.horaFin ? 'aur-input--error' : undefined}
+                />
+                {fieldErrors.horaFin && <span className="aur-field-error">{fieldErrors.horaFin}</span>}
               </div>
             </>
           )}
@@ -206,8 +231,11 @@ export default function RegisterPermisoModal({
             value={motivo}
             maxLength={MOTIVO_MAX}
             placeholder="Ej.: autorizado por el encargado de cuadrilla"
-            onChange={e => setMotivo(e.target.value)}
+            onChange={e => { setMotivo(e.target.value); clearField('motivo'); }}
+            onBlur={() => blurField('motivo', snap())}
+            className={fieldErrors.motivo ? 'aur-input--error' : undefined}
           />
+          {fieldErrors.motivo && <span className="aur-field-error">{fieldErrors.motivo}</span>}
         </div>
       </div>
     </AuroraConfirmModal>

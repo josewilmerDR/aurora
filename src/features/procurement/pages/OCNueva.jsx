@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import {
   FiFileText, FiPackage, FiShoppingCart, FiExternalLink,
   FiPlus, FiCheck, FiChevronDown, FiChevronUp, FiEye, FiPrinter, FiX, FiSave, FiShare2,
@@ -255,6 +256,14 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
   );
 }
 
+function validateOCHeader(form) {
+  const errors = {};
+  if (form.fechaEntrega && form.fechaOC && form.fechaEntrega < form.fechaOC) {
+    errors.fechaEntrega = 'No puede ser anterior a la fecha de la orden.';
+  }
+  return errors;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 const OrdenesList = () => {
   const apiFetch = useApiFetch();
@@ -292,6 +301,7 @@ const OrdenesList = () => {
   const poDocRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [focusRowKey, setFocusRowKey] = useState(null);
+  const { fieldErrors, blurField, clearField } = useBlurValidation(validateOCHeader);
   const [unidades, setUnidades] = useState(['L', 'mL', 'kg', 'g', 'und']);
   const [ivaOpciones, setIvaOpciones] = useState([0, 1, 4, 8, 13, 15]);
   const [monedas] = useState(['CRC', 'USD', 'EUR']);
@@ -721,11 +731,18 @@ const OrdenesList = () => {
                 </li>
                 <li className="aur-row">
                   <span className="aur-row-label">Fecha de la orden</span>
-                  <input className="aur-input" type="date" value={fechaOC} onChange={e => setFechaOC(e.target.value)} />
+                  <input className="aur-input" type="date" value={fechaOC} onChange={e => { setFechaOC(e.target.value); clearField('fechaEntrega'); }} />
                 </li>
-                <li className="aur-row">
+                <li className="aur-row aur-row--multiline">
                   <span className="aur-row-label">Fecha de entrega estimada</span>
-                  <input className="aur-input" type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
+                  <input
+                    className={`aur-input${fieldErrors.fechaEntrega ? ' aur-input--error' : ''}`}
+                    type="date"
+                    value={fechaEntrega}
+                    onChange={e => { setFechaEntrega(e.target.value); clearField('fechaEntrega'); }}
+                    onBlur={() => blurField('fechaEntrega', { fechaOC, fechaEntrega })}
+                  />
+                  {fieldErrors.fechaEntrega && <span className="aur-field-error">{fieldErrors.fechaEntrega}</span>}
                 </li>
                 <li className="aur-row">
                   <span className="aur-row-label">Notas / Condiciones</span>

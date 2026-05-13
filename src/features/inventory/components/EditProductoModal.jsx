@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 
 const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
 const MONEDAS = ['USD', 'CRC', 'EUR'];
@@ -378,7 +379,7 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
+  const { fieldErrors, blurField, clearField, validateAll } = useBlurValidation(validate);
 
   // Marca el badge de draft en la sidebar mientras haya contenido en el formulario nuevo
   useEffect(() => {
@@ -389,8 +390,7 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
 
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
-    // Clear field error on change
-    if (fieldErrors[field]) setFieldErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+    clearField(field);
   };
 
   const numericPayload = () => ({
@@ -407,13 +407,10 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const errs = validate(form, isNew);
-    if (Object.keys(errs).length) {
-      setFieldErrors(errs);
+    if (!validateAll(form, isNew)) {
       setError('Corrige los campos marcados.');
       return;
     }
-    setFieldErrors({});
     setSaving(true);
     setError(null);
     try {
@@ -435,6 +432,7 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
   };
 
   const fieldErr = (key) => fieldErrors[key] ? <span className="ep-field-error">{fieldErrors[key]}</span> : null;
+  const errClass = (key) => fieldErrors[key] ? 'aur-input--error' : undefined;
 
   return (
     <div className="aur-modal-backdrop" onPointerDown={onClose}>
@@ -452,22 +450,22 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
           <div className="ep-grid">
             <div className="ep-field">
               <label>ID Producto</label>
-              <input value={form.idProducto} maxLength={32} onChange={e => set('idProducto', e.target.value)} placeholder="Ej: AGR-001" />
+              <input value={form.idProducto} maxLength={32} onChange={e => set('idProducto', e.target.value)} onBlur={() => blurField('idProducto', form, isNew)} className={errClass('idProducto')} placeholder="Ej: AGR-001" />
               {fieldErr('idProducto')}
             </div>
             <div className="ep-field ep-field-wide">
               <label>Nombre Comercial <span className="toma-required">*</span></label>
-              <input value={form.nombreComercial} maxLength={64} onChange={e => set('nombreComercial', e.target.value)} placeholder="Nombre del producto" required />
+              <input value={form.nombreComercial} maxLength={64} onChange={e => set('nombreComercial', e.target.value)} onBlur={() => blurField('nombreComercial', form, isNew)} className={errClass('nombreComercial')} placeholder="Nombre del producto" required />
               {fieldErr('nombreComercial')}
             </div>
             <div className="ep-field ep-field-wide">
               <label>Ingrediente Activo</label>
-              <input value={form.ingredienteActivo} maxLength={64} onChange={e => set('ingredienteActivo', e.target.value)} placeholder="Ej: Glifosato 48%" />
+              <input value={form.ingredienteActivo} maxLength={64} onChange={e => set('ingredienteActivo', e.target.value)} onBlur={() => blurField('ingredienteActivo', form, isNew)} className={errClass('ingredienteActivo')} placeholder="Ej: Glifosato 48%" />
               {fieldErr('ingredienteActivo')}
             </div>
             <div className="ep-field">
               <label>Tipo</label>
-              <select value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+              <select value={form.tipo} onChange={e => set('tipo', e.target.value)} onBlur={() => blurField('tipo', form, isNew)} className={errClass('tipo')}>
                 <option value="">— Seleccionar —</option>
                 {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -480,12 +478,12 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
             </div>
             <div className="ep-field">
               <label>No. Registro Fitosanitario</label>
-              <input value={form.registroFitosanitario} maxLength={32} onChange={e => set('registroFitosanitario', e.target.value)} placeholder="Ej. B-0123" />
+              <input value={form.registroFitosanitario} maxLength={32} onChange={e => set('registroFitosanitario', e.target.value)} onBlur={() => blurField('registroFitosanitario', form, isNew)} className={errClass('registroFitosanitario')} placeholder="Ej. B-0123" />
               {fieldErr('registroFitosanitario')}
             </div>
             <div className="ep-field ep-field-wide">
               <label>Observación</label>
-              <input value={form.observacion} maxLength={288} onChange={e => set('observacion', e.target.value)} placeholder="Notas sobre el producto" />
+              <input value={form.observacion} maxLength={288} onChange={e => set('observacion', e.target.value)} onBlur={() => blurField('observacion', form, isNew)} className={errClass('observacion')} placeholder="Notas sobre el producto" />
               {fieldErr('observacion')}
             </div>
           </div>
@@ -495,12 +493,12 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
           <div className="ep-grid">
             <div className="ep-field ep-field-wide">
               <label>Plaga / Enfermedad que controla</label>
-              <input value={form.plagaQueControla} maxLength={128} onChange={e => set('plagaQueControla', e.target.value)} placeholder="Ej: Botrytis, maleza hoja ancha…" />
+              <input value={form.plagaQueControla} maxLength={128} onChange={e => set('plagaQueControla', e.target.value)} onBlur={() => blurField('plagaQueControla', form, isNew)} className={errClass('plagaQueControla')} placeholder="Ej: Botrytis, maleza hoja ancha…" />
               {fieldErr('plagaQueControla')}
             </div>
             <div className="ep-field">
               <label>Dosis por Ha</label>
-              <input type="number" min="0" max="2047.99" step="0.01" value={form.cantidadPorHa} onChange={e => set('cantidadPorHa', e.target.value)} placeholder="0" />
+              <input type="number" min="0" max="2047.99" step="0.01" value={form.cantidadPorHa} onChange={e => set('cantidadPorHa', e.target.value)} onBlur={() => blurField('cantidadPorHa', form, isNew)} className={errClass('cantidadPorHa')} placeholder="0" />
               {fieldErr('cantidadPorHa')}
             </div>
             <div className="ep-field">
@@ -510,12 +508,12 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
             </div>
             <div className="ep-field">
               <label>Período reingreso (h)</label>
-              <input type="number" min="0" max="511" step="1" value={form.periodoReingreso} onChange={e => set('periodoReingreso', e.target.value)} placeholder="0" />
+              <input type="number" min="0" max="511" step="1" value={form.periodoReingreso} onChange={e => set('periodoReingreso', e.target.value)} onBlur={() => blurField('periodoReingreso', form, isNew)} className={errClass('periodoReingreso')} placeholder="0" />
               {fieldErr('periodoReingreso')}
             </div>
             <div className="ep-field">
               <label>Período a cosecha (días)</label>
-              <input type="number" min="0" max="511" step="1" value={form.periodoACosecha} onChange={e => set('periodoACosecha', e.target.value)} placeholder="0" />
+              <input type="number" min="0" max="511" step="1" value={form.periodoACosecha} onChange={e => set('periodoACosecha', e.target.value)} onBlur={() => blurField('periodoACosecha', form, isNew)} className={errClass('periodoACosecha')} placeholder="0" />
               {fieldErr('periodoACosecha')}
             </div>
           </div>
@@ -526,35 +524,35 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
             {isNew && (
               <div className="ep-field">
                 <label>Stock inicial</label>
-                <input type="number" min="0" max="32767" step="0.01" value={form.stockActual} onChange={e => set('stockActual', e.target.value)} placeholder="0" />
+                <input type="number" min="0" max="32767" step="0.01" value={form.stockActual} onChange={e => set('stockActual', e.target.value)} onBlur={() => blurField('stockActual', form, isNew)} className={errClass('stockActual')} placeholder="0" />
                 {fieldErr('stockActual')}
               </div>
             )}
             <div className="ep-field">
               <label>Stock mínimo</label>
-              <input type="number" min="0" max="32767" step="0.01" value={form.stockMinimo} onChange={e => set('stockMinimo', e.target.value)} placeholder="0" />
+              <input type="number" min="0" max="32767" step="0.01" value={form.stockMinimo} onChange={e => set('stockMinimo', e.target.value)} onBlur={() => blurField('stockMinimo', form, isNew)} className={errClass('stockMinimo')} placeholder="0" />
               {fieldErr('stockMinimo')}
             </div>
             <div className="ep-field">
               <label>Precio unitario</label>
-              <input type="number" min="0" max="2097151" step="0.01" value={form.precioUnitario} onChange={e => set('precioUnitario', e.target.value)} placeholder="0.00" />
+              <input type="number" min="0" max="2097151" step="0.01" value={form.precioUnitario} onChange={e => set('precioUnitario', e.target.value)} onBlur={() => blurField('precioUnitario', form, isNew)} className={errClass('precioUnitario')} placeholder="0.00" />
               {fieldErr('precioUnitario')}
             </div>
             <div className="ep-field">
               <label>Moneda</label>
-              <select value={form.moneda} onChange={e => set('moneda', e.target.value)}>
+              <select value={form.moneda} onChange={e => set('moneda', e.target.value)} onBlur={() => blurField('moneda', form, isNew)} className={errClass('moneda')}>
                 {MONEDAS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
               {fieldErr('moneda')}
             </div>
             <div className="ep-field">
               <label>Tipo de cambio</label>
-              <input type="number" min="0" max="2097151" step="0.01" value={form.tipoCambio} onChange={e => set('tipoCambio', e.target.value)} placeholder="1" />
+              <input type="number" min="0" max="2097151" step="0.01" value={form.tipoCambio} onChange={e => set('tipoCambio', e.target.value)} onBlur={() => blurField('tipoCambio', form, isNew)} className={errClass('tipoCambio')} placeholder="1" />
               {fieldErr('tipoCambio')}
             </div>
             <div className="ep-field">
               <label>IVA (%)</label>
-              <input type="number" min="0" max="100" step="0.01" value={form.iva} onChange={e => set('iva', e.target.value)} placeholder="0" />
+              <input type="number" min="0" max="100" step="0.01" value={form.iva} onChange={e => set('iva', e.target.value)} onBlur={() => blurField('iva', form, isNew)} className={errClass('iva')} placeholder="0" />
               {fieldErr('iva')}
             </div>
           </div>
