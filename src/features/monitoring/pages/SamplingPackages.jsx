@@ -22,7 +22,7 @@ const normalizeActivities = (activities) => (activities || [])
   .sort((a, b) => Number(a.day) - Number(b.day));
 
 function ActivitiesEditor({
-  activities, users, plantillas, onChange, autoExpandFirst = false,
+  activities, users, plantillas, onChange, autoExpandFirst = false, errors = [],
 }) {
   const [expanded, setExpanded] = useState(() => autoExpandFirst ? new Set([0]) : new Set());
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
@@ -101,6 +101,7 @@ function ActivitiesEditor({
           const availablePlantillas = plantillas.filter(
             t => !(activity.formularios || []).find(f => f.tipoId === t.id)
           );
+          const actError = errors[index] || {};
           return (
             <li key={index} className="pkg-act-card">
               <div className="pkg-act-row">
@@ -114,15 +115,17 @@ function ActivitiesEditor({
                     onChange={(e) => update(index, 'day', e.target.value)}
                     aria-label="Día desde creación de grupo"
                     title="Día desde creación de grupo"
+                    className={actError.day ? 'fld-error-input' : undefined}
                     required
                   />
                   <span className="pkg-act-day-suffix">día</span>
+                  {actError.day && <span className="fld-error">{actError.day}</span>}
                 </div>
 
                 <div className="pkg-act-body">
                   <input
                     type="text"
-                    className="pkg-act-name"
+                    className={`pkg-act-name${actError.name ? ' fld-error-input' : ''}`}
                     value={activity.name}
                     onChange={(e) => update(index, 'name', e.target.value)}
                     placeholder="Nombre de la actividad"
@@ -130,6 +133,7 @@ function ActivitiesEditor({
                     aria-label="Nombre de la actividad"
                     required
                   />
+                  {actError.name && <span className="fld-error">{actError.name}</span>}
                   <div className="pkg-act-meta">
                     <select
                       className="aur-chip"
@@ -306,6 +310,7 @@ function SamplingPackages() {
   const [showNew, setShowNew]         = useState(false);
   const [formData, setFormData]       = useState(makeEmptyForm);
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
+  const [formErrors, setFormErrors]   = useState({});
   const [toast, setToast]             = useState(null);
   const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -345,6 +350,7 @@ function SamplingPackages() {
   const cancelEdit = () => {
     setIsEditing(false);
     setFormData(makeEmptyForm());
+    setFormErrors({});
   };
 
   const startNew = () => {
@@ -352,32 +358,41 @@ function SamplingPackages() {
     setIsEditing(false);
     setShowNew(true);
     setFormData(makeNewForm());
+    setFormErrors({});
   };
 
   const cancelNew = () => {
     setShowNew(false);
     setFormData(makeEmptyForm());
+    setFormErrors({});
   };
 
   const saveForm = async (e) => {
     if (e?.preventDefault) e.preventDefault();
+    const newErrors = {};
     const nombre = (formData.nombrePaquete || '').trim();
-    if (!nombre) { showToast('El nombre del paquete es obligatorio.', 'error'); return; }
-    if (nombre.length > MAX_NOMBRE_PAQUETE) { showToast(`Nombre excede ${MAX_NOMBRE_PAQUETE} caracteres.`, 'error'); return; }
-    if ((formData.descripcion || '').length > MAX_DESCRIPCION) { showToast(`Descripción excede ${MAX_DESCRIPCION} caracteres.`, 'error'); return; }
-    if ((formData.tecnicoResponsable || '').length > MAX_TECNICO) { showToast(`Técnico responsable excede ${MAX_TECNICO} caracteres.`, 'error'); return; }
+    if (!nombre) newErrors.nombrePaquete = 'El nombre es obligatorio.';
+    else if (nombre.length > MAX_NOMBRE_PAQUETE) newErrors.nombrePaquete = `Excede ${MAX_NOMBRE_PAQUETE} caracteres.`;
+    if ((formData.descripcion || '').length > MAX_DESCRIPCION) newErrors.descripcion = `Excede ${MAX_DESCRIPCION} caracteres.`;
+    if ((formData.tecnicoResponsable || '').length > MAX_TECNICO) newErrors.tecnicoResponsable = `Excede ${MAX_TECNICO} caracteres.`;
 
-    for (const a of formData.activities) {
+    const activitiesErrors = formData.activities.map(a => {
+      const e = {};
       const dayNum = Number(a.day);
-      if (!Number.isInteger(dayNum) || dayNum < 0 || dayNum > MAX_DAY) {
-        showToast('Cada actividad requiere un día entero entre 0 y 9999.', 'error');
-        return;
+      if (a.day === '' || !Number.isInteger(dayNum) || dayNum < 0 || dayNum > MAX_DAY) {
+        e.day = 'Día inválido (0–9999)';
       }
-      if (!a.name || !a.name.trim()) {
-        showToast('Toda actividad debe tener nombre.', 'error');
-        return;
-      }
+      if (!a.name || !a.name.trim()) e.name = 'Nombre requerido';
+      return e;
+    });
+
+    if (activitiesErrors.some(e => e.day || e.name)) newErrors.activities = activitiesErrors;
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
+      return;
     }
+    setFormErrors({});
 
     const url = isEditing ? `/api/monitoreo/paquetes/${formData.id}` : '/api/monitoreo/paquetes';
     const method = isEditing ? 'PUT' : 'POST';
@@ -558,7 +573,8 @@ function SamplingPackages() {
                       activities={formData.activities}
                       users={users}
                       plantillas={plantillas}
-                      onChange={updateActivities}
+                      onChange={activities => { updateActivities(activities); setFormErrors(p => ({ ...p, activities: [] })); }}
+                      errors={formErrors.activities || []}
                     />
                   </form>
                 ) : (
@@ -576,14 +592,17 @@ function SamplingPackages() {
                     <div className="aur-list">
                       <div className="aur-row">
                         <label className="aur-row-label" htmlFor="nombrePaquete">Nombre del paquete</label>
-                        <input
-                          id="nombrePaquete"
-                          className="aur-input"
-                          value={formData.nombrePaquete}
-                          onChange={e => updateFormField('nombrePaquete', e.target.value)}
-                          maxLength={MAX_NOMBRE_PAQUETE}
-                          required
-                        />
+                        <div style={{ flex: 1 }}>
+                          <input
+                            id="nombrePaquete"
+                            className={`aur-input${formErrors.nombrePaquete ? ' fld-error-input' : ''}`}
+                            value={formData.nombrePaquete}
+                            onChange={e => { updateFormField('nombrePaquete', e.target.value); setFormErrors(p => ({ ...p, nombrePaquete: null })); }}
+                            maxLength={MAX_NOMBRE_PAQUETE}
+                            required
+                          />
+                          {formErrors.nombrePaquete && <span className="fld-error">{formErrors.nombrePaquete}</span>}
+                        </div>
                       </div>
                       <div className="aur-row">
                         <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
@@ -615,8 +634,9 @@ function SamplingPackages() {
                     activities={formData.activities}
                     users={users}
                     plantillas={plantillas}
-                    onChange={updateActivities}
+                    onChange={activities => { updateActivities(activities); setFormErrors(p => ({ ...p, activities: [] })); }}
                     autoExpandFirst
+                    errors={formErrors.activities || []}
                   />
 
                   <div className="aur-form-actions">

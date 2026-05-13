@@ -267,6 +267,25 @@
   font-weight: 600;
 }
 
+/* ── Inline field validation ─────────────────────────────────────────────── */
+.fld-error {
+  display: block;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-danger);
+  margin-top: 3px;
+}
+
+.fld-error-input,
+input.fld-error-input,
+.aur-input.fld-error-input,
+.pkg-act-name.fld-error-input {
+  border-color: var(--aur-danger) !important;
+}
+
+.pkg-act-day input.fld-error-input {
+  border-color: var(--aur-danger) !important;
+}
+
 .pkg-act-list {
   list-style: none;
   margin: 0;

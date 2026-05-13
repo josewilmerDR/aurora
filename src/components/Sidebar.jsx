@@ -95,9 +95,13 @@ const ALL_MODULES = [
     icon: FiActivity,
     items: [
       { label: 'Centro de Monitoreo', to: '/monitoreo/muestreos', icon: FiList, minRole: 'encargado' },
-      { label: 'Plantilla de Muestreos', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
-      { label: 'Paquete de Muestreos', to: '/monitoreo/paquetes', icon: FiPackage, minRole: 'supervisor' },
       { label: 'Historial de Muestreos', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
+      {
+        label: 'Configuración', icon: FiSettings, minRole: 'supervisor', children: [
+          { label: 'Plantilla de Muestreos', to: '/monitoreo/config', icon: FiSettings, minRole: 'supervisor' },
+          { label: 'Paquete de Muestreos', to: '/monitoreo/paquetes', icon: FiPackage, minRole: 'supervisor' },
+        ],
+      },
     ],
   },
   {
