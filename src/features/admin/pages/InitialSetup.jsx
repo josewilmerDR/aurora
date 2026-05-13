@@ -283,14 +283,19 @@ const ENTIDADES = [
 
 // ── Subcomponentes presentacionales reutilizables ────────────────────────────
 
-function CardHeader({ icon: Icon, title, count, link, linkTitle = 'Ir a gestión completa' }) {
+function CardHeader({ icon: Icon, title, count, counts, link, linkTitle = 'Ir a gestión completa' }) {
   return (
     <div className="ci-card-header">
       <span className="ci-card-icon"><Icon size={18} /></span>
       <span className="ci-card-title">{title}</span>
-      {count !== null && count !== undefined && (
-        <span className="aur-badge aur-badge--green ci-card-count">{count}</span>
-      )}
+      {counts
+        ? counts.filter(c => c.value !== null && c.value !== undefined).map((c, i) => (
+            <span key={i} className="aur-badge aur-badge--green ci-card-count" title={c.label}>{c.value}</span>
+          ))
+        : count !== null && count !== undefined && (
+            <span className="aur-badge aur-badge--green ci-card-count">{count}</span>
+          )
+      }
       {link && (
         <Link to={link} className="aur-icon-btn aur-icon-btn--sm" title={linkTitle}>
           <FiExternalLink size={13} />
@@ -512,10 +517,27 @@ const LGB_SAMPLE = [
 function LotesGruposCard() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
+  const [loteCount, setLoteCount] = useState(null);
+  const [grupoCount, setGrupoCount] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
+
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const refreshCounts = async () => {
+    const [lotes, grupos] = await Promise.all([
+      fetchJsonSafe(apiFetch, '/api/lotes', null),
+      fetchJsonSafe(apiFetch, '/api/grupos', null),
+    ]);
+    if (!mountedRef.current) return;
+    setLoteCount(Array.isArray(lotes) ? lotes.length : null);
+    setGrupoCount(Array.isArray(grupos) ? grupos.length : null);
+  };
+
+  useEffect(() => { refreshCounts(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([LGB_HEADERS, LGB_SAMPLE]);
@@ -738,6 +760,7 @@ function LotesGruposCard() {
         const msgWarn = advertencias.length ? ` ⚠ ${advertencias.join(' | ')}` : '';
         setImportResult({ ok: true, msg: msgOk + msgWarn });
         setShowNavPrompt(totalCreados > 0);
+        if (totalCreados > 0) refreshCounts();
       }
     } catch (err) {
       setImportResult({ error: true, msg: err?.message || 'Error inesperado al procesar el archivo.' });
@@ -749,7 +772,16 @@ function LotesGruposCard() {
 
   return (
     <div className="ci-card">
-      <CardHeader icon={FiLayers} title="Lotes, Grupos y Bloques" link="/lotes" linkTitle="Ir a Gestión de Lotes" />
+      <CardHeader
+        icon={FiLayers}
+        title="Lotes, Grupos y Bloques"
+        counts={[
+          { value: loteCount, label: 'lotes' },
+          { value: grupoCount, label: 'grupos' },
+        ]}
+        link="/lotes"
+        linkTitle="Ir a Gestión de Lotes"
+      />
       <p className="ci-card-desc">
         Carga combinada: lotes, grupos de producción y bloques de siembra. Un grupo se crea una sola vez aunque aparezca en varios renglones.
       </p>

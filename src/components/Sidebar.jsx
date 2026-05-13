@@ -72,7 +72,13 @@ const ALL_MODULES = [
           { label: 'Historial de Movimientos', to: '/bodega/agroquimicos/movimientos', icon: FiList, minRole: 'encargado' },
         ],
       },
-      { label: 'Combustibles', to: '/bodega/combustibles', icon: FiDroplet, minRole: 'encargado' },
+      {
+        label: 'Combustibles', icon: FiDroplet, minRole: 'encargado',
+        children: [
+          { label: 'Bodega de Combustible', to: '/bodega/combustibles', icon: FiDroplet, minRole: 'encargado' },
+          { label: 'Cierre de Combustible', to: '/admin/cierre-combustible', icon: FiList, minRole: 'administrador' },
+        ],
+      },
     ],
   },
   {
@@ -158,7 +164,6 @@ const ALL_MODULES = [
       { label: 'Configuración Inicial', to: '/admin/config-inicial', icon: FiSettings, minRole: 'administrador' },
       { label: 'Gestión de Usuarios', to: '/users', icon: FiUsers, minRole: 'administrador', draftKey: 'user-mgmt' },
       { label: 'Lista de Activos', to: '/admin/maquinaria', icon: FiTool, minRole: 'supervisor', draftKey: 'maquinaria-activo' },
-      { label: 'Cierre de Combustible', to: '/admin/cierre-combustible', icon: FiDroplet, minRole: 'administrador' },
       { label: 'Lista de Labores', to: '/admin/labores', icon: FiList, minRole: 'supervisor' },
       { label: 'Unidades de Medida', to: '/admin/unidades-medida', icon: FiPackage, minRole: 'supervisor' },
       { label: 'Parámetros y KPI', to: '/admin/parametros', icon: FiSliders, minRole: 'administrador' },
