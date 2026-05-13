@@ -1,4 +1,27 @@
 
+/* ── Botones de acción de tabla (Compacta, CSV) — tono neutro ──────────── */
+.fin-table-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--aur-divider);
+  color: var(--aur-text-2);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--aur-r-pill);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.fin-table-btn:hover { border-color: var(--aur-accent); color: var(--aur-accent); }
+.fin-table-btn.is-active {
+  background: rgba(51, 255, 153, 0.08);
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+  font-weight: 600;
+}
+
 /* ── Badge clicable (toggle de estado inline) ──────────────────────────── */
 .aur-badge--clickable {
   border: none;

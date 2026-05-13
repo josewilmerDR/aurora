@@ -202,6 +202,7 @@ function Budgets() {
             <BudgetForm
               initial={editing}
               defaultPeriod={period}
+              periodOptions={allPeriodOptions}
               onSubmit={handleSave}
               onCancel={cancel}
               saving={saving}
