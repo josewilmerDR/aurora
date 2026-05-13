@@ -306,16 +306,21 @@ function UserManagement() {
       {/* --- SPINNER DE CARGA --- */}
       {loading && <div className="aur-page-loading" />}
 
+      {/* --- CABECERA DE PÁGINA --- */}
+      {!loading && view !== 'form' && (
+        <div className="usr-page-header">
+          <h1 className="usr-page-title">Gestión de Usuarios</h1>
+          <button type="button" className="aur-btn-pill" onClick={handleNew}>
+            <FiUserPlus size={14} /> Nuevo Usuario
+          </button>
+        </div>
+      )}
+
       {/* --- ESTADO VACÍO --- */}
       {!loading && users.length === 0 && view !== 'form' && (
-        <div className="aur-sheet aur-sheet--empty">
-          <div className="usr-empty">
-            <FiUserPlus size={36} />
-            <p>No hay usuarios registrados.</p>
-            <button type="button" className="aur-btn-pill" onClick={handleNew}>
-              <FiUserPlus size={14} /> Crear el primero
-            </button>
-          </div>
+        <div className="empty-state">
+          <FiUserPlus size={36} />
+          <p>No hay usuarios registrados.</p>
         </div>
       )}
 
@@ -335,16 +340,6 @@ function UserManagement() {
           <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
             <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
             <span className="lote-bubble-label">Nuevo</span>
-          </button>
-        </div>
-      )}
-
-      {/* --- CABECERA DE PÁGINA --- */}
-      {!loading && users.length > 0 && view !== 'form' && (
-        <div className="usr-page-header">
-          <h1 className="usr-page-title">Gestión de Usuarios</h1>
-          <button type="button" className="aur-btn-pill" onClick={handleNew}>
-            <FiUserPlus size={14} /> Nuevo Usuario
           </button>
         </div>
       )}

@@ -230,80 +230,77 @@ function LaborList() {
         )}
 
         <section className="aur-section">
-          <div className="aur-section-header">
-            <span className="aur-section-num">{showForm ? '02' : '01'}</span>
-            <h3>Labores registradas</h3>
-            {items.length > 0 && <span className="aur-section-count">{items.length}</span>}
-          </div>
-
-          <div className="aur-table-toolbar">
-            <div className="lab-search-wrap">
-              <FiSearch size={13} className="lab-search-icon" />
-              <input
-                type="search"
-                className="aur-input lab-search"
-                placeholder="Buscar por descripción o código…"
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-              />
-            </div>
-            <span className="aur-table-result-count">
-              {filtered.length} de {items.length}
-            </span>
-          </div>
-
           {loading ? (
-            <p className="lab-empty">Cargando…</p>
-          ) : filtered.length === 0 ? (
-            <div className="lab-empty-state">
-              <FiList size={32} />
-              <p>{items.length === 0 ? 'No hay labores registradas.' : 'Sin resultados para la búsqueda.'}</p>
-              {items.length === 0 && !showForm && (
-                <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
-                  <FiPlus size={14} /> Agregar la primera
-                </button>
-              )}
+            <div className="aur-page-loading" />
+          ) : items.length === 0 ? (
+            <div className="empty-state">
+              <FiList size={36} />
+              <p>No hay labores registradas.</p>
             </div>
           ) : (
-            <div className="aur-table-wrap">
-              <table className="aur-table">
-                <thead>
-                  <tr>
-                    <th>Código</th>
-                    <th>Descripción</th>
-                    <th>Observación</th>
-                    <th className="lab-th-actions"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(item => (
-                    <tr key={item.id}>
-                      <td className="lab-td-code">{item.codigo || <span className="lab-td-empty">—</span>}</td>
-                      <td className="lab-td-desc">{item.descripcion}</td>
-                      <td className="lab-td-obs">{item.observacion || <span className="lab-td-empty">—</span>}</td>
-                      <td className="lab-td-actions">
-                        <button
-                          type="button"
-                          className="aur-icon-btn aur-icon-btn--sm"
-                          onClick={() => handleEdit(item)}
-                          title="Editar"
-                        >
-                          <FiEdit size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                          onClick={() => setConfirmDelete({ id: item.id, descripcion: item.descripcion })}
-                          title="Eliminar"
-                        >
-                          <FiTrash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="aur-table-toolbar">
+                <div className="lab-search-wrap">
+                  <FiSearch size={13} className="lab-search-icon" />
+                  <input
+                    type="search"
+                    className="aur-input lab-search"
+                    placeholder="Buscar por descripción o código…"
+                    value={filter}
+                    onChange={e => setFilter(e.target.value)}
+                  />
+                </div>
+                <span className="aur-table-result-count">
+                  {filtered.length} de {items.length}
+                </span>
+              </div>
+              {filtered.length === 0 ? (
+                <div className="lab-empty-state">
+                  <FiList size={32} />
+                  <p>Sin resultados para la búsqueda.</p>
+                </div>
+              ) : (
+                <div className="aur-table-wrap">
+                  <table className="aur-table">
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Observación</th>
+                        <th className="lab-th-actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map(item => (
+                        <tr key={item.id}>
+                          <td className="lab-td-code">{item.codigo || <span className="lab-td-empty">—</span>}</td>
+                          <td className="lab-td-desc">{item.descripcion}</td>
+                          <td className="lab-td-obs">{item.observacion || <span className="lab-td-empty">—</span>}</td>
+                          <td className="lab-td-actions">
+                            <button
+                              type="button"
+                              className="aur-icon-btn aur-icon-btn--sm"
+                              onClick={() => handleEdit(item)}
+                              title="Editar"
+                            >
+                              <FiEdit size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                              onClick={() => setConfirmDelete({ id: item.id, descripcion: item.descripcion })}
+                              title="Eliminar"
+                            >
+                              <FiTrash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
