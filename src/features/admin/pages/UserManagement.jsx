@@ -8,6 +8,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { useUser } from '../../../contexts/UserContext';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', restrictedTo: [] };
@@ -15,6 +16,18 @@ const LIMITS = { nombre: 80, email: 120, telefono: 20 };
 const VALID_ROLES = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]+$/;
+
+function validate(form) {
+  const errors = {};
+  const nombre   = (form.nombre   || '').trim();
+  const email    = (form.email    || '').trim();
+  const telefono = (form.telefono || '').trim();
+  if (nombre.length < 2 || nombre.length > LIMITS.nombre) errors.nombre = `2–${LIMITS.nombre} caracteres.`;
+  if (!email || !EMAIL_RE.test(email) || email.length > LIMITS.email) errors.email = 'Email inválido.';
+  if (telefono && (!PHONE_RE.test(telefono) || telefono.length > LIMITS.telefono)) errors.telefono = 'Teléfono inválido.';
+  if (!VALID_ROLES.includes(form.rol)) errors.rol = 'Rol inválido.';
+  return errors;
+}
 const VALID_MODULE_IDS = new Set(MODULES.map(m => m.id));
 
 // Constante centralizada de mapping rol → variante de aur-badge.
@@ -54,6 +67,7 @@ function UserManagement() {
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, nombre }
   const [deleting, setDeleting] = useState(false);
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
   const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -111,6 +125,7 @@ function UserManagement() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    clearField(name);
   };
 
   const toggleModule = (modId) => {
@@ -181,25 +196,10 @@ function UserManagement() {
     }
   };
 
-  const validateForm = () => {
-    const nombre = formData.nombre.trim();
-    const email = formData.email.trim();
-    const telefono = formData.telefono.trim();
-    if (nombre.length < 2 || nombre.length > LIMITS.nombre) return `Nombre: 2–${LIMITS.nombre} caracteres.`;
-    if (!EMAIL_RE.test(email) || email.length > LIMITS.email) return 'Email inválido.';
-    if (telefono && (!PHONE_RE.test(telefono) || telefono.length > LIMITS.telefono)) return 'Teléfono inválido.';
-    if (!VALID_ROLES.includes(formData.rol)) return 'Rol inválido.';
-    return null;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
-    const validationError = validateForm();
-    if (validationError) {
-      showToast(validationError, 'error');
-      return;
-    }
+    if (!validateAll(formData)) return;
     setSubmitting(true);
     const url = isEditing ? `/api/users/${formData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
@@ -367,48 +367,55 @@ function UserManagement() {
                       <label className="aur-row-label" htmlFor="usr-nombre">Nombre completo</label>
                       <input
                         id="usr-nombre"
-                        className="aur-input"
+                        className={inputClass('nombre')}
                         name="nombre"
                         value={formData.nombre}
                         onChange={handleInputChange}
+                        onBlur={() => blurField('nombre', formData)}
                         maxLength={LIMITS.nombre}
                         required
                       />
+                      {fieldErrors.nombre && <span className="aur-field-error">{fieldErrors.nombre}</span>}
                     </div>
                     <div className="aur-row aur-row--multiline">
                       <label className="aur-row-label" htmlFor="usr-email">Email</label>
                       <input
                         id="usr-email"
-                        className="aur-input"
+                        className={inputClass('email')}
                         name="email"
                         type="email"
                         value={formData.email}
                         onChange={handleInputChange}
+                        onBlur={() => blurField('email', formData)}
                         maxLength={LIMITS.email}
                         required
                       />
+                      {fieldErrors.email && <span className="aur-field-error">{fieldErrors.email}</span>}
                     </div>
                     <div className="aur-row aur-row--multiline">
                       <label className="aur-row-label" htmlFor="usr-telefono">Teléfono</label>
                       <input
                         id="usr-telefono"
-                        className="aur-input"
+                        className={inputClass('telefono')}
                         name="telefono"
                         type="tel"
                         value={formData.telefono}
                         onChange={handleInputChange}
+                        onBlur={() => blurField('telefono', formData)}
                         maxLength={LIMITS.telefono}
                         required
                       />
+                      {fieldErrors.telefono && <span className="aur-field-error">{fieldErrors.telefono}</span>}
                     </div>
                     <div className="aur-row aur-row--multiline">
                       <label className="aur-row-label" htmlFor="usr-rol">Rol</label>
                       <select
                         id="usr-rol"
-                        className="aur-select"
+                        className={inputClass('rol', 'aur-select')}
                         name="rol"
                         value={formData.rol}
                         onChange={handleInputChange}
+                        onBlur={() => blurField('rol', formData)}
                       >
                         <option value="trabajador">Trabajador</option>
                         <option value="encargado">Encargado</option>

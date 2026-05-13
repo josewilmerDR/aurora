@@ -7,6 +7,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import LeaveCalendar from '../components/LeaveCalendar';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 
 const TIPOS = [
   { value: 'vacaciones',        label: 'Vacaciones',          conGoce: true  },
@@ -53,6 +54,27 @@ async function parseError(res, fallback) {
   }
 }
 
+function validate(form, esParcial) {
+  const errors = {};
+  if (!form.trabajadorId) errors.trabajadorId = 'Selecciona un trabajador.';
+  if (!form.fechaInicio) errors.fechaInicio = 'Fecha inicio requerida.';
+  if (esParcial) {
+    const h = calcHoras(form.horaInicio, form.horaFin);
+    if (!form.horaInicio || !form.horaFin || h <= 0) errors.horaFin = 'La hora fin debe ser posterior a la hora inicio.';
+    else if (h > 24) errors.horaFin = 'Las horas no pueden exceder 24.';
+  } else {
+    if (!form.fechaFin) {
+      errors.fechaFin = 'Fecha fin requerida.';
+    } else if (form.fechaFin < form.fechaInicio) {
+      errors.fechaFin = 'La fecha fin no puede ser anterior a la fecha inicio.';
+    } else if (calcDias(form.fechaInicio, form.fechaFin) > MAX_DIAS) {
+      errors.fechaFin = `El rango no puede exceder ${MAX_DIAS} días.`;
+    }
+  }
+  if (form.motivo && form.motivo.length > MOTIVO_MAX) errors.motivo = `El motivo no puede exceder ${MOTIVO_MAX} caracteres.`;
+  return errors;
+}
+
 function LeaveRequests() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -71,6 +93,7 @@ function LeaveRequests() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingId, setPendingId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const [esParcial, setEsParcial] = useState(false);
@@ -117,32 +140,13 @@ function LeaveRequests() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const validate = () => {
-    if (!form.trabajadorId) return 'Selecciona un trabajador.';
-    if (!TIPOS.some(t => t.value === form.tipo)) return 'Tipo de permiso inválido.';
-    if (!form.fechaInicio) return 'Fecha inicio requerida.';
-    if (esParcial) {
-      if (!form.horaInicio || !form.horaFin) return 'Hora inicio y fin son requeridas.';
-      if (horas <= 0) return 'La hora de fin debe ser posterior a la hora de inicio.';
-      if (horas > 24) return 'Las horas no pueden exceder 24.';
-    } else {
-      if (!form.fechaFin) return 'Fecha fin requerida.';
-      if (form.fechaFin < form.fechaInicio) return 'La fecha fin no puede ser anterior a la fecha inicio.';
-      if (dias > MAX_DIAS) return `El rango no puede exceder ${MAX_DIAS} días.`;
-    }
-    if (form.motivo && form.motivo.length > MOTIVO_MAX) {
-      return `El motivo no puede exceder ${MOTIVO_MAX} caracteres.`;
-    }
-    return null;
+    clearField(name);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
-    const err = validate();
-    if (err) { showToast(err, 'error'); return; }
+    if (!validateAll(form, esParcial)) return;
 
     const worker = users.find(u => u.id === form.trabajadorId);
     const conGoce = TIPOS.find(t => t.value === form.tipo)?.conGoce ?? true;
@@ -274,10 +278,18 @@ function LeaveRequests() {
           <div className="form-grid">
             <div className="form-control">
               <label>Trabajador</label>
-              <select name="trabajadorId" value={form.trabajadorId} onChange={handleChange} required>
+              <select
+                name="trabajadorId"
+                value={form.trabajadorId}
+                onChange={handleChange}
+                onBlur={() => blurField('trabajadorId', form, esParcial)}
+                className={fieldErrors.trabajadorId ? 'aur-input--error' : undefined}
+                required
+              >
                 <option value="">-- Seleccionar --</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
               </select>
+              {fieldErrors.trabajadorId && <span className="aur-field-error">{fieldErrors.trabajadorId}</span>}
             </div>
             <div className="form-control">
               <label>Tipo de permiso</label>
@@ -287,7 +299,14 @@ function LeaveRequests() {
             </div>
             <div className="form-control">
               <label>{esParcial ? 'Fecha' : 'Fecha inicio'}</label>
-              <input type="date" name="fechaInicio" value={form.fechaInicio} onChange={handleChange} required />
+              <input
+                type="date" name="fechaInicio" value={form.fechaInicio}
+                onChange={handleChange}
+                onBlur={() => blurField('fechaInicio', form, esParcial)}
+                className={fieldErrors.fechaInicio ? 'aur-input--error' : undefined}
+                required
+              />
+              {fieldErrors.fechaInicio && <span className="aur-field-error">{fieldErrors.fechaInicio}</span>}
             </div>
 
             {esParcial ? (
@@ -298,7 +317,14 @@ function LeaveRequests() {
                 </div>
                 <div className="form-control">
                   <label>Hora fin</label>
-                  <input type="time" name="horaFin" value={form.horaFin} onChange={handleChange} required />
+                  <input
+                    type="time" name="horaFin" value={form.horaFin}
+                    onChange={handleChange}
+                    onBlur={() => blurField('horaFin', form, esParcial)}
+                    className={fieldErrors.horaFin ? 'aur-input--error' : undefined}
+                    required
+                  />
+                  {fieldErrors.horaFin && <span className="aur-field-error">{fieldErrors.horaFin}</span>}
                 </div>
               </>
             ) : (
@@ -306,8 +332,12 @@ function LeaveRequests() {
                 <label>Fecha fin</label>
                 <input
                   type="date" name="fechaFin" value={form.fechaFin}
-                  min={form.fechaInicio} onChange={handleChange} required
+                  min={form.fechaInicio} onChange={handleChange}
+                  onBlur={() => blurField('fechaFin', form, esParcial)}
+                  className={fieldErrors.fechaFin ? 'aur-input--error' : undefined}
+                  required
                 />
+                {fieldErrors.fechaFin && <span className="aur-field-error">{fieldErrors.fechaFin}</span>}
               </div>
             )}
 
@@ -315,9 +345,13 @@ function LeaveRequests() {
               <label>Motivo (opcional)</label>
               <input
                 type="text" name="motivo" value={form.motivo}
-                onChange={handleChange} placeholder="Descripción breve..."
+                onChange={handleChange}
+                onBlur={() => blurField('motivo', form, esParcial)}
+                className={fieldErrors.motivo ? 'aur-input--error' : undefined}
+                placeholder="Descripción breve..."
                 maxLength={MOTIVO_MAX}
               />
+              {fieldErrors.motivo && <span className="aur-field-error">{fieldErrors.motivo}</span>}
             </div>
           </div>
 
