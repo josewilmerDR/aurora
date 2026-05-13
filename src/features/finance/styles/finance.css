@@ -1,4 +1,14 @@
 
+/* ── Badge clicable (toggle de estado inline) ──────────────────────────── */
+.aur-badge--clickable {
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  font-family: inherit;
+}
+.aur-badge--clickable:hover:not(:disabled) { opacity: 0.75; }
+.aur-badge--clickable:disabled { cursor: wait; opacity: 0.55; }
+
 /* ── Layout — mirror del patrón grupo-page--selected ────────────────────── */
 .budgets-page {
   display: flex;
