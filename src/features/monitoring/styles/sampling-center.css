@@ -62,6 +62,12 @@
   opacity: 1;
 }
 
+/* ── Tipo de muestreo filter select ───────────────────────────────────────── */
+.mo-tipo-select {
+  min-width: 160px;
+  flex-shrink: 0;
+}
+
 /* ── Search input con icono prefix ────────────────────────────────────────── */
 .mo-search-wrap {
   position: relative;
@@ -165,4 +171,54 @@
 .mo-complete-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Responsive: card layout on narrow screens ────────────────────────────── */
+@media (max-width: 640px) {
+  .mo-table {
+    display: block;
+    border: none;
+    border-radius: 0;
+  }
+  .mo-table thead { display: none; }
+  .mo-table tbody { display: block; }
+  .mo-table tbody tr {
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid var(--aur-divider);
+    border-radius: var(--aur-r-card);
+    margin-bottom: 8px;
+    background: var(--aur-bg-input);
+  }
+  .mo-table tbody tr:hover {
+    background: var(--aur-bg-hover);
+  }
+  .mo-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 3px 0;
+    border: none;
+    font-size: var(--aur-fs-footnote);
+  }
+  .mo-table tbody td::before {
+    content: attr(data-label);
+    font-size: var(--aur-fs-caption);
+    color: var(--aur-text-3);
+    font-weight: 600;
+    min-width: 84px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .mo-table tbody td:not([data-label]) { justify-content: flex-end; }
+  .mo-table tbody td:not([data-label])::before { display: none; }
+  .mo-table tbody .mo-td-nota {
+    max-width: none;
+    white-space: normal;
+  }
+  .mo-table tbody .mo-td-action {
+    width: auto;
+    white-space: normal;
+  }
 }

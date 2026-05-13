@@ -46,6 +46,7 @@ export default function SamplingCenter() {
   const [error, setError]     = useState(null);
   const [search, setSearch]   = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [tipoFilter, setTipoFilter] = useState('');
   const [deleting, setDeleting] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [modalOrden, setModalOrden] = useState(null);
@@ -56,6 +57,10 @@ export default function SamplingCenter() {
       .then(data => { setOrdenes(data); setLoading(false); })
       .catch(() => { setError('No se pudieron cargar las órdenes de muestreo.'); setLoading(false); });
   }, []);
+
+  const tipoOptions = useMemo(() =>
+    [...new Set(ordenes.map(o => o.tipoMuestreo).filter(Boolean))].sort(),
+  [ordenes]);
 
   const statusCounts = useMemo(() => {
     const counts = { pending: 0, completed_by_user: 0, all: ordenes.length };
@@ -69,6 +74,7 @@ export default function SamplingCenter() {
   const filtered = useMemo(() => {
     let result = ordenes;
     if (statusFilter !== 'all') result = result.filter(o => o.status === statusFilter);
+    if (tipoFilter) result = result.filter(o => o.tipoMuestreo === tipoFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       result = result.filter(o =>
@@ -144,12 +150,25 @@ export default function SamplingCenter() {
           <input
             className="aur-input mo-search"
             type="text"
-            placeholder="Buscar por lote, grupo, responsable, tipo..."
+            placeholder="Buscar por lote, grupo, responsable..."
             value={search}
             maxLength={100}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        {tipoOptions.length > 0 && (
+          <select
+            className="aur-select mo-tipo-select"
+            value={tipoFilter}
+            onChange={e => setTipoFilter(e.target.value)}
+            aria-label="Filtrar por tipo de muestreo"
+          >
+            <option value="">Todos los tipos</option>
+            {tipoOptions.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        )}
         <span className="aur-table-result-count">
           {filtered.length} orden{filtered.length !== 1 ? 'es' : ''}
         </span>
@@ -203,13 +222,13 @@ export default function SamplingCenter() {
                 <tbody>
                   {filtered.map(o => (
                     <tr key={o.id}>
-                      <td className="mo-td-date">{fmt(o.fechaProgramada)}</td>
-                      <td>{o.loteNombre}</td>
-                      <td>{o.grupoNombre}</td>
-                      <td>{o.responsableNombre}</td>
-                      <td>{o.tipoMuestreo}</td>
-                      <td className="mo-td-nota">{o.nota || <span className="mo-empty-val">—</span>}</td>
-                      <td>
+                      <td data-label="Fecha" className="mo-td-date">{fmt(o.fechaProgramada)}</td>
+                      <td data-label="Lote">{o.loteNombre}</td>
+                      <td data-label="Grupo">{o.grupoNombre}</td>
+                      <td data-label="Responsable">{o.responsableNombre}</td>
+                      <td data-label="Tipo">{o.tipoMuestreo}</td>
+                      <td data-label="Nota" className="mo-td-nota">{o.nota || <span className="mo-empty-val">—</span>}</td>
+                      <td data-label="Estado">
                         {(() => {
                           const u = getUrgency(o.fechaProgramada, o.status);
                           if (u) return <span className={`aur-badge aur-badge--${u.tone}`}>{u.label}</span>;

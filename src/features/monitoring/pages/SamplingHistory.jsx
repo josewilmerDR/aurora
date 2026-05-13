@@ -31,6 +31,7 @@ function SamplingHistory() {
       try {
         const params = new URLSearchParams();
         if (filtros.loteId) params.set('loteId', filtros.loteId);
+        if (filtros.tipoId) params.set('tipoId', filtros.tipoId);
         if (filtros.desde)  params.set('desde',  filtros.desde);
         if (filtros.hasta)  params.set('hasta',  filtros.hasta);
         const data = await apiFetch(`/api/monitoreo?${params}`).then(r => r.json());
@@ -43,7 +44,7 @@ function SamplingHistory() {
     };
     fetchData();
     return () => { cancelled = true; };
-  }, [filtros.loteId, filtros.desde, filtros.hasta]);
+  }, [filtros.loteId, filtros.tipoId, filtros.desde, filtros.hasta]);
 
   useEffect(() => {
     if (!filtros.tipoId) { setTipoCampos([]); return; }
@@ -55,9 +56,7 @@ function SamplingHistory() {
     return () => { cancelled = true; };
   }, [filtros.tipoId]);
 
-  const registros = filtros.tipoId
-    ? allRegistros.filter(r => (r.plantillaIds || []).includes(filtros.tipoId))
-    : allRegistros;
+  const registros = allRegistros;
 
   // When a tipo filter is active, expand each monitoreo into one row per registro.
   // Common columns (dates, names) only shown on the first sub-row.
@@ -147,7 +146,7 @@ function SamplingHistory() {
     const today = new Date().toISOString().split('T')[0];
     const a = document.createElement('a');
     a.href = url;
-    a.download = `monitoreo-${today}.csv`;
+    a.download = `muestreos-${today}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -192,7 +191,7 @@ function SamplingHistory() {
       {/* Tabla */}
       <section className="aur-section">
         <div className="aur-section-header">
-          <h3>Registros de monitoreo</h3>
+          <h3>Historial de muestreos</h3>
           <span className="aur-section-count">{displayRows.length}</span>
           <button
             type="button"
@@ -210,7 +209,7 @@ function SamplingHistory() {
           <div className="mon-loading" />
         ) : displayRows.length === 0 ? (
           <div className="mh-state mh-state--empty">
-            No hay registros de monitoreo para los filtros seleccionados.
+            No hay muestreos registrados para los filtros seleccionados.
           </div>
         ) : (
           <div className="aur-table-wrap">
