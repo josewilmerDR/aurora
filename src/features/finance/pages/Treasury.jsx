@@ -70,6 +70,15 @@ function Treasury() {
         <div className="aur-banner aur-banner--warn">
           <FiAlertTriangle size={14} />
           <span>No hay saldo de caja registrado. La proyección parte de 0.</span>
+          {!showBalanceForm && (
+            <button
+              className="aur-btn-text"
+              style={{ marginLeft: 'auto', flexShrink: 0 }}
+              onClick={() => setShowBalanceForm(true)}
+            >
+              Registrar saldo →
+            </button>
+          )}
         </div>
       )}
 

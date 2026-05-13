@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FiTrendingUp } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
@@ -117,6 +118,10 @@ function BudgetWidget() {
           )}
         </>
       )}
+
+      <div className="fin-widget-cta-row">
+        <Link className="aur-btn-text" to="/finance/presupuestos">Ver Presupuestos →</Link>
+      </div>
     </section>
   );
 }

@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-// Input numérico acotado para el horizonte de proyección.
-// Encapsula la lógica de estado dual (string en edición + number confirmado)
-// para que el usuario pueda borrar completamente e ingresar un nuevo valor
-// sin que el input "rebote" al default.
+const PRESETS = [
+  { label: '4 sem',  value: 4  },
+  { label: '13 sem', value: 13 },
+  { label: '26 sem', value: 26 },
+  { label: '52 sem', value: 52 },
+];
+
 function HorizonSelector({ value, onChange, min = 1, max = 104, fallback = 26 }) {
   const [input, setInput] = useState(String(value));
+
+  // Sincroniza el input de texto cuando el valor cambia desde fuera (ej: preset).
+  useEffect(() => { setInput(String(value)); }, [value]);
 
   const handleChange = (e) => {
     const raw = e.target.value;
@@ -26,19 +32,37 @@ function HorizonSelector({ value, onChange, min = 1, max = 104, fallback = 26 })
     }
   };
 
+  const applyPreset = (n) => {
+    onChange(n);
+  };
+
   return (
-    <div className="aur-field">
-      <label className="aur-field-label" htmlFor="horizon-weeks">Horizonte (semanas)</label>
-      <input
-        id="horizon-weeks"
-        type="number"
-        className="aur-input aur-input--num"
-        min={min}
-        max={max}
-        value={input}
-        onChange={handleChange}
-        onBlur={handleBlur}
-      />
+    <div className="horizon-selector">
+      <div className="aur-field">
+        <label className="aur-field-label" htmlFor="horizon-weeks">Horizonte (semanas)</label>
+        <input
+          id="horizon-weeks"
+          type="number"
+          className="aur-input aur-input--num"
+          min={min}
+          max={max}
+          value={input}
+          onChange={handleChange}
+          onBlur={handleBlur}
+        />
+      </div>
+      <div className="horizon-preset-row">
+        {PRESETS.map(p => (
+          <button
+            key={p.value}
+            className={`horizon-preset-btn${value === p.value ? ' horizon-preset-btn--active' : ''}`}
+            onClick={() => applyPreset(p.value)}
+            type="button"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

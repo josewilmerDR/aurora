@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FiPlus, FiUsers, FiFilter, FiX, FiSliders,
-  FiMoreVertical, FiEdit2, FiTrash2, FiPackage,
+  FiMoreVertical, FiEdit2, FiTrash2, FiPackage, FiSearch,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -91,6 +91,7 @@ function BuyersList() {
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('nombre');
   const [sortDir,   setSortDir]   = useState('asc');
   const [colFilters, setColFilters] = useState({});
@@ -203,6 +204,12 @@ function BuyersList() {
   const displayData = useMemo(() => {
     let data = [...buyers];
 
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      data = data.filter(r => [r.name, r.taxId, r.contact, r.phone, r.email, r.paymentType, r.currency, r.country, r.status]
+        .some(v => v && String(v).toLowerCase().includes(q)));
+    }
+
     const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
       if (fv.text !== undefined) return fv.text.trim();
       return fv.from || fv.to;
@@ -234,7 +241,7 @@ function BuyersList() {
     }
 
     return data;
-  }, [buyers, colFilters, sortField, sortDir]);
+  }, [buyers, searchQuery, colFilters, sortField, sortDir]);
 
   const stats = useMemo(() => {
     const activos   = displayData.filter(b => b.status !== 'inactivo').length;
@@ -294,6 +301,9 @@ function BuyersList() {
           <div className="siembra-empty-state">
             <FiPackage size={36} />
             <p>Aún no hay compradores registrados.</p>
+            <button className="aur-btn-pill" onClick={startCreate}>
+              <FiPlus /> Agregar primer comprador
+            </button>
           </div>
         ) : (
           <>
@@ -315,6 +325,22 @@ function BuyersList() {
               </div>
             </div>
 
+            {/* ── Búsqueda global ────────────────────────────────────── */}
+            <div className="fin-search-wrap">
+              <FiSearch size={14} className="fin-search-icon" />
+              <input
+                className="fin-search-input"
+                placeholder="Buscar por nombre, cédula, email, país…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button className="fin-search-clear" onClick={() => setSearchQuery('')}>
+                  <FiX size={14} />
+                </button>
+              )}
+            </div>
+
             {/* ── Tabla ──────────────────────────────────────────────── */}
             <div className="siembra-historial sh-table-card">
               <div className="historial-top-row">
@@ -323,9 +349,9 @@ function BuyersList() {
                     ? `${buyers.length} compradores`
                     : `${displayData.length} de ${buyers.length} compradores`}
                 </span>
-                {Object.keys(colFilters).length > 0 && (
-                  <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-                    <FiX size={11} /> Limpiar filtros de columna
+                {(Object.keys(colFilters).length > 0 || searchQuery) && (
+                  <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
+                    <FiX size={11} /> Limpiar filtros
                   </button>
                 )}
               </div>

@@ -14,11 +14,6 @@ function FinanceDashboard() {
         <h2><FiDollarSign /> Finanzas — Dashboard Ejecutivo</h2>
       </div>
 
-      <p className="fin-dashboard-intro">
-        Vista consolidada de caja, presupuesto, rentabilidad y compromisos próximos. Los widgets se
-        actualizan cada vez que abres la página.
-      </p>
-
       <div className="fin-dashboard-grid">
         <CashWidget />
         <BudgetWidget />

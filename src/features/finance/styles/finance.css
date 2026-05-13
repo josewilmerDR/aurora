@@ -87,6 +87,76 @@
   color: var(--aur-text-3);
 }
 
+.siembra-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-footnote);
+  text-align: center;
+}
+.siembra-empty-state p { margin: 0; }
+
+/* ── Barra de búsqueda global (Ingresos, Compradores) ────────────────────── */
+.fin-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-input);
+  padding: 0 12px;
+  height: 36px;
+}
+.fin-search-icon { color: var(--aur-text-3); flex-shrink: 0; }
+.fin-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--aur-text);
+  font-size: var(--aur-fs-body);
+  min-width: 0;
+}
+.fin-search-input::placeholder { color: var(--aur-text-3); }
+.fin-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aur-text-3);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+.fin-search-clear:hover { color: var(--aur-text); }
+
+/* ── Presets de horizonte (Tesorería) ────────────────────────────────────── */
+.horizon-selector { display: flex; flex-direction: column; gap: 8px; }
+.horizon-preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.horizon-preset-btn {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: 20px;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-caption);
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.horizon-preset-btn:hover {
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+}
+.horizon-preset-btn--active {
+  background: rgba(51, 255, 153, 0.08);
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+  font-weight: 600;
+}
+
 /* ── Execution panel — KPI strip arriba de la tabla ─────────────────────── */
 .finance-execution-summary {
   display: flex;
