@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
-import { formatPeriod, parsePeriod } from '../../../lib/periodFormat';
+import { formatPeriod } from '../../../lib/periodFormat';
 
 // Keys iguales a las categorías en functions/lib/finance/categories.js.
 const CATEGORY_OPTIONS = [
@@ -29,32 +29,21 @@ const EMPTY = {
   notes: '',
 };
 
-function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
+function BudgetForm({ initial, defaultPeriod, periodOptions = [], onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(EMPTY);
-  const [periodError, setPeriodError] = useState('');
   const needsFx = form.currency !== 'CRC';
 
   useEffect(() => {
-    // El input muestra formato en español (ej. "Abril 2026", "T2 2026").
-    // Al enviar se convierte a canónico para el backend.
-    if (initial) setForm({ ...EMPTY, ...initial, period: formatPeriod(initial.period) });
-    else setForm({ ...EMPTY, period: formatPeriod(defaultPeriod || '') });
-    setPeriodError('');
+    if (initial) setForm({ ...EMPTY, ...initial });
+    else setForm({ ...EMPTY, period: defaultPeriod || '' });
   }, [initial, defaultPeriod]);
 
   const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const canonical = parsePeriod(form.period);
-    if (!canonical) {
-      setPeriodError('Formato no reconocido. Ejemplos: "Abril 2026", "T2 2026", "2026".');
-      return;
-    }
-    setPeriodError('');
     const payload = {
       ...form,
-      period: canonical,
       assignedAmount: Number(form.assignedAmount),
       exchangeRateToCRC: needsFx ? Number(form.exchangeRateToCRC) : 1,
     };
@@ -70,22 +59,22 @@ function BudgetForm({ initial, defaultPeriod, onSubmit, onCancel, saving }) {
         <div className="aur-list">
           <div className="aur-row">
             <label className="aur-row-label" htmlFor="bf-period">Período</label>
-            <input
+            <select
               id="bf-period"
-              type="text"
-              className={`aur-input${periodError ? ' aur-input--error' : ''}`}
+              className="aur-select"
               value={form.period}
-              onChange={(e) => { setForm(prev => ({ ...prev, period: e.target.value })); if (periodError) setPeriodError(''); }}
-              placeholder="Abril 2026 | T2 2026 | 2026"
-              title='Ejemplos: "Abril 2026", "T2 2026", "2026"'
+              onChange={update('period')}
               required
-            />
+            >
+              <option value="" disabled>Seleccionar período…</option>
+              {form.period && !periodOptions.find(o => o.value === form.period) && (
+                <option value={form.period}>{formatPeriod(form.period) || form.period}</option>
+              )}
+              {periodOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
-          {periodError && (
-            <div className="aur-row aur-row--multiline">
-              <span className="aur-field-error">{periodError}</span>
-            </div>
-          )}
           <div className="aur-row">
             <label className="aur-row-label" htmlFor="bf-category">Categoría</label>
             <select

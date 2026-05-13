@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   FiPlus, FiDollarSign, FiFilter, FiX, FiSliders,
   FiMoreVertical, FiEdit2, FiTrash2, FiPackage, FiSearch,
+  FiLayout, FiDownload,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -30,6 +31,9 @@ const COLUMNS = [
 ];
 
 const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
+
+const COMPACT_COLS_KEYS = new Set(['fecha', 'comprador', 'lote', 'total', 'estado']);
+const COMPACT_COLS = Object.fromEntries(COLUMNS.map(c => [c.key, COMPACT_COLS_KEYS.has(c.key)]));
 
 const STATUS_BADGE_VARIANT = {
   pendiente: { label: 'Pendiente', cls: 'aur-badge--magenta' },
@@ -209,6 +213,12 @@ function IncomeRecords() {
     setColMenu({ x: r.right - 185, y: r.bottom + 4 });
   };
 
+  const isCompact = useMemo(
+    () => COLUMNS.every(c => visibleCols[c.key] === COMPACT_COLS[c.key]),
+    [visibleCols]
+  );
+  const applyCompactPreset = () => setVisibleCols(isCompact ? ALL_COLS_VISIBLE : COMPACT_COLS);
+
   // ── Datos derivados ──────────────────────────────────────────────────────
   const displayData = useMemo(() => {
     let data = [...records];
@@ -256,6 +266,38 @@ function IncomeRecords() {
 
     return data;
   }, [records, searchQuery, colFilters, sortField, sortDir]);
+
+  const exportCSV = useCallback(() => {
+    const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headers = COLUMNS.map(c => escape(c.label));
+    const rows = displayData.map(r => COLUMNS.map(col => {
+      switch (col.key) {
+        case 'fecha':     return escape(r.date || '');
+        case 'comprador': return escape(r.buyerName || '');
+        case 'lote':      return escape(r.loteNombre || '');
+        case 'despachos': return escape(Array.isArray(r.despachoIds) ? r.despachoIds.length : (r.despachoId ? 1 : 0));
+        case 'cantidad':  return escape(r.quantity ?? '');
+        case 'unidad':    return escape(r.unit || '');
+        case 'precio':    return escape(r.unitPrice ?? '');
+        case 'total':     return escape(r.totalAmount ?? '');
+        case 'moneda':    return escape(r.currency || '');
+        case 'estado':    return escape(r.collectionStatus || '');
+        case 'fespera':   return escape(r.expectedCollectionDate || '');
+        case 'fcobro':    return escape(r.actualCollectionDate || '');
+        default:          return escape('');
+      }
+    }));
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ingresos_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [displayData]);
 
   // ── Stats (usan totalAmountCRC para agregación) ──────────────────────────
   const stats = useMemo(() => {
@@ -368,11 +410,23 @@ function IncomeRecords() {
                     ? `${records.length} registros`
                     : `${displayData.length} de ${records.length} registros`}
                 </span>
-                {(Object.keys(colFilters).length > 0 || searchQuery) && (
-                  <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
-                    <FiX size={11} /> Limpiar filtros
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
+                  <button
+                    className={`fin-table-btn${isCompact ? ' is-active' : ''}`}
+                    onClick={applyCompactPreset}
+                    title={isCompact ? 'Mostrar todas las columnas' : 'Vista compacta'}
+                  >
+                    <FiLayout size={11} /> Compacta
                   </button>
-                )}
+                  {(Object.keys(colFilters).length > 0 || searchQuery) && (
+                    <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
+                      <FiX size={11} /> Limpiar filtros
+                    </button>
+                  )}
+                  <button className="fin-table-btn" onClick={exportCSV} title="Exportar CSV">
+                    <FiDownload size={11} /> CSV
+                  </button>
+                </div>
               </div>
 
               {displayData.length === 0 ? (
