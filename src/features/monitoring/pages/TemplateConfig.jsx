@@ -192,6 +192,34 @@ function CamposEditor({ campos, onChange, disabled }) {
           <FiPlus size={14} /> Agregar campo
         </button>
       </section>
+
+      <section className="aur-section">
+        <div className="aur-section-header">
+          <span className="aur-section-num">⊡</span>
+          <h3>Vista previa del registro</h3>
+          <span className="aur-section-count">{DEFAULT_CAMPOS.length + campos.length}</span>
+        </div>
+        <p className="tpl-campos-hint">Así se verá el formulario al registrar un muestreo.</p>
+        <div className="tpl-form-preview">
+          {[...DEFAULT_CAMPOS, ...campos].map((c, i) => {
+            const isDefault = i < DEFAULT_CAMPOS.length;
+            const inputType = c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text';
+            return (
+              <div key={i} className={`tpl-form-preview-field${isDefault ? ' tpl-form-preview-field--default' : ''}`}>
+                <label className="tpl-form-preview-label">
+                  {c.nombre || <em>Sin nombre</em>}
+                </label>
+                <input
+                  className="aur-input tpl-form-preview-input"
+                  type={inputType}
+                  disabled
+                  placeholder={isDefault ? '(datos del sistema)' : c.tipo === 'numero' ? '0' : '—'}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </>
   );
 }

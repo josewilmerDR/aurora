@@ -17,6 +17,7 @@ const MAX_IMAGE_PX = 1600;
 const MAX_IMAGE_FILE_BYTES = 20 * 1024 * 1024; // 20MB before compression
 const MAX_OBSERVACIONES = 2000;
 const MAX_REGISTRO_VALUE = 500;
+const DRAFT_KEY = (id) => `fmm_draft_${id}`;
 
 function compressImage(file) {
   return new Promise((resolve, reject) => {
@@ -50,6 +51,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   const { currentUser } = useUser();
   const fileInputRef = useRef(null);
   const firstCellRef = useRef(null);
+  const tableRef = useRef(null);
 
   // Plantilla state: 'loading' | 'no-formulario' | 'ready' | 'error'
   const [state, setState] = useState('loading');
@@ -66,6 +68,9 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   const [supervisorNombre, setSupervisorNombre] = useState('');
   const [supervisorLoading, setSupervisorLoading] = useState(false);
   const [users, setUsers] = useState([]);
+
+  // Draft state: null = no saved draft, object = draft found and pending user decision
+  const [draftData, setDraftData] = useState(null);
 
   // Scan state
   const [scanImage, setScanImage] = useState(null);
@@ -107,6 +112,25 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
           setCampos(plantillaCampos);
           setRegistros([{ ...emptyRow }]);
           setState('ready');
+
+          // Check for saved draft — only restore if it has data and matching campos
+          try {
+            const raw = localStorage.getItem(DRAFT_KEY(orden.id));
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const currentKeys = plantillaCampos.map(c => c.nombre).join(',');
+              const draftKeys = (parsed.campoKeys || []).join(',');
+              const hasData = Array.isArray(parsed.registros) &&
+                parsed.registros.some(row => Object.values(row).some(v => v !== ''));
+              if (currentKeys === draftKeys && hasData) {
+                setDraftData(parsed);
+              } else {
+                localStorage.removeItem(DRAFT_KEY(orden.id));
+              }
+            }
+          } catch {
+            try { localStorage.removeItem(DRAFT_KEY(orden.id)); } catch {}
+          }
         }
       } catch (err) {
         if (!cancelled) { setErrorMsg(err.message || 'Error al cargar la plantilla'); setState('error'); }
@@ -121,6 +145,34 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   useEffect(() => {
     if (state === 'ready') firstCellRef.current?.focus();
   }, [state]);
+
+  // Auto-save draft — only after the user has a pending draft decision resolved.
+  useEffect(() => {
+    if (state !== 'ready' || draftData !== null) return;
+    const draft = {
+      fechaCarga, observaciones, supervisorId, supervisorNombre,
+      registros, campoKeys: campos.map(c => c.nombre),
+    };
+    try { localStorage.setItem(DRAFT_KEY(orden.id), JSON.stringify(draft)); } catch {}
+  }, [registros, fechaCarga, observaciones, supervisorId, supervisorNombre, state, draftData]);
+
+  // Enter key navigation in registro table: moves focus down one row, adds row at end.
+  const handleCellKeyDown = (e, rIdx, cIdx) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (e.shiftKey) {
+      if (rIdx > 0) tableRef.current?.querySelector(`[data-row="${rIdx - 1}"][data-col="${cIdx}"]`)?.focus();
+      return;
+    }
+    if (rIdx === registros.length - 1) {
+      addRegistro();
+      setTimeout(() => {
+        tableRef.current?.querySelector(`[data-row="${rIdx + 1}"][data-col="${cIdx}"]`)?.focus();
+      }, 0);
+    } else {
+      tableRef.current?.querySelector(`[data-row="${rIdx + 1}"][data-col="${cIdx}"]`)?.focus();
+    }
+  };
 
   // ── Fetch supervisor + users (para fallback de selección manual) ─────────
   useEffect(() => {
@@ -227,6 +279,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
         } : {}),
       };
       await onComplete(orden.id, formularioData, metadata);
+      try { localStorage.removeItem(DRAFT_KEY(orden.id)); } catch {}
     } catch (err) {
       setSubmitError(err?.message || 'Error al guardar.');
     } finally {
@@ -265,6 +318,36 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
 
         {/* Body */}
         <div className="aur-modal-content fmm-body">
+
+          {/* Draft restoration banner */}
+          {draftData && (
+            <div className="fmm-draft-banner" role="alert">
+              <span className="fmm-draft-banner-text">Hay un borrador guardado para esta orden.</span>
+              <button
+                type="button"
+                className="aur-btn-pill aur-btn-pill--sm"
+                onClick={() => {
+                  setRegistros(draftData.registros);
+                  if (draftData.fechaCarga) setFechaCarga(draftData.fechaCarga);
+                  if (draftData.observaciones != null) setObservaciones(draftData.observaciones);
+                  if (draftData.supervisorId) { setSupervisorId(draftData.supervisorId); setSupervisorNombre(draftData.supervisorNombre || ''); }
+                  setDraftData(null);
+                }}
+              >
+                Restaurar
+              </button>
+              <button
+                type="button"
+                className="aur-btn-text"
+                onClick={() => {
+                  try { localStorage.removeItem(DRAFT_KEY(orden.id)); } catch {}
+                  setDraftData(null);
+                }}
+              >
+                Descartar
+              </button>
+            </div>
+          )}
 
           {/* Datos generales — settings list */}
           <section className="aur-section">
@@ -459,7 +542,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
 
                 {/* Multi-registro table */}
                 <div className="aur-table-wrap">
-                  <table className="aur-table fmm-registros-table">
+                  <table ref={tableRef} className="aur-table fmm-registros-table">
                     <thead>
                       <tr>
                         <th className="fmm-reg-num">#</th>
@@ -481,6 +564,9 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                                 type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
                                 value={reg[c.nombre] ?? ''}
                                 onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
+                                onKeyDown={e => handleCellKeyDown(e, rIdx, cIdx)}
+                                data-row={rIdx}
+                                data-col={cIdx}
                                 maxLength={MAX_REGISTRO_VALUE}
                                 disabled={submitting}
                                 aria-label={`${c.nombre} fila ${rIdx + 1}`}
