@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import '../../applications/styles/packages.css';
 import {
   FiEdit2, FiTrash2, FiPlus, FiX, FiCopy,
@@ -312,14 +312,7 @@ function SamplingPackages() {
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
   const [formErrors, setFormErrors]   = useState({});
   const [toast, setToast]             = useState(null);
-  const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
-
-  useEffect(() => {
-    if (!selectedPkg || !carouselRef.current) return;
-    const active = carouselRef.current.querySelector('.lote-bubble--active');
-    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [selectedPkg]);
 
   useEffect(() => {
     Promise.all([
@@ -472,25 +465,6 @@ function SamplingPackages() {
               <h3 className="lote-list-title">Paquetes de muestreo</h3>
               <button className="aur-btn-pill" onClick={startNew}>
                 <FiPlus size={16} /> Nuevo paquete
-              </button>
-            </div>
-          )}
-
-          {selectedPkg && (
-            <div className="lote-carousel" ref={carouselRef}>
-              {packages.map(pkg => (
-                <button
-                  key={pkg.id}
-                  className={`lote-bubble${selectedPkg?.id === pkg.id ? ' lote-bubble--active' : ''}`}
-                  onClick={() => selectedPkg?.id === pkg.id ? setSelectedPkg(null) : handleSelectPkg(pkg)}
-                >
-                  <span className="lote-bubble-avatar">{pkg.nombrePaquete.slice(0, 4)}</span>
-                  <span className="lote-bubble-label">{pkg.nombrePaquete}</span>
-                </button>
-              ))}
-              <button className="lote-bubble lote-bubble--add" onClick={startNew}>
-                <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
-                <span className="lote-bubble-label">Nuevo</span>
               </button>
             </div>
           )}

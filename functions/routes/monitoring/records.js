@@ -28,7 +28,7 @@ const router = Router();
 
 router.get('/api/monitoreo', authenticate, async (req, res) => {
   try {
-    const { loteId, desde, hasta } = req.query;
+    const { loteId, desde, hasta, tipoId } = req.query;
     if (desde !== undefined && desde !== '' && !DATE_ISO_RE.test(desde)) {
       return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid "desde" format (YYYY-MM-DD).', 400);
     }
@@ -47,7 +47,7 @@ router.get('/api/monitoreo', authenticate, async (req, res) => {
       if (d) query = query.where('fecha', '<=', Timestamp.fromDate(d));
     }
     const snap = await query.orderBy('fecha', 'desc').limit(200).get();
-    const data = snap.docs.map(d => {
+    let data = snap.docs.map(d => {
       const doc = d.data();
       return {
         id: d.id,
@@ -56,6 +56,13 @@ router.get('/api/monitoreo', authenticate, async (req, res) => {
         createdAt: doc.createdAt?.toDate?.()?.toISOString() ?? null,
       };
     });
+
+    if (tipoId && typeof tipoId === 'string') {
+      const safeId = tipoId.slice(0, 80);
+      data = data.filter(r =>
+        (r.plantillaIds || []).includes(safeId) || r.tipoId === safeId
+      );
+    }
 
     res.status(200).json(data);
   } catch (error) {

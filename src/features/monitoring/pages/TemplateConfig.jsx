@@ -235,14 +235,7 @@ function TemplateConfig() {
   const [toast, setToast]               = useState(null);
   const [loading, setLoading]           = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
-
-  useEffect(() => {
-    if (!selectedTipo || !carouselRef.current) return;
-    const active = carouselRef.current.querySelector('.lote-bubble--active');
-    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [selectedTipo]);
 
   useEffect(() => {
     apiFetch('/api/monitoreo/tipos')
@@ -347,28 +340,6 @@ function TemplateConfig() {
               <h3 className="lote-list-title">Plantillas de muestreo</h3>
               <button className="aur-btn-pill" onClick={() => { setShowNew(true); setSelectedTipo(null); }}>
                 <FiPlus size={16} /> Nueva plantilla
-              </button>
-            </div>
-          )}
-
-          {selectedTipo && (
-            <div className="lote-carousel" ref={carouselRef}>
-              {tipos.map(tipo => (
-                <button
-                  key={tipo.id}
-                  className={`lote-bubble${selectedTipo?.id === tipo.id ? ' lote-bubble--active' : ''}`}
-                  onClick={() => selectedTipo?.id === tipo.id ? setSelectedTipo(null) : handleSelectTipo(tipo)}
-                >
-                  <span className="lote-bubble-avatar">{tipo.nombre.slice(0, 4)}</span>
-                  <span className="lote-bubble-label">{tipo.nombre}</span>
-                </button>
-              ))}
-              <button
-                className="lote-bubble lote-bubble--add"
-                onClick={() => { setSelectedTipo(null); setShowNew(true); }}
-              >
-                <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
-                <span className="lote-bubble-label">Nueva</span>
               </button>
             </div>
           )}

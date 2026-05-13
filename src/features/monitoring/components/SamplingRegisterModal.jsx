@@ -72,6 +72,9 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
   // Draft state: null = no saved draft, object = draft found and pending user decision
   const [draftData, setDraftData] = useState(null);
 
+  // Wizard step: 1 = Datos generales, 2 = Datos del muestreo
+  const [step, setStep] = useState(1);
+
   // Scan state
   const [scanImage, setScanImage] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null); // image to attach on save
@@ -299,7 +302,10 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
         {/* Header */}
         <header className="aur-modal-header fmm-header">
           <div className="aur-modal-title fmm-title">
-            <span className="fmm-title-main">Registrar resultado de muestreo</span>
+            <span className="fmm-title-main">
+              {step === 1 ? 'Datos generales' : 'Datos del muestreo'}
+              <span className="fmm-step-badge">{step}/2</span>
+            </span>
             <span className="fmm-title-sub">
               {orden.tipoMuestreo}
               {orden.grupoNombre && orden.grupoNombre !== '—' ? ` — ${orden.grupoNombre}` : ''}
@@ -319,290 +325,296 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
         {/* Body */}
         <div className="aur-modal-content fmm-body">
 
-          {/* Draft restoration banner */}
-          {draftData && (
-            <div className="fmm-draft-banner" role="alert">
-              <span className="fmm-draft-banner-text">Hay un borrador guardado para esta orden.</span>
-              <button
-                type="button"
-                className="aur-btn-pill aur-btn-pill--sm"
-                onClick={() => {
-                  setRegistros(draftData.registros);
-                  if (draftData.fechaCarga) setFechaCarga(draftData.fechaCarga);
-                  if (draftData.observaciones != null) setObservaciones(draftData.observaciones);
-                  if (draftData.supervisorId) { setSupervisorId(draftData.supervisorId); setSupervisorNombre(draftData.supervisorNombre || ''); }
-                  setDraftData(null);
-                }}
-              >
-                Restaurar
-              </button>
-              <button
-                type="button"
-                className="aur-btn-text"
-                onClick={() => {
-                  try { localStorage.removeItem(DRAFT_KEY(orden.id)); } catch {}
-                  setDraftData(null);
-                }}
-              >
-                Descartar
-              </button>
-            </div>
-          )}
-
-          {/* Datos generales — settings list */}
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Datos generales</h3>
-            </div>
-            <div className="aur-list">
-              <div className="aur-row">
-                <span className="aur-row-label">F. Programada</span>
-                <span className="fmm-meta-value">{fmtDate(orden.fechaProgramada)}</span>
-              </div>
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="fmm-fecha">F. Muestreo</label>
-                <input
-                  id="fmm-fecha"
-                  type="date"
-                  className="aur-input"
-                  value={fechaCarga}
-                  onChange={e => setFechaCarga(e.target.value)}
-                  disabled={submitting}
-                />
-              </div>
-              <div className="aur-row">
-                <span className="aur-row-label">Muestreador</span>
-                <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
-              </div>
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="fmm-supervisor">Supervisor</label>
-                {supervisorLoading ? (
-                  <span className="fmm-meta-value">...</span>
-                ) : supervisorId ? (
-                  <span className="fmm-meta-value">{supervisorNombre}</span>
-                ) : (
-                  <select
-                    id="fmm-supervisor"
-                    className="aur-select"
-                    value=""
-                    onChange={e => handleSupervisorPick(e.target.value)}
-                    disabled={submitting}
+          {/* ── Paso 1: Datos generales ──────────────────────────────────── */}
+          {step === 1 && (
+            <>
+              {/* Draft restoration banner */}
+              {draftData && (
+                <div className="fmm-draft-banner" role="alert">
+                  <span className="fmm-draft-banner-text">Hay un borrador guardado para esta orden.</span>
+                  <button
+                    type="button"
+                    className="aur-btn-pill aur-btn-pill--sm"
+                    onClick={() => {
+                      setRegistros(draftData.registros);
+                      if (draftData.fechaCarga) setFechaCarga(draftData.fechaCarga);
+                      if (draftData.observaciones != null) setObservaciones(draftData.observaciones);
+                      if (draftData.supervisorId) { setSupervisorId(draftData.supervisorId); setSupervisorNombre(draftData.supervisorNombre || ''); }
+                      setDraftData(null);
+                    }}
                   >
-                    <option value="">Seleccionar supervisor…</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.nombre}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <div className="aur-row">
-                <span className="aur-row-label">Lote</span>
-                <span className="fmm-meta-value">{orden.loteNombre || '—'}</span>
-              </div>
-              <div className="aur-row">
-                <span className="aur-row-label">Grupo</span>
-                <span className="fmm-meta-value">{orden.grupoNombre || '—'}</span>
-              </div>
-              <div className="aur-row aur-row--multiline">
-                <label className="aur-row-label" htmlFor="fmm-notas">Notas</label>
-                <textarea
-                  id="fmm-notas"
-                  className="aur-textarea"
-                  value={observaciones}
-                  onChange={e => setObservaciones(e.target.value)}
-                  disabled={submitting}
-                  placeholder="Observaciones del muestreo..."
-                  maxLength={MAX_OBSERVACIONES}
-                  rows={2}
-                />
-              </div>
-            </div>
-          </section>
+                    Restaurar
+                  </button>
+                  <button
+                    type="button"
+                    className="aur-btn-text"
+                    onClick={() => {
+                      try { localStorage.removeItem(DRAFT_KEY(orden.id)); } catch {}
+                      setDraftData(null);
+                    }}
+                  >
+                    Descartar
+                  </button>
+                </div>
+              )}
 
-          {/* Datos del muestreo — registros + scan */}
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Datos del muestreo</h3>
-              {state === 'ready' && <span className="aur-section-count">{registros.length}</span>}
-            </div>
-
-            {state === 'loading' && <div className="fmm-state">Cargando plantilla...</div>}
-
-            {state === 'error' && (
-              <div className="fmm-state fmm-state--error">
-                <FiAlertCircle size={20} />
-                <span>{errorMsg}</span>
-                <span className="fmm-state-hint">Puedes marcar la orden como hecha sin llenar el formulario.</span>
-              </div>
-            )}
-
-            {state === 'no-formulario' && (
-              <div className="fmm-state fmm-state--empty">
-                <FiFileText size={20} />
-                <span>No hay campos definidos para esta plantilla.</span>
-                <span className="fmm-state-hint">
-                  Puedes marcar la orden como hecha directamente, o definir los campos en la configuración de Plantillas.
-                </span>
-              </div>
-            )}
-
-            {state === 'ready' && (
-              <>
-                {/* Scan toolbar — un solo CTA según el estado (sin imagen / con imagen) */}
-                <div className="fmm-scan-bar">
-                  <div className="fmm-scan-bar-left">
+              <section className="aur-section">
+                <div className="aur-list">
+                  <div className="aur-row">
+                    <span className="aur-row-label">F. Programada</span>
+                    <span className="fmm-meta-value">{fmtDate(orden.fechaProgramada)}</span>
+                  </div>
+                  <div className="aur-row">
+                    <label className="aur-row-label" htmlFor="fmm-fecha">F. Muestreo</label>
                     <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      style={{ display: 'none' }}
-                      onChange={handleImagePick}
+                      id="fmm-fecha"
+                      type="date"
+                      className="aur-input"
+                      value={fechaCarga}
+                      onChange={e => setFechaCarga(e.target.value)}
+                      disabled={submitting}
                     />
-                    {!scanImage ? (
-                      <button
-                        className="btn btn-ia"
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={scanning || submitting}
-                        title="Subí una foto del formulario lleno para leerlo con IA"
-                      >
-                        <FiUpload size={15} />
-                        Subir imagen
-                      </button>
+                  </div>
+                  <div className="aur-row">
+                    <span className="aur-row-label">Muestreador</span>
+                    <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
+                  </div>
+                  <div className="aur-row">
+                    <label className="aur-row-label" htmlFor="fmm-supervisor">Supervisor</label>
+                    {supervisorLoading ? (
+                      <span className="fmm-meta-value">...</span>
+                    ) : supervisorId ? (
+                      <span className="fmm-meta-value">{supervisorNombre}</span>
                     ) : (
-                      <div className="fmm-scan-preview">
-                        <button
-                          type="button"
-                          className="fmm-scan-thumb-btn"
-                          onClick={() => setLightbox({ src: scanImage.previewUrl, caption: 'Imagen a procesar' })}
-                          title="Ampliar imagen"
-                        >
-                          <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
-                        </button>
-                        <button
-                          className="fmm-scan-extract-btn"
-                          type="button"
-                          onClick={handleScan}
-                          disabled={scanning || submitting}
-                        >
-                          <FiCpu size={13} />
-                          {scanning ? 'Leyendo…' : 'Leer con IA'}
-                        </button>
-                        <button
-                          type="button"
-                          className="aur-btn-text"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={scanning || submitting}
-                          title="Elegir otra imagen"
-                        >
-                          Cambiar
-                        </button>
-                        <button
-                          type="button"
-                          className="aur-icon-btn aur-icon-btn--sm"
-                          onClick={() => { setScanImage(null); setScanMsg(null); }}
-                          disabled={scanning || submitting}
-                          title="Quitar imagen"
-                        >
-                          <FiX size={13} />
-                        </button>
-                      </div>
+                      <select
+                        id="fmm-supervisor"
+                        className="aur-select"
+                        value=""
+                        onChange={e => handleSupervisorPick(e.target.value)}
+                        disabled={submitting}
+                      >
+                        <option value="">Seleccionar supervisor…</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.nombre}</option>
+                        ))}
+                      </select>
                     )}
                   </div>
-                  {scanMsg && (
-                    <span className={`fmm-scan-msg fmm-scan-msg--${scanMsg.type}`}>
-                      {scanMsg.text}
-                    </span>
-                  )}
-                </div>
-
-                {/* Imagen adjunta al registro */}
-                {capturedImage && (
-                  <div className="fmm-captured-bar">
-                    <button
-                      type="button"
-                      className="fmm-scan-thumb-btn"
-                      onClick={() => setLightbox({ src: capturedImage.previewUrl, caption: 'Imagen adjunta al registro' })}
-                      title="Ampliar imagen"
-                    >
-                      <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
-                    </button>
-                    <span className="fmm-captured-label">Imagen adjunta — se guardará con el registro</span>
-                    <button
-                      type="button"
-                      className="aur-icon-btn aur-icon-btn--sm"
-                      onClick={() => setCapturedImage(null)}
-                      disabled={submitting}
-                      title="Quitar imagen adjunta"
-                    >
-                      <FiX size={13} />
-                    </button>
+                  <div className="aur-row">
+                    <span className="aur-row-label">Lote</span>
+                    <span className="fmm-meta-value">{orden.loteNombre || '—'}</span>
                   </div>
-                )}
-
-                {/* Multi-registro table */}
-                <div className="aur-table-wrap">
-                  <table ref={tableRef} className="aur-table fmm-registros-table">
-                    <thead>
-                      <tr>
-                        <th className="fmm-reg-num">#</th>
-                        {campos.map(c => (
-                          <th key={c.nombre}>{c.nombre}</th>
-                        ))}
-                        <th className="fmm-reg-del-col" aria-hidden="true" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {registros.map((reg, rIdx) => (
-                        <tr key={rIdx}>
-                          <td className="fmm-reg-num">{rIdx + 1}</td>
-                          {campos.map((c, cIdx) => (
-                            <td key={c.nombre} className="fmm-reg-td">
-                              <input
-                                ref={rIdx === 0 && cIdx === 0 ? firstCellRef : null}
-                                className="fmm-reg-input"
-                                type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
-                                value={reg[c.nombre] ?? ''}
-                                onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
-                                onKeyDown={e => handleCellKeyDown(e, rIdx, cIdx)}
-                                data-row={rIdx}
-                                data-col={cIdx}
-                                maxLength={MAX_REGISTRO_VALUE}
-                                disabled={submitting}
-                                aria-label={`${c.nombre} fila ${rIdx + 1}`}
-                              />
-                            </td>
-                          ))}
-                          <td className="fmm-reg-del-col">
-                            {registros.length > 1 && (
-                              <button
-                                type="button"
-                                className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                                onClick={() => removeRegistro(rIdx)}
-                                disabled={submitting}
-                                title="Eliminar fila"
-                              >
-                                <FiTrash2 size={12} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="aur-row">
+                    <span className="aur-row-label">Grupo</span>
+                    <span className="fmm-meta-value">{orden.grupoNombre || '—'}</span>
+                  </div>
+                  <div className="aur-row aur-row--multiline">
+                    <label className="aur-row-label" htmlFor="fmm-notas">Notas</label>
+                    <div style={{ flex: 1 }}>
+                      <textarea
+                        id="fmm-notas"
+                        className="aur-textarea"
+                        value={observaciones}
+                        onChange={e => setObservaciones(e.target.value)}
+                        disabled={submitting}
+                        placeholder="Observaciones del muestreo..."
+                        maxLength={MAX_OBSERVACIONES}
+                        rows={2}
+                      />
+                      <span className="fmm-char-count">{observaciones.length}/{MAX_OBSERVACIONES}</span>
+                    </div>
+                  </div>
                 </div>
+              </section>
+            </>
+          )}
 
-                <button
-                  type="button"
-                  className="pkg-add-activity"
-                  onClick={addRegistro}
-                  disabled={submitting}
-                >
-                  <FiPlus size={14} /> Agregar registro
-                </button>
-              </>
-            )}
-          </section>
+          {/* ── Paso 2: Datos del muestreo ───────────────────────────────── */}
+          {step === 2 && (
+            <section className="aur-section">
+              <div className="aur-section-header">
+                <h3>Registros</h3>
+                {state === 'ready' && <span className="aur-section-count">{registros.length}</span>}
+              </div>
+
+              {state === 'loading' && <div className="fmm-state">Cargando plantilla...</div>}
+
+              {state === 'error' && (
+                <div className="fmm-state fmm-state--error">
+                  <FiAlertCircle size={20} />
+                  <span>{errorMsg}</span>
+                  <span className="fmm-state-hint">Puedes guardar la orden sin llenar el formulario.</span>
+                </div>
+              )}
+
+              {state === 'no-formulario' && (
+                <div className="fmm-state fmm-state--empty">
+                  <FiFileText size={20} />
+                  <span>No hay campos definidos para esta plantilla.</span>
+                  <span className="fmm-state-hint">
+                    Puedes guardar la orden directamente, o definir los campos en Configuración → Plantillas.
+                  </span>
+                </div>
+              )}
+
+              {state === 'ready' && (
+                <>
+                  {/* Scan toolbar */}
+                  <div className="fmm-scan-bar">
+                    <div className="fmm-scan-bar-left">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        style={{ display: 'none' }}
+                        onChange={handleImagePick}
+                      />
+                      {!scanImage ? (
+                        <button
+                          className="btn btn-ia"
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={scanning || submitting}
+                          title="Subí una foto del formulario lleno para leerlo con IA"
+                        >
+                          <FiUpload size={15} />
+                          Subir imagen
+                        </button>
+                      ) : (
+                        <div className="fmm-scan-preview">
+                          <button
+                            type="button"
+                            className="fmm-scan-thumb-btn"
+                            onClick={() => setLightbox({ src: scanImage.previewUrl, caption: 'Imagen a procesar' })}
+                            title="Ampliar imagen"
+                          >
+                            <img src={scanImage.previewUrl} alt="preview" className="fmm-scan-thumb" />
+                          </button>
+                          <button
+                            className="fmm-scan-extract-btn"
+                            type="button"
+                            onClick={handleScan}
+                            disabled={scanning || submitting}
+                          >
+                            <FiCpu size={13} />
+                            {scanning ? 'Leyendo…' : 'Leer con IA'}
+                          </button>
+                          <button
+                            type="button"
+                            className="aur-btn-text"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={scanning || submitting}
+                            title="Elegir otra imagen"
+                          >
+                            Cambiar
+                          </button>
+                          <button
+                            type="button"
+                            className="aur-icon-btn aur-icon-btn--sm"
+                            onClick={() => { setScanImage(null); setScanMsg(null); }}
+                            disabled={scanning || submitting}
+                            title="Quitar imagen"
+                          >
+                            <FiX size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {scanMsg && (
+                      <span className={`fmm-scan-msg fmm-scan-msg--${scanMsg.type}`}>
+                        {scanMsg.text}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Imagen adjunta */}
+                  {capturedImage && (
+                    <div className="fmm-captured-bar">
+                      <button
+                        type="button"
+                        className="fmm-scan-thumb-btn"
+                        onClick={() => setLightbox({ src: capturedImage.previewUrl, caption: 'Imagen adjunta al registro' })}
+                        title="Ampliar imagen"
+                      >
+                        <img src={capturedImage.previewUrl} alt="Imagen adjunta" className="fmm-scan-thumb" />
+                      </button>
+                      <span className="fmm-captured-label">Imagen adjunta — se guardará con el registro</span>
+                      <button
+                        type="button"
+                        className="aur-icon-btn aur-icon-btn--sm"
+                        onClick={() => setCapturedImage(null)}
+                        disabled={submitting}
+                        title="Quitar imagen adjunta"
+                      >
+                        <FiX size={13} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Multi-registro table */}
+                  <div className="aur-table-wrap">
+                    <table ref={tableRef} className="aur-table fmm-registros-table">
+                      <thead>
+                        <tr>
+                          <th className="fmm-reg-num">#</th>
+                          {campos.map(c => (
+                            <th key={c.nombre}>{c.nombre}</th>
+                          ))}
+                          <th className="fmm-reg-del-col" aria-hidden="true" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {registros.map((reg, rIdx) => (
+                          <tr key={rIdx}>
+                            <td className="fmm-reg-num">{rIdx + 1}</td>
+                            {campos.map((c, cIdx) => (
+                              <td key={c.nombre} className="fmm-reg-td">
+                                <input
+                                  ref={rIdx === 0 && cIdx === 0 ? firstCellRef : null}
+                                  className="fmm-reg-input"
+                                  type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
+                                  value={reg[c.nombre] ?? ''}
+                                  onChange={e => updateRegistro(rIdx, c.nombre, e.target.value)}
+                                  onKeyDown={e => handleCellKeyDown(e, rIdx, cIdx)}
+                                  data-row={rIdx}
+                                  data-col={cIdx}
+                                  maxLength={MAX_REGISTRO_VALUE}
+                                  disabled={submitting}
+                                  aria-label={`${c.nombre} fila ${rIdx + 1}`}
+                                />
+                              </td>
+                            ))}
+                            <td className="fmm-reg-del-col">
+                              {registros.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                                  onClick={() => removeRegistro(rIdx)}
+                                  disabled={submitting}
+                                  title="Eliminar fila"
+                                >
+                                  <FiTrash2 size={12} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="pkg-add-activity"
+                    onClick={addRegistro}
+                    disabled={submitting}
+                  >
+                    <FiPlus size={14} /> Agregar registro
+                  </button>
+                </>
+              )}
+            </section>
+          )}
         </div>
 
         {/* Footer */}
@@ -612,17 +624,37 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
               <FiAlertCircle size={14} /> {submitError}
             </span>
           )}
-          <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="aur-btn-pill"
-            onClick={handleSubmit}
-            disabled={submitting || state === 'loading'}
-          >
-            {submitting ? 'Guardando...' : 'Guardar'}
-          </button>
+          {step === 1 ? (
+            <>
+              <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={() => setStep(2)}
+              >
+                Siguiente →
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="aur-btn-text" onClick={() => setStep(1)} disabled={submitting}>
+                ← Atrás
+              </button>
+              <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={handleSubmit}
+                disabled={submitting || state === 'loading'}
+              >
+                {submitting ? 'Guardando...' : 'Guardar'}
+              </button>
+            </>
+          )}
         </div>
 
       </div>

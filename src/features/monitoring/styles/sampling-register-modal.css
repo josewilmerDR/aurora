@@ -39,6 +39,30 @@
   color: var(--aur-text-3);
 }
 
+/* Step badge "1/2" inline with the title */
+.fmm-step-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  background: rgba(51, 255, 153, 0.12);
+  color: var(--aur-accent);
+  border-radius: var(--aur-r-pill);
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
+/* Character counter for observaciones textarea */
+.fmm-char-count {
+  display: block;
+  text-align: right;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  margin-top: 3px;
+}
+
 /* ── Body ─────────────────────────────────────────────────────────────────── */
 /* aur-modal-content provee flex/overflow/padding base; neutralizamos el gap
    porque las dos secciones ya tienen su propio margin-bottom (28px de
