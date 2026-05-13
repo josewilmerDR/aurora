@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { FiBarChart2 } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
@@ -99,6 +100,10 @@ function RoiWidget() {
           )}
         </>
       )}
+
+      <div className="fin-widget-cta-row">
+        <Link className="aur-btn-text" to="/costos">Ver Centro de Costos →</Link>
+      </div>
     </section>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FiPlus, FiDollarSign, FiFilter, FiX, FiSliders,
-  FiMoreVertical, FiEdit2, FiTrash2, FiPackage,
+  FiMoreVertical, FiEdit2, FiTrash2, FiPackage, FiSearch,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -98,6 +98,7 @@ function IncomeRecords() {
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('fecha');
   const [sortDir,   setSortDir]   = useState('desc');
   const [colFilters, setColFilters] = useState({});
@@ -212,10 +213,17 @@ function IncomeRecords() {
   const displayData = useMemo(() => {
     let data = [...records];
 
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      data = data.filter(r => [r.buyerName, r.loteNombre, r.unit, r.currency, r.collectionStatus]
+        .some(v => v && String(v).toLowerCase().includes(q)));
+    }
+
     const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
       if (fv.text !== undefined) return fv.text.trim();
       return fv.from || fv.to;
     });
+
     if (activeColFilters.length > 0) {
       data = data.filter(r => {
         for (const [key, fv] of activeColFilters) {
@@ -247,7 +255,7 @@ function IncomeRecords() {
     }
 
     return data;
-  }, [records, colFilters, sortField, sortDir]);
+  }, [records, searchQuery, colFilters, sortField, sortDir]);
 
   // ── Stats (usan totalAmountCRC para agregación) ──────────────────────────
   const stats = useMemo(() => {
@@ -312,6 +320,9 @@ function IncomeRecords() {
           <div className="siembra-empty-state">
             <FiPackage size={36} />
             <p>Aún no hay ingresos registrados.</p>
+            <button className="aur-btn-pill" onClick={startCreate}>
+              <FiPlus /> Registrar primer ingreso
+            </button>
           </div>
         ) : (
           <>
@@ -333,6 +344,22 @@ function IncomeRecords() {
               </div>
             </div>
 
+            {/* ── Búsqueda global ────────────────────────────────────── */}
+            <div className="fin-search-wrap">
+              <FiSearch size={14} className="fin-search-icon" />
+              <input
+                className="fin-search-input"
+                placeholder="Buscar por comprador, lote, estado…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button className="fin-search-clear" onClick={() => setSearchQuery('')}>
+                  <FiX size={14} />
+                </button>
+              )}
+            </div>
+
             {/* ── Tabla ──────────────────────────────────────────────── */}
             <div className="siembra-historial sh-table-card">
               <div className="historial-top-row">
@@ -341,9 +368,9 @@ function IncomeRecords() {
                     ? `${records.length} registros`
                     : `${displayData.length} de ${records.length} registros`}
                 </span>
-                {Object.keys(colFilters).length > 0 && (
-                  <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-                    <FiX size={11} /> Limpiar filtros de columna
+                {(Object.keys(colFilters).length > 0 || searchQuery) && (
+                  <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
+                    <FiX size={11} /> Limpiar filtros
                   </button>
                 )}
               </div>

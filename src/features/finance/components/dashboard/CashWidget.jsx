@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FiActivity } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 
@@ -96,6 +97,10 @@ function CashWidget() {
           </div>
         </>
       )}
+
+      <div className="fin-widget-cta-row">
+        <Link className="aur-btn-text" to="/finance/tesoreria">Ver Tesorería →</Link>
+      </div>
     </section>
   );
 }

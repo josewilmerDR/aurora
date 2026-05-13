@@ -216,7 +216,13 @@ function Budgets() {
             />
           )}
           {!showForm && !loading && budgets.length === 0 && (
-            <p className="finance-empty">Aún no hay presupuestos registrados. Usa "Nuevo presupuesto" para crear el primero.</p>
+            <div className="siembra-empty-state">
+              <FiDollarSign size={36} />
+              <p>Aún no hay presupuestos registrados.</p>
+              <button className="aur-btn-pill" onClick={startCreate}>
+                <FiPlus /> Crear primer presupuesto
+              </button>
+            </div>
           )}
         </div>
 
