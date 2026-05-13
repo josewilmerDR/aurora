@@ -99,6 +99,7 @@ function BuyersList() {
   const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
   const [colMenu, setColMenu] = useState(null);
 
+  const [togglingId, setTogglingId] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
   const [rowMenuPos, setRowMenuPos] = useState({ top: 0, right: 0 });
   useEffect(() => {
@@ -164,6 +165,26 @@ function BuyersList() {
   const startEdit = (buyer) => { setEditing(buyer); setShowForm(true); };
   const startCreate = () => { setEditing(null); setShowForm(true); };
   const cancel = () => { setShowForm(false); setEditing(null); };
+
+  const handleToggleStatus = async (buyer) => {
+    if (togglingId) return;
+    setTogglingId(buyer.id);
+    const newStatus = buyer.status === 'inactivo' ? 'activo' : 'inactivo';
+    try {
+      const res = await apiFetch(`/api/buyers/${buyer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...buyer, status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Error al actualizar estado.');
+      setBuyers(prev => prev.map(b => b.id === buyer.id ? { ...b, status: newStatus } : b));
+      setToast({ type: 'success', message: newStatus === 'activo' ? 'Comprador activado.' : 'Comprador desactivado.' });
+    } catch (e) {
+      setToast({ type: 'error', message: e.message });
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   // ── Sort / filtros de columna ─────────────────────────────────────────────
   const handleThSort = (field) => {
@@ -396,7 +417,19 @@ function BuyersList() {
                             {visibleCols.credito  && <td className="td-num">{creditLabel}</td>}
                             {visibleCols.moneda   && <td>{r.currency || '—'}</td>}
                             {visibleCols.pais     && <td>{r.country || '—'}</td>}
-                            {visibleCols.estado   && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
+                            {visibleCols.estado   && (
+                              <td>
+                                <button
+                                  type="button"
+                                  className={`aur-badge ${pill.cls} aur-badge--clickable`}
+                                  onClick={() => handleToggleStatus(r)}
+                                  disabled={togglingId === r.id}
+                                  title={r.status === 'inactivo' ? 'Activar comprador' : 'Desactivar comprador'}
+                                >
+                                  {togglingId === r.id ? '…' : pill.label}
+                                </button>
+                              </td>
+                            )}
                             <td>
                               <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
                                 <button

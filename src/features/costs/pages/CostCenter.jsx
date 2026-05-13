@@ -354,14 +354,15 @@ export default function CostCenter() {
           value={hasta}
           onChange={e => setHasta(e.target.value)}
         />
-        <button
-          type="button"
-          className="aur-btn-pill aur-btn-pill--sm"
-          onClick={fetchLive}
-          disabled={loading}
-        >
-          {loading ? 'Calculando…' : 'Actualizar'}
-        </button>
+      </div>
+
+      {/* ── Desglose legend — siempre visible como referencia ──────────── */}
+      <div className="cost-legend">
+        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-comb" /> Combustible</span>
+        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-plan" /> Planilla</span>
+        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ins" /> Insumos</span>
+        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-dep" /> Depreciación</span>
+        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ind" /> Indirectos</span>
       </div>
 
       {loading && <div className="cost-loading">Calculando costos…</div>}
@@ -386,15 +387,6 @@ export default function CostCenter() {
               <span className="cost-kpi-label">% Indirectos</span>
               <span className="cost-kpi-value">{r.costoTotal > 0 ? `${((r.indirectos / r.costoTotal) * 100).toFixed(1)}%` : '—'}</span>
             </div>
-          </div>
-
-          {/* ── Desglose legend ──────────────────────────────────────── */}
-          <div className="cost-legend">
-            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-comb" /> Combustible</span>
-            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-plan" /> Planilla</span>
-            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ins" /> Insumos</span>
-            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-dep" /> Depreciación</span>
-            <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ind" /> Indirectos</span>
           </div>
 
           {/* ── Tabs (segmented control) ─────────────────────────────── */}

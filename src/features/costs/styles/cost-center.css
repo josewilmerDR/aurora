@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Toolbar de rango ──────────────────────────────────────────────────
-   Layout horizontal compacto (label + date input + Actualizar). aur-input
+   Layout horizontal compacto (label + date input). aur-input
    ya provee bg/border/radius/padding/focus-ring; el slim sólo aporta
    width auto y tabular-nums para fechas. */
 .cost-toolbar {
