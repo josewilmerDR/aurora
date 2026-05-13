@@ -266,23 +266,6 @@ function UnidadesMedida() {
     return <div className="aur-page-loading" />;
   }
 
-  if (items.length === 0 && !showForm) {
-    return (
-      <>
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-        <div className="aur-sheet aur-sheet--empty">
-          <div className="um-empty">
-            <FiPackage size={36} />
-            <p>No hay unidades de medida registradas.</p>
-            <button type="button" className="aur-btn-pill" onClick={() => setShowForm(true)}>
-              <FiPlus size={14} /> Crear la primera
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -443,14 +426,11 @@ function UnidadesMedida() {
         )}
 
         <section className="aur-section">
-          <div className="aur-section-header">
-            <span className="aur-section-num">{showForm ? '04' : '01'}</span>
-            <h3>Unidades registradas</h3>
-            {items.length > 0 && <span className="aur-section-count">{items.length}</span>}
-          </div>
-
           {items.length === 0 ? (
-            <p className="um-empty-line">No hay unidades aún.</p>
+            <div className="empty-state">
+              <FiPackage size={36} />
+              <p>No hay unidades de medida registradas.</p>
+            </div>
           ) : (
             <ul className="um-list">
               {items.map(item => (

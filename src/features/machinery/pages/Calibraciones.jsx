@@ -278,11 +278,11 @@ function Calibraciones() {
               <button type="button" className="aur-icon-btn" onClick={resetForm} title="Cancelar">
                 <FiX size={16} />
               </button>
-            ) : items.length > 0 ? (
+            ) : (
               <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
                 <FiPlus size={14} /> Nueva calibración
               </button>
-            ) : null}
+            )}
           </div>
         </header>
 
@@ -473,13 +473,9 @@ function Calibraciones() {
         ) : loading ? (
           <div className="aur-page-loading" />
         ) : items.length === 0 ? (
-          <div className="machinery-empty">
-            <FiDroplet size={40} />
-            <p className="machinery-empty-text">No tienes ninguna calibración creada.</p>
-            <p className="machinery-empty-sub">Crea tu primera calibración para empezar.</p>
-            <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
-              <FiPlus size={14} /> Crear calibración
-            </button>
+          <div className="empty-state">
+            <FiDroplet size={36} />
+            <p>No hay calibraciones registradas.</p>
           </div>
         ) : (
           <AuroraDataTable

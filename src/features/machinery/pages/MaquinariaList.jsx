@@ -587,6 +587,13 @@ function MaquinariaList() {
               </button>
             </div>
           </form>
+        ) : loading ? (
+          <div className="aur-page-loading" />
+        ) : items.length === 0 ? (
+          <div className="empty-state">
+            <FiTool size={36} />
+            <p>No hay activos registrados.</p>
+          </div>
         ) : (
           <>
             <div className="machinery-toolbar">
@@ -612,38 +619,24 @@ function MaquinariaList() {
                 {fuelBodegaId ? fuelBodegaName : 'Bodega de combustible'}
               </button>
             </div>
-
-            {loading ? (
-              <div className="aur-page-loading" />
-            ) : items.length === 0 ? (
-              <div className="machinery-empty">
-                <FiTool size={40} />
-                <p className="machinery-empty-text">No hay activos registrados.</p>
-                <p className="machinery-empty-sub">Empieza por registrar tu primer activo de maquinaria.</p>
-                <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
-                  <FiPlus size={14} /> Agregar el primero
-                </button>
-              </div>
-            ) : (
-              <AuroraDataTable
-                columns={COLUMNS}
-                data={searchFiltered}
-                getColVal={getColVal}
-                initialSort={{ field: 'descripcion', dir: 'asc' }}
-                firstClickDir="asc"
-                resultLabel={(filtered, total) => {
-                  if (filter.trim() && filtered === total)         return `${total} activo${total !== 1 ? 's' : ''}`;
-                  if (filter.trim() && filtered !== total)         return `${filtered} de ${total} (búsqueda)`;
-                  if (filtered === items.length)                   return `${filtered} activo${filtered !== 1 ? 's' : ''}`;
-                  return `${filtered} de ${items.length} activos`;
-                }}
-                renderRow={renderRow}
-                trailingCell={trailingCell}
-                emptyText={filter.trim()
-                  ? 'Sin resultados para la búsqueda.'
-                  : 'No hay activos con los filtros aplicados.'}
-              />
-            )}
+            <AuroraDataTable
+              columns={COLUMNS}
+              data={searchFiltered}
+              getColVal={getColVal}
+              initialSort={{ field: 'descripcion', dir: 'asc' }}
+              firstClickDir="asc"
+              resultLabel={(filtered, total) => {
+                if (filter.trim() && filtered === total)         return `${total} activo${total !== 1 ? 's' : ''}`;
+                if (filter.trim() && filtered !== total)         return `${filtered} de ${total} (búsqueda)`;
+                if (filtered === items.length)                   return `${filtered} activo${filtered !== 1 ? 's' : ''}`;
+                return `${filtered} de ${items.length} activos`;
+              }}
+              renderRow={renderRow}
+              trailingCell={trailingCell}
+              emptyText={filter.trim()
+                ? 'Sin resultados para la búsqueda.'
+                : 'No hay activos con los filtros aplicados.'}
+            />
           </>
         )}
       </div>
