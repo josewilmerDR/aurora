@@ -69,6 +69,7 @@ const ENTIDADES = [
       observacion: String(row['Observación']       || '').trim(),
     }),
     isValid: (r) => !!r.descripcion,
+    countLabel: 'activos',
   },
   {
     key: 'productos',
@@ -111,6 +112,7 @@ const ENTIDADES = [
       observacion:           String(row['Observación']        || '').trim(),
     }),
     isValid: (r) => !!r.nombreComercial,
+    countLabel: 'productos',
   },
   {
     key: 'unidades-medida',
@@ -132,6 +134,7 @@ const ENTIDADES = [
       _laborNombre:     String(row['Labor']                 || '').trim(),
     }),
     isValid: (r) => !!r.nombre,
+    countLabel: 'unidades',
     prepareItems: async (items, apiFetch) => {
       const labores = await fetchJsonSafe(apiFetch, '/api/labores', []);
       const laborMap = {};
@@ -162,6 +165,7 @@ const ENTIDADES = [
       observacion: String(row['Observación'] || '').trim(),
     }),
     isValid: (r) => !!r.descripcion,
+    countLabel: 'labores',
   },
   {
     key: 'usuarios',
@@ -181,6 +185,7 @@ const ENTIDADES = [
       rol:      normalizeRol(row['Rol']),
     }),
     isValid: (r) => !!(r.nombre && r.email),
+    countLabel: 'usuarios',
   },
   {
     key: 'proveedores',
@@ -233,6 +238,7 @@ const ENTIDADES = [
       };
     },
     isValid: (r) => !!r.nombre,
+    countLabel: 'proveedores',
   },
   {
     key: 'compradores',
@@ -278,22 +284,27 @@ const ENTIDADES = [
       };
     },
     isValid: (r) => !!r.name,
+    countLabel: 'compradores',
   },
 ];
 
 // ── Subcomponentes presentacionales reutilizables ────────────────────────────
 
-function CardHeader({ icon: Icon, title, count, counts, link, linkTitle = 'Ir a gestión completa' }) {
+function CardHeader({ icon: Icon, title, count, countLabel, counts, link, linkTitle = 'Ir a gestión completa' }) {
   return (
     <div className="ci-card-header">
       <span className="ci-card-icon"><Icon size={18} /></span>
       <span className="ci-card-title">{title}</span>
       {counts
         ? counts.filter(c => c.value !== null && c.value !== undefined).map((c, i) => (
-            <span key={i} className="aur-badge aur-badge--green ci-card-count" title={c.label}>{c.value}</span>
+            <span key={i} className="aur-badge aur-badge--green ci-card-count">
+              {c.value} {c.label}
+            </span>
           ))
-        : count !== null && count !== undefined && (
-            <span className="aur-badge aur-badge--green ci-card-count">{count}</span>
+        : count !== null && (
+            <span className="aur-badge aur-badge--green ci-card-count">
+              {count}{countLabel ? ` ${countLabel}` : ''}
+            </span>
           )
       }
       {link && (
@@ -371,19 +382,21 @@ function NavPrompt({ entityName, targetPath, onConfirm, onDismiss }) {
 function EntidadCard({ entidad }) {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [count, setCount] = useState(null);
+  const storageKey = `aurora_initsetup_count_${entidad.key}`;
+  const [count, setCount] = useState(() => {
+    const v = localStorage.getItem(storageKey);
+    return v !== null ? Number(v) : null;
+  });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
 
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
-
   const refreshCount = async () => {
     const data = await fetchJsonSafe(apiFetch, entidad.endpoint, null);
-    if (!mountedRef.current) return;
-    setCount(Array.isArray(data) ? data.length : null);
+    if (!Array.isArray(data)) return;
+    setCount(data.length);
+    localStorage.setItem(storageKey, String(data.length));
   };
 
   useEffect(() => { refreshCount(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
@@ -440,7 +453,7 @@ function EntidadCard({ entidad }) {
 
   return (
     <div className="ci-card">
-      <CardHeader icon={entidad.icon} title={entidad.nombre} count={count} link={entidad.adminPath} />
+      <CardHeader icon={entidad.icon} title={entidad.nombre} count={count} countLabel={entidad.countLabel} link={entidad.adminPath} />
       <p className="ci-card-desc">{entidad.descripcion}</p>
       <ImportButtons
         onDownload={handleDownloadTemplate}
@@ -517,24 +530,32 @@ const LGB_SAMPLE = [
 function LotesGruposCard() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [loteCount, setLoteCount] = useState(null);
-  const [grupoCount, setGrupoCount] = useState(null);
+  const [loteCount, setLoteCount] = useState(() => {
+    const v = localStorage.getItem('aurora_initsetup_count_lotes');
+    return v !== null ? Number(v) : null;
+  });
+  const [grupoCount, setGrupoCount] = useState(() => {
+    const v = localStorage.getItem('aurora_initsetup_count_grupos');
+    return v !== null ? Number(v) : null;
+  });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
-
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const refreshCounts = async () => {
     const [lotes, grupos] = await Promise.all([
       fetchJsonSafe(apiFetch, '/api/lotes', null),
       fetchJsonSafe(apiFetch, '/api/grupos', null),
     ]);
-    if (!mountedRef.current) return;
-    setLoteCount(Array.isArray(lotes) ? lotes.length : null);
-    setGrupoCount(Array.isArray(grupos) ? grupos.length : null);
+    if (Array.isArray(lotes)) {
+      setLoteCount(lotes.length);
+      localStorage.setItem('aurora_initsetup_count_lotes', String(lotes.length));
+    }
+    if (Array.isArray(grupos)) {
+      setGrupoCount(grupos.length);
+      localStorage.setItem('aurora_initsetup_count_grupos', String(grupos.length));
+    }
   };
 
   useEffect(() => { refreshCounts(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
@@ -820,19 +841,21 @@ const EMP_SAMPLE = [
 function EmpleadosCard() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [count, setCount] = useState(null);
+  const [count, setCount] = useState(() => {
+    const v = localStorage.getItem('aurora_initsetup_count_empleados');
+    return v !== null ? Number(v) : null;
+  });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
 
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
-
   const refreshCount = async () => {
     const data = await fetchJsonSafe(apiFetch, '/api/users', null);
-    if (!mountedRef.current) return;
-    setCount(Array.isArray(data) ? data.filter(u => u.empleadoPlanilla).length : null);
+    if (!Array.isArray(data)) return;
+    const newCount = data.filter(u => u.empleadoPlanilla).length;
+    setCount(newCount);
+    localStorage.setItem('aurora_initsetup_count_empleados', String(newCount));
   };
 
   useEffect(() => { refreshCount(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
@@ -918,7 +941,7 @@ function EmpleadosCard() {
 
   return (
     <div className="ci-card">
-      <CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={count} link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />
+      <CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={count} countLabel="empleados" link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />
       <p className="ci-card-desc">
         Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso.
       </p>
