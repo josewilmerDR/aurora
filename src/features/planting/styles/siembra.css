@@ -5,6 +5,20 @@
   margin-bottom: 0.75rem;
 }
 
+/* Scroll-shadow hint en táctiles: sin scrollbar visible, el usuario no nota
+   que la tabla se desplaza horizontalmente. Una sombra interna en el borde
+   derecho comunica "hay más a la derecha". El degradado se ancla al
+   contenido (background-attachment: local) por lo que se ESCONDE cuando se
+   llega al final del scroll. Se aplica sólo a tablas dentro de .siembra-historial
+   (Ingresos, Compradores, Ofertas, Simulaciones, Historial de Siembra). */
+@media (hover: none) {
+  .siembra-historial .siembra-table-wrapper {
+    background:
+      linear-gradient(to right, transparent, var(--aur-bg-card, var(--aur-bg-input)) 70%) right top / 24px 100% no-repeat local,
+      radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.35), transparent) right top / 14px 100% no-repeat scroll;
+  }
+}
+
 .siembra-table {
   width: 100%;
   border-collapse: collapse;

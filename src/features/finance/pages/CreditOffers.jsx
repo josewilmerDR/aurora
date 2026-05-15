@@ -270,9 +270,9 @@ function CreditOffers() {
           <span
             className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
             onClick={e => openColFilter(e, col.key, col.type)}
-            title="Filtrar columna"
+            title={`Filtrar por ${col.label}`}
           >
-            <FiFilter size={10} />
+            <FiFilter size={13} />
           </span>
         </span>
       </th>
@@ -396,7 +396,8 @@ function CreditOffers() {
                             <td>
                               <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
                                 <button
-                                  className="hist-kebab-btn"
+                                  className="hist-kebab-btn aur-touch-target"
+                                  title="Más acciones"
                                   onClick={e => {
                                     if (rowMenu === r.id) { setRowMenu(null); return; }
                                     const rect = e.currentTarget.getBoundingClientRect();

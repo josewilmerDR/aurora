@@ -326,9 +326,9 @@ function IncomeRecords() {
           <span
             className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
             onClick={e => openColFilter(e, col.key, col.type)}
-            title="Filtrar columna"
+            title={`Filtrar por ${col.label}`}
           >
-            <FiFilter size={10} />
+            <FiFilter size={13} />
           </span>
         </span>
       </th>
@@ -414,9 +414,10 @@ function IncomeRecords() {
                   <button
                     className={`fin-table-btn${isCompact ? ' is-active' : ''}`}
                     onClick={applyCompactPreset}
-                    title={isCompact ? 'Mostrar todas las columnas' : 'Vista compacta'}
+                    title={isCompact ? 'Volver a mostrar las 12 columnas' : 'Mostrar sólo Fecha · Comprador · Lote · Total · Estado'}
                   >
-                    <FiLayout size={11} /> Compacta
+                    <FiLayout size={11} />
+                    {isCompact ? 'Mostrar todas (12 cols)' : 'Vista compacta (5 cols)'}
                   </button>
                   {(Object.keys(colFilters).length > 0 || searchQuery) && (
                     <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
@@ -474,7 +475,8 @@ function IncomeRecords() {
                             <td>
                               <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
                                 <button
-                                  className="hist-kebab-btn"
+                                  className="hist-kebab-btn aur-touch-target"
+                                  title="Más acciones"
                                   onClick={e => {
                                     if (rowMenu === r.id) { setRowMenu(null); return; }
                                     const rect = e.currentTarget.getBoundingClientRect();
