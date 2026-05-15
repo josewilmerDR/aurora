@@ -1304,6 +1304,12 @@ html[data-theme="light"] .aur-modal-actions {
   color: var(--aur-accent);
   background: var(--aur-accent-tint);
 }
+/* Dispositivos sin hover (táctil): el embudo se queda siempre visible para
+   que el filtro por columna sea accionable sin depender de :hover, que en
+   móvil solo dispara tras el primer tap (a veces accidental). */
+@media (hover: none) {
+  .aur-th-funnel { opacity: 0.55; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FILTER POPOVER — flotante anclado a un column header (portaled)
