@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiPlus, FiActivity, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import CashBalanceModal from '../components/CashBalanceModal';
 import ProjectionChart from '../components/ProjectionChart';
 import ProjectionTable from '../components/ProjectionTable';
@@ -65,6 +66,12 @@ function Treasury() {
           </button>
         )}
       </div>
+
+      <AuroraSectionIntro>
+        Predicción de cuánto dinero tendrás en caja semana por semana, basada en
+        los movimientos registrados y tu saldo inicial. Cambiá el horizonte abajo
+        para ver más o menos semanas hacia adelante.
+      </AuroraSectionIntro>
 
       {!hasSource && !loading && !error && (
         <div className="aur-banner aur-banner--warn">

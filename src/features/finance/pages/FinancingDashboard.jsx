@@ -1,4 +1,5 @@
 import { FiBriefcase, FiShield } from 'react-icons/fi';
+import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import FinancialProfileWidget from '../components/dashboard/FinancialProfileWidget';
 import CreditCatalogWidget from '../components/dashboard/CreditCatalogWidget';
 import EligibilityWidget from '../components/dashboard/EligibilityWidget';
@@ -22,6 +23,12 @@ function FinancingDashboard() {
       <div className="page-header">
         <h2><FiBriefcase /> Financiamiento</h2>
       </div>
+
+      <AuroraSectionIntro>
+        Evaluá opciones de crédito externo para tu finca: revisá tu perfil
+        financiero, registrá ofertas de bancos o cooperativas, analizá tu
+        elegibilidad y simulá el impacto antes de firmar.
+      </AuroraSectionIntro>
 
       <div className="aur-banner aur-banner--info fin-financing-banner">
         <FiShield size={14} />

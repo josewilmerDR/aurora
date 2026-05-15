@@ -499,7 +499,7 @@ function CreditOffers() {
         <AuroraConfirmModal
           danger
           title="Eliminar oferta"
-          body="Esta acción no se puede deshacer. Las simulaciones existentes que referencien esta oferta quedarán huérfanas."
+          body="Esta acción no se puede deshacer. Las simulaciones existentes que usaban esta oferta quedarán sin oferta vinculada — revisalas antes de eliminar."
           confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
