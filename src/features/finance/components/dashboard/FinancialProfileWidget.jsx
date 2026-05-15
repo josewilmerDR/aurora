@@ -3,6 +3,7 @@ import { FiFileText, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../../contexts/UserContext';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const fmtMoney = (n) => {
   const v = Number(n);
@@ -69,7 +70,7 @@ function FinancialProfileWidget() {
         <span className="aur-section-count">Snapshots inmutables</span>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando perfil financiero…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FiCheckSquare } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const fmtMoney = (n) => {
   const v = Number(n);
@@ -54,7 +55,7 @@ function EligibilityWidget() {
         {analyses.length ? <span className="aur-section-count">{analyses.length} recientes</span> : null}
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando análisis de elegibilidad…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (

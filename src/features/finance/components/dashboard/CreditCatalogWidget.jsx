@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FiPackage } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const TIPO_LABELS = {
   agricola: 'Agrícola',
@@ -45,7 +46,7 @@ function CreditCatalogWidget() {
         {products.length ? <span className="aur-section-count">{products.length} activas</span> : null}
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando catálogo de crédito…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (

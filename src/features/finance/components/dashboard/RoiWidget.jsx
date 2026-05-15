@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FiBarChart2 } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const fmt = (n) => {
   const v = Number(n);
@@ -61,7 +62,7 @@ function RoiWidget() {
         <span className="aur-section-count">Mes actual</span>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando rentabilidad…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiCalendar } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const fmt = (n) => {
   const v = Number(n);
@@ -55,7 +56,7 @@ function CommitmentsWidget() {
         <span className="aur-section-count">4 semanas</span>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando compromisos próximos…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (
