@@ -118,6 +118,18 @@
   padding: 24px 0;
 }
 
+/* ── Loading state ──────────────────────────────────────────────────────
+   Skeleton del cuerpo del widget. Vive entre el header y la CTA row,
+   ocupando el espacio que después tomará el contenido. Las líneas de
+   shimmer las provee AuroraSkeleton; aquí sólo aportamos el padding
+   vertical que empata con el padding visual del contenido real. */
+.fin-widget-skeleton {
+  padding: 8px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 /* Fila de CTAs al pie del widget — empuja al fondo del flex column. */
 .fin-widget-cta-row {
   display: flex;

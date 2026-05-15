@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiTrendingUp } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const CATEGORY_LABELS = {
   combustible:      'Combustible',
@@ -64,7 +65,7 @@ function BudgetWidget() {
         <span className="aur-section-count">{period}</span>
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando ejecución del presupuesto…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiActivity } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const fmt = (n, currency = 'USD') => {
   const v = Number(n);
@@ -63,7 +64,7 @@ function CashWidget() {
         {data?.weeks ? <span className="aur-section-count">Proyección {data.weeks}s</span> : null}
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando saldo de caja…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && data && (

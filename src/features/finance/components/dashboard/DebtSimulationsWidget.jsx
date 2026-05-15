@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
+import WidgetSkeleton from './WidgetSkeleton';
 
 const fmtMoney = (n) => {
   const v = Number(n);
@@ -48,7 +49,7 @@ function DebtSimulationsWidget() {
         {sims.length ? <span className="aur-section-count">{sims.length} recientes</span> : null}
       </div>
 
-      {loading && <div className="fin-widget-loading">Cargando…</div>}
+      {loading && <WidgetSkeleton label="Cargando simulaciones de deuda…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
       {!loading && !error && (

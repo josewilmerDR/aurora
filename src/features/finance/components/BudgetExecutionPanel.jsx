@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { FiChevronRight, FiEdit, FiTrash2 } from 'react-icons/fi';
 import BudgetProgressBar from './BudgetProgressBar';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatPeriod } from '../../../lib/periodFormat';
 import { formatMoney as fmt } from '../../../lib/formatMoney';
@@ -109,7 +110,9 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
         </div>
       )}
 
-      {loading && !data && <p className="finance-empty">Cargando ejecución…</p>}
+      {loading && !data && (
+        <AuroraSkeleton variant="row" count={5} label="Cargando ejecución presupuestaria…" />
+      )}
       {error && <p className="finance-execution-error">{error}</p>}
       {!error && data?.rows && (
         <div className="aur-table-wrap">
