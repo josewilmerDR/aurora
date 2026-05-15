@@ -16,6 +16,29 @@
      claro que --aur-page-bg para separar visualmente el contenido del
      header/sidebar (que usan --aur-page-bg). */
   --aur-bg-canvas: var(--aurora-background);
+
+  /* Tamaño base para iconos de "affordance" (filtros de columna, kebab,
+     funnels). Antes vivía hardcoded como 10-11px por archivo y resultaba
+     poco descubrible. 13px es el mínimo que sigue siendo cómodo en una
+     barra de tabla densa y suficiente para que el usuario lo vea. */
+  --aur-affordance-icon-size: 13px;
+}
+
+/* ── Touch target helper ───────────────────────────────────────────────────
+   Garantiza un área cliqueable mínima de 44x44 cuando el dispositivo no
+   tiene hover (touch). En desktop el botón conserva su tamaño visual; sólo
+   crecemos la hit-area en touch para evitar fat-finger errors. Aplicar a
+   kebab buttons (FiMoreVertical), funnels de filtro y otros controles
+   pequeños que viven dentro de tablas. ──────────────────────────────────── */
+@media (hover: none) {
+  .aur-touch-target {
+    position: relative;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 html[data-theme="light"] {

@@ -1,0 +1,80 @@
+/* ── AuroraSectionIntro ────────────────────────────────────────────────────
+   Bloque introductorio bajo el header de una página/sección. Se compone de:
+   1) Una frase corta en lenguaje llano (siempre visible).
+   2) Un toggle opcional "¿Cómo funciona?" que revela detalle técnico.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.aur-section-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px 0;
+}
+
+.aur-section-intro-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--aur-fs-footnote, 13px);
+  color: var(--aur-text-2, var(--aurora-light));
+  line-height: 1.5;
+}
+
+.aur-section-intro-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--aur-text-3, var(--aurora-light));
+  opacity: 0.85;
+}
+
+/* Toggle estilo "link discreto", no botón pesado, para no competir con CTAs. */
+.aur-section-intro-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--aur-fs-caption, 12px);
+  color: var(--aur-accent, var(--aurora-green));
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.aur-section-intro-toggle:hover { opacity: 0.8; }
+.aur-section-intro-toggle:focus-visible {
+  outline: 2px solid var(--aur-accent, var(--aurora-green));
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.aur-section-intro-chevron {
+  transition: transform 0.18s ease;
+}
+.aur-section-intro-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* El contenido revelado es discreto: padding modesto, fondo sutil. */
+.aur-section-intro-content {
+  padding: 10px 12px;
+  border-left: 2px solid var(--aur-divider, var(--aurora-border));
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0 4px 4px 0;
+  font-size: var(--aur-fs-footnote, 13px);
+  color: var(--aur-text-2, var(--aurora-light));
+  line-height: 1.5;
+}
+.aur-section-intro-content > *:first-child { margin-top: 0; }
+.aur-section-intro-content > *:last-child { margin-bottom: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aur-section-intro-chevron { transition: none; }
+}
