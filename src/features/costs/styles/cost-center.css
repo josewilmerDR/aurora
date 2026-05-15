@@ -77,7 +77,11 @@
    Bandeja unificada con botones internos borderless. Mismo patrón que
    .ap-health-window en autopilot. is-active flips bg al accent del
    sistema. El visual underline original se descarta a favor del
-   segmented (coherente con dominios cerrados). */
+   segmented (coherente con dominios cerrados).
+
+   En mobile (<768px) el segmented se oculta y aparece .cost-tabs-mobile,
+   un par label+select nativo que ocupa una sola fila y aprovecha el
+   widget de selección del SO en lugar de hacer scroll/wrap horizontal. */
 .cost-tabs {
   display: inline-flex;
   background: var(--aur-bg-input);
@@ -86,6 +90,27 @@
   overflow: hidden;
   margin-bottom: 16px;
   flex-wrap: wrap;
+}
+.cost-tabs--desktop { /* selector reservado para futuras divergencias entre breakpoints */ }
+.cost-tabs-mobile {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.cost-tabs-mobile-label {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.cost-tabs-mobile-select {
+  flex: 1;
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .cost-tabs--desktop { display: none; }
+  .cost-tabs-mobile { display: flex; }
 }
 .cost-tabs-btn {
   background: transparent;
@@ -203,20 +228,55 @@
 }
 
 /* ── Indirectos: form de quick-add ─────────────────────────────────────
-   Grid horizontal de 4 aur-field + botón. aur-field provee
-   label-on-top + spacing; aur-input/aur-select proveen el control;
-   el slim sólo aporta el grid horizontal + alineación por la base
-   para que el botón quede al ras del bottom de los inputs. */
+   El form se agrupa en 2 fieldsets visuales ("Identificación" y "Monto")
+   + un botón de submit, en lugar de la fila plana original de 4 inputs.
+   Cada fieldset es a su vez una grid de 2 cols para densidad horizontal.
+   En mobile cada fieldset colapsa a 1 col y los dos quedan apilados. */
 .cost-ind-form {
   display: grid;
-  grid-template-columns: 140px 180px 1fr 140px auto;
-  gap: 12px;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
   align-items: end;
   margin-bottom: 16px;
 }
+.cost-ind-form-group {
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  padding: 10px 14px 12px;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+.cost-ind-form-legend {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 0 6px;
+}
+.cost-ind-form-submit {
+  align-self: end;
+  margin-bottom: 4px; /* alinea con la base de los inputs dentro del fieldset */
+}
+.aur-field-label-hint {
+  color: var(--aur-text-3);
+  font-weight: 400;
+  font-size: var(--aur-fs-caption);
+  margin-left: 4px;
+}
 @media (max-width: 720px) {
   .cost-ind-form {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+  }
+  .cost-ind-form-group {
+    grid-template-columns: 1fr;
+  }
+  .cost-ind-form-submit {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -348,12 +408,45 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Loading / empty ────────────────────────────────────────────────── */
-.cost-loading {
-  text-align: center;
-  padding: 40px;
+/* ── CostTable: container + toolbar de columnas ────────────────────────
+   El toolbar vive arriba de la tabla, alineado a la derecha.
+   .cost-table-btn replica el patrón visual de .fin-table-btn
+   (definida en finance.css) — no la importamos para mantener este
+   dominio autocontenido. Si en el futuro se hoista a aur-table-btn
+   primitivo, ambos pueden eliminarse. */
+.cost-table-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cost-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.cost-table-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--aur-divider);
   color: var(--aur-text-2);
-  font-size: var(--aur-fs-body);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--aur-r-pill);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.cost-table-btn:hover {
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+}
+
+/* ── Loading / empty ────────────────────────────────────────────────── */
+.cost-loading-skeleton {
+  margin: 16px 0 22px;
 }
 .cost-empty {
   text-align: center;
