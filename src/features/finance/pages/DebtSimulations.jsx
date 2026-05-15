@@ -259,9 +259,9 @@ function DebtSimulations() {
           <span
             className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
             onClick={e => openColFilter(e, col.key, col.type)}
-            title="Filtrar columna"
+            title={`Filtrar por ${col.label}`}
           >
-            <FiFilter size={10} />
+            <FiFilter size={13} />
           </span>
         </span>
       </th>

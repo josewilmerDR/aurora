@@ -472,14 +472,24 @@
 .sh-th-funnel {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   opacity: 0;
   cursor: pointer;
-  transition: opacity 0.15s, color 0.15s;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
   color: var(--aurora-light);
+  border-radius: 4px;
+  padding: 2px;
 }
-.sh-th-sortable:hover .sh-th-funnel { opacity: 0.45; }
-.sh-th-funnel:hover { opacity: 1 !important; }
+.sh-th-sortable:hover .sh-th-funnel { opacity: 0.55; }
+.sh-th-funnel:hover { opacity: 1 !important; background: var(--aur-bg-hover); }
 .sh-th-funnel.is-active { opacity: 1 !important; color: var(--aurora-green); }
+
+/* En táctiles no hay hover; el funnel debe ser visible y accionable siempre.
+   Mismo patrón que la fix de .aur-th-funnel en aurora.css (commit d423b84). */
+@media (hover: none) {
+  .sh-th-funnel { opacity: 0.55; }
+  .sh-th-funnel.is-active { opacity: 1; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CROSS-FEATURE COL TOGGLE / COL MENU (portaled checkbox dropdown).
