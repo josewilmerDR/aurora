@@ -6,6 +6,7 @@ import {
   FiSliders, FiPackage, FiArrowLeft,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import DebtSimulatorForm from '../components/DebtSimulatorForm';
 import DebtSimulationDetail from '../components/DebtSimulationDetail';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -295,21 +296,31 @@ function DebtSimulations() {
         )}
       </div>
 
+      {view !== 'detail' && (
+        <AuroraSectionIntro
+          expanderLabel="¿Cómo funciona Monte Carlo?"
+          expanderContent={
+            <p>
+              La simulación corre 500 escenarios con y sin la deuda y compara
+              cómo se mueve la caja mensual bajo incertidumbre de precio y
+              rendimiento. El modelo de retorno esperado que ingreses es
+              determinante — sin él, el crédito siempre luce mal.
+            </p>
+          }
+        >
+          Evaluamos si tomar un crédito mejora o empeora tu caja bajo
+          escenarios de precio y rendimiento variables.
+        </AuroraSectionIntro>
+      )}
+
       {view === 'form' && (
-        <>
-          <p className="fin-page-intro">
-            La simulación corre {500} escenarios Monte Carlo con y sin la deuda y compara cómo se mueve la caja
-            mensual bajo incertidumbre de precio y rendimiento. El modelo de retorno esperado que ingreses es
-            determinante — sin él, el crédito siempre luce mal.
-          </p>
-          <DebtSimulatorForm
-            snapshots={snapshots}
-            offers={offers}
-            onSubmit={handleSubmit}
-            onCancel={cancelForm}
-            submitting={submitting}
-          />
-        </>
+        <DebtSimulatorForm
+          snapshots={snapshots}
+          offers={offers}
+          onSubmit={handleSubmit}
+          onCancel={cancelForm}
+          submitting={submitting}
+        />
       )}
 
       {view === 'detail' && detail && (
