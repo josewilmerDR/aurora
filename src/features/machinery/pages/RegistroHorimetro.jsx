@@ -728,26 +728,32 @@ function RegistroHorimetro() {
                 <h3 className="aur-section-title">Fecha y operario</h3>
               </div>
               <div className="machinery-form-grid">
-                <div className="machinery-field machinery-field--no-label">
-                  <input
-                    id="rh-fecha"
-                    type="date"
-                    name="fecha"
-                    className="aur-input"
-                    value={form.fecha}
-                    onChange={handleChange}
-                    max={TODAY()}
-                    required
-                  />
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-fecha">Fecha:</label>
+                  <div className="machinery-field-input-group">
+                    <input
+                      id="rh-fecha"
+                      type="date"
+                      name="fecha"
+                      className="aur-input"
+                      value={form.fecha}
+                      onChange={handleChange}
+                      max={TODAY()}
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="machinery-field machinery-field--no-label">
-                  <AuroraCombobox
-                    value={form.operarioId}
-                    onChange={handleOperarioChange}
-                    items={usuarios}
-                    labelFn={userLabel}
-                    placeholder="— Buscar operario —"
-                  />
+                <div className="machinery-field machinery-field--inline">
+                  <span className="machinery-field-label">Operario:</span>
+                  <div className="machinery-field-input-group">
+                    <AuroraCombobox
+                      value={form.operarioId}
+                      onChange={handleOperarioChange}
+                      items={usuarios}
+                      labelFn={userLabel}
+                      placeholder="— Buscar operario —"
+                    />
+                  </div>
                 </div>
               </div>
             </section>
@@ -818,54 +824,66 @@ function RegistroHorimetro() {
                 <h3 className="aur-section-title">Maquinaria</h3>
               </div>
               <div className="machinery-form-grid">
-                <div className="machinery-field machinery-field--no-label">
-                  <AuroraCombobox
-                    value={form.tractorId}
-                    onChange={handleTractorChange}
-                    items={tractoresLista}
-                    labelFn={tractorLabel}
-                    placeholder="— Seleccionar tractor —"
-                  />
+                <div className="machinery-field machinery-field--inline">
+                  <span className="machinery-field-label">Tractor:</span>
+                  <div className="machinery-field-input-group">
+                    <AuroraCombobox
+                      value={form.tractorId}
+                      onChange={handleTractorChange}
+                      items={tractoresLista}
+                      labelFn={tractorLabel}
+                      placeholder="— Seleccionar tractor —"
+                    />
+                  </div>
                 </div>
-                <div className="machinery-field machinery-field--no-label">
-                  <AuroraCombobox
-                    value={form.implementoId}
-                    onChange={handleImplementoChange}
-                    items={implementosLista}
-                    labelFn={tractorLabel}
-                    placeholder="— Seleccionar implemento —"
-                  />
+                <div className="machinery-field machinery-field--inline">
+                  <span className="machinery-field-label">Implemento:</span>
+                  <div className="machinery-field-input-group">
+                    <AuroraCombobox
+                      value={form.implementoId}
+                      onChange={handleImplementoChange}
+                      items={implementosLista}
+                      labelFn={tractorLabel}
+                      placeholder="— Seleccionar implemento —"
+                    />
+                  </div>
                 </div>
-                <div className="machinery-field machinery-field--no-label">
-                  <input
-                    id="rh-hor-ini"
-                    type="number"
-                    name="horimetroInicial"
-                    className={`aur-input aur-input--num${errHorimetro ? ' aur-input--error' : ''}`}
-                    value={form.horimetroInicial}
-                    onChange={handleChange}
-                    min="0"
-                    max="99999"
-                    step="0.1"
-                    placeholder="Horímetro inicial"
-                  />
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-hor-ini">H. inicial:</label>
+                  <div className="machinery-field-input-group">
+                    <input
+                      id="rh-hor-ini"
+                      type="number"
+                      name="horimetroInicial"
+                      className={`aur-input aur-input--num${errHorimetro ? ' aur-input--error' : ''}`}
+                      value={form.horimetroInicial}
+                      onChange={handleChange}
+                      min="0"
+                      max="99999"
+                      step="0.1"
+                      placeholder="0.0"
+                    />
+                  </div>
                 </div>
-                <div className="machinery-field machinery-field--no-label">
-                  <input
-                    id="rh-hor-fin"
-                    type="number"
-                    name="horimetroFinal"
-                    className={`aur-input aur-input--num${errHorimetro ? ' aur-input--error' : ''}`}
-                    value={form.horimetroFinal}
-                    onChange={handleChange}
-                    min="0"
-                    max="99999"
-                    step="0.1"
-                    placeholder="Horímetro final"
-                  />
-                  {errHorimetro && (
-                    <span className="machinery-field-error">El horímetro final debe ser mayor que el inicial.</span>
-                  )}
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-hor-fin">H. final:</label>
+                  <div className="machinery-field-input-group">
+                    <input
+                      id="rh-hor-fin"
+                      type="number"
+                      name="horimetroFinal"
+                      className={`aur-input aur-input--num${errHorimetro ? ' aur-input--error' : ''}`}
+                      value={form.horimetroFinal}
+                      onChange={handleChange}
+                      min="0"
+                      max="99999"
+                      step="0.1"
+                      placeholder="0.0"
+                    />
+                    {errHorimetro && (
+                      <span className="machinery-field-error">El horímetro final debe ser mayor que el inicial.</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
@@ -909,43 +927,49 @@ function RegistroHorimetro() {
                 <h3 className="aur-section-title">Ubicación</h3>
               </div>
               <div className="machinery-form-grid">
-                <div className="machinery-field machinery-field--no-label">
-                  <select
-                    id="rh-lote"
-                    name="loteId"
-                    className="aur-select"
-                    value={form.loteId}
-                    onChange={handleChange}
-                  >
-                    <option value="">— Seleccionar lote —</option>
-                    {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                  </select>
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-lote">Lote:</label>
+                  <div className="machinery-field-input-group">
+                    <select
+                      id="rh-lote"
+                      name="loteId"
+                      className="aur-select"
+                      value={form.loteId}
+                      onChange={handleChange}
+                    >
+                      <option value="">— Seleccionar lote —</option>
+                      {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="machinery-field machinery-field--no-label">
-                  <select
-                    id="rh-grupo"
-                    name="grupo"
-                    className={`aur-select${!form.loteId ? ' machinery-select--locked' : ''}`}
-                    value={form.grupo}
-                    onChange={handleChange}
-                    onMouseDown={(e) => {
-                      if (!form.loteId) {
-                        e.preventDefault();
-                        showToast('Selecciona un lote primero', 'error');
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (!form.loteId && (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-                        e.preventDefault();
-                        showToast('Selecciona un lote primero', 'error');
-                      }
-                    }}
-                  >
-                    <option value="">— Selecciona un grupo —</option>
-                    {gruposDelLote.map(g => (
-                      <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
-                    ))}
-                  </select>
+                <div className="machinery-field machinery-field--inline">
+                  <label className="machinery-field-label" htmlFor="rh-grupo">Grupo:</label>
+                  <div className="machinery-field-input-group">
+                    <select
+                      id="rh-grupo"
+                      name="grupo"
+                      className={`aur-select${!form.loteId ? ' machinery-select--locked' : ''}`}
+                      value={form.grupo}
+                      onChange={handleChange}
+                      onMouseDown={(e) => {
+                        if (!form.loteId) {
+                          e.preventDefault();
+                          showToast('Selecciona un lote primero', 'error');
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (!form.loteId && (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                          e.preventDefault();
+                          showToast('Selecciona un lote primero', 'error');
+                        }
+                      }}
+                    >
+                      <option value="">— Selecciona un grupo —</option>
+                      {gruposDelLote.map(g => (
+                        <option key={g.id} value={g.nombreGrupo}>{grupoLabel(g)}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="machinery-field machinery-field--full machinery-field--no-label">
                   <div className="machinery-bloques-list">
@@ -976,14 +1000,17 @@ function RegistroHorimetro() {
                 <h3 className="aur-section-title">Labor y horas</h3>
               </div>
               <div className="machinery-form-grid">
-                <div className="machinery-field machinery-field--full machinery-field--no-label">
-                  <AuroraCombobox
-                    value={laborValue}
-                    onChange={handleLaborChange}
-                    items={labores}
-                    labelFn={laborLabel}
-                    placeholder="— Buscar labor —"
-                  />
+                <div className="machinery-field machinery-field--full machinery-field--inline">
+                  <span className="machinery-field-label">Labor:</span>
+                  <div className="machinery-field-input-group">
+                    <AuroraCombobox
+                      value={laborValue}
+                      onChange={handleLaborChange}
+                      items={labores}
+                      labelFn={laborLabel}
+                      placeholder="— Buscar labor —"
+                    />
+                  </div>
                 </div>
                 <div className="machinery-field machinery-field--inline">
                   <label className="machinery-field-label" htmlFor="rh-h-ini">Hora inicial:</label>

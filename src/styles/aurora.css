@@ -1458,7 +1458,21 @@ html[data-theme="light"] .aur-modal-actions {
   justify-content: space-between;
   gap: 12px;
   padding: 0 4px 14px;
+  flex-wrap: nowrap;
+}
+.aur-table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.aur-table-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .aur-table-result-count {
   font-size: var(--aur-fs-footnote);
@@ -1779,9 +1793,9 @@ html[data-theme="light"] .aur-modal-actions {
   }
 
   .aur-table-toolbar {
-    flex-direction: column;
-    align-items: stretch;
     gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
   }
   .aur-table-wrap > .aur-table th,
   .aur-table-wrap > .aur-table td {
