@@ -723,7 +723,7 @@
   letter-spacing: -0.01em;
 }
 
-/* ── Acciones de línea (Agregar fila + Limpiar línea) ──────────────────── */
+/* ── Acciones inferiores de fila (Agregar fila) ────────────────────────── */
 .machinery-row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -732,7 +732,7 @@
   align-self: flex-start;
 }
 
-/* ── "Agregar fila" / "Limpiar línea" — botón pill dentro del form ─────── */
+/* ── "Agregar fila" — botón pill dentro del form ───────────────────────── */
 .machinery-add-row {
   display: inline-flex;
   align-items: center;
@@ -757,17 +757,6 @@
 .machinery-add-row:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-/* Variante destructiva — para "Eliminar línea" / "Limpiar línea".
-   Ícono rojo al reposo (señal pasiva); todo el botón rojo al hover. */
-.machinery-add-row--danger > svg {
-  color: var(--aur-danger);
-}
-.machinery-add-row--danger:hover:not(:disabled) {
-  color: var(--aur-danger);
-  border-color: var(--aur-danger);
-  background: var(--aur-danger-tint);
 }
 
 /* HistorialHorimetros: la tabla del historial se renderiza sin bordes
