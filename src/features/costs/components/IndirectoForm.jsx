@@ -1,0 +1,122 @@
+import { useState } from 'react';
+import { FiPlus } from 'react-icons/fi';
+
+/**
+ * Form de quick-add para costos indirectos (mantenimiento, administrativo,
+ * otro). Captura `fecha`, `categoria`, `descripcion` (opcional) y `monto`.
+ *
+ * El layout original era una sola fila plana con 4 inputs + botón. Este
+ * componente los agrupa visualmente en dos secciones:
+ *   - "Identificación" → categoría + descripción (qué es)
+ *   - "Monto" → fecha + monto (cuánto y cuándo)
+ * para que el usuario procese el form como dos preguntas en lugar de una
+ * lista de cuatro huecos. La descripción se marca con "(opcional)" en el
+ * label porque el placeholder "Opcional" original era fácil de pasar por
+ * alto.
+ *
+ * Props:
+ *   - categorias  array · [{ value, label }, …] de categorías permitidas
+ *   - onSubmit    fn    · (data) => Promise|void. Recibe { fecha, categoria,
+ *                         descripcion, monto } con monto ya parseado a Number.
+ *                         Si la promesa resuelve OK, el form se limpia.
+ */
+
+const INITIAL = { fecha: '', categoria: '', descripcion: '', monto: '' };
+
+export default function IndirectoForm({ categorias, onSubmit }) {
+  const [form, setForm] = useState(() => ({
+    ...INITIAL,
+    categoria: categorias[0]?.value || '',
+  }));
+  const [submitting, setSubmitting] = useState(false);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const canSubmit = !!form.fecha && !!form.monto && !submitting;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        fecha: form.fecha,
+        categoria: form.categoria,
+        descripcion: form.descripcion,
+        monto: parseFloat(form.monto),
+      });
+      setForm({ ...INITIAL, categoria: categorias[0]?.value || '' });
+    } catch {
+      // El padre decide cómo notificar el error; acá sólo dejamos los datos
+      // del form intactos para que el usuario pueda reintentar sin re-tipear.
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="cost-ind-form">
+      <fieldset className="cost-ind-form-group">
+        <legend className="cost-ind-form-legend">Identificación</legend>
+        <div className="aur-field">
+          <label className="aur-field-label" htmlFor="ind-categoria">Categoría</label>
+          <select
+            id="ind-categoria"
+            className="aur-select"
+            value={form.categoria}
+            onChange={(e) => set('categoria', e.target.value)}
+          >
+            {categorias.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="aur-field">
+          <label className="aur-field-label" htmlFor="ind-desc">
+            Descripción <span className="aur-field-label-hint">(opcional)</span>
+          </label>
+          <input
+            id="ind-desc"
+            className="aur-input"
+            value={form.descripcion}
+            onChange={(e) => set('descripcion', e.target.value)}
+            placeholder="Ej: Cambio de aceite tractor 02"
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="cost-ind-form-group">
+        <legend className="cost-ind-form-legend">Monto</legend>
+        <div className="aur-field">
+          <label className="aur-field-label" htmlFor="ind-fecha">Fecha</label>
+          <input
+            id="ind-fecha"
+            type="date"
+            className="aur-input"
+            value={form.fecha}
+            onChange={(e) => set('fecha', e.target.value)}
+          />
+        </div>
+        <div className="aur-field">
+          <label className="aur-field-label" htmlFor="ind-monto">Monto</label>
+          <input
+            id="ind-monto"
+            type="number"
+            className="aur-input aur-input--num"
+            value={form.monto}
+            onChange={(e) => set('monto', e.target.value)}
+            placeholder="0.00"
+          />
+        </div>
+      </fieldset>
+
+      <button
+        type="button"
+        className="aur-btn-pill aur-btn-pill--sm cost-ind-form-submit"
+        onClick={handleSubmit}
+        disabled={!canSubmit}
+      >
+        <FiPlus size={14} /> {submitting ? 'Agregando…' : 'Agregar'}
+      </button>
+    </div>
+  );
+}

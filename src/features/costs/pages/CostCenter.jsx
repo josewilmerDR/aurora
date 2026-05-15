@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { FiCamera, FiTrash2, FiEye, FiColumns, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import RoiTable from '../../finance/components/RoiTable';
+import CostTable from '../components/CostTable';
+import SnapshotModal from '../components/SnapshotModal';
+import IndirectoForm from '../components/IndirectoForm';
+import { fmt, fmtKg } from '../lib/format';
 import '../styles/cost-center.css';
 
 const TABS = [
@@ -22,9 +26,6 @@ const CATEGORIAS_INDIRECTO = [
 
 const catLabel = (val) => CATEGORIAS_INDIRECTO.find(c => c.value === val)?.label || val;
 
-const fmt = n => n != null ? n.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
-const fmtKg = n => n != null ? n.toLocaleString('es-CR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
-
 function getDefaultRange() {
   const now = new Date();
   const y = now.getFullYear();
@@ -32,124 +33,11 @@ function getDefaultRange() {
   return { desde: `${y}-${m}-01`, hasta: `${y}-${m}-${String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}` };
 }
 
-// ── Mini stacked bar ────────────────────────────────────────────────
-function DesgloseBar({ desglose }) {
-  const { combustible = 0, planilla = 0, insumos = 0, depreciacion = 0, indirectos = 0 } = desglose || {};
-  const total = combustible + planilla + insumos + depreciacion + indirectos;
-  if (total <= 0) return null;
-  const pct = v => `${((v / total) * 100).toFixed(1)}%`;
-  return (
-    <div className="cost-desglose-bar">
-      {combustible > 0 && <div className="cost-bar-comb" style={{ width: pct(combustible) }} title={`Combustible: ${fmt(combustible)}`} />}
-      {planilla > 0    && <div className="cost-bar-plan" style={{ width: pct(planilla) }}    title={`Planilla: ${fmt(planilla)}`} />}
-      {insumos > 0     && <div className="cost-bar-ins"  style={{ width: pct(insumos) }}     title={`Insumos: ${fmt(insumos)}`} />}
-      {depreciacion > 0 && <div className="cost-bar-dep" style={{ width: pct(depreciacion) }} title={`Depreciación: ${fmt(depreciacion)}`} />}
-      {indirectos > 0  && <div className="cost-bar-ind"  style={{ width: pct(indirectos) }}  title={`Indirectos: ${fmt(indirectos)}`} />}
-    </div>
-  );
-}
-
-// ── Cost table for any tab ──────────────────────────────────────────
-function CostTable({ rows, nameLabel }) {
-  if (!rows || rows.length === 0) return <div className="cost-empty">Sin datos para el rango seleccionado.</div>;
-  return (
-    <div className="aur-table-wrap">
-      <table className="aur-table">
-        <thead>
-          <tr>
-            <th>{nameLabel}</th>
-            <th className="aur-td-num">Combustible</th>
-            <th className="aur-td-num">Planilla</th>
-            <th className="aur-td-num">Insumos</th>
-            <th className="aur-td-num">Deprec.</th>
-            <th className="aur-td-num">Indirectos</th>
-            <th className="aur-td-num">Total</th>
-            <th className="aur-td-num">Kg</th>
-            <th className="aur-td-num">Costo/Kg</th>
-            <th>Composición</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i}>
-              <td className="cost-td-name">{r.displayName}</td>
-              <td className="aur-td-num">{fmt(r.desglose?.combustible)}</td>
-              <td className="aur-td-num">{fmt(r.desglose?.planilla)}</td>
-              <td className="aur-td-num">{fmt(r.desglose?.insumos)}</td>
-              <td className="aur-td-num">{fmt(r.desglose?.depreciacion)}</td>
-              <td className="aur-td-num">{fmt(r.desglose?.indirectos)}</td>
-              <td className="aur-td-num cost-td-total">{fmt(r.costoTotal)}</td>
-              <td className="aur-td-num">{fmtKg(r.kg)}</td>
-              <td className="aur-td-num cost-td-costkg">{r.costoPorKg != null ? fmt(r.costoPorKg) : '—'}</td>
-              <td><DesgloseBar desglose={r.desglose} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── Snapshot save modal ─────────────────────────────────────────────
-function SnapshotModal({ onClose, onSave, saving }) {
-  const [nombre, setNombre] = useState('');
-  const [tipo, setTipo] = useState('manual');
-
-  const handleBackdrop = () => {
-    if (saving) return;
-    onClose();
-  };
-
-  return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={handleBackdrop}>
-      <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
-        <header className="aur-modal-header">
-          <span className="aur-modal-icon"><FiCamera size={16} /></span>
-          <span className="aur-modal-title">Guardar snapshot</span>
-        </header>
-        <div className="aur-modal-content">
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="snap-nombre">Nombre</label>
-            <input
-              id="snap-nombre"
-              className="aur-input"
-              value={nombre}
-              onChange={e => setNombre(e.target.value)}
-              placeholder="Ej: Cierre Marzo 2026"
-              autoFocus
-            />
-          </div>
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="snap-tipo">Tipo</label>
-            <select
-              id="snap-tipo"
-              className="aur-select"
-              value={tipo}
-              onChange={e => setTipo(e.target.value)}
-            >
-              <option value="manual">Manual</option>
-              <option value="mensual">Mensual</option>
-            </select>
-          </div>
-        </div>
-        <div className="aur-modal-actions">
-          <button type="button" className="aur-btn-text" onClick={onClose} disabled={saving}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="aur-btn-pill"
-            disabled={!nombre.trim() || saving}
-            onClick={() => onSave(nombre.trim(), tipo)}
-          >
-            {saving ? 'Guardando…' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
+const tabNameLabel = (tab) =>
+  tab === 'general' ? 'Finca'
+  : tab === 'lote' ? 'Lote'
+  : tab === 'grupo' ? 'Grupo'
+  : 'Bloque';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Main component
@@ -171,7 +59,6 @@ export default function CostCenter() {
 
   // Indirectos
   const [indirectos, setIndirectos] = useState([]);
-  const [indForm, setIndForm] = useState({ fecha: '', categoria: 'mantenimiento', descripcion: '', monto: '' });
 
   // Indirecto delete confirmation
   const [confirmDeleteIndirecto, setConfirmDeleteIndirecto] = useState(null);
@@ -214,18 +101,16 @@ export default function CostCenter() {
   useEffect(() => { fetchIndirectos(); fetchSnapshots(); }, [fetchIndirectos, fetchSnapshots]);
 
   // ── Indirectos CRUD ───────────────────────────────────────────────
-  const addIndirecto = async () => {
-    const { fecha, categoria, descripcion, monto } = indForm;
-    if (!fecha || !monto) return;
+  // IndirectoForm le pasa el body ya parseado y se limpia solo si el submit
+  // resuelve sin throw. Por eso tiramos en caso de !res.ok.
+  const addIndirecto = async (body) => {
     const res = await apiFetch('/api/costos/indirectos', {
       method: 'POST',
-      body: JSON.stringify({ fecha, categoria, descripcion, monto: parseFloat(monto) }),
+      body: JSON.stringify(body),
     });
-    if (res.ok) {
-      setIndForm({ fecha: '', categoria: 'mantenimiento', descripcion: '', monto: '' });
-      fetchIndirectos();
-      fetchLive();
-    }
+    if (!res.ok) throw new Error('Failed to create indirecto');
+    fetchIndirectos();
+    fetchLive();
   };
 
   const deleteIndirecto = async () => {
@@ -326,16 +211,6 @@ export default function CostCenter() {
             Análisis de costos directos e indirectos por lote, grupo y bloque · ROI integrado.
           </p>
         </div>
-        <div className="aur-sheet-header-actions">
-          <button
-            type="button"
-            className="aur-btn-pill aur-btn-pill--sm"
-            onClick={() => setShowSnapModal(true)}
-            disabled={!data}
-          >
-            <FiCamera size={14} /> Snapshot
-          </button>
-        </div>
       </header>
 
       {/* ── Date range toolbar ───────────────────────────────────────── */}
@@ -365,7 +240,11 @@ export default function CostCenter() {
         <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ind" /> Indirectos</span>
       </div>
 
-      {loading && <div className="cost-loading">Calculando costos…</div>}
+      {loading && (
+        <div className="cost-loading-skeleton">
+          <AuroraSkeleton variant="row" count={5} label="Calculando costos…" />
+        </div>
+      )}
 
       {!loading && r && (
         <>
@@ -389,8 +268,8 @@ export default function CostCenter() {
             </div>
           </div>
 
-          {/* ── Tabs (segmented control) ─────────────────────────────── */}
-          <div className="cost-tabs" role="tablist">
+          {/* ── Tabs (segmented control en desktop, select en mobile) ──── */}
+          <div className="cost-tabs cost-tabs--desktop" role="tablist">
             {TABS.map(t => (
               <button
                 key={t.id}
@@ -404,11 +283,24 @@ export default function CostCenter() {
               </button>
             ))}
           </div>
+          <div className="cost-tabs-mobile">
+            <label className="cost-tabs-mobile-label" htmlFor="cost-tab-select">Vista:</label>
+            <select
+              id="cost-tab-select"
+              className="aur-select cost-tabs-mobile-select"
+              value={tab}
+              onChange={e => setTab(e.target.value)}
+            >
+              {TABS.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          </div>
 
           {tab === 'rentabilidad' ? (
             <RoiTable desde={desde} hasta={hasta} />
           ) : (
-            <CostTable rows={tabRows} nameLabel={tab === 'general' ? 'Finca' : tab === 'lote' ? 'Lote' : tab === 'grupo' ? 'Grupo' : 'Bloque'} />
+            <CostTable rows={tabRows} nameLabel={tabNameLabel(tab)} />
           )}
         </>
       )}
@@ -423,58 +315,7 @@ export default function CostCenter() {
           )}
         </div>
 
-        <div className="cost-ind-form">
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="ind-fecha">Fecha</label>
-            <input
-              id="ind-fecha"
-              type="date"
-              className="aur-input"
-              value={indForm.fecha}
-              onChange={e => setIndForm(f => ({ ...f, fecha: e.target.value }))}
-            />
-          </div>
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="ind-categoria">Categoría</label>
-            <select
-              id="ind-categoria"
-              className="aur-select"
-              value={indForm.categoria}
-              onChange={e => setIndForm(f => ({ ...f, categoria: e.target.value }))}
-            >
-              {CATEGORIAS_INDIRECTO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="ind-desc">Descripción</label>
-            <input
-              id="ind-desc"
-              className="aur-input"
-              value={indForm.descripcion}
-              onChange={e => setIndForm(f => ({ ...f, descripcion: e.target.value }))}
-              placeholder="Opcional"
-            />
-          </div>
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="ind-monto">Monto</label>
-            <input
-              id="ind-monto"
-              type="number"
-              className="aur-input aur-input--num"
-              value={indForm.monto}
-              onChange={e => setIndForm(f => ({ ...f, monto: e.target.value }))}
-              placeholder="0.00"
-            />
-          </div>
-          <button
-            type="button"
-            className="aur-btn-pill aur-btn-pill--sm"
-            onClick={addIndirecto}
-            disabled={!indForm.fecha || !indForm.monto}
-          >
-            <FiPlus size={14} /> Agregar
-          </button>
-        </div>
+        <IndirectoForm categorias={CATEGORIAS_INDIRECTO} onSubmit={addIndirecto} />
 
         {indirectosFiltrados.length > 0 && (
           <div className="aur-list">
@@ -486,7 +327,7 @@ export default function CostCenter() {
                 <span className="cost-ind-monto">{fmt(item.monto)}</span>
                 <button
                   type="button"
-                  className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                  className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger aur-touch-target"
                   onClick={() => setConfirmDeleteIndirecto({ id: item.id, fecha: item.fecha, categoria: item.categoria, monto: item.monto })}
                   title="Eliminar"
                 >
@@ -506,9 +347,27 @@ export default function CostCenter() {
           {snapshots.length > 0 && (
             <span className="aur-section-count">{snapshots.length}</span>
           )}
+          {/* CTA contextual: vive donde el usuario espera la acción
+              ("guardar un snapshot del estado actual"), no en el header
+              global de la página. */}
+          <div className="aur-section-actions">
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => setShowSnapModal(true)}
+              disabled={!data}
+              title={!data ? 'Esperá a que carguen los costos' : undefined}
+            >
+              <FiCamera size={14} /> Guardar snapshot actual
+            </button>
+          </div>
         </div>
 
-        {snapshots.length === 0 && <div className="cost-empty">No hay snapshots guardados.</div>}
+        {snapshots.length === 0 && (
+          <div className="cost-empty">
+            Aún no hay snapshots guardados. Tomá uno para comparar este período con cierres futuros.
+          </div>
+        )}
         {snapshots.length > 0 && (
           <div className="aur-list">
             {snapshots.map(s => {
@@ -525,7 +384,7 @@ export default function CostCenter() {
                   <div className="cost-snap-actions">
                     <button
                       type="button"
-                      className="aur-icon-btn aur-icon-btn--sm"
+                      className="aur-icon-btn aur-icon-btn--sm aur-touch-target"
                       onClick={() => viewSnapshot(s.id)}
                       title="Ver detalle"
                     >
@@ -533,7 +392,7 @@ export default function CostCenter() {
                     </button>
                     <button
                       type="button"
-                      className={`aur-icon-btn aur-icon-btn--sm${isSelected ? ' aur-icon-btn--success' : ''}`}
+                      className={`aur-icon-btn aur-icon-btn--sm aur-touch-target${isSelected ? ' aur-icon-btn--success' : ''}`}
                       onClick={() => toggleCompare(s)}
                       title={isSelected ? 'Quitar de comparación' : 'Comparar'}
                     >
@@ -541,7 +400,7 @@ export default function CostCenter() {
                     </button>
                     <button
                       type="button"
-                      className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                      className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger aur-touch-target"
                       onClick={() => setConfirmDeleteSnap({ id: s.id, nombre: s.nombre })}
                       title="Eliminar"
                     >
@@ -571,7 +430,11 @@ export default function CostCenter() {
               <div className="cost-kpi"><span className="cost-kpi-label">Kg Totales</span><span className="cost-kpi-value">{fmtKg(viewSnap.resumen?.kgTotal)}</span></div>
               <div className="cost-kpi cost-kpi--accent"><span className="cost-kpi-label">Costo/Kg</span><span className="cost-kpi-value">{fmt(viewSnap.resumen?.costoPorKg)}</span></div>
             </div>
-            <CostTable rows={(viewSnap.porLote || []).map(r => ({ ...r, displayName: r.nombre }))} nameLabel="Lote" />
+            <CostTable
+              rows={(viewSnap.porLote || []).map(r => ({ ...r, displayName: r.nombre }))}
+              nameLabel="Lote"
+              showColumnToggle={false}
+            />
           </section>
         )}
 
@@ -589,7 +452,11 @@ export default function CostCenter() {
                   <div className="cost-kpi"><span className="cost-kpi-label">Kg</span><span className="cost-kpi-value">{fmtKg(s.resumen?.kgTotal)}</span></div>
                   <div className="cost-kpi cost-kpi--accent"><span className="cost-kpi-label">Costo/Kg</span><span className="cost-kpi-value">{fmt(s.resumen?.costoPorKg)}</span></div>
                 </div>
-                <CostTable rows={(s.porLote || []).map(r => ({ ...r, displayName: r.nombre }))} nameLabel="Lote" />
+                <CostTable
+                  rows={(s.porLote || []).map(r => ({ ...r, displayName: r.nombre }))}
+                  nameLabel="Lote"
+                  showColumnToggle={false}
+                />
               </div>
             ))}
           </div>
