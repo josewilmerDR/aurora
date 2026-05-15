@@ -747,7 +747,13 @@ function Siembra() {
                           type="button"
                           className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
                           title="Eliminar fila"
-                          onClick={() => removeRow(idx)}
+                          onClick={() => setConfirmModal({
+                            danger: true,
+                            title: '¿Eliminar esta fila?',
+                            body: 'Se perderán los datos capturados en esta fila.',
+                            confirmLabel: 'Eliminar',
+                            onConfirm: () => { removeRow(idx); setConfirmModal(null); },
+                          })}
                         >
                           <FiTrash2 size={14} />
                         </button>

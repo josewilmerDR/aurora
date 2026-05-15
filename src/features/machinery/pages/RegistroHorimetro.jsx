@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import {
-  FiClock, FiPlus, FiX, FiCheck, FiCpu,
+  FiClock, FiPlus, FiTrash2, FiCheck, FiCpu,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -116,6 +116,7 @@ function RegistroHorimetro() {
 
   const [rangeConfirm,        setRangeConfirm]        = useState(null);
   const [horimetroConfirm,    setHorimetroConfirm]    = useState(null);
+  const [deleteConfirm,       setDeleteConfirm]       = useState(null);
   const [lastHorimetroFinal,  setLastHorimetroFinal]  = useState(null);
   const [pendingLines,        setPendingLines]        = useState([]);
 
@@ -357,7 +358,7 @@ function RegistroHorimetro() {
         // sobre una línea que el usuario decidió descartar.
         const allLines = [...pendingLines, form].filter(line => line.tractorId);
         if (allLines.length === 0) {
-          showToast('No hay líneas con datos para guardar.', 'error');
+          showToast('No hay filas con datos para guardar.', 'error');
           return;
         }
         for (const line of allLines) {
@@ -629,7 +630,7 @@ function RegistroHorimetro() {
         return;
       }
       loadFilasIntoForm(filas);
-      showToast(`${filas.length} fila(s) cargadas. Revisa los datos y guarda.`);
+      showToast(`${filas.length} fila(s) cargadas desde la imagen. Revisa los datos y guarda.`);
     } catch (err) {
       showToast(err.message || 'Error al escanear el formulario.', 'error');
     } finally {
@@ -682,6 +683,16 @@ function RegistroHorimetro() {
           confirmLabel="Aceptar"
           onConfirm={horimetroConfirm.onConfirm}
           onCancel={() => setHorimetroConfirm(null)}
+        />
+      )}
+      {deleteConfirm && (
+        <AuroraConfirmModal
+          danger
+          title="¿Eliminar esta fila?"
+          body="Se perderán los datos capturados en esta fila."
+          confirmLabel="Eliminar"
+          onConfirm={() => { deleteConfirm.onConfirm(); setDeleteConfirm(null); }}
+          onCancel={() => setDeleteConfirm(null)}
         />
       )}
 
@@ -766,7 +777,7 @@ function RegistroHorimetro() {
                 <section className="aur-section" ref={lineasSectionRef}>
                   <div className="aur-section-header">
                     <span className="aur-section-num">·</span>
-                    <h3 className="aur-section-title">Líneas</h3>
+                    <h3 className="aur-section-title">Filas</h3>
                     <span className="aur-section-count">{allLines.length}</span>
                   </div>
                   <div className="machinery-pending-list">
@@ -789,9 +800,19 @@ function RegistroHorimetro() {
                         >
                           <span className="machinery-pending-num">{displayIdx + 1}</span>
                           {isActive ? (
-                            <span className="machinery-pending-detail machinery-pending-detail--active">
-                              Editando ahora
-                            </span>
+                            <>
+                              <span className="machinery-pending-detail machinery-pending-detail--active">
+                                Editando ahora
+                              </span>
+                              <button
+                                type="button"
+                                className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                                onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ onConfirm: handleClearActiveLine }); }}
+                                title="Eliminar fila"
+                              >
+                                <FiTrash2 size={12} />
+                              </button>
+                            </>
                           ) : (
                             <>
                               <span className="machinery-pending-detail">
@@ -804,10 +825,16 @@ function RegistroHorimetro() {
                               <button
                                 type="button"
                                 className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                                onClick={(e) => { e.stopPropagation(); setPendingLines(prev => prev.filter((_, i) => i !== pendingIdx)); }}
-                                title="Quitar línea"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const idxToRemove = pendingIdx;
+                                  setDeleteConfirm({
+                                    onConfirm: () => setPendingLines(prev => prev.filter((_, i) => i !== idxToRemove)),
+                                  });
+                                }}
+                                title="Eliminar fila"
                               >
-                                <FiX size={12} />
+                                <FiTrash2 size={12} />
                               </button>
                             </>
                           )}
@@ -1076,9 +1103,6 @@ function RegistroHorimetro() {
                 <button type="button" className="machinery-add-row" onClick={handleAddLine}>
                   <FiPlus size={14} /> Agregar fila
                 </button>
-                <button type="button" className="machinery-add-row machinery-add-row--danger" onClick={handleClearActiveLine}>
-                  <FiX size={14} /> {pendingLines.length > 0 ? 'Eliminar línea' : 'Limpiar línea'}
-                </button>
               </div>
             )}
 
@@ -1087,7 +1111,7 @@ function RegistroHorimetro() {
                 Limpiar
               </button>
               <button type="submit" className="aur-btn-pill" disabled={saving}>
-                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : pendingLines.length > 0 ? `Guardar ${pendingLines.length + 1} líneas` : 'Registrar'}
+                <FiCheck size={15} /> {saving ? 'Guardando…' : isEditing ? 'Actualizar' : pendingLines.length > 0 ? `Guardar ${pendingLines.length + 1} filas` : 'Guardar'}
               </button>
             </div>
         </form>

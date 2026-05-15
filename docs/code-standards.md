@@ -320,6 +320,33 @@ src/
 - One CSS file per component or per feature (`src/features/hr/styles/hr.css`). No CSS-in-JS, no Tailwind, no CSS Modules. Existing convention is BEM-ish with `.aur-*`, `.hr-*`, `.fin-*` prefixes — keep it.
 - A component over **400 LOC** is a smell. Over **600 LOC** is a refactor target ([Sidebar.jsx](../src/components/Sidebar.jsx), [AuroraChat.jsx](../src/components/AuroraChat.jsx) qualify today).
 
+### Multi-row form repeaters
+
+Several domain pages collect 1..N rows of the same shape and save the batch in one POST loop (siembra, horímetro; future cosecha / monitoreo records will follow). The right rendering depends on how big each row is — the two reference pages use opposite layouts on purpose.
+
+**Threshold rule:**
+
+- **Row fits a single visual block, ≤ 8 fields, no derived UI per row** → render every row expanded in a vertical list; new rows append to the end; users edit in place. Reference: [Siembra.jsx](../src/features/planting/pages/Siembra.jsx).
+- **Row spans multiple sections (e.g. separate "Maquinaria / Ubicación / Labor…" groups), has derived strips (combustible auto-calc) or cross-row carryover (autofill from the previous line)** → render one row active + the rest as minimized chips above. `Agregar fila` moves the active row to the chip list and opens a blank one; clicking a chip swaps it back into the active slot. Reference: [RegistroHorimetro.jsx](../src/features/machinery/pages/RegistroHorimetro.jsx).
+
+**Required surface (identical across both variants — keeps the user's mental model intact when moving between pages):**
+
+| Affordance | Convention |
+|---|---|
+| UI vocabulary | `fila` / `filas`. Never `línea` in user-facing copy. |
+| Add-row button | `Agregar fila` with `<FiPlus />` icon |
+| Remove-row control | `<FiTrash2 />` icon in `.aur-icon-btn--danger` style, attached to the row it removes — same icon for every row, active or not. Siembra (all rows visible): inside each row-card head. Horímetro (one row expanded + chips): inside each chip in the `Filas` section (active and pending alike). Tooltip: `Eliminar fila`. **Visible only when ≥2 rows exist** — with one row, the footer `Limpiar` button covers that case (resetting one row is the same as resetting all). Never render the remove control as a labeled button next to `Agregar fila`. |
+| Delete confirmation | Clicking the trash icon opens an `AuroraConfirmModal` with `danger`, title `¿Eliminar esta fila?`, body `Se perderán los datos capturados en esta fila.`, confirm label `Eliminar`. Deliberate gestures (e.g. swipe-left on Siembra row cards) skip the confirm — the threshold is enough friction by itself. |
+| Primary save | `Guardar` (single row) · `Guardar N filas` (multi) · `Actualizar` (edit mode) · `Guardando…` while in flight |
+| Header chips | `Historial` (link to the historial page) + `Leer con IA` (when AI scan is wired) |
+| Empty state | Form opens automatically when there are no historical records yet |
+| AI scan toast | `${N} fila(s) cargadas desde la imagen. Revisa los datos y guarda.` |
+| Draft persistence | `localStorage` key `aurora_<domain>_draft` + `sessionStorage` flag `aurora_draftActive_<domain>-registro` + dispatch the `aurora-draft-change` event on every change |
+
+**Internal naming (JS):** identifiers stay English — `rows`, `pendingLines`, `handleAddLine`, `loadFilasIntoForm` are all fine. The Spanish-UI / English-identifier rule (§2) trumps the UI vocabulary choice; only the visible strings need to say "fila".
+
+**Don't unify what diverges for a reason:** the active-plus-chips layout exists because a horímetro form with 5 rows fully expanded would be ~60 fields plus derived strips on screen. The all-expanded layout exists because a siembra row is a small card the user wants to scan and edit at a glance. Picking the right layout per row size is the point of the threshold rule — what stays constant across pages is the surface above, not the rendering.
+
 ---
 
 ## 9. File size budget
