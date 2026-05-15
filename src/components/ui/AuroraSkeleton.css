@@ -1,0 +1,97 @@
+/* ── AuroraSkeleton ────────────────────────────────────────────────────────
+   Placeholders animados para estados de carga. La animación es un shimmer
+   horizontal que respeta `prefers-reduced-motion`. Los colores derivan de
+   los tokens del tema, así que el componente se ve bien en dark y light.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.aur-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* La línea base es un bloque con shimmer. */
+.aur-skeleton-line,
+.aur-skeleton-cell {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--aur-divider, #2a4a6a) 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    var(--aur-divider, #2a4a6a) 100%
+  );
+  background-size: 200% 100%;
+  animation: aur-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Modificadores de tamaño para variar visualmente las líneas. */
+.aur-skeleton-line--title  { height: 16px; width: 45%; }
+.aur-skeleton-line--header { height: 11px; width: 35%; }
+.aur-skeleton-line--value  { height: 28px; width: 60%; margin-top: 4px; }
+.aur-skeleton-line--stat   { height: 10px; width: 70px; }
+.aur-skeleton-line--short  { width: 65%; }
+
+/* ── Variant: widget ────────────────────────────────────────────────────── */
+/* Empata con .aur-section y .fin-widget (mismo padding/min-height/gap). */
+.aur-skeleton--widget {
+  background: var(--aur-bg-card, var(--aurora-background));
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: var(--aur-r-card, 8px);
+  padding: 16px;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.aur-skeleton-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+/* ── Variant: card ──────────────────────────────────────────────────────── */
+.aur-skeleton--card {
+  background: var(--aur-bg-card, var(--aurora-background));
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: var(--aur-r-card, 8px);
+  padding: 14px;
+  gap: 8px;
+}
+
+/* ── Variant: row ───────────────────────────────────────────────────────── */
+.aur-skeleton--row {
+  gap: 8px;
+}
+
+.aur-skeleton-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--aur-divider, var(--aurora-border));
+}
+.aur-skeleton-row:last-child { border-bottom: none; }
+
+.aur-skeleton-cell--narrow { width: 80px; }
+.aur-skeleton-cell--medium { width: 120px; }
+.aur-skeleton-cell--wide   { flex: 1; }
+
+/* ── Variant: text ──────────────────────────────────────────────────────── */
+.aur-skeleton--text {
+  gap: 6px;
+}
+
+/* ── Animación shimmer ──────────────────────────────────────────────────── */
+@keyframes aur-skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aur-skeleton-line,
+  .aur-skeleton-cell {
+    animation: none;
+  }
+}
