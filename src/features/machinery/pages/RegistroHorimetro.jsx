@@ -863,6 +863,11 @@ function RegistroHorimetro() {
                       step="0.1"
                       placeholder="0.0"
                     />
+                    {!isEditing && lastHorimetroFinal !== null && (
+                      <span className="machinery-field-hint">
+                        ↳ Último registrado: <strong>{lastHorimetroFinal.toLocaleString('es-CR', { maximumFractionDigits: 1 })} h</strong>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="machinery-field machinery-field--inline">
@@ -1071,7 +1076,7 @@ function RegistroHorimetro() {
                 <button type="button" className="machinery-add-row" onClick={handleAddLine}>
                   <FiPlus size={14} /> Agregar fila
                 </button>
-                <button type="button" className="machinery-add-row" onClick={handleClearActiveLine}>
+                <button type="button" className="machinery-add-row machinery-add-row--danger" onClick={handleClearActiveLine}>
                   <FiX size={14} /> {pendingLines.length > 0 ? 'Eliminar línea' : 'Limpiar línea'}
                 </button>
               </div>

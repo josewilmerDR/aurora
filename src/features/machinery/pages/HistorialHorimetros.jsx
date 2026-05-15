@@ -29,6 +29,23 @@ const COLUMNS = [
   { key: 'operarioNombre',    label: 'Operario',          type: 'text'   },
 ];
 
+// Columnas derivadas (depreciación + estimados de combustible) ocultas al
+// inicio para reducir el ancho de la tabla. El usuario puede habilitarlas
+// desde el picker de columnas cuando necesite el análisis.
+const HIDDEN_BY_DEFAULT = new Set([
+  'grupo',
+  'bloque',
+  'montoDepTractor',
+  'montoDepImplemento',
+  'combTasaLH',
+  'combPrecio',
+  'combLitros',
+  'combCosto',
+]);
+const INITIAL_VISIBLE_COLS = Object.fromEntries(
+  COLUMNS.map(c => [c.key, !HIDDEN_BY_DEFAULT.has(c.key)]),
+);
+
 function horasUsadas(rec) {
   const ini = parseFloat(rec.horimetroInicial);
   const fin = parseFloat(rec.horimetroFinal);
@@ -177,6 +194,40 @@ export default function HistorialHorimetros() {
     );
   };
 
+  // Strip de totales sobre los registros mostrados (respeta filtros de columna).
+  const renderSummary = (filteredData) => {
+    const stats = filteredData.reduce((acc, rec) => {
+      if (rec.horas != null) acc.horas += rec.horas;
+      if (rec.combCosto != null) acc.combCosto += rec.combCosto;
+      if (rec.montoDepTractor != null) acc.depTotal += rec.montoDepTractor;
+      if (rec.montoDepImplemento != null) acc.depTotal += rec.montoDepImplemento;
+      return acc;
+    }, { horas: 0, combCosto: 0, depTotal: 0 });
+
+    const fmtCRC = (n) => `₡${n.toLocaleString('es-CR', { maximumFractionDigits: 0 })}`;
+
+    return (
+      <div className="machinery-historial-summary">
+        <span className="machinery-historial-summary-item">
+          <span className="machinery-historial-summary-label">Horas totales</span>
+          <span className="machinery-historial-summary-val machinery-historial-summary-val--accent">
+            {stats.horas.toFixed(1)} h
+          </span>
+        </span>
+        <span className="machinery-historial-summary-sep">·</span>
+        <span className="machinery-historial-summary-item">
+          <span className="machinery-historial-summary-label">Combustible est.</span>
+          <span className="machinery-historial-summary-val">{fmtCRC(stats.combCosto)}</span>
+        </span>
+        <span className="machinery-historial-summary-sep">·</span>
+        <span className="machinery-historial-summary-item">
+          <span className="machinery-historial-summary-label">Depreciación est.</span>
+          <span className="machinery-historial-summary-val">{fmtCRC(stats.depTotal)}</span>
+        </span>
+      </div>
+    );
+  };
+
   const trailingCell = (rec) => (
     <td className="machinery-td-actions">
       <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={() => handleEdit(rec)} title="Editar">
@@ -228,7 +279,9 @@ export default function HistorialHorimetros() {
             getColVal={getColVal}
             initialSort={{ field: 'fecha', dir: 'desc' }}
             firstClickDir="desc"
+            initialVisibleCols={INITIAL_VISIBLE_COLS}
             renderRow={renderRow}
+            renderSummary={renderSummary}
             trailingCell={trailingCell}
             toolbarActions={
               <Link to="/operaciones/horimetro/registro" className="aur-chip aur-chip--ghost">
