@@ -3,9 +3,81 @@
 
 /* aur-banner--info ya provee bg/color/border/typography para el banner;
    este slim sólo añade el margen vertical específico del dashboard de
-   financiamiento, donde el banner queda entre el page-header y el grid. */
+   financiamiento, donde el banner queda entre el page-header y el grid.
+   La clase sigue viva para CeoDashboard u otros consumidores legacy; en
+   FinancingDashboard fue reemplazada por <details className="fin-policy-details">
+   que ocupa mucho menos vertical. */
 .aur-banner.fin-financing-banner {
   margin: 12px 0 20px;
+}
+
+/* ── Política Nivel 1 como <details> compacto ────────────────────────────
+   Vive inline al lado del <h2> en el page-header. Cerrado, sólo muestra
+   un pill pequeño con el icono + label. Abierto, baja un panel con la
+   política completa anclado debajo del summary. Mucho más sobrio que el
+   banner ancho original.
+
+   El page-header default no es flex; cuando contiene un .fin-policy-details
+   lo activamos para alinear el <h2> y el details en una sola fila. */
+.page-header:has(.fin-policy-details) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fin-policy-details {
+  position: relative;
+  margin-left: auto;
+}
+.fin-policy-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-pill);
+  background: transparent;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-caption);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.fin-policy-summary::-webkit-details-marker { display: none; }
+.fin-policy-summary:hover {
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+  background: rgba(51, 255, 153, 0.05);
+}
+.fin-policy-details[open] .fin-policy-summary {
+  border-color: var(--aur-accent);
+  color: var(--aur-accent);
+}
+.fin-policy-content {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 320px;
+  max-width: 90vw;
+  padding: 12px 14px;
+  background: var(--aur-bg-card);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  line-height: 1.5;
+}
+.fin-policy-content strong { color: var(--aur-accent); }
+
+@media (max-width: 600px) {
+  /* En mobile el header ya apila vertical; el details queda apilado abajo
+     y su panel cae alineado a la derecha del viewport. */
+  .fin-policy-details { margin-left: 0; }
+  .fin-policy-content { right: auto; left: 0; }
 }
 
 /* fin-policy-banner se mantiene como clase legacy: el dominio CEO la

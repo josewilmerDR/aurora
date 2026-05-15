@@ -22,6 +22,21 @@ function FinancingDashboard() {
     <div className="page-container">
       <div className="page-header">
         <h2><FiBriefcase /> Financiamiento</h2>
+        {/* Antes este disclaimer ocupaba un banner de ~1/3 del viewport.
+            Ahora vive en un <details> compacto al lado del título: el
+            usuario casual lee el resumen y los administradores expanden
+            la política completa cuando la necesitan (audit UX). */}
+        <details className="fin-policy-details">
+          <summary className="fin-policy-summary">
+            <FiShield size={13} aria-hidden="true" />
+            <span>Política Nivel 1</span>
+          </summary>
+          <div className="fin-policy-content">
+            <strong>Nivel 1 por política:</strong> este dominio solo produce
+            recomendaciones. Ninguna acción autónoma firma, aplica o acepta
+            crédito.
+          </div>
+        </details>
       </div>
 
       <AuroraSectionIntro>
@@ -29,14 +44,6 @@ function FinancingDashboard() {
         financiero, registrá ofertas de bancos o cooperativas, analizá tu
         elegibilidad y simulá el impacto antes de firmar.
       </AuroraSectionIntro>
-
-      <div className="aur-banner aur-banner--info fin-financing-banner">
-        <FiShield size={14} />
-        <span>
-          <strong>Nivel 1 por política:</strong> este dominio solo produce recomendaciones.
-          Ninguna acción autónoma firma, aplica o acepta crédito.
-        </span>
-      </div>
 
       <div className="fin-dashboard-grid">
         <FinancialProfileWidget />

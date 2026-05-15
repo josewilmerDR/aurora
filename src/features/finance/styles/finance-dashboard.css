@@ -23,7 +23,8 @@
 /* aur-section ya provee bg/border/radius/padding/typography. Cuando el
    aur-section es hijo directo del grid, asegura altura mínima común y
    apila el contenido con gap consistente para que los 4 widgets queden
-   visualmente balanceados. */
+   visualmente balanceados. En desktop (>=960px) sube a 280px para
+   reducir la sensación de densidad cuando el grid es 2x2 (audit UX). */
 .fin-dashboard-grid > .aur-section {
   display: flex;
   flex-direction: column;
@@ -31,23 +32,19 @@
   min-height: 220px;
 }
 
-/* ── Shell legacy fin-widget — usado por dominios CEO y procurement
-   (ChainHistoryWidget, KpiAccuracyWidget, OrchestratorStatusWidget,
-   TrustScoreWidget, DynamicGuardrailsWidget; PendingActionsWidget,
-   RfqsWidget, StockGapsWidget, SupplierRankingWidget). El dominio
-   finance ya migró a aur-section, pero estas clases siguen vivas
-   mientras esos dominios no se cierren. ──────────────────────────────── */
-.fin-widget {
-  background: var(--aur-bg-card);
-  border: 1px solid var(--aur-divider);
-  border-radius: var(--aur-r-card);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 220px;
+@media (min-width: 960px) {
+  .fin-dashboard-grid > .aur-section {
+    min-height: 280px;
+  }
 }
 
+/* ── Sub-clases fin-widget-* compartidas — finance + CEO + procurement
+   ────────────────────────────────────────────────────────────────────────
+   El shell .fin-widget {} fue eliminado: ya no había JSX que lo usara
+   como contenedor (finance migró a .aur-section; CEO y procurement
+   también). Las sub-clases siguen vivas porque varios widgets las
+   reusan para títulos, stats y CTAs sobre cualquier shell de card.
+   ────────────────────────────────────────────────────────────────────── */
 .fin-widget-header {
   display: flex;
   justify-content: space-between;

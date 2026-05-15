@@ -35,6 +35,28 @@ const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
 const COMPACT_COLS_KEYS = new Set(['fecha', 'comprador', 'lote', 'total', 'estado']);
 const COMPACT_COLS = Object.fromEntries(COLUMNS.map(c => [c.key, COMPACT_COLS_KEYS.has(c.key)]));
 
+// Persistencia de la preferencia de columnas. Default es el preset compacto
+// (5 cols) por audit UX: la vista de 12 cols abrumaba al usuario casual.
+// Cuando el usuario togglea columnas guardamos su selección exacta y la
+// rehidratamos en el siguiente render.
+const COLUMN_PREF_STORAGE_KEY = 'aurora_income_columns';
+function loadColumnPref() {
+  try {
+    const raw = localStorage.getItem(COLUMN_PREF_STORAGE_KEY);
+    if (!raw) return COMPACT_COLS;
+    const parsed = JSON.parse(raw);
+    // Reconstruimos sobre la definición vigente; columnas nuevas (que el
+    // usuario nunca vio) entran como visibles por default.
+    const next = {};
+    for (const c of COLUMNS) {
+      next[c.key] = c.key in parsed ? Boolean(parsed[c.key]) : true;
+    }
+    return next;
+  } catch {
+    return COMPACT_COLS;
+  }
+}
+
 const STATUS_BADGE_VARIANT = {
   pendiente: { label: 'Pendiente', cls: 'aur-badge--magenta' },
   cobrado:   { label: 'Cobrado',   cls: 'aur-badge--green' },
@@ -107,8 +129,18 @@ function IncomeRecords() {
   const [sortDir,   setSortDir]   = useState('desc');
   const [colFilters, setColFilters] = useState({});
   const [filterPopover, setFilterPopover] = useState(null);
-  const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
+  const [visibleCols, setVisibleCols] = useState(loadColumnPref);
   const [colMenu, setColMenu] = useState(null);
+
+  // Persistencia: cada vez que cambia la selección, la guardamos. Errores
+  // (quota, modo privado) se silencian — la app sigue funcional sin la pref.
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLUMN_PREF_STORAGE_KEY, JSON.stringify(visibleCols));
+    } catch {
+      /* ignore */
+    }
+  }, [visibleCols]);
 
   const [rowMenu, setRowMenu] = useState(null);
   const [rowMenuPos, setRowMenuPos] = useState({ top: 0, right: 0 });
