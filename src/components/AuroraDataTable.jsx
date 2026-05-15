@@ -23,6 +23,7 @@ export default function AuroraDataTable({
   pageSize = null,
   resultLabel,
   toolbarActions = null,
+  renderSummary = null,
   trailingHead = null,
   trailingCell = null,
   rowClassName,
@@ -179,6 +180,7 @@ export default function AuroraDataTable({
         <p className="empty-state">{emptyText}</p>
       ) : (
         <>
+          {renderSummary && renderSummary(displayData)}
           <div className="aur-table-wrap">
             <table className="aur-table">
               <thead>

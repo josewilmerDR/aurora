@@ -413,6 +413,16 @@
   color: var(--aur-danger);
   letter-spacing: -0.01em;
 }
+.machinery-field-hint {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  letter-spacing: -0.01em;
+}
+.machinery-field-hint strong {
+  color: var(--aur-accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
 
 @media (max-width: 640px) {
   .machinery-form-grid {
@@ -749,12 +759,65 @@
   cursor: not-allowed;
 }
 
+/* Variante destructiva — para "Eliminar línea" / "Limpiar línea".
+   Ícono rojo al reposo (señal pasiva); todo el botón rojo al hover. */
+.machinery-add-row--danger > svg {
+  color: var(--aur-danger);
+}
+.machinery-add-row--danger:hover:not(:disabled) {
+  color: var(--aur-danger);
+  border-color: var(--aur-danger);
+  background: var(--aur-danger-tint);
+}
+
 /* HistorialHorimetros: la tabla del historial se renderiza sin bordes
    laterales para dar sensación de que ocupa el ancho completo del sheet. */
 .machinery-historial-page .aur-table-wrap {
   border-left: none;
   border-right: none;
   border-radius: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HISTORIAL SUMMARY — strip de totales sobre la tabla (filter-aware)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.machinery-historial-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  letter-spacing: -0.01em;
+}
+.machinery-historial-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.machinery-historial-summary-label {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.machinery-historial-summary-val {
+  color: var(--aur-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.machinery-historial-summary-val--accent {
+  color: var(--aur-accent);
+}
+.machinery-historial-summary-sep {
+  color: var(--aur-divider-2);
+  user-select: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -789,6 +852,14 @@
     gap: 8px;
   }
   .machinery-fuel-strip-sep {
+    display: none;
+  }
+
+  .machinery-historial-summary {
+    font-size: 12px;
+    gap: 8px 12px;
+  }
+  .machinery-historial-summary-sep {
     display: none;
   }
 
