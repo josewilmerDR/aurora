@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiEdit, FiTrash2 } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraDataTable from '../../../components/AuroraDataTable';
@@ -214,7 +214,7 @@ export default function HistorialHorimetros() {
           <div className="aur-sheet-header-text">
             <h1 className="aur-sheet-title">Historial de horímetros</h1>
             <p className="aur-sheet-subtitle">
-              Consulta y analiza el historial de horímetros en busca de patrones o anomalías. <Link to="/operaciones/horimetro/registro">Ir a registro de horímetro</Link>.
+              Consulta y analiza el historial de horímetros en busca de patrones o anomalías.
             </p>
           </div>
         </header>
@@ -230,6 +230,11 @@ export default function HistorialHorimetros() {
             firstClickDir="desc"
             renderRow={renderRow}
             trailingCell={trailingCell}
+            toolbarActions={
+              <Link to="/operaciones/horimetro/registro" className="aur-chip aur-chip--ghost">
+                <FiPlus size={12} /> Nuevo registro
+              </Link>
+            }
             emptyText={
               records.length === 0
                 ? <>No hay registros de horímetros creados aún. Crea el primero en <Link to="/operaciones/horimetro/registro">Registro de Horímetro</Link>.</>

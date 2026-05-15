@@ -22,6 +22,7 @@ export default function AuroraDataTable({
   initialVisibleCols,
   pageSize = null,
   resultLabel,
+  toolbarActions = null,
   trailingHead = null,
   trailingCell = null,
   rowClassName,
@@ -151,21 +152,26 @@ export default function AuroraDataTable({
   return (
     <section className="aur-section">
       <div className="aur-table-toolbar">
-        {(resultLabel || total > 0) && (
-          <span className="aur-table-result-count">
-            {resultLabel
-              ? resultLabel(filteredCount, total)
-              : (filteredCount === total ? `${total} registros` : `${filteredCount} de ${total} registros`)}
-          </span>
-        )}
-        {Object.keys(colFilters).length > 0 && (
-          <button
-            className="aur-btn-text"
-            type="button"
-            onClick={() => { setColFilters({}); setPage(1); }}
-          >
-            <FiX size={11} /> Limpiar filtros
-          </button>
+        <div className="aur-table-toolbar-left">
+          {(resultLabel || total > 0) && (
+            <span className="aur-table-result-count">
+              {resultLabel
+                ? resultLabel(filteredCount, total)
+                : (filteredCount === total ? `${total} registros` : `${filteredCount} de ${total} registros`)}
+            </span>
+          )}
+          {Object.keys(colFilters).length > 0 && (
+            <button
+              className="aur-btn-text"
+              type="button"
+              onClick={() => { setColFilters({}); setPage(1); }}
+            >
+              <FiX size={11} /> Limpiar filtros
+            </button>
+          )}
+        </div>
+        {toolbarActions && (
+          <div className="aur-table-toolbar-actions">{toolbarActions}</div>
         )}
       </div>
 

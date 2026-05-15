@@ -239,7 +239,7 @@ function LaborList() {
             </div>
           ) : (
             <>
-              <div className="aur-table-toolbar">
+              <div className="aur-table-toolbar lab-toolbar">
                 <div className="lab-search-wrap">
                   <FiSearch size={13} className="lab-search-icon" />
                   <input
