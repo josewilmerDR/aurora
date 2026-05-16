@@ -3,9 +3,9 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 
 const SUB_TABS = [
   { id: 'general', label: 'General' },
-  { id: 'lote',    label: 'Por Lote' },
-  { id: 'grupo',   label: 'Por Grupo' },
-  { id: 'bloque',  label: 'Por Bloque' },
+  { id: 'lote',    label: 'Lote' },
+  { id: 'grupo',   label: 'Grupo' },
+  { id: 'bloque',  label: 'Bloque' },
 ];
 
 const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));

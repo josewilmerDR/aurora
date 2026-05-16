@@ -8,13 +8,17 @@ const CATEGORIAS = [
 ];
 
 describe('<IndirectoForm />', () => {
-  test('renderiza dos fieldsets agrupados (Identificación y Monto)', () => {
-    const { container } = render(
+  test('renderiza los cuatro campos inline en una sola fila, sin fieldsets', () => {
+    const { container, getByLabelText } = render(
       <IndirectoForm categorias={CATEGORIAS} onSubmit={() => {}} />
     );
-    const legends = container.querySelectorAll('legend.cost-ind-form-legend');
-    const labels = Array.from(legends).map((l) => l.textContent);
-    expect(labels).toEqual(['Identificación', 'Monto']);
+    // Los 4 inputs existen y son accesibles por su label.
+    expect(getByLabelText('Fecha')).toBeInTheDocument();
+    expect(getByLabelText('Categoría')).toBeInTheDocument();
+    expect(getByLabelText(/Descripción/)).toBeInTheDocument();
+    expect(getByLabelText('Monto')).toBeInTheDocument();
+    // El layout viejo de fieldsets quedó eliminado a propósito.
+    expect(container.querySelectorAll('fieldset').length).toBe(0);
   });
 
   test('descripción está marcada como opcional en el label', () => {

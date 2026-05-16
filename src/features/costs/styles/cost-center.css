@@ -199,6 +199,16 @@
   font-size: var(--aur-fs-caption);
   color: var(--aur-text-2);
 }
+/* Variante inline: vive dentro del toolbar de CostTable, no como bloque
+   global. Más compacta (gap menor, swatches 8px) y sin margin para que
+   el toolbar controle el espaciado. */
+.cost-legend--inline {
+  margin-bottom: 0;
+  gap: 12px;
+  color: var(--aur-text-3);
+  flex: 1;
+  min-width: 0;
+}
 .cost-legend-item {
   display: inline-flex;
   align-items: center;
@@ -209,6 +219,10 @@
   height: 10px;
   border-radius: 2px;
   display: inline-block;
+}
+.cost-legend--inline .cost-legend-swatch {
+  width: 8px;
+  height: 8px;
 }
 
 /* ── Notice (warn) — bloque informativo amarillo ───────────────────────
@@ -227,39 +241,37 @@
   color: var(--aur-warn);
 }
 
+/* ── Section header — slim local sin íconos circulares ─────────────────
+   La página ya no usa .aur-section-num (los círculos con FiPlus/FiCamera
+   se quitaron por ruido visual) ni la pill .aur-section-count. El conteo
+   ahora es un span inline dentro del propio <h3>, con peso normal y
+   color secundario para que se lea como meta-info del título. */
+.cost-section-count {
+  margin-left: 8px;
+  color: var(--aur-text-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
 /* ── Indirectos: form de quick-add ─────────────────────────────────────
-   El form se agrupa en 2 fieldsets visuales ("Identificación" y "Monto")
-   + un botón de submit, en lugar de la fila plana original de 4 inputs.
-   Cada fieldset es a su vez una grid de 2 cols para densidad horizontal.
-   En mobile cada fieldset colapsa a 1 col y los dos quedan apilados. */
+   Una sola fila inline con el mismo orden que las filas del listado:
+   fecha · categoría · descripción · monto · botón. La descripción ocupa
+   el espacio flexible (1fr) porque es el campo de texto libre. El resto
+   son anchos fijos compactos para que la fila quepa en la mayoría de
+   anchos de viewport sin wrapping. En tablet/mobile la grid colapsa
+   gradualmente (ver media queries más abajo). */
 .cost-ind-form {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 16px;
+  grid-template-columns: 150px 160px 1fr 130px auto;
+  gap: 12px;
   align-items: end;
   margin-bottom: 16px;
 }
-.cost-ind-form-group {
-  border: 1px solid var(--aur-divider);
-  border-radius: var(--aur-r-card);
-  padding: 10px 14px 12px;
-  margin: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  min-width: 0;
-}
-.cost-ind-form-legend {
-  font-size: var(--aur-fs-caption);
-  color: var(--aur-text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  padding: 0 6px;
-}
 .cost-ind-form-submit {
   align-self: end;
-  margin-bottom: 4px; /* alinea con la base de los inputs dentro del fieldset */
+  /* alinea con la base de los inputs (que ya incluyen padding interno) */
+  height: 38px;
 }
 .aur-field-label-hint {
   color: var(--aur-text-3);
@@ -267,16 +279,27 @@
   font-size: var(--aur-fs-caption);
   margin-left: 4px;
 }
-@media (max-width: 720px) {
+/* Tablet: fecha+categoría / descripción full / monto+botón */
+@media (max-width: 960px) {
+  .cost-ind-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cost-ind-form-desc {
+    grid-column: 1 / -1;
+  }
+  .cost-ind-form-submit {
+    grid-column: 1 / -1;
+    justify-content: center;
+    width: 100%;
+  }
+}
+/* Mobile: una columna apilada */
+@media (max-width: 520px) {
   .cost-ind-form {
     grid-template-columns: 1fr;
   }
-  .cost-ind-form-group {
-    grid-template-columns: 1fr;
-  }
-  .cost-ind-form-submit {
-    width: 100%;
-    justify-content: center;
+  .cost-ind-form-desc {
+    grid-column: auto;
   }
 }
 
@@ -293,6 +316,14 @@
   color: var(--aur-text-2);
   font-size: var(--aur-fs-footnote);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Categoría como meta-info plana, no como badge: mismo tratamiento que
+   la fecha. La pill verde original gastaba el color de marca en un atributo
+   de baja importancia. */
+.cost-ind-cat {
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
   white-space: nowrap;
 }
 .cost-ind-desc {
@@ -337,15 +368,27 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Wrapper de layout solo: el peso/color real lo aplica cada subspan.
+   Antes este span pintaba TODO en verde acento — total y costo/kg —
+   gastando el color de marca en un dato que no lo merece. */
 .cost-snap-cost {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
-  color: var(--aur-accent);
   font-size: var(--aur-fs-footnote);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.cost-snap-total {
+  color: var(--aur-text);
+  font-weight: 600;
+}
+/* El verde acento queda reservado para Costo/Kg, que es la métrica
+   destacada del módulo (mismo tratamiento que .cost-td-costkg en la
+   tabla y .cost-kpi--accent en el KPI superior). */
+.cost-snap-costkg {
+  color: var(--aur-accent);
+  font-weight: 600;
 }
 .cost-snap-cost-sep {
   color: var(--aur-text-3);
@@ -408,12 +451,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── CostTable: container + toolbar de columnas ────────────────────────
-   El toolbar vive arriba de la tabla, alineado a la derecha.
-   .cost-table-btn replica el patrón visual de .fin-table-btn
-   (definida en finance.css) — no la importamos para mantener este
-   dominio autocontenido. Si en el futuro se hoista a aur-table-btn
-   primitivo, ambos pueden eliminarse. */
+/* ── CostTable: container + toolbar (leyenda izquierda · toggle derecha) ── */
 .cost-table-container {
   display: flex;
   flex-direction: column;
@@ -421,27 +459,10 @@
 }
 .cost-table-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-}
-.cost-table-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: 1px solid var(--aur-divider);
-  color: var(--aur-text-2);
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: var(--aur-r-pill);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  font-family: inherit;
-}
-.cost-table-btn:hover {
-  border-color: var(--aur-accent);
-  color: var(--aur-accent);
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 /* ── Loading / empty ────────────────────────────────────────────────── */

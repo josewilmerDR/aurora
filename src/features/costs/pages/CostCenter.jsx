@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { FiCamera, FiTrash2, FiEye, FiColumns, FiPlus } from 'react-icons/fi';
+import { FiCamera, FiTrash2, FiEye, FiColumns } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
@@ -12,9 +12,9 @@ import '../styles/cost-center.css';
 
 const TABS = [
   { id: 'general',      label: 'General' },
-  { id: 'lote',         label: 'Por Lote' },
-  { id: 'grupo',        label: 'Por Grupo' },
-  { id: 'bloque',       label: 'Por Bloque' },
+  { id: 'lote',         label: 'Lote' },
+  { id: 'grupo',        label: 'Grupo' },
+  { id: 'bloque',       label: 'Bloque' },
   { id: 'rentabilidad', label: 'Rentabilidad' },
 ];
 
@@ -231,15 +231,6 @@ export default function CostCenter() {
         />
       </div>
 
-      {/* ── Desglose legend — siempre visible como referencia ──────────── */}
-      <div className="cost-legend">
-        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-comb" /> Combustible</span>
-        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-plan" /> Planilla</span>
-        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ins" /> Insumos</span>
-        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-dep" /> Depreciación</span>
-        <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ind" /> Indirectos</span>
-      </div>
-
       {loading && (
         <div className="cost-loading-skeleton">
           <AuroraSkeleton variant="row" count={5} label="Calculando costos…" />
@@ -248,7 +239,11 @@ export default function CostCenter() {
 
       {!loading && r && (
         <>
-          {/* ── KPI cards ───────────────────────────────────────────── */}
+          {/* ── KPI cards ─────────────────────────────────────────────
+              3 cards centradas: Total, Kg, Costo/Kg. La métrica
+              "% Indirectos" se eliminó porque ya está implícita en la
+              barra "Composición" de cada fila y en la columna Indirectos
+              de la tabla — no es headline. */}
           <div className="cost-kpis">
             <div className="cost-kpi">
               <span className="cost-kpi-label">Costo Total</span>
@@ -261,10 +256,6 @@ export default function CostCenter() {
             <div className="cost-kpi cost-kpi--accent">
               <span className="cost-kpi-label">Costo / Kg</span>
               <span className="cost-kpi-value">{r.costoPorKg != null ? fmt(r.costoPorKg) : '—'}</span>
-            </div>
-            <div className="cost-kpi">
-              <span className="cost-kpi-label">% Indirectos</span>
-              <span className="cost-kpi-value">{r.costoTotal > 0 ? `${((r.indirectos / r.costoTotal) * 100).toFixed(1)}%` : '—'}</span>
             </div>
           </div>
 
@@ -308,11 +299,12 @@ export default function CostCenter() {
       {/* ── Costos Indirectos section ────────────────────────────────── */}
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num"><FiPlus size={14} /></span>
-          <h3 className="aur-section-title">Costos indirectos manuales</h3>
-          {indirectosFiltrados.length > 0 && (
-            <span className="aur-section-count">{indirectosFiltrados.length}</span>
-          )}
+          <h3 className="aur-section-title">
+            Costos indirectos manuales
+            {indirectosFiltrados.length > 0 && (
+              <span className="cost-section-count">{indirectosFiltrados.length}</span>
+            )}
+          </h3>
         </div>
 
         <IndirectoForm categorias={CATEGORIAS_INDIRECTO} onSubmit={addIndirecto} />
@@ -322,7 +314,7 @@ export default function CostCenter() {
             {indirectosFiltrados.map(item => (
               <div key={item.id} className="aur-row cost-ind-row">
                 <span className="cost-ind-fecha">{item.fecha}</span>
-                <span className="aur-badge aur-badge--green">{catLabel(item.categoria)}</span>
+                <span className="cost-ind-cat">{catLabel(item.categoria)}</span>
                 <span className="cost-ind-desc">{item.descripcion || '—'}</span>
                 <span className="cost-ind-monto">{fmt(item.monto)}</span>
                 <button
@@ -342,11 +334,12 @@ export default function CostCenter() {
       {/* ── Snapshots section ────────────────────────────────────────── */}
       <section className="aur-section">
         <div className="aur-section-header">
-          <span className="aur-section-num"><FiCamera size={14} /></span>
-          <h3 className="aur-section-title">Historial de snapshots</h3>
-          {snapshots.length > 0 && (
-            <span className="aur-section-count">{snapshots.length}</span>
-          )}
+          <h3 className="aur-section-title">
+            Historial de snapshots
+            {snapshots.length > 0 && (
+              <span className="cost-section-count">{snapshots.length}</span>
+            )}
+          </h3>
           {/* CTA contextual: vive donde el usuario espera la acción
               ("guardar un snapshot del estado actual"), no en el header
               global de la página. */}
@@ -377,9 +370,11 @@ export default function CostCenter() {
                   <span className="cost-snap-name">{s.nombre}</span>
                   <span className="cost-snap-dates">{s.rangoFechas?.desde} → {s.rangoFechas?.hasta}</span>
                   <span className="cost-snap-cost">
-                    {fmt(s.resumen?.costoTotal)}
+                    <span className="cost-snap-total">{fmt(s.resumen?.costoTotal)}</span>
                     <span className="cost-snap-cost-sep">·</span>
-                    {s.resumen?.costoPorKg != null ? `${fmt(s.resumen.costoPorKg)}/kg` : '—/kg'}
+                    <span className="cost-snap-costkg">
+                      {s.resumen?.costoPorKg != null ? `${fmt(s.resumen.costoPorKg)}/kg` : '—/kg'}
+                    </span>
                   </span>
                   <div className="cost-snap-actions">
                     <button
@@ -417,7 +412,6 @@ export default function CostCenter() {
         {viewSnap && (
           <section className="aur-section cost-snap-detail">
             <div className="aur-section-header">
-              <span className="aur-section-num"><FiEye size={14} /></span>
               <h3 className="aur-section-title">Detalle · {viewSnap.nombre}</h3>
               <div className="aur-section-actions">
                 <button type="button" className="aur-btn-text" onClick={() => setViewSnap(null)}>
