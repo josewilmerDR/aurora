@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiTrendingUp } from 'react-icons/fi';
+import { FiTrendingUp, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 import WidgetSkeleton from './WidgetSkeleton';
 
@@ -57,12 +57,21 @@ function BudgetWidget() {
 
   const summary = data?.summary;
 
+  // Marcador de empty state para borde dasheado + bg sutil (C1).
+  const isEmptyState = !loading && !error && data && rowsWithBudget.length === 0;
+  const sectionCls = `aur-section${isEmptyState ? ' fin-widget--empty' : ''}`;
+
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
         <span className="aur-section-num"><FiTrendingUp size={14} /></span>
         <h3 className="aur-section-title">Presupuesto</h3>
         <span className="aur-section-count">{period}</span>
+        {!isEmptyState && (
+          <Link className="fin-widget-header-cta" to="/finance/presupuestos">
+            Ver Presupuestos →
+          </Link>
+        )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando ejecución del presupuesto…" />}
@@ -90,8 +99,18 @@ function BudgetWidget() {
           )}
 
           {rowsWithBudget.length === 0 ? (
-            <div className="fin-widget-empty">
-              Sin presupuestos asignados para {period}.
+            <div className="fin-widget-empty-state">
+              <FiTrendingUp size={28} className="fin-widget-empty-icon" />
+              <p className="fin-widget-empty-text">
+                Sin presupuestos asignados para {period}. Definí tus metas para
+                comparar contra el gasto real.
+              </p>
+              <Link
+                to="/finance/presupuestos"
+                className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
+              >
+                <FiPlus size={12} /> Crear presupuesto del mes
+              </Link>
             </div>
           ) : (
             <div className="fin-budget-rows">
@@ -120,9 +139,8 @@ function BudgetWidget() {
         </>
       )}
 
-      <div className="fin-widget-cta-row">
-        <Link className="aur-btn-text" to="/finance/presupuestos">Ver Presupuestos →</Link>
-      </div>
+      {/* CTA secundaria movida al header (top-right, ver C3). El footer queda
+          libre para el CTA primario del empty state cuando aplica. */}
     </section>
   );
 }

@@ -48,12 +48,21 @@ function CommitmentsWidget() {
 
   const totalOutflows = outflows.reduce((s, ev) => s + (Number(ev.amount) || 0), 0);
 
+  // Empty state: borde dasheado + bg sutil (C1).
+  const isEmptyState = !loading && !error && data && top.length === 0;
+  const sectionCls = `aur-section${isEmptyState ? ' fin-widget--empty' : ''}`;
+
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
         <span className="aur-section-num"><FiCalendar size={14} /></span>
         <h3 className="aur-section-title">Compromisos próximos</h3>
         <span className="aur-section-count">4 semanas</span>
+        {!isEmptyState && (
+          <Link className="fin-widget-header-cta" to="/finance/tesoreria">
+            Ver Tesorería →
+          </Link>
+        )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando compromisos próximos…" />}
@@ -75,8 +84,17 @@ function CommitmentsWidget() {
           )}
 
           {top.length === 0 ? (
-            <div className="fin-widget-empty">
-              Sin salidas programadas en las próximas 4 semanas.
+            <div className="fin-widget-empty-state">
+              <FiCalendar size={28} className="fin-widget-empty-icon" />
+              <p className="fin-widget-empty-text">
+                Sin salidas programadas en las próximas 4 semanas.
+              </p>
+              <Link
+                to="/finance/tesoreria"
+                className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
+              >
+                Abrir Tesorería
+              </Link>
             </div>
           ) : (
             <div className="fin-commits-list">
@@ -95,9 +113,7 @@ function CommitmentsWidget() {
         </>
       )}
 
-      <div className="fin-widget-cta-row">
-        <Link className="aur-btn-text" to="/finance/tesoreria">Ver Tesorería →</Link>
-      </div>
+      {/* CTA secundaria movida al header (top-right, ver C3). */}
     </section>
   );
 }

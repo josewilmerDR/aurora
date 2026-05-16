@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FiBarChart2 } from 'react-icons/fi';
+import { FiBarChart2, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 import WidgetSkeleton from './WidgetSkeleton';
 
@@ -54,12 +54,21 @@ function RoiWidget() {
     </div>
   );
 
+  // Empty state: borde dasheado + bg sutil (C1).
+  const isEmptyState = !loading && !error && data && active.length === 0;
+  const sectionCls = `aur-section${isEmptyState ? ' fin-widget--empty' : ''}`;
+
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
         <span className="aur-section-num"><FiBarChart2 size={14} /></span>
         <h3 className="aur-section-title">Rentabilidad</h3>
         <span className="aur-section-count">Mes actual</span>
+        {!isEmptyState && (
+          <Link className="fin-widget-header-cta" to="/costos">
+            Ver Centro de Costos →
+          </Link>
+        )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando rentabilidad…" />}
@@ -83,7 +92,18 @@ function RoiWidget() {
           </div>
 
           {active.length === 0 ? (
-            <div className="fin-widget-empty">Sin actividad en el mes actual.</div>
+            <div className="fin-widget-empty-state">
+              <FiBarChart2 size={28} className="fin-widget-empty-icon" />
+              <p className="fin-widget-empty-text">
+                Sin ingresos ni costos registrados este mes.
+              </p>
+              <Link
+                to="/finance/ingresos"
+                className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
+              >
+                <FiPlus size={12} /> Registrar ingreso
+              </Link>
+            </div>
           ) : (
             <>
               <div className="fin-roi-section">
@@ -102,9 +122,7 @@ function RoiWidget() {
         </>
       )}
 
-      <div className="fin-widget-cta-row">
-        <Link className="aur-btn-text" to="/costos">Ver Centro de Costos →</Link>
-      </div>
+      {/* CTA secundaria movida al header (top-right, ver C3). */}
     </section>
   );
 }

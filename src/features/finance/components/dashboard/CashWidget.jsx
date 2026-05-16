@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiActivity } from 'react-icons/fi';
+import { FiActivity, FiPlus } from 'react-icons/fi';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 import WidgetSkeleton from './WidgetSkeleton';
 
@@ -55,19 +55,47 @@ function CashWidget() {
 
   const currency = data?.startingBalanceSource?.currency || 'USD';
   const isNegativeEnd = data?.summary?.endingBalance < 0;
+  // Sin saldo registrado = sin proyección útil. El backend devuelve data
+  // con startingBalance=0 y startingBalanceSource=null en este caso.
+  const hasBalance = !!data?.startingBalanceSource;
+
+  // .fin-widget--empty: borde dasheado + bg sutil que comunica
+  // "espacio reservado, llenable" cuando aún no hay data registrada.
+  const sectionCls = `aur-section${!loading && !error && data && !hasBalance ? ' fin-widget--empty' : ''}`;
 
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
         <span className="aur-section-num"><FiActivity size={14} /></span>
         <h3 className="aur-section-title">Caja</h3>
         {data?.weeks ? <span className="aur-section-count">Proyección {data.weeks}s</span> : null}
+        {hasBalance && (
+          <Link className="fin-widget-header-cta" to="/finance/tesoreria">
+            Ver Tesorería →
+          </Link>
+        )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando saldo de caja…" />}
       {error && <div className="fin-widget-error">{error}</div>}
 
-      {!loading && !error && data && (
+      {!loading && !error && data && !hasBalance && (
+        <div className="fin-widget-empty-state">
+          <FiActivity size={28} className="fin-widget-empty-icon" />
+          <p className="fin-widget-empty-text">
+            Aún no hay saldo de caja registrado. Sin saldo inicial no podemos
+            proyectar tu liquidez.
+          </p>
+          <Link
+            to="/finance/tesoreria"
+            className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
+          >
+            <FiPlus size={12} /> Registrar saldo inicial
+          </Link>
+        </div>
+      )}
+
+      {!loading && !error && data && hasBalance && (
         <>
           <div>
             <div className={`fin-widget-primary${isNegativeEnd ? ' fin-widget-primary--negative' : ''}`}>
@@ -99,9 +127,9 @@ function CashWidget() {
         </>
       )}
 
-      <div className="fin-widget-cta-row">
-        <Link className="aur-btn-text" to="/finance/tesoreria">Ver Tesorería →</Link>
-      </div>
+      {/* CTA secundaria "Ver Tesorería" se movió al header (top-right) para
+          liberar el footer y darle protagonismo al CTA primario del empty
+          state cuando aplica. */}
     </section>
   );
 }
