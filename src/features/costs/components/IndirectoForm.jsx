@@ -3,16 +3,10 @@ import { FiPlus } from 'react-icons/fi';
 
 /**
  * Form de quick-add para costos indirectos (mantenimiento, administrativo,
- * otro). Captura `fecha`, `categoria`, `descripcion` (opcional) y `monto`.
- *
- * El layout original era una sola fila plana con 4 inputs + botón. Este
- * componente los agrupa visualmente en dos secciones:
- *   - "Identificación" → categoría + descripción (qué es)
- *   - "Monto" → fecha + monto (cuánto y cuándo)
- * para que el usuario procese el form como dos preguntas en lugar de una
- * lista de cuatro huecos. La descripción se marca con "(opcional)" en el
- * label porque el placeholder "Opcional" original era fácil de pasar por
- * alto.
+ * otro). Captura `fecha`, `categoria`, `descripcion` (opcional) y `monto`
+ * en una sola fila inline: el orden coincide con el de las filas del
+ * listado (fecha → categoría → descripción → monto → acción) para que el
+ * usuario asocie input y resultado de un vistazo.
  *
  * Props:
  *   - categorias  array · [{ value, label }, …] de categorías permitidas
@@ -55,60 +49,52 @@ export default function IndirectoForm({ categorias, onSubmit }) {
 
   return (
     <div className="cost-ind-form">
-      <fieldset className="cost-ind-form-group">
-        <legend className="cost-ind-form-legend">Identificación</legend>
-        <div className="aur-field">
-          <label className="aur-field-label" htmlFor="ind-categoria">Categoría</label>
-          <select
-            id="ind-categoria"
-            className="aur-select"
-            value={form.categoria}
-            onChange={(e) => set('categoria', e.target.value)}
-          >
-            {categorias.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="aur-field">
-          <label className="aur-field-label" htmlFor="ind-desc">
-            Descripción <span className="aur-field-label-hint">(opcional)</span>
-          </label>
-          <input
-            id="ind-desc"
-            className="aur-input"
-            value={form.descripcion}
-            onChange={(e) => set('descripcion', e.target.value)}
-            placeholder="Ej: Cambio de aceite tractor 02"
-          />
-        </div>
-      </fieldset>
-
-      <fieldset className="cost-ind-form-group">
-        <legend className="cost-ind-form-legend">Monto</legend>
-        <div className="aur-field">
-          <label className="aur-field-label" htmlFor="ind-fecha">Fecha</label>
-          <input
-            id="ind-fecha"
-            type="date"
-            className="aur-input"
-            value={form.fecha}
-            onChange={(e) => set('fecha', e.target.value)}
-          />
-        </div>
-        <div className="aur-field">
-          <label className="aur-field-label" htmlFor="ind-monto">Monto</label>
-          <input
-            id="ind-monto"
-            type="number"
-            className="aur-input aur-input--num"
-            value={form.monto}
-            onChange={(e) => set('monto', e.target.value)}
-            placeholder="0.00"
-          />
-        </div>
-      </fieldset>
-
+      <div className="aur-field">
+        <label className="aur-field-label" htmlFor="ind-fecha">Fecha</label>
+        <input
+          id="ind-fecha"
+          type="date"
+          className="aur-input"
+          value={form.fecha}
+          onChange={(e) => set('fecha', e.target.value)}
+        />
+      </div>
+      <div className="aur-field">
+        <label className="aur-field-label" htmlFor="ind-categoria">Categoría</label>
+        <select
+          id="ind-categoria"
+          className="aur-select"
+          value={form.categoria}
+          onChange={(e) => set('categoria', e.target.value)}
+        >
+          {categorias.map((c) => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="aur-field cost-ind-form-desc">
+        <label className="aur-field-label" htmlFor="ind-desc">
+          Descripción <span className="aur-field-label-hint">(opcional)</span>
+        </label>
+        <input
+          id="ind-desc"
+          className="aur-input"
+          value={form.descripcion}
+          onChange={(e) => set('descripcion', e.target.value)}
+          placeholder="Ej: Cambio de aceite tractor 02"
+        />
+      </div>
+      <div className="aur-field">
+        <label className="aur-field-label" htmlFor="ind-monto">Monto</label>
+        <input
+          id="ind-monto"
+          type="number"
+          className="aur-input aur-input--num"
+          value={form.monto}
+          onChange={(e) => set('monto', e.target.value)}
+          placeholder="0.00"
+        />
+      </div>
       <button
         type="button"
         className="aur-btn-pill aur-btn-pill--sm cost-ind-form-submit"

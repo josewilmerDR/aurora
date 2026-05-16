@@ -66,19 +66,30 @@ export default function CostTable({
 
   return (
     <div className="cost-table-container">
-      {showColumnToggle && (
-        <div className="cost-table-toolbar">
+      <div className="cost-table-toolbar">
+        {/* Leyenda de la columna "Composición". Se renderiza acá (y no
+            global al top de la página) porque sólo es relevante mientras
+            esa columna está visible. RoiTable no la incluye. */}
+        <div className="cost-legend cost-legend--inline">
+          <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-comb" /> Combustible</span>
+          <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-plan" /> Planilla</span>
+          <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ins" /> Insumos</span>
+          <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-dep" /> Depreciación</span>
+          <span className="cost-legend-item"><span className="cost-legend-swatch cost-bar-ind" /> Indirectos</span>
+        </div>
+        {showColumnToggle && (
           <button
             type="button"
-            className="cost-table-btn aur-touch-target"
+            className={`aur-icon-btn aur-icon-btn--sm aur-touch-target${isCompact ? '' : ' aur-icon-btn--success'}`}
             onClick={() => setMode(isCompact ? 'full' : 'compact')}
-            title={isCompact ? 'Ver todas las columnas' : 'Volver a la vista compacta'}
+            title={isCompact ? 'Mostrar todas las columnas' : 'Volver a la vista compacta'}
+            aria-label={isCompact ? 'Mostrar todas las columnas' : 'Volver a la vista compacta'}
+            aria-pressed={!isCompact}
           >
-            <FiSliders size={12} />
-            {isCompact ? 'Mostrar todas (10 cols)' : 'Vista compacta (5 cols)'}
+            <FiSliders size={13} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <div className="aur-table-wrap">
         <table className="aur-table">
           <thead>
