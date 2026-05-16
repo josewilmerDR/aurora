@@ -1,6 +1,25 @@
 @import './finance.css';
 
-/* ── Grid de widgets ────────────────────────────────────────────────────── */
+/* ── Header con subtítulo de período ────────────────────────────────────
+   El page-header default no es flex; cuando contiene .fin-dashboard-subtitle
+   lo apilamos verticalmente para que el subtítulo (mes actual + leyenda
+   "vista en tiempo real") quede pegado debajo del h2. */
+.fin-dashboard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fin-dashboard-subtitle {
+  margin: 0;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
+  letter-spacing: 0.02em;
+}
+
+/* ── Grid de widgets ──────────────────────────────────────────────────────
+   Layout legacy: la grid plana 2x2. Se mantiene la regla porque podría
+   reusarse en el futuro y no rompe nada. La page del dashboard ahora usa
+   .fin-dashboard-section + .fin-dashboard-row (ver más abajo). */
 .fin-dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -11,6 +30,129 @@
 
 @media (max-width: 960px) {
   .fin-dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Secciones temáticas (Liquidez, Rentabilidad) ──────────────────────────
+   Cada sección tiene un label uppercase pequeño y un row con su propio
+   grid. La asimetría 2fr 1fr en Liquidez le da peso visual a Caja como
+   métrica primaria del dashboard sin romper la coherencia visual: ambos
+   widgets siguen siendo .aur-section, sólo cambia su ancho relativo. */
+.fin-dashboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+.fin-dashboard-section-label {
+  margin: 0;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  font-weight: 600;
+}
+.fin-dashboard-row {
+  display: grid;
+  gap: 16px;
+}
+.fin-dashboard-row--liquidity { grid-template-columns: 2fr 1fr; }
+.fin-dashboard-row--profit    { grid-template-columns: 1fr 1fr; }
+
+@media (max-width: 960px) {
+  .fin-dashboard-row--liquidity,
+  .fin-dashboard-row--profit { grid-template-columns: 1fr; }
+}
+
+/* La altura mínima de los widgets aplica también dentro de los nuevos rows
+   (no sólo del legacy .fin-dashboard-grid). */
+.fin-dashboard-row > .aur-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 220px;
+}
+@media (min-width: 960px) {
+  .fin-dashboard-row > .aur-section {
+    min-height: 280px;
+  }
+}
+
+/* ── C1: empty state visualmente distinto ─────────────────────────────────
+   Borde dasheado + fondo sutil para comunicar "espacio reservado, llenable".
+   El widget mantiene su altura y bordes; sólo cambia de "card sólida" a
+   "placeholder visible". El modificador lo aplica cada widget cuando
+   detecta que está en empty state.
+
+   Altura FIJA (no min-height) para que todos los empty cards midan igual
+   independientemente del ancho de columna y del wrapping de su texto. Sin
+   esto, Compromisos (1/3 de row) wrapeaba a más líneas que Caja (2/3) y
+   los cards quedaban dispares. La altura es lo bastante alta como para
+   absorber el peor caso de wrapping; el contenido va centrado vertical. */
+.fin-widget--empty {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.012), rgba(255, 255, 255, 0)),
+    var(--aur-bg-card);
+  height: 240px;
+}
+html[data-theme="light"] .fin-widget--empty {
+  border-color: rgba(13, 26, 38, 0.12);
+}
+@media (min-width: 960px) {
+  .fin-widget--empty { height: 320px; }
+}
+
+/* ── C2: stagger fade-in al montar el dashboard ───────────────────────────
+   Cada widget aparece con un fade + slide-up de 6px. Los delays están
+   anclados a la sección (--liquidity / --profit) para garantizar el orden
+   visual top→bottom, left→right independientemente de qué otros
+   <section> existan en el page-container.
+   `backwards` mantiene el opacity 0 antes del delay (evita que el widget
+   "parpadee" visible antes de su animación). */
+@keyframes fin-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fin-dashboard-row > .aur-section {
+  animation: fin-fade-in 0.35s ease-out backwards;
+}
+.fin-dashboard-section--liquidity .fin-dashboard-row > .aur-section:nth-child(1) { animation-delay:   0ms; }
+.fin-dashboard-section--liquidity .fin-dashboard-row > .aur-section:nth-child(2) { animation-delay:  60ms; }
+.fin-dashboard-section--profit    .fin-dashboard-row > .aur-section:nth-child(1) { animation-delay: 120ms; }
+.fin-dashboard-section--profit    .fin-dashboard-row > .aur-section:nth-child(2) { animation-delay: 180ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-dashboard-row > .aur-section {
+    animation: none;
+  }
+}
+
+/* ── C3: CTA secundaria en el header del widget ───────────────────────────
+   "Ver Tesorería →", "Ver Presupuestos →", etc. viven ahora dentro del
+   .aur-section-header alineadas a la derecha (margin-left: auto), liberando
+   el footer del widget para el CTA primario del empty state. Estilo: link
+   discreto en color accent, sin background ni border. */
+.fin-widget-header-cta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-accent);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.fin-widget-header-cta:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+.fin-widget-header-cta:focus-visible {
+  outline: 2px solid var(--aur-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .fin-dashboard-intro {
@@ -113,6 +255,172 @@
   font-size: var(--aur-fs-footnote);
   text-align: center;
   padding: 24px 0;
+}
+
+/* ── SetupChecklist (onboarding del dashboard) ────────────────────────────
+   Card persuasivo para usuarios nuevos. Vive entre el SectionIntro y la
+   primera sección de widgets. Auto-desaparece (y queda persistido en
+   localStorage) cuando el usuario completa los 3 pasos o cierra con ✕.
+   Color tonal verde sutil para que se diferencie de los widgets sin
+   competir con ellos. */
+.fin-setup-checklist {
+  background: linear-gradient(135deg, rgba(51, 255, 153, 0.06), rgba(51, 255, 153, 0.02));
+  border: 1px solid rgba(51, 255, 153, 0.20);
+  border-radius: var(--aur-r-card);
+  padding: 16px 18px 14px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fin-setup-checklist-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.fin-setup-checklist-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(51, 255, 153, 0.15);
+  color: var(--aur-accent);
+  flex-shrink: 0;
+}
+.fin-setup-checklist-title-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.fin-setup-checklist-title {
+  margin: 0;
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.fin-setup-checklist-progress {
+  margin: 0;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+}
+.fin-setup-checklist-close {
+  background: transparent;
+  border: none;
+  color: var(--aur-text-3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.fin-setup-checklist-close:hover {
+  color: var(--aur-text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.fin-setup-checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fin-setup-checklist-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s;
+}
+.fin-setup-checklist-item.is-done {
+  background: transparent;
+  opacity: 0.6;
+}
+.fin-setup-checklist-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aur-text-3);
+}
+.fin-setup-checklist-item.is-done .fin-setup-checklist-item-icon {
+  color: var(--aur-accent);
+}
+.fin-setup-checklist-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.fin-setup-checklist-item-label {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  font-weight: 500;
+}
+.fin-setup-checklist-item.is-done .fin-setup-checklist-item-label {
+  text-decoration: line-through;
+  color: var(--aur-text-2);
+}
+.fin-setup-checklist-item-hint {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+}
+.fin-setup-checklist-item-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--aur-fs-caption);
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .fin-setup-checklist-item {
+    grid-template-columns: auto 1fr;
+  }
+  .fin-setup-checklist-item-cta {
+    grid-column: 2 / 3;
+    justify-self: flex-start;
+    margin-top: 4px;
+  }
+}
+
+/* ── Empty state estructurado del widget ────────────────────────────────
+   Patrón: icono ilustrativo grande (opacity 0.4), texto descriptivo, CTA
+   primario que invita a CREAR data en lugar del link "Ver X →" del footer.
+   El flex-grow ocupa el espacio del contenido para que el widget vacío
+   tenga el mismo alto que un widget con data. */
+.fin-widget-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  flex: 1;
+  padding: 12px 8px;
+}
+.fin-widget-empty-icon {
+  color: var(--aur-text-3);
+  opacity: 0.4;
+}
+.fin-widget-empty-text {
+  margin: 0;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.45;
+  max-width: 32ch;
+}
+.fin-widget-empty-cta {
+  margin-top: 4px;
 }
 
 /* ── Loading state ──────────────────────────────────────────────────────
