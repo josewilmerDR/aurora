@@ -98,6 +98,8 @@ import OnboardingChecklist from './features/dashboard/components/OnboardingCheck
 import AppHeader from './components/AppHeader';
 import AutopilotPanel from './features/autopilot/components/AutopilotPanel';
 import ReminderNotification from './components/ReminderNotification';
+import ErrorBoundary from './components/ErrorBoundary';
+import NotFoundPage from './components/NotFoundPage';
 import { useReminderPoller } from './hooks/useReminderPoller';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useAutoPageTitle } from './hooks/usePageTitle';
@@ -314,7 +316,8 @@ function App() {
   return (
     <Router>
       <UserProvider>
-        <Suspense fallback={<div className="app-loading" />}>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="app-loading" />}>
           <Routes>
           {/* Public routes */}
           <Route element={<SimpleLayout />}>
@@ -433,9 +436,13 @@ function App() {
             <Route path="/admin/cierre-combustible" element={<RoleRoute path="/admin/cierre-combustible"><CierreCombustible /></RoleRoute>} />
             <Route path="/admin/parametros" element={<RoleRoute path="/admin/parametros"><Parameters /></RoleRoute>} />
             <Route path="/admin/auditoria" element={<RoleRoute path="/admin/auditoria"><AuditEvents /></RoleRoute>} />
+            {/* Catch-all 404 dentro del MainLayout: el usuario autenticado
+                ve la página de "no encontrado" sin perder header + sidebar. */}
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
           </Routes>
-        </Suspense>
+          </Suspense>
+        </ErrorBoundary>
       </UserProvider>
     </Router>
   );
