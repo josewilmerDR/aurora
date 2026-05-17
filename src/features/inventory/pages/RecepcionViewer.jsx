@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiPackage, FiCalendar, FiUser, FiFileText, FiImage, FiSlash, FiEdit, FiAlertTriangle } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../styles/agroquimicos.css';
 
 const fmtDate = (iso) => {
@@ -296,96 +297,69 @@ export default function RecepcionViewer() {
       )}
 
       {showEditarModal && (
-        <div className="aur-modal-backdrop" onPointerDown={() => !anulando && setShowEditarModal(false)}>
-          <div className="aur-modal" onPointerDown={(e) => e.stopPropagation()}>
-            <header className="aur-modal-header">
-              <h2 className="aur-modal-title">Editar recepción</h2>
-            </header>
-            <div className="aur-modal-content">
-              <p className="recv-anular-warn">
-                <FiAlertTriangle size={14} /> Esta recepción se anulará y se cargará el formulario con sus datos para que la registres de nuevo. La original queda en el historial como "Anulada".
-              </p>
-              <label className="recv-razon-label">
-                Razón <span style={{ color: '#ff6680' }}>*</span>
-                <textarea
-                  rows={3}
-                  maxLength={200}
-                  value={razon}
-                  onChange={e => setRazon(e.target.value)}
-                  placeholder="Ej. Corrigiendo cantidad de Glifosato"
-                  disabled={anulando}
-                  autoFocus
-                />
-                <span className="recv-razon-count">{razon.length}/200</span>
-              </label>
-            </div>
-            <div className="aur-modal-actions">
-              <button
-                type="button"
-                className="aur-btn-text"
-                onClick={() => setShowEditarModal(false)}
-                disabled={anulando}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="aur-btn-pill"
-                onClick={handleEditar}
-                disabled={anulando || !razon.trim()}
-              >
-                {anulando ? 'Cargando…' : 'Continuar'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          title="Editar recepción"
+          body={
+            <>
+              <FiAlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+              Esta recepción se anulará y se cargará el formulario con sus datos para que la registres de nuevo. La original queda en el historial como "Anulada".
+            </>
+          }
+          confirmLabel="Continuar"
+          loadingLabel="Cargando…"
+          loading={anulando}
+          confirmDisabled={!razon.trim()}
+          onConfirm={handleEditar}
+          onCancel={() => setShowEditarModal(false)}
+        >
+          <label className="recv-razon-label">
+            Razón <span style={{ color: '#ff6680' }}>*</span>
+            <textarea
+              rows={3}
+              maxLength={200}
+              value={razon}
+              onChange={e => setRazon(e.target.value)}
+              placeholder="Ej. Corrigiendo cantidad de Glifosato"
+              disabled={anulando}
+              autoFocus
+            />
+            <span className="recv-razon-count">{razon.length}/200</span>
+          </label>
+        </AuroraConfirmModal>
       )}
 
       {showAnularModal && (
-        <div className="aur-modal-backdrop" onPointerDown={() => !anulando && setShowAnularModal(false)}>
-          <div className="aur-modal" onPointerDown={(e) => e.stopPropagation()}>
-            <header className="aur-modal-header">
-              <h2 className="aur-modal-title">Anular recepción</h2>
-            </header>
-            <div className="aur-modal-content">
-              <p className="recv-anular-warn">
-                <FiAlertTriangle size={14} /> Esta acción reversará el stock ingresado de los {items.filter(i => i.productoId).length} producto(s).
-                No se puede deshacer y debe quedar justificada.
-              </p>
-              <label className="recv-razon-label">
-                Razón <span style={{ color: '#ff6680' }}>*</span>
-                <textarea
-                  rows={3}
-                  maxLength={200}
-                  value={razon}
-                  onChange={e => setRazon(e.target.value)}
-                  placeholder="Ej. Factura duplicada, proveedor equivocado…"
-                  disabled={anulando}
-                  autoFocus
-                />
-                <span className="recv-razon-count">{razon.length}/200</span>
-              </label>
-            </div>
-            <div className="aur-modal-actions">
-              <button
-                type="button"
-                className="aur-btn-text"
-                onClick={() => setShowAnularModal(false)}
-                disabled={anulando}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="aur-btn-pill aur-btn-pill--danger"
-                onClick={handleAnular}
-                disabled={anulando || !razon.trim()}
-              >
-                {anulando ? 'Anulando…' : 'Confirmar anulación'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AuroraConfirmModal
+          danger
+          title="Anular recepción"
+          body={
+            <>
+              <FiAlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+              Esta acción reversará el stock ingresado de los {items.filter(i => i.productoId).length} producto(s).
+              No se puede deshacer y debe quedar justificada.
+            </>
+          }
+          confirmLabel="Confirmar anulación"
+          loadingLabel="Anulando…"
+          loading={anulando}
+          confirmDisabled={!razon.trim()}
+          onConfirm={handleAnular}
+          onCancel={() => setShowAnularModal(false)}
+        >
+          <label className="recv-razon-label">
+            Razón <span style={{ color: '#ff6680' }}>*</span>
+            <textarea
+              rows={3}
+              maxLength={200}
+              value={razon}
+              onChange={e => setRazon(e.target.value)}
+              placeholder="Ej. Factura duplicada, proveedor equivocado…"
+              disabled={anulando}
+              autoFocus
+            />
+            <span className="recv-razon-count">{razon.length}/200</span>
+          </label>
+        </AuroraConfirmModal>
       )}
 
       {lightbox && (

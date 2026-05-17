@@ -107,43 +107,32 @@ function NuevoCatalogModal({ field, onConfirm, onCancel }) {
   const [nombre, setNombre] = useState('');
   const label = field === 'cosecha' ? 'cosecha' : 'etapa';
   const placeholder = field === 'cosecha' ? 'Ej. Cosecha I 2024' : 'Ej. Desarrollo';
-  return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={onCancel}>
-      <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
-        <header className="aur-modal-header">
-          <span className="aur-modal-icon"><FiPlus size={16} /></span>
-          <h2 className="aur-modal-title">Nueva {label}</h2>
-        </header>
-        <div className="aur-modal-content">
-          <div className="aur-field">
-            <label className="aur-field-label" htmlFor="catalog-nombre">
-              Nombre
-            </label>
-            <input
-              id="catalog-nombre"
-              className="aur-input"
-              placeholder={placeholder}
-              value={nombre}
-              onChange={e => setNombre(e.target.value)}
-              maxLength={32}
-              autoFocus
-              onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
-            />
-          </div>
-        </div>
-        <div className="aur-modal-actions">
-          <button className="aur-btn-text" onClick={onCancel}>Cancelar</button>
-          <button
-            className="aur-btn-pill"
-            disabled={!nombre.trim()}
-            onClick={() => onConfirm(nombre.trim())}
-          >
-            Agregar
-          </button>
-        </div>
+  return (
+    <AuroraConfirmModal
+      title={`Nueva ${label}`}
+      icon={<FiPlus size={16} />}
+      iconVariant="neutral"
+      confirmLabel="Agregar"
+      confirmDisabled={!nombre.trim()}
+      onConfirm={() => onConfirm(nombre.trim())}
+      onCancel={onCancel}
+    >
+      <div className="aur-field">
+        <label className="aur-field-label" htmlFor="catalog-nombre">
+          Nombre
+        </label>
+        <input
+          id="catalog-nombre"
+          className="aur-input"
+          placeholder={placeholder}
+          value={nombre}
+          onChange={e => setNombre(e.target.value)}
+          maxLength={32}
+          autoFocus
+          onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
+        />
       </div>
-    </div>,
-    document.body
+    </AuroraConfirmModal>
   );
 }
 
