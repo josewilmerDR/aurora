@@ -5,6 +5,7 @@ import '../styles/agroquimicos.css';
 import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import TomaFisicaModal from '../components/TomaFisicaModal';
@@ -617,11 +618,21 @@ function Existencias() {
                 </tbody>
               </table>
               {filteredActivos.length === 0 && (
-                <p className="empty-state" style={{ padding: '20px' }}>
-                  {(searchQuery || filterTipo || Object.keys(colFilters).length > 0)
-                    ? 'Sin resultados para la búsqueda actual.'
-                    : 'No hay productos creados aún.'}
-                </p>
+                (searchQuery || filterTipo || Object.keys(colFilters).length > 0) ? (
+                  <EmptyState
+                    variant="compact"
+                    icon={FiFilter}
+                    title="Sin resultados para la búsqueda actual"
+                    subtitle="Ajusta los filtros o limpia la búsqueda para ver más productos."
+                  />
+                ) : (
+                  <EmptyState
+                    variant="compact"
+                    icon={FiBox}
+                    title="No hay productos creados aún"
+                    subtitle="Registra el primer producto desde el botón “Nuevo producto”."
+                  />
+                )
               )}
             </div>
 

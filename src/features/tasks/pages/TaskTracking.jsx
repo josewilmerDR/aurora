@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu } from 'react-icons/fi';
+import { FiPlus, FiX, FiFileText, FiMoreVertical, FiArchive, FiMenu, FiCheckCircle } from 'react-icons/fi';
 import '../styles/task-tracking.css';
 import Toast from '../../../components/Toast';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 
@@ -685,7 +686,12 @@ function TaskTracking() {
               </button>
             )}
             {allTasksSorted.length === 0
-              ? <div className="empty-state">No hay tareas en esta categoría.</div>
+              ? <EmptyState
+                  variant="compact"
+                  icon={FiCheckCircle}
+                  title="No hay tareas en esta categoría"
+                  subtitle="Cuando se generen tareas para los lotes seleccionados aparecerán aquí."
+                />
               : <div className="aur-list tasks-list">{allTasksSorted.map(renderTaskCard)}</div>
             }
           </>
@@ -699,13 +705,25 @@ function TaskTracking() {
               ← Volver a Todas
             </button>
             {filteredTasks.length === 0
-              ? <div className="empty-state">No hay tareas archivadas.</div>
+              ? <EmptyState
+                  variant="compact"
+                  icon={FiArchive}
+                  title="No hay tareas archivadas"
+                  subtitle="Las tareas que archives desde el menú de cada tarjeta aparecerán aquí."
+                />
               : <div className="aur-list tasks-list archived-grid">{filteredTasks.map(renderTaskCard)}</div>
             }
           </>
         ) : (
           <>
-            {filteredTasks.length === 0 && <div className="empty-state">No hay tareas en esta categoría.</div>}
+            {filteredTasks.length === 0 && (
+              <EmptyState
+                variant="compact"
+                icon={FiCheckCircle}
+                title="No hay tareas en esta categoría"
+                subtitle="Cambia de filtro o espera a que el sistema genere nuevas tareas."
+              />
+            )}
             <div className="aur-list tasks-list">
               {filteredTasks.map(renderTaskCard)}
             </div>

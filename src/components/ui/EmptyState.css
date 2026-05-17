@@ -1,0 +1,71 @@
+/* EmptyState — vacío consistente para tablas, listas y paneles. */
+
+.aur-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--aur-text-2);
+  /* Centra siempre el subtítulo aunque la línea sea larga: max-width acotado y
+     margen auto. Sin esto, el subtítulo se estira de borde a borde dentro de
+     una sección amplia y rompe la jerarquía visual. */
+}
+
+.aur-empty--default {
+  padding: 48px 24px;
+  gap: 10px;
+}
+
+.aur-empty--compact {
+  padding: 28px 16px;
+  gap: 8px;
+}
+
+.aur-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aur-text-3);
+  opacity: 0.6;
+  margin-bottom: 2px;
+}
+
+.aur-empty--default .aur-empty-icon {
+  font-size: 36px;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--aur-bg-input);
+}
+
+.aur-empty--compact .aur-empty-icon {
+  font-size: 22px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--aur-bg-input);
+}
+
+.aur-empty-title {
+  font-size: var(--aur-fs-body);
+  font-weight: 500;
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+  max-width: 380px;
+}
+
+.aur-empty--compact .aur-empty-title {
+  font-size: var(--aur-fs-footnote);
+}
+
+.aur-empty-subtitle {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  max-width: 420px;
+  line-height: 1.45;
+}
+
+.aur-empty-action {
+  margin-top: 6px;
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiCheck, FiX, FiCalendar, FiSave, FiUsers } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import '../styles/hr.css';
@@ -224,7 +225,11 @@ export default function Asistencia() {
       {loading ? (
         <div className="asist-loading">Cargando…</div>
       ) : users.length === 0 ? (
-        <div className="empty-state">No hay trabajadores registrados.</div>
+        <EmptyState
+          icon={FiUsers}
+          title="No hay trabajadores registrados"
+          subtitle="Crea la primera ficha desde Recursos Humanos → Ficha del Trabajador."
+        />
       ) : (
         <div className="asist-grid">
           {users.map(u => {
