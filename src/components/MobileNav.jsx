@@ -88,6 +88,8 @@ export default function MobileNav() {
             className={`mn-pin-btn${pinned ? ' pinned' : ''}`}
             onClick={(e) => { e.stopPropagation(); togglePin(item.to); }}
             title={pinned ? 'Quitar de favoritos' : 'Fijar'}
+            aria-label={pinned ? `Quitar "${item.label}" de favoritos` : `Fijar "${item.label}" en favoritos`}
+            aria-pressed={pinned}
           >
             <FiStar size={14} />
           </button>
@@ -215,7 +217,7 @@ export default function MobileNav() {
           <div className="mn-sheet-handle" />
           <div className="mn-sheet-header">
             <span className="mn-sheet-title">{sheetTitles[sheet]}</span>
-            <button className="aur-icon-btn" onClick={() => setSheet(null)} title="Cerrar"><FiX size={18} /></button>
+            <button className="aur-icon-btn" onClick={() => setSheet(null)} title="Cerrar" aria-label="Cerrar"><FiX size={18} /></button>
           </div>
           <div className="mn-sheet-body">
             {sheet === 'favoritos' && renderFavoritosSheet()}

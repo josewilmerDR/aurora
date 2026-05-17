@@ -136,6 +136,8 @@ export default function AppHeader({
         className="aur-icon-btn aur-header-menu-btn"
         onClick={toggleCollapse}
         title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+        aria-label={isCollapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'}
+        aria-expanded={!isCollapsed}
       >
         <FiMenu size={20} />
       </button>
@@ -150,6 +152,7 @@ export default function AppHeader({
           className="aur-icon-btn aur-header-search-back"
           onClick={closeMobileSearch}
           title="Cerrar búsqueda"
+          aria-label="Cerrar búsqueda"
         >
           <FiArrowLeft size={18} />
         </button>
@@ -187,6 +190,7 @@ export default function AppHeader({
         className="aur-icon-btn aur-header-search-toggle"
         onClick={openMobileSearch}
         title="Buscar"
+        aria-label="Abrir búsqueda"
       >
         <FiSearch size={19} />
       </button>
@@ -196,10 +200,14 @@ export default function AppHeader({
           className={`aur-icon-btn aur-icon-btn--success aur-header-autopilot-btn${autopilotOpen ? ' is-active' : ''}`}
           onClick={onOpenAutopilot}
           title="Aurora Copilot"
+          aria-label={autopilotPendingCount > 0
+            ? `Aurora Copilot — ${autopilotPendingCount} acción(es) pendiente(s)`
+            : 'Aurora Copilot'}
+          aria-expanded={autopilotOpen}
         >
           <FiCpu size={17} />
           {autopilotPendingCount > 0 && (
-            <span className="aur-badge aur-badge--yellow aur-header-counter">
+            <span className="aur-badge aur-badge--yellow aur-header-counter" aria-hidden="true">
               {autopilotPendingCount > 99 ? '99+' : autopilotPendingCount}
             </span>
           )}
@@ -210,13 +218,17 @@ export default function AppHeader({
         className={`aur-header-profile-btn${profileOpen ? ' is-active' : ''}`}
         onClick={onToggleProfile}
         title={overdueCount > 0 ? `Mi perfil — ${overdueCount} recordatorio(s) vencido(s)` : 'Mi perfil'}
+        aria-label={overdueCount > 0
+          ? `Mi perfil — ${overdueCount} recordatorio(s) vencido(s)`
+          : 'Mi perfil'}
+        aria-expanded={profileOpen}
       >
-        <FiUser size={17} />
+        <FiUser size={17} aria-hidden="true" />
         <span className="aur-header-profile-name">{currentUser?.nombre?.split(' ')[0] || 'Perfil'}</span>
         {overdueCount > 0 && (
           <span
             className="aur-badge aur-badge--magenta aur-header-counter"
-            aria-label={`${overdueCount} recordatorios vencidos`}
+            aria-hidden="true"
           >
             {overdueCount > 9 ? '9+' : overdueCount}
           </span>

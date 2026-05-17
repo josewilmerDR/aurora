@@ -17,12 +17,14 @@ export default defineConfig({
         name: 'Aurora',
         short_name: 'Aurora',
         description: 'Plataforma de gestión agrícola',
+        lang: 'es',
         theme_color: '#0d1a26',
         background_color: '#0d1a26',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
         start_url: '/',
+        categories: ['productivity', 'business'],
         icons: [
           {
             src: 'aurora-logo.png',

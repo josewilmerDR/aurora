@@ -222,13 +222,15 @@ export default function AuroraDataTable({
                           <span className="aur-th-arrow">
                             {isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
                           </span>
-                          <span
+                          <button
+                            type="button"
                             className={`aur-th-funnel${hasFilt ? ' is-active' : ''}`}
                             onClick={(e) => openColFilter(e, col.key, col.type)}
                             title="Filtrar columna"
+                            aria-label={hasFilt ? `Editar filtro de columna ${col.label}` : `Filtrar columna ${col.label}`}
                           >
                             <FiFilter size={10} />
-                          </span>
+                          </button>
                         </span>
                       </th>
                     );
@@ -240,10 +242,14 @@ export default function AuroraDataTable({
                       className={`aur-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
                       onClick={handleColBtnClick}
                       title="Personalizar columnas"
+                      aria-label={hiddenCount > 0
+                        ? `Personalizar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
+                        : 'Personalizar columnas'}
+                      aria-haspopup="menu"
                     >
                       <FiSliders size={12} />
                       {hiddenCount > 0 && (
-                        <span className="aur-col-hidden-badge">{hiddenCount}</span>
+                        <span className="aur-col-hidden-badge" aria-hidden="true">{hiddenCount}</span>
                       )}
                     </button>
                   </th>
@@ -315,6 +321,7 @@ export default function AuroraDataTable({
                     type="button"
                     className="aur-filter-clear"
                     onClick={() => { clearColFilter(filterPopover.field); setFilterPopover(null); }}
+                    aria-label="Limpiar filtro"
                   >
                     <FiX size={13} />
                   </button>
@@ -343,6 +350,7 @@ export default function AuroraDataTable({
                     type="button"
                     className="aur-filter-clear"
                     onClick={() => { clearColFilter(filterPopover.field); setFilterPopover(null); }}
+                    aria-label="Limpiar filtro"
                   >
                     <FiX size={13} />
                   </button>

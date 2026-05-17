@@ -514,6 +514,8 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             className={`pin-btn${pinned ? ' pinned' : ''}`}
             onClick={(e) => { e.stopPropagation(); togglePin(item.to); }}
             title={pinned ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            aria-label={pinned ? `Quitar "${item.label}" de favoritos` : `Agregar "${item.label}" a favoritos`}
+            aria-pressed={pinned}
           >
             <FiStar size={14} />
           </button>
@@ -660,10 +662,11 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
               className="collapsed-link"
               onClick={() => handleModuleClick(mod.id)}
               title={mod.nombre}
+              aria-label={`Abrir módulo ${mod.nombre}`}
             >
               <span className="icon-wrap">
-                <ModIcon size={20} />
-                {modHasDraft && <span className="draft-dot" title="Borrador en progreso" />}
+                <ModIcon size={20} aria-hidden="true" />
+                {modHasDraft && <span className="draft-dot" title="Borrador en progreso" aria-hidden="true" />}
               </span>
             </button>
           );
@@ -748,6 +751,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
               className="sidebar-logout-btn"
               onClick={() => navigate('/config/cuenta')}
               title="Configuración de cuenta"
+              aria-label="Configuración de cuenta"
             >
               <FiSliders size={16} />
             </button>
@@ -756,6 +760,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             className="sidebar-logout-btn sidebar-logout-btn--danger"
             onClick={() => navigate('/logout')}
             title="Cerrar sesión"
+            aria-label="Cerrar sesión"
           >
             <FiLogOut size={16} />
           </button>

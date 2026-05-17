@@ -41,6 +41,35 @@
   }
 }
 
+/* ── Skip link ─────────────────────────────────────────────────────────────
+   Permite a usuarios de teclado / lectores de pantalla saltarse el header
+   y la sidebar para ir directo al contenido. Visualmente oculto hasta que
+   recibe foco (Tab desde la primera pulsación). ──────────────────────────── */
+.aur-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 10000;
+}
+.aur-skip-link:focus,
+.aur-skip-link:focus-visible {
+  left: 12px;
+  top: 12px;
+  width: auto;
+  height: auto;
+  padding: 10px 16px;
+  background: var(--aurora-green);
+  color: var(--aurora-dark-blue);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  outline: 2px solid var(--aurora-dark-blue);
+  outline-offset: 2px;
+}
+
 html[data-theme="light"] {
   --aurora-background: #ffffff;
   --aurora-light: #0d1a26;

@@ -1289,6 +1289,10 @@ html[data-theme="light"] .aur-modal-actions {
   cursor: pointer;
   opacity: 0;
   color: var(--aur-text-3);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .aur-th-sortable:hover .aur-th-funnel {

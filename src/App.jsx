@@ -89,6 +89,7 @@ import AutopilotPanel from './features/autopilot/components/AutopilotPanel';
 import ReminderNotification from './components/ReminderNotification';
 import { useReminderPoller } from './hooks/useReminderPoller';
 import { usePushNotifications } from './hooks/usePushNotifications';
+import { useAutoPageTitle } from './hooks/usePageTitle';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { RemindersProvider, useReminders } from './contexts/RemindersContext';
 import { ALL_ITEMS } from './components/Sidebar';
@@ -181,6 +182,7 @@ const MainLayout = () => {
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const { pendingReminders, dismissReminder } = useReminderPoller();
   const { reload: reloadReminders } = useReminders();
+  useAutoPageTitle();
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
     localStorage.getItem('aurora_push_prompt_dismissed') === 'true'
@@ -231,6 +233,7 @@ const MainLayout = () => {
 
   return (
     <div className="app-wrapper">
+      <a href="#main-content" className="aur-skip-link">Saltar al contenido</a>
       <AppHeader
         isCollapsed={isCollapsed}
         toggleCollapse={toggleCollapse}
@@ -243,7 +246,7 @@ const MainLayout = () => {
       {/* ── Body ── */}
       <div className="app-layout">
         <Sidebar isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
-        <main className="content-area">
+        <main className="content-area" id="main-content" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
@@ -283,13 +286,16 @@ const MainLayout = () => {
   );
 };
 
-const SimpleLayout = () => (
-  <div className="SimpleApp">
-    <main>
-      <Outlet />
-    </main>
-  </div>
-);
+const SimpleLayout = () => {
+  useAutoPageTitle();
+  return (
+    <div className="SimpleApp">
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  );
+};
 
 // --- App ---
 
