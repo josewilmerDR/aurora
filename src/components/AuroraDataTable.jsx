@@ -171,7 +171,7 @@ export default function AuroraDataTable({
           )}
           {Object.keys(colFilters).length > 0 && (
             <button
-              className="aur-btn-text"
+              className="aur-btn-text aur-table-clear-filters"
               type="button"
               onClick={() => { setColFilters({}); setPage(1); }}
             >
