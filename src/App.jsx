@@ -1,85 +1,96 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
-import UserManagement from './features/admin/pages/UserManagement';
-import PackageManagement from './features/applications/pages/PackageManagement';
-import LoteManagement from './features/fields/pages/LoteManagement';
-import TaskTracking from './features/tasks/pages/TaskTracking';
-import Dashboard from './features/dashboard/pages/Dashboard';
-import TaskAction from './features/tasks/pages/TaskAction';
-import Existencias from './features/inventory/pages/Existencias';
-import ProductosCatalogo from './features/inventory/pages/ProductosCatalogo';
-import Recepcion from './features/inventory/pages/Recepcion';
-import MovimientosHistorial from './features/inventory/pages/MovimientosHistorial';
-import RecepcionViewer from './features/inventory/pages/RecepcionViewer';
-import OCDesdeSolicitud from './features/procurement/pages/OCDesdeSolicitud';
-import OCNueva from './features/procurement/pages/OCNueva';
-import OCHistorial from './features/procurement/pages/OCHistorial';
-import ProveedoresList from './features/procurement/pages/ProveedoresList';
+
+// ─── Eager: páginas de la ruta caliente ──────────────────────────────────────
+// Auth flow (la app no arranca sin estos), pantallas más visitadas (Home,
+// Tareas, Lotes, Existencias) y Profile (que se monta siempre en el panel
+// lateral del MainLayout, así que un lazy aquí pegaría a todo el árbol
+// autenticado). Todo lo demás se carga bajo demanda.
 import Login from './features/auth/pages/Login';
 import LoginPassword from './features/auth/pages/LoginPassword';
 import Register from './features/auth/pages/Register';
 import ForgotPassword from './features/auth/pages/ForgotPassword';
-import Profile from './features/account/pages/Profile';
 import OrganizationSelector from './features/auth/pages/OrganizationSelector';
 import NewOrganization from './features/auth/pages/NewOrganization';
-import EmployeeProfile from './features/hr/pages/EmployeeProfile';
-import LeaveRequests from './features/hr/pages/LeaveRequests';
-import Asistencia from './features/hr/pages/Asistencia';
-import FixedPayrollPage from './features/hr/pages/FixedPayrollPage';
-import FixedPayrollReport from './features/hr/pages/FixedPayrollReport';
-import UnitPayrollPage from './features/hr/pages/UnitPayrollPage';
-import SamplingHistory from './features/monitoring/pages/SamplingHistory';
-import TemplateConfig from './features/monitoring/pages/TemplateConfig';
-import SamplingPackages from './features/monitoring/pages/SamplingPackages';
-import SamplingCenter from './features/monitoring/pages/SamplingCenter';
-import AccountSettings from './features/account/pages/AccountSettings';
-import Parameters from './features/admin/pages/Parameters';
-import MaquinariaList from './features/machinery/pages/MaquinariaList';
-import InitialSetup from './features/admin/pages/InitialSetup';
-import AuditEvents from './features/admin/pages/AuditEvents';
-import Calibraciones from './features/machinery/pages/Calibraciones';
-import LaborList from './features/admin/pages/LaborList';
-import UnidadesMedida from './features/admin/pages/UnidadesMedida';
-import Horimetro from './features/machinery/pages/Horimetro';
-import RegistroHorimetro from './features/machinery/pages/RegistroHorimetro';
-import HistorialHorimetros from './features/machinery/pages/HistorialHorimetros';
-import GrupoManagement from './features/fields/pages/GrupoManagement';
-import CedulasAplicacion from './features/applications/pages/CedulasAplicacion';
-import HistorialAplicaciones from './features/applications/pages/HistorialAplicaciones';
-import CedulaViewer from './features/applications/pages/CedulaViewer';
-import BodegasAdmin from './features/inventory/pages/BodegasAdmin';
-import CierreCombustible from './features/machinery/pages/CierreCombustible';
-import BodegaGenerica from './features/inventory/pages/BodegaGenerica';
-import BodegaCombustibles from './features/inventory/pages/BodegaCombustibles';
-import Siembra from './features/planting/pages/Siembra';
-import SiembraMateriales from './features/planting/pages/SiembraMateriales';
-import SiembraHistorial from './features/planting/pages/SiembraHistorial';
-import CosechaProyeccion from './features/harvest/pages/CosechaProyeccion';
-import CosechaRegistro from './features/harvest/pages/CosechaRegistro';
-import CosechaDespachos from './features/harvest/pages/CosechaDespachos';
-import CostCenter from './features/costs/pages/CostCenter';
-import Budgets from './features/finance/pages/Budgets';
-import FinanceDashboard from './features/finance/pages/FinanceDashboard';
-import FinancingDashboard from './features/finance/pages/FinancingDashboard';
-import CreditOffers from './features/finance/pages/CreditOffers';
-import DebtSimulations from './features/finance/pages/DebtSimulations';
-import CeoDashboard from './features/ceo/pages/CeoDashboard';
-import IncomeRecords from './features/finance/pages/IncomeRecords';
-import BuyersList from './features/finance/pages/BuyersList';
-import Treasury from './features/finance/pages/Treasury';
-import AutopilotDashboard from './features/autopilot/pages/AutopilotDashboard';
-import AutopilotConfig from './features/autopilot/pages/AutopilotConfig';
-import ProcurementDashboard from './features/procurement/pages/ProcurementDashboard';
-import YieldHistory from './features/strategy/pages/YieldHistory';
-import TemporadasManager from './features/strategy/pages/TemporadasManager';
-import RotationConstraints from './features/strategy/pages/RotationConstraints';
-import RotationRecommender from './features/strategy/pages/RotationRecommender';
-import SignalSources from './features/strategy/pages/SignalSources';
-import SignalsDashboard from './features/strategy/pages/SignalsDashboard';
-import ScenariosSimulator from './features/strategy/pages/ScenariosSimulator';
-import AnnualPlan from './features/strategy/pages/AnnualPlan';
-import RfqsList from './features/procurement/pages/RfqsList';
-import ProcurementHub from './features/procurement/pages/ProcurementHub';
+import Dashboard from './features/dashboard/pages/Dashboard';
+import TaskTracking from './features/tasks/pages/TaskTracking';
+import TaskAction from './features/tasks/pages/TaskAction';
+import LoteManagement from './features/fields/pages/LoteManagement';
+import Existencias from './features/inventory/pages/Existencias';
+import Profile from './features/account/pages/Profile';
+
+// ─── Lazy: páginas detrás de un click ────────────────────────────────────────
+// Cada lazy() genera un chunk independiente; el initial bundle de la app
+// arranca con ~50% menos código. El fallback de <Suspense> es el mismo
+// .app-loading que usa ProtectedRoute mientras resuelve auth.
+const UserManagement = lazy(() => import('./features/admin/pages/UserManagement'));
+const PackageManagement = lazy(() => import('./features/applications/pages/PackageManagement'));
+const ProductosCatalogo = lazy(() => import('./features/inventory/pages/ProductosCatalogo'));
+const Recepcion = lazy(() => import('./features/inventory/pages/Recepcion'));
+const MovimientosHistorial = lazy(() => import('./features/inventory/pages/MovimientosHistorial'));
+const RecepcionViewer = lazy(() => import('./features/inventory/pages/RecepcionViewer'));
+const OCDesdeSolicitud = lazy(() => import('./features/procurement/pages/OCDesdeSolicitud'));
+const OCNueva = lazy(() => import('./features/procurement/pages/OCNueva'));
+const OCHistorial = lazy(() => import('./features/procurement/pages/OCHistorial'));
+const ProveedoresList = lazy(() => import('./features/procurement/pages/ProveedoresList'));
+const EmployeeProfile = lazy(() => import('./features/hr/pages/EmployeeProfile'));
+const LeaveRequests = lazy(() => import('./features/hr/pages/LeaveRequests'));
+const Asistencia = lazy(() => import('./features/hr/pages/Asistencia'));
+const FixedPayrollPage = lazy(() => import('./features/hr/pages/FixedPayrollPage'));
+const FixedPayrollReport = lazy(() => import('./features/hr/pages/FixedPayrollReport'));
+const UnitPayrollPage = lazy(() => import('./features/hr/pages/UnitPayrollPage'));
+const SamplingHistory = lazy(() => import('./features/monitoring/pages/SamplingHistory'));
+const TemplateConfig = lazy(() => import('./features/monitoring/pages/TemplateConfig'));
+const SamplingPackages = lazy(() => import('./features/monitoring/pages/SamplingPackages'));
+const SamplingCenter = lazy(() => import('./features/monitoring/pages/SamplingCenter'));
+const AccountSettings = lazy(() => import('./features/account/pages/AccountSettings'));
+const Parameters = lazy(() => import('./features/admin/pages/Parameters'));
+const MaquinariaList = lazy(() => import('./features/machinery/pages/MaquinariaList'));
+const InitialSetup = lazy(() => import('./features/admin/pages/InitialSetup'));
+const AuditEvents = lazy(() => import('./features/admin/pages/AuditEvents'));
+const Calibraciones = lazy(() => import('./features/machinery/pages/Calibraciones'));
+const LaborList = lazy(() => import('./features/admin/pages/LaborList'));
+const UnidadesMedida = lazy(() => import('./features/admin/pages/UnidadesMedida'));
+const Horimetro = lazy(() => import('./features/machinery/pages/Horimetro'));
+const RegistroHorimetro = lazy(() => import('./features/machinery/pages/RegistroHorimetro'));
+const HistorialHorimetros = lazy(() => import('./features/machinery/pages/HistorialHorimetros'));
+const GrupoManagement = lazy(() => import('./features/fields/pages/GrupoManagement'));
+const CedulasAplicacion = lazy(() => import('./features/applications/pages/CedulasAplicacion'));
+const HistorialAplicaciones = lazy(() => import('./features/applications/pages/HistorialAplicaciones'));
+const CedulaViewer = lazy(() => import('./features/applications/pages/CedulaViewer'));
+const BodegasAdmin = lazy(() => import('./features/inventory/pages/BodegasAdmin'));
+const CierreCombustible = lazy(() => import('./features/machinery/pages/CierreCombustible'));
+const BodegaGenerica = lazy(() => import('./features/inventory/pages/BodegaGenerica'));
+const BodegaCombustibles = lazy(() => import('./features/inventory/pages/BodegaCombustibles'));
+const Siembra = lazy(() => import('./features/planting/pages/Siembra'));
+const SiembraMateriales = lazy(() => import('./features/planting/pages/SiembraMateriales'));
+const SiembraHistorial = lazy(() => import('./features/planting/pages/SiembraHistorial'));
+const CosechaProyeccion = lazy(() => import('./features/harvest/pages/CosechaProyeccion'));
+const CosechaRegistro = lazy(() => import('./features/harvest/pages/CosechaRegistro'));
+const CosechaDespachos = lazy(() => import('./features/harvest/pages/CosechaDespachos'));
+const CostCenter = lazy(() => import('./features/costs/pages/CostCenter'));
+const Budgets = lazy(() => import('./features/finance/pages/Budgets'));
+const FinanceDashboard = lazy(() => import('./features/finance/pages/FinanceDashboard'));
+const FinancingDashboard = lazy(() => import('./features/finance/pages/FinancingDashboard'));
+const CreditOffers = lazy(() => import('./features/finance/pages/CreditOffers'));
+const DebtSimulations = lazy(() => import('./features/finance/pages/DebtSimulations'));
+const CeoDashboard = lazy(() => import('./features/ceo/pages/CeoDashboard'));
+const IncomeRecords = lazy(() => import('./features/finance/pages/IncomeRecords'));
+const BuyersList = lazy(() => import('./features/finance/pages/BuyersList'));
+const Treasury = lazy(() => import('./features/finance/pages/Treasury'));
+const AutopilotDashboard = lazy(() => import('./features/autopilot/pages/AutopilotDashboard'));
+const AutopilotConfig = lazy(() => import('./features/autopilot/pages/AutopilotConfig'));
+const ProcurementDashboard = lazy(() => import('./features/procurement/pages/ProcurementDashboard'));
+const YieldHistory = lazy(() => import('./features/strategy/pages/YieldHistory'));
+const TemporadasManager = lazy(() => import('./features/strategy/pages/TemporadasManager'));
+const RotationConstraints = lazy(() => import('./features/strategy/pages/RotationConstraints'));
+const RotationRecommender = lazy(() => import('./features/strategy/pages/RotationRecommender'));
+const SignalSources = lazy(() => import('./features/strategy/pages/SignalSources'));
+const SignalsDashboard = lazy(() => import('./features/strategy/pages/SignalsDashboard'));
+const ScenariosSimulator = lazy(() => import('./features/strategy/pages/ScenariosSimulator'));
+const AnnualPlan = lazy(() => import('./features/strategy/pages/AnnualPlan'));
+const RfqsList = lazy(() => import('./features/procurement/pages/RfqsList'));
+const ProcurementHub = lazy(() => import('./features/procurement/pages/ProcurementHub'));
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AuroraChat from './components/AuroraChat';
@@ -306,6 +317,7 @@ function App() {
     <Router>
       <UserProvider>
         <ErrorBoundary>
+          <Suspense fallback={<div className="app-loading" />}>
           <Routes>
           {/* Public routes */}
           <Route element={<SimpleLayout />}>
@@ -429,6 +441,7 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Route>
           </Routes>
+          </Suspense>
         </ErrorBoundary>
       </UserProvider>
     </Router>
