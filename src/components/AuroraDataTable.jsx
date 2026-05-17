@@ -31,6 +31,7 @@ export default function AuroraDataTable({
   renderRow,
   emptyText = 'No hay registros con los filtros aplicados.',
   resetPaginationKey = 0,
+  onDisplayDataChange = null,
 }) {
   const allVisible = useMemo(
     () => Object.fromEntries(columns.map(c => [c.key, true])),
@@ -142,6 +143,13 @@ export default function AuroraDataTable({
 
   // Reset page si la fuente externa cambia.
   useEffect(() => { setPage(1); }, [resetPaginationKey]);
+
+  // Permite al parent reaccionar a la data filtrada+ordenada (ej. stats arriba
+  // de la tabla que deben reflejar filtros de columna, export/preview que
+  // respetan la vista actual).
+  useEffect(() => {
+    if (onDisplayDataChange) onDisplayDataChange(displayData);
+  }, [displayData, onDisplayDataChange]);
 
   const visibleData = pageSize ? displayData.slice(0, page * pageSize) : displayData;
   const hasMore     = pageSize ? visibleData.length < displayData.length : false;
