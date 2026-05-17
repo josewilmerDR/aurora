@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
-  FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
-  FiDownload, FiPrinter, FiX, FiShare2, FiEdit2,
+  FiTrash2, FiCheckCircle, FiCircle, FiMoreVertical,
+  FiDownload, FiPrinter, FiX, FiShare2, FiEdit2, FiPlus,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -59,7 +59,7 @@ const COLUMNS = [
 const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
 
-function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
+function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onExportXLSX }) {
   const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
   const docRef = useRef(null);
   const [sharing, setSharing] = useState(false);
@@ -113,6 +113,9 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
         <span className="sh-preview-title">Vista previa — Historial de Siembra</span>
         <div className="sh-preview-topbar-actions">
           <button className="sh-preview-btn-close" onClick={onClose}><FiX size={15} /> Cerrar</button>
+          <button className="sh-preview-btn-excel" onClick={onExportXLSX} title="Descargar Excel">
+            <FiDownload size={15} /> <span className="sh-preview-btn-label">Excel</span>
+          </button>
           <button className="sh-preview-btn-share" onClick={handleShare} disabled={sharing}>
             <FiShare2 size={15} /> {sharing ? 'Generando…' : 'Compartir PDF'}
           </button>
@@ -540,6 +543,7 @@ function SiembraHistorial() {
           displayData={displayData}
           stats={stats}
           onClose={() => setShowPreview(false)}
+          onExportXLSX={exportXLSX}
         />
       )}
 
@@ -552,16 +556,12 @@ function SiembraHistorial() {
             <div className="aur-sheet-header-text">
               <h2 className="aur-sheet-title">Historial de siembra</h2>
               <p className="aur-sheet-subtitle">
-                Consulta, filtra, exporta y comparte los registros guardados.{' '}
-                <Link to="/siembra" className="aur-btn-text" style={{ color: 'var(--aur-accent)' }}>[Ir a registro de siembra]</Link>
+                Consulta, filtra, exporta y comparte los registros guardados.
               </p>
             </div>
           </header>
 
           <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Resumen</h3>
-            </div>
             <div className="shp-stats">
               <div className="shp-stat shp-stat--hide-mobile">
                 <span className="shp-stat-value">{displayData.length}</span>
@@ -594,12 +594,12 @@ function SiembraHistorial() {
             onDisplayDataChange={setDisplayData}
             toolbarActions={
               <>
-                <button type="button" className="aur-chip" onClick={exportXLSX} title="Exportar a Excel">
-                  <FiDownload size={12} /> Excel
+                <button type="button" className="aur-chip aur-chip--ghost" onClick={() => setShowPreview(true)} title="Compartir, imprimir o exportar">
+                  <FiShare2 size={12} /> <span className="shp-btn-label">Compartir</span>
                 </button>
-                <button type="button" className="aur-chip" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
-                  <FiShare2 size={12} /> Compartir
-                </button>
+                <Link to="/siembra" state={{ openForm: true }} className="aur-btn-pill aur-btn-pill--sm" title="Crear nuevo registro de siembra">
+                  <FiPlus size={14} /> Nuevo registro
+                </Link>
               </>
             }
             emptyText={
@@ -609,12 +609,6 @@ function SiembraHistorial() {
             }
           />
 
-          {displayData.some(r => r.cerrado) && (
-            <p className="siembra-cerrado-hint print-hide">
-              <FiAlertCircle size={13} />
-              Los bloques cerrados están listos para iniciar aplicaciones.
-            </p>
-          )}
         </div>
       )}
 
