@@ -5,6 +5,8 @@ export default function PasswordInput({
   id,
   value,
   onChange,
+  onBlur,
+  className = 'aur-input',
   placeholder,
   autoComplete = 'current-password',
   autoFocus = false,
@@ -17,9 +19,10 @@ export default function PasswordInput({
       <input
         id={id}
         type={show ? 'text' : 'password'}
-        className="aur-input"
+        className={className}
         value={value}
         onChange={onChange}
+        onBlur={onBlur}
         placeholder={placeholder}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
