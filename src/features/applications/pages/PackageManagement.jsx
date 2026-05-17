@@ -137,6 +137,28 @@ function PackageManagement() {
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [pendingNavAction, setPendingNavAction] = useState(null);
+
+  const NOMBRE_MAX = 32;
+
+  const clearError = (key) => {
+    setFormErrors(prev => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const markDirty = () => setIsDirty(true);
+
+  const guardedNav = (action) => {
+    if (isDirty) setPendingNavAction(() => action);
+    else action();
+  };
 
   // Centra la burbuja activa en el carousel cuando cambia el paquete seleccionado
   useEffect(() => {
@@ -160,12 +182,17 @@ function PackageManagement() {
       [name]: value,
       ...(name === 'tipoCosecha' && value === 'Semillero' ? { etapaCultivo: 'N/A' } : {}),
     }));
+    markDirty();
+    clearError(name);
+    if (name === 'tipoCosecha' && value === 'Semillero') clearError('etapaCultivo');
   };
 
   const handleActivityChange = (index, field, value) => {
     const updatedActivities = [...formData.activities];
     updatedActivities[index] = { ...updatedActivities[index], [field]: value };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
+    markDirty();
+    if (field === 'day' || field === 'name') clearError(`act-${index}-${field}`);
   };
 
   const addActivity = () => {
@@ -180,6 +207,25 @@ function PackageManagement() {
         ...prev,
         activities: [...prev.activities, { day: '', name: '', responsableId: '', calibracionId: '', productos: [] }]
       };
+    });
+    markDirty();
+  };
+
+  // Shift error keys when activities are inserted/removed at `index`.
+  // delta = +1 when inserting at index+1; delta = -1 when removing at index.
+  const shiftActivityErrors = (index, delta) => {
+    setFormErrors(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const m = k.match(/^act-(\d+)-(.+)$/);
+        if (!m) { next[k] = v; return; }
+        const i = Number(m[1]);
+        if (delta < 0 && i === index) return; // drop errors of removed activity
+        if (delta > 0 && i > index) next[`act-${i + 1}-${m[2]}`] = v;
+        else if (delta < 0 && i > index) next[`act-${i - 1}-${m[2]}`] = v;
+        else next[k] = v;
+      });
+      return next;
     });
   };
 
@@ -203,7 +249,9 @@ function PackageManagement() {
       prev.forEach(i => { if (i <= index) next.add(i); else next.add(i + 1); });
       return next;
     });
+    shiftActivityErrors(index, +1);
     setPendingDeleteIdx(null);
+    markDirty();
   };
 
   const removeActivity = (index) => {
@@ -214,6 +262,8 @@ function PackageManagement() {
       prev.forEach(i => { if (i < index) next.add(i); else if (i > index) next.add(i - 1); });
       return next;
     });
+    shiftActivityErrors(index, -1);
+    markDirty();
   };
 
   const toggleActivityExpand = (index) => {
@@ -251,6 +301,8 @@ function PackageManagement() {
       ],
     };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
+    clearError(`act-${activityIndex}-prods`);
+    markDirty();
   };
 
   const removeProductFromActivity = (activityIndex, productoId) => {
@@ -260,6 +312,9 @@ function PackageManagement() {
       productos: updatedActivities[activityIndex].productos.filter(p => p.productoId !== productoId),
     };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
+    clearError(`act-${activityIndex}-prod-${productoId}-cant`);
+    clearError(`act-${activityIndex}-prods`);
+    markDirty();
   };
 
   const updateProductCantidad = (activityIndex, productoId, newCantidad) => {
@@ -271,6 +326,8 @@ function PackageManagement() {
       ),
     };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
+    clearError(`act-${activityIndex}-prod-${productoId}-cant`);
+    markDirty();
   };
 
   const aplicarPlantillaAActividad = (activityIndex, plantillaId) => {
@@ -299,6 +356,14 @@ function PackageManagement() {
     };
     setFormData(prev => ({ ...prev, activities: updatedActivities }));
     setExpandedActivities(prev => new Set(prev).add(activityIndex));
+    setFormErrors(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        if (!k.startsWith(`act-${activityIndex}-`)) next[k] = v;
+      });
+      return next;
+    });
+    markDirty();
   };
 
   const handleEdit = (pkg) => {
@@ -310,6 +375,8 @@ function PackageManagement() {
     setIsFormOpen(true);
     setSelectedPkg(null);
     setExpandedActivities(new Set(normalizedActivities.map((_, i) => i)));
+    setFormErrors({});
+    setIsDirty(false);
     window.scrollTo(0, 0);
   };
 
@@ -319,6 +386,9 @@ function PackageManagement() {
     setIsFormOpen(false);
     setSelectedPkg(null);
     setExpandedActivities(new Set());
+    setFormErrors({});
+    setIsDirty(false);
+    setIsSubmitting(false);
   };
 
   const handleNew = () => {
@@ -335,6 +405,8 @@ function PackageManagement() {
     setIsFormOpen(true);
     setSelectedPkg(null);
     setExpandedActivities(new Set([0]));
+    setFormErrors({});
+    setIsDirty(false);
   };
 
   const handleSelectPkg = (pkg) => {
@@ -343,53 +415,77 @@ function PackageManagement() {
     setIsFormOpen(true);
     setExpandedActivities(new Set());
     setHubExpandedActivities(new Set());
+    setFormErrors({});
+    setIsDirty(false);
     window.scrollTo(0, 0);
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    const expandIndices = new Set();
+
+    const nombre = (formData.nombrePaquete || '').trim();
+    if (!nombre) errors.nombrePaquete = 'El nombre es requerido.';
+    else if (formData.nombrePaquete.length > NOMBRE_MAX) errors.nombrePaquete = `Máximo ${NOMBRE_MAX} caracteres.`;
+
+    if ((formData.descripcion || '').length > 1024) errors.descripcion = 'Máximo 1024 caracteres.';
+    if ((formData.tecnicoResponsable || '').length > 48) errors.tecnicoResponsable = 'Máximo 48 caracteres.';
+
+    if (!formData.tipoCosecha) errors.tipoCosecha = 'Selecciona el tipo de cosecha.';
+    if (!formData.etapaCultivo) errors.etapaCultivo = 'Selecciona la etapa.';
+
+    formData.activities.forEach((a, i) => {
+      const aName = (a.name || '').trim();
+      if (!aName) {
+        errors[`act-${i}-name`] = 'Nombre requerido.';
+        expandIndices.add(i);
+      } else if (a.name.length > 120) {
+        errors[`act-${i}-name`] = 'Máximo 120 caracteres.';
+        expandIndices.add(i);
+      }
+
+      const day = Number(a.day);
+      if (a.day === '' || a.day === null || a.day === undefined || !Number.isInteger(day) || day < 0 || day > 1825) {
+        errors[`act-${i}-day`] = 'Día entre 0 y 1825.';
+        expandIndices.add(i);
+      }
+
+      const prods = a.productos || [];
+      if (prods.length > 24) {
+        errors[`act-${i}-prods`] = 'Máximo 24 productos por aplicación.';
+        expandIndices.add(i);
+      }
+      prods.forEach(p => {
+        const cant = Number(p.cantidadPorHa);
+        if (!Number.isFinite(cant) || cant <= 0 || cant >= 1024) {
+          errors[`act-${i}-prod-${p.productoId}-cant`] = 'Cantidad mayor a 0 y menor a 1024.';
+          expandIndices.add(i);
+        }
+      });
+    });
+
+    return { errors, expandIndices };
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
-    // Validaciones de entradas
-    if (!(formData.nombrePaquete || '').trim()) {
-      showToast('El nombre del paquete es requerido.', 'error');
+    const { errors, expandIndices } = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      setExpandedActivities(prev => {
+        const next = new Set(prev);
+        expandIndices.forEach(i => next.add(i));
+        return next;
+      });
+      const count = Object.keys(errors).length;
+      showToast(`Revisa ${count} ${count === 1 ? 'campo marcado' : 'campos marcados'} en rojo.`, 'error');
       return;
     }
-    if ((formData.descripcion || '').length > 1024) {
-      showToast('La descripción no puede superar 1024 caracteres.', 'error');
-      return;
-    }
-    if ((formData.tecnicoResponsable || '').length > 48) {
-      showToast('El técnico responsable no puede superar 48 caracteres.', 'error');
-      return;
-    }
-    for (let i = 0; i < formData.activities.length; i++) {
-      const a = formData.activities[i];
-      if (!(a.name || '').trim()) {
-        showToast(`Actividad ${i + 1}: el nombre es requerido.`, 'error');
-        return;
-      }
-      if ((a.name || '').length > 120) {
-        showToast(`Actividad ${i + 1}: el nombre no puede superar 120 caracteres.`, 'error');
-        return;
-      }
-      const day = Number(a.day);
-      if (!Number.isInteger(day) || day < 0 || day > 1825) {
-        showToast(`Actividad ${i + 1}: el día debe ser un entero entre 0 y 1825.`, 'error');
-        return;
-      }
-      const prods = a.productos || [];
-      if (prods.length > 24) {
-        showToast(`Actividad ${i + 1}: máximo 24 productos por aplicación.`, 'error');
-        return;
-      }
-      for (const p of prods) {
-        const cant = Number(p.cantidadPorHa);
-        if (!Number.isFinite(cant) || cant <= 0 || cant >= 1024) {
-          showToast(`Actividad ${i + 1}: la cantidad de "${p.nombreComercial}" debe ser mayor a 0 y menor a 1024.`, 'error');
-          return;
-        }
-      }
-    }
+
+    setFormErrors({});
+    setIsSubmitting(true);
 
     const url = isEditing ? `/api/packages/${formData.id}` : '/api/packages';
     const method = isEditing ? 'PUT' : 'POST';
@@ -415,6 +511,8 @@ function PackageManagement() {
       showToast(isEditing ? 'Paquete actualizado correctamente' : 'Paquete guardado correctamente');
     } catch (error) {
       showToast('Ocurrió un error al guardar.', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -487,6 +585,23 @@ function PackageManagement() {
         />
       )}
 
+      {pendingNavAction && (
+        <AuroraConfirmModal
+          danger
+          title="¿Descartar cambios?"
+          body="Tienes cambios sin guardar. Si continúas, se perderán."
+          confirmLabel="Descartar"
+          cancelLabel="Seguir editando"
+          onConfirm={() => {
+            const action = pendingNavAction;
+            setPendingNavAction(null);
+            setIsDirty(false);
+            action();
+          }}
+          onCancel={() => setPendingNavAction(null)}
+        />
+      )}
+
       {pkgDepsModal && (
         <AuroraConfirmModal
           size="wide"
@@ -534,7 +649,7 @@ function PackageManagement() {
             Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click.
           </p>
         </div>
-        <button className="aur-btn-pill" onClick={handleNew}>
+        <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
           <FiPlus size={14} /> Nuevo Paquete
         </button>
       </div>}
@@ -545,10 +660,10 @@ function PackageManagement() {
             <button
               key={pkg.id}
               className={`pkg-bubble${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' pkg-bubble--active' : ''}`}
-              onClick={() => {
+              onClick={() => guardedNav(() => {
                 if (selectedPkg?.id === pkg.id && !isEditing) resetForm();
                 else handleSelectPkg(pkg);
-              }}
+              })}
             >
               <span className="pkg-bubble-avatar">
                 {pkg.nombrePaquete.slice(0, 4).toUpperCase()}
@@ -558,7 +673,7 @@ function PackageManagement() {
           ))}
           <button
             className={`pkg-bubble pkg-bubble--add${isFormOpen && !selectedPkg && !isEditing ? ' pkg-bubble--active' : ''}`}
-            onClick={handleNew}
+            onClick={() => guardedNav(handleNew)}
           >
             <span className="pkg-bubble-avatar pkg-bubble-avatar--add">+</span>
             <span className="pkg-bubble-label">Nuevo</span>
@@ -587,28 +702,38 @@ function PackageManagement() {
             <div className="aur-list">
               <div className="aur-row">
                 <label className="aur-row-label" htmlFor="nombrePaquete">Nombre</label>
-                <input
-                  id="nombrePaquete"
-                  name="nombrePaquete"
-                  className="aur-input"
-                  value={formData.nombrePaquete}
-                  onChange={handleInputChange}
-                  maxLength={19}
-                  placeholder="Ej. Postforza Premium"
-                  required
-                />
+                <div className="pkg-name-input-wrap">
+                  <input
+                    id="nombrePaquete"
+                    name="nombrePaquete"
+                    className={`aur-input${formErrors.nombrePaquete ? ' fld-error-input' : ''}`}
+                    value={formData.nombrePaquete}
+                    onChange={handleInputChange}
+                    maxLength={NOMBRE_MAX}
+                    placeholder="Ej. Postforza Premium"
+                    title={formErrors.nombrePaquete || undefined}
+                    required
+                  />
+                  {(() => {
+                    const len = (formData.nombrePaquete || '').length;
+                    const ratio = len / NOMBRE_MAX;
+                    const cls = ratio >= 1 ? 'is-danger' : ratio >= 0.75 ? 'is-warn' : '';
+                    return <span className={`pkg-name-counter ${cls}`}>{len}/{NOMBRE_MAX}</span>;
+                  })()}
+                </div>
               </div>
               <div className="aur-row aur-row--multiline">
                 <label className="aur-row-label" htmlFor="descripcion">Descripción</label>
                 <textarea
                   id="descripcion"
                   name="descripcion"
-                  className="aur-textarea"
+                  className={`aur-textarea${formErrors.descripcion ? ' fld-error-input' : ''}`}
                   value={formData.descripcion}
                   onChange={handleInputChange}
                   placeholder="Resumen breve del propósito del paquete..."
                   rows={3}
                   maxLength={1024}
+                  title={formErrors.descripcion || undefined}
                 />
               </div>
             </div>
@@ -621,7 +746,15 @@ function PackageManagement() {
             <div className="aur-list">
               <div className="aur-row">
                 <label className="aur-row-label" htmlFor="tipoCosecha">Tipo de cosecha</label>
-                <select id="tipoCosecha" name="tipoCosecha" className="aur-select" value={formData.tipoCosecha} onChange={handleInputChange} required>
+                <select
+                  id="tipoCosecha"
+                  name="tipoCosecha"
+                  className={`aur-select${formErrors.tipoCosecha ? ' fld-error-input' : ''}`}
+                  value={formData.tipoCosecha}
+                  onChange={handleInputChange}
+                  title={formErrors.tipoCosecha || undefined}
+                  required
+                >
                   <option value="">Seleccionar...</option>
                   <option value="I Cosecha">I Cosecha</option>
                   <option value="II Cosecha">II Cosecha</option>
@@ -631,7 +764,15 @@ function PackageManagement() {
               </div>
               <div className="aur-row">
                 <label className="aur-row-label" htmlFor="etapaCultivo">Etapa del cultivo</label>
-                <select id="etapaCultivo" name="etapaCultivo" className="aur-select" value={formData.etapaCultivo} onChange={handleInputChange} required>
+                <select
+                  id="etapaCultivo"
+                  name="etapaCultivo"
+                  className={`aur-select${formErrors.etapaCultivo ? ' fld-error-input' : ''}`}
+                  value={formData.etapaCultivo}
+                  onChange={handleInputChange}
+                  title={formErrors.etapaCultivo || undefined}
+                  required
+                >
                   <option value="">Seleccionar...</option>
                   <option value="Desarrollo">Desarrollo</option>
                   <option value="Postforza">Postforza</option>
@@ -640,15 +781,22 @@ function PackageManagement() {
               </div>
               <div className="aur-row">
                 <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
-                <input
+                <select
                   id="tecnicoResponsable"
                   name="tecnicoResponsable"
-                  className="aur-input"
-                  value={formData.tecnicoResponsable}
+                  className={`aur-select${formErrors.tecnicoResponsable ? ' fld-error-input' : ''}`}
+                  value={formData.tecnicoResponsable || ''}
                   onChange={handleInputChange}
-                  placeholder="Opcional"
-                  maxLength={48}
-                />
+                  title={formErrors.tecnicoResponsable || undefined}
+                >
+                  <option value="">Sin asignar</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
+                  ))}
+                  {formData.tecnicoResponsable && !users.find(u => u.nombre === formData.tecnicoResponsable) && (
+                    <option value={formData.tecnicoResponsable}>{formData.tecnicoResponsable}</option>
+                  )}
+                </select>
               </div>
             </div>
           </section>
@@ -691,6 +839,8 @@ function PackageManagement() {
                           onChange={(e) => handleActivityChange(index, 'day', e.target.value)}
                           aria-label="Día"
                           placeholder="0"
+                          className={formErrors[`act-${index}-day`] ? 'fld-error-input' : ''}
+                          title={formErrors[`act-${index}-day`] || undefined}
                           required
                         />
                         <span className="pkg-act-day-suffix">día</span>
@@ -699,13 +849,14 @@ function PackageManagement() {
                       <div className="pkg-act-body">
                         <input
                           type="text"
-                          className="pkg-act-name"
+                          className={`pkg-act-name${formErrors[`act-${index}-name`] ? ' fld-error-input' : ''}`}
                           value={activity.name}
                           onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
                           placeholder="Nombre de la actividad"
                           required
                           maxLength={120}
                           aria-label="Nombre de la actividad"
+                          title={formErrors[`act-${index}-name`] || undefined}
                         />
                         <div className="pkg-act-meta">
                           <select
@@ -742,11 +893,14 @@ function PackageManagement() {
                         </div>
                       </div>
 
-                      <div className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}>
+                      <div
+                        className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}
+                        title={costEntries.length === 0 ? undefined : 'Costo de la mezcla por hectárea'}
+                      >
                         {costEntries.length === 0 ? '—' : costEntries.map(([mon, total]) => (
                           <div key={mon}>
                             {total.toFixed(2)}
-                            <span className="pkg-act-cost-mon">{mon}</span>
+                            <span className="pkg-act-cost-mon">{mon}/Ha</span>
                           </div>
                         ))}
                       </div>
@@ -811,14 +965,15 @@ function PackageManagement() {
                                     value={p.cantidadPorHa}
                                     onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
                                     data-prod-qty={`${index}-${p.productoId}`}
-                                    title="Cantidad por Ha"
+                                    className={formErrors[`act-${index}-prod-${p.productoId}-cant`] ? 'fld-error-input' : ''}
+                                    title={formErrors[`act-${index}-prod-${p.productoId}-cant`] || 'Cantidad por Ha'}
                                   />
                                   <span className="pkg-prod-row-unit">{p.unidad}/Ha</span>
                                 </div>
                                 {precioUnitario > 0 ? (
-                                  <span className="pkg-prod-row-cost">
+                                  <span className="pkg-prod-row-cost" title="Costo por hectárea">
                                     {precioTotal.toFixed(2)}
-                                    <span className="pkg-prod-row-mon">{moneda}</span>
+                                    <span className="pkg-prod-row-mon">{moneda}/Ha</span>
                                   </span>
                                 ) : <span />}
                                 <button
@@ -857,8 +1012,19 @@ function PackageManagement() {
           </section>
 
           <footer className="pkg-form-actions">
-            <button type="button" onClick={resetForm} className="aur-btn-text">Cancelar</button>
-            <button type="submit" className="aur-btn-pill">{isEditing ? 'Actualizar paquete' : 'Guardar paquete'}</button>
+            <button
+              type="button"
+              onClick={() => guardedNav(resetForm)}
+              className="aur-btn-text"
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="aur-btn-pill" disabled={isSubmitting}>
+              {isSubmitting
+                ? 'Guardando…'
+                : isEditing ? 'Actualizar paquete' : 'Guardar paquete'}
+            </button>
           </footer>
         </form>
       )}
@@ -885,9 +1051,9 @@ function PackageManagement() {
                 const entries = Object.entries(totals);
                 if (entries.length === 0) return null;
                 return (
-                  <span className="pkg-hub-total-cost">
+                  <span className="pkg-hub-total-cost" title="Costo total del paquete por hectárea">
                     {entries.map(([mon, total]) => (
-                      <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-total-cost-mon">{mon}</span></span>
+                      <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-total-cost-mon">{mon}/Ha</span></span>
                     ))}
                   </span>
                 );
@@ -952,9 +1118,9 @@ function PackageManagement() {
                         <span className="pkg-hub-activity-name">{act.name}</span>
                         {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
                         {actCostos.length > 0 && (
-                          <span className="pkg-hub-activity-cost">
+                          <span className="pkg-hub-activity-cost" title="Costo de la mezcla por hectárea">
                             {actCostos.map(([mon, total]) => (
-                              <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-activity-cost-mon">{mon}</span></span>
+                              <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-activity-cost-mon">{mon}/Ha</span></span>
                             ))}
                           </span>
                         )}
@@ -975,7 +1141,7 @@ function PackageManagement() {
                                   {precioUnitario > 0 && (
                                     <>
                                       <span className="pkg-hub-detail-prod-price">P.U.: {precioUnitario.toFixed(2)} {moneda}</span>
-                                      <span className="pkg-hub-detail-prod-total">Total: {precioTotal.toFixed(2)} {moneda}</span>
+                                      <span className="pkg-hub-detail-prod-total">Total/Ha: {precioTotal.toFixed(2)} {moneda}</span>
                                     </>
                                   )}
                                 </span>
@@ -1017,14 +1183,20 @@ function PackageManagement() {
               <li
                 key={pkg.id}
                 className={`lote-list-item${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' active' : ''}`}
-                onClick={() => {
+                onClick={() => guardedNav(() => {
                   if (selectedPkg?.id === pkg.id && !isEditing) { resetForm(); return; }
                   handleSelectPkg(pkg);
-                }}
+                })}
               >
                 <div className="lote-list-info">
                   <span className="lote-list-code">{pkg.nombrePaquete}</span>
-                  <span className="lote-list-name">{pkg.tipoCosecha} · {pkg.activities.length} act.</span>
+                  <span className="lote-list-name">
+                    {[
+                      pkg.tipoCosecha,
+                      pkg.etapaCultivo && pkg.etapaCultivo !== 'N/A' ? pkg.etapaCultivo : null,
+                      `${pkg.activities.length} act.`,
+                    ].filter(Boolean).join(' · ')}
+                  </span>
                   {(() => {
                     const totals = {};
                     (pkg.activities || []).forEach(act => {
@@ -1039,8 +1211,8 @@ function PackageManagement() {
                     const entries = Object.entries(totals);
                     if (entries.length === 0) return null;
                     return (
-                      <span className="pkg-list-total-cost">
-                        {entries.map(([mon, total]) => `${total.toFixed(2)} ${mon}`).join(' + ')}
+                      <span className="pkg-list-total-cost" title="Costo total del paquete por hectárea">
+                        {entries.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ')}
                       </span>
                     );
                   })()}
