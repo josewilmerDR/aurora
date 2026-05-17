@@ -36,6 +36,8 @@ export default function AuroraDataTable({
   emptyAction,
   resetPaginationKey = 0,
   onDisplayDataChange = null,
+  tableClassName = '',
+  wrapClassName = '',
 }) {
   const allVisible = useMemo(
     () => Object.fromEntries(columns.map(c => [c.key, true])),
@@ -199,8 +201,8 @@ export default function AuroraDataTable({
       ) : (
         <>
           {renderSummary && renderSummary(displayData)}
-          <div className="aur-table-wrap">
-            <table className="aur-table">
+          <div className={`aur-table-wrap${wrapClassName ? ' ' + wrapClassName : ''}`}>
+            <table className={`aur-table${tableClassName ? ' ' + tableClassName : ''}`}>
               <thead>
                 <tr>
                   {columns.map(col => {
