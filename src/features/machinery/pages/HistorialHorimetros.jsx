@@ -87,6 +87,7 @@ export default function HistorialHorimetros() {
 
   const [records,    setRecords]    = useState([]);
   const [maquinaria, setMaquinaria] = useState([]);
+  const [displayData, setDisplayData] = useState([]); // filtered+sorted snapshot from AuroraDataTable
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, fecha, tractor }
@@ -194,39 +195,18 @@ export default function HistorialHorimetros() {
     );
   };
 
-  // Strip de totales sobre los registros mostrados (respeta filtros de columna).
-  const renderSummary = (filteredData) => {
-    const stats = filteredData.reduce((acc, rec) => {
+  // Totales sobre los registros mostrados (respeta filtros de columna).
+  const stats = useMemo(() => {
+    return displayData.reduce((acc, rec) => {
       if (rec.horas != null) acc.horas += rec.horas;
       if (rec.combCosto != null) acc.combCosto += rec.combCosto;
       if (rec.montoDepTractor != null) acc.depTotal += rec.montoDepTractor;
       if (rec.montoDepImplemento != null) acc.depTotal += rec.montoDepImplemento;
       return acc;
     }, { horas: 0, combCosto: 0, depTotal: 0 });
+  }, [displayData]);
 
-    const fmtCRC = (n) => `₡${n.toLocaleString('es-CR', { maximumFractionDigits: 0 })}`;
-
-    return (
-      <div className="machinery-historial-summary">
-        <span className="machinery-historial-summary-item">
-          <span className="machinery-historial-summary-label">Horas totales</span>
-          <span className="machinery-historial-summary-val machinery-historial-summary-val--accent">
-            {stats.horas.toFixed(1)} h
-          </span>
-        </span>
-        <span className="machinery-historial-summary-sep">·</span>
-        <span className="machinery-historial-summary-item">
-          <span className="machinery-historial-summary-label">Combustible est.</span>
-          <span className="machinery-historial-summary-val">{fmtCRC(stats.combCosto)}</span>
-        </span>
-        <span className="machinery-historial-summary-sep">·</span>
-        <span className="machinery-historial-summary-item">
-          <span className="machinery-historial-summary-label">Depreciación est.</span>
-          <span className="machinery-historial-summary-val">{fmtCRC(stats.depTotal)}</span>
-        </span>
-      </div>
-    );
-  };
+  const fmtCRC = (n) => `₡${n.toLocaleString('es-CR', { maximumFractionDigits: 0 })}`;
 
   const trailingCell = (rec) => (
     <td className="machinery-td-actions">
@@ -263,9 +243,9 @@ export default function HistorialHorimetros() {
       <div className="aur-sheet">
         <header className="aur-sheet-header">
           <div className="aur-sheet-header-text">
-            <h1 className="aur-sheet-title">Historial de horímetros</h1>
+            <h1 className="aur-sheet-title">Historial de uso de maquinaria</h1>
             <p className="aur-sheet-subtitle">
-              Consulta y analiza el historial de horímetros en busca de patrones o anomalías.
+              Consulta y analiza el historial de uso de maquinaria en busca de patrones o anomalías.
             </p>
           </div>
         </header>
@@ -273,27 +253,50 @@ export default function HistorialHorimetros() {
         {loading ? (
           <div className="aur-page-loading" />
         ) : (
-          <AuroraDataTable
-            columns={COLUMNS}
-            data={enrichedRecords}
-            getColVal={getColVal}
-            initialSort={{ field: 'fecha', dir: 'desc' }}
-            firstClickDir="desc"
-            initialVisibleCols={INITIAL_VISIBLE_COLS}
-            renderRow={renderRow}
-            renderSummary={renderSummary}
-            trailingCell={trailingCell}
-            toolbarActions={
-              <Link to="/operaciones/horimetro/registro" className="aur-chip aur-chip--ghost">
-                <FiPlus size={12} /> Nuevo registro
-              </Link>
-            }
-            emptyText={
-              records.length === 0
-                ? <>No hay registros de horímetros creados aún. Crea el primero en <Link to="/operaciones/horimetro/registro">Registro de Horímetro</Link>.</>
-                : 'No hay registros con los filtros aplicados.'
-            }
-          />
+          <>
+            <section className="aur-section">
+              <div className="machinery-historial-summary">
+                <span className="machinery-historial-summary-item">
+                  <span className="machinery-historial-summary-label">Horas totales</span>
+                  <span className="machinery-historial-summary-val machinery-historial-summary-val--accent">
+                    {stats.horas.toFixed(1)} h
+                  </span>
+                </span>
+                <span className="machinery-historial-summary-sep">·</span>
+                <span className="machinery-historial-summary-item">
+                  <span className="machinery-historial-summary-label">Combustible est.</span>
+                  <span className="machinery-historial-summary-val">{fmtCRC(stats.combCosto)}</span>
+                </span>
+                <span className="machinery-historial-summary-sep">·</span>
+                <span className="machinery-historial-summary-item">
+                  <span className="machinery-historial-summary-label">Depreciación est.</span>
+                  <span className="machinery-historial-summary-val">{fmtCRC(stats.depTotal)}</span>
+                </span>
+              </div>
+            </section>
+
+            <AuroraDataTable
+              columns={COLUMNS}
+              data={enrichedRecords}
+              getColVal={getColVal}
+              initialSort={{ field: 'fecha', dir: 'desc' }}
+              firstClickDir="desc"
+              initialVisibleCols={INITIAL_VISIBLE_COLS}
+              renderRow={renderRow}
+              trailingCell={trailingCell}
+              onDisplayDataChange={setDisplayData}
+              toolbarActions={
+                <Link to="/operaciones/horimetro/registro" className="aur-btn-pill aur-btn-pill--sm" title="Crear nuevo registro de uso">
+                  <FiPlus size={14} /> Nuevo registro
+                </Link>
+              }
+              emptyText={
+                records.length === 0
+                  ? <>No hay registros de uso creados aún. Crea el primero en <Link to="/operaciones/horimetro/registro">Registrar uso</Link>.</>
+                  : 'No hay registros con los filtros aplicados.'
+              }
+            />
+          </>
         )}
       </div>
     </div>

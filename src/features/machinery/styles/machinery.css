@@ -777,7 +777,6 @@
   flex-wrap: wrap;
   gap: 10px 16px;
   padding: 10px 14px;
-  margin-bottom: 14px;
   background: var(--aur-bg-input);
   border: 1px solid var(--aur-divider);
   border-radius: var(--aur-r-card);

@@ -658,7 +658,7 @@ function RegistroHorimetro() {
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  const sheetTitle = isEditing ? 'Editar registro de horímetro' : 'Registro de horímetro';
+  const sheetTitle = isEditing ? 'Editar uso de maquinaria' : 'Registrar uso de maquinaria';
   const sheetSubtitle = isEditing
     ? 'Modifica los datos del registro existente.'
     : 'Captura horas trabajadas, ubicación y combustible para un activo.';
