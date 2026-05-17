@@ -50,9 +50,9 @@ const ALL_MODULES = [
         ]
       },
       {
-        label: 'Horímetros', icon: FiClock, minRole: 'trabajador', children: [
-          { label: 'Registro de Horímetro',   to: '/operaciones/horimetro/registro',  icon: FiClock,  minRole: 'trabajador', draftKey: 'horimetro-registro' },
-          { label: 'Historial de Horímetros', to: '/operaciones/horimetro/historial', icon: FiList,   minRole: 'trabajador' },
+        label: 'Uso de Maquinaria', icon: FiClock, minRole: 'trabajador', children: [
+          { label: 'Registrar uso',    to: '/operaciones/horimetro/registro',  icon: FiClock,  minRole: 'trabajador', draftKey: 'horimetro-registro' },
+          { label: 'Historial de uso', to: '/operaciones/horimetro/historial', icon: FiList,   minRole: 'trabajador' },
         ]
       },
       { label: 'Lotes', to: '/lotes', icon: FiArchive, minRole: 'encargado', draftKey: 'lote-nuevo' },
