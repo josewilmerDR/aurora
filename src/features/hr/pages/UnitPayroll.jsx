@@ -6,6 +6,7 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import EmptyState from '../../../components/ui/EmptyState';
 import '../styles/hr.css';
 import '../styles/unit-payroll.css';
 
@@ -1743,9 +1744,12 @@ function UnitPayroll() {
           {/* ── Tab Planillas ── */}
           {historialTab === 'pendientes' && (
             historial.length === 0 ? (
-              <p className="empty-state" style={{ margin: '4px 0 0', fontSize: '0.82rem' }}>
-                No hay planillas. Crea una con el botón "Nueva planilla".
-              </p>
+              <EmptyState
+                variant="compact"
+                icon={FiFileText}
+                title="No hay planillas"
+                subtitle='Crea la primera con el botón "Nueva planilla".'
+              />
             ) : (
               <ul className="pu-history-list">
                 {historial.map(p => {
@@ -1869,9 +1873,12 @@ function UnitPayroll() {
               )}
 
               {plantillas.length === 0 ? (
-                <p className="empty-state" style={{ fontSize: '0.82rem' }}>
-                  No hay plantillas guardadas.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  icon={FiSave}
+                  title="No hay plantillas guardadas"
+                  subtitle="Guarda la configuración de una planilla para reutilizarla luego."
+                />
               ) : (
                 <ul className="pu-plantilla-list">
                   {plantillas.map(p => (

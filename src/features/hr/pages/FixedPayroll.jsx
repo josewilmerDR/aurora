@@ -4,6 +4,7 @@ import '../styles/hr.css';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle, FiCalendar } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import PayrollStepIndicator from '../components/PayrollStepIndicator';
@@ -795,9 +796,11 @@ function FixedPayroll() {
             </div>
 
             {filas.length === 0 ? (
-              <p className="empty-state">
-                No hay empleados con salario base configurado. Completa la Ficha del Trabajador primero.
-              </p>
+              <EmptyState
+                icon={FiFileText}
+                title="No hay empleados con salario base configurado"
+                subtitle="Completa la Ficha del Trabajador primero para que aparezcan en la planilla fija."
+              />
             ) : (
               <>
                 <div className="planilla-sum-wrap">

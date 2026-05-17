@@ -4,6 +4,7 @@ import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage } from 'react-icon
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import OnboardingChecklist from '../components/OnboardingChecklist';
+import EmptyState from '../../../components/ui/EmptyState';
 import '../styles/dashboard.css';
 
 const EVENT_LABELS = {
@@ -165,7 +166,12 @@ function Dashboard() {
                 {feed.map(event => <FeedEvent key={event.id} event={event} />)}
               </div>
             ) : (
-              <div className="empty-state">Aún no hay actividad registrada.</div>
+              <EmptyState
+                variant="compact"
+                icon={FiClock}
+                title="Aún no hay actividad registrada"
+                subtitle="Las acciones recientes del equipo y de Aurora aparecerán aquí."
+              />
             )}
           </section>
 

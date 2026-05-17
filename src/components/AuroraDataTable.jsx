@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiFilter, FiX, FiSliders } from 'react-icons/fi';
+import EmptyState from './ui/EmptyState';
 
 // Data table compartido cross-domain. Encapsula:
 // - sort tri-estado por columna
@@ -30,6 +31,9 @@ export default function AuroraDataTable({
   rowKey = (row) => row.id || row._id,
   renderRow,
   emptyText = 'No hay registros con los filtros aplicados.',
+  emptyIcon,
+  emptySubtitle,
+  emptyAction,
   resetPaginationKey = 0,
   onDisplayDataChange = null,
 }) {
@@ -185,7 +189,13 @@ export default function AuroraDataTable({
       </div>
 
       {filteredCount === 0 ? (
-        <p className="empty-state">{emptyText}</p>
+        <EmptyState
+          variant="compact"
+          icon={emptyIcon}
+          title={emptyText}
+          subtitle={emptySubtitle}
+          action={emptyAction}
+        />
       ) : (
         <>
           {renderSummary && renderSummary(displayData)}

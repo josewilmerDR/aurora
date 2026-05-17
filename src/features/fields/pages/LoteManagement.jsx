@@ -5,6 +5,7 @@ import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRig
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Module helpers ───────────────────────────────────────────────────────────
@@ -561,7 +562,12 @@ function LoteManagement() {
           )}
         </div>
         {loteTableRows.length === 0 ? (
-          <p className="empty-state">No hay registros de siembra para este lote.</p>
+          <EmptyState
+            variant="compact"
+            icon={FiLayers}
+            title="No hay registros de siembra para este lote"
+            subtitle="Cuando registres una siembra para este lote aparecerán aquí los bloques sembrados."
+          />
         ) : (
           <div className="aur-table-wrap">
             <table className="aur-table grupo-hub-table">
