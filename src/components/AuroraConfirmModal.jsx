@@ -35,6 +35,10 @@ import { FiAlertTriangle } from 'react-icons/fi';
  *                               Útil para diálogos con tablas u otros bloques
  *                               anchos en el slot children. (default: 'default')
  *   - danger          bool    · estilo destructivo (icono + pill magenta)
+ *   - iconVariant     string  · color del círculo del icono cuando NO es
+ *                               destructivo: 'warn' (amarillo, default) |
+ *                               'neutral' (verde accent — para creación/
+ *                               captura sin riesgo)
  *   - icon            ReactNode · icono custom (default: FiAlertTriangle)
  *   - loading         bool    · deshabilita ambos botones y backdrop, y
  *                               reemplaza el label de confirmar por loadingLabel
@@ -79,13 +83,24 @@ export default function AuroraConfirmModal({
   confirmDisabled = false,
   size = 'default',
   danger = false,
+  iconVariant = 'warn',
   icon,
   loading = false,
   loadingLabel = 'Procesando…',
   onConfirm,
   onCancel,
 }) {
-  const iconClass = `aur-modal-icon${danger ? ' aur-modal-icon--danger' : ' aur-modal-icon--warn'}`;
+  // El círculo del icono usa --warn (amarillo) por default para diálogos
+  // de confirmación clásicos. `danger` siempre fuerza magenta (acción
+  // destructiva). `iconVariant='neutral'` deja el accent verde — útil para
+  // diálogos de creación/captura ("Guardar snapshot", "Nueva cosecha", etc.)
+  // donde no hay riesgo y el amarillo se sentiría alarmante.
+  const iconModifier = danger
+    ? 'aur-modal-icon--danger'
+    : iconVariant === 'neutral'
+      ? ''
+      : 'aur-modal-icon--warn';
+  const iconClass = `aur-modal-icon${iconModifier ? ' ' + iconModifier : ''}`;
   const pillClass = `aur-btn-pill${danger ? ' aur-btn-pill--danger' : ''}`;
   const sizeMod   = size === 'default' ? '' : ` aur-modal--${size}`;
 
