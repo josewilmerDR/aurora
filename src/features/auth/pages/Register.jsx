@@ -4,6 +4,7 @@ import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../../firebase';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import AuthCard from '../components/AuthCard';
 import GoogleButton from '../components/GoogleButton';
 import AuthLoading from '../components/AuthLoading';
@@ -16,6 +17,28 @@ const PASSWORD_RULES = [
   { id: 'lower',  label: 'Una letra minúscula', test: (p) => /[a-z]/.test(p) },
   { id: 'number', label: 'Un número',           test: (p) => /[0-9]/.test(p) },
 ];
+
+// Validación a nivel de campo para feedback on-blur. La contraseña no entra
+// aquí — el rule list (PASSWORD_RULES) ya provee feedback más rico campo a
+// campo. Confirm solo se valida cuando el usuario tipeó la contraseña, así
+// el primer blur no se queja antes de tiempo.
+function validateAccountStep(form) {
+  const errs = {};
+  const email = (form.email || '').trim();
+  if (!email) errs.email = 'Ingresa tu correo electrónico.';
+  else if (!email.includes('@') || !email.includes('.')) errs.email = 'Email inválido.';
+  if (form.password && form.confirm && form.password !== form.confirm) {
+    errs.confirm = 'No coincide con la contraseña.';
+  }
+  return errs;
+}
+
+function validateFincaStep(form) {
+  const errs = {};
+  if (!(form.fincaNombre || '').trim()) errs.fincaNombre = 'Requerido.';
+  if (!(form.nombreAdmin || '').trim()) errs.nombreAdmin = 'Requerido.';
+  return errs;
+}
 
 export default function Register() {
   const navigate = useNavigate();
@@ -30,6 +53,14 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Dos hooks separados — uno por paso del wizard — para que validateAll
+  // del paso 2 no falle por errores que viven en el paso 1 (email vacío
+  // queda invisible una vez que el usuario avanzó).
+  const accountForm = { email, password, confirm };
+  const accountValidation = useBlurValidation(validateAccountStep);
+  const fincaForm = { fincaNombre, nombreAdmin };
+  const fincaValidation = useBlurValidation(validateFincaStep);
 
   // Navigate to dashboard once login is complete (currentUser loaded),
   // or to OrganizationSelector if the user has memberships but no active finca
@@ -59,12 +90,12 @@ export default function Register() {
   // Step 1: create account with email/password
   const handleAccountStep = (e) => {
     e.preventDefault();
+    // Per-field errors (email format, confirm matches password) — el rule
+    // list cubre password aparte, así que su validez sigue siendo gate
+    // separado.
+    if (!accountValidation.validateAll(accountForm)) return;
     if (!passwordValid) {
       setError('La contraseña no cumple los requisitos de seguridad.');
-      return;
-    }
-    if (password !== confirm) {
-      setError('Las contraseñas no coinciden.');
       return;
     }
     setError('');
@@ -74,6 +105,7 @@ export default function Register() {
   // Step 2: create the finca in the backend
   const handleFincaStep = async (e) => {
     e.preventDefault();
+    if (!fincaValidation.validateAll(fincaForm)) return;
     setSubmitting(true);
     setError('');
     try {
@@ -166,13 +198,17 @@ export default function Register() {
               <input
                 id="email"
                 type="email"
-                className="aur-input"
+                className={accountValidation.inputClass('email')}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); accountValidation.clearField('email'); }}
+                onBlur={() => accountValidation.blurField('email', accountForm)}
                 placeholder="tu@correo.com"
                 autoComplete="email"
                 required
               />
+              {accountValidation.fieldErrors.email && (
+                <span className="aur-field-error">{accountValidation.fieldErrors.email}</span>
+              )}
             </div>
 
             <div className="aur-field">
@@ -201,11 +237,16 @@ export default function Register() {
               <PasswordInput
                 id="confirm"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={(e) => { setConfirm(e.target.value); accountValidation.clearField('confirm'); }}
+                onBlur={() => accountValidation.blurField('confirm', accountForm)}
+                className={accountValidation.inputClass('confirm')}
                 placeholder="Repite la contraseña"
                 autoComplete="new-password"
                 required
               />
+              {accountValidation.fieldErrors.confirm && (
+                <span className="aur-field-error">{accountValidation.fieldErrors.confirm}</span>
+              )}
             </div>
 
             {error && <p className="auth-error">{error}</p>}
@@ -228,26 +269,34 @@ export default function Register() {
             <input
               id="finca-nombre"
               type="text"
-              className="aur-input"
+              className={fincaValidation.inputClass('fincaNombre')}
               value={fincaNombre}
-              onChange={(e) => setFincaNombre(e.target.value)}
+              onChange={(e) => { setFincaNombre(e.target.value); fincaValidation.clearField('fincaNombre'); }}
+              onBlur={() => fincaValidation.blurField('fincaNombre', fincaForm)}
               placeholder="Ej: Hacienda El Sol"
               disabled={submitting}
               required
             />
+            {fincaValidation.fieldErrors.fincaNombre && (
+              <span className="aur-field-error">{fincaValidation.fieldErrors.fincaNombre}</span>
+            )}
           </div>
           <div className="aur-field">
             <label htmlFor="nombre-admin" className="aur-field-label">Tu nombre</label>
             <input
               id="nombre-admin"
               type="text"
-              className="aur-input"
+              className={fincaValidation.inputClass('nombreAdmin')}
               value={nombreAdmin}
-              onChange={(e) => setNombreAdmin(e.target.value)}
+              onChange={(e) => { setNombreAdmin(e.target.value); fincaValidation.clearField('nombreAdmin'); }}
+              onBlur={() => fincaValidation.blurField('nombreAdmin', fincaForm)}
               placeholder="Ej: Carlos Mendoza"
               disabled={submitting}
               required
             />
+            {fincaValidation.fieldErrors.nombreAdmin && (
+              <span className="aur-field-error">{fincaValidation.fieldErrors.nombreAdmin}</span>
+            )}
           </div>
           {error && <p className="auth-error">{error}</p>}
           <button

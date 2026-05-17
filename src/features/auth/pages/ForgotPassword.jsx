@@ -2,17 +2,28 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../../firebase';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import AuthCard from '../components/AuthCard';
 import '../styles/auth.css';
+
+function validate(form) {
+  const errs = {};
+  const email = (form.email || '').trim();
+  if (!email) errs.email = 'Ingresa tu correo electrónico.';
+  else if (!email.includes('@') || !email.includes('.')) errs.email = 'Email inválido.';
+  return errs;
+}
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateAll({ email })) return;
     setSubmitting(true);
     setError('');
     try {
@@ -59,14 +70,16 @@ export default function ForgotPassword() {
               <input
                 id="email"
                 type="email"
-                className="aur-input"
+                className={inputClass('email')}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); clearField('email'); }}
+                onBlur={() => blurField('email', { email })}
                 placeholder="tu@correo.com"
                 autoComplete="email"
                 disabled={submitting}
                 required
               />
+              {fieldErrors.email && <span className="aur-field-error">{fieldErrors.email}</span>}
             </div>
             {error && <p className="auth-error">{error}</p>}
             <button type="submit" className="aur-btn-pill auth-btn-submit" disabled={submitting || !email}>
