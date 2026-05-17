@@ -11,6 +11,73 @@
      · Cards de cédula del listing (.ca-cedula-card y split multi-lote)
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── Periodo: Desde y Hasta en una sola fila ─────────────────────────────── */
+.ca-periodo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+.ca-periodo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ca-periodo-field > label {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* Toggle de filtros — siempre visible; punto indicador cuando hay periodo activo */
+.ca-filter-toggle {
+  display: inline-flex;
+  position: relative;
+}
+.ca-filter-toggle-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aur-accent);
+  box-shadow: 0 0 0 2px var(--aur-bg-sheet, var(--aurora-background));
+}
+
+@media (max-width: 640px) {
+  /* "Filtro" e "Historial" en móvil quedan solo como ícono */
+  .ca-historial-label,
+  .ca-filter-toggle-label {
+    display: none;
+  }
+  .ca-historial-chip,
+  .ca-filter-toggle {
+    gap: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    /* Cap a 20% c/u para dejarle el resto a "Nueva cédula" en la misma fila */
+    max-width: 20%;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  /* Evita que "Nueva cédula" salte a una segunda fila (gana al rule base de aurora.css) */
+  .ca-page .aur-sheet-header-actions {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  /* Permite que el pill primario se acomode al espacio restante */
+  .ca-page .aur-sheet-header-actions .aur-btn-pill {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    white-space: nowrap;
+  }
+}
+
 /* ── Badge "Aplicada" en toolbar ─────────────────────────────────────────── */
 .ca-toolbar-applied-badge {
   display: inline-flex;
