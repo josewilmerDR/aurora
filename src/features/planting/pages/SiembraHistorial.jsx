@@ -4,19 +4,20 @@ import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   FiTrash2, FiCheckCircle, FiCircle, FiAlertCircle, FiMoreVertical,
-  FiDownload, FiPrinter, FiFilter, FiX, FiShare2, FiEdit2, FiSliders,
+  FiDownload, FiPrinter, FiX, FiShare2, FiEdit2,
 } from 'react-icons/fi';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import '../styles/siembra.css';
 import '../styles/siembra-historial.css';
 
-// ── Sort utilities ──────────────────────────────────────────────────────────
-function getSortVal(r, field) {
+// ── Column value extractor (sort + filter source of truth) ─────────────────
+function getColVal(r, field) {
   switch (field) {
-    case 'fecha':       return r.fecha?.slice(0,10) || '';
+    case 'fecha':       return r.fecha?.slice(0, 10) || '';
     case 'lote':        return (r.loteNombre || '').toLowerCase();
     case 'bloque':      return (r.bloque || '').toLowerCase();
     case 'plantas':     return r.plantas || 0;
@@ -25,56 +26,38 @@ function getSortVal(r, field) {
     case 'material':    return (r.materialNombre || '').toLowerCase();
     case 'variedad':    return (r.variedad || '').toLowerCase();
     case 'responsable': return (r.responsableNombre || '').toLowerCase();
-    case 'fcierre':     return r.fechaCierre?.slice(0,10) || '';
+    case 'fcierre':     return r.fechaCierre?.slice(0, 10) || '';
     default:            return '';
   }
 }
 
 const COLUMNS = [
-  { key: 'fecha',       label: 'Fecha',      type: 'date'   },
+  { key: 'fecha',       label: 'Fecha',       type: 'date'   },
   { key: 'lote',        label: 'Lote',        type: 'text'   },
   { key: 'bloque',      label: 'Bloque',      type: 'text'   },
-  { key: 'plantas',     label: 'Plantas',     type: 'number' },
-  { key: 'densidad',    label: 'Densidad',    type: 'number' },
-  { key: 'area',        label: 'Área',        type: 'number' },
+  { key: 'plantas',     label: 'Plantas',     type: 'number', align: 'right' },
+  {
+    key: 'densidad',
+    label: (
+      <>
+        Densidad{' '}
+        <span style={{ opacity: 0.55, fontSize: '0.78em', textTransform: 'none', letterSpacing: 0 }}>
+          pl/ha
+        </span>
+      </>
+    ),
+    type: 'number',
+    align: 'right',
+  },
+  { key: 'area',        label: 'Área',        type: 'number', align: 'right' },
   { key: 'material',    label: 'Material',    type: 'text'   },
   { key: 'variedad',    label: 'Variedad',    type: 'text'   },
   { key: 'responsable', label: 'Responsable', type: 'text'   },
   { key: 'fcierre',     label: 'F. Cierre',   type: 'date'   },
 ];
 
-const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
-
 const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
-
-function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
-  const menuRef = useRef(null);
-  useEffect(() => {
-    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
-    const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown',   onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [onClose]);
-  return createPortal(
-    <div ref={menuRef} className="sh-col-menu" style={{ position: 'fixed', top: y, left: x }}>
-      <div className="sh-col-menu-title">Columnas visibles</div>
-      {COLUMNS.map(col => {
-        const checked = visibleCols[col.key];
-        const isLast  = checked && Object.values(visibleCols).filter(Boolean).length === 1;
-        return (
-          <label key={col.key} className={`sh-col-menu-item${isLast ? ' sh-col-menu-item--disabled' : ''}`}>
-            <input type="checkbox" checked={checked} disabled={isLast}
-              onChange={() => !isLast && onToggle(col.key)} />
-            <span>{col.label}</span>
-          </label>
-        );
-      })}
-    </div>,
-    document.body
-  );
-}
 
 function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose }) {
   const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -345,24 +328,19 @@ function SiembraHistorial() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const [registros, setRegistros] = useState([]);
+  const [displayData, setDisplayData] = useState([]); // filtered+sorted snapshot from AuroraDataTable
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [fincaConfig, setFincaConfig] = useState({ nombreEmpresa: 'Finca Aurora', identificacion: '', direccion: '', whatsapp: '', logoUrl: '' });
-  const [sortField, setSortField] = useState('fecha');
-  const [sortDir, setSortDir] = useState('desc');
-  const [colFilters, setColFilters] = useState({});
-  const [filterPopover, setFilterPopover] = useState(null);
-  const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
-  const [colMenu, setColMenu] = useState(null);
 
   const [lotes, setLotes]           = useState([]);
   const [materiales, setMateriales] = useState([]);
   const [editRecord, setEditRecord] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
 
-  const [rowMenu, setRowMenu]     = useState(null);
+  const [rowMenu, setRowMenu]       = useState(null);
   const [rowMenuPos, setRowMenuPos] = useState({ top: 0, right: 0 });
   useEffect(() => {
     if (rowMenu === null) return;
@@ -371,44 +349,7 @@ function SiembraHistorial() {
     return () => document.removeEventListener('pointerdown', close);
   }, [rowMenu]);
 
-
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
-
-  const handleThSort = (field) => {
-    if (sortField !== field) { setSortField(field); setSortDir('desc'); }
-    else if (sortDir === 'desc') { setSortDir('asc'); }
-    else { setSortField(null); setSortDir(null); }
-  };
-
-  const openColFilter = (e, field, type) => {
-    e.stopPropagation();
-    if (filterPopover?.field === field) { setFilterPopover(null); return; }
-    const th = e.currentTarget.closest('th') ?? e.currentTarget;
-    const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, type, x: rect.left, y: rect.bottom + 4 });
-  };
-
-  const setColFilter = (field, type, key, val) => {
-    setColFilters(prev => {
-      const cur = prev[field] || (type === 'text' ? { text: '' } : { from: '', to: '' });
-      const updated = { ...cur, [key]: val };
-      const isEmpty = type === 'text' ? !updated.text : !updated.from && !updated.to;
-      if (isEmpty) {
-        const { [field]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [field]: updated };
-    });
-  };
-
-  const toggleCol = (key) => {
-    setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-  const handleColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    setColMenu({ x: r.right - 185, y: r.bottom + 4 });
-  };
 
   useEffect(() => {
     if (!showPreview) return;
@@ -434,44 +375,7 @@ function SiembraHistorial() {
     apiFetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
-  const displayData = useMemo(() => {
-    let data = [...registros];
-    const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
-      if (fv.text !== undefined) return fv.text.trim();
-      return fv.from || fv.to;
-    });
-    if (activeColFilters.length > 0) {
-      data = data.filter(r => {
-        for (const [key, fv] of activeColFilters) {
-          const col = COLUMNS.find(c => c.key === key);
-          if (!col) continue;
-          const val = getSortVal(r, key);
-          if (col.type === 'text') {
-            if (fv.text && !String(val).includes(fv.text.toLowerCase())) return false;
-          } else if (col.type === 'date') {
-            if (!val) return false;
-            if (fv.from && val < fv.from) return false;
-            if (fv.to   && val > fv.to)   return false;
-          } else if (col.type === 'number') {
-            if (fv.from !== '' && val < Number(fv.from)) return false;
-            if (fv.to   !== '' && val > Number(fv.to))   return false;
-          }
-        }
-        return true;
-      });
-    }
-    if (sortField && sortDir) {
-      data.sort((a, b) => {
-        const av = getSortVal(a, sortField);
-        const bv = getSortVal(b, sortField);
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-    return data;
-  }, [registros, colFilters, sortField, sortDir]);
-
-  // ── Stats ────────────────────────────────────────────────────────────────
+  // ── Stats reflejan la data visible (filtros + orden de AuroraDataTable) ──
   const stats = useMemo(() => {
     const totalPlantas = displayData.reduce((s, r) => s + (r.plantas || 0), 0);
     const totalArea    = displayData.reduce((s, r) => s + (r.areaCalculada || 0), 0);
@@ -579,30 +483,42 @@ function SiembraHistorial() {
     XLSX.writeFile(wb, `siembras_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const SortTh = ({ col, children }) => {
-    const isSort   = sortField === col.key;
-    const hasFilt  = !!colFilters[col.key];
-    const isHidden = !visibleCols[col.key];
-    if (isHidden) return null;
-    return (
-      <th
-        className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
-        onClick={() => handleThSort(col.key)}
-      >
-        <span className="sh-th-content">
-          {children}
-          <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
-          <span
-            className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
-            onClick={e => openColFilter(e, col.key, col.type)}
-            title="Filtrar columna"
-          >
-            <FiFilter size={10} />
-          </span>
-        </span>
-      </th>
-    );
-  };
+  // ── Render row (delegated to AuroraDataTable) ────────────────────────────
+  const renderRow = (r, vc) => (
+    <>
+      {vc.fecha       && <td className="aur-td-readonly">{formatFecha(r.fecha)}</td>}
+      {vc.lote        && <td>{r.loteNombre}</td>}
+      {vc.bloque      && <td>{r.bloque || '—'}</td>}
+      {vc.plantas     && <td className="aur-td-num">{r.plantas?.toLocaleString()}</td>}
+      {vc.densidad    && <td className="aur-td-num">{r.densidad?.toLocaleString()}</td>}
+      {vc.area        && <td className="aur-td-strong">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>}
+      {vc.material    && <td>{r.materialNombre || '—'}</td>}
+      {vc.variedad    && <td>{r.variedad || '—'}</td>}
+      {vc.responsable && <td className="aur-td-readonly">{r.responsableNombre || '—'}</td>}
+      {vc.fcierre     && <td className="aur-td-readonly">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>}
+    </>
+  );
+
+  const trailingCell = (r) => (
+    <td data-col="menu" className="print-hide">
+      <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
+        <button
+          className="hist-kebab-btn"
+          onClick={e => {
+            if (rowMenu === r.id) { setRowMenu(null); return; }
+            const rect = e.currentTarget.getBoundingClientRect();
+            setRowMenuPos({
+              top: rect.bottom + 4,
+              right: window.innerWidth - rect.right,
+            });
+            setRowMenu(r.id);
+          }}
+        >
+          <FiMoreVertical size={16} />
+        </button>
+      </div>
+    </td>
+  );
 
   return (
     <div className="shp-layout">
@@ -666,170 +582,40 @@ function SiembraHistorial() {
             </div>
           </section>
 
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Registros</h3>
-              <span className="aur-section-count">{displayData.length}</span>
-              <div className="aur-section-actions print-hide">
+          <AuroraDataTable
+            columns={COLUMNS}
+            data={registros}
+            getColVal={getColVal}
+            initialSort={{ field: 'fecha', dir: 'desc' }}
+            firstClickDir="desc"
+            renderRow={renderRow}
+            trailingCell={trailingCell}
+            rowClassName={r => r.cerrado ? 'row-cerrado' : ''}
+            onDisplayDataChange={setDisplayData}
+            toolbarActions={
+              <>
                 <button type="button" className="aur-chip" onClick={exportXLSX} title="Exportar a Excel">
                   <FiDownload size={12} /> Excel
                 </button>
                 <button type="button" className="aur-chip" onClick={() => setShowPreview(true)} title="Compartir o imprimir">
                   <FiShare2 size={12} /> Compartir
                 </button>
-              </div>
-            </div>
-
-            <div className="siembra-historial shp-table-card">
-              <div className="historial-top-row">
-                <span className="sh-result-count print-hide">
-                  {displayData.length === registros.length
-                    ? `${registros.length} registros`
-                    : `${displayData.length} de ${registros.length} registros`}
-                </span>
-                {Object.keys(colFilters).length > 0 && (
-                  <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-                    <FiX size={11} /> Limpiar filtros
-                  </button>
-                )}
-              </div>
-
-              {displayData.length === 0 ? (
-                <p className="shp-table-empty">
-                  {registros.length === 0 ? (
-                    <>
-                      Aún no hay registros que mostrar. Crea el primero en{' '}
-                      <Link to="/siembra" state={{ openForm: true }} className="aur-btn-text">
-                        Registro de siembra
-                      </Link>.
-                    </>
-                  ) : (
-                    'No hay registros con los filtros aplicados.'
-                  )}
-                </p>
-              ) : (
-                <div className="siembra-table-wrapper">
-                  <table className="siembra-table siembra-table-historial">
-                    <thead>
-                      <tr>
-                        {COLUMNS.map(col => visibleCols[col.key] && (
-                          <SortTh key={col.key} col={col}>
-                            {col.label}{col.key === 'densidad' ? <span style={{opacity:0.55, fontSize:'0.78rem'}}> pl/ha</span> : ''}
-                          </SortTh>
-                        ))}
-                        <th className="sh-th-settings print-hide">
-                          <button
-                            className={`sh-col-toggle-btn${Object.values(visibleCols).some(v=>!v) ? ' sh-col-toggle-btn--active' : ''}`}
-                            onClick={handleColBtnClick}
-                            title="Personalizar columnas"
-                          >
-                            <FiSliders size={12} />
-                            {Object.values(visibleCols).filter(v=>!v).length > 0 && (
-                              <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v=>!v).length}</span>
-                            )}
-                          </button>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayData.map(r => (
-                        <tr key={r.id} className={r.cerrado ? 'row-cerrado' : ''}>
-                          {visibleCols.fecha       && <td className="td-readonly" data-col="fecha">{formatFecha(r.fecha)}</td>}
-                          {visibleCols.lote        && <td data-col="lote">{r.loteNombre}</td>}
-                          {visibleCols.bloque      && <td data-col="bloque">{r.bloque || '—'}</td>}
-                          {visibleCols.plantas     && <td className="td-num" data-col="plantas">{r.plantas?.toLocaleString()}</td>}
-                          {visibleCols.densidad    && <td className="td-num" data-col="densidad">{r.densidad?.toLocaleString()}</td>}
-                          {visibleCols.area        && <td className="td-calc" data-col="area">{r.areaCalculada ? r.areaCalculada + ' ha' : '—'}</td>}
-                          {visibleCols.material    && <td data-col="mat">{r.materialNombre || '—'}</td>}
-                          {visibleCols.variedad    && <td data-col="variedad">{r.variedad || '—'}</td>}
-                          {visibleCols.responsable && <td className="td-readonly" data-col="responsable">{r.responsableNombre || '—'}</td>}
-                          {visibleCols.fcierre     && <td className="td-readonly" data-col="fcierre">{r.fechaCierre ? formatFecha(r.fechaCierre) : '—'}</td>}
-                          <td className="print-hide" data-col="menu">
-                            <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
-                              <button
-                                className="hist-kebab-btn"
-                                onClick={e => {
-                                  if (rowMenu === r.id) { setRowMenu(null); return; }
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setRowMenuPos({
-                                    top: rect.bottom + 4,
-                                    right: window.innerWidth - rect.right,
-                                  });
-                                  setRowMenu(r.id);
-                                }}
-                              >
-                                <FiMoreVertical size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {displayData.some(r => r.cerrado) && (
-                <p className="siembra-cerrado-hint print-hide">
-                  <FiAlertCircle size={13} />
-                  Los bloques cerrados están listos para iniciar aplicaciones.
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* ── Column visibility menu portal ─────────────────────────────────── */}
-      {colMenu && (
-        <ColMenu x={colMenu.x} y={colMenu.y} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
-      )}
-
-      {/* ── Column filter popover portal ──────────────────────────────────── */}
-      {filterPopover && createPortal(
-        <>
-          <div className="sh-filter-backdrop" onClick={() => setFilterPopover(null)} />
-          <div className="sh-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
-            {filterPopover.type === 'text' ? (
-              <>
-                <FiFilter size={13} className="sh-filter-icon" />
-                <input autoFocus className="sh-filter-input" placeholder="Filtrar…"
-                  value={colFilters[filterPopover.field]?.text || ''}
-                  onChange={e => setColFilter(filterPopover.field, 'text', 'text', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setFilterPopover(null); }}
-                />
-                {colFilters[filterPopover.field]?.text && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, 'text', 'text', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
               </>
-            ) : (
-              <div className="sh-filter-range">
-                <span className="sh-filter-range-label">De</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.from || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'from', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                <span className="sh-filter-range-label">A</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.to || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'to', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </>,
-        document.body
+            }
+            emptyText={
+              registros.length === 0
+                ? (<>Aún no hay registros que mostrar. Crea el primero en <Link to="/siembra" state={{ openForm: true }} className="aur-btn-text">Registro de siembra</Link>.</>)
+                : 'No hay registros con los filtros aplicados.'
+            }
+          />
+
+          {displayData.some(r => r.cerrado) && (
+            <p className="siembra-cerrado-hint print-hide">
+              <FiAlertCircle size={13} />
+              Los bloques cerrados están listos para iniciar aplicaciones.
+            </p>
+          )}
+        </div>
       )}
 
       {/* ── Kebab dropdown portal: renders above all overflow/z-index containers ── */}
