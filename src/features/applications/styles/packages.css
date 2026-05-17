@@ -278,12 +278,39 @@
 .fld-error-input,
 input.fld-error-input,
 .aur-input.fld-error-input,
+.aur-select.fld-error-input,
+.aur-textarea.fld-error-input,
 .pkg-act-name.fld-error-input {
   border-color: var(--aur-danger) !important;
 }
 
 .pkg-act-day input.fld-error-input {
   border-color: var(--aur-danger) !important;
+}
+
+/* Wrapper del nombre + contador de caracteres (1 línea bajo el input) */
+.pkg-name-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pkg-name-counter {
+  align-self: flex-end;
+  font-size: 10px;
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.pkg-name-counter.is-warn {
+  color: #e6a23c;
+}
+.pkg-name-counter.is-danger {
+  color: var(--aur-danger);
+  font-weight: 600;
 }
 
 .pkg-act-list {
