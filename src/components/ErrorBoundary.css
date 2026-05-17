@@ -1,0 +1,72 @@
+/* ErrorBoundary fallback — pantalla completa, centrada vertical y horizontal.
+   Diseño minimalista: solo lo necesario para que el usuario recupere control
+   sin pánico. No incluimos detalles técnicos del error (stack trace, etc.):
+   eso ya está en la consola para QA/dev. */
+
+.aur-error-boundary {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--aur-page-bg);
+  color: var(--aur-text);
+}
+
+.aur-error-boundary-card {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 28px;
+  background: var(--aur-bg);
+  border: 1px solid var(--aur-divider);
+  border-radius: 22px;
+  box-shadow: var(--aur-shadow-sheet);
+}
+
+.aur-error-boundary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
+  margin-bottom: 4px;
+}
+
+.aur-error-boundary-title {
+  font-size: var(--aur-fs-title3);
+  font-weight: 600;
+  color: var(--aur-text);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.aur-error-boundary-subtitle {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  line-height: 1.5;
+  max-width: 380px;
+  margin: 0 0 8px;
+}
+
+.aur-error-boundary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.aur-error-boundary-actions .aur-btn-pill,
+.aur-error-boundary-actions .aur-btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
