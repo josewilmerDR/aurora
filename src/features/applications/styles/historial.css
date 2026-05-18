@@ -23,6 +23,43 @@
   letter-spacing: -0.01em;
 }
 
+/* ── Filtro: chip toggle en header + grid dentro del modal ─────────────── */
+.ha-filter-toggle {
+  position: relative;
+}
+.ha-filter-toggle-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aur-accent);
+  box-shadow: 0 0 0 2px var(--aur-bg-sheet, var(--aurora-background));
+}
+
+.ha-filtro-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.ha-filtro-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ha-filtro-field--full {
+  grid-column: 1 / -1;
+}
+.ha-filtro-field > label {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
 .ha-count {
   font-size: 12px;
   color: var(--aur-text-3);
@@ -31,12 +68,28 @@
   font-variant-numeric: tabular-nums;
   margin-bottom: 10px;
 }
+/* Contador "Registros N" en texto normal junto al h3 (sin pill) */
+.ha-section-count {
+  font-size: 13px;
+  color: var(--aur-text-2);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Aviso CTA cuando no hay aplicaciones registradas: centrado y un toque más visible */
+.ha-count--empty-cta {
+  text-align: center;
+  font-size: 13px;
+  color: var(--aur-text-2);
+  padding: 24px 16px;
+}
 
 /* ── Tabla ancha (override de .aur-table para 41 columnas) ──────────────── */
 .ha-table-wrap {
   background: var(--aur-bg-input);
-  border: 1px solid var(--aur-divider);
-  border-radius: var(--aur-r-card);
+  border-top: 1px solid var(--aur-divider);
+  border-bottom: 1px solid var(--aur-divider);
   overflow-x: auto;
   overflow-y: visible;
   margin: 0;
