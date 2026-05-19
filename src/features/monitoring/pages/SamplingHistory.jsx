@@ -1,10 +1,23 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiTrash2, FiImage, FiDownload } from 'react-icons/fi';
+import { FiTrash2, FiImage, FiDownload, FiFilter, FiSearch, FiX } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import ImageLightbox from '../../../components/ImageLightbox';
+import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/monitoring.css';
+
+// Columnas estáticas que aceptan sort + filtro por embudo. Las claves
+// coinciden con campos del registro raíz (monitoreo doc). Las columnas
+// dinámicas (tipoCampos) no participan del sort/filter por ahora.
+const SORTABLE_COLS = {
+  fecha:             { type: 'date', label: 'F. Programada' },
+  createdAt:         { type: 'date', label: 'F. Carga' },
+  responsableNombre: { type: 'text', label: 'Muestreador' },
+  supervisorNombre:  { type: 'text', label: 'Supervisor' },
+  loteNombre:        { type: 'text', label: 'Lote' },
+  bloque:            { type: 'text', label: 'Grupo' },
+};
 
 function SamplingHistory() {
   const apiFetch = useApiFetch();
@@ -17,6 +30,11 @@ function SamplingHistory() {
   const [tipoCampos, setTipoCampos]     = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [lightbox, setLightbox] = useState(null); // { src, caption }
+  const [searchText, setSearchText] = useState('');
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir]     = useState(null);
+  const [colFilters, setColFilters] = useState({});
+  const [filterPop, setFilterPop] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
@@ -56,16 +74,74 @@ function SamplingHistory() {
     return () => { cancelled = true; };
   }, [filtros.tipoId]);
 
-  const registros = allRegistros;
+  // Aplica búsqueda libre, filtros por columna y sort sobre los registros
+  // raíz (antes de expandir multi-record). Sub-rows heredan el orden del padre.
+  const filteredRegistros = useMemo(() => {
+    let result = allRegistros;
+
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      result = result.filter(r => {
+        if (
+          r.loteNombre?.toLowerCase().includes(q) ||
+          r.bloque?.toLowerCase().includes(q) ||
+          r.responsableNombre?.toLowerCase().includes(q) ||
+          r.supervisorNombre?.toLowerCase().includes(q) ||
+          r.observaciones?.toLowerCase().includes(q)
+        ) return true;
+        // Buscar también en los valores de los registros del formulario.
+        const regs = r.formularioData?.registros;
+        if (Array.isArray(regs)) {
+          for (const reg of regs) {
+            for (const val of Object.values(reg || {})) {
+              if (String(val).toLowerCase().includes(q)) return true;
+            }
+          }
+        } else if (r.formularioData?.datos) {
+          for (const val of Object.values(r.formularioData.datos)) {
+            if (String(val).toLowerCase().includes(q)) return true;
+          }
+        }
+        return false;
+      });
+    }
+
+    for (const [field, fv] of Object.entries(colFilters)) {
+      const col = SORTABLE_COLS[field];
+      if (!col) continue;
+      if (col.type === 'text' && fv.text) {
+        const needle = fv.text.toLowerCase();
+        result = result.filter(r => String(r[field] || '').toLowerCase().includes(needle));
+      } else if (col.type === 'date' && (fv.from || fv.to)) {
+        result = result.filter(r => {
+          const v = String(r[field] || '').slice(0, 10);
+          if (fv.from && v < fv.from) return false;
+          if (fv.to   && v > fv.to)   return false;
+          return true;
+        });
+      }
+    }
+
+    if (sortField && sortDir) {
+      result = [...result].sort((a, b) => {
+        const av = a[sortField] || '';
+        const bv = b[sortField] || '';
+        const cmp = String(av).localeCompare(String(bv));
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    return result;
+  }, [allRegistros, searchText, colFilters, sortField, sortDir]);
 
   // When a tipo filter is active, expand each monitoreo into one row per registro.
   // Common columns (dates, names) only shown on the first sub-row.
   const displayRows = useMemo(() => {
     if (!tipoCampos.length) {
-      return registros.map(r => ({ mon: r, reg: null, isFirst: true }));
+      return filteredRegistros.map(r => ({ mon: r, reg: null, isFirst: true }));
     }
     const rows = [];
-    for (const r of registros) {
+    for (const r of filteredRegistros) {
       const regs = r.formularioData?.registros;
       if (Array.isArray(regs) && regs.length > 0) {
         regs.forEach((reg, i) => rows.push({ mon: r, reg, isFirst: i === 0, regIdx: i, regTotal: regs.length }));
@@ -75,7 +151,40 @@ function SamplingHistory() {
       }
     }
     return rows;
-  }, [registros, tipoCampos]);
+  }, [filteredRegistros, tipoCampos]);
+
+  // Sort tri-estado: null → asc → desc → null.
+  const handleSort = (field) => {
+    if (sortField !== field) { setSortField(field); setSortDir('asc'); return; }
+    if (sortDir === 'asc')   { setSortDir('desc'); return; }
+    setSortField(null); setSortDir(null);
+  };
+
+  const setColFilter = (field, key, val) => {
+    setColFilters(prev => {
+      const col = SORTABLE_COLS[field];
+      const cur = prev[field] || (col?.type === 'text' ? { text: '' } : { from: '', to: '' });
+      const updated = { ...cur, [key]: val };
+      const isEmpty = col?.type === 'text' ? !updated.text : !updated.from && !updated.to;
+      if (isEmpty) { const { [field]: _, ...rest } = prev; return rest; }
+      return { ...prev, [field]: updated };
+    });
+  };
+
+  const clearColFilter = (field) => {
+    setColFilters(prev => { const { [field]: _, ...rest } = prev; return rest; });
+  };
+
+  const openFunnel = (e, field) => {
+    e.stopPropagation();
+    if (filterPop?.field === field) { setFilterPop(null); return; }
+    const th = e.currentTarget.closest('th') ?? e.currentTarget;
+    const rect = th.getBoundingClientRect();
+    setFilterPop({ field, x: rect.left, y: rect.bottom + 4 });
+  };
+
+  const hasActiveColFilters = searchText || Object.keys(colFilters).length > 0;
+  const clearAllColFilters = () => { setSearchText(''); setColFilters({}); };
 
   const handleFiltro = (e) => setFiltros(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -192,6 +301,21 @@ function SamplingHistory() {
             <label className="aur-field-label" htmlFor="filt-hasta">Hasta</label>
             <input id="filt-hasta" className="aur-input" type="date" name="hasta" value={filtros.hasta} onChange={handleFiltro} />
           </div>
+          <div className="aur-field mh-field-search">
+            <label className="aur-field-label" htmlFor="filt-busqueda">Buscar</label>
+            <div className="mh-search-wrap">
+              <FiSearch size={13} className="mh-search-icon" />
+              <input
+                id="filt-busqueda"
+                className="aur-input mh-search-input"
+                type="text"
+                placeholder="Lote, grupo, notas, valores…"
+                value={searchText}
+                maxLength={100}
+                onChange={e => setSearchText(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -212,6 +336,43 @@ function SamplingHistory() {
           </button>
         </div>
 
+        {hasActiveColFilters && (
+          <div className="mh-active-filters" role="region" aria-label="Filtros activos">
+            {searchText && (
+              <button type="button" className="aur-chip mh-chip" onClick={() => setSearchText('')}>
+                <span>Búsqueda: "{searchText}"</span>
+                <FiX size={11} />
+              </button>
+            )}
+            {Object.entries(colFilters).map(([field, fv]) => {
+              const col = SORTABLE_COLS[field];
+              if (!col) return null;
+              const val = col.type === 'text'
+                ? `"${fv.text}"`
+                : `${fv.from || '…'} → ${fv.to || '…'}`;
+              return (
+                <button
+                  key={field}
+                  type="button"
+                  className="aur-chip mh-chip"
+                  onClick={() => clearColFilter(field)}
+                  title={`Quitar filtro de ${col.label}`}
+                >
+                  <span>{col.label}: {val}</span>
+                  <FiX size={11} />
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className="aur-btn-text mh-clear-all"
+              onClick={clearAllColFilters}
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="mon-loading" />
         ) : displayRows.length === 0 ? (
@@ -220,15 +381,37 @@ function SamplingHistory() {
           </div>
         ) : (
           <div className="aur-table-wrap">
-            <table className="aur-table mh-historial-table">
+            <table className={`aur-table mh-historial-table${tipoCampos.length > 0 ? ' mh-historial-table--has-dyn' : ''}`}>
               <thead>
                 <tr>
-                  <th>F. Programada</th>
-                  <th>F. Carga</th>
-                  <th>Muestreador</th>
-                  <th>Supervisor</th>
-                  <th>Lote</th>
-                  <th>Grupo</th>
+                  {Object.entries(SORTABLE_COLS).map(([field, col]) => {
+                    const isSort  = sortField === field;
+                    const hasFilt = !!colFilters[field];
+                    const stickyClass =
+                      field === 'loteNombre' ? ' mh-th-lote' :
+                      field === 'bloque'     ? ' mh-th-grupo' : '';
+                    return (
+                      <th
+                        key={field}
+                        className={`aur-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-filter' : ''}${stickyClass}`}
+                        onClick={() => handleSort(field)}
+                      >
+                        <span className="aur-th-content">
+                          {col.label}
+                          <span className="aur-th-arrow">{isSort ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                          <button
+                            type="button"
+                            className={`aur-th-funnel${hasFilt ? ' is-active' : ''}`}
+                            title="Filtrar columna"
+                            aria-label={hasFilt ? `Editar filtro de ${col.label}` : `Filtrar ${col.label}`}
+                            onClick={(e) => openFunnel(e, field)}
+                          >
+                            <FiFilter size={10} />
+                          </button>
+                        </span>
+                      </th>
+                    );
+                  })}
                   <th>Notas</th>
                   {tipoCampos.map(c => (
                     <th key={c.nombre} className="mh-th-dyn">
@@ -266,8 +449,8 @@ function SamplingHistory() {
                       <td>{isSub ? '' : fmt(r.createdAt)}</td>
                       <td>{isSub ? '' : (r.responsableNombre || '—')}</td>
                       <td>{isSub ? '' : (r.supervisorNombre || '—')}</td>
-                      <td>{isSub ? '' : (r.loteNombre || '—')}</td>
-                      <td>{isSub ? '' : (r.bloque || '—')}</td>
+                      <td className="mh-td-lote">{isSub ? '' : (r.loteNombre || '—')}</td>
+                      <td className="mh-td-grupo">{isSub ? '' : (r.bloque || '—')}</td>
                       <td className="mh-td-notas" title={isSub ? undefined : (r.observaciones || undefined)}>
                         {isSub ? '' : (r.observaciones || '')}
                       </td>
@@ -312,6 +495,23 @@ function SamplingHistory() {
           caption={lightbox.caption}
           openUrl={lightbox.src}
           onClose={() => setLightbox(null)}
+        />
+      )}
+
+      {filterPop && (
+        <AuroraFilterPopover
+          x={filterPop.x}
+          y={filterPop.y}
+          filterType={SORTABLE_COLS[filterPop.field]?.type === 'date' ? 'date' : 'text'}
+          textValue={colFilters[filterPop.field]?.text || ''}
+          onTextChange={(v) => setColFilter(filterPop.field, 'text', v)}
+          textPlaceholder={`Filtrar ${SORTABLE_COLS[filterPop.field]?.label.toLowerCase()}…`}
+          fromValue={colFilters[filterPop.field]?.from || ''}
+          toValue={colFilters[filterPop.field]?.to || ''}
+          onFromChange={(v) => setColFilter(filterPop.field, 'from', v)}
+          onToChange={(v) => setColFilter(filterPop.field, 'to', v)}
+          onClear={() => clearColFilter(filterPop.field)}
+          onClose={() => setFilterPop(null)}
         />
       )}
 

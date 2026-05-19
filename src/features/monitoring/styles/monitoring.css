@@ -614,3 +614,103 @@
   gap: 4px;
   width: 100%;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HISTORIAL — búsqueda libre, chips de filtros activos, sticky Lote/Grupo
+   Agregado en PR 5a (paridad con Existencias).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Input de búsqueda libre con ícono prefijo, similar al .mo-search-wrap del
+   centro de muestreos pero scoped al filtro de historial. */
+.mh-field-search {
+  grid-column: span 2;
+  min-width: 220px;
+}
+.mh-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.mh-search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--aur-text-3);
+  pointer-events: none;
+}
+.mh-search-input {
+  padding-left: 26px;
+  width: 100%;
+}
+
+/* Fila de chips de filtros activos, entre el header de la sección y la
+   tabla. Cada chip es un botón compacto que al hacer click quita ese filtro;
+   "Limpiar filtros" al final quita todo en un golpe. */
+.mh-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 4px 12px;
+}
+.mh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--aur-fs-footnote);
+  background: var(--aur-bg-2);
+  border: 1px solid var(--aur-divider);
+  color: var(--aur-text-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.mh-chip:hover {
+  background: var(--aur-bg-hover);
+  color: var(--aur-text);
+}
+.mh-clear-all {
+  margin-left: 4px;
+  font-size: var(--aur-fs-footnote);
+}
+
+/* Sticky Lote/Grupo cuando hay columnas dinámicas (la tabla scrollea
+   horizontalmente y el usuario pierde contexto). Anchura fija para que el
+   left: offset del Grupo sea predecible. El background opaco evita que el
+   contenido scrolleado sangre por debajo. */
+.mh-historial-table--has-dyn .mh-th-lote,
+.mh-historial-table--has-dyn .mh-td-lote {
+  position: sticky;
+  left: 0;
+  min-width: 140px;
+  background: var(--aur-bg, var(--aurora-background));
+  z-index: 1;
+}
+.mh-historial-table--has-dyn .mh-th-grupo,
+.mh-historial-table--has-dyn .mh-td-grupo {
+  position: sticky;
+  left: 140px;
+  min-width: 100px;
+  background: var(--aur-bg, var(--aurora-background));
+  z-index: 1;
+}
+/* Sub-rows con tinte más suave: preserva el fondo magenta-tint cuando hay
+   columnas dinámicas y el row es sub-record. */
+.mh-historial-table--has-dyn .mh-data-row--sub .mh-td-lote,
+.mh-historial-table--has-dyn .mh-data-row--sub .mh-td-grupo {
+  background: var(--aur-bg-2, var(--aurora-background));
+}
+
+/* Override scoped para mh-historial-table: igual que en Existencias, anula
+   el opacity:0.45 base del .aur-th-sortable para que la flecha activa y el
+   embudo tengan contraste suficiente sobre el background de la sección. */
+.mh-historial-table th.aur-th-sortable .aur-th-arrow,
+.mh-historial-table th.aur-th-sortable .aur-th-funnel {
+  opacity: 0.6;
+}
+.mh-historial-table th.aur-th-sortable:hover .aur-th-arrow,
+.mh-historial-table th.aur-th-sortable.is-sorted .aur-th-arrow,
+.mh-historial-table th.aur-th-sortable:hover .aur-th-funnel,
+.mh-historial-table th.aur-th-sortable.has-filter .aur-th-funnel {
+  opacity: 1;
+}
