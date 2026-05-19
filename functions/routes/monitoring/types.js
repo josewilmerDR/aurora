@@ -11,15 +11,24 @@
 //   - GET    /api/monitoreo/tipos/:id
 //   - PUT    /api/monitoreo/tipos/:id    actualiza nombre / campos / activo
 //   - DELETE /api/monitoreo/tipos/:id
+//   - GET    /api/monitoreo/campos-predeterminados
+//          ⤷ catálogo de campos del sistema (no editables por el usuario).
+//            El front los renderiza junto a los personalizados en read-only.
 
 const { Router } = require('express');
 const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
-const { sanitizeNombre, sanitizeCampos } = require('./helpers');
+const {
+  sanitizeNombre, sanitizeCampos, CAMPOS_PREDETERMINADOS,
+} = require('./helpers');
 
 const router = Router();
+
+router.get('/api/monitoreo/campos-predeterminados', authenticate, (_req, res) => {
+  res.status(200).json(CAMPOS_PREDETERMINADOS);
+});
 
 router.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
   try {

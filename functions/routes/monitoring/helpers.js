@@ -9,6 +9,21 @@ const MAX_NOMBRE_PLANTILLA = 60;
 const MAX_NOMBRE_CAMPO = 40;
 const MAX_CAMPOS_PERSONALIZADOS = 50;
 
+// Campos predeterminados del sistema — se incluyen siempre en todo registro
+// de muestreo, independientemente de la plantilla. El frontend los pide vía
+// `GET /api/monitoreo/campos-predeterminados` y los renderiza en read-only
+// junto a los campos personalizados. Para evolucionar el set, sólo hay que
+// editar esta lista — el frontend hace fetch al montar la página.
+const CAMPOS_PREDETERMINADOS = Object.freeze([
+  { nombre: 'F. Programada', tipo: 'fecha' },
+  { nombre: 'F. Muestreo',   tipo: 'fecha' },
+  { nombre: 'Muestreador',   tipo: 'texto' },
+  { nombre: 'Supervisor',    tipo: 'texto' },
+  { nombre: 'Lote',          tipo: 'texto' },
+  { nombre: 'Grupo',         tipo: 'texto' },
+  { nombre: 'Notas',         tipo: 'texto' },
+]);
+
 const MAX_NOMBRE_PAQUETE = 40;
 const MAX_DESCRIPCION = 500;
 const MAX_TECNICO = 80;
@@ -133,7 +148,8 @@ const parseIsoDate = (s) => {
 
 module.exports = {
   // Constants
-  VALID_FIELD_TYPES, MAX_NOMBRE_PLANTILLA, MAX_NOMBRE_CAMPO, MAX_CAMPOS_PERSONALIZADOS,
+  VALID_FIELD_TYPES, CAMPOS_PREDETERMINADOS,
+  MAX_NOMBRE_PLANTILLA, MAX_NOMBRE_CAMPO, MAX_CAMPOS_PERSONALIZADOS,
   MAX_NOMBRE_PAQUETE, MAX_DESCRIPCION, MAX_TECNICO, MAX_ACTIVITY_NAME,
   MAX_ACTIVITY_RESPONSABLE_ID, MAX_ACTIVITIES, MAX_FORMULARIOS_X_ACTIVITY,
   MAX_TIPO_ID, MAX_TIPO_NOMBRE, MAX_DAY,

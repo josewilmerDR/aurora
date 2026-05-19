@@ -25,9 +25,10 @@
 }
 
 .tpl-campo-card {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   padding: 6px 10px;
   background: var(--aur-bg-input);
   border: 1px solid var(--aur-divider);
@@ -35,13 +36,36 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+/* Fila principal — input + select + botones. Vive dentro del card
+   para permitir un mensaje de error opcional debajo. */
+.tpl-campo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Si el campo tiene error, el card destaca con borde de error. */
+.tpl-campo-card.has-error {
+  border-color: var(--aur-danger, #ff4d6d);
+}
+
 .tpl-campo-card:hover {
   background: var(--aur-bg-hover);
 }
 
-/* Drop indicator: top accent on the card being entered */
-.tpl-campo-card.is-dragover {
-  border-top: 2px solid var(--aur-accent);
+/* Drop indicator: line on top of the target card with subtle glow,
+   en posición absoluta para no desplazar el contenido al activarse. */
+.tpl-campo-card.is-dragover::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: var(--aur-accent);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--aur-accent);
+  pointer-events: none;
 }
 
 /* Default fields (read-only, slightly dimmed) */
@@ -75,8 +99,43 @@
 
 /* Name input — flex-grow over the type select */
 .tpl-campo-name {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Wrapper input + contador inline (mantiene proporciones del grid) */
+.tpl-input-with-counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 2;
   min-width: 120px;
+}
+.tpl-input-with-counter--wide {
+  flex: 1;
+  width: 100%;
+}
+.tpl-input-with-counter .aur-input,
+.tpl-input-with-counter .tipo-nombre-input {
+  flex: 1;
+  min-width: 0;
+}
+.tpl-char-counter {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.tpl-char-counter--warn {
+  color: var(--aur-warn);
+}
+
+/* Cuando .aur-section-num contiene un ícono SVG (en lugar del símbolo
+   unicode original), evitamos el offset por baseline del svg inline. */
+.aur-section-num svg {
+  display: block;
 }
 
 /* Preview wrapper inside lote-hub */
@@ -426,4 +485,112 @@
   font-size: 0.9rem;
   color: rgba(230, 242, 255, 0.4);
   margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Plantillas — Toolbar de la lista (búsqueda + filtros) + meta por fila
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tpl-list-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 0 12px;
+}
+
+.tpl-list-search-wrap {
+  position: relative;
+}
+.tpl-list-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  color: var(--aur-text-3);
+  pointer-events: none;
+}
+.tpl-list-search {
+  padding-left: 30px !important;
+}
+
+.tpl-list-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tpl-list-filters .aur-chip {
+  cursor: pointer;
+  user-select: none;
+}
+.tpl-list-filters .aur-chip.is-active {
+  background: var(--aur-accent);
+  border-color: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+}
+
+/* Meta line bajo el nombre de la plantilla (n campos · Inactiva) */
+.tpl-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--aur-text-3);
+  margin-top: 2px;
+}
+.tpl-list-fields-count {
+  font-variant-numeric: tabular-nums;
+}
+.tpl-list-inactive-label {
+  color: var(--aur-warn);
+  font-weight: 500;
+}
+.tpl-list-inactive-label::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--aur-text-3);
+}
+
+/* Toggle inline en cada fila de la lista — se interpone antes del chevron */
+.tpl-list-toggle {
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* Empty state cuando hay plantillas pero los filtros las ocultan todas */
+.tpl-list-empty-filtered {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+
+/* Modal de "Nueva plantilla" — el form embebido no necesita su propio aur-sheet
+   ni borde extra; aur-modal-content ya hace el padding y scroll. */
+.tpl-form-modal .aur-modal-content {
+  gap: 4px;
+}
+.tpl-form-modal .aur-modal-content .aur-section {
+  margin-top: 12px;
+}
+.tpl-form-modal .aur-modal-content .aur-section:first-child {
+  margin-top: 0;
+}
+
+/* Mensaje de error inline — dentro del card de campo (debajo de la fila)
+   o debajo del input nombre del form/detail. */
+.tpl-campo-error {
+  padding-left: 28px;       /* alinea bajo el input (saltea el handle) */
+  margin-top: 2px;
+}
+.tpl-row-error {
+  display: block;
+  margin-top: 4px;
+}
+
+/* Wrapper del nombre en edit mode (input + counter + error debajo) */
+.tpl-edit-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
 }

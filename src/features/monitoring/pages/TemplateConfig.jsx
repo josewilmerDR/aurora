@@ -1,228 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight, FiChevronRight, FiChevronUp, FiChevronDown, FiArrowLeft, FiMove, FiLock, FiClipboard } from 'react-icons/fi';
+import { useState, useEffect, useMemo } from 'react';
+import { FiPlus } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import TemplateList from '../components/TemplateList';
+import TemplateDetail from '../components/TemplateDetail';
+import TemplateForm from '../components/TemplateForm';
+import {
+  sanitizePayload,
+  MAX_NOMBRE_PLANTILLA,
+  DEFAULT_CAMPOS,
+} from '../lib/templateShared';
+
+const COPIA_SUFFIX = ' (copia)';
 import '../../applications/styles/packages.css';
 import '../styles/monitoring.css';
-
-const TIPO_OPTIONS = [
-  { value: 'texto',  label: 'Texto' },
-  { value: 'numero', label: 'Número' },
-  { value: 'fecha',  label: 'Fecha' },
-];
-
-const DEFAULT_CAMPOS = [
-  { nombre: 'F. Programada', tipo: 'fecha' },
-  { nombre: 'F. Muestreo',   tipo: 'fecha' },
-  { nombre: 'Muestreador',   tipo: 'texto' },
-  { nombre: 'Supervisor',    tipo: 'texto' },
-  { nombre: 'Lote',          tipo: 'texto' },
-  { nombre: 'Grupo',         tipo: 'texto' },
-  { nombre: 'Notas',         tipo: 'texto' },
-];
-
-const emptyCampo = () => ({ nombre: '', tipo: 'numero' });
-
-const MAX_NOMBRE_PLANTILLA = 60;
-const MAX_NOMBRE_CAMPO = 40;
-
-const sanitizePayload = (nombre, campos) => {
-  const trimmedNombre = (nombre || '').trim();
-  if (!trimmedNombre) return { ok: false, message: 'El nombre es obligatorio.' };
-  if (trimmedNombre.length > MAX_NOMBRE_PLANTILLA) {
-    return { ok: false, message: `El nombre excede ${MAX_NOMBRE_PLANTILLA} caracteres.` };
-  }
-  const cleanCampos = [];
-  for (const c of (campos || [])) {
-    const nom = (c.nombre || '').trim();
-    if (!nom) return { ok: false, message: 'Todos los campos deben tener nombre.' };
-    if (nom.length > MAX_NOMBRE_CAMPO) {
-      return { ok: false, message: `Nombre de campo excede ${MAX_NOMBRE_CAMPO} caracteres.` };
-    }
-    cleanCampos.push({ nombre: nom, tipo: c.tipo });
-  }
-  return { ok: true, nombre: trimmedNombre, campos: cleanCampos };
-};
-
-function CamposEditor({ campos, onChange, disabled }) {
-  const dragIdx = useRef(null);
-  const [dragOverIdx, setDragOverIdx] = useState(null);
-
-  const addCampo = () => onChange([...campos, emptyCampo()]);
-  const removeCampo = (i) => onChange(campos.filter((_, idx) => idx !== i));
-  const updateCampo = (i, key, val) =>
-    onChange(campos.map((c, idx) => idx === i ? { ...c, [key]: val } : c));
-
-  // Fallback de reorden para entornos sin drag-and-drop (touch / mobile)
-  const moveCampo = (i, dir) => {
-    const j = i + dir;
-    if (j < 0 || j >= campos.length) return;
-    const next = [...campos];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  };
-
-  const handleDragStart = (e, i) => {
-    dragIdx.current = i;
-    e.dataTransfer.effectAllowed = 'move';
-  };
-  const handleDragEnter = (i) => {
-    if (dragIdx.current !== null && dragIdx.current !== i) setDragOverIdx(i);
-  };
-  const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
-  const handleDrop = (e, i) => {
-    e.preventDefault();
-    const from = dragIdx.current;
-    dragIdx.current = null;
-    setDragOverIdx(null);
-    if (from === null || from === i) return;
-    const reordered = [...campos];
-    const [moved] = reordered.splice(from, 1);
-    reordered.splice(i, 0, moved);
-    onChange(reordered);
-  };
-  const handleDragEnd = () => { dragIdx.current = null; setDragOverIdx(null); };
-
-  return (
-    <>
-      <section className="aur-section">
-        <div className="aur-section-header">
-          <span className="aur-section-num">⚐</span>
-          <h3>Campos predeterminados</h3>
-          <span className="aur-section-count">{DEFAULT_CAMPOS.length}</span>
-        </div>
-        <p className="tpl-campos-hint">
-          Estos campos vienen siempre en todo registro de muestreo y no se pueden editar.
-        </p>
-        <div className="tpl-chips">
-          {DEFAULT_CAMPOS.map((c, i) => (
-            <span
-              key={`def-${i}`}
-              className="aur-badge aur-badge--gray"
-              title="Campo predeterminado del sistema"
-            >
-              <FiLock size={10} /> {c.nombre}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section className="aur-section">
-        <div className="aur-section-header">
-          <span className="aur-section-num">+</span>
-          <h3>Campos personalizados</h3>
-          <span className="aur-section-count">{campos.length}</span>
-        </div>
-        {campos.length > 0 && (
-          <ul className="tpl-campos-list">
-            {campos.map((campo, i) => (
-              <li
-                key={i}
-                className={`tpl-campo-card${dragOverIdx === i ? ' is-dragover' : ''}`}
-                draggable={!disabled}
-                onDragStart={e => handleDragStart(e, i)}
-                onDragEnter={() => handleDragEnter(i)}
-                onDragOver={handleDragOver}
-                onDrop={e => handleDrop(e, i)}
-                onDragEnd={handleDragEnd}
-              >
-                <span className="tpl-campo-handle" title="Arrastrar para reordenar">
-                  <FiMove size={13} />
-                </span>
-                <input
-                  className="aur-input tpl-campo-name"
-                  value={campo.nombre}
-                  onChange={e => updateCampo(i, 'nombre', e.target.value)}
-                  placeholder="Nombre del campo"
-                  maxLength={MAX_NOMBRE_CAMPO}
-                  disabled={disabled}
-                  aria-label="Nombre del campo"
-                />
-                <select
-                  className="aur-chip"
-                  value={campo.tipo}
-                  onChange={e => updateCampo(i, 'tipo', e.target.value)}
-                  disabled={disabled}
-                  aria-label="Tipo"
-                >
-                  {TIPO_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="aur-icon-btn aur-icon-btn--sm"
-                  onClick={() => moveCampo(i, -1)}
-                  disabled={disabled || i === 0}
-                  title="Subir"
-                  aria-label="Subir campo"
-                >
-                  <FiChevronUp size={13} />
-                </button>
-                <button
-                  type="button"
-                  className="aur-icon-btn aur-icon-btn--sm"
-                  onClick={() => moveCampo(i, 1)}
-                  disabled={disabled || i === campos.length - 1}
-                  title="Bajar"
-                  aria-label="Bajar campo"
-                >
-                  <FiChevronDown size={13} />
-                </button>
-                <button
-                  type="button"
-                  className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                  onClick={() => removeCampo(i)}
-                  disabled={disabled}
-                  title="Eliminar campo"
-                >
-                  <FiTrash2 size={13} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button
-          type="button"
-          className="pkg-add-activity"
-          onClick={addCampo}
-          disabled={disabled}
-        >
-          <FiPlus size={14} /> Agregar campo
-        </button>
-      </section>
-
-      <section className="aur-section">
-        <div className="aur-section-header">
-          <span className="aur-section-num">⊡</span>
-          <h3>Vista previa del registro</h3>
-          <span className="aur-section-count">{DEFAULT_CAMPOS.length + campos.length}</span>
-        </div>
-        <p className="tpl-campos-hint">Así se verá el formulario al registrar un muestreo.</p>
-        <div className="tpl-form-preview">
-          {[...DEFAULT_CAMPOS, ...campos].map((c, i) => {
-            const isDefault = i < DEFAULT_CAMPOS.length;
-            const inputType = c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text';
-            return (
-              <div key={i} className={`tpl-form-preview-field${isDefault ? ' tpl-form-preview-field--default' : ''}`}>
-                <label className="tpl-form-preview-label">
-                  {c.nombre || <em>Sin nombre</em>}
-                </label>
-                <input
-                  className="aur-input tpl-form-preview-input"
-                  type={inputType}
-                  disabled
-                  placeholder={isDefault ? '(datos del sistema)' : c.tipo === 'numero' ? '0' : '—'}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </section>
-    </>
-  );
-}
 
 function TemplateConfig() {
   const apiFetch = useApiFetch();
@@ -235,16 +27,58 @@ function TemplateConfig() {
   const [toast, setToast]               = useState(null);
   const [loading, setLoading]           = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // confirmDiscard guarda la acción a ejecutar si el usuario confirma
+  // que quiere perder los cambios sin guardar.
+  const [confirmDiscard, setConfirmDiscard] = useState(null);
+  // Campos predeterminados del sistema — fetched al montar la página. Inicia
+  // con la lista local como fallback (en caso de error de red o backend
+  // viejo) y se reemplaza con la del backend apenas responde.
+  const [defaultCampos, setDefaultCampos] = useState(DEFAULT_CAMPOS);
+
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    apiFetch('/api/monitoreo/tipos')
-      .then(r => r.json())
-      .then(setTipos)
+    Promise.all([
+      apiFetch('/api/monitoreo/tipos').then(r => r.json()),
+      apiFetch('/api/monitoreo/campos-predeterminados').then(r => r.json()).catch(() => null),
+    ])
+      .then(([tiposData, defaultsData]) => {
+        if (Array.isArray(tiposData)) setTipos(tiposData);
+        if (Array.isArray(defaultsData) && defaultsData.length > 0) {
+          setDefaultCampos(defaultsData);
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
+  // ── Dirty checks ──────────────────────────────────────────────────────────
+  const isEditDirty = useMemo(() => {
+    if (!editingId || !editData || !selectedTipo) return false;
+    if ((editData.nombre || '') !== (selectedTipo.nombre || '')) return true;
+    const a = editData.campos || [];
+    const b = selectedTipo.campos || [];
+    if (a.length !== b.length) return true;
+    return a.some((c, i) => c.nombre !== b[i].nombre || c.tipo !== b[i].tipo);
+  }, [editingId, editData, selectedTipo]);
+
+  const isFormDirty = useMemo(() => {
+    if (!showNew) return false;
+    return (newTipo.nombre || '').trim() !== '' || (newTipo.campos || []).length > 0;
+  }, [showNew, newTipo]);
+
+  // Envuelve una acción de cierre/cambio de contexto: si hay datos sin
+  // guardar, pide confirmación; si no, ejecuta directo.
+  const guardEditExit = (action) => {
+    if (isEditDirty) setConfirmDiscard({ action, kind: 'edit' });
+    else action();
+  };
+  const guardFormExit = (action) => {
+    if (isFormDirty) setConfirmDiscard({ action, kind: 'form' });
+    else action();
+  };
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const toggleActivo = async (tipo) => {
     try {
       await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, {
@@ -268,7 +102,7 @@ function TemplateConfig() {
     });
   };
 
-  const cancelEdit = () => setEditingId(null);
+  const cancelEdit = () => { setEditingId(null); setEditData(null); };
 
   const saveEdit = async () => {
     const clean = sanitizePayload(editData?.nombre, editData?.campos);
@@ -283,10 +117,33 @@ function TemplateConfig() {
       setTipos(prev => prev.map(t => t.id === editingId ? { ...t, ...body } : t));
       setSelectedTipo(prev => prev?.id === editingId ? { ...prev, ...body } : prev);
       setEditingId(null);
+      setEditData(null);
       showToast('Plantilla actualizada.');
     } catch {
       showToast('Error al guardar.', 'error');
     }
+  };
+
+  const openNew = () => {
+    setNewTipo({ nombre: '', campos: [] });
+    setShowNew(true);
+  };
+
+  // Duplicar una plantilla existente: abre el form prellenado con los campos
+  // y un nombre "<original> (copia)" — truncado para no exceder el max.
+  const handleDuplicate = (tipo) => {
+    const maxBase = MAX_NOMBRE_PLANTILLA - COPIA_SUFFIX.length;
+    const baseName = (tipo.nombre || '').slice(0, maxBase);
+    setNewTipo({
+      nombre: `${baseName}${COPIA_SUFFIX}`,
+      campos: (tipo.campos || []).map(c => ({ ...c })),
+    });
+    setShowNew(true);
+  };
+
+  const closeNew = () => {
+    setShowNew(false);
+    setNewTipo({ nombre: '', campos: [] });
   };
 
   const saveNew = async () => {
@@ -301,8 +158,7 @@ function TemplateConfig() {
       });
       const { id } = await res.json();
       setTipos(prev => [...prev, { id, ...body, activo: true }]);
-      setNewTipo({ nombre: '', campos: [] });
-      setShowNew(false);
+      closeNew();
       showToast('Plantilla de muestreo creada.');
     } catch {
       showToast('Error al crear.', 'error');
@@ -313,7 +169,7 @@ function TemplateConfig() {
     try {
       await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, { method: 'DELETE' });
       setTipos(prev => prev.filter(t => t.id !== tipo.id));
-      if (selectedTipo?.id === tipo.id) setSelectedTipo(null);
+      if (selectedTipo?.id === tipo.id) { setSelectedTipo(null); setEditData(null); }
       if (editingId === tipo.id) setEditingId(null);
       showToast('Plantilla eliminada.');
     } catch {
@@ -321,11 +177,29 @@ function TemplateConfig() {
     }
   };
 
-  const handleSelectTipo = (tipo) => {
+  // Cambiar de tipo seleccionado (o deseleccionar). Si hay edición sucia, confirma.
+  const doSelectTipo = (tipo) => {
+    if (selectedTipo?.id === tipo.id) {
+      setSelectedTipo(null);
+      setEditingId(null);
+      setEditData(null);
+      return;
+    }
     setSelectedTipo(tipo);
-    setShowNew(false);
     setEditingId(null);
+    setEditData(null);
   };
+  const handleSelectTipo = (tipo) => guardEditExit(() => doSelectTipo(tipo));
+
+  const doBack = () => {
+    setSelectedTipo(null);
+    setEditingId(null);
+    setEditData(null);
+  };
+  const handleBack = () => guardEditExit(doBack);
+
+  const handleCancelEdit = () => guardEditExit(cancelEdit);
+  const handleCloseForm = () => guardFormExit(closeNew);
 
   return (
     <div className={`lote-page${selectedTipo ? ' lote-page--selected' : ''}`}>
@@ -335,179 +209,55 @@ function TemplateConfig() {
         <div className="mon-loading" />
       ) : (
         <>
-          {!selectedTipo && (
-            <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 className="lote-list-title">Plantillas de muestreo</h3>
-              <button className="aur-btn-pill" onClick={() => { setShowNew(true); setSelectedTipo(null); }}>
-                <FiPlus size={16} /> Nueva plantilla
-              </button>
+          <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="aur-sheet-header-text">
+              <h1 className="lote-list-title">Plantillas de muestreo</h1>
+              <p className="aur-sheet-subtitle">
+                Define los campos que se registrarán al hacer un muestreo. Cada plantilla se adjunta a paquetes para que los lotes usen el mismo formato de registro.
+              </p>
             </div>
-          )}
+            <button className="aur-btn-pill" onClick={openNew}>
+              <FiPlus size={16} /> Nueva plantilla
+            </button>
+          </div>
 
           <div className="lote-management-layout">
-            {selectedTipo ? (
-              <div className="lote-hub">
-                <button className="lote-hub-back" onClick={() => { setSelectedTipo(null); setEditingId(null); }}>
-                  <FiArrowLeft size={13} /> Todas las plantillas
-                </button>
-
-                <div className="hub-header">
-                  <div className="hub-title-block">
-                    {editingId === selectedTipo.id ? (
-                      <input
-                        className="tipo-nombre-input"
-                        value={editData.nombre}
-                        onChange={e => setEditData(prev => ({ ...prev, nombre: e.target.value }))}
-                        maxLength={MAX_NOMBRE_PLANTILLA}
-                      />
-                    ) : (
-                      <>
-                        <h2 className="hub-lote-code">{selectedTipo.nombre}</h2>
-                        {!selectedTipo.activo && (
-                          <span
-                            className="label-optional"
-                            title="No aparece al adjuntar plantillas a paquetes nuevos"
-                          >
-                            (inactiva)
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <div className="hub-header-actions">
-                    {editingId === selectedTipo.id ? (
-                      <>
-                        <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--success" onClick={saveEdit} title="Guardar"><FiCheck size={16} /></button>
-                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={cancelEdit} title="Cancelar"><FiX size={16} /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className="aur-icon-btn aur-icon-btn--sm"
-                          onClick={() => toggleActivo(selectedTipo)}
-                          title={selectedTipo.activo
-                            ? 'Desactivar: dejará de aparecer al adjuntar plantillas a paquetes. Los registros existentes no se borran.'
-                            : 'Activar: la plantilla volverá a estar disponible para nuevos paquetes.'}
-                        >
-                          {selectedTipo.activo
-                            ? <FiToggleRight size={18} style={{ color: 'var(--aurora-green)' }} />
-                            : <FiToggleLeft size={18} />}
-                        </button>
-                        <button className="aur-icon-btn aur-icon-btn--sm" onClick={() => startEdit(selectedTipo)} title="Editar"><FiEdit2 size={15} /></button>
-                        <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger" onClick={() => setConfirmDelete(selectedTipo)} title="Eliminar"><FiTrash2 size={15} /></button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {editingId === selectedTipo.id ? (
-                  <CamposEditor
-                    campos={editData.campos}
-                    onChange={campos => setEditData(prev => ({ ...prev, campos }))}
-                  />
-                ) : (
-                  <div className="tpl-preview">
-                    <section className="aur-section">
-                      <div className="aur-section-header">
-                        <span className="aur-section-num">⚐</span>
-                        <h3>Campos predeterminados</h3>
-                        <span className="aur-section-count">{DEFAULT_CAMPOS.length}</span>
-                      </div>
-                      <div className="tpl-chips">
-                        {DEFAULT_CAMPOS.map((c, i) => (
-                          <span
-                            key={`def-${i}`}
-                            className="aur-badge aur-badge--gray"
-                            title="Campo predeterminado del sistema"
-                          >
-                            <FiLock size={10} /> {c.nombre}
-                          </span>
-                        ))}
-                      </div>
-                    </section>
-                    <section className="aur-section">
-                      <div className="aur-section-header">
-                        <span className="aur-section-num">+</span>
-                        <h3>Campos personalizados</h3>
-                        <span className="aur-section-count">{(selectedTipo.campos || []).length}</span>
-                      </div>
-                      {(selectedTipo.campos || []).length === 0 ? (
-                        <div className="tpl-empty">Sin campos adicionales</div>
-                      ) : (
-                        <div className="tpl-chips">
-                          {selectedTipo.campos.map((c, i) => (
-                            <span key={i} className="aur-badge aur-badge--magenta">
-                              {c.nombre}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-                  </div>
-                )}
-              </div>
-            ) : showNew ? (
-              <div className="aur-sheet">
-                <div className="tpl-form tpl-form--new">
-                  <section className="aur-section">
-                    <div className="aur-section-header">
-                      <span className="aur-section-num">+</span>
-                      <h3>Nueva plantilla de muestreo</h3>
-                    </div>
-                    <div className="aur-list">
-                      <div className="aur-row">
-                        <label className="aur-row-label" htmlFor="tpl-nombre">Nombre</label>
-                        <input
-                          id="tpl-nombre"
-                          className="aur-input"
-                          value={newTipo.nombre}
-                          onChange={e => setNewTipo(prev => ({ ...prev, nombre: e.target.value }))}
-                          placeholder="Ej: Muestreo de pH"
-                          maxLength={MAX_NOMBRE_PLANTILLA}
-                        />
-                      </div>
-                    </div>
-                  </section>
-                  <CamposEditor
-                    campos={newTipo.campos}
-                    onChange={campos => setNewTipo(prev => ({ ...prev, campos }))}
-                  />
-                  <div className="aur-form-actions">
-                    <button type="button" className="aur-btn-text" onClick={() => setShowNew(false)}>Cancelar</button>
-                    <button type="button" className="aur-btn-pill" onClick={saveNew}>Crear plantilla</button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {!showNew && (
-              <div className="lote-list-panel">
-                {tipos.length === 0 ? (
-                  <div className="grupo-cta">
-                    <div className="grupo-cta-icon"><FiClipboard size={24} /></div>
-                    <p className="grupo-cta-title">Aún no has creado ninguna plantilla de muestreo</p>
-                  </div>
-                ) : (
-                  <ul className="lote-list">
-                    {tipos.map(tipo => (
-                      <li
-                        key={tipo.id}
-                        className={`lote-list-item${selectedTipo?.id === tipo.id ? ' active' : ''}`}
-                        onClick={() => selectedTipo?.id === tipo.id ? setSelectedTipo(null) : handleSelectTipo(tipo)}
-                      >
-                        <div className="lote-list-info">
-                          <span className={`lote-list-code${!tipo.activo ? ' tipo-inactivo' : ''}`}>{tipo.nombre}</span>
-                          {!tipo.activo && <span className="lote-list-name">Inactivo</span>}
-                        </div>
-                        <FiChevronRight size={14} className="lote-list-arrow" />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+            {selectedTipo && (
+              <TemplateDetail
+                tipo={selectedTipo}
+                isEditing={editingId === selectedTipo.id}
+                editData={editData}
+                onChangeEditData={setEditData}
+                onBack={handleBack}
+                onStartEdit={() => startEdit(selectedTipo)}
+                onCancelEdit={handleCancelEdit}
+                onSaveEdit={saveEdit}
+                onToggleActivo={() => toggleActivo(selectedTipo)}
+                onRequestDelete={() => setConfirmDelete(selectedTipo)}
+                onDuplicate={() => handleDuplicate(selectedTipo)}
+                defaultCampos={defaultCampos}
+              />
             )}
+
+            <TemplateList
+              tipos={tipos}
+              selectedTipo={selectedTipo}
+              onSelect={handleSelectTipo}
+              onCreateNew={openNew}
+              onToggleActivo={toggleActivo}
+            />
           </div>
         </>
+      )}
+
+      {showNew && (
+        <TemplateForm
+          nuevoTipo={newTipo}
+          onChange={setNewTipo}
+          onCancel={handleCloseForm}
+          onSave={saveNew}
+          defaultCampos={defaultCampos}
+        />
       )}
 
       {confirmDelete && (
@@ -518,6 +268,24 @@ function TemplateConfig() {
           confirmLabel="Eliminar"
           onConfirm={() => { doDelete(confirmDelete); setConfirmDelete(null); }}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {confirmDiscard && (
+        <AuroraConfirmModal
+          title="¿Descartar cambios sin guardar?"
+          body={
+            confirmDiscard.kind === 'form'
+              ? 'Perderás los datos de la nueva plantilla.'
+              : 'Perderás los cambios que hiciste en esta plantilla.'
+          }
+          confirmLabel="Descartar"
+          onConfirm={() => {
+            const { action } = confirmDiscard;
+            setConfirmDiscard(null);
+            action?.();
+          }}
+          onCancel={() => setConfirmDiscard(null)}
         />
       )}
     </div>
