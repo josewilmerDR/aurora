@@ -1,10 +1,14 @@
 const { Router } = require('express');
-const { db, Timestamp, FieldValue } = require('../lib/firebase');
+const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
-const { MODULE_PREFIXES } = require('../lib/moduleMap');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const {
+  ROLES_VALIDOS,
+  cleanRestrictedTo,
+  validateUserPayload,
+} = require('./users.shared');
 
 const router = Router();
 
@@ -17,96 +21,14 @@ const router = Router();
 //
 // Once a person has been on payroll (tuvoEmpleo=true), the doc is immortal:
 // hard-delete is refused so historical HR records keep their FK target.
-// Lifecycle is then driven via grant/revoke endpoints which only flip flags.
-
-const ROLES_VALIDOS = ['ninguno', 'trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[\d\s+\-()]+$/;
-const LIMITS = { nombre: 80, email: 120, telefono: 20, motivoSalida: 200 };
-const MODULE_IDS = new Set(Object.keys(MODULE_PREFIXES));
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function cleanRestrictedTo(raw) {
-  if (!Array.isArray(raw)) return null;
-  const seen = new Set();
-  for (const v of raw) {
-    if (typeof v === 'string' && MODULE_IDS.has(v)) seen.add(v);
-  }
-  return [...seen].sort();
-}
-
-// Normalize the two facet flags against the rules:
-//   - tieneAcceso=true requires a valid (non-'ninguno') rol and a valid email.
-//   - tieneAcceso=false forces rol='ninguno' and restrictedTo=[].
-//   - at least one of (tieneAcceso, empleadoPlanilla) must be true on create.
-// Returns { errs, clean } where clean has the canonical field values.
-function validateUserPayload(body, { mode } = { mode: 'create' }) {
-  const errs = [];
-  const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
-  const emailRaw = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  const telefono = typeof body.telefono === 'string' ? body.telefono.trim() : '';
-  let rol = body.rol;
-  const tieneAcceso = body.tieneAcceso === true;
-  const empleadoPlanilla = body.empleadoPlanilla === true;
-
-  if (nombre.length < 2 || nombre.length > LIMITS.nombre) {
-    errs.push(`Nombre: 2–${LIMITS.nombre} caracteres.`);
-  }
-  if (telefono && (!PHONE_RE.test(telefono) || telefono.length > LIMITS.telefono)) {
-    errs.push('Teléfono inválido.');
-  }
-
-  if (tieneAcceso) {
-    if (!emailRaw || !EMAIL_RE.test(emailRaw) || emailRaw.length > LIMITS.email) {
-      errs.push('Email inválido (requerido para usuarios con acceso al sistema).');
-    }
-    if (rol == null || rol === 'ninguno' || !ROLES_VALIDOS.includes(rol)) {
-      errs.push('Rol inválido (requerido para usuarios con acceso al sistema).');
-    }
-  } else {
-    if (emailRaw && (!EMAIL_RE.test(emailRaw) || emailRaw.length > LIMITS.email)) {
-      errs.push('Email inválido.');
-    }
-    rol = 'ninguno';
-  }
-
-  if (body.restrictedTo !== undefined && !Array.isArray(body.restrictedTo)) {
-    errs.push('restrictedTo debe ser un arreglo.');
-  }
-
-  if (mode === 'create' && !tieneAcceso && !empleadoPlanilla) {
-    errs.push('La persona debe tener acceso al sistema o estar en planilla (o ambas).');
-  }
-
-  return {
-    errs,
-    clean: {
-      nombre,
-      email: emailRaw,
-      telefono,
-      rol: rol || 'ninguno',
-      tieneAcceso,
-      empleadoPlanilla,
-    },
-  };
-}
+// Lifecycle is then driven via grant/revoke endpoints (users-facets.js) which
+// only flip flags. Cross-field validation rules live in users.shared.js.
 
 function requireAdmin(req, res, next) {
   if (!hasMinRoleBE(req.userRole, 'administrador')) {
     return res.status(403).json({ message: 'Solo administradores pueden gestionar usuarios.' });
   }
   next();
-}
-
-// Parse a YYYY-MM-DD date, falling back to today if absent. Returns a
-// Firestore Timestamp set to noon UTC of that date (matches the convention
-// used in hr_asistencia/hr_permisos so subsequent date comparisons line up).
-function parseFechaSalida(raw) {
-  if (typeof raw === 'string' && DATE_RE.test(raw)) {
-    const d = new Date(raw + 'T12:00:00');
-    if (!Number.isNaN(d.getTime())) return Timestamp.fromDate(d);
-  }
-  return Timestamp.now();
 }
 
 // --- API ENDPOINTS: USERS ---
@@ -377,206 +299,4 @@ router.delete('/api/users/:id', authenticate, requireAdmin, async (req, res) => 
   }
 });
 
-// ─── Facet endpoints: grant/revoke access and planilla ───────────────────
-//
-// These give the frontend a clean way to flip a single facet without having
-// to reason about the rol/email/restrictedTo cross-field rules. Each one is
-// idempotent: granting an already-granted facet returns 200 with no side
-// effect, so retries from the UI are safe.
-
-// POST /api/users/:id/grant-access  { rol, restrictedTo? }
-router.post('/api/users/:id/grant-access', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const current = ownership.doc.data();
-
-    const rol = req.body?.rol;
-    if (!rol || rol === 'ninguno' || !ROLES_VALIDOS.includes(rol)) {
-      return res.status(400).json({ message: 'Rol inválido. Debe ser distinto de "ninguno".' });
-    }
-    const email = (current.email || '').trim().toLowerCase();
-    if (!email || !EMAIL_RE.test(email)) {
-      return res.status(400).json({ message: 'La persona no tiene un email válido. Actualízalo antes de darle acceso.' });
-    }
-
-    const restrictedTo = cleanRestrictedTo(req.body?.restrictedTo) || [];
-    await db.collection('users').doc(id).update({
-      tieneAcceso: true,
-      rol,
-      restrictedTo,
-    });
-
-    writeAuditEvent({
-      fincaId: req.fincaId,
-      actor: req,
-      action: ACTIONS.USER_ACCESS_GRANT,
-      target: { type: 'user', id },
-      metadata: {
-        email,
-        rol,
-        previouslyHadAccess: current.tieneAcceso === true,
-      },
-      severity: (rol === 'administrador' || rol === 'supervisor') ? SEVERITY.WARNING : SEVERITY.INFO,
-    });
-
-    res.status(200).json({ id, tieneAcceso: true, rol, restrictedTo });
-  } catch (error) {
-    console.error('[users:grant-access]', error);
-    res.status(500).json({ message: 'Error al otorgar acceso.' });
-  }
-});
-
-// POST /api/users/:id/revoke-access
-router.post('/api/users/:id/revoke-access', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const current = ownership.doc.data();
-    const targetEmail = (current.email || '').toLowerCase();
-    if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
-      return res.status(403).json({ message: 'No puedes revocarte el acceso al sistema a ti mismo.' });
-    }
-
-    // Idempotent: already revoked → return ok without rewriting the doc or
-    // re-emitting an audit event (which would otherwise mask the real revocation).
-    if (current.tieneAcceso !== true) {
-      return res.status(200).json({ id, tieneAcceso: false, alreadyRevoked: true });
-    }
-
-    await db.collection('users').doc(id).update({
-      tieneAcceso: false,
-      rol: 'ninguno',
-      restrictedTo: [],
-    });
-
-    // Drop the membership so the next authenticated request from this person
-    // fails the membership check. Without this the user could keep using the
-    // app until their Firebase token expires.
-    if (targetEmail) {
-      const memSnap = await db.collection('memberships')
-        .where('fincaId', '==', req.fincaId)
-        .where('email', '==', targetEmail)
-        .limit(1)
-        .get();
-      if (!memSnap.empty) await memSnap.docs[0].ref.delete();
-    }
-
-    writeAuditEvent({
-      fincaId: req.fincaId,
-      actor: req,
-      action: ACTIONS.USER_ACCESS_REVOKE,
-      target: { type: 'user', id },
-      metadata: {
-        email: targetEmail || null,
-        previousRol: current.rol || null,
-        stillEmpleado: current.empleadoPlanilla === true,
-      },
-      severity: SEVERITY.WARNING,
-    });
-
-    res.status(200).json({ id, tieneAcceso: false });
-  } catch (error) {
-    console.error('[users:revoke-access]', error);
-    res.status(500).json({ message: 'Error al revocar acceso.' });
-  }
-});
-
-// POST /api/users/:id/grant-planilla
-router.post('/api/users/:id/grant-planilla', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const current = ownership.doc.data();
-    const wasRehire = current.tuvoEmpleo === true;
-
-    const updates = {
-      empleadoPlanilla: true,
-      tuvoEmpleo: true,
-      // Clear any prior termination fields — rehiring an ex-employee should
-      // not leave their old fechaSalida hanging around.
-      fechaSalidaPlanilla: FieldValue.delete(),
-      motivoSalidaPlanilla: FieldValue.delete(),
-    };
-    await db.collection('users').doc(id).update(updates);
-
-    writeAuditEvent({
-      fincaId: req.fincaId,
-      actor: req,
-      action: ACTIONS.USER_PLANILLA_GRANT,
-      target: { type: 'user', id },
-      metadata: {
-        email: (current.email || '').toLowerCase() || null,
-        rehire: wasRehire,
-        previouslyOnPlanilla: current.empleadoPlanilla === true,
-      },
-      severity: SEVERITY.INFO,
-    });
-
-    res.status(200).json({ id, empleadoPlanilla: true, rehire: wasRehire });
-  } catch (error) {
-    console.error('[users:grant-planilla]', error);
-    res.status(500).json({ message: 'Error al asignar planilla.' });
-  }
-});
-
-// POST /api/users/:id/revoke-planilla  { motivo?, fecha? }
-router.post('/api/users/:id/revoke-planilla', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
-    const current = ownership.doc.data();
-    const targetEmail = (current.email || '').toLowerCase();
-    if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
-      return res.status(403).json({ message: 'No puedes rescindir tu propio contrato.' });
-    }
-
-    if (current.empleadoPlanilla !== true) {
-      return res.status(200).json({ id, empleadoPlanilla: false, alreadyRevoked: true });
-    }
-
-    const motivo = typeof req.body?.motivo === 'string'
-      ? req.body.motivo.trim().slice(0, LIMITS.motivoSalida)
-      : '';
-    const fechaSalida = parseFechaSalida(req.body?.fecha);
-
-    await db.collection('users').doc(id).update({
-      empleadoPlanilla: false,
-      fechaSalidaPlanilla: fechaSalida,
-      motivoSalidaPlanilla: motivo,
-      // tuvoEmpleo is monotonic — never reverts. Setting it again explicitly
-      // covers the (paranoid) case where the doc somehow lacks it.
-      tuvoEmpleo: true,
-    });
-
-    writeAuditEvent({
-      fincaId: req.fincaId,
-      actor: req,
-      action: ACTIONS.USER_PLANILLA_REVOKE,
-      target: { type: 'user', id },
-      metadata: {
-        email: targetEmail || null,
-        motivo: motivo || null,
-        fecha: fechaSalida.toDate().toISOString().slice(0, 10),
-        stillHasAccess: current.tieneAcceso === true,
-      },
-      severity: SEVERITY.WARNING,
-    });
-
-    res.status(200).json({ id, empleadoPlanilla: false });
-  } catch (error) {
-    console.error('[users:revoke-planilla]', error);
-    res.status(500).json({ message: 'Error al rescindir contrato.' });
-  }
-});
-
 module.exports = router;
-// Exported for unit testing — keeps the cross-field invariants (tieneAcceso ↔
-// rol/email, orphan-state rejection) checkable without spinning up the HTTP
-// stack. Not intended for general consumers; route handlers should remain
-// the only callers in production code.
-module.exports.__test = { validateUserPayload, cleanRestrictedTo };

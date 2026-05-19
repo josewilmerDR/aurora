@@ -8,7 +8,7 @@
  * shows up here rather than at the API edge.
  */
 
-const { validateUserPayload, cleanRestrictedTo } = require('../../routes/users').__test;
+const { validateUserPayload, cleanRestrictedTo } = require('../../routes/users.shared');
 
 describe('validateUserPayload — create mode', () => {
   test('accepts a payroll-only person without email or rol', () => {
