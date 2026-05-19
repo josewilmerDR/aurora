@@ -566,6 +566,20 @@
 .tpl-list-fields-count {
   font-variant-numeric: tabular-nums;
 }
+/* Indicador de uso: cuántos paquetes adjuntan esta plantilla. Compacto,
+   con ícono de paquete para que se distinga de la cuenta de campos. */
+.tpl-list-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+  color: var(--aurora-magenta, var(--aur-text-2));
+}
+.tpl-list-usage::before {
+  content: '·';
+  margin-right: 5px;
+  color: var(--aur-text-3);
+}
 .tpl-list-inactive-label {
   color: var(--aur-warn);
   font-weight: 500;
@@ -574,6 +588,12 @@
   content: '·';
   margin-right: 8px;
   color: var(--aur-text-3);
+}
+
+/* En el header del detalle, el indicador de uso adopta el color magenta
+   del sistema para distinguirlo del (inactiva) amarillo. */
+.tpl-detail-usage {
+  color: var(--aurora-magenta, var(--aur-text-2));
 }
 
 /* Toggle inline en cada fila de la lista — se interpone antes del chevron */
