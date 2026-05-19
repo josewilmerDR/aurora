@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import '../styles/hr.css';
 import { FiUserPlus } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
-import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import { translateApiError } from '../../../lib/errorMessages';
 import EmployeeForm from '../components/EmployeeForm';
 import EmployeeHubPanel from '../components/EmployeeHubPanel';
+import EmployeeTerminationModal from '../components/EmployeeTerminationModal';
 import { EmployeeCarousel, EmployeeListPanel } from '../components/EmployeeListPanel';
 import {
   EMPTY_FICHA, EMPTY_HORARIO, EMPTY_USER, DRAFT_KEY,
@@ -23,6 +25,8 @@ import {
 
 function EmployeeProfile() {
   const apiFetch = useApiFetch();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, refreshCurrentUser } = useUser();
   const [allUsers, setAllUsers] = useState([]);
   const [planillaUsers, setPlanillaUsers] = useState([]);
@@ -41,7 +45,8 @@ function EmployeeProfile() {
   const [horarioCollapsed, setHorarioCollapsed] = useState(true);
   const [horarioDefault, setHorarioDefault] = useState({ inicio: '06:00', fin: '14:00' });
   const [errors, setErrors] = useState({});
-  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmTerminate, setConfirmTerminate] = useState(null); // user being terminated
+  const [terminating, setTerminating] = useState(false);
   const formRef = useRef(null);
   const carouselRef = useRef(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
@@ -92,6 +97,25 @@ function EmployeeProfile() {
     } catch { clearDraft(); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Consume the optional router state from UserManagement's "Marcar también
+  // como empleado" / "Ver ficha laboral" actions. The state is one-shot: we
+  // clear it via navigate(..., { replace: true }) once consumed so a manual
+  // refresh on this page doesn't reapply it.
+  useEffect(() => {
+    const { selectUserId, openEdit } = location.state || {};
+    if (!selectUserId || loading || !allUsers.length) return;
+    const target = allUsers.find(u => u.id === selectUserId);
+    if (!target) return;
+    handleSelectEmployee(target).then(() => {
+      if (openEdit) {
+        setIsEditing(true);
+        setView('form');
+        window.scrollTo(0, 0);
+      }
+    });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [loading, allUsers, location.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Guardar borrador solo al crear (no al editar)
   useEffect(() => {
     if (view !== 'form' || isEditing) return;
@@ -118,7 +142,16 @@ function EmployeeProfile() {
 
   const handleSelectEmployee = async (user) => {
     setSelectedId(user.id);
-    setUserForm({ nombre: user.nombre, email: user.email, telefono: user.telefono || '', rol: user.rol || 'trabajador' });
+    setUserForm({
+      nombre: user.nombre,
+      email: user.email || '',
+      telefono: user.telefono || '',
+      // Default rol/access values are aligned with the new model: if the
+      // person has no system access we treat their rol as 'ninguno'
+      // regardless of any legacy value lingering on the doc.
+      rol: user.tieneAcceso === true ? (user.rol || 'trabajador') : 'ninguno',
+      tieneAcceso: user.tieneAcceso === true,
+    });
     setFichaForm(EMPTY_FICHA);
     setView('hub');
     if (window.innerWidth <= 768)
@@ -142,17 +175,46 @@ function EmployeeProfile() {
     window.scrollTo(0, 0);
   };
 
-  const handleDelete = async (userId) => {
+  // Terminate the employment relationship. Never hard-deletes the doc — the
+  // backend rejects that when tuvoEmpleo===true, and the EmployeeTermination
+  // modal is the only path here anyway. Optionally also revokes system
+  // access in the same flow.
+  const handleTerminate = async ({ motivo, fechaSalida, tambienQuitarAcceso }) => {
+    if (!confirmTerminate) return;
+    const userId = confirmTerminate.id;
+    setTerminating(true);
     try {
-      const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      if (tambienQuitarAcceso && confirmTerminate.tieneAcceso === true) {
+        const res = await apiFetch(`/api/users/${userId}/revoke-access`, { method: 'POST' });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(translateApiError(body, 'Error al revocar acceso.'));
+        }
+      }
+      const res = await apiFetch(`/api/users/${userId}/revoke-planilla`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo: motivo || '', fecha: fechaSalida }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(translateApiError(body, 'Error al rescindir contrato.'));
+      }
+
       setSelectedId(null);
       setUserForm(EMPTY_USER);
       setFichaForm(EMPTY_FICHA);
+      setConfirmTerminate(null);
       fetchUsers();
-      showToast('Empleado eliminado correctamente.');
-    } catch {
-      showToast('Error al eliminar.', 'error');
+      showToast(
+        tambienQuitarAcceso && confirmTerminate.tieneAcceso === true
+          ? 'Contrato rescindido y acceso revocado.'
+          : 'Contrato rescindido. Los registros laborales se conservan.'
+      );
+    } catch (err) {
+      showToast(err?.message || 'Error al procesar la rescisión.', 'error');
+    } finally {
+      setTerminating(false);
     }
   };
 
@@ -216,13 +278,21 @@ function EmployeeProfile() {
     });
   };
 
-  const buildUserPayload = () => ({
-    nombre: userForm.nombre.trim(),
-    email: userForm.email.trim().toLowerCase(),
-    telefono: (userForm.telefono || '').trim(),
-    rol: userForm.rol,
-    empleadoPlanilla: true,
-  });
+  const buildUserPayload = () => {
+    const tieneAcceso = userForm.tieneAcceso === true;
+    return {
+      nombre: userForm.nombre.trim(),
+      // Send email even when access is off if the admin typed one — the
+      // backend allows an optional email for payroll-only people and it's
+      // useful for notifications. Sending '' explicitly clears the field
+      // when the admin emptied the input.
+      email: (userForm.email || '').trim().toLowerCase(),
+      telefono: (userForm.telefono || '').trim(),
+      rol: tieneAcceso ? userForm.rol : 'ninguno',
+      tieneAcceso,
+      empleadoPlanilla: true,
+    };
+  };
 
   const buildFichaPayload = () => {
     const s = (v) => (typeof v === 'string' ? v.trim() : v);
@@ -338,7 +408,12 @@ function EmployeeProfile() {
     }
   };
 
-  const encargados = allUsers.filter(u => ['encargado', 'supervisor', 'administrador'].includes(u.rol));
+  // Only system users with leadership roles can be picked as encargados.
+  // A payroll-only person (tieneAcceso=false) cannot supervise others because
+  // they don't use the app — surfacing them in the dropdown would mislead.
+  const encargados = allUsers.filter(u =>
+    u.tieneAcceso !== false && ['encargado', 'supervisor', 'administrador'].includes(u.rol)
+  );
   const selectedUser = allUsers.find(u => u.id === selectedId);
 
   if (loading) {
@@ -392,7 +467,7 @@ function EmployeeProfile() {
             allUsers={allUsers}
             onBack={() => setSelectedId(null)}
             onEdit={handleEdit}
-            onRequestDelete={setConfirmDelete}
+            onRequestTerminate={setConfirmTerminate}
           />
         )}
 
@@ -436,14 +511,12 @@ function EmployeeProfile() {
 
       </div>
 
-      {confirmDelete && (
-        <AuroraConfirmModal
-          danger
-          title="Eliminar empleado"
-          body={`¿Eliminar a "${confirmDelete.nombre}" del sistema? Esta acción no se puede deshacer.`}
-          confirmLabel="Eliminar"
-          onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
-          onCancel={() => setConfirmDelete(null)}
+      {confirmTerminate && (
+        <EmployeeTerminationModal
+          user={confirmTerminate}
+          loading={terminating}
+          onConfirm={handleTerminate}
+          onCancel={() => setConfirmTerminate(null)}
         />
       )}
     </div>

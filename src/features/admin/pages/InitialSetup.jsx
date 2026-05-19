@@ -183,6 +183,11 @@ const ENTIDADES = [
       email:    String(row['Email']           || '').trim(),
       telefono: String(row['Teléfono']        || '').trim(),
       rol:      normalizeRol(row['Rol']),
+      // The "Usuarios del Sistema" bulk template represents login-capable
+      // users by construction. The backend requires at least one of
+      // (tieneAcceso, empleadoPlanilla) to be true on create, so we
+      // declare the facet explicitly here.
+      tieneAcceso: true,
     }),
     isValid: (r) => !!(r.nombre && r.email),
     countLabel: 'usuarios',
@@ -904,11 +909,17 @@ function EmpleadosCard() {
       for (const item of parsed) {
         const { cedula, puesto, departamento, fechaIngreso, tipoContrato, salarioBase,
                 precioHora, direccion, contactoEmergencia, telefonoEmergencia, notas, ...userData } = item;
+        // normalizeRol defaults to 'trabajador' for any missing/unknown value,
+        // so a row whose rol is not 'ninguno' represents a person who should
+        // also have system access. Sending tieneAcceso explicitly avoids the
+        // backend default-to-false that would otherwise hide the row from
+        // UserManagement after bulk import.
+        const tieneAcceso = userData.rol && userData.rol !== 'ninguno';
         try {
           const res = await apiFetch('/api/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...userData, empleadoPlanilla: true }),
+            body: JSON.stringify({ ...userData, empleadoPlanilla: true, tieneAcceso }),
           });
           if (!res.ok) { errores++; continue; }
           const { id, merged } = await res.json();

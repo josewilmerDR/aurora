@@ -1,6 +1,17 @@
-import { FiArrowLeft, FiEdit, FiTrash2, FiMail, FiPhone } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit, FiUserX, FiMail, FiPhone, FiKey, FiClock } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import { DIAS_SEMANA, calcHorasSemanales, getInitials } from '../lib/employeeProfileShared';
+
+// Firestore Timestamps come through the REST proxy as { _seconds, _nanoseconds }
+// or as ISO strings depending on the serializer in front of them. Accept all
+// likely shapes and return a YYYY-MM-DD string for display.
+function formatFechaSalida(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'string') return raw.slice(0, 10);
+  if (typeof raw._seconds === 'number') return new Date(raw._seconds * 1000).toISOString().slice(0, 10);
+  if (typeof raw.toDate === 'function') return raw.toDate().toISOString().slice(0, 10);
+  return null;
+}
 
 // Panel de detalle (solo lectura) del empleado seleccionado. Renderiza
 // secciones condicionalmente según los datos disponibles en la ficha.
@@ -10,7 +21,7 @@ export default function EmployeeHubPanel({
   allUsers,
   onBack,
   onEdit,
-  onRequestDelete,
+  onRequestTerminate,
 }) {
   if (!selectedUser) return null;
 
@@ -19,6 +30,16 @@ export default function EmployeeHubPanel({
     || fichaForm.salarioBase || fichaForm.precioHora || encargado;
   const tieneHorario = DIAS_SEMANA.some(d => fichaForm.horarioSemanal?.[d.key]?.activo);
   const tieneContacto = fichaForm.direccion || fichaForm.contactoEmergencia || fichaForm.telefonoEmergencia;
+
+  // Faceta "usuario del sistema" del empleado. Sólo mostramos el badge
+  // adicional cuando es relevante para distinguir del caso "default".
+  const isSystemUser = selectedUser.tieneAcceso === true;
+  const isActiveEmployee = selectedUser.empleadoPlanilla === true;
+  const wasEmployee = !isActiveEmployee && selectedUser.tuvoEmpleo === true;
+  const fechaSalida = formatFechaSalida(selectedUser.fechaSalidaPlanilla);
+  const motivoSalida = typeof selectedUser.motivoSalidaPlanilla === 'string'
+    ? selectedUser.motivoSalidaPlanilla
+    : '';
 
   return (
     <div className="lote-hub">
@@ -31,20 +52,47 @@ export default function EmployeeHubPanel({
           <div className="ficha-avatar">{getInitials(selectedUser.nombre)}</div>
           <div>
             <h2 className="hub-lote-code">{selectedUser.nombre}</h2>
-            <span className={`role-badge role-badge--${selectedUser.rol || 'trabajador'}`}>
-              {ROLE_LABELS[selectedUser.rol] || 'Trabajador'}
-            </span>
+            {isSystemUser ? (
+              <span className={`role-badge role-badge--${selectedUser.rol || 'trabajador'}`}>
+                <FiKey size={10} /> {ROLE_LABELS[selectedUser.rol] || 'Trabajador'}
+              </span>
+            ) : (
+              <span className="role-badge role-badge--ninguno" title="Esta persona no tiene acceso al sistema">
+                Sólo empleado
+              </span>
+            )}
           </div>
         </div>
         <div className="hub-header-actions">
           <button onClick={onEdit} className="aur-icon-btn" title="Editar ficha">
             <FiEdit size={16} />
           </button>
-          <button onClick={() => onRequestDelete(selectedUser)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar empleado">
-            <FiTrash2 size={16} />
-          </button>
+          {isActiveEmployee && (
+            <button
+              onClick={() => onRequestTerminate(selectedUser)}
+              className="aur-icon-btn aur-icon-btn--danger"
+              title="Rescindir contrato"
+            >
+              <FiUserX size={16} />
+            </button>
+          )}
         </div>
       </div>
+
+      {wasEmployee && (
+        <div className="hub-info-pills">
+          <span
+            className="aur-badge aur-badge--gray"
+            title={
+              motivoSalida
+                ? `Contrato rescindido el ${fechaSalida || 's/f'} — ${motivoSalida}`
+                : `Contrato rescindido el ${fechaSalida || 's/f'}`
+            }
+          >
+            <FiClock size={11} /> Ex-empleado{fechaSalida && <> · {fechaSalida}</>}
+          </span>
+        </div>
+      )}
 
       <div className="hub-info-pills">
         {selectedUser.email    && <span className="hub-pill"><FiMail  size={13} />{selectedUser.email}</span>}
