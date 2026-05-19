@@ -301,6 +301,28 @@
   margin-top: 8px;
 }
 
+/* Select "Agregar plantilla" en la card de actividad — alineado al inicio,
+   con margen sobre las chips de plantillas ya adjuntas. Reemplaza el style
+   inline {alignSelf, marginTop} original. */
+.spk-add-plantilla-select {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+/* Modificador para lote-page-header cuando contiene un título + acción
+   (e.g. "Paquetes de muestreo" + botón "Nuevo paquete"). Reemplaza el style
+   inline {justifyContent, alignItems} original. */
+.lote-page-header--with-action {
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Wrapper que crece para llenar el aur-row al lado del label — patrón
+   equivalente a fmm-notas-wrap pero scoped al form de SamplingPackages. */
+.spk-form-input-grow {
+  flex: 1;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    HISTORIAL — modificadores slim sobre aur-table
    La tabla base (estructura, padding, focus, hover) viene de .aur-table del

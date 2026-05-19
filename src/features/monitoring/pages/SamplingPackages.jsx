@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import '../../applications/styles/packages.css';
+import '../styles/monitoring.css';
 import {
   FiEdit2, FiTrash2, FiPlus, FiX, FiCopy,
   FiChevronRight, FiChevronDown, FiArrowLeft, FiCheck, FiPackage,
@@ -210,11 +211,10 @@ function ActivitiesEditor({
                     ))}
                     {availablePlantillas.length > 0 && (
                       <select
-                        className="aur-chip aur-chip--ghost"
+                        className="aur-chip aur-chip--ghost spk-add-plantilla-select"
                         value=""
                         onChange={(e) => { if (e.target.value) addPlantilla(index, e.target.value); }}
                         aria-label="Agregar plantilla"
-                        style={{ alignSelf: 'flex-start', marginTop: 6 }}
                       >
                         <option value="">+ Agregar plantilla</option>
                         {availablePlantillas.map(t => (
@@ -461,7 +461,7 @@ function SamplingPackages() {
       ) : (
         <>
           {!selectedPkg && !showNew && (
-            <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="lote-page-header lote-page-header--with-action">
               <h3 className="lote-list-title">Paquetes de muestreo</h3>
               <button className="aur-btn-pill" onClick={startNew}>
                 <FiPlus size={16} /> Nuevo paquete
@@ -566,7 +566,7 @@ function SamplingPackages() {
                     <div className="aur-list">
                       <div className="aur-row">
                         <label className="aur-row-label" htmlFor="nombrePaquete">Nombre del paquete</label>
-                        <div style={{ flex: 1 }}>
+                        <div className="spk-form-input-grow">
                           <input
                             id="nombrePaquete"
                             className={`aur-input${formErrors.nombrePaquete ? ' fld-error-input' : ''}`}
