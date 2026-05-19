@@ -5,6 +5,7 @@ import {
   FiPlus, FiFileText, FiAward,
 } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useToast } from '../../../contexts/ToastContext';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import RfqResponseForm from '../components/rfqs/RfqResponseForm';
 import RfqCreateForm from '../components/rfqs/RfqCreateForm';
@@ -28,6 +29,7 @@ const STATE_BADGE_VARIANT = {
 function RfqsList() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
+  const toast = useToast();
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -59,7 +61,7 @@ function RfqsList() {
       setCloseResult({ rfqId: id, ...data });
       load();
     } catch (err) {
-      alert('Cerrar falló: ' + (err.message || 'error desconocido'));
+      toast.error('Cerrar falló: ' + (err.message || 'error desconocido'));
     }
   };
 
@@ -70,7 +72,7 @@ function RfqsList() {
       if (expandedId === id) setExpandedId(null);
       load();
     } catch (err) {
-      alert('Eliminar falló: ' + (err.message || 'error desconocido'));
+      toast.error('Eliminar falló: ' + (err.message || 'error desconocido'));
     }
   };
 

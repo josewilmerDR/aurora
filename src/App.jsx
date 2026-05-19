@@ -105,6 +105,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { useAutoPageTitle } from './hooks/usePageTitle';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { RemindersProvider, useReminders } from './contexts/RemindersContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { ALL_ITEMS } from './components/Sidebar';
 import { ADVANCED_ENABLED } from './lib/features';
 
@@ -317,6 +318,7 @@ function App() {
     <Router>
       <UserProvider>
         <ErrorBoundary>
+          <ToastProvider>
           <Suspense fallback={<div className="app-loading" />}>
           <Routes>
           {/* Public routes */}
@@ -442,6 +444,7 @@ function App() {
           </Route>
           </Routes>
           </Suspense>
+          </ToastProvider>
         </ErrorBoundary>
       </UserProvider>
     </Router>
