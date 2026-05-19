@@ -1093,6 +1093,18 @@
   white-space: nowrap;
 }
 
+/* Sortable th: opacity full so el patrón aur-th-* (flecha + embudo hover + estado activo) se vea con su propio contraste. */
+.product-grid-table th.aur-th-sortable {
+  opacity: 1;
+  color: rgba(230, 242, 255, 0.55);
+}
+.product-grid-table th.aur-th-sortable:hover {
+  color: rgba(230, 242, 255, 0.85);
+}
+.product-grid-table th.aur-th-sortable.is-sorted {
+  color: var(--aurora-green);
+}
+
 .product-grid-table tbody tr {
   border-bottom: 1px solid rgba(42, 74, 106, 0.4);
   transition: background-color 0.1s;

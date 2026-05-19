@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiList, FiMenu } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiClock, FiMenu } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import EmptyState from '../../../components/ui/EmptyState';
@@ -465,7 +465,7 @@ function Existencias() {
     const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
     return (
       <th
-        className={`historial-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
         onClick={() => setSorts(prev => {
           const next = [...prev];
           if (next[0].field !== field)       next[0] = { field, dir: 'asc' };
@@ -474,20 +474,24 @@ function Existencias() {
           return next;
         })}
       >
-        {children}
-        <span className="historial-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span
-          className={`historial-th-funnel${hasFilter ? ' is-active' : ''}`}
-          title="Filtrar columna"
-          onClick={e => {
-            e.stopPropagation();
-            if (filterPop?.field === field) { setFilterPop(null); return; }
-            const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-            const rect = th.getBoundingClientRect();
-            setFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
-          }}
-        >
-          <FiFilter size={10} />
+        <span className="aur-th-content">
+          {children}
+          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+          <button
+            type="button"
+            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
+            title="Filtrar columna"
+            aria-label={hasFilter ? 'Editar filtro de columna' : 'Filtrar columna'}
+            onClick={e => {
+              e.stopPropagation();
+              if (filterPop?.field === field) { setFilterPop(null); return; }
+              const th   = e.currentTarget.closest('th') ?? e.currentTarget;
+              const rect = th.getBoundingClientRect();
+              setFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
+            }}
+          >
+            <FiFilter size={10} />
+          </button>
         </span>
       </th>
     );
@@ -536,7 +540,7 @@ function Existencias() {
                   </button>
                 )}
                 <Link to="/bodega/agroquimicos/movimientos" className="aur-chip">
-                  <FiList size={14} /> Historial
+                  <FiClock size={14} /> Historial
                 </Link>
                 <button onClick={() => setShowNuevoModal(true)} className="aur-btn-pill">
                   <FiPlus size={14} /> Nuevo Producto
@@ -581,13 +585,26 @@ function Existencias() {
                       </SortTh>
                     ))}
                     <th className="pg-col-del">
-                      <button
-                        className={`aur-col-menu-trigger${visibleCols.size < COLUMNS.length ? ' is-active' : ''}`}
-                        onClick={handleColMenuOpen}
-                        title="Gestionar columnas"
-                      >
-                        <FiSliders size={13} />
-                      </button>
+                      {(() => {
+                        const hiddenCount = COLUMNS.length - visibleCols.size;
+                        return (
+                          <button
+                            className={`aur-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
+                            onClick={handleColMenuOpen}
+                            title={hiddenCount > 0
+                              ? `Gestionar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
+                              : 'Gestionar columnas'}
+                            aria-label={hiddenCount > 0
+                              ? `Gestionar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
+                              : 'Gestionar columnas'}
+                          >
+                            <FiSliders size={13} />
+                            {hiddenCount > 0 && (
+                              <span className="aur-col-hidden-badge" aria-hidden="true">{hiddenCount}</span>
+                            )}
+                          </button>
+                        );
+                      })()}
                     </th>
                   </tr>
                 </thead>
