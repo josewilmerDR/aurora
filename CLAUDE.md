@@ -117,6 +117,18 @@ functions/
 Activity `type`: `notificacion` (default) | `aplicacion` (has `productos[]` recipe)
 Task `status` lifecycle: `pending` → `completed_by_user` | `skipped`
 
+### Module conventions: Monitoreo vs Muestreos
+
+"Monitoreo" es el paraguas para cualquier observación del estado de la finca. Dentro tiene (o tendrá) submódulos definidos por **método de captura**:
+
+- **Muestreos** (activo, humano) — formularios llenados por personal en campo. Hoy es el único submódulo y contiene todo lo actual: plantillas, paquetes, órdenes, registros. Cubre fertilidad, plagas, enfermedades, pH, etc. — cualquier tema que requiera tomar una muestra física.
+- **Sensores / Dashboards** (pasivo, IoT, futuro) — telemetría de dispositivos conectados (humedad, fertilidad de suelo en vivo, etc.). Modelo de datos distinto: series de tiempo, sin entidades configurables por usuario.
+
+**Reglas de naming**:
+- Si la entidad existe solo para muestreos manuales, usa **"muestreo"** en código, datos y UI. Ej: `tipoMuestreo`, `paqueteMuestreoId`, `Plantilla de Muestreo`, componentes `Sampling*`.
+- Reservá **"monitoreo"** para el paraguas: rutas `/monitoreo/*`, sidebar group, futuras vistas cross-submódulo. El namespace `/api/monitoreo/*` queda libre para dashboards o agregaciones que crucen varios submódulos cuando lleguen.
+- Endpoints actuales que viven bajo `/api/monitoreo/*` pero son sampling-specific (`tipos`, `paquetes`, `campos-predeterminados`, `records`) están en proceso de moverse a `/api/muestreos/*` para reservar el namespace paraguas.
+
 ### CSS Design System
 
 CSS variables defined in `src/index.css`:

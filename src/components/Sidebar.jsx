@@ -100,7 +100,7 @@ const ALL_MODULES = [
     nombre: 'Monitoreo',
     icon: FiActivity,
     items: [
-      { label: 'Centro de Monitoreo', to: '/monitoreo/muestreos', icon: FiList, minRole: 'encargado' },
+      { label: 'Órdenes de Muestreos', to: '/monitoreo/muestreos', icon: FiList, minRole: 'encargado' },
       { label: 'Historial de Muestreos', to: '/monitoreo/historial', icon: FiBarChart2, minRole: 'encargado' },
       {
         label: 'Configuración', icon: FiSettings, minRole: 'supervisor', children: [
