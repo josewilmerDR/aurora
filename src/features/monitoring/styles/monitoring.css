@@ -317,6 +317,12 @@
 .mh-page-header {
   margin: 0 4px 16px;
 }
+
+/* Botón "Exportar CSV" en el header de sección — empuja al borde derecho.
+   Reemplaza el style inline {marginLeft: 'auto'} (heredado de PR 1). */
+.mh-export-btn {
+  margin-left: auto;
+}
 .mh-page-title {
   font-size: var(--aur-fs-h2, 1.25rem);
   font-weight: 600;

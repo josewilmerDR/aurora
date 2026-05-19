@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle, FiFilter } from 'react-icons/fi';
+import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle, FiFilter, FiInbox } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import EmptyState from '../../../components/ui/EmptyState';
 import SamplingRegisterModal from '../components/SamplingRegisterModal';
 import '../styles/sampling-center.css';
 
@@ -288,15 +289,20 @@ export default function SamplingCenter() {
       {!loading && !error && (
         <>
           {filtered.length === 0 ? (
-            <div className="mo-state mo-state--empty">
-              {search
-                ? 'Sin resultados para la búsqueda.'
-                : statusFilter === 'pending'
-                  ? 'No hay órdenes pendientes.'
-                  : statusFilter === 'completed_by_user'
-                    ? 'No hay órdenes completadas.'
-                    : 'No hay órdenes de muestreo programadas.'}
-            </div>
+            <EmptyState
+              variant="compact"
+              icon={search ? FiSearch : FiInbox}
+              title={
+                search
+                  ? 'Sin resultados para la búsqueda.'
+                  : statusFilter === 'pending'
+                    ? 'No hay órdenes pendientes.'
+                    : statusFilter === 'completed_by_user'
+                      ? 'No hay órdenes completadas.'
+                      : 'No hay órdenes de muestreo programadas.'
+              }
+              subtitle={search ? 'Probá con otros términos o quitá la búsqueda.' : undefined}
+            />
           ) : (
             <div className="aur-table-wrap">
               <table className="aur-table mo-table">
