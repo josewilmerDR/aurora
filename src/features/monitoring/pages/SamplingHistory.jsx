@@ -21,7 +21,7 @@ function SamplingHistory() {
 
   useEffect(() => {
     apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
-    apiFetch('/api/monitoreo/tipos').then(r => r.json()).then(setTipos).catch(console.error);
+    apiFetch('/api/muestreos/tipos').then(r => r.json()).then(setTipos).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ function SamplingHistory() {
         if (filtros.tipoId) params.set('tipoId', filtros.tipoId);
         if (filtros.desde)  params.set('desde',  filtros.desde);
         if (filtros.hasta)  params.set('hasta',  filtros.hasta);
-        const data = await apiFetch(`/api/monitoreo?${params}`).then(r => r.json());
+        const data = await apiFetch(`/api/muestreos?${params}`).then(r => r.json());
         if (!cancelled) setAllRegistros(Array.isArray(data) ? data : []);
       } catch {
         if (!cancelled) showToast('Error al cargar registros.', 'error');
@@ -49,7 +49,7 @@ function SamplingHistory() {
   useEffect(() => {
     if (!filtros.tipoId) { setTipoCampos([]); return; }
     let cancelled = false;
-    apiFetch(`/api/monitoreo/tipos/${filtros.tipoId}`)
+    apiFetch(`/api/muestreos/tipos/${filtros.tipoId}`)
       .then(r => r.json())
       .then(t => { if (!cancelled) setTipoCampos(Array.isArray(t.campos) ? t.campos : []); })
       .catch(() => { if (!cancelled) setTipoCampos([]); });
@@ -83,11 +83,11 @@ function SamplingHistory() {
     const esTodo = regTotal <= 1 || regIdx === null;
     try {
       if (esTodo) {
-        const res = await apiFetch(`/api/monitoreo/${monId}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/muestreos/${monId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error();
         setAllRegistros(prev => prev.filter(r => r.id !== monId));
       } else {
-        const res = await apiFetch(`/api/monitoreo/${monId}/registros/${regIdx}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/muestreos/${monId}/registros/${regIdx}`, { method: 'DELETE' });
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (data.deleted === 'monitoreo') {

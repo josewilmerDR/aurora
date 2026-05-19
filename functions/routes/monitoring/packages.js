@@ -7,11 +7,11 @@
 // vez de tarea por tarea.
 //
 // Endpoints:
-//   - GET    /api/monitoreo/paquetes
-//   - GET    /api/monitoreo/paquetes/:id
-//   - POST   /api/monitoreo/paquetes
-//   - PUT    /api/monitoreo/paquetes/:id
-//   - DELETE /api/monitoreo/paquetes/:id
+//   - GET    /api/muestreos/paquetes
+//   - GET    /api/muestreos/paquetes/:id
+//   - POST   /api/muestreos/paquetes
+//   - PUT    /api/muestreos/paquetes/:id
+//   - DELETE /api/muestreos/paquetes/:id
 
 const { Router } = require('express');
 const { db } = require('../../lib/firebase');
@@ -22,7 +22,7 @@ const { sanitizePaquete } = require('./helpers');
 
 const router = Router();
 
-router.get('/api/monitoreo/paquetes', authenticate, async (req, res) => {
+router.get('/api/muestreos/paquetes', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('monitoreo_paquetes').where('fincaId', '==', req.fincaId).get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -31,7 +31,7 @@ router.get('/api/monitoreo/paquetes', authenticate, async (req, res) => {
   }
 });
 
-router.get('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
+router.get('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
@@ -42,7 +42,7 @@ router.get('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/monitoreo/paquetes', authenticate, async (req, res) => {
+router.post('/api/muestreos/paquetes', authenticate, async (req, res) => {
   try {
     const parsed = sanitizePaquete(req.body);
     if (!parsed.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, parsed.message, 400);
@@ -54,7 +54,7 @@ router.post('/api/monitoreo/paquetes', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
+router.put('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
@@ -68,7 +68,7 @@ router.put('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/monitoreo/paquetes/:id', authenticate, async (req, res) => {
+router.delete('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);

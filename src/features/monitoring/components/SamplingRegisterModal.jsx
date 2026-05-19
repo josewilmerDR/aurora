@@ -89,7 +89,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     async function load() {
       if (!orden.paqueteMuestreoId) { setState('no-formulario'); return; }
       try {
-        const pkgRes = await apiFetch(`/api/monitoreo/paquetes/${orden.paqueteMuestreoId}`);
+        const pkgRes = await apiFetch(`/api/muestreos/paquetes/${orden.paqueteMuestreoId}`);
         if (!pkgRes.ok) throw new Error('No se pudo obtener el paquete');
         const pkg = await pkgRes.json();
 
@@ -99,7 +99,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
 
         let plantillaCampos = null;
         for (const f of formularios) {
-          const tipRes = await apiFetch(`/api/monitoreo/tipos/${f.tipoId}`);
+          const tipRes = await apiFetch(`/api/muestreos/tipos/${f.tipoId}`);
           if (!tipRes.ok) continue;
           const plantilla = await tipRes.json();
           if (Array.isArray(plantilla.campos) && plantilla.campos.length > 0) {

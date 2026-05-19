@@ -316,9 +316,9 @@ function SamplingPackages() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/api/monitoreo/paquetes').then(r => r.json()),
+      apiFetch('/api/muestreos/paquetes').then(r => r.json()),
       apiFetch('/api/users').then(r => r.json()),
-      apiFetch('/api/monitoreo/tipos').then(r => r.json()),
+      apiFetch('/api/muestreos/tipos').then(r => r.json()),
     ])
       .then(([pkgs, usrs, tipos]) => {
         setPackages(pkgs);
@@ -387,7 +387,7 @@ function SamplingPackages() {
     }
     setFormErrors({});
 
-    const url = isEditing ? `/api/monitoreo/paquetes/${formData.id}` : '/api/monitoreo/paquetes';
+    const url = isEditing ? `/api/muestreos/paquetes/${formData.id}` : '/api/muestreos/paquetes';
     const method = isEditing ? 'PUT' : 'POST';
     const sortedActivities = [...formData.activities].sort((a, b) => Number(a.day) - Number(b.day));
     const body = { ...formData, nombrePaquete: nombre, activities: sortedActivities };
@@ -398,7 +398,7 @@ function SamplingPackages() {
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('Error al guardar el paquete');
-      const updated = await apiFetch('/api/monitoreo/paquetes').then(r => r.json());
+      const updated = await apiFetch('/api/muestreos/paquetes').then(r => r.json());
       setPackages(updated);
       if (isEditing) {
         const saved = updated.find(p => p.id === formData.id);
@@ -422,13 +422,13 @@ function SamplingPackages() {
       activities: pkg.activities || [],
     };
     try {
-      const response = await apiFetch('/api/monitoreo/paquetes', {
+      const response = await apiFetch('/api/muestreos/paquetes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error();
-      const updated = await apiFetch('/api/monitoreo/paquetes').then(r => r.json());
+      const updated = await apiFetch('/api/muestreos/paquetes').then(r => r.json());
       setPackages(updated);
       showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
     } catch {
@@ -438,7 +438,7 @@ function SamplingPackages() {
 
   const handleDelete = async (id) => {
     try {
-      const response = await apiFetch(`/api/monitoreo/paquetes/${id}`, { method: 'DELETE' });
+      const response = await apiFetch(`/api/muestreos/paquetes/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error();
       setPackages(prev => prev.filter(p => p.id !== id));
       setPendingDeletePkgId(null);

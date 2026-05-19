@@ -38,6 +38,7 @@ const MODULE_PREFIXES = {
     '/api/hr', '/api/autopilot-hr',
   ],
   monitoreo: [
+    '/api/muestreos',
     '/api/monitoreo',
   ],
   contabilidad: [

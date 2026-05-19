@@ -39,8 +39,8 @@ function TemplateConfig() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/api/monitoreo/tipos').then(r => r.json()),
-      apiFetch('/api/monitoreo/campos-predeterminados').then(r => r.json()).catch(() => null),
+      apiFetch('/api/muestreos/tipos').then(r => r.json()),
+      apiFetch('/api/muestreos/campos-predeterminados').then(r => r.json()).catch(() => null),
     ])
       .then(([tiposData, defaultsData]) => {
         if (Array.isArray(tiposData)) setTipos(tiposData);
@@ -81,7 +81,7 @@ function TemplateConfig() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   const toggleActivo = async (tipo) => {
     try {
-      await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, {
+      await apiFetch(`/api/muestreos/tipos/${tipo.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activo: !tipo.activo }),
@@ -109,7 +109,7 @@ function TemplateConfig() {
     if (!clean.ok) { showToast(clean.message, 'error'); return; }
     try {
       const body = { nombre: clean.nombre, campos: clean.campos };
-      await apiFetch(`/api/monitoreo/tipos/${editingId}`, {
+      await apiFetch(`/api/muestreos/tipos/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -151,7 +151,7 @@ function TemplateConfig() {
     if (!clean.ok) { showToast(clean.message, 'error'); return; }
     try {
       const body = { nombre: clean.nombre, campos: clean.campos };
-      const res = await apiFetch('/api/monitoreo/tipos', {
+      const res = await apiFetch('/api/muestreos/tipos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -167,7 +167,7 @@ function TemplateConfig() {
 
   const doDelete = async (tipo) => {
     try {
-      await apiFetch(`/api/monitoreo/tipos/${tipo.id}`, { method: 'DELETE' });
+      await apiFetch(`/api/muestreos/tipos/${tipo.id}`, { method: 'DELETE' });
       setTipos(prev => prev.filter(t => t.id !== tipo.id));
       if (selectedTipo?.id === tipo.id) { setSelectedTipo(null); setEditData(null); }
       if (editingId === tipo.id) setEditingId(null);

@@ -7,13 +7,13 @@
 // directamente con POST.
 //
 // Endpoints:
-//   - GET    /api/monitoreo                       lista con filtros lote/desde/hasta
-//   - POST   /api/monitoreo                       registro manual
-//   - GET    /api/monitoreo/:id                   detalle
-//   - DELETE /api/monitoreo/:id/registros/:regIdx borra una fila individual del
+//   - GET    /api/muestreos                       lista con filtros lote/desde/hasta
+//   - POST   /api/muestreos                       registro manual
+//   - GET    /api/muestreos/:id                   detalle
+//   - DELETE /api/muestreos/:id/registros/:regIdx borra una fila individual del
 //                                                  array formularioData.registros;
 //                                                  si era la única, borra el doc
-//   - DELETE /api/monitoreo/:id                   hard delete
+//   - DELETE /api/muestreos/:id                   hard delete
 
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
@@ -26,7 +26,7 @@ const {
 
 const router = Router();
 
-router.get('/api/monitoreo', authenticate, async (req, res) => {
+router.get('/api/muestreos', authenticate, async (req, res) => {
   try {
     const { loteId, desde, hasta, tipoId } = req.query;
     if (desde !== undefined && desde !== '' && !DATE_ISO_RE.test(desde)) {
@@ -70,7 +70,7 @@ router.get('/api/monitoreo', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/monitoreo', authenticate, async (req, res) => {
+router.post('/api/muestreos', authenticate, async (req, res) => {
   try {
     const body = req.body || {};
     const loteId = typeof body.loteId === 'string' ? body.loteId.trim() : '';
@@ -111,7 +111,7 @@ router.post('/api/monitoreo', authenticate, async (req, res) => {
   }
 });
 
-router.get('/api/monitoreo/:id', authenticate, async (req, res) => {
+router.get('/api/muestreos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('monitoreos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -129,7 +129,7 @@ router.get('/api/monitoreo/:id', authenticate, async (req, res) => {
 
 // Elimina un registro individual del array formularioData.registros.
 // If it was the only one, deletes the entire document.
-router.delete('/api/monitoreo/:id/registros/:regIdx', authenticate, async (req, res) => {
+router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, async (req, res) => {
   try {
     const { id, regIdx } = req.params;
     const idx = Number.parseInt(regIdx, 10);
@@ -156,7 +156,7 @@ router.delete('/api/monitoreo/:id/registros/:regIdx', authenticate, async (req, 
   }
 });
 
-router.delete('/api/monitoreo/:id', authenticate, async (req, res) => {
+router.delete('/api/muestreos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('monitoreos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
