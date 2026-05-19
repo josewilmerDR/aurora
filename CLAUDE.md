@@ -127,7 +127,7 @@ Task `status` lifecycle: `pending` → `completed_by_user` | `skipped`
 **Reglas de naming**:
 - Si la entidad existe solo para muestreos manuales, usa **"muestreo"** en código, datos y UI. Ej: `tipoMuestreo`, `paqueteMuestreoId`, `Plantilla de Muestreo`, componentes `Sampling*`.
 - Reservá **"monitoreo"** para el paraguas: rutas `/monitoreo/*`, sidebar group, futuras vistas cross-submódulo. El namespace `/api/monitoreo/*` queda libre para dashboards o agregaciones que crucen varios submódulos cuando lleguen.
-- Endpoints actuales que viven bajo `/api/monitoreo/*` pero son sampling-specific (`tipos`, `paquetes`, `campos-predeterminados`, `records`) están en proceso de moverse a `/api/muestreos/*` para reservar el namespace paraguas.
+- Todos los endpoints sampling-specific viven en `/api/muestreos/*`. El namespace `/api/monitoreo/*` está vacío de rutas activas y reservado para futuros dashboards cross-submódulo; un shim en [functions/routes/monitoring/index.js](functions/routes/monitoring/index.js) lo redirige a `/api/muestreos/*` por compatibilidad transitoria con clientes cacheados (eliminar tras 2 releases).
 
 ### CSS Design System
 

@@ -6,12 +6,12 @@
 // y se referencia desde paquetes de muestreo.
 //
 // Endpoints:
-//   - GET    /api/monitoreo/tipos
-//   - POST   /api/monitoreo/tipos        crea (campos opcionales)
-//   - GET    /api/monitoreo/tipos/:id
-//   - PUT    /api/monitoreo/tipos/:id    actualiza nombre / campos / activo
-//   - DELETE /api/monitoreo/tipos/:id
-//   - GET    /api/monitoreo/campos-predeterminados
+//   - GET    /api/muestreos/tipos
+//   - POST   /api/muestreos/tipos        crea (campos opcionales)
+//   - GET    /api/muestreos/tipos/:id
+//   - PUT    /api/muestreos/tipos/:id    actualiza nombre / campos / activo
+//   - DELETE /api/muestreos/tipos/:id
+//   - GET    /api/muestreos/campos-predeterminados
 //          ⤷ catálogo de campos del sistema (no editables por el usuario).
 //            El front los renderiza junto a los personalizados en read-only.
 
@@ -26,11 +26,11 @@ const {
 
 const router = Router();
 
-router.get('/api/monitoreo/campos-predeterminados', authenticate, (_req, res) => {
+router.get('/api/muestreos/campos-predeterminados', authenticate, (_req, res) => {
   res.status(200).json(CAMPOS_PREDETERMINADOS);
 });
 
-router.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
+router.get('/api/muestreos/tipos', authenticate, async (req, res) => {
   try {
     const snap = await db.collection('tipos_monitoreo').where('fincaId', '==', req.fincaId).get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -39,7 +39,7 @@ router.get('/api/monitoreo/tipos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
+router.post('/api/muestreos/tipos', authenticate, async (req, res) => {
   try {
     const nombreRes = sanitizeNombre(req.body?.nombre);
     if (!nombreRes.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, nombreRes.message, 400);
@@ -57,7 +57,7 @@ router.post('/api/monitoreo/tipos', authenticate, async (req, res) => {
   }
 });
 
-router.get('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
+router.get('/api/muestreos/tipos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -67,7 +67,7 @@ router.get('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
+router.put('/api/muestreos/tipos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -96,7 +96,7 @@ router.put('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/monitoreo/tipos/:id', authenticate, async (req, res) => {
+router.delete('/api/muestreos/tipos/:id', authenticate, async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

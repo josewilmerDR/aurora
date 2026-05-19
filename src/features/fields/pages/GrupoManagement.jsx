@@ -180,7 +180,7 @@ function GrupoManagement() {
     apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/siembras/disponibles').then(r => r.json()).then(d => setBloquesDisponibles(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
-    apiFetch('/api/monitoreo/paquetes').then(r => r.json()).then(setMonitoreoPackages).catch(console.error);
+    apiFetch('/api/muestreos/paquetes').then(r => r.json()).then(setMonitoreoPackages).catch(console.error);
     apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
     return gruposP;
   };

@@ -11,7 +11,7 @@ const MAX_CAMPOS_PERSONALIZADOS = 50;
 
 // Campos predeterminados del sistema — se incluyen siempre en todo registro
 // de muestreo, independientemente de la plantilla. El frontend los pide vía
-// `GET /api/monitoreo/campos-predeterminados` y los renderiza en read-only
+// `GET /api/muestreos/campos-predeterminados` y los renderiza en read-only
 // junto a los campos personalizados. Para evolucionar el set, sólo hay que
 // editar esta lista — el frontend hace fetch al montar la página.
 const CAMPOS_PREDETERMINADOS = Object.freeze([

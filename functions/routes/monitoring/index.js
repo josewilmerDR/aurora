@@ -10,10 +10,15 @@
 //
 // Sub-archivos:
 //   - helpers.js   — sanitizers + constantes compartidas
-//   - types.js     — /api/monitoreo/tipos/* CRUD
-//   - packages.js  — /api/monitoreo/paquetes/* CRUD
-//   - sampling.js  — /api/muestreos/* (orders + AI form scanner)
-//   - records.js   — /api/monitoreo/* (lectura/escritura de monitoreos)
+//   - types.js     — /api/muestreos/tipos/* CRUD
+//   - packages.js  — /api/muestreos/paquetes/* CRUD
+//   - sampling.js  — /api/muestreos/ordenes y /api/muestreos/escanear-formulario
+//   - records.js   — /api/muestreos (lectura/escritura de monitoreos capturados)
+//
+// Convención (CLAUDE.md "Module conventions: Monitoreo vs Muestreos"):
+// /api/monitoreo/* queda RESERVADO para futuros dashboards cross-submódulo
+// (sensores, telemetría). Todo lo sampling-specific vive bajo /api/muestreos/*.
+// El shim debajo redirige el namespace viejo para clientes con build cacheado.
 
 const { Router } = require('express');
 
@@ -23,6 +28,18 @@ const samplingRouter = require('./sampling');
 const recordsRouter  = require('./records');
 
 const router = Router();
+
+// DEPRECATED ALIAS (PR #558) — eliminar después de 2 releases de producción.
+// Reescribe /api/monitoreo/* → /api/muestreos/* antes de que los routers
+// hagan match, para no romper clientes con builds cacheados durante el
+// rollout. moduleMap.js incluye ambos prefijos para que la verificación de
+// módulo siga funcionando con el namespace viejo.
+router.use((req, _res, next) => {
+  if (/^\/api\/monitoreo(\/|\?|$)/.test(req.url)) {
+    req.url = req.url.replace(/^\/api\/monitoreo/, '/api/muestreos');
+  }
+  next();
+});
 
 router.use(typesRouter);
 router.use(packagesRouter);
