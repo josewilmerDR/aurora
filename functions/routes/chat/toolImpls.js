@@ -13,6 +13,10 @@
 
 const { db, Timestamp } = require('../../lib/firebase');
 const { sendNotificationWithLink } = require('../../lib/helpers');
+// User-targeted tools (crear/editar empleado) live in a separate file to keep
+// this one under the route-LOC budget. They are re-exported below so the
+// dispatcher (and integration tests) keep importing from this module.
+const { chatToolCrearEmpleado, chatToolEditarEmpleado } = require('./userTools');
 const { getAnthropicClient } = require('../../lib/clients');
 const {
   wrapUntrusted,
@@ -381,55 +385,6 @@ async function chatToolRegistrarPermiso(input, fincaId) {
       fechaFin:   (!esParcial && fechaFinReal !== fechaInicio) ? fechaFinReal : null,
     },
   };
-}
-
-async function chatToolCrearEmpleado({ nombre, email, telefono, rol, empleadoPlanilla }, fincaId) {
-  if (!nombre?.trim() || !email?.trim() || !rol) {
-    return { error: 'Nombre, email y rol son obligatorios.' };
-  }
-  const emailNorm = email.trim().toLowerCase();
-  const existing = await db.collection('users')
-    .where('fincaId', '==', fincaId)
-    .where('email', '==', emailNorm)
-    .get();
-  if (!existing.empty) {
-    return { error: `Ya existe un usuario con el correo "${emailNorm}" en esta finca.` };
-  }
-  const docRef = await db.collection('users').add({
-    nombre: nombre.trim(),
-    email: emailNorm,
-    telefono: telefono?.trim() || '',
-    rol: rol || 'trabajador',
-    empleadoPlanilla: empleadoPlanilla === true,
-    fincaId,
-    createdAt: Timestamp.now(),
-  });
-  return {
-    ok: true,
-    id: docRef.id,
-    nombre: nombre.trim(),
-    email: emailNorm,
-    rol: rol || 'trabajador',
-    empleadoPlanilla: empleadoPlanilla === true,
-  };
-}
-
-async function chatToolEditarEmpleado({ empleadoId, nombre, email, telefono, rol, empleadoPlanilla }, fincaId) {
-  const updates = {};
-  if (nombre !== undefined)          updates.nombre          = nombre.trim();
-  if (email !== undefined)           updates.email           = email.trim().toLowerCase();
-  if (telefono !== undefined)        updates.telefono        = telefono.trim();
-  if (rol !== undefined)             updates.rol             = rol;
-  if (empleadoPlanilla !== undefined) updates.empleadoPlanilla = empleadoPlanilla;
-  if (Object.keys(updates).length === 0) {
-    return { error: 'Debes especificar al menos un campo a modificar.' };
-  }
-  const doc = await db.collection('users').doc(empleadoId).get();
-  if (!doc.exists || doc.data().fincaId !== fincaId) {
-    return { error: 'Empleado no encontrado en esta finca.' };
-  }
-  await db.collection('users').doc(empleadoId).update(updates);
-  return { ok: true, empleadoId, nombreActual: doc.data().nombre, cambios: updates };
 }
 
 module.exports = {

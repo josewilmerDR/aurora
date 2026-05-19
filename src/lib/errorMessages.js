@@ -22,6 +22,7 @@ export const ERROR_MESSAGES = {
   NOT_FOUND: 'Recurso no encontrado.',
   ALREADY_EXISTS: 'El recurso ya existe.',
   CONFLICT: 'Conflicto con el estado actual del recurso.',
+  USER_HAS_HR_HISTORY: 'No se puede eliminar: la persona tiene historial laboral. Usa "Rescindir contrato" y/o "Quitar acceso" en su lugar.',
 
   // Input
   VALIDATION_FAILED: 'Los datos enviados no son válidos.',

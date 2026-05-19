@@ -46,6 +46,10 @@ const ACTIONS = Object.freeze({
   USER_DELETE: 'user.delete',
   USER_ROLE_CHANGE: 'user.role.change',
   USER_RESTRICTED_TO_CHANGE: 'user.restrictedTo.change',
+  USER_ACCESS_GRANT: 'user.access.grant',
+  USER_ACCESS_REVOKE: 'user.access.revoke',
+  USER_PLANILLA_GRANT: 'user.planilla.grant',
+  USER_PLANILLA_REVOKE: 'user.planilla.revoke',
 
   // Security signals
   PROMPT_INJECTION_DETECTED: 'security.prompt_injection.detected',

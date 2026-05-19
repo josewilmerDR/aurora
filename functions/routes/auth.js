@@ -194,6 +194,10 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
       const userData = userDoc.data();
       const { fincaId, nombre, rol, telefono } = userData;
       if (!fincaId) continue;
+      // A users doc represents a *person*, not necessarily a system user.
+      // People with tieneAcceso=false are payroll-only and must not have a
+      // membership materialized for them — that would grant them login.
+      if (userData.tieneAcceso === false) continue;
 
       // Check for existing membership by query first, to stay compatible with
       // pre-existing auto-id memberships. Only new memberships are created

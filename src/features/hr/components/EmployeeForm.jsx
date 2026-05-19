@@ -1,4 +1,4 @@
-import { FiSave, FiX } from 'react-icons/fi';
+import { FiSave, FiX, FiKey } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import {
   DIAS_SEMANA, LIMITS, SALARIO_MAX, calcHorasSemanales,
@@ -29,6 +29,23 @@ export default function EmployeeForm({
   onSubmit,
   onCancel,
 }) {
+  const tieneAcceso = userForm.tieneAcceso === true;
+
+  // Toggle is rendered as a synthetic change event so the parent's existing
+  // onUserChange handler can stay agnostic of the new flag. Setting access
+  // off also clears email/rol on the next handler invocation? No — we leave
+  // the values in state so toggling back on restores them; only the validator
+  // and the submit payload care about the flag's current state.
+  const onToggleAcceso = (e) => {
+    onUserChange({ target: { name: 'tieneAcceso', value: e.target.checked } });
+    if (e.target.checked && (!userForm.rol || userForm.rol === 'ninguno')) {
+      onUserChange({ target: { name: 'rol', value: 'trabajador' } });
+    }
+    if (!e.target.checked) {
+      onUserChange({ target: { name: 'rol', value: 'ninguno' } });
+    }
+  };
+
   return (
     <div className="form-card form-card--ficha-edit">
       <h2>{isEditing ? `Editando: ${selectedUser?.nombre || ''}` : 'Nuevo Empleado'}</h2>
@@ -41,33 +58,59 @@ export default function EmployeeForm({
             <input name="nombre" value={userForm.nombre} onChange={onUserChange} required maxLength={LIMITS.nombre} placeholder="Nombre completo" aria-invalid={!!errors.nombre} />
             {errors.nombre && <span className="form-control-error">{errors.nombre}</span>}
           </div>
-          <div className={`form-control${errors.email ? ' form-control--error' : ''}`}>
-            <label>Email</label>
-            <input name="email" type="email" value={userForm.email} onChange={onUserChange} required maxLength={LIMITS.email} placeholder="correo@ejemplo.com" aria-invalid={!!errors.email} />
-            {errors.email && <span className="form-control-error">{errors.email}</span>}
+          <div className={`form-control${errors.cedula ? ' form-control--error' : ''}`}>
+            <label>Cédula / Identificación</label>
+            <input name="cedula" value={fichaForm.cedula} onChange={onFichaChange} maxLength={LIMITS.cedula} placeholder="1-1234-5678" aria-invalid={!!errors.cedula} />
+            {errors.cedula && <span className="form-control-error">{errors.cedula}</span>}
           </div>
           <div className={`form-control${errors.telefono ? ' form-control--error' : ''}`}>
             <label>Teléfono</label>
             <input name="telefono" value={userForm.telefono} onChange={onUserChange} maxLength={LIMITS.telefono} inputMode="tel" placeholder="8888-8888" aria-invalid={!!errors.telefono} />
             {errors.telefono && <span className="form-control-error">{errors.telefono}</span>}
           </div>
-          <div className={`form-control${errors.rol ? ' form-control--error' : ''}`}>
-            <label>Rol en el sistema</label>
-            <select name="rol" value={userForm.rol} onChange={onUserChange}>
-              <option value="ninguno">Ninguno (sin acceso al sistema)</option>
-              <option value="trabajador">Trabajador</option>
-              <option value="encargado">Encargado</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="administrador">Administrador</option>
-            </select>
-            {errors.rol && <span className="form-control-error">{errors.rol}</span>}
-          </div>
-          <div className={`form-control${errors.cedula ? ' form-control--error' : ''}`}>
-            <label>Cédula / Identificación</label>
-            <input name="cedula" value={fichaForm.cedula} onChange={onFichaChange} maxLength={LIMITS.cedula} placeholder="1-1234-5678" aria-invalid={!!errors.cedula} />
-            {errors.cedula && <span className="form-control-error">{errors.cedula}</span>}
-          </div>
         </div>
+
+        {/* "Acceso al sistema" — faceta opt-in. Si está OFF se crea sólo como
+            empleado de planilla; si está ON aparecen email + rol obligatorios
+            y el doc además queda como usuario del sistema. */}
+        <div className="emp-acceso-toggle-row">
+          <label className="emp-acceso-toggle">
+            <input
+              type="checkbox"
+              checked={tieneAcceso}
+              onChange={onToggleAcceso}
+            />
+            <span className="emp-acceso-toggle-label">
+              <FiKey size={13} /> Esta persona también es usuario del sistema
+            </span>
+          </label>
+          <span className="emp-acceso-toggle-hint">
+            {tieneAcceso
+              ? 'Podrá iniciar sesión y usar la app. Requiere email y rol.'
+              : 'Sólo aparecerá en planilla y registros HR. No tendrá acceso a la app.'}
+          </span>
+        </div>
+
+        {tieneAcceso && (
+          <div className="form-grid emp-acceso-fields">
+            <div className={`form-control${errors.email ? ' form-control--error' : ''}`}>
+              <label>Email</label>
+              <input name="email" type="email" value={userForm.email} onChange={onUserChange} required maxLength={LIMITS.email} placeholder="correo@ejemplo.com" aria-invalid={!!errors.email} />
+              {errors.email && <span className="form-control-error">{errors.email}</span>}
+            </div>
+            <div className={`form-control${errors.rol ? ' form-control--error' : ''}`}>
+              <label>Rol en el sistema</label>
+              <select name="rol" value={userForm.rol === 'ninguno' ? 'trabajador' : userForm.rol} onChange={onUserChange}>
+                <option value="trabajador">Trabajador</option>
+                <option value="encargado">Encargado</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="rrhh">RR.HH.</option>
+                <option value="administrador">Administrador</option>
+              </select>
+              {errors.rol && <span className="form-control-error">{errors.rol}</span>}
+            </div>
+          </div>
+        )}
 
         <button type="button" className="form-section-title collapsible-section-header" onClick={() => setLaboralCollapsed(v => !v)}>
           <span>Información Laboral</span>

@@ -137,6 +137,13 @@ router.put('/api/hr/fichas/:userId', authenticate, async (req, res) => {
     if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
     }
+    // Only payroll employees can have an HR ficha. This guards against
+    // accidentally creating fichas for system-only users from any caller
+    // (chat tools, scripts, future UIs) — the proper flow is grant-planilla
+    // first, then PUT the ficha.
+    if (userDoc.data().empleadoPlanilla !== true) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'User is not on payroll. Grant planilla before saving an HR ficha.', 400);
+    }
     const { errs, clean } = validateFichaPayload(req.body || {});
     if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
     if (clean.encargadoId) {

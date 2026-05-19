@@ -105,11 +105,24 @@ async function loadChatCatalogs(fincaId) {
   const catalogoUsers = usersSnap.docs.map(d => ({
     id: d.id, nombre: d.data().nombre || '', rol: d.data().rol || '',
     email: d.data().email || '', telefono: d.data().telefono || '',
+    tieneAcceso: d.data().tieneAcceso === true,
     empleadoPlanilla: d.data().empleadoPlanilla === true,
+    tuvoEmpleo: d.data().tuvoEmpleo === true,
   }));
+  // Render both facets so the agent can filter "usuarios del sistema" vs
+  // "empleados de planilla" when resolving names. Ex-employees (tuvoEmpleo
+  // sin empleadoPlanilla) se etiquetan también para que el agente no los
+  // proponga al asignar tareas o cuadrilla.
   const operariosTexto = catalogoUsers.length
-    ? catalogoUsers.map(u => `  - ID: "${u.id}" | Nombre: "${u.nombre}" | Rol: ${u.rol} | Email: ${u.email} | Teléfono: ${u.telefono || '—'} | Planilla: ${u.empleadoPlanilla ? 'sí' : 'no'}`).join('\n')
-    : '  (sin usuarios registrados)';
+    ? catalogoUsers.map(u => {
+        const facets = [];
+        if (u.tieneAcceso) facets.push(`Usuario (${u.rol})`);
+        if (u.empleadoPlanilla) facets.push('Empleado en planilla');
+        else if (u.tuvoEmpleo) facets.push('Ex-empleado');
+        const facetTxt = facets.length ? facets.join(' + ') : 'sin facetas';
+        return `  - ID: "${u.id}" | Nombre: "${u.nombre}" | ${facetTxt} | Email: ${u.email || '—'} | Teléfono: ${u.telefono || '—'}`;
+      }).join('\n')
+    : '  (sin personas registradas)';
 
   const catalogoLabores = laboresSnap.docs.map(d => ({
     id: d.id, codigo: d.data().codigo || '', descripcion: d.data().descripcion || '',

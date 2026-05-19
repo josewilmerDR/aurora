@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/user-management.css';
-import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone, FiLock } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone, FiLock, FiBriefcase, FiExternalLink, FiClock } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import { MODULES } from '../../../components/Sidebar';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import UserDeleteWithEmploymentModal from '../components/UserDeleteWithEmploymentModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { useUser } from '../../../contexts/UserContext';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import { translateApiError } from '../../../lib/errorMessages';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', restrictedTo: [] };
@@ -56,6 +59,7 @@ const firstName = (nombre) => {
 
 function UserManagement() {
   const apiFetch = useApiFetch();
+  const navigate = useNavigate();
   const { firebaseUser } = useUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,11 +69,21 @@ function UserManagement() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null); // { id, nombre }
+  // confirmDelete now distinguishes two modes: the simple AuroraConfirmModal
+  // (for a pure user with no HR history) or the dual-action modal that lets
+  // the admin also rescind the employment contract.
+  const [confirmDelete, setConfirmDelete] = useState(null); // { user, mode: 'simple' | 'with-employment' }
   const [deleting, setDeleting] = useState(false);
+  const [grantingPlanilla, setGrantingPlanilla] = useState(false);
   const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
   const carouselRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  // The page lists *system users*. People who exist only as payroll employees
+  // (tieneAcceso === false) belong to the HR ficha screen and are intentionally
+  // hidden here. The filter is forgiving with undefined to keep a transitional
+  // safety net for any doc that pre-dates the migration.
+  const visibleUsers = users.filter(u => u.tieneAcceso !== false);
 
   // Auto-scroll active bubble into view on mobile
   useEffect(() => {
@@ -176,16 +190,27 @@ function UserManagement() {
     window.scrollTo(0, 0);
   };
 
-  const handleDeleteConfirm = async () => {
+  // Helper: invoke an API endpoint and surface the backend error message in
+  // Spanish (via translateApiError) when it fails. Throws so the caller can
+  // bail out of a multi-step flow.
+  const callOrThrow = async (path, options) => {
+    const res = await apiFetch(path, options);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(translateApiError(body, 'Error en la operación.'));
+    }
+    return res.json().catch(() => null);
+  };
+
+  // Pure-user delete: hard-delete from the backend. Only valid when the user
+  // has no HR footprint (the backend enforces this; the modal mode already
+  // gates it on the frontend).
+  const handleDeleteSimple = async () => {
     if (!confirmDelete) return;
     setDeleting(true);
     try {
-      const res = await apiFetch(`/api/users/${confirmDelete.id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Error al eliminar');
-      }
-      if (selectedUser?.id === confirmDelete.id) setSelectedUser(null);
+      await callOrThrow(`/api/users/${confirmDelete.user.id}`, { method: 'DELETE' });
+      if (selectedUser?.id === confirmDelete.user.id) setSelectedUser(null);
       setConfirmDelete(null);
       fetchUsers();
       showToast('Usuario eliminado correctamente');
@@ -196,6 +221,62 @@ function UserManagement() {
     }
   };
 
+  // Compound delete: the target is also an employee (or was). Always revokes
+  // system access; optionally also rescinds the employment contract. The two
+  // API calls are sequential because revoke-planilla relies on revoke-access
+  // having already cleared memberships when both apply.
+  const handleDeleteWithEmployment = async ({ rescindirContrato, motivo, fechaSalida }) => {
+    if (!confirmDelete) return;
+    const { user } = confirmDelete;
+    setDeleting(true);
+    try {
+      if (user.tieneAcceso !== false) {
+        await callOrThrow(`/api/users/${user.id}/revoke-access`, { method: 'POST' });
+      }
+      if (rescindirContrato) {
+        await callOrThrow(`/api/users/${user.id}/revoke-planilla`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ motivo: motivo || '', fecha: fechaSalida }),
+        });
+      }
+      // After revoke-access the person no longer appears in this page's list
+      // (filtered by tieneAcceso). Drop the selection to avoid showing a
+      // stale hub panel for someone who just disappeared.
+      setSelectedUser(null);
+      setConfirmDelete(null);
+      fetchUsers();
+      showToast(
+        rescindirContrato
+          ? 'Acceso revocado y contrato rescindido.'
+          : 'Acceso al sistema revocado.'
+      );
+    } catch (err) {
+      showToast(err.message || 'Error al procesar la acción.', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Click "Marcar también como empleado" from the hub panel. Promotes the
+  // user to also be on payroll, then redirects to the HR ficha page so the
+  // admin can fill out the employment details immediately. The redirect
+  // carries the user id in router state so the ficha page can preselect
+  // them (handled in paso 4; harmless to send today).
+  const handleMarkAsEmployee = async (user) => {
+    if (!user) return;
+    setGrantingPlanilla(true);
+    try {
+      await callOrThrow(`/api/users/${user.id}/grant-planilla`, { method: 'POST' });
+      showToast('Marcado como empleado. Completa los datos laborales.');
+      navigate('/hr/ficha', { state: { selectUserId: user.id, openEdit: true } });
+    } catch (err) {
+      showToast(err.message || 'Error al marcar como empleado.', 'error');
+    } finally {
+      setGrantingPlanilla(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -203,11 +284,15 @@ function UserManagement() {
     setSubmitting(true);
     const url = isEditing ? `/api/users/${formData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
+    // This form *is* the "create a system user" flow, so tieneAcceso is
+    // always true. The flag is sent explicitly so the backend can enforce
+    // its email+rol cross-field rules from a single source of truth.
+    const payload = { ...formData, tieneAcceso: true };
     try {
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -231,6 +316,28 @@ function UserManagement() {
     }
   };
 
+  // Open the appropriate delete modal based on the user's HR history. The
+  // mode flag lets us render two different modals in the JSX section below
+  // without leaking the branching into the trigger sites.
+  const openDeleteFlow = (user) => {
+    const hasEmploymentHistory = user.empleadoPlanilla === true || user.tuvoEmpleo === true;
+    setConfirmDelete({
+      user,
+      mode: hasEmploymentHistory ? 'with-employment' : 'simple',
+    });
+  };
+
+  // Render the fechaSalidaPlanilla timestamp as a YYYY-MM-DD string regardless
+  // of the wire format (Firestore Timestamp from the SDK, or already-serialized
+  // string when proxied through the REST layer).
+  const formatFechaSalida = (raw) => {
+    if (!raw) return null;
+    if (typeof raw === 'string') return raw.slice(0, 10);
+    if (raw._seconds) return new Date(raw._seconds * 1000).toISOString().slice(0, 10);
+    if (typeof raw.toDate === 'function') return raw.toDate().toISOString().slice(0, 10);
+    return null;
+  };
+
   // ── Panel de detalle (solo lectura) ──────────────────────────────────────
   const renderHubPanel = () => {
     if (!selectedUser) return null;
@@ -240,6 +347,9 @@ function UserManagement() {
       .filter(Boolean);
     const roleKey = selectedUser.rol || 'trabajador';
     const badgeVariant = ROLE_BADGE_VARIANT[roleKey] || 'aur-badge--gray';
+    const isEmpleado = selectedUser.empleadoPlanilla === true;
+    const wasEmpleado = !isEmpleado && selectedUser.tuvoEmpleo === true;
+    const fechaSalida = formatFechaSalida(selectedUser.fechaSalidaPlanilla);
     return (
       <div className="lote-hub">
         <button className="lote-hub-back" onClick={() => setSelectedUser(null)}>
@@ -263,7 +373,7 @@ function UserManagement() {
             </button>
             <button
               type="button"
-              onClick={() => setConfirmDelete({ id: selectedUser.id, nombre: selectedUser.nombre })}
+              onClick={() => openDeleteFlow(selectedUser)}
               className="aur-icon-btn aur-icon-btn--danger"
               title="Eliminar"
             >
@@ -273,7 +383,9 @@ function UserManagement() {
         </div>
         <div className="hub-info-pills">
           <span className="hub-pill"><FiMail size={13} />{selectedUser.email}</span>
-          <span className="hub-pill"><FiPhone size={13} />{selectedUser.telefono}</span>
+          {selectedUser.telefono && (
+            <span className="hub-pill"><FiPhone size={13} />{selectedUser.telefono}</span>
+          )}
         </div>
         {restrictedLabels.length > 0 && (
           <div className="hub-info-pills">
@@ -282,6 +394,53 @@ function UserManagement() {
             </span>
           </div>
         )}
+
+        {/* Empleo: facet independiente del usuario. Mostrar el estado real y
+            ofrecer la acción complementaria (marcar como empleado / ver ficha). */}
+        <div className="usr-employment-section">
+          <p className="usr-employment-title">Empleo</p>
+          {isEmpleado && (
+            <div className="usr-employment-row">
+              <span className="aur-badge aur-badge--green">
+                <FiBriefcase size={11} /> Empleado en planilla
+              </span>
+              <button
+                type="button"
+                className="aur-btn-text usr-employment-link"
+                onClick={() => navigate('/hr/ficha', { state: { selectUserId: selectedUser.id } })}
+              >
+                Ver ficha laboral <FiExternalLink size={12} />
+              </button>
+            </div>
+          )}
+          {wasEmpleado && (
+            <div className="usr-employment-row">
+              <span
+                className="aur-badge aur-badge--gray"
+                title={fechaSalida ? `Contrato rescindido el ${fechaSalida}` : 'Contrato rescindido'}
+              >
+                <FiClock size={11} /> Ex-empleado
+                {fechaSalida && <> · {fechaSalida}</>}
+              </span>
+            </div>
+          )}
+          {!isEmpleado && !wasEmpleado && (
+            <div className="usr-employment-row">
+              <span className="usr-employment-hint">
+                Esta persona no está en planilla.
+              </span>
+              <button
+                type="button"
+                className="aur-btn-pill aur-btn-pill--sm"
+                onClick={() => handleMarkAsEmployee(selectedUser)}
+                disabled={grantingPlanilla}
+              >
+                <FiBriefcase size={12} />
+                {grantingPlanilla ? 'Marcando…' : 'Marcar también como empleado'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -290,15 +449,24 @@ function UserManagement() {
     <div className={`lote-page${selectedUser && view === 'hub' ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {confirmDelete && (
+      {confirmDelete?.mode === 'simple' && (
         <AuroraConfirmModal
           danger
-          title={`¿Eliminar a ${confirmDelete.nombre}?`}
+          title={`¿Eliminar a ${confirmDelete.user.nombre}?`}
           body="Esta acción no se puede deshacer. El usuario perderá el acceso al sistema y dejará de aparecer en los listados."
           confirmLabel="Eliminar"
           loading={deleting}
           loadingLabel="Eliminando…"
-          onConfirm={handleDeleteConfirm}
+          onConfirm={handleDeleteSimple}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {confirmDelete?.mode === 'with-employment' && (
+        <UserDeleteWithEmploymentModal
+          user={confirmDelete.user}
+          loading={deleting}
+          onConfirm={handleDeleteWithEmployment}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
@@ -317,7 +485,7 @@ function UserManagement() {
       )}
 
       {/* --- ESTADO VACÍO --- */}
-      {!loading && users.length === 0 && view !== 'form' && (
+      {!loading && visibleUsers.length === 0 && view !== 'form' && (
         <div className="empty-state">
           <FiUserPlus size={36} />
           <p>No hay usuarios registrados.</p>
@@ -327,7 +495,7 @@ function UserManagement() {
       {/* --- CARRUSEL MÓVIL --- */}
       {!loading && selectedUser && view === 'hub' && (
         <div className="lote-carousel" ref={carouselRef}>
-          {users.map(user => (
+          {visibleUsers.map(user => (
             <button
               key={user.id}
               className={`lote-bubble${selectedUser?.id === user.id ? ' lote-bubble--active' : ''}`}
@@ -345,7 +513,7 @@ function UserManagement() {
       )}
 
       {/* --- LAYOUT PRINCIPAL --- */}
-      {!loading && (users.length > 0 || view === 'form') && (
+      {!loading && (visibleUsers.length > 0 || view === 'form') && (
         <div className="lote-management-layout">
 
           {/* Izquierda: formulario o hub de detalle */}
@@ -474,7 +642,7 @@ function UserManagement() {
           {view !== 'form' && (
             <div className="lote-list-panel">
               <ul className="lote-list">
-                {users.map(user => {
+                {visibleUsers.map(user => {
                   const roleKey = user.rol || 'trabajador';
                   const badgeVariant = ROLE_BADGE_VARIANT[roleKey] || 'aur-badge--gray';
                   return (

@@ -29,7 +29,10 @@ export const EMPTY_FICHA = {
   horarioSemanal: EMPTY_HORARIO,
 };
 
-export const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'trabajador' };
+// Default for a fresh employee form. tieneAcceso=false makes the "system user"
+// facet opt-in: by default the form creates a payroll-only person and email/rol
+// fields are hidden until the admin toggles the access switch.
+export const EMPTY_USER = { nombre: '', email: '', telefono: '', rol: 'ninguno', tieneAcceso: false };
 
 export const LIMITS = {
   nombre: 80, email: 120, telefono: 20, cedula: 30,
@@ -72,10 +75,21 @@ export function validateForms(userForm, fichaForm) {
   if (nombre.length < 2) errors.nombre = 'Mínimo 2 caracteres.';
   else if (nombre.length > LIMITS.nombre) errors.nombre = `Máximo ${LIMITS.nombre} caracteres.`;
 
+  // Email and rol are conditional on the "system user" facet. A payroll-only
+  // employee may have no email and rol='ninguno'; the backend allows it. If
+  // the admin toggled access on, the same validation as before applies.
+  const tieneAcceso = userForm.tieneAcceso === true;
   const email = (userForm.email || '').trim();
-  if (!email) errors.email = 'Email requerido.';
-  else if (!EMAIL_RE.test(email)) errors.email = 'Email con formato inválido.';
-  else if (email.length > LIMITS.email) errors.email = `Máximo ${LIMITS.email} caracteres.`;
+  if (tieneAcceso) {
+    if (!email) errors.email = 'Email requerido para usuarios del sistema.';
+    else if (!EMAIL_RE.test(email)) errors.email = 'Email con formato inválido.';
+    else if (email.length > LIMITS.email) errors.email = `Máximo ${LIMITS.email} caracteres.`;
+  } else if (email) {
+    // Optional email is allowed for payroll-only people, but if provided it
+    // must still be syntactically valid — otherwise we'd silently store junk.
+    if (!EMAIL_RE.test(email)) errors.email = 'Email con formato inválido.';
+    else if (email.length > LIMITS.email) errors.email = `Máximo ${LIMITS.email} caracteres.`;
+  }
 
   const tel = (userForm.telefono || '').trim();
   if (tel) {
@@ -83,7 +97,11 @@ export function validateForms(userForm, fichaForm) {
     else if (tel.length > LIMITS.telefono) errors.telefono = `Máximo ${LIMITS.telefono} caracteres.`;
   }
 
-  if (!ROLES_VALIDOS.includes(userForm.rol)) errors.rol = 'Rol inválido.';
+  if (tieneAcceso) {
+    if (!userForm.rol || userForm.rol === 'ninguno' || !ROLES_VALIDOS.includes(userForm.rol)) {
+      errors.rol = 'Selecciona un rol válido para el usuario del sistema.';
+    }
+  }
 
   ['cedula', 'puesto', 'departamento', 'direccion', 'contactoEmergencia', 'notas'].forEach((k) => {
     const v = fichaForm[k];

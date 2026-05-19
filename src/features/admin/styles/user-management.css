@@ -94,3 +94,90 @@
   font-size: var(--aur-fs-footnote);
   line-height: 1.45;
 }
+
+/* ── Hub: sección "Empleo" ────────────────────────────────────────────────
+   Bloque al pie del hub que expone la faceta empleado-de-planilla de la
+   persona. Tres estados mutuamente excluyentes (empleado | ex-empleado |
+   sólo usuario) renderizados como un único row flex con un badge + acción
+   complementaria a la derecha. */
+.usr-employment-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aur-border);
+}
+.usr-employment-title {
+  margin: 0 0 8px 0;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 600;
+  color: var(--aur-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.usr-employment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.usr-employment-hint {
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
+}
+.usr-employment-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Modal: UserDeleteWithEmploymentModal ─────────────────────────────────
+   Renderizado dentro del slot `children` de AuroraConfirmModal. El layout
+   visual del modal (borders, padding, header) lo provee el primitive
+   .aur-modal-*; aquí sólo el contenido específico de esta acción. */
+.usr-delete-employment {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+.usr-delete-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text);
+  cursor: pointer;
+}
+.usr-delete-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--aur-danger);
+  cursor: pointer;
+}
+.usr-delete-rescision {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--aur-bg-hover);
+  border-radius: var(--aur-r-card);
+  border: 1px solid var(--aur-border);
+}
+.usr-delete-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.usr-delete-label {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  font-weight: 500;
+}
+.usr-delete-hint {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+.usr-delete-hint strong {
+  color: var(--aur-text);
+  font-weight: 600;
+}
