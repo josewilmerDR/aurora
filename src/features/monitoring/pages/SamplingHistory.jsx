@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiTrash2, FiImage, FiDownload, FiFilter, FiSearch, FiX } from 'react-icons/fi';
+import { FiTrash2, FiImage, FiDownload, FiFilter, FiSearch, FiX, FiInbox } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import ImageLightbox from '../../../components/ImageLightbox';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/monitoring.css';
 
@@ -326,8 +327,7 @@ function SamplingHistory() {
           <span className="aur-section-count">{displayRows.length}</span>
           <button
             type="button"
-            className="aur-btn-pill aur-btn-pill--sm"
-            style={{ marginLeft: 'auto' }}
+            className="aur-btn-pill aur-btn-pill--sm mh-export-btn"
             onClick={handleExportCSV}
             disabled={displayRows.length === 0}
             title="Descargar los registros filtrados como CSV"
@@ -376,9 +376,20 @@ function SamplingHistory() {
         {loading ? (
           <div className="mon-loading" />
         ) : displayRows.length === 0 ? (
-          <div className="mh-state mh-state--empty">
-            No hay muestreos registrados para los filtros seleccionados.
-          </div>
+          <EmptyState
+            variant="compact"
+            icon={hasActiveColFilters ? FiSearch : FiInbox}
+            title={hasActiveColFilters
+              ? 'Sin resultados con los filtros aplicados.'
+              : 'No hay muestreos registrados para los filtros seleccionados.'
+            }
+            subtitle={hasActiveColFilters ? 'Probá quitando algún filtro o ampliando el rango de fechas.' : undefined}
+            action={hasActiveColFilters ? (
+              <button type="button" className="aur-btn-text" onClick={clearAllColFilters}>
+                Limpiar filtros
+              </button>
+            ) : undefined}
+          />
         ) : (
           <div className="aur-table-wrap">
             <table className={`aur-table mh-historial-table${tipoCampos.length > 0 ? ' mh-historial-table--has-dyn' : ''}`}>

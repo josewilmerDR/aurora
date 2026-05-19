@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { FiX, FiAlertCircle, FiFileText, FiCpu, FiPlus, FiTrash2, FiUpload, FiCheck } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import ImageLightbox from '../../../components/ImageLightbox';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../../applications/styles/packages.css';
 import '../styles/sampling-register-modal.css';
 
@@ -74,6 +75,10 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
 
   // Wizard step: 1 = Datos generales, 2 = Datos del muestreo
   const [step, setStep] = useState(1);
+  // Errores del paso 1 (intento de avanzar sin completar requeridos).
+  const [step1Errors, setStep1Errors] = useState({});
+  // Confirmación de cierre con datos. null | () => void  — guarda la acción de cierre pendiente.
+  const [confirmCloseAction, setConfirmCloseAction] = useState(null);
 
   // Scan state
   const [scanImage, setScanImage] = useState(null);
@@ -158,6 +163,17 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     };
     try { localStorage.setItem(DRAFT_KEY(orden.id), JSON.stringify(draft)); } catch {}
   }, [registros, fechaCarga, observaciones, supervisorId, supervisorNombre, state, draftData]);
+
+  // Detecta si el usuario llenó algún dato real (no se confunde con la
+  // pre-fill de fechaCarga/observaciones). Sirve para gatear la confirmación
+  // de cierre y para saber si hay algo que advertir.
+  const isDirty = useMemo(() => {
+    if (registros.some(r => Object.values(r).some(v => v !== ''))) return true;
+    if (capturedImage) return true;
+    if ((observaciones || '') !== (orden.nota || '')) return true;
+    if (supervisorId) return true;
+    return false;
+  }, [registros, capturedImage, observaciones, supervisorId, orden.nota]);
 
   // Enter key navigation in registro table: moves focus down one row, adds row at end.
   const handleCellKeyDown = (e, rIdx, cIdx) => {
@@ -290,14 +306,34 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     }
   };
 
+  // Cierre seguro: si hay datos sin guardar, pide confirmación. El borrador
+  // queda persistido en localStorage de todas formas, así que el botón
+  // "Cerrar igual" no destruye datos — solo confirma intención.
+  const attemptClose = () => {
+    if (submitting) return;
+    if (isDirty) { setConfirmCloseAction(() => onClose); return; }
+    onClose();
+  };
+
   const handleBackdrop = (e) => {
-    if (e.target === e.currentTarget && !submitting) onClose();
+    if (e.target === e.currentTarget) attemptClose();
+  };
+
+  // Validación del paso 1: supervisor y fecha de muestreo son requeridos.
+  // Si falta algo, no avanza y muestra error inline.
+  const goToStep2 = () => {
+    const errors = {};
+    if (!fechaCarga) errors.fechaCarga = 'La fecha de muestreo es requerida.';
+    if (!supervisorId) errors.supervisorId = 'Seleccioná un supervisor.';
+    if (Object.keys(errors).length > 0) { setStep1Errors(errors); return; }
+    setStep1Errors({});
+    setStep(2);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="aur-modal-backdrop" onPointerDown={handleBackdrop}>
-      <div className="aur-modal aur-modal--xl fmm-modal" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="aur-modal-backdrop" onClick={handleBackdrop}>
+      <div className="aur-modal aur-modal--xl fmm-modal" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <header className="aur-modal-header fmm-header">
@@ -314,7 +350,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
           <button
             type="button"
             className="aur-icon-btn aur-icon-btn--sm aur-modal-close"
-            onClick={onClose}
+            onClick={attemptClose}
             disabled={submitting}
             aria-label="Cerrar"
           >
@@ -369,12 +405,16 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                     <input
                       id="fmm-fecha"
                       type="date"
-                      className="aur-input"
+                      className={`aur-input${step1Errors.fechaCarga ? ' aur-input--error' : ''}`}
                       value={fechaCarga}
-                      onChange={e => setFechaCarga(e.target.value)}
+                      onChange={e => { setFechaCarga(e.target.value); if (step1Errors.fechaCarga) setStep1Errors(p => ({ ...p, fechaCarga: undefined })); }}
                       disabled={submitting}
+                      aria-invalid={!!step1Errors.fechaCarga}
                     />
                   </div>
+                  {step1Errors.fechaCarga && (
+                    <div className="fmm-row-error">{step1Errors.fechaCarga}</div>
+                  )}
                   <div className="aur-row">
                     <span className="aur-row-label">Muestreador</span>
                     <span className="fmm-meta-value">{currentUser?.nombre || '—'}</span>
@@ -388,10 +428,11 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                     ) : (
                       <select
                         id="fmm-supervisor"
-                        className="aur-select"
+                        className={`aur-select${step1Errors.supervisorId ? ' aur-input--error' : ''}`}
                         value=""
-                        onChange={e => handleSupervisorPick(e.target.value)}
+                        onChange={e => { handleSupervisorPick(e.target.value); if (step1Errors.supervisorId) setStep1Errors(p => ({ ...p, supervisorId: undefined })); }}
                         disabled={submitting}
+                        aria-invalid={!!step1Errors.supervisorId}
                       >
                         <option value="">Seleccionar supervisor…</option>
                         {users.map(u => (
@@ -400,6 +441,9 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                       </select>
                     )}
                   </div>
+                  {step1Errors.supervisorId && (
+                    <div className="fmm-row-error">{step1Errors.supervisorId}</div>
+                  )}
                   <div className="aur-row">
                     <span className="aur-row-label">Lote</span>
                     <span className="fmm-meta-value">{orden.loteNombre || '—'}</span>
@@ -410,7 +454,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                   </div>
                   <div className="aur-row aur-row--multiline">
                     <label className="aur-row-label" htmlFor="fmm-notas">Notas</label>
-                    <div style={{ flex: 1 }}>
+                    <div className="fmm-notas-wrap">
                       <textarea
                         id="fmm-notas"
                         className="aur-textarea"
@@ -435,6 +479,15 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
               <div className="aur-section-header">
                 <h3>Registros</h3>
                 {state === 'ready' && <span className="aur-section-count">{registros.length}</span>}
+                {state === 'ready' && (
+                  <span
+                    className="fmm-autosave-indicator"
+                    title="Tus cambios se guardan localmente como borrador. Si cerrás el modal, podrás retomar el registro más tarde."
+                  >
+                    <FiCheck size={11} aria-hidden="true" />
+                    Borrador guardado
+                  </span>
+                )}
               </div>
 
               {state === 'loading' && <div className="fmm-state">Cargando plantilla...</div>}
@@ -470,16 +523,19 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
                         onChange={handleImagePick}
                       />
                       {!scanImage ? (
-                        <button
-                          className="btn btn-ia"
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={scanning || submitting}
-                          title="Subí una foto del formulario lleno para leerlo con IA"
-                        >
-                          <FiUpload size={15} />
-                          Subir imagen
-                        </button>
+                        <>
+                          <button
+                            className="btn btn-ia"
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={scanning || submitting}
+                            title="Subí una foto del formulario lleno para leerlo con IA"
+                          >
+                            <FiUpload size={15} />
+                            Subir imagen
+                          </button>
+                          <span className="fmm-upload-hint">JPG, PNG o WebP · máx. 20 MB</span>
+                        </>
                       ) : (
                         <div className="fmm-scan-preview">
                           <button
@@ -626,13 +682,13 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
           )}
           {step === 1 ? (
             <>
-              <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>
+              <button type="button" className="aur-btn-text" onClick={attemptClose} disabled={submitting}>
                 Cancelar
               </button>
               <button
                 type="button"
                 className="aur-btn-pill"
-                onClick={() => setStep(2)}
+                onClick={goToStep2}
               >
                 Siguiente →
               </button>
@@ -642,7 +698,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
               <button type="button" className="aur-btn-text" onClick={() => setStep(1)} disabled={submitting}>
                 ← Atrás
               </button>
-              <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>
+              <button type="button" className="aur-btn-text" onClick={attemptClose} disabled={submitting}>
                 Cancelar
               </button>
               <button
@@ -663,6 +719,22 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
           src={lightbox.src}
           caption={lightbox.caption}
           onClose={() => setLightbox(null)}
+        />
+      )}
+      {confirmCloseAction && (
+        <AuroraConfirmModal
+          title="¿Cerrar sin guardar?"
+          body={
+            <>
+              Tenés datos sin guardar en este registro. Tu borrador queda almacenado localmente
+              en este dispositivo, así que podés retomarlo más tarde abriendo nuevamente la orden.
+            </>
+          }
+          confirmLabel="Cerrar"
+          cancelLabel="Seguir editando"
+          iconVariant="warn"
+          onConfirm={() => { const a = confirmCloseAction; setConfirmCloseAction(null); a?.(); }}
+          onCancel={() => setConfirmCloseAction(null)}
         />
       )}
     </div>

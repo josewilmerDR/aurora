@@ -324,3 +324,46 @@
   text-align: center;
   padding: 4px !important;
 }
+
+/* ── PR 6: validación paso 1, autosave hint, upload hint, notas wrap ─────── */
+
+/* Wrapper de Notas — reemplaza el style inline {flex:1} del aur-row del paso 1.
+   Da el ancho restante al textarea + counter dentro del aur-row--multiline. */
+.fmm-notas-wrap {
+  flex: 1;
+}
+
+/* Error de validación inline para los campos del paso 1 (fecha, supervisor).
+   Vive debajo del aur-row, alineado con el label (padding-left calculado para
+   coincidir con el ancho del aur-row-label en la mayoría de viewports). */
+.fmm-row-error {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-danger, #ff4d6d);
+  margin: -4px 0 6px 132px;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 640px) {
+  .fmm-row-error { margin-left: 0; }
+}
+
+/* Indicador estático de "Borrador guardado" en el header del paso 2.
+   Comunica al usuario que su trabajo está persistido aunque cierre el modal. */
+.fmm-autosave-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aurora-green, var(--aur-accent));
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-left: auto;
+}
+
+/* Hint debajo del botón "Subir imagen" — formatos aceptados + tamaño máximo.
+   Evita el ciclo intento-error-reintento cuando el usuario excede el límite. */
+.fmm-upload-hint {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  letter-spacing: -0.01em;
+  margin-left: 4px;
+}
