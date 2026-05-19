@@ -92,7 +92,7 @@ export default function SamplingCenter() {
       return statusFilter === 'completed_by_user' ? fb.localeCompare(fa) : fa.localeCompare(fb);
     });
     return sorted;
-  }, [ordenes, search, statusFilter]);
+  }, [ordenes, search, statusFilter, tipoFilter]);
 
   const handleComplete = async (id, formularioData = null, metadata = {}) => {
     const res = await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
@@ -169,9 +169,6 @@ export default function SamplingCenter() {
             ))}
           </select>
         )}
-        <span className="aur-table-result-count">
-          {filtered.length} orden{filtered.length !== 1 ? 'es' : ''}
-        </span>
       </div>
 
       {loading && <div className="mo-state">Cargando órdenes...</div>}

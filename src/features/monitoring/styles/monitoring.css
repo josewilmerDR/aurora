@@ -312,6 +312,26 @@
   flex-direction: column;
 }
 
+/* Page header — identidad de página antes de la sección de filtros.
+   Coherente con el patrón de subtítulo de SamplingCenter (.mo-section-hint). */
+.mh-page-header {
+  margin: 0 4px 16px;
+}
+.mh-page-title {
+  font-size: var(--aur-fs-h2, 1.25rem);
+  font-weight: 600;
+  color: var(--aur-text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.mh-page-subtitle {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin: 4px 0 0;
+}
+
 /* Tabla con ancho mínimo para forzar scroll horizontal con muchas columnas */
 .mh-historial-table {
   min-width: 720px;

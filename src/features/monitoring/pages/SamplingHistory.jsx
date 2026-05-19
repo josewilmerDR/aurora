@@ -157,6 +157,13 @@ function SamplingHistory() {
     <div className="mh-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      <header className="mh-page-header">
+        <h2 className="mh-page-title">Historial de muestreos</h2>
+        <p className="mh-page-subtitle">
+          Consulta los muestreos realizados, filtra por lote, tipo y fechas, y exporta los resultados a CSV.
+        </p>
+      </header>
+
       {/* Filtros */}
       <section className="aur-section mh-filtros-section">
         <div className="aur-section-header">
@@ -191,7 +198,7 @@ function SamplingHistory() {
       {/* Tabla */}
       <section className="aur-section">
         <div className="aur-section-header">
-          <h3>Historial de muestreos</h3>
+          <h3>Registros</h3>
           <span className="aur-section-count">{displayRows.length}</span>
           <button
             type="button"
