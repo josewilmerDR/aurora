@@ -123,7 +123,7 @@ function TemplateDetail({
                   : 'Activar: la plantilla volverá a estar disponible para nuevos paquetes.'}
               >
                 {tipo.activo
-                  ? <FiToggleRight size={18} style={{ color: 'var(--aurora-green)' }} />
+                  ? <FiToggleRight size={18} className="tpl-toggle-active" />
                   : <FiToggleLeft size={18} />}
               </button>
               <button className="aur-icon-btn aur-icon-btn--sm" onClick={onStartEdit} title="Editar"><FiEdit2 size={15} /></button>
