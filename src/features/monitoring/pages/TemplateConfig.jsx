@@ -209,7 +209,7 @@ function TemplateConfig() {
         <div className="mon-loading" />
       ) : (
         <>
-          <div className="lote-page-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="lote-page-header lote-page-header--with-action-block">
             <div className="aur-sheet-header-text">
               <h1 className="lote-list-title">Plantillas de muestreo</h1>
               <p className="aur-sheet-subtitle">

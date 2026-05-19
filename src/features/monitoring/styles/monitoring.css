@@ -228,6 +228,22 @@
   color: var(--aur-text-3);
 }
 
+/* Toggle activo en la lista y el detalle de plantillas — verde Aurora cuando
+   la plantilla está activa. Reemplaza el style inline {color} que vivía en
+   los <FiToggleRight> de TemplateList y TemplateDetail. */
+.tpl-toggle-active {
+  color: var(--aurora-green);
+}
+
+/* Modificador del lote-page-header para cuando el lado izquierdo contiene
+   un bloque (título + subtítulo) y el botón debe alinearse al tope (no al
+   centro). Diferencia con --with-action: ese usa align-items: center, este
+   usa flex-start. */
+.lote-page-header--with-action-block {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SAMPLING PACKAGES — preview slim modifiers (read mode del paquete)
    ═══════════════════════════════════════════════════════════════════════════ */

@@ -105,7 +105,7 @@ function TemplateList({ tipos, selectedTipo, onSelect, onCreateNew, onToggleActi
                     aria-label={tipo.activo ? 'Desactivar plantilla' : 'Activar plantilla'}
                   >
                     {tipo.activo
-                      ? <FiToggleRight size={16} style={{ color: 'var(--aurora-green)' }} />
+                      ? <FiToggleRight size={16} className="tpl-toggle-active" />
                       : <FiToggleLeft size={16} />}
                   </button>
                 )}
