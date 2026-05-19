@@ -19,6 +19,7 @@ import '../styles/monitoring.css';
 function TemplateConfig() {
   const apiFetch = useApiFetch();
   const [tipos, setTipos]               = useState([]);
+  const [paquetes, setPaquetes]         = useState([]);
   const [selectedTipo, setSelectedTipo] = useState(null);
   const [editingId, setEditingId]       = useState(null);
   const [editData, setEditData]         = useState(null);
@@ -41,16 +42,37 @@ function TemplateConfig() {
     Promise.all([
       apiFetch('/api/muestreos/tipos').then(r => r.json()),
       apiFetch('/api/muestreos/campos-predeterminados').then(r => r.json()).catch(() => null),
+      apiFetch('/api/muestreos/paquetes').then(r => r.json()).catch(() => []),
     ])
-      .then(([tiposData, defaultsData]) => {
+      .then(([tiposData, defaultsData, paquetesData]) => {
         if (Array.isArray(tiposData)) setTipos(tiposData);
         if (Array.isArray(defaultsData) && defaultsData.length > 0) {
           setDefaultCampos(defaultsData);
         }
+        if (Array.isArray(paquetesData)) setPaquetes(paquetesData);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  // Mapa tipoId → cuenta de paquetes que la referencian (distinct pkg per tipo).
+  // Un paquete puede listar la misma plantilla en múltiples actividades; se
+  // cuenta una sola vez.
+  const usageByTipoId = useMemo(() => {
+    const buckets = {};
+    for (const pkg of paquetes) {
+      const seenInPkg = new Set();
+      for (const act of (pkg.activities || [])) {
+        for (const f of (act.formularios || [])) {
+          if (f.tipoId) seenInPkg.add(f.tipoId);
+        }
+      }
+      for (const tipoId of seenInPkg) {
+        buckets[tipoId] = (buckets[tipoId] || 0) + 1;
+      }
+    }
+    return buckets;
+  }, [paquetes]);
 
   // ── Dirty checks ──────────────────────────────────────────────────────────
   const isEditDirty = useMemo(() => {
@@ -236,6 +258,7 @@ function TemplateConfig() {
                 onRequestDelete={() => setConfirmDelete(selectedTipo)}
                 onDuplicate={() => handleDuplicate(selectedTipo)}
                 defaultCampos={defaultCampos}
+                usageCount={usageByTipoId[selectedTipo.id] || 0}
               />
             )}
 
@@ -245,6 +268,7 @@ function TemplateConfig() {
               onSelect={handleSelectTipo}
               onCreateNew={openNew}
               onToggleActivo={toggleActivo}
+              usageByTipoId={usageByTipoId}
             />
           </div>
         </>
@@ -260,16 +284,29 @@ function TemplateConfig() {
         />
       )}
 
-      {confirmDelete && (
-        <AuroraConfirmModal
-          danger
-          title="Eliminar plantilla"
-          body={`¿Eliminar la plantilla "${confirmDelete.nombre}"? Esta acción no se puede deshacer.`}
-          confirmLabel="Eliminar"
-          onConfirm={() => { doDelete(confirmDelete); setConfirmDelete(null); }}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+      {confirmDelete && (() => {
+        const usage = usageByTipoId[confirmDelete.id] || 0;
+        return (
+          <AuroraConfirmModal
+            danger
+            title="Eliminar plantilla"
+            body={
+              usage > 0 ? (
+                <>
+                  Esta plantilla está adjunta a <strong>{usage} paquete{usage === 1 ? '' : 's'}</strong>.
+                  Si la eliminás, esos paquetes seguirán existiendo pero perderán esta plantilla en sus actividades.
+                  Los registros de muestreo previos no se borran.
+                </>
+              ) : (
+                <>¿Eliminar la plantilla <strong>"{confirmDelete.nombre}"</strong>? Esta acción no se puede deshacer.</>
+              )
+            }
+            confirmLabel="Eliminar"
+            onConfirm={() => { doDelete(confirmDelete); setConfirmDelete(null); }}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        );
+      })()}
 
       {confirmDiscard && (
         <AuroraConfirmModal

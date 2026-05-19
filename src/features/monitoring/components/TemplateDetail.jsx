@@ -25,6 +25,7 @@ function TemplateDetail({
   onRequestDelete,
   onDuplicate,
   defaultCampos = DEFAULT_CAMPOS_FALLBACK,
+  usageCount = 0,
 }) {
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -87,6 +88,14 @@ function TemplateDetail({
                   title="No aparece al adjuntar plantillas a paquetes nuevos"
                 >
                   (inactiva)
+                </span>
+              )}
+              {usageCount > 0 && (
+                <span
+                  className="label-optional tpl-detail-usage"
+                  title={`Esta plantilla está adjunta a ${usageCount} paquete${usageCount === 1 ? '' : 's'} de muestreo. Eliminarla los dejará sin esta plantilla.`}
+                >
+                  · adjunta a {usageCount} paquete{usageCount === 1 ? '' : 's'}
                 </span>
               )}
             </>

@@ -1,10 +1,17 @@
 import { useMemo, useState } from 'react';
 import {
-  FiChevronRight, FiClipboard, FiPlus, FiSearch,
+  FiChevronRight, FiClipboard, FiPackage, FiPlus, FiSearch,
   FiToggleLeft, FiToggleRight,
 } from 'react-icons/fi';
 
-function TemplateList({ tipos, selectedTipo, onSelect, onCreateNew, onToggleActivo }) {
+function TemplateList({
+  tipos,
+  selectedTipo,
+  onSelect,
+  onCreateNew,
+  onToggleActivo,
+  usageByTipoId = {},
+}) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'active' | 'inactive'
 
@@ -79,6 +86,7 @@ function TemplateList({ tipos, selectedTipo, onSelect, onCreateNew, onToggleActi
         <ul className="lote-list">
           {filtered.map(tipo => {
             const camposCount = tipo.campos?.length || 0;
+            const usage = usageByTipoId[tipo.id] || 0;
             return (
               <li
                 key={tipo.id}
@@ -93,6 +101,15 @@ function TemplateList({ tipos, selectedTipo, onSelect, onCreateNew, onToggleActi
                     <span className="tpl-list-fields-count" title="Campos personalizados">
                       {camposCount} {camposCount === 1 ? 'campo' : 'campos'}
                     </span>
+                    {usage > 0 && (
+                      <span
+                        className="tpl-list-usage"
+                        title={`Adjunta a ${usage} paquete${usage === 1 ? '' : 's'} de muestreo`}
+                      >
+                        <FiPackage size={10} aria-hidden="true" />
+                        {usage}
+                      </span>
+                    )}
                     {!tipo.activo && <span className="tpl-list-inactive-label">Inactiva</span>}
                   </div>
                 </div>
