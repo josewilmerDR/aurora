@@ -5,6 +5,7 @@ import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEy
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
+import { useToast } from '../../../contexts/ToastContext';
 import CedulaNuevaModal from '../components/CedulaNuevaModal';
 import MezclaListaModal from '../components/MezclaListaModal';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
@@ -394,6 +395,7 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
 function CedulasAplicacion() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
+  const toast = useToast();
   const [tasks,     setTasks]     = useState([]);
   const [lotes,     setLotes]     = useState([]);
   const [grupos,    setGrupos]    = useState([]);
@@ -615,7 +617,7 @@ function CedulasAplicacion() {
             return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
           });
         } else {
-          alert(data.message || 'Error al generar la cédula.');
+          toast.error(data.message || 'Error al generar la cédula.');
         }
         return;
       }
