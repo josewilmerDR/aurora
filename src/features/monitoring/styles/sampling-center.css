@@ -6,6 +6,20 @@
   margin-top: 4px;
 }
 
+/* Override scoped para mo-table: igual que en Existencias/Historial, anula
+   el opacity:0.45 base del .aur-th-sortable para que la flecha activa y el
+   embudo tengan contraste sobre el background de la sección. */
+.mo-table th.aur-th-sortable .aur-th-arrow,
+.mo-table th.aur-th-sortable .aur-th-funnel {
+  opacity: 0.6;
+}
+.mo-table th.aur-th-sortable:hover .aur-th-arrow,
+.mo-table th.aur-th-sortable.is-sorted .aur-th-arrow,
+.mo-table th.aur-th-sortable:hover .aur-th-funnel,
+.mo-table th.aur-th-sortable.has-filter .aur-th-funnel {
+  opacity: 1;
+}
+
 /* ── Hint discreto debajo del título ──────────────────────────────────────── */
 .mo-section-hint {
   font-size: var(--aur-fs-footnote);

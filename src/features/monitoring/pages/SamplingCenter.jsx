@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
+import { FiTrash2, FiSearch, FiAlertCircle, FiCheckCircle, FiFilter } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import SamplingRegisterModal from '../components/SamplingRegisterModal';
 import '../styles/sampling-center.css';
 
@@ -39,6 +40,16 @@ const getUrgency = (fechaProgramada, status) => {
   return null;
 };
 
+// Columnas que aceptan sort + filtro de columna (embudo on hover).
+// Las claves coinciden con campos del objeto orden.
+const SORTABLE_COLS = {
+  fechaProgramada:   { type: 'date', label: 'Fecha programada' },
+  loteNombre:        { type: 'text', label: 'Lote' },
+  grupoNombre:       { type: 'text', label: 'Grupo' },
+  responsableNombre: { type: 'text', label: 'Responsable' },
+  tipoMuestreo:      { type: 'text', label: 'Tipo de muestreo' },
+};
+
 export default function SamplingCenter() {
   const apiFetch = useApiFetch();
   const [ordenes, setOrdenes] = useState([]);
@@ -50,6 +61,15 @@ export default function SamplingCenter() {
   const [deleting, setDeleting] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [modalOrden, setModalOrden] = useState(null);
+
+  // Sort por columna (tri-estado: null → asc → desc → null). Si está en null,
+  // el orden por defecto sigue siendo el de urgencia (pendientes asc, completadas desc).
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir]     = useState(null);
+  // Filtros por columna (text: { text } | date: { from, to }). Vacío = sin filtro.
+  const [colFilters, setColFilters] = useState({});
+  // Popover de filtro activo (qué columna abrió el embudo, posición x/y).
+  const [filterPop, setFilterPop] = useState(null);
 
   useEffect(() => {
     apiFetch('/api/muestreos/ordenes')
@@ -85,14 +105,73 @@ export default function SamplingCenter() {
         o.nota?.toLowerCase().includes(q)
       );
     }
-    // Pendientes: más urgente primero. Completadas: más recientes primero.
-    const sorted = [...result].sort((a, b) => {
-      const fa = a.fechaProgramada || '';
-      const fb = b.fechaProgramada || '';
-      return statusFilter === 'completed_by_user' ? fb.localeCompare(fa) : fa.localeCompare(fb);
-    });
+    // Filtros por columna (funnel)
+    for (const [field, fv] of Object.entries(colFilters)) {
+      const col = SORTABLE_COLS[field];
+      if (!col) continue;
+      if (col.type === 'text' && fv.text) {
+        const needle = fv.text.toLowerCase();
+        result = result.filter(o => String(o[field] || '').toLowerCase().includes(needle));
+      } else if (col.type === 'date') {
+        if (fv.from) result = result.filter(o => (o[field] || '') >= fv.from);
+        if (fv.to)   result = result.filter(o => (o[field] || '') <= fv.to);
+      }
+    }
+    // Sort: si el usuario eligió una columna, usar eso. Si no, fallback al
+    // ordenamiento por urgencia (pendientes asc, completadas desc por fecha).
+    const sorted = [...result];
+    if (sortField && sortDir) {
+      sorted.sort((a, b) => {
+        const av = a[sortField] || '';
+        const bv = b[sortField] || '';
+        const cmp = String(av).localeCompare(String(bv));
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    } else {
+      sorted.sort((a, b) => {
+        const fa = a.fechaProgramada || '';
+        const fb = b.fechaProgramada || '';
+        return statusFilter === 'completed_by_user' ? fb.localeCompare(fa) : fa.localeCompare(fb);
+      });
+    }
     return sorted;
-  }, [ordenes, search, statusFilter, tipoFilter]);
+  }, [ordenes, search, statusFilter, tipoFilter, colFilters, sortField, sortDir]);
+
+  // Sort tri-estado: null → asc → desc → null.
+  const handleSort = (field) => {
+    if (sortField !== field) { setSortField(field); setSortDir('asc'); return; }
+    if (sortDir === 'asc')   { setSortDir('desc'); return; }
+    setSortField(null); setSortDir(null);
+  };
+
+  const setColFilter = (field, key, val) => {
+    setColFilters(prev => {
+      const col = SORTABLE_COLS[field];
+      const cur = prev[field] || (col?.type === 'text' ? { text: '' } : { from: '', to: '' });
+      const updated = { ...cur, [key]: val };
+      const isEmpty = col?.type === 'text' ? !updated.text : !updated.from && !updated.to;
+      if (isEmpty) {
+        const { [field]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [field]: updated };
+    });
+  };
+
+  const clearColFilter = (field) => {
+    setColFilters(prev => {
+      const { [field]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const openFunnel = (e, field) => {
+    e.stopPropagation();
+    if (filterPop?.field === field) { setFilterPop(null); return; }
+    const th = e.currentTarget.closest('th') ?? e.currentTarget;
+    const rect = th.getBoundingClientRect();
+    setFilterPop({ field, x: rect.left, y: rect.bottom + 4 });
+  };
 
   const handleComplete = async (id, formularioData = null, metadata = {}) => {
     const res = await apiFetch(`/api/muestreos/ordenes/${id}/complete`, {
@@ -189,6 +268,23 @@ export default function SamplingCenter() {
         />
       )}
 
+      {filterPop && (
+        <AuroraFilterPopover
+          x={filterPop.x}
+          y={filterPop.y}
+          filterType={SORTABLE_COLS[filterPop.field]?.type === 'date' ? 'date' : 'text'}
+          textValue={colFilters[filterPop.field]?.text || ''}
+          onTextChange={(v) => setColFilter(filterPop.field, 'text', v)}
+          textPlaceholder={`Filtrar ${SORTABLE_COLS[filterPop.field]?.label.toLowerCase()}…`}
+          fromValue={colFilters[filterPop.field]?.from || ''}
+          toValue={colFilters[filterPop.field]?.to || ''}
+          onFromChange={(v) => setColFilter(filterPop.field, 'from', v)}
+          onToChange={(v) => setColFilter(filterPop.field, 'to', v)}
+          onClear={() => clearColFilter(filterPop.field)}
+          onClose={() => setFilterPop(null)}
+        />
+      )}
+
       {!loading && !error && (
         <>
           {filtered.length === 0 ? (
@@ -206,11 +302,31 @@ export default function SamplingCenter() {
               <table className="aur-table mo-table">
                 <thead>
                   <tr>
-                    <th>Fecha programada</th>
-                    <th>Lote</th>
-                    <th>Grupo</th>
-                    <th>Responsable</th>
-                    <th>Tipo de muestreo</th>
+                    {Object.entries(SORTABLE_COLS).map(([field, col]) => {
+                      const isSort  = sortField === field;
+                      const hasFilt = !!colFilters[field];
+                      return (
+                        <th
+                          key={field}
+                          className={`aur-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-filter' : ''}`}
+                          onClick={() => handleSort(field)}
+                        >
+                          <span className="aur-th-content">
+                            {col.label}
+                            <span className="aur-th-arrow">{isSort ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                            <button
+                              type="button"
+                              className={`aur-th-funnel${hasFilt ? ' is-active' : ''}`}
+                              title="Filtrar columna"
+                              aria-label={hasFilt ? `Editar filtro de ${col.label}` : `Filtrar ${col.label}`}
+                              onClick={(e) => openFunnel(e, field)}
+                            >
+                              <FiFilter size={10} />
+                            </button>
+                          </span>
+                        </th>
+                      );
+                    })}
                     <th>Nota</th>
                     <th>Estado</th>
                     <th aria-hidden="true" />
