@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FiPlus } from 'react-icons/fi';
 import AuroraFormModal from '../../../components/AuroraFormModal';
+import AuroraField, { TextInput } from '../../../components/AuroraField';
 import CamposEditor from './CamposEditor';
 import {
   MAX_NOMBRE_PLANTILLA,
@@ -10,9 +11,6 @@ import {
 
 function TemplateForm({ nuevoTipo, onChange, onCancel, onSave, defaultCampos }) {
   const [submitAttempted, setSubmitAttempted] = useState(false);
-
-  const len = (nuevoTipo.nombre || '').length;
-  const warn = len > MAX_NOMBRE_PLANTILLA * 0.85;
 
   const errors = useMemo(
     () => validatePayload(nuevoTipo.nombre, nuevoTipo.campos),
@@ -39,30 +37,21 @@ function TemplateForm({ nuevoTipo, onChange, onCancel, onSave, defaultCampos }) 
       submitLabel="Crear plantilla"
     >
       <div className="aur-list">
-        <div className="aur-row">
-          <label className="aur-row-label" htmlFor="tpl-nombre">Nombre</label>
-          <div className="tpl-input-with-counter">
-            <input
-              id="tpl-nombre"
-              className={`aur-input${showNombreError ? ' aur-input--error' : ''}`}
-              value={nuevoTipo.nombre}
-              onChange={e => onChange(prev => ({ ...prev, nombre: e.target.value }))}
-              placeholder="Ej: Muestreo de pH"
-              maxLength={MAX_NOMBRE_PLANTILLA}
-              autoFocus
-              aria-invalid={!!showNombreError}
-              aria-describedby={showNombreError ? 'tpl-nombre-err' : undefined}
-            />
-            <span className={`tpl-char-counter${warn ? ' tpl-char-counter--warn' : ''}`}>
-              {len}/{MAX_NOMBRE_PLANTILLA}
-            </span>
-          </div>
-          {showNombreError && (
-            <span id="tpl-nombre-err" className="aur-field-error tpl-row-error">
-              {errors.nombre}
-            </span>
-          )}
-        </div>
+        <AuroraField
+          label="Nombre"
+          htmlFor="tpl-nombre"
+          layout="row"
+          error={showNombreError ? errors.nombre : undefined}
+          counter={{ value: (nuevoTipo.nombre || '').length, max: MAX_NOMBRE_PLANTILLA }}
+        >
+          <TextInput
+            value={nuevoTipo.nombre}
+            onChange={e => onChange(prev => ({ ...prev, nombre: e.target.value }))}
+            placeholder="Ej: Muestreo de pH"
+            maxLength={MAX_NOMBRE_PLANTILLA}
+            autoFocus
+          />
+        </AuroraField>
       </div>
 
       <CamposEditor
