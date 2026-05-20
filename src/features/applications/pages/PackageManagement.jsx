@@ -4,6 +4,7 @@ import '../styles/packages.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
+import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -700,42 +701,38 @@ function PackageManagement() {
               <h3>Identidad</h3>
             </div>
             <div className="aur-list">
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="nombrePaquete">Nombre</label>
-                <div className="pkg-name-input-wrap">
-                  <input
-                    id="nombrePaquete"
-                    name="nombrePaquete"
-                    className={`aur-input${formErrors.nombrePaquete ? ' fld-error-input' : ''}`}
-                    value={formData.nombrePaquete}
-                    onChange={handleInputChange}
-                    maxLength={NOMBRE_MAX}
-                    placeholder="Ej. Postforza Premium"
-                    title={formErrors.nombrePaquete || undefined}
-                    required
-                  />
-                  {(() => {
-                    const len = (formData.nombrePaquete || '').length;
-                    const ratio = len / NOMBRE_MAX;
-                    const cls = ratio >= 1 ? 'is-danger' : ratio >= 0.75 ? 'is-warn' : '';
-                    return <span className={`pkg-name-counter ${cls}`}>{len}/{NOMBRE_MAX}</span>;
-                  })()}
-                </div>
-              </div>
-              <div className="aur-row aur-row--multiline">
-                <label className="aur-row-label" htmlFor="descripcion">Descripción</label>
-                <textarea
-                  id="descripcion"
+              <AuroraField
+                label="Nombre"
+                htmlFor="nombrePaquete"
+                layout="row"
+                required
+                error={formErrors.nombrePaquete}
+                counter={{ value: (formData.nombrePaquete || '').length, max: NOMBRE_MAX }}
+              >
+                <TextInput
+                  name="nombrePaquete"
+                  value={formData.nombrePaquete}
+                  onChange={handleInputChange}
+                  maxLength={NOMBRE_MAX}
+                  placeholder="Ej. Postforza Premium"
+                  required
+                />
+              </AuroraField>
+              <AuroraField
+                label="Descripción"
+                htmlFor="descripcion"
+                layout="row"
+                error={formErrors.descripcion}
+              >
+                <Textarea
                   name="descripcion"
-                  className={`aur-textarea${formErrors.descripcion ? ' fld-error-input' : ''}`}
                   value={formData.descripcion}
                   onChange={handleInputChange}
                   placeholder="Resumen breve del propósito del paquete..."
                   rows={3}
                   maxLength={1024}
-                  title={formErrors.descripcion || undefined}
                 />
-              </div>
+              </AuroraField>
             </div>
           </section>
 

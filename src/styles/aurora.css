@@ -519,6 +519,36 @@ html[data-theme="light"] .aur-select {
   margin-top: 2px;
 }
 
+/* Wrapper "input + counter inline" usado por <AuroraField counter={...}>. */
+.aur-field-control-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.aur-field-control-wrap > .aur-input,
+.aur-field-control-wrap > .aur-textarea,
+.aur-field-control-wrap > .aur-select {
+  flex: 1;
+  min-width: 0;
+}
+.aur-field-counter {
+  font-size: 11px;
+  color: var(--aur-text-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.aur-field-counter--warn {
+  color: var(--aur-warn);
+}
+.aur-field-counter--danger {
+  color: var(--aur-danger);
+  font-weight: 600;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    BUTTONS — pill primario, pill destructivo, text plain
    ═══════════════════════════════════════════════════════════════════════════ */
