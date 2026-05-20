@@ -5,6 +5,7 @@ import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPh
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import { MODULES } from '../../../components/Sidebar';
 import Toast from '../../../components/Toast';
+import PageHeader from '../../../components/PageHeader';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import UserDeleteWithEmploymentModal from '../components/UserDeleteWithEmploymentModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -476,12 +477,14 @@ function UserManagement() {
 
       {/* --- CABECERA DE PÁGINA --- */}
       {!loading && view !== 'form' && (
-        <div className="usr-page-header">
-          <h1 className="usr-page-title">Gestión de Usuarios</h1>
-          <button type="button" className="aur-btn-pill" onClick={handleNew}>
-            <FiUserPlus size={14} /> Nuevo Usuario
-          </button>
-        </div>
+        <PageHeader
+          title="Gestión de Usuarios"
+          actions={
+            <button type="button" className="aur-btn-pill" onClick={handleNew}>
+              <FiUserPlus size={14} /> Nuevo Usuario
+            </button>
+          }
+        />
       )}
 
       {/* --- ESTADO VACÍO --- */}

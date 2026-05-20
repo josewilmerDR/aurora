@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiPlus, FiActivity, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import CashBalanceModal from '../components/CashBalanceModal';
 import ProjectionChart from '../components/ProjectionChart';
@@ -58,14 +59,16 @@ function Treasury() {
 
   return (
     <div className="page-container">
-      <div className="lote-page-header">
-        <h2 className="lote-page-title"><FiActivity /> Tesorería</h2>
-        {!showBalanceForm && (
+      <PageHeader
+        level={2}
+        title="Tesorería"
+        icon={<FiActivity />}
+        actions={!showBalanceForm && (
           <button className="aur-btn-pill" onClick={() => setShowBalanceForm(true)}>
             <FiPlus /> Registrar saldo
           </button>
         )}
-      </div>
+      />
 
       <AuroraSectionIntro>
         Predicción de cuánto dinero tendrás en caja semana por semana, basada en

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import '../styles/packages.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import PageHeader from '../../../components/PageHeader';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -641,18 +642,17 @@ function PackageManagement() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="pkg-page-loading" />}
 
-      {!loading && !(isFormOpen && !selectedPkg) && <div className="pkg-page-header">
-        <div className="pkg-page-header-text">
-          <h1 className="pkg-page-title">Paquetes de Aplicaciones</h1>
-          <p className="pkg-page-subtitle">
-            Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa.
-            Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click.
-          </p>
-        </div>
-        <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
-          <FiPlus size={14} /> Nuevo Paquete
-        </button>
-      </div>}
+      {!loading && !(isFormOpen && !selectedPkg) && (
+        <PageHeader
+          title="Paquetes de Aplicaciones"
+          subtitle="Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+          actions={
+            <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
+              <FiPlus size={14} /> Nuevo Paquete
+            </button>
+          }
+        />
+      )}
       {/* ── Mobile sticky carousel ── */}
       {!loading && isFormOpen && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
