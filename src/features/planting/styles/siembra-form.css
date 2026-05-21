@@ -47,6 +47,38 @@
   background: var(--aur-bg-hover);
 }
 
+/* ── Banner "registros guardados" (post-save) ───────────────────────────── */
+.psb-save-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--aur-accent-tint);
+  border: 1px solid rgba(51, 255, 153, 0.20);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.psb-save-banner > svg {
+  color: var(--aur-accent);
+  flex-shrink: 0;
+}
+.psb-save-banner > span {
+  flex: 1;
+}
+.psb-save-banner-link {
+  color: var(--aur-accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.psb-save-banner-link:hover {
+  opacity: 0.75;
+}
+
 /* ── Hint inline (placeholder-style) dentro de una row de tipo action ─── */
 .psb-row-hint-text {
   font-size: var(--aur-fs-footnote);
