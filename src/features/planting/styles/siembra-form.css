@@ -140,34 +140,11 @@
   color: var(--aur-accent);
 }
 
-/* Header: numerador + combobox de lote + acciones */
+/* Header: combobox de lote (con label) + acciones */
 .psb-row-head {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
-}
-/* Marcador de fila (no interactivo). Mismo lenguaje visual que .aur-section-num
-   para que se lea como etiqueta y no como un control con fondo. */
-.psb-row-num {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  flex-shrink: 0;
-  padding: 0 4px 0 0;
-  user-select: none;
-}
-.psb-row-num-val {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--aur-text-2);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}
-.psb-row-num-suffix {
-  font-size: 10px;
-  color: var(--aur-text-3);
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
 }
 .psb-row-lote {
   flex: 1;

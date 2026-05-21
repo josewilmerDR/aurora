@@ -8,45 +8,58 @@ import AuroraField, { TextInput, Textarea } from '../../../components/AuroraFiel
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
-// ── Cálculo de costo de mezcla por hectárea ──────────────────────────────────
-// Acepta una lista plana de productos usados ({productoId, cantidadPorHa}) y el
-// catálogo. Retorna totales por moneda + flags para alertar al usuario cuando
-// hay productos sin precio (que quedarían fuera del costo). Esto evita que el
-// usuario crea que un paquete cuesta menos de lo real solo porque su catálogo
-// está incompleto.
-function calcularCosto(productosUsados, productosCatalogo) {
-  const totals = {};
-  let withoutPrice = 0;
-  const total = (productosUsados || []).length;
-  (productosUsados || []).forEach(p => {
-    const cat = productosCatalogo.find(cp => cp.id === p.productoId);
-    const precio = parseFloat(cat?.precioUnitario) || 0;
-    if (precio <= 0) {
-      withoutPrice += 1;
-      return;
+// ── Mensaje específico de validación del form ────────────────────────────────
+// Convierte el objeto `formErrors` en un toast accionable: si hay un solo
+// error, lo nombra; si hay varios, separa cuántos son de campos top-level
+// vs cuántas actividades quedaron incompletas.
+const PKG_FIELD_LABELS = {
+  nombrePaquete: 'el nombre del paquete',
+  descripcion: 'la descripción',
+  tipoCosecha: 'el tipo de cosecha',
+  etapaCultivo: 'la etapa del cultivo',
+  tecnicoResponsable: 'el técnico responsable',
+};
+
+function buildValidationToast(errors) {
+  const keys = Object.keys(errors);
+  if (keys.length === 0) return '';
+
+  if (keys.length === 1) {
+    const key = keys[0];
+    if (PKG_FIELD_LABELS[key]) return `Revisa ${PKG_FIELD_LABELS[key]}.`;
+    const m = key.match(/^act-(\d+)-(.+)$/);
+    if (m) {
+      const idx = Number(m[1]) + 1;
+      const sub = m[2];
+      if (sub === 'name') return `Falta el nombre de la actividad ${idx}.`;
+      if (sub === 'day') return `Revisa el día de la actividad ${idx}.`;
+      if (sub === 'prods') return `Demasiados productos en la actividad ${idx}.`;
+      if (sub.startsWith('prod-')) return `Revisa la cantidad de un producto en la actividad ${idx}.`;
     }
-    const mon = cat?.moneda || 'USD';
-    const qty = parseFloat(p.cantidadPorHa) || 0;
-    totals[mon] = (totals[mon] || 0) + qty * precio;
+    return 'Hay un campo con error.';
+  }
+
+  const topLevel = keys.filter(k => k in PKG_FIELD_LABELS).length;
+  const actIndices = new Set();
+  keys.forEach(k => {
+    const m = k.match(/^act-(\d+)-/);
+    if (m) actIndices.add(m[1]);
   });
-  return {
-    totals: Object.entries(totals),
-    total,
-    withoutPrice,
-    hasMissingPrice: withoutPrice > 0,
-    allMissingPrice: total > 0 && withoutPrice === total,
-  };
-}
+  const acts = actIndices.size;
 
-function flattenActivityProducts(activities) {
-  return (activities || []).flatMap(a => a.productos || []);
-}
-
-// Texto del tooltip de advertencia cuando hay productos sin precio en catálogo.
-function missingPriceTooltip(n) {
-  return n === 1
-    ? '1 producto sin precio en el catálogo no está incluido en este total.'
-    : `${n} productos sin precio en el catálogo no están incluidos en este total.`;
+  if (topLevel > 0 && acts > 0) {
+    const a = topLevel === 1 ? '1 campo del paquete' : `${topLevel} campos del paquete`;
+    const b = acts === 1 ? '1 actividad incompleta' : `${acts} actividades incompletas`;
+    return `Revisa ${a} y ${b}.`;
+  }
+  if (topLevel > 0) {
+    return topLevel === 1
+      ? 'Revisa 1 campo del paquete marcado en rojo.'
+      : `Revisa ${topLevel} campos del paquete marcados en rojo.`;
+  }
+  return acts === 1
+    ? '1 actividad está incompleta.'
+    : `${acts} actividades están incompletas.`;
 }
 
 // ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
@@ -522,8 +535,16 @@ function PackageManagement() {
         expandIndices.forEach(i => next.add(i));
         return next;
       });
-      const count = Object.keys(errors).length;
-      showToast(`Revisa ${count} ${count === 1 ? 'campo marcado' : 'campos marcados'} en rojo.`, 'error');
+      showToast(buildValidationToast(errors), 'error');
+      // Scroll al primer error tras el siguiente repaint (espera a que las
+      // actividades en error se expandan y reciban el className de error).
+      requestAnimationFrame(() => {
+        const first = document.querySelector('.pkg-form .fld-error-input');
+        if (first) {
+          first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          try { first.focus({ preventScroll: true }); } catch { /* noop */ }
+        }
+      });
       return;
     }
 
@@ -684,19 +705,44 @@ function PackageManagement() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="pkg-page-loading" />}
 
-      {!loading && !(isFormOpen && !selectedPkg) && (
+      {!loading && (
         <PageHeader
-          title="Paquetes de Aplicaciones"
-          subtitle="Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+          title={
+            isFormOpen && !selectedPkg
+              ? (isEditing ? 'Editar paquete' : 'Nuevo paquete')
+              : 'Paquetes de aplicaciones'
+          }
+          subtitle={
+            isFormOpen && !selectedPkg
+              ? (isEditing
+                  ? 'Modifica la información del paquete y su programa de actividades.'
+                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.')
+              : (packages.length === 0
+                  ? 'Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click.'
+                  : (
+                      <>
+                        Conjuntos de aplicaciones reutilizables por etapa.{' '}
+                        <span
+                          className="pkg-subtitle-tip"
+                          title="Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+                          aria-label="Más información sobre paquetes"
+                        >
+                          <FiInfo size={12} />
+                        </span>
+                      </>
+                    ))
+          }
           actions={
-            <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
-              <FiPlus size={14} /> Nuevo Paquete
-            </button>
+            !isFormOpen ? (
+              <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
+                <FiPlus size={14} /> Nuevo Paquete
+              </button>
+            ) : null
           }
         />
       )}
       {/* ── Mobile sticky carousel ── */}
-      {!loading && isFormOpen && packages.length > 0 && (
+      {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
           {packages.map(pkg => (
             <button
@@ -726,17 +772,6 @@ function PackageManagement() {
       {!loading && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
         <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
-          <header className="aur-sheet-header">
-            <div className="aur-sheet-header-text">
-              <h2 className="aur-sheet-title">{isEditing ? 'Editar paquete' : 'Nuevo paquete'}</h2>
-              <p className="aur-sheet-subtitle">
-                {isEditing
-                  ? 'Modifica la información del paquete y su programa de actividades.'
-                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.'}
-              </p>
-            </div>
-          </header>
-
           <section className="aur-section">
             <div className="aur-section-header">
               <h3>Identidad</h3>

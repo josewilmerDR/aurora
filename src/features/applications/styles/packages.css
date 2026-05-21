@@ -90,6 +90,18 @@
   color: var(--aurora-green);
 }
 
+/* Ícono de info inline en el subtítulo de la página (reemplaza la 2ª frase). */
+.pkg-subtitle-tip {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  color: var(--aur-text-3, #6b819b);
+  cursor: help;
+}
+.pkg-subtitle-tip:hover {
+  color: var(--aurora-green);
+}
+
 /* ── Page loading spinner (reuses @keyframes app-loading-spin de App.css) ── */
 .pkg-page-loading {
   display: flex;
