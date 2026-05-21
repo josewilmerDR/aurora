@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft, FiInfo } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
@@ -230,6 +230,33 @@ function PackageManagement() {
     apiFetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
     apiFetch('/api/calibraciones').then(res => res.json()).then(setCalibraciones).catch(console.error);
   }, []);
+
+  // Atajo Ctrl/Cmd + S → enviar el form mientras se edita/crea un paquete.
+  // Solo se activa cuando el form está abierto en modo crear/editar
+  // (no en la vista de hub, donde no hay form).
+  useEffect(() => {
+    if (!isFormOpen || selectedPkg) return;
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        document.querySelector('.pkg-form')?.requestSubmit?.();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isFormOpen, selectedPkg]);
+
+  // Estado derivado: ¿todas las actividades están expandidas?
+  const allActivitiesExpanded = formData.activities.length > 0
+    && formData.activities.every((_, i) => expandedActivities.has(i));
+
+  const toggleAllActivities = () => {
+    if (allActivitiesExpanded) {
+      setExpandedActivities(new Set());
+    } else {
+      setExpandedActivities(new Set(formData.activities.map((_, i) => i)));
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -914,6 +941,17 @@ function PackageManagement() {
               >
                 <FiInfo size={13} />
               </span>
+              {formData.activities.length > 1 && (
+                <button
+                  type="button"
+                  className="pkg-toggle-all-btn"
+                  onClick={toggleAllActivities}
+                  title={allActivitiesExpanded ? 'Colapsar todas las actividades' : 'Expandir todas las actividades'}
+                >
+                  {allActivitiesExpanded ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
+                  <span>{allActivitiesExpanded ? 'Colapsar todas' : 'Expandir todas'}</span>
+                </button>
+              )}
             </div>
             <ul className="pkg-act-list">
               {formData.activities.map((activity, index) => {
@@ -1133,7 +1171,12 @@ function PackageManagement() {
             >
               Cancelar
             </button>
-            <button type="submit" className="aur-btn-pill" disabled={isSubmitting}>
+            <button
+              type="submit"
+              className="aur-btn-pill"
+              disabled={isSubmitting}
+              title="Guardar (Ctrl+S)"
+            >
               {isSubmitting
                 ? 'Guardando…'
                 : isEditing ? 'Actualizar paquete' : 'Guardar paquete'}
