@@ -70,11 +70,13 @@ const EMPTY_ROW = {
   cerrado: false,
 };
 
+const loteDisplayName = (l) => l?.nombreLote || l?.codigoLote || '';
+
 // ── Combobox lote ────────────────────────────────────────────────────────────
-function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
+function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
   const nameFor = useCallback((id) => {
     if (id === '__nuevo__') return nuevoNombre || '';
-    return lotes.find(l => l.id === id)?.nombreLote || '';
+    return loteDisplayName(lotes.find(l => l.id === id));
   }, [lotes, nuevoNombre]);
 
   const listId = useId();
@@ -96,12 +98,15 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
   }, [value, nameFor]);
 
   const trimmed = text.trim();
-  const filtered = lotes.filter(l =>
-    !text || l.nombreLote.toLowerCase().includes(text.toLowerCase())
-  );
-  const exactMatch = trimmed
-    ? lotes.find(l => l.nombreLote.toLowerCase() === trimmed.toLowerCase())
-    : null;
+  const matchesText = (l, t) =>
+    (l.nombreLote || '').toLowerCase().includes(t) ||
+    (l.codigoLote || '').toLowerCase().includes(t);
+  const matchesExact = (l, t) =>
+    (l.nombreLote || '').toLowerCase() === t ||
+    (l.codigoLote || '').toLowerCase() === t;
+
+  const filtered = lotes.filter(l => !text || matchesText(l, text.toLowerCase()));
+  const exactMatch = trimmed ? lotes.find(l => matchesExact(l, trimmed.toLowerCase())) : null;
   const showCreate = trimmed.length > 0 && !exactMatch;
   const optionsCount = filtered.length + (showCreate ? 1 : 0);
 
@@ -115,16 +120,21 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
   };
 
   const selectOption = (lote) => {
-    setText(lote.nombreLote);
+    setText(loteDisplayName(lote));
     setOpen(false);
     setHi(0);
     onChange(lote.id, '');
   };
 
   const selectCreate = () => {
-    setText(trimmed);
     setOpen(false);
     setHi(0);
+    if (onCreate) {
+      userTyping.current = false; // let parent's onChange sync text via useEffect after modal
+      onCreate(trimmed);
+      return;
+    }
+    setText(trimmed);
     onChange('__nuevo__', trimmed);
   };
 
@@ -148,10 +158,13 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
           if (value) onChange('', '');
           return;
         }
-        const existing = lotes.find(l => l.nombreLote.toLowerCase() === t.toLowerCase());
+        const existing = lotes.find(l => matchesExact(l, t.toLowerCase()));
         if (existing) {
-          setText(existing.nombreLote);
+          setText(loteDisplayName(existing));
           onChange(existing.id, '');
+        } else if (onCreate) {
+          // Don't auto-promote — user must explicitly pick "Crear lote" to open the modal
+          setText(t);
         } else {
           setText(t);
           onChange('__nuevo__', t);
@@ -234,7 +247,7 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
               onMouseDown={() => selectOption(l)}
               onMouseEnter={() => setHi(i)}
             >
-              {l.nombreLote}
+              {loteDisplayName(l)}
             </li>
           ))}
           {showCreate && (
@@ -353,6 +366,79 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
   );
 }
 
+// ── Modal nuevo lote ─────────────────────────────────────────────────────────
+function NuevoLoteModal({ initial, fecha, onConfirm, onCancel }) {
+  const [codigoLote, setCodigoLote] = useState(initial.codigoLote || '');
+  const [nombreLote, setNombreLote] = useState(initial.nombreLote || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    await onConfirm({ codigoLote: codigoLote.trim(), nombreLote: nombreLote.trim() });
+    setSaving(false);
+  };
+
+  return createPortal(
+    <div className="aur-modal-backdrop" onPointerDown={() => !saving && onCancel?.()}>
+      <div className="aur-modal" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="aur-modal-header">
+          <span className="aur-modal-icon">
+            <FiPlus size={16} />
+          </span>
+          <span className="aur-modal-title">Nuevo lote</span>
+        </div>
+        <div className="psb-mat-modal-fields">
+          <label className="psb-mat-modal-label">
+            Código del lote <span className="psb-required">*</span>
+            <input
+              className="aur-input"
+              placeholder="Ej. L2604"
+              value={codigoLote}
+              maxLength={16}
+              onChange={e => setCodigoLote(e.target.value)}
+              autoFocus
+              disabled={saving}
+            />
+          </label>
+          <label className="psb-mat-modal-label">
+            Nombre amigable <span className="psb-row-hint-text">opcional</span>
+            <input
+              className="aur-input"
+              placeholder="Ej. Lote del frente"
+              value={nombreLote}
+              maxLength={32}
+              onChange={e => setNombreLote(e.target.value)}
+              disabled={saving}
+            />
+          </label>
+          <div className="psb-mat-modal-info">
+            Se creará con fecha {fecha}.
+          </div>
+        </div>
+        <div className="aur-modal-actions">
+          <button
+            type="button"
+            className="aur-btn-text"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="aur-btn-pill"
+            disabled={!codigoLote.trim() || saving}
+            onClick={handleConfirm}
+          >
+            {saving ? 'Creando…' : 'Crear lote'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function Siembra() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
@@ -375,7 +461,8 @@ function Siembra() {
   const [scanning, setScanning]     = useState(false);
   const [toast, setToast]           = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [matModal, setMatModal]         = useState(null); // { idx, nombre, rango, variedad } | null
+  const [matModal, setMatModal]         = useState(null); // { idx, nombre, rango, variedad, densidad } | null
+  const [loteModal, setLoteModal]       = useState(null); // { idx, codigoLote, nombreLote } | null
 
   const fileInputRef                = useRef(null);
   const swipeState                  = useRef({});
@@ -588,7 +675,7 @@ function Siembra() {
     // Validate that no lote+bloque is closed
     for (const row of validos) {
       if (row.loteId && row.loteId !== '__nuevo__' && isBloqueadoCerrado(row.loteId, row.bloque)) {
-        const loteNombre = lotes.find(l => l.id === row.loteId)?.nombreLote || row.loteId;
+        const loteNombre = loteDisplayName(lotes.find(l => l.id === row.loteId)) || row.loteId;
         showToast(
           `El bloque "${row.bloque}" del lote "${loteNombre}" ya está cerrado. Corrija la información antes de guardar.`,
           'error'
@@ -609,27 +696,29 @@ function Siembra() {
         let loteId = row.loteId;
         let loteNombre = '';
 
-        // Crear nuevo lote si es necesario (solo una vez por nombre)
+        // Crear nuevo lote si es necesario (path de IA: usa el nombre como código truncado)
         if (loteId === '__nuevo__' && row.loteNuevoNombre.trim()) {
           const nombre = row.loteNuevoNombre.trim();
           if (createdLoteMap[nombre]) {
             loteId     = createdLoteMap[nombre].id;
             loteNombre = nombre;
           } else {
+            const codigoLote = nombre.slice(0, 16);
+            const nombreLote = nombre.length > 16 ? nombre.slice(0, 32) : '';
             const res = await apiFetch('/api/lotes', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ nombreLote: nombre, fechaCreacion: fecha }),
+              body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion: fecha }),
             });
             if (!res.ok) throw new Error('No se pudo crear el lote.');
             const created = await res.json();
             loteId     = created.id;
-            loteNombre = nombre;
-            createdLoteMap[nombre] = { id: loteId, nombreLote: nombre };
-            setLotes(prev => [...prev, { id: loteId, nombreLote: nombre }]);
+            loteNombre = nombreLote || codigoLote;
+            createdLoteMap[nombre] = { id: loteId, nombreLote: loteNombre };
+            setLotes(prev => [...prev, { id: loteId, codigoLote, ...(nombreLote ? { nombreLote } : {}) }]);
           }
         } else {
-          loteNombre = lotes.find(l => l.id === loteId)?.nombreLote || '';
+          loteNombre = loteDisplayName(lotes.find(l => l.id === loteId));
         }
 
         // Crear nuevo material si es necesario (solo una vez por nombre)
@@ -737,11 +826,49 @@ function Siembra() {
     setMatModal(null);
   };
 
+  const openLoteModal = (idx, typedText) => {
+    const t = (typedText || '').trim();
+    setLoteModal({
+      idx,
+      codigoLote: t.slice(0, 16),
+      nombreLote: t.length > 16 ? t : '',
+    });
+  };
+
+  const handleLoteModalConfirm = async ({ codigoLote, nombreLote }) => {
+    const { idx } = loteModal;
+    try {
+      const res = await apiFetch('/api/lotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigoLote, nombreLote: nombreLote || '', fechaCreacion: fecha }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data?.message || 'No se pudo crear el lote.', 'error');
+        return;
+      }
+      const newLote = { id: data.id, codigoLote, ...(nombreLote ? { nombreLote } : {}) };
+      setLotes(prev => [...prev, newLote]);
+      setRows(prev => {
+        const next = [...prev];
+        next[idx] = { ...next[idx], loteId: data.id, loteNuevoNombre: '' };
+        return next;
+      });
+      setLoteModal(null);
+    } catch {
+      showToast('No se pudo crear el lote.', 'error');
+    }
+  };
+
+  const handleLoteModalCancel = () => setLoteModal(null);
+
   return (
     <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmModal && <AuroraConfirmModal {...confirmModal} onCancel={() => setConfirmModal(null)} />}
       {matModal && <NuevoMaterialModal initial={matModal} onConfirm={handleMatModalConfirm} onCancel={handleMatModalCancel} />}
+      {loteModal && <NuevoLoteModal initial={loteModal} fecha={fecha} onConfirm={handleLoteModalConfirm} onCancel={handleLoteModalCancel} />}
 
       {/* ── Spinner de carga inicial ──────────────────────────────────── */}
       {loading && <div className="siembra-page-loading" />}
@@ -839,6 +966,7 @@ function Siembra() {
                           next[idx] = { ...next[idx], loteId: id, loteNuevoNombre: nuevoNombre };
                           return next;
                         })}
+                        onCreate={(typedText) => openLoteModal(idx, typedText)}
                         lotes={lotes}
                       />
                     </div>
