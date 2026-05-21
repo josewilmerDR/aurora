@@ -141,9 +141,26 @@
   flex: 1;
   min-width: 0;
 }
+.psb-lote-field {
+  position: relative;
+}
 .psb-lote-input {
   /* override del .aur-input dentro del header de la card para no parecer pesado */
   background: var(--aur-bg-hover);
+  padding-right: 28px;
+}
+.psb-lote-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--aur-text-2);
+  pointer-events: none;
+  transition: transform 0.18s ease;
+}
+.psb-lote-field--open .psb-lote-chevron {
+  transform: translateY(-50%) rotate(180deg);
+  color: var(--aur-accent);
 }
 .psb-row-actions {
   display: inline-flex;
