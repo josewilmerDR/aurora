@@ -800,21 +800,31 @@ function PackageManagement() {
       {/* ── Mobile sticky carousel ── */}
       {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
-          {packages.map(pkg => (
-            <button
-              key={pkg.id}
-              className={`pkg-bubble${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' pkg-bubble--active' : ''}`}
-              onClick={() => guardedNav(() => {
-                if (selectedPkg?.id === pkg.id && !isEditing) resetForm();
-                else handleSelectPkg(pkg);
-              })}
-            >
-              <span className="pkg-bubble-avatar">
-                {pkg.nombrePaquete.slice(0, 4).toUpperCase()}
-              </span>
-              <span className="pkg-bubble-label">{pkg.nombrePaquete}</span>
-            </button>
-          ))}
+          {packages.map(pkg => {
+            const isActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
+            // Cuando la burbuja está activa, dejamos que la regla CSS
+            // .pkg-bubble--active .pkg-bubble-avatar pinte el verde Aurora.
+            // Solo pintamos el color del hash cuando la burbuja NO está activa.
+            const avatarStyle = isActive ? undefined : pickPkgAvatarStyle(pkg.nombrePaquete);
+            return (
+              <button
+                key={pkg.id}
+                className={`pkg-bubble${isActive ? ' pkg-bubble--active' : ''}`}
+                onClick={() => guardedNav(() => {
+                  if (selectedPkg?.id === pkg.id && !isEditing) resetForm();
+                  else handleSelectPkg(pkg);
+                })}
+              >
+                <span
+                  className="pkg-bubble-avatar"
+                  style={avatarStyle ? { background: avatarStyle.bg, color: avatarStyle.fg } : undefined}
+                >
+                  {getPkgInitials(pkg.nombrePaquete)}
+                </span>
+                <span className="pkg-bubble-label">{pkg.nombrePaquete}</span>
+              </button>
+            );
+          })}
           <button
             className={`pkg-bubble pkg-bubble--add${isFormOpen && !selectedPkg && !isEditing ? ' pkg-bubble--active' : ''}`}
             onClick={() => guardedNav(handleNew)}
