@@ -8,6 +8,47 @@ import AuroraField, { TextInput, Textarea } from '../../../components/AuroraFiel
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
+// ── Cálculo de costo de mezcla por hectárea ──────────────────────────────────
+// Acepta una lista plana de productos usados ({productoId, cantidadPorHa}) y el
+// catálogo. Retorna totales por moneda + flags para alertar al usuario cuando
+// hay productos sin precio (que quedarían fuera del costo). Esto evita que el
+// usuario crea que un paquete cuesta menos de lo real solo porque su catálogo
+// está incompleto.
+function calcularCosto(productosUsados, productosCatalogo) {
+  const totals = {};
+  let withoutPrice = 0;
+  const total = (productosUsados || []).length;
+  (productosUsados || []).forEach(p => {
+    const cat = productosCatalogo.find(cp => cp.id === p.productoId);
+    const precio = parseFloat(cat?.precioUnitario) || 0;
+    if (precio <= 0) {
+      withoutPrice += 1;
+      return;
+    }
+    const mon = cat?.moneda || 'USD';
+    const qty = parseFloat(p.cantidadPorHa) || 0;
+    totals[mon] = (totals[mon] || 0) + qty * precio;
+  });
+  return {
+    totals: Object.entries(totals),
+    total,
+    withoutPrice,
+    hasMissingPrice: withoutPrice > 0,
+    allMissingPrice: total > 0 && withoutPrice === total,
+  };
+}
+
+function flattenActivityProducts(activities) {
+  return (activities || []).flatMap(a => a.productos || []);
+}
+
+// Texto del tooltip de advertencia cuando hay productos sin precio en catálogo.
+function missingPriceTooltip(n) {
+  return n === 1
+    ? '1 producto sin precio en el catálogo no está incluido en este total.'
+    : `${n} productos sin precio en el catálogo no están incluidos en este total.`;
+}
+
 // ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
 function ProdCombobox({ productos, excludeIds, onSelect }) {
   const [text, setText]       = useState('');
@@ -813,16 +854,8 @@ function PackageManagement() {
             <ul className="pkg-act-list">
               {formData.activities.map((activity, index) => {
                 const expanded = expandedActivities.has(index);
-                const totals = {};
-                (activity.productos || []).forEach(p => {
-                  const cat = productos.find(cp => cp.id === p.productoId);
-                  const precio = parseFloat(cat?.precioUnitario) || 0;
-                  if (precio <= 0) return;
-                  const mon = cat?.moneda || 'USD';
-                  const qty = parseFloat(p.cantidadPorHa) || 0;
-                  totals[mon] = (totals[mon] || 0) + qty * precio;
-                });
-                const costEntries = Object.entries(totals);
+                const costo = calcularCosto(activity.productos, productos);
+                const costEntries = costo.totals;
                 return (
                   <li key={`act-${index}`} className="pkg-act-card">
                     <div className="pkg-act-row">
@@ -892,14 +925,33 @@ function PackageManagement() {
 
                       <div
                         className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}
-                        title={costEntries.length === 0 ? undefined : 'Costo de la mezcla por hectárea'}
+                        title={
+                          costo.total === 0
+                            ? 'Sin productos asignados'
+                            : costo.allMissingPrice
+                              ? 'Todos los productos están sin precio en el catálogo'
+                              : costo.hasMissingPrice
+                                ? `Costo de la mezcla por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                                : 'Costo de la mezcla por hectárea'
+                        }
                       >
-                        {costEntries.length === 0 ? '—' : costEntries.map(([mon, total]) => (
-                          <div key={mon}>
-                            {total.toFixed(2)}
-                            <span className="pkg-act-cost-mon">{mon}/Ha</span>
-                          </div>
-                        ))}
+                        {costEntries.length === 0 ? (
+                          <span aria-label={costo.allMissingPrice ? 'Sin precio' : 'Sin productos'}>
+                            {costo.allMissingPrice ? 'Sin precio' : '—'}
+                          </span>
+                        ) : (
+                          <>
+                            {costEntries.map(([mon, total]) => (
+                              <div key={mon}>
+                                {total.toFixed(2)}
+                                <span className="pkg-act-cost-mon">{mon}/Ha</span>
+                              </div>
+                            ))}
+                            {costo.hasMissingPrice && (
+                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                            )}
+                          </>
+                        )}
                       </div>
 
                       <div className="pkg-act-actions">
@@ -1035,23 +1087,23 @@ function PackageManagement() {
             <div className="hub-title-block">
               <h2 className="hub-lote-code">{selectedPkg.nombrePaquete}</h2>
               {(() => {
-                const totals = {};
-                (selectedPkg.activities || []).forEach(act => {
-                  (act.productos || []).forEach(p => {
-                    const cat = productos.find(cp => cp.id === p.productoId);
-                    const precio = parseFloat(cat?.precioUnitario) || 0;
-                    if (precio <= 0) return;
-                    const mon = cat?.moneda || 'USD';
-                    totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
-                  });
-                });
-                const entries = Object.entries(totals);
-                if (entries.length === 0) return null;
+                const costo = calcularCosto(flattenActivityProducts(selectedPkg.activities), productos);
+                if (costo.totals.length === 0) return null;
                 return (
-                  <span className="pkg-hub-total-cost" title="Costo total del paquete por hectárea">
-                    {entries.map(([mon, total]) => (
+                  <span
+                    className="pkg-hub-total-cost"
+                    title={
+                      costo.hasMissingPrice
+                        ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                        : 'Costo total del paquete por hectárea'
+                    }
+                  >
+                    {costo.totals.map(([mon, total]) => (
                       <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-total-cost-mon">{mon}/Ha</span></span>
                     ))}
+                    {costo.hasMissingPrice && (
+                      <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                    )}
                   </span>
                 );
               })()}
@@ -1097,28 +1149,28 @@ function PackageManagement() {
                   const cal = calibraciones.find(c => c.id === act.calibracionId);
                   const hasDetails = (act.productos?.length > 0) || !!cal;
                   const expanded = hubExpandedActivities.has(i);
-                  const actCostos = (() => {
-                    const totals = {};
-                    (act.productos || []).forEach(p => {
-                      const cat = productos.find(cp => cp.id === p.productoId);
-                      const precio = parseFloat(cat?.precioUnitario) || 0;
-                      if (precio <= 0) return;
-                      const mon = cat?.moneda || 'USD';
-                      totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
-                    });
-                    return Object.entries(totals);
-                  })();
+                  const actCostoInfo = calcularCosto(act.productos, productos);
                   return (
                     <li key={i} className="pkg-hub-activity-item">
                       <span className="pkg-hub-activity-day">Día {act.day}</span>
                       <div className="pkg-hub-activity-info">
                         <span className="pkg-hub-activity-name">{act.name}</span>
                         {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
-                        {actCostos.length > 0 && (
-                          <span className="pkg-hub-activity-cost" title="Costo de la mezcla por hectárea">
-                            {actCostos.map(([mon, total]) => (
+                        {actCostoInfo.totals.length > 0 && (
+                          <span
+                            className="pkg-hub-activity-cost"
+                            title={
+                              actCostoInfo.hasMissingPrice
+                                ? `Costo de la mezcla por hectárea. ${missingPriceTooltip(actCostoInfo.withoutPrice)}`
+                                : 'Costo de la mezcla por hectárea'
+                            }
+                          >
+                            {actCostoInfo.totals.map(([mon, total]) => (
                               <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-activity-cost-mon">{mon}/Ha</span></span>
                             ))}
+                            {actCostoInfo.hasMissingPrice && (
+                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                            )}
                           </span>
                         )}
                         {expanded && (
@@ -1195,21 +1247,22 @@ function PackageManagement() {
                     ].filter(Boolean).join(' · ')}
                   </span>
                   {(() => {
-                    const totals = {};
-                    (pkg.activities || []).forEach(act => {
-                      (act.productos || []).forEach(p => {
-                        const cat = productos.find(cp => cp.id === p.productoId);
-                        const precio = parseFloat(cat?.precioUnitario) || 0;
-                        if (precio <= 0) return;
-                        const mon = cat?.moneda || 'USD';
-                        totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
-                      });
-                    });
-                    const entries = Object.entries(totals);
-                    if (entries.length === 0) return null;
+                    const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
+                    if (costo.totals.length === 0) return null;
+                    const label = costo.totals.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ');
                     return (
-                      <span className="pkg-list-total-cost" title="Costo total del paquete por hectárea">
-                        {entries.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ')}
+                      <span
+                        className="pkg-list-total-cost"
+                        title={
+                          costo.hasMissingPrice
+                            ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                            : 'Costo total del paquete por hectárea'
+                        }
+                      >
+                        {label}
+                        {costo.hasMissingPrice && (
+                          <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">{' *'}</span>
+                        )}
                       </span>
                     );
                   })()}

@@ -67,6 +67,17 @@
   border-radius: 0;
 }
 
+/* Asterisco de advertencia: aparece al lado de un costo cuando hay productos
+   en la mezcla sin precio en el catálogo. El total mostrado los excluye,
+   así que avisamos al usuario que el número podría estar subestimado. */
+.pkg-cost-warn {
+  color: var(--aur-warning, #ffb84d);
+  font-weight: 700;
+  cursor: help;
+  margin-left: 2px;
+  font-size: 0.95em;
+}
+
 /* Ícono de info junto al header de "Programa de actividades" */
 .pkg-day-hint {
   display: inline-flex;
