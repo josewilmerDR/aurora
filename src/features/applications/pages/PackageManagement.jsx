@@ -62,6 +62,86 @@ function buildValidationToast(errors) {
     : `${acts} actividades están incompletas.`;
 }
 
+// ── Cálculo de costo de mezcla por hectárea ──────────────────────────────────
+// Acepta una lista plana de productos usados ({productoId, cantidadPorHa}) y el
+// catálogo. Retorna totales por moneda + flags para alertar al usuario cuando
+// hay productos sin precio (que quedarían fuera del costo). Esto evita que el
+// usuario crea que un paquete cuesta menos de lo real solo porque su catálogo
+// está incompleto.
+function calcularCosto(productosUsados, productosCatalogo) {
+  const totals = {};
+  let withoutPrice = 0;
+  const total = (productosUsados || []).length;
+  (productosUsados || []).forEach(p => {
+    const cat = productosCatalogo.find(cp => cp.id === p.productoId);
+    const precio = parseFloat(cat?.precioUnitario) || 0;
+    if (precio <= 0) {
+      withoutPrice += 1;
+      return;
+    }
+    const mon = cat?.moneda || 'USD';
+    const qty = parseFloat(p.cantidadPorHa) || 0;
+    totals[mon] = (totals[mon] || 0) + qty * precio;
+  });
+  return {
+    totals: Object.entries(totals),
+    total,
+    withoutPrice,
+    hasMissingPrice: withoutPrice > 0,
+    allMissingPrice: total > 0 && withoutPrice === total,
+  };
+}
+
+function flattenActivityProducts(activities) {
+  return (activities || []).flatMap(a => a.productos || []);
+}
+
+// Texto del tooltip de advertencia cuando hay productos sin precio en catálogo.
+function missingPriceTooltip(n) {
+  return n === 1
+    ? '1 producto sin precio en el catálogo no está incluido en este total.'
+    : `${n} productos sin precio en el catálogo no están incluidos en este total.`;
+}
+
+// ── Avatar del paquete (bubble del carrusel) ─────────────────────────────────
+// Reemplaza el viejo slice(0,4) que colisionaba en nombres similares
+// ("Postforza Premium" y "Postforza Estándar" ambos mostraban "POST"). Ahora
+// las iniciales se sacan de las primeras 3 palabras; si el nombre es de una
+// sola palabra, se toman los 2 primeros caracteres. Además, el fondo del
+// avatar se selecciona desde una paleta de 8 colores compatibles con Aurora
+// mediante un hash determinista del nombre — el mismo paquete siempre tendrá
+// el mismo color, y nombres distintos casi nunca se ven igual.
+function getPkgInitials(name) {
+  if (!name) return '?';
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
+}
+
+const PKG_AVATAR_PALETTE = [
+  { bg: 'rgba(51, 255, 153, 0.14)', fg: '#33ff99' },   // aurora green
+  { bg: 'rgba(204, 51, 255, 0.16)', fg: '#cc99ff' },   // magenta/lavender
+  { bg: 'rgba(102, 178, 255, 0.16)', fg: '#66b2ff' },  // blue
+  { bg: 'rgba(255, 184, 77, 0.16)', fg: '#ffb84d' },   // amber
+  { bg: 'rgba(255, 102, 153, 0.16)', fg: '#ff6699' },  // pink
+  { bg: 'rgba(102, 255, 204, 0.14)', fg: '#66ffcc' },  // teal
+  { bg: 'rgba(204, 153, 255, 0.16)', fg: '#cc99ff' },  // lavender
+  { bg: 'rgba(255, 204, 102, 0.16)', fg: '#ffcc66' },  // gold
+];
+
+function pickPkgAvatarStyle(name) {
+  const key = name || '';
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  }
+  return PKG_AVATAR_PALETTE[Math.abs(hash) % PKG_AVATAR_PALETTE.length];
+}
+
 // ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
 function ProdCombobox({ productos, excludeIds, onSelect }) {
   const [text, setText]       = useState('');
