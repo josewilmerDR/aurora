@@ -254,6 +254,16 @@
   border-top: 1px solid var(--aur-divider);
   margin-top: 18px;
 }
+.psb-manage-mats-link {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: color 0.2s;
+}
+.psb-manage-mats-link:hover {
+  color: var(--aur-text);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMBOBOX (LoteCombobox) — dropdown portaled
@@ -361,6 +371,11 @@
   }
   .psb-form-actions .aur-btn-pill {
     justify-content: center;
+  }
+  .psb-manage-mats-link {
+    display: block;
+    text-align: center;
+    padding: 8px 0;
   }
 }
 
