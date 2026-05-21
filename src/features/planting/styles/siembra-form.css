@@ -254,6 +254,14 @@
   border-top: 1px solid var(--aur-divider);
   margin-top: 18px;
 }
+/* Desktop: agrandar Guardar para que no quede atrapado bajo el FAB del chat */
+@media (min-width: 769px) {
+  .psb-form-actions .aur-btn-pill {
+    min-width: 200px;
+    padding: 14px 36px;
+    font-size: var(--aur-fs-callout);
+  }
+}
 .psb-manage-mats-link {
   font-size: var(--aur-fs-footnote);
   color: var(--aur-text-3);
