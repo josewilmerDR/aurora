@@ -643,19 +643,44 @@ function PackageManagement() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="pkg-page-loading" />}
 
-      {!loading && !(isFormOpen && !selectedPkg) && (
+      {!loading && (
         <PageHeader
-          title="Paquetes de Aplicaciones"
-          subtitle="Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+          title={
+            isFormOpen && !selectedPkg
+              ? (isEditing ? 'Editar paquete' : 'Nuevo paquete')
+              : 'Paquetes de aplicaciones'
+          }
+          subtitle={
+            isFormOpen && !selectedPkg
+              ? (isEditing
+                  ? 'Modifica la información del paquete y su programa de actividades.'
+                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.')
+              : (packages.length === 0
+                  ? 'Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click.'
+                  : (
+                      <>
+                        Conjuntos de aplicaciones reutilizables por etapa.{' '}
+                        <span
+                          className="pkg-subtitle-tip"
+                          title="Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+                          aria-label="Más información sobre paquetes"
+                        >
+                          <FiInfo size={12} />
+                        </span>
+                      </>
+                    ))
+          }
           actions={
-            <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
-              <FiPlus size={14} /> Nuevo Paquete
-            </button>
+            !isFormOpen ? (
+              <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
+                <FiPlus size={14} /> Nuevo Paquete
+              </button>
+            ) : null
           }
         />
       )}
       {/* ── Mobile sticky carousel ── */}
-      {!loading && isFormOpen && packages.length > 0 && (
+      {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
           {packages.map(pkg => (
             <button
@@ -685,17 +710,6 @@ function PackageManagement() {
       {!loading && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
         <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
-          <header className="aur-sheet-header">
-            <div className="aur-sheet-header-text">
-              <h2 className="aur-sheet-title">{isEditing ? 'Editar paquete' : 'Nuevo paquete'}</h2>
-              <p className="aur-sheet-subtitle">
-                {isEditing
-                  ? 'Modifica la información del paquete y su programa de actividades.'
-                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.'}
-              </p>
-            </div>
-          </header>
-
           <section className="aur-section">
             <div className="aur-section-header">
               <h3>Identidad</h3>
