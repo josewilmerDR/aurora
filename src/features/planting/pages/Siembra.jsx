@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiChevronDown } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiChevronDown, FiCheckCircle } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -464,8 +464,11 @@ function Siembra() {
   const [matModal, setMatModal]         = useState(null); // { idx, nombre, rango, variedad, densidad } | null
   const [loteModal, setLoteModal]       = useState(null); // { idx, codigoLote, nombreLote } | null
 
+  const [lastSave, setLastSave]     = useState(null); // { count } | null
+
   const fileInputRef                = useRef(null);
   const swipeState                  = useRef({});
+  const saveResetGuard              = useRef(0); // timestamp of last save-driven reset; ignore the immediate effect tick
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
@@ -779,10 +782,12 @@ function Siembra() {
       showToast(`${errores} fila(s) no pudieron guardarse.`, 'error');
     } else {
       showToast(`${validos.length} registro(s) guardados correctamente.`);
+      saveResetGuard.current = Date.now();
       setRows([{ ...EMPTY_ROW }]);
       setFecha(HOY);
       setDraftRestored(false);
       clearDraft();
+      setLastSave({ count: validos.length });
       cargarRegistros();
     }
   };
@@ -792,6 +797,13 @@ function Siembra() {
     if (isDraftMeaningful(fecha, rows)) saveDraft(fecha, rows);
     else clearDraft();
   }, [fecha, rows]);
+
+  // ── Save banner: clear it when user starts editing again after a save ────
+  useEffect(() => {
+    if (!lastSave) return;
+    if (Date.now() - saveResetGuard.current < 250) return; // ignore the reset tick that triggered the banner
+    setLastSave(null);
+  }, [rows, fecha]);
 
   const handleMatModalConfirm = async ({ nombre, rango, variedad, densidad }) => {
     const { idx } = matModal;
@@ -918,6 +930,20 @@ function Siembra() {
               <button type="button" className="psb-draft-discard" onClick={() => setDraftRestored(false)}>
                 Cerrar
               </button>
+            </div>
+          )}
+
+          {lastSave && (
+            <div className="psb-save-banner" role="status" aria-live="polite">
+              <FiCheckCircle size={14} />
+              <span>
+                {lastSave.count === 1
+                  ? '1 registro guardado.'
+                  : `${lastSave.count} registros guardados.`}
+              </span>
+              <Link to="/siembra/historial" className="psb-save-banner-link">
+                Ver en historial →
+              </Link>
             </div>
           )}
 
