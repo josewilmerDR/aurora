@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiSettings, FiChevronDown } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiChevronDown } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -1107,8 +1107,8 @@ function Siembra() {
           </section>
 
           <footer className="psb-form-actions">
-            <Link to="/siembra/materiales" className="aur-btn-text">
-              <FiSettings size={11} /> Gestionar materiales
+            <Link to="/siembra/materiales" className="psb-manage-mats-link">
+              Gestionar materiales
             </Link>
             <button
               type="submit"
