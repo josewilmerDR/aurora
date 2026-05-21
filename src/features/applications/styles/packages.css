@@ -67,6 +67,17 @@
   border-radius: 0;
 }
 
+/* Asterisco de advertencia: aparece al lado de un costo cuando hay productos
+   en la mezcla sin precio en el catálogo. El total mostrado los excluye,
+   así que avisamos al usuario que el número podría estar subestimado. */
+.pkg-cost-warn {
+  color: var(--aur-warning, #ffb84d);
+  font-weight: 700;
+  cursor: help;
+  margin-left: 2px;
+  font-size: 0.95em;
+}
+
 /* Ícono de info junto al header de "Programa de actividades" */
 .pkg-day-hint {
   display: inline-flex;
@@ -76,6 +87,18 @@
   margin-left: 4px;
 }
 .pkg-day-hint:hover {
+  color: var(--aurora-green);
+}
+
+/* Ícono de info inline en el subtítulo de la página (reemplaza la 2ª frase). */
+.pkg-subtitle-tip {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  color: var(--aur-text-3, #6b819b);
+  cursor: help;
+}
+.pkg-subtitle-tip:hover {
   color: var(--aurora-green);
 }
 
@@ -647,8 +670,39 @@ input.fld-error-input,
   justify-content: flex-end;
   gap: 8px;
   margin-top: 32px;
-  padding-top: 20px;
+  padding: 14px 0 10px 0;
   border-top: 1px solid var(--aur-divider);
+  /* Sticky footer: queda anclado al fondo del viewport mientras se edita un
+     paquete con muchas actividades, así Guardar/Cancelar siempre están a
+     mano sin necesidad de scrollear. */
+  position: sticky;
+  bottom: 0;
+  background: rgba(13, 26, 38, 0.88);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  z-index: 5;
+}
+
+/* Botón "Expandir/Colapsar todas" en el header de la sección de actividades.
+   Estilo discreto, alineado al chip de conteo, alineado a la derecha. */
+.pkg-toggle-all-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-pill);
+  color: var(--aur-text-2);
+  padding: 3px 10px;
+  font-size: var(--aur-fs-caption);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.pkg-toggle-all-btn:hover {
+  color: var(--aurora-green);
+  border-color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

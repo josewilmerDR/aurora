@@ -982,11 +982,8 @@ function Siembra() {
                   </span>
 
                   <div className="psb-row-head">
-                    <div className="psb-row-num">
-                      <span className="psb-row-num-val">{idx + 1}</span>
-                      <span className="psb-row-num-suffix">fila</span>
-                    </div>
-                    <div className="psb-row-lote">
+                    <div className="psb-row-lote psb-row-field">
+                      <label>Lote</label>
                       <LoteCombobox
                         value={row.loteId}
                         nuevoNombre={row.loteNuevoNombre}

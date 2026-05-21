@@ -1,50 +1,65 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiArrowLeft, FiInfo } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
-// ── Avatar del paquete (bubble del carrusel) ─────────────────────────────────
-// Reemplaza el viejo slice(0,4) que colisionaba en nombres similares
-// ("Postforza Premium" y "Postforza Estándar" ambos mostraban "POST"). Ahora
-// las iniciales se sacan de las primeras 3 palabras; si el nombre es de una
-// sola palabra, se toman los 2 primeros caracteres. Además, el fondo del
-// avatar se selecciona desde una paleta de 8 colores compatibles con Aurora
-// mediante un hash determinista del nombre — el mismo paquete siempre tendrá
-// el mismo color, y nombres distintos casi nunca se ven igual.
-function getPkgInitials(name) {
-  if (!name) return '?';
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
-  return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
-}
+// ── Mensaje específico de validación del form ────────────────────────────────
+// Convierte el objeto `formErrors` en un toast accionable: si hay un solo
+// error, lo nombra; si hay varios, separa cuántos son de campos top-level
+// vs cuántas actividades quedaron incompletas.
+const PKG_FIELD_LABELS = {
+  nombrePaquete: 'el nombre del paquete',
+  descripcion: 'la descripción',
+  tipoCosecha: 'el tipo de cosecha',
+  etapaCultivo: 'la etapa del cultivo',
+  tecnicoResponsable: 'el técnico responsable',
+};
 
-const PKG_AVATAR_PALETTE = [
-  { bg: 'rgba(51, 255, 153, 0.14)', fg: '#33ff99' },   // aurora green
-  { bg: 'rgba(204, 51, 255, 0.16)', fg: '#cc99ff' },   // magenta/lavender
-  { bg: 'rgba(102, 178, 255, 0.16)', fg: '#66b2ff' },  // blue
-  { bg: 'rgba(255, 184, 77, 0.16)', fg: '#ffb84d' },   // amber
-  { bg: 'rgba(255, 102, 153, 0.16)', fg: '#ff6699' },  // pink
-  { bg: 'rgba(102, 255, 204, 0.14)', fg: '#66ffcc' },  // teal
-  { bg: 'rgba(204, 153, 255, 0.16)', fg: '#cc99ff' },  // lavender
-  { bg: 'rgba(255, 204, 102, 0.16)', fg: '#ffcc66' },  // gold
-];
+function buildValidationToast(errors) {
+  const keys = Object.keys(errors);
+  if (keys.length === 0) return '';
 
-function pickPkgAvatarStyle(name) {
-  const key = name || '';
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  if (keys.length === 1) {
+    const key = keys[0];
+    if (PKG_FIELD_LABELS[key]) return `Revisa ${PKG_FIELD_LABELS[key]}.`;
+    const m = key.match(/^act-(\d+)-(.+)$/);
+    if (m) {
+      const idx = Number(m[1]) + 1;
+      const sub = m[2];
+      if (sub === 'name') return `Falta el nombre de la actividad ${idx}.`;
+      if (sub === 'day') return `Revisa el día de la actividad ${idx}.`;
+      if (sub === 'prods') return `Demasiados productos en la actividad ${idx}.`;
+      if (sub.startsWith('prod-')) return `Revisa la cantidad de un producto en la actividad ${idx}.`;
+    }
+    return 'Hay un campo con error.';
   }
-  return PKG_AVATAR_PALETTE[Math.abs(hash) % PKG_AVATAR_PALETTE.length];
+
+  const topLevel = keys.filter(k => k in PKG_FIELD_LABELS).length;
+  const actIndices = new Set();
+  keys.forEach(k => {
+    const m = k.match(/^act-(\d+)-/);
+    if (m) actIndices.add(m[1]);
+  });
+  const acts = actIndices.size;
+
+  if (topLevel > 0 && acts > 0) {
+    const a = topLevel === 1 ? '1 campo del paquete' : `${topLevel} campos del paquete`;
+    const b = acts === 1 ? '1 actividad incompleta' : `${acts} actividades incompletas`;
+    return `Revisa ${a} y ${b}.`;
+  }
+  if (topLevel > 0) {
+    return topLevel === 1
+      ? 'Revisa 1 campo del paquete marcado en rojo.'
+      : `Revisa ${topLevel} campos del paquete marcados en rojo.`;
+  }
+  return acts === 1
+    ? '1 actividad está incompleta.'
+    : `${acts} actividades están incompletas.`;
 }
 
 // ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
@@ -176,7 +191,7 @@ function PackageManagement() {
 
   const [hubExpandedActivities, setHubExpandedActivities] = useState(new Set());
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
-  const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
+  const [pendingDeletePkg, setPendingDeletePkg] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -215,6 +230,33 @@ function PackageManagement() {
     apiFetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
     apiFetch('/api/calibraciones').then(res => res.json()).then(setCalibraciones).catch(console.error);
   }, []);
+
+  // Atajo Ctrl/Cmd + S → enviar el form mientras se edita/crea un paquete.
+  // Solo se activa cuando el form está abierto en modo crear/editar
+  // (no en la vista de hub, donde no hay form).
+  useEffect(() => {
+    if (!isFormOpen || selectedPkg) return;
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        document.querySelector('.pkg-form')?.requestSubmit?.();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isFormOpen, selectedPkg]);
+
+  // Estado derivado: ¿todas las actividades están expandidas?
+  const allActivitiesExpanded = formData.activities.length > 0
+    && formData.activities.every((_, i) => expandedActivities.has(i));
+
+  const toggleAllActivities = () => {
+    if (allActivitiesExpanded) {
+      setExpandedActivities(new Set());
+    } else {
+      setExpandedActivities(new Set(formData.activities.map((_, i) => i)));
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -520,8 +562,16 @@ function PackageManagement() {
         expandIndices.forEach(i => next.add(i));
         return next;
       });
-      const count = Object.keys(errors).length;
-      showToast(`Revisa ${count} ${count === 1 ? 'campo marcado' : 'campos marcados'} en rojo.`, 'error');
+      showToast(buildValidationToast(errors), 'error');
+      // Scroll al primer error tras el siguiente repaint (espera a que las
+      // actividades en error se expandan y reciban el className de error).
+      requestAnimationFrame(() => {
+        const first = document.querySelector('.pkg-form .fld-error-input');
+        if (first) {
+          first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          try { first.focus({ preventScroll: true }); } catch { /* noop */ }
+        }
+      });
       return;
     }
 
@@ -572,9 +622,24 @@ function PackageManagement() {
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error();
+      const created = await response.json();
       const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
       setPackages(updatedPackages);
-      showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
+      // Abrir el form sobre la copia con el nombre seleccionado para renombrar
+      // inmediatamente — evita acumular "Copia de Copia de X" sin notar.
+      const newPkg = updatedPackages.find(p => p.id === created?.id);
+      if (newPkg) {
+        handleEdit(newPkg);
+        requestAnimationFrame(() => {
+          const input = document.querySelector('.pkg-form input[name="nombrePaquete"]');
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        });
+      } else {
+        showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
+      }
     } catch {
       showToast('Error al duplicar el paquete.', 'error');
     }
@@ -591,7 +656,11 @@ function PackageManagement() {
       if (depLotes.length > 0 || depGrupos.length > 0) {
         setPkgDepsModal({ name: pkg.nombrePaquete, lotes: depLotes, grupos: depGrupos });
       } else {
-        setPendingDeletePkgId(pkg.id);
+        setPendingDeletePkg({
+          id: pkg.id,
+          nombrePaquete: pkg.nombrePaquete,
+          actCount: (pkg.activities || []).length,
+        });
       }
     } catch {
       showToast('Error al verificar dependencias.', 'error');
@@ -603,7 +672,7 @@ function PackageManagement() {
       const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar el paquete');
       setPackages(packages.filter(p => p.id !== id));
-      setPendingDeletePkgId(null);
+      setPendingDeletePkg(null);
       if (selectedPkg?.id === id) resetForm();
       showToast('Paquete eliminado correctamente');
     } catch (error) {
@@ -615,14 +684,24 @@ function PackageManagement() {
     <div className={`pkg-page-wrapper${isFormOpen ? ' pkg-page--selected' : ''}${packages.length > 0 ? ' pkg-page--has-packages' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {pendingDeletePkgId && (
+      {pendingDeletePkg && (
         <AuroraConfirmModal
           danger
           title="¿Eliminar paquete?"
-          body="Esta acción no se puede deshacer."
+          body={
+            <>
+              Vas a eliminar <strong>"{pendingDeletePkg.nombrePaquete}"</strong>
+              {pendingDeletePkg.actCount > 0 && (
+                <> y sus {pendingDeletePkg.actCount === 1
+                  ? '1 actividad'
+                  : `${pendingDeletePkg.actCount} actividades`}</>
+              )}
+              . Esta acción no se puede deshacer.
+            </>
+          }
           confirmLabel="Eliminar"
-          onConfirm={() => handleDelete(pendingDeletePkgId)}
-          onCancel={() => setPendingDeletePkgId(null)}
+          onConfirm={() => handleDelete(pendingDeletePkg.id)}
+          onCancel={() => setPendingDeletePkg(null)}
         />
       )}
 
@@ -682,19 +761,44 @@ function PackageManagement() {
       {/* ── Spinner de carga ── */}
       {loading && <div className="pkg-page-loading" />}
 
-      {!loading && !(isFormOpen && !selectedPkg) && (
+      {!loading && (
         <PageHeader
-          title="Paquetes de Aplicaciones"
-          subtitle="Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+          title={
+            isFormOpen && !selectedPkg
+              ? (isEditing ? 'Editar paquete' : 'Nuevo paquete')
+              : 'Paquetes de aplicaciones'
+          }
+          subtitle={
+            isFormOpen && !selectedPkg
+              ? (isEditing
+                  ? 'Modifica la información del paquete y su programa de actividades.'
+                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.')
+              : (packages.length === 0
+                  ? 'Define aquí los conjuntos de aplicaciones que sueles realizar en tus cultivos por etapa. Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click.'
+                  : (
+                      <>
+                        Conjuntos de aplicaciones reutilizables por etapa.{' '}
+                        <span
+                          className="pkg-subtitle-tip"
+                          title="Una vez creado, puedes aplicar el mismo paquete a muchos grupos o lotes con un solo click."
+                          aria-label="Más información sobre paquetes"
+                        >
+                          <FiInfo size={12} />
+                        </span>
+                      </>
+                    ))
+          }
           actions={
-            <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
-              <FiPlus size={14} /> Nuevo Paquete
-            </button>
+            !isFormOpen ? (
+              <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
+                <FiPlus size={14} /> Nuevo Paquete
+              </button>
+            ) : null
           }
         />
       )}
       {/* ── Mobile sticky carousel ── */}
-      {!loading && isFormOpen && packages.length > 0 && (
+      {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
           {packages.map(pkg => {
             const isActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
@@ -734,17 +838,6 @@ function PackageManagement() {
       {!loading && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
         <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
-          <header className="aur-sheet-header">
-            <div className="aur-sheet-header-text">
-              <h2 className="aur-sheet-title">{isEditing ? 'Editar paquete' : 'Nuevo paquete'}</h2>
-              <p className="aur-sheet-subtitle">
-                {isEditing
-                  ? 'Modifica la información del paquete y su programa de actividades.'
-                  : 'Define un conjunto de aplicaciones reutilizables para cada etapa de tus cultivos.'}
-              </p>
-            </div>
-          </header>
-
           <section className="aur-section">
             <div className="aur-section-header">
               <h3>Identidad</h3>
@@ -858,20 +951,23 @@ function PackageManagement() {
               >
                 <FiInfo size={13} />
               </span>
+              {formData.activities.length > 1 && (
+                <button
+                  type="button"
+                  className="pkg-toggle-all-btn"
+                  onClick={toggleAllActivities}
+                  title={allActivitiesExpanded ? 'Colapsar todas las actividades' : 'Expandir todas las actividades'}
+                >
+                  {allActivitiesExpanded ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
+                  <span>{allActivitiesExpanded ? 'Colapsar todas' : 'Expandir todas'}</span>
+                </button>
+              )}
             </div>
             <ul className="pkg-act-list">
               {formData.activities.map((activity, index) => {
                 const expanded = expandedActivities.has(index);
-                const totals = {};
-                (activity.productos || []).forEach(p => {
-                  const cat = productos.find(cp => cp.id === p.productoId);
-                  const precio = parseFloat(cat?.precioUnitario) || 0;
-                  if (precio <= 0) return;
-                  const mon = cat?.moneda || 'USD';
-                  const qty = parseFloat(p.cantidadPorHa) || 0;
-                  totals[mon] = (totals[mon] || 0) + qty * precio;
-                });
-                const costEntries = Object.entries(totals);
+                const costo = calcularCosto(activity.productos, productos);
+                const costEntries = costo.totals;
                 return (
                   <li key={`act-${index}`} className="pkg-act-card">
                     <div className="pkg-act-row">
@@ -941,14 +1037,33 @@ function PackageManagement() {
 
                       <div
                         className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}
-                        title={costEntries.length === 0 ? undefined : 'Costo de la mezcla por hectárea'}
+                        title={
+                          costo.total === 0
+                            ? 'Sin productos asignados'
+                            : costo.allMissingPrice
+                              ? 'Todos los productos están sin precio en el catálogo'
+                              : costo.hasMissingPrice
+                                ? `Costo de la mezcla por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                                : 'Costo de la mezcla por hectárea'
+                        }
                       >
-                        {costEntries.length === 0 ? '—' : costEntries.map(([mon, total]) => (
-                          <div key={mon}>
-                            {total.toFixed(2)}
-                            <span className="pkg-act-cost-mon">{mon}/Ha</span>
-                          </div>
-                        ))}
+                        {costEntries.length === 0 ? (
+                          <span aria-label={costo.allMissingPrice ? 'Sin precio' : 'Sin productos'}>
+                            {costo.allMissingPrice ? 'Sin precio' : '—'}
+                          </span>
+                        ) : (
+                          <>
+                            {costEntries.map(([mon, total]) => (
+                              <div key={mon}>
+                                {total.toFixed(2)}
+                                <span className="pkg-act-cost-mon">{mon}/Ha</span>
+                              </div>
+                            ))}
+                            {costo.hasMissingPrice && (
+                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                            )}
+                          </>
+                        )}
                       </div>
 
                       <div className="pkg-act-actions">
@@ -1066,7 +1181,12 @@ function PackageManagement() {
             >
               Cancelar
             </button>
-            <button type="submit" className="aur-btn-pill" disabled={isSubmitting}>
+            <button
+              type="submit"
+              className="aur-btn-pill"
+              disabled={isSubmitting}
+              title="Guardar (Ctrl+S)"
+            >
               {isSubmitting
                 ? 'Guardando…'
                 : isEditing ? 'Actualizar paquete' : 'Guardar paquete'}
@@ -1084,23 +1204,23 @@ function PackageManagement() {
             <div className="hub-title-block">
               <h2 className="hub-lote-code">{selectedPkg.nombrePaquete}</h2>
               {(() => {
-                const totals = {};
-                (selectedPkg.activities || []).forEach(act => {
-                  (act.productos || []).forEach(p => {
-                    const cat = productos.find(cp => cp.id === p.productoId);
-                    const precio = parseFloat(cat?.precioUnitario) || 0;
-                    if (precio <= 0) return;
-                    const mon = cat?.moneda || 'USD';
-                    totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
-                  });
-                });
-                const entries = Object.entries(totals);
-                if (entries.length === 0) return null;
+                const costo = calcularCosto(flattenActivityProducts(selectedPkg.activities), productos);
+                if (costo.totals.length === 0) return null;
                 return (
-                  <span className="pkg-hub-total-cost" title="Costo total del paquete por hectárea">
-                    {entries.map(([mon, total]) => (
+                  <span
+                    className="pkg-hub-total-cost"
+                    title={
+                      costo.hasMissingPrice
+                        ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                        : 'Costo total del paquete por hectárea'
+                    }
+                  >
+                    {costo.totals.map(([mon, total]) => (
                       <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-total-cost-mon">{mon}/Ha</span></span>
                     ))}
+                    {costo.hasMissingPrice && (
+                      <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                    )}
                   </span>
                 );
               })()}
@@ -1146,28 +1266,28 @@ function PackageManagement() {
                   const cal = calibraciones.find(c => c.id === act.calibracionId);
                   const hasDetails = (act.productos?.length > 0) || !!cal;
                   const expanded = hubExpandedActivities.has(i);
-                  const actCostos = (() => {
-                    const totals = {};
-                    (act.productos || []).forEach(p => {
-                      const cat = productos.find(cp => cp.id === p.productoId);
-                      const precio = parseFloat(cat?.precioUnitario) || 0;
-                      if (precio <= 0) return;
-                      const mon = cat?.moneda || 'USD';
-                      totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
-                    });
-                    return Object.entries(totals);
-                  })();
+                  const actCostoInfo = calcularCosto(act.productos, productos);
                   return (
                     <li key={i} className="pkg-hub-activity-item">
                       <span className="pkg-hub-activity-day">Día {act.day}</span>
                       <div className="pkg-hub-activity-info">
                         <span className="pkg-hub-activity-name">{act.name}</span>
                         {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
-                        {actCostos.length > 0 && (
-                          <span className="pkg-hub-activity-cost" title="Costo de la mezcla por hectárea">
-                            {actCostos.map(([mon, total]) => (
+                        {actCostoInfo.totals.length > 0 && (
+                          <span
+                            className="pkg-hub-activity-cost"
+                            title={
+                              actCostoInfo.hasMissingPrice
+                                ? `Costo de la mezcla por hectárea. ${missingPriceTooltip(actCostoInfo.withoutPrice)}`
+                                : 'Costo de la mezcla por hectárea'
+                            }
+                          >
+                            {actCostoInfo.totals.map(([mon, total]) => (
                               <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-activity-cost-mon">{mon}/Ha</span></span>
                             ))}
+                            {actCostoInfo.hasMissingPrice && (
+                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                            )}
                           </span>
                         )}
                         {expanded && (
@@ -1244,21 +1364,22 @@ function PackageManagement() {
                     ].filter(Boolean).join(' · ')}
                   </span>
                   {(() => {
-                    const totals = {};
-                    (pkg.activities || []).forEach(act => {
-                      (act.productos || []).forEach(p => {
-                        const cat = productos.find(cp => cp.id === p.productoId);
-                        const precio = parseFloat(cat?.precioUnitario) || 0;
-                        if (precio <= 0) return;
-                        const mon = cat?.moneda || 'USD';
-                        totals[mon] = (totals[mon] || 0) + (p.cantidadPorHa || 0) * precio;
-                      });
-                    });
-                    const entries = Object.entries(totals);
-                    if (entries.length === 0) return null;
+                    const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
+                    if (costo.totals.length === 0) return null;
+                    const label = costo.totals.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ');
                     return (
-                      <span className="pkg-list-total-cost" title="Costo total del paquete por hectárea">
-                        {entries.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ')}
+                      <span
+                        className="pkg-list-total-cost"
+                        title={
+                          costo.hasMissingPrice
+                            ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                            : 'Costo total del paquete por hectárea'
+                        }
+                      >
+                        {label}
+                        {costo.hasMissingPrice && (
+                          <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">{' *'}</span>
+                        )}
                       </span>
                     );
                   })()}
