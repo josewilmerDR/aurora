@@ -320,6 +320,11 @@
   color: var(--aur-text-2);
   letter-spacing: -0.01em;
 }
+.psb-mat-modal-info {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  letter-spacing: -0.01em;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE (≤ 768px)
