@@ -272,6 +272,16 @@
   background: var(--aur-accent-tint);
   color: var(--aur-accent);
 }
+.psb-combo-option--create {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--aur-divider-2);
+  border-radius: 0 0 8px 8px;
+  color: var(--aur-accent);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MODAL "Nuevo material" — form modal sobre .aur-modal-*. La estructura del
