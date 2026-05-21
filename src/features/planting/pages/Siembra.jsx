@@ -69,8 +69,11 @@ const EMPTY_ROW = {
 };
 
 // ── Combobox lote ────────────────────────────────────────────────────────────
-function LoteCombobox({ value, onChange, lotes }) {
-  const nameFor = useCallback((id) => lotes.find(l => l.id === id)?.nombreLote || '', [lotes]);
+function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
+  const nameFor = useCallback((id) => {
+    if (id === '__nuevo__') return nuevoNombre || '';
+    return lotes.find(l => l.id === id)?.nombreLote || '';
+  }, [lotes, nuevoNombre]);
 
   const [text, setText]     = useState(() => nameFor(value));
   const [open, setOpen]     = useState(false);
@@ -86,9 +89,15 @@ function LoteCombobox({ value, onChange, lotes }) {
     setText(nameFor(value));
   }, [value, nameFor]);
 
+  const trimmed = text.trim();
   const filtered = lotes.filter(l =>
     !text || l.nombreLote.toLowerCase().includes(text.toLowerCase())
   );
+  const exactMatch = trimmed
+    ? lotes.find(l => l.nombreLote.toLowerCase() === trimmed.toLowerCase())
+    : null;
+  const showCreate = trimmed.length > 0 && !exactMatch;
+  const optionsCount = filtered.length + (showCreate ? 1 : 0);
 
   const openDropdown = () => {
     if (inputRef.current) {
@@ -103,21 +112,44 @@ function LoteCombobox({ value, onChange, lotes }) {
     setText(lote.nombreLote);
     setOpen(false);
     setHi(0);
-    onChange(lote.id);
+    onChange(lote.id, '');
+  };
+
+  const selectCreate = () => {
+    setText(trimmed);
+    setOpen(false);
+    setHi(0);
+    onChange('__nuevo__', trimmed);
   };
 
   const handleChange = (e) => {
     userTyping.current = true;
-    setText(e.target.value);
+    const t = e.target.value;
+    setText(t);
     openDropdown();
-    if (value) onChange('');
+    // Live-sync the new-lote name while in __nuevo__ mode; otherwise clear stale selection
+    if (value === '__nuevo__') onChange('__nuevo__', t.trim());
+    else if (value) onChange('', '');
   };
 
   const handleBlur = () => {
     setTimeout(() => {
       if (document.activeElement !== inputRef.current) {
         setOpen(false);
-        setText(nameFor(value));
+        const t = text.trim();
+        if (!t) {
+          setText(nameFor(value));
+          if (value) onChange('', '');
+          return;
+        }
+        const existing = lotes.find(l => l.nombreLote.toLowerCase() === t.toLowerCase());
+        if (existing) {
+          setText(existing.nombreLote);
+          onChange(existing.id, '');
+        } else {
+          setText(t);
+          onChange('__nuevo__', t);
+        }
       }
     }, 150);
   };
@@ -128,13 +160,14 @@ function LoteCombobox({ value, onChange, lotes }) {
       return;
     }
     if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
+      setHi(h => { const n = Math.min(h + 1, optionsCount - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
       e.preventDefault();
     } else if (e.key === 'ArrowUp') {
       setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
       e.preventDefault();
     } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+      if (hi < filtered.length && filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
+      else if (showCreate && hi === filtered.length) { selectCreate(); e.preventDefault(); }
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
@@ -164,7 +197,7 @@ function LoteCombobox({ value, onChange, lotes }) {
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
       />
-      {open && filtered.length > 0 && createPortal(
+      {open && optionsCount > 0 && createPortal(
         <ul
           ref={listRef}
           className="psb-combo-dropdown"
@@ -180,6 +213,16 @@ function LoteCombobox({ value, onChange, lotes }) {
               {l.nombreLote}
             </li>
           ))}
+          {showCreate && (
+            <li
+              key="__create__"
+              className={`psb-combo-option psb-combo-option--create${hi === filtered.length ? ' psb-combo-option--active' : ''}`}
+              onMouseDown={selectCreate}
+              onMouseEnter={() => setHi(filtered.length)}
+            >
+              <FiPlus size={12} /> Crear lote: «{trimmed}»
+            </li>
+          )}
         </ul>,
         document.body
       )}
@@ -729,7 +772,12 @@ function Siembra() {
                     <div className="psb-row-lote">
                       <LoteCombobox
                         value={row.loteId}
-                        onChange={v => updateRow(idx, 'loteId', v)}
+                        nuevoNombre={row.loteNuevoNombre}
+                        onChange={(id, nuevoNombre) => setRows(prev => {
+                          const next = [...prev];
+                          next[idx] = { ...next[idx], loteId: id, loteNuevoNombre: nuevoNombre };
+                          return next;
+                        })}
                         lotes={lotes}
                       />
                     </div>
