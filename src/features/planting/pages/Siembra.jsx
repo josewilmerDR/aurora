@@ -550,10 +550,22 @@ function Siembra() {
       return;
     }
 
-    // Validar rango de plantas y densidad
-    const fueraDeRango = validos.some(r => rowPlantasInvalid(r) || rowDensidadInvalid(r));
-    if (fueraDeRango) {
-      showToast('Plantas y densidad deben estar entre 0 y 199 999.', 'error');
+    // Validar rango de plantas y densidad: ubicar la primera fila inválida
+    let firstInvalid = null;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const isValido = (r.loteId || r.loteNuevoNombre.trim()) && r.plantas && r.densidad;
+      if (!isValido) continue;
+      if (rowPlantasInvalid(r))  { firstInvalid = { idx: i, field: 'plantas'  }; break; }
+      if (rowDensidadInvalid(r)) { firstInvalid = { idx: i, field: 'densidad' }; break; }
+    }
+    if (firstInvalid) {
+      showToast(`Fila ${firstInvalid.idx + 1}: ${firstInvalid.field} fuera de rango (0 – 199 999).`, 'error');
+      const target = document.querySelector(`[data-row-field="${firstInvalid.idx}-${firstInvalid.field}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => target.focus({ preventScroll: true }), 280);
+      }
       return;
     }
 
@@ -854,6 +866,7 @@ function Siembra() {
                         max="199999"
                         placeholder="0"
                         value={row.plantas}
+                        data-row-field={`${idx}-plantas`}
                         onChange={e => updateRow(idx, 'plantas', e.target.value)}
                       />
                       {rowPlantasInvalid(row) && <span className="psb-row-error">0 – 199 999</span>}
@@ -867,6 +880,7 @@ function Siembra() {
                         max="199999"
                         placeholder="65000"
                         value={row.densidad}
+                        data-row-field={`${idx}-densidad`}
                         onChange={e => updateRow(idx, 'densidad', e.target.value)}
                       />
                       {rowDensidadInvalid(row) && <span className="psb-row-error">0 – 199 999</span>}
