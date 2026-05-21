@@ -21,13 +21,24 @@ router.get('/api/materiales-siembra', authenticate, async (req, res) => {
   }
 });
 
+// Coerce raw densidadDefault to a clean number in [0, 199999]; 0 means "not configured".
+function coerceDensidadDefault(raw) {
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 0 || n > 199999) return null;
+  return n;
+}
+
 router.post('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
     const { nombre, rangoPesos, variedad } = req.body;
     if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
     if (nombre.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long.', 400);
+    const densidadDefault = coerceDensidadDefault(req.body.densidadDefault);
+    if (densidadDefault === null) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'densidadDefault must be 0–199999.', 400);
     const ref = await db.collection('materiales_siembra').add({
       nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32),
+      densidadDefault,
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -41,9 +52,11 @@ router.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
     const { nombre, rangoPesos, variedad } = req.body;
     if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
     if (nombre.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long.', 400);
+    const densidadDefault = coerceDensidadDefault(req.body.densidadDefault);
+    if (densidadDefault === null) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'densidadDefault must be 0–199999.', 400);
     const doc = await db.collection('materiales_siembra').doc(req.params.id).get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Material not found.', 404);
-    await doc.ref.update({ nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32) });
+    await doc.ref.update({ nombre: nombre.trim(), rangoPesos: (rangoPesos || '').slice(0, 32), variedad: (variedad || '').slice(0, 32), densidadDefault });
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update material.', 500);
