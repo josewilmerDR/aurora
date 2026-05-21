@@ -256,13 +256,13 @@
 }
 .psb-manage-mats-link {
   font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-3);
+  color: var(--aur-accent);
   text-decoration: none;
   letter-spacing: -0.01em;
-  transition: color 0.2s;
+  transition: opacity 0.2s;
 }
 .psb-manage-mats-link:hover {
-  color: var(--aur-text);
+  opacity: 0.75;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
