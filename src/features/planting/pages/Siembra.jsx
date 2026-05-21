@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiSettings } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiSettings, FiChevronDown } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -74,6 +74,10 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
     if (id === '__nuevo__') return nuevoNombre || '';
     return lotes.find(l => l.id === id)?.nombreLote || '';
   }, [lotes, nuevoNombre]);
+
+  const listId = useId();
+  const optionId = (i) => `${listId}-opt-${i}`;
+  const createOptId = `${listId}-create`;
 
   const [text, setText]     = useState(() => nameFor(value));
   const [open, setOpen]     = useState(false);
@@ -184,28 +188,46 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const activeDescendant = open
+    ? (hi < filtered.length ? optionId(hi)
+      : (showCreate && hi === filtered.length ? createOptId : undefined))
+    : undefined;
+
   return (
     <>
-      <input
-        ref={inputRef}
-        className="aur-input psb-lote-input"
-        value={text}
-        autoComplete="off"
-        placeholder="— Lote —"
-        onChange={handleChange}
-        onFocus={openDropdown}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-      />
+      <div className={`psb-lote-field${open ? ' psb-lote-field--open' : ''}`}>
+        <input
+          ref={inputRef}
+          className="aur-input psb-lote-input"
+          value={text}
+          autoComplete="off"
+          placeholder="— Lote —"
+          onChange={handleChange}
+          onFocus={openDropdown}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-activedescendant={activeDescendant}
+        />
+        <FiChevronDown className="psb-lote-chevron" size={14} aria-hidden="true" />
+      </div>
       {open && optionsCount > 0 && createPortal(
         <ul
           ref={listRef}
+          id={listId}
+          role="listbox"
           className="psb-combo-dropdown"
           style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
         >
           {filtered.map((l, i) => (
             <li
               key={l.id}
+              id={optionId(i)}
+              role="option"
+              aria-selected={i === hi}
               className={`psb-combo-option${i === hi ? ' psb-combo-option--active' : ''}`}
               onMouseDown={() => selectOption(l)}
               onMouseEnter={() => setHi(i)}
@@ -216,6 +238,9 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, lotes }) {
           {showCreate && (
             <li
               key="__create__"
+              id={createOptId}
+              role="option"
+              aria-selected={hi === filtered.length}
               className={`psb-combo-option psb-combo-option--create${hi === filtered.length ? ' psb-combo-option--active' : ''}`}
               onMouseDown={selectCreate}
               onMouseEnter={() => setHi(filtered.length)}
