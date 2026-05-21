@@ -8,6 +8,45 @@ import AuroraField, { TextInput, Textarea } from '../../../components/AuroraFiel
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
+// ── Avatar del paquete (bubble del carrusel) ─────────────────────────────────
+// Reemplaza el viejo slice(0,4) que colisionaba en nombres similares
+// ("Postforza Premium" y "Postforza Estándar" ambos mostraban "POST"). Ahora
+// las iniciales se sacan de las primeras 3 palabras; si el nombre es de una
+// sola palabra, se toman los 2 primeros caracteres. Además, el fondo del
+// avatar se selecciona desde una paleta de 8 colores compatibles con Aurora
+// mediante un hash determinista del nombre — el mismo paquete siempre tendrá
+// el mismo color, y nombres distintos casi nunca se ven igual.
+function getPkgInitials(name) {
+  if (!name) return '?';
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
+}
+
+const PKG_AVATAR_PALETTE = [
+  { bg: 'rgba(51, 255, 153, 0.14)', fg: '#33ff99' },   // aurora green
+  { bg: 'rgba(204, 51, 255, 0.16)', fg: '#cc99ff' },   // magenta/lavender
+  { bg: 'rgba(102, 178, 255, 0.16)', fg: '#66b2ff' },  // blue
+  { bg: 'rgba(255, 184, 77, 0.16)', fg: '#ffb84d' },   // amber
+  { bg: 'rgba(255, 102, 153, 0.16)', fg: '#ff6699' },  // pink
+  { bg: 'rgba(102, 255, 204, 0.14)', fg: '#66ffcc' },  // teal
+  { bg: 'rgba(204, 153, 255, 0.16)', fg: '#cc99ff' },  // lavender
+  { bg: 'rgba(255, 204, 102, 0.16)', fg: '#ffcc66' },  // gold
+];
+
+function pickPkgAvatarStyle(name) {
+  const key = name || '';
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  }
+  return PKG_AVATAR_PALETTE[Math.abs(hash) % PKG_AVATAR_PALETTE.length];
+}
+
 // ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
 function ProdCombobox({ productos, excludeIds, onSelect }) {
   const [text, setText]       = useState('');
@@ -657,21 +696,31 @@ function PackageManagement() {
       {/* ── Mobile sticky carousel ── */}
       {!loading && isFormOpen && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
-          {packages.map(pkg => (
-            <button
-              key={pkg.id}
-              className={`pkg-bubble${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' pkg-bubble--active' : ''}`}
-              onClick={() => guardedNav(() => {
-                if (selectedPkg?.id === pkg.id && !isEditing) resetForm();
-                else handleSelectPkg(pkg);
-              })}
-            >
-              <span className="pkg-bubble-avatar">
-                {pkg.nombrePaquete.slice(0, 4).toUpperCase()}
-              </span>
-              <span className="pkg-bubble-label">{pkg.nombrePaquete}</span>
-            </button>
-          ))}
+          {packages.map(pkg => {
+            const isActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
+            // Cuando la burbuja está activa, dejamos que la regla CSS
+            // .pkg-bubble--active .pkg-bubble-avatar pinte el verde Aurora.
+            // Solo pintamos el color del hash cuando la burbuja NO está activa.
+            const avatarStyle = isActive ? undefined : pickPkgAvatarStyle(pkg.nombrePaquete);
+            return (
+              <button
+                key={pkg.id}
+                className={`pkg-bubble${isActive ? ' pkg-bubble--active' : ''}`}
+                onClick={() => guardedNav(() => {
+                  if (selectedPkg?.id === pkg.id && !isEditing) resetForm();
+                  else handleSelectPkg(pkg);
+                })}
+              >
+                <span
+                  className="pkg-bubble-avatar"
+                  style={avatarStyle ? { background: avatarStyle.bg, color: avatarStyle.fg } : undefined}
+                >
+                  {getPkgInitials(pkg.nombrePaquete)}
+                </span>
+                <span className="pkg-bubble-label">{pkg.nombrePaquete}</span>
+              </button>
+            );
+          })}
           <button
             className={`pkg-bubble pkg-bubble--add${isFormOpen && !selectedPkg && !isEditing ? ' pkg-bubble--active' : ''}`}
             onClick={() => guardedNav(handleNew)}
