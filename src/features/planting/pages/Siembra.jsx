@@ -511,7 +511,10 @@ function Siembra() {
   const getSwipeHandlers = (idx) => ({
     onPointerDown(e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      if (e.target.closest('input, select, button, a')) return;
+      // label cubre el toggle "Cerrado" (aur-toggle): el checkbox real tiene
+      // pointer-events:none y se interactúa vía spans; sin este bypass,
+      // setPointerCapture redirige el click al <li> y el toggle nunca recibe.
+      if (e.target.closest('input, select, button, a, label')) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       swipeState.current[idx] = {
         startX: e.clientX, startY: e.clientY, el: e.currentTarget, dx: 0, locked: false, cancelled: false,
