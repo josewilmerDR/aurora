@@ -191,7 +191,7 @@ function PackageManagement() {
 
   const [hubExpandedActivities, setHubExpandedActivities] = useState(new Set());
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
-  const [pendingDeletePkgId, setPendingDeletePkgId] = useState(null);
+  const [pendingDeletePkg, setPendingDeletePkg] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -595,9 +595,24 @@ function PackageManagement() {
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error();
+      const created = await response.json();
       const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
       setPackages(updatedPackages);
-      showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
+      // Abrir el form sobre la copia con el nombre seleccionado para renombrar
+      // inmediatamente — evita acumular "Copia de Copia de X" sin notar.
+      const newPkg = updatedPackages.find(p => p.id === created?.id);
+      if (newPkg) {
+        handleEdit(newPkg);
+        requestAnimationFrame(() => {
+          const input = document.querySelector('.pkg-form input[name="nombrePaquete"]');
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        });
+      } else {
+        showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
+      }
     } catch {
       showToast('Error al duplicar el paquete.', 'error');
     }
@@ -614,7 +629,11 @@ function PackageManagement() {
       if (depLotes.length > 0 || depGrupos.length > 0) {
         setPkgDepsModal({ name: pkg.nombrePaquete, lotes: depLotes, grupos: depGrupos });
       } else {
-        setPendingDeletePkgId(pkg.id);
+        setPendingDeletePkg({
+          id: pkg.id,
+          nombrePaquete: pkg.nombrePaquete,
+          actCount: (pkg.activities || []).length,
+        });
       }
     } catch {
       showToast('Error al verificar dependencias.', 'error');
@@ -626,7 +645,7 @@ function PackageManagement() {
       const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar el paquete');
       setPackages(packages.filter(p => p.id !== id));
-      setPendingDeletePkgId(null);
+      setPendingDeletePkg(null);
       if (selectedPkg?.id === id) resetForm();
       showToast('Paquete eliminado correctamente');
     } catch (error) {
@@ -638,14 +657,24 @@ function PackageManagement() {
     <div className={`pkg-page-wrapper${isFormOpen ? ' pkg-page--selected' : ''}${packages.length > 0 ? ' pkg-page--has-packages' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {pendingDeletePkgId && (
+      {pendingDeletePkg && (
         <AuroraConfirmModal
           danger
           title="¿Eliminar paquete?"
-          body="Esta acción no se puede deshacer."
+          body={
+            <>
+              Vas a eliminar <strong>"{pendingDeletePkg.nombrePaquete}"</strong>
+              {pendingDeletePkg.actCount > 0 && (
+                <> y sus {pendingDeletePkg.actCount === 1
+                  ? '1 actividad'
+                  : `${pendingDeletePkg.actCount} actividades`}</>
+              )}
+              . Esta acción no se puede deshacer.
+            </>
+          }
           confirmLabel="Eliminar"
-          onConfirm={() => handleDelete(pendingDeletePkgId)}
-          onCancel={() => setPendingDeletePkgId(null)}
+          onConfirm={() => handleDelete(pendingDeletePkg.id)}
+          onCancel={() => setPendingDeletePkg(null)}
         />
       )}
 
