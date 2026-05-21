@@ -6,7 +6,13 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import '../styles/siembra-materiales.css';
 
-const EMPTY = { nombre: '', rangoPesos: '', variedad: '' };
+const EMPTY = { nombre: '', rangoPesos: '', variedad: '', densidadDefault: '' };
+
+function toDensidadNumber(v) {
+  if (v === '' || v === null || v === undefined) return 0;
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
 
 function SiembraMateriales() {
   const apiFetch = useApiFetch();
@@ -26,14 +32,15 @@ function SiembraMateriales() {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim()) { showToast('El nombre es obligatorio.', 'error'); return; }
+    const densidadDefault = toDensidadNumber(form.densidadDefault);
     try {
       const res = await apiFetch('/api/materiales-siembra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, densidadDefault }),
       });
       const { id } = await res.json();
-      setMateriales(prev => [...prev, { id, ...form }].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setMateriales(prev => [...prev, { id, ...form, densidadDefault }].sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setForm({ ...EMPTY });
       setShowForm(false);
       showToast('Material creado.');
@@ -44,17 +51,23 @@ function SiembraMateriales() {
 
   const startEdit = (m) => {
     setEditingId(m.id);
-    setEditData({ nombre: m.nombre, rangoPesos: m.rangoPesos || '', variedad: m.variedad || '' });
+    setEditData({
+      nombre: m.nombre,
+      rangoPesos: m.rangoPesos || '',
+      variedad: m.variedad || '',
+      densidadDefault: m.densidadDefault ? String(m.densidadDefault) : '',
+    });
   };
 
   const saveEdit = async () => {
+    const densidadDefault = toDensidadNumber(editData.densidadDefault);
     try {
       await apiFetch(`/api/materiales-siembra/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editData),
+        body: JSON.stringify({ ...editData, densidadDefault }),
       });
-      setMateriales(prev => prev.map(m => m.id === editingId ? { ...m, ...editData } : m));
+      setMateriales(prev => prev.map(m => m.id === editingId ? { ...m, ...editData, densidadDefault } : m));
       setEditingId(null);
       showToast('Material actualizado.');
     } catch {
@@ -161,6 +174,19 @@ function SiembraMateriales() {
                   placeholder="Ej. Amarilla, Roja"
                 />
               </div>
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="mat-densidad">Densidad sugerida (pl/ha)</label>
+                <input
+                  id="mat-densidad"
+                  className="aur-input"
+                  type="number"
+                  min="0"
+                  max="199999"
+                  value={form.densidadDefault}
+                  onChange={e => setForm(p => ({ ...p, densidadDefault: e.target.value }))}
+                  placeholder="Ej. 55000"
+                />
+              </div>
             </div>
             <div className="mat-form-actions">
               <button type="button" className="aur-btn-text" onClick={cancelCreate}>Cancelar</button>
@@ -201,6 +227,15 @@ function SiembraMateriales() {
                         value={editData.variedad}
                         onChange={e => setEditData(p => ({ ...p, variedad: e.target.value }))}
                       />
+                      <input
+                        className="aur-input"
+                        type="number"
+                        min="0"
+                        max="199999"
+                        placeholder="Densidad (pl/ha)"
+                        value={editData.densidadDefault}
+                        onChange={e => setEditData(p => ({ ...p, densidadDefault: e.target.value }))}
+                      />
                     </div>
                     <div className="mat-actions">
                       <button type="button" className="aur-icon-btn aur-icon-btn--success" onClick={saveEdit} title="Guardar">
@@ -215,10 +250,13 @@ function SiembraMateriales() {
                   <>
                     <div className="mat-info">
                       <span className="mat-name">{m.nombre}</span>
-                      {(m.rangoPesos || m.variedad) && (
+                      {(m.rangoPesos || m.variedad || Number(m.densidadDefault) > 0) && (
                         <div className="mat-chips">
                           {m.rangoPesos && <span className="aur-chip">{m.rangoPesos}</span>}
                           {m.variedad && <span className="aur-chip aur-chip--ghost">{m.variedad}</span>}
+                          {Number(m.densidadDefault) > 0 && (
+                            <span className="aur-chip aur-chip--ghost">{m.densidadDefault} pl/ha</span>
+                          )}
                         </div>
                       )}
                     </div>

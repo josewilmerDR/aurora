@@ -61,9 +61,11 @@ function isDraftMeaningful(fecha, rows) {
   return fecha !== HOY || rows.some(r => r.loteId || r.plantas);
 }
 
+const DEFAULT_DENSIDAD = '65000';
+
 const EMPTY_ROW = {
   loteId: '', loteNuevoNombre: '',
-  bloque: '', plantas: '', densidad: '65000',
+  bloque: '', plantas: '', densidad: DEFAULT_DENSIDAD,
   materialId: '', matNuevoNombre: '', matNuevoRangoPesos: '', matNuevoVariedad: '',
   cerrado: false,
 };
@@ -260,11 +262,12 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
   const [nombre,   setNombre]   = useState(initial.nombre   || '');
   const [rango,    setRango]    = useState(initial.rango    || '');
   const [variedad, setVariedad] = useState(initial.variedad || '');
+  const [densidad, setDensidad] = useState(initial.densidad || '');
   const [saving,   setSaving]   = useState(false);
 
   const handleConfirm = async () => {
     setSaving(true);
-    await onConfirm({ nombre: nombre.trim(), rango: rango.trim(), variedad: variedad.trim() });
+    await onConfirm({ nombre: nombre.trim(), rango: rango.trim(), variedad: variedad.trim(), densidad: densidad.trim() });
     setSaving(false);
   };
 
@@ -309,6 +312,19 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
               value={variedad}
               maxLength={32}
               onChange={e => setVariedad(e.target.value)}
+              disabled={saving}
+            />
+          </label>
+          <label className="psb-mat-modal-label">
+            Densidad sugerida <span className="psb-row-hint-text">pl/ha · opcional</span>
+            <input
+              className="aur-input"
+              type="number"
+              min="0"
+              max="199999"
+              placeholder="Ej. 55000"
+              value={densidad}
+              onChange={e => setDensidad(e.target.value)}
               disabled={saving}
             />
           </label>
@@ -521,7 +537,7 @@ function Siembra() {
         loteNuevoNombre:  f.loteId ? '' : (f.loteNombre || ''),
         bloque:           f.bloque || '',
         plantas:          f.plantas ? String(f.plantas) : '',
-        densidad:         f.densidad ? String(f.densidad) : '65000',
+        densidad:         f.densidad ? String(f.densidad) : DEFAULT_DENSIDAD,
         materialId:       f.materialId || (f.materialNombre ? '__nuevo__' : ''),
         matNuevoNombre:   f.materialId ? '' : (f.materialNombre || ''),
         matNuevoRangoPesos: f.materialId ? '' : (f.rangoPesos || ''),
@@ -673,21 +689,29 @@ function Siembra() {
     else clearDraft();
   }, [fecha, rows]);
 
-  const handleMatModalConfirm = async ({ nombre, rango, variedad }) => {
+  const handleMatModalConfirm = async ({ nombre, rango, variedad, densidad }) => {
     const { idx } = matModal;
+    const densidadNum = densidad ? Math.floor(Number(densidad)) || 0 : 0;
     try {
       const res = await apiFetch('/api/materiales-siembra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, rangoPesos: rango, variedad }),
+        body: JSON.stringify({ nombre, rangoPesos: rango, variedad, densidadDefault: densidadNum }),
       });
       if (!res.ok) throw new Error();
       const created = await res.json();
-      const newMat = { id: created.id, nombre, rangoPesos: rango, variedad };
+      const newMat = { id: created.id, nombre, rangoPesos: rango, variedad, densidadDefault: densidadNum };
       setMateriales(prev => [...prev, newMat]);
       setRows(prev => {
         const next = [...prev];
-        next[idx] = { ...next[idx], materialId: created.id, matNuevoNombre: '', matNuevoRangoPesos: '', matNuevoVariedad: '' };
+        const cur = next[idx];
+        const shouldAdoptDensidad = densidadNum > 0 && (!cur.densidad || cur.densidad === DEFAULT_DENSIDAD);
+        next[idx] = {
+          ...cur,
+          materialId: created.id,
+          matNuevoNombre: '', matNuevoRangoPesos: '', matNuevoVariedad: '',
+          densidad: shouldAdoptDensidad ? String(densidadNum) : cur.densidad,
+        };
         return next;
       });
       setMatModal(null);
@@ -865,7 +889,7 @@ function Siembra() {
                         type="number"
                         min="0"
                         max="199999"
-                        placeholder="65000"
+                        placeholder={DEFAULT_DENSIDAD}
                         value={row.densidad}
                         onChange={e => updateRow(idx, 'densidad', e.target.value)}
                       />
@@ -882,18 +906,33 @@ function Siembra() {
                       className="aur-select psb-row-mat-select"
                       value={row.materialId}
                       onChange={e => {
-                        if (e.target.value === '__nuevo__') {
-                          setMatModal({ idx, nombre: '', rango: '', variedad: '' });
-                        } else {
-                          updateRow(idx, 'materialId', e.target.value);
+                        const v = e.target.value;
+                        if (v === '__nuevo__') {
+                          setMatModal({ idx, nombre: '', rango: '', variedad: '', densidad: '' });
+                          return;
                         }
+                        setRows(prev => {
+                          const next = [...prev];
+                          const cur = next[idx];
+                          const mat = materiales.find(m => m.id === v);
+                          const matDensidad = Number(mat?.densidadDefault) || 0;
+                          const shouldAdopt = matDensidad > 0 && (!cur.densidad || cur.densidad === DEFAULT_DENSIDAD);
+                          next[idx] = {
+                            ...cur,
+                            materialId: v,
+                            densidad: shouldAdopt ? String(matDensidad) : cur.densidad,
+                          };
+                          return next;
+                        });
                       }}
                       aria-label="Material"
                     >
                       <option value="">Material</option>
                       {materiales.map(m => {
-                        const extra = [m.rangoPesos, m.variedad].filter(Boolean).join(' · ');
-                        return <option key={m.id} value={m.id}>{m.nombre}{extra ? ` — ${extra}` : ''}</option>;
+                        const dens = Number(m.densidadDefault) || 0;
+                        const extras = [m.rangoPesos, m.variedad, dens > 0 ? `${dens} pl/ha` : null].filter(Boolean);
+                        const suffix = extras.length ? ` — ${extras.join(' · ')}` : '';
+                        return <option key={m.id} value={m.id}>{m.nombre}{suffix}</option>;
                       })}
                       <option value="__nuevo__">+ Nuevo material</option>
                     </select>
