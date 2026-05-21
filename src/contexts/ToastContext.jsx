@@ -15,27 +15,27 @@ export function ToastProvider({ children }) {
   const [items, setItems] = useState([]);
   const idRef = useRef(0);
   const timersRef = useRef(new Map());
+  const callbacksRef = useRef(new Map()); // id -> onClose; ref keeps callbacks out of state updaters
 
   const dismiss = useCallback((id) => {
     const t = timersRef.current.get(id);
     if (t) { clearTimeout(t); timersRef.current.delete(id); }
-    setItems(prev => {
-      const it = prev.find(x => x.id === id);
-      if (!it) return prev;
-      try { it.onClose?.(); } catch { /* aislar callbacks del usuario */ }
-      return prev.filter(x => x.id !== id);
-    });
+    const cb = callbacksRef.current.get(id);
+    callbacksRef.current.delete(id);
+    setItems(prev => prev.filter(x => x.id !== id));
+    if (cb) { try { cb(); } catch { /* aislar callbacks del usuario */ } }
   }, []);
 
   const push = useCallback((message, opts = {}) => {
     const id = ++idRef.current;
     const duration = opts.duration ?? DEFAULT_DURATION;
     const type = opts.type || 'success';
-    const onClose = opts.onClose;
+    if (opts.onClose) callbacksRef.current.set(id, opts.onClose);
     setItems(prev => {
-      const next = [...prev, { id, message, type, onClose }];
+      const next = [...prev, { id, message, type }];
       while (next.length > MAX_VISIBLE) {
         const dropped = next.shift();
+        callbacksRef.current.delete(dropped.id);
         const dt = timersRef.current.get(dropped.id);
         if (dt) { clearTimeout(dt); timersRef.current.delete(dropped.id); }
       }
