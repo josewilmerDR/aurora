@@ -4,6 +4,24 @@ const { getAnthropicClient } = require('../lib/clients');
 const { authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
+const { hasMinRoleBE } = require('../lib/helpers');
+
+// Field length limits for siembra string fields. Mirrored from the frontend UI
+// constraints; enforced server-side to prevent storage abuse via direct API
+// calls that bypass the UI.
+const STR_LIMITS = {
+  bloque: 4,
+  loteNombre: 200,
+  materialNombre: 200,
+  variedad: 120,
+  rangoPesos: 64,
+  responsableNombre: 200,
+};
+const isValidISODate = (s) => {
+  if (typeof s !== 'string' || s.length < 8 || s.length > 32) return false;
+  const d = new Date(s);
+  return !Number.isNaN(d.getTime());
+};
 
 const router = Router();
 
@@ -271,6 +289,9 @@ router.get('/api/siembras/disponibles', authenticate, async (req, res) => {
 router.get('/api/siembras', authenticate, async (req, res) => {
   try {
     const { loteId, desde, hasta } = req.query;
+    if (desde !== undefined && !isValidISODate(desde)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid "desde" date.', 400);
+    if (hasta !== undefined && !isValidISODate(hasta)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid "hasta" date.', 400);
+    if (loteId !== undefined && (typeof loteId !== 'string' || loteId.length > 64)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid loteId.', 400);
     let query = db.collection('siembras').where('fincaId', '==', req.fincaId);
     if (loteId) query = query.where('loteId', '==', loteId);
     if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
@@ -295,8 +316,15 @@ router.post('/api/siembras', authenticate, async (req, res) => {
     const density = parseFloat(densidad) || 0;
     if (plantCount < 0 || plantCount > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Plants out of valid range.', 400);
     if (density < 0 || density > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Density out of valid range.', 400);
-    if (typeof bloque === 'string' && bloque.length > 4) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Block too long.', 400);
-    if (typeof loteNombre === 'string' && loteNombre.length > 200) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote name too long.', 400);
+    for (const [field, max] of Object.entries(STR_LIMITS)) {
+      const v = req.body[field];
+      if (typeof v === 'string' && v.length > max) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `${field} too long.`, 400);
+    }
+    if (!isValidISODate(fecha)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid fecha.', 400);
+    const loteSnap = await db.collection('lotes').doc(loteId).get();
+    if (!loteSnap.exists || loteSnap.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote does not belong to this finca.', 400);
+    }
     const areaCalculada = density > 0 ? parseFloat((plantCount / density).toFixed(4)) : 0;
     const isClosed = cerrado === true || cerrado === 'true';
     const inputFechaCierre = req.body.fechaCierre;
@@ -359,13 +387,36 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
       updates.densidad = parseFloat(updates.densidad) || 0;
       if (updates.densidad < 0 || updates.densidad > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Density out of valid range.', 400);
     }
-    if (typeof updates.bloque === 'string' && updates.bloque.length > 4) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Block too long.', 400);
-    if (typeof updates.loteNombre === 'string' && updates.loteNombre.length > 200) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote name too long.', 400);
-    if (updates.fecha) updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
+    for (const [field, max] of Object.entries(STR_LIMITS)) {
+      const v = updates[field];
+      if (typeof v === 'string' && v.length > max) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `${field} too long.`, 400);
+    }
+    if (updates.fecha !== undefined) {
+      if (!isValidISODate(updates.fecha)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid fecha.', 400);
+      updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
+    }
 
     const needsDoc = updates.plantas !== undefined || updates.densidad !== undefined || updates.cerrado !== undefined;
     const doc = await db.collection('siembras').doc(req.params.id).get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Record not found.', 404);
+
+    // P0: reopening a closed block requires supervisor (mirrors the UI gate so
+    // a worker cannot bypass it via direct API call).
+    if (updates.cerrado === false && doc.data().cerrado === true) {
+      if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+        return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only a supervisor can reopen a closed block.', 403);
+      }
+    }
+
+    // P2: if loteId is being changed, verify the new lote belongs to the same
+    // finca (the existing fincaId check on the doc covers ownership of the
+    // siembra record but not of the target lote).
+    if (updates.loteId !== undefined && updates.loteId !== doc.data().loteId) {
+      const newLoteSnap = await db.collection('lotes').doc(updates.loteId).get();
+      if (!newLoteSnap.exists || newLoteSnap.data().fincaId !== req.fincaId) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote does not belong to this finca.', 400);
+      }
+    }
     if (needsDoc) {
       const current = doc.data();
 
@@ -391,21 +442,42 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
           batch.update(d.ref, sibUpdates);
         });
         await batch.commit();
-        return res.status(200).json({ ok: true });
+        return res.status(200).json({ ok: true, record: await readSiembra(req.params.id) });
       }
     }
 
     await db.collection('siembras').doc(req.params.id).update(updates);
-    res.status(200).json({ ok: true });
+    res.status(200).json({ ok: true, record: await readSiembra(req.params.id) });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update siembra.', 500);
   }
 });
 
+// Returns the canonical, serialized siembra record (timestamps → ISO strings)
+// so PUT can hand the client back the authoritative post-update state and the
+// UI doesn't have to blind-merge form input.
+async function readSiembra(id) {
+  const snap = await db.collection('siembras').doc(id).get();
+  if (!snap.exists) return null;
+  const raw = snap.data();
+  return {
+    id: snap.id,
+    ...raw,
+    fecha: raw.fecha?.toDate ? raw.fecha.toDate().toISOString() : raw.fecha ?? null,
+    fechaCierre: raw.fechaCierre?.toDate ? raw.fechaCierre.toDate().toISOString() : (raw.fechaCierre ?? null),
+    createdAt: raw.createdAt?.toDate ? raw.createdAt.toDate().toISOString() : (raw.createdAt ?? null),
+  };
+}
+
 router.delete('/api/siembras/:id', authenticate, async (req, res) => {
   try {
     const doc = await db.collection('siembras').doc(req.params.id).get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Record not found.', 404);
+    // P3: destructive op — require supervisor (mirrors the implicit expectation
+    // that a worker shouldn't be able to wipe historical records via the API).
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only a supervisor can delete siembra records.', 403);
+    }
     await doc.ref.delete();
     res.status(200).json({ ok: true });
   } catch (error) {
