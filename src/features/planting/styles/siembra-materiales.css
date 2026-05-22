@@ -25,37 +25,6 @@
   margin-left: 2px;
 }
 
-/* ── Chip "Nuevo material" en verde Aurora sólido (CTA primaria) ─────────
-   Compound selector .aur-chip.mat-chip-add para superar la especificidad
-   de .aur-chip:hover:not(:disabled) que reescribe color/border en hover. */
-.aur-chip.mat-chip-add {
-  background: var(--aur-accent);
-  border-color: var(--aur-accent);
-  color: var(--aurora-dark-blue);
-  font-weight: 600;
-  box-shadow: var(--aur-shadow-pill);
-}
-.aur-chip.mat-chip-add:hover:not(:disabled) {
-  background: var(--aur-accent);
-  border-color: var(--aur-accent);
-  color: var(--aurora-dark-blue);
-  filter: brightness(1.08);
-  box-shadow: var(--aur-shadow-pill-hover);
-}
-.aur-chip.mat-chip-add:focus-visible {
-  border-color: var(--aur-accent);
-  box-shadow: var(--aur-ring), var(--aur-shadow-pill);
-}
-
-/* ── Form actions (cancelar + crear) ─────────────────────────────────────── */
-.mat-form-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 .mat-empty {
   padding: 28px 16px;
@@ -137,18 +106,25 @@
 
 /* ── Mobile (≤768px) ────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  /* En móvil los chips bajan a una fila propia debajo del título + hint
-     y se reparten el 100% del ancho del dispositivo equitativamente. */
+  /* En móvil los botones bajan a una fila propia debajo del título y se
+     reparten 40% (Volver) / 60% (Nuevo material), restando 4px a cada uno
+     para repartir el gap de 8px y sumar exactamente 100% sin colapsar a
+     una segunda fila. */
   .mat-sheet .aur-sheet-header {
     flex-wrap: wrap;
   }
   .mat-sheet .aur-sheet-header-actions {
     width: 100%;
     flex-wrap: nowrap;
-    justify-content: stretch;
   }
-  .mat-sheet .aur-sheet-header-actions > .aur-chip {
-    flex: 1;
+  .mat-sheet .aur-sheet-header-actions > .aur-chip--ghost {
+    flex: 0 0 calc(40% - 4px);
+    min-width: 0;
+    justify-content: center;
+  }
+  .mat-sheet .aur-sheet-header-actions > .aur-btn-pill {
+    flex: 0 0 calc(60% - 4px);
+    min-width: 0;
     justify-content: center;
   }
 }

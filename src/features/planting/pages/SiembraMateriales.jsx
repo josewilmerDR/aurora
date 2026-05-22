@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -112,88 +113,79 @@ function SiembraMateriales() {
           <p className="aur-sheet-subtitle">Catálogo de variedades y rangos de peso usados en los registros.</p>
         </div>
         <div className="aur-sheet-header-actions">
-          <Link to="/siembra" className="aur-chip">
-            Volver
+          <Link to="/siembra" className="aur-chip aur-chip--ghost">
+            <FiArrowLeft size={12} /> Volver
           </Link>
-          {!showForm && (
-            <button type="button" className="aur-chip mat-chip-add" onClick={() => setShowForm(true)}>
-              <FiPlus size={12} /> Nuevo material
-            </button>
-          )}
+          <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => setShowForm(true)}>
+            <FiPlus size={14} /> Nuevo material
+          </button>
         </div>
       </header>
 
-      {showForm && (
-        <section className="aur-section">
-          <div className="aur-section-header">
-            <h3>Nuevo material</h3>
-            <div className="aur-section-actions">
-              <button
-                type="button"
-                className="aur-icon-btn aur-icon-btn--sm"
-                onClick={cancelCreate}
-                title="Cerrar"
-                aria-label="Cerrar"
-              >
-                <FiX size={14} />
-              </button>
+      {showForm && createPortal(
+        <div className="aur-modal-backdrop" onPointerDown={cancelCreate}>
+          <div className="aur-modal" onPointerDown={e => e.stopPropagation()}>
+            <div className="aur-modal-header">
+              <span className="aur-modal-icon"><FiPlus size={16} /></span>
+              <span className="aur-modal-title">Nuevo material</span>
             </div>
+            <form onSubmit={handleCreate}>
+              <div className="aur-list">
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="mat-nombre">
+                    Nombre <span className="mat-required">*</span>
+                  </label>
+                  <input
+                    id="mat-nombre"
+                    className="aur-input"
+                    value={form.nombre}
+                    onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Ej. CM, MD2, Cayena Lisa"
+                    autoFocus
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="mat-rango">Rango de pesos</label>
+                  <input
+                    id="mat-rango"
+                    className="aur-input"
+                    value={form.rangoPesos}
+                    onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
+                    placeholder="Ej. 200g – 300g"
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="mat-variedad">Variedad</label>
+                  <input
+                    id="mat-variedad"
+                    className="aur-input"
+                    value={form.variedad}
+                    onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
+                    placeholder="Ej. Amarilla, Roja"
+                  />
+                </div>
+                <div className="aur-row">
+                  <label className="aur-row-label" htmlFor="mat-densidad">Densidad sugerida (pl/ha)</label>
+                  <input
+                    id="mat-densidad"
+                    className="aur-input"
+                    type="number"
+                    min="0"
+                    max="199999"
+                    value={form.densidadDefault}
+                    onChange={e => setForm(p => ({ ...p, densidadDefault: e.target.value }))}
+                    placeholder="Ej. 55000"
+                  />
+                </div>
+              </div>
+              <div className="aur-modal-actions">
+                <button type="button" className="aur-btn-text" onClick={cancelCreate}>Cancelar</button>
+                <button type="submit" className="aur-btn-pill">Crear material</button>
+              </div>
+            </form>
           </div>
-          <form onSubmit={handleCreate}>
-            <div className="aur-list">
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="mat-nombre">
-                  Nombre <span className="mat-required">*</span>
-                </label>
-                <input
-                  id="mat-nombre"
-                  className="aur-input"
-                  value={form.nombre}
-                  onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-                  placeholder="Ej. CM, MD2, Cayena Lisa"
-                  autoFocus
-                />
-              </div>
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="mat-rango">Rango de pesos</label>
-                <input
-                  id="mat-rango"
-                  className="aur-input"
-                  value={form.rangoPesos}
-                  onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
-                  placeholder="Ej. 200g – 300g"
-                />
-              </div>
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="mat-variedad">Variedad</label>
-                <input
-                  id="mat-variedad"
-                  className="aur-input"
-                  value={form.variedad}
-                  onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
-                  placeholder="Ej. Amarilla, Roja"
-                />
-              </div>
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="mat-densidad">Densidad sugerida (pl/ha)</label>
-                <input
-                  id="mat-densidad"
-                  className="aur-input"
-                  type="number"
-                  min="0"
-                  max="199999"
-                  value={form.densidadDefault}
-                  onChange={e => setForm(p => ({ ...p, densidadDefault: e.target.value }))}
-                  placeholder="Ej. 55000"
-                />
-              </div>
-            </div>
-            <div className="mat-form-actions">
-              <button type="button" className="aur-btn-text" onClick={cancelCreate}>Cancelar</button>
-              <button type="submit" className="aur-btn-pill">Crear material</button>
-            </div>
-          </form>
-        </section>
+        </div>,
+        document.body
       )}
 
       <section className="aur-section">
