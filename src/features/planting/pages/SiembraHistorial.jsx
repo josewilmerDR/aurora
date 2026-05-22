@@ -59,9 +59,19 @@ const COLUMNS = [
 const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
 
+// Defense-in-depth: only allow https logo URLs so an admin-controlled config
+// can't be abused to point at an attacker-controlled origin (the URL is loaded
+// every time the preview opens). Data URIs are also accepted for uploaded
+// logos. Anything else falls back to the "AU" placeholder.
+const sanitizeLogoUrl = (url) => {
+  if (typeof url !== 'string' || !url) return '';
+  if (url.startsWith('https://') || url.startsWith('data:image/')) return url;
+  return '';
+};
+
 const EXPORT_HEADERS = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
 
-function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onExportXLSX }) {
+function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onExportXLSX, onError }) {
   const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
   const docRef = useRef(null);
   const [sharing, setSharing] = useState(false);
@@ -104,7 +114,11 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onE
         a.href = url; a.download = filename; a.click();
         URL.revokeObjectURL(url);
       }
-    } catch { /* silencioso */ }
+    } catch {
+      // PDF generation or share pipeline failed (canvas, jspdf, file API).
+      // Surface to the user so they can retry or fall back to print.
+      onError?.('No se pudo generar el PDF. Intenta de nuevo o usa "Imprimir / PDF".');
+    }
     finally { setSharing(false); }
   };
 
@@ -134,7 +148,13 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onE
             <div className="pr-doc-brand">
               <div className="pr-doc-logo">
                 {fincaConfig.logoUrl
-                  ? <img src={fincaConfig.logoUrl} alt="Logo" className="pr-doc-logo-img" />
+                  ? <img
+                      src={fincaConfig.logoUrl}
+                      alt="Logo"
+                      className="pr-doc-logo-img"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                    />
                   : 'AU'}
               </div>
               <div className="pr-doc-brand-info">
@@ -362,25 +382,31 @@ function SiembraHistorial() {
   useEffect(() => {
     if (!showPreview) return;
     apiFetch('/api/config')
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(data => setFincaConfig({
         nombreEmpresa:  data.nombreEmpresa  || 'Finca Aurora',
         identificacion: data.identificacion || '',
         direccion:      data.direccion      || '',
         whatsapp:       data.whatsapp       || '',
-        logoUrl:        data.logoUrl        || '',
+        logoUrl:        sanitizeLogoUrl(data.logoUrl),
       }))
-      .catch(() => {});
+      .catch(() => showToast('No se pudo cargar la configuración de la finca. El encabezado del reporte usará valores por defecto.', 'error'));
   }, [showPreview]);
 
   useEffect(() => {
     apiFetch('/api/siembras')
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(data => setRegistros(Array.isArray(data) ? data : []))
       .catch(() => showToast('Error al cargar registros.', 'error'))
       .finally(() => setLoading(false));
-    apiFetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : [])).catch(() => {});
-    apiFetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(() => {});
+    apiFetch('/api/lotes')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => setLotes(Array.isArray(d) ? d : []))
+      .catch(() => showToast('No se pudieron cargar los lotes. La edición de registros podría no funcionar correctamente.', 'error'));
+    apiFetch('/api/materiales-siembra')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => setMateriales(Array.isArray(d) ? d : []))
+      .catch(() => showToast('No se pudieron cargar los materiales. La edición de registros podría no funcionar correctamente.', 'error'));
   }, []);
 
   // ── Stats reflejan la data visible (filtros + orden de AuroraDataTable) ──
@@ -401,11 +427,19 @@ function SiembraHistorial() {
     const doToggle = async (nuevoCerrado) => {
       setConfirmModal(null);
       try {
-        await apiFetch(`/api/siembras/${reg.id}`, {
+        const res = await apiFetch(`/api/siembras/${reg.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cerrado: nuevoCerrado }),
         });
+        if (!res.ok) {
+          if (res.status === 403) {
+            showToast('No tienes permiso para reabrir un bloque cerrado.', 'error');
+          } else {
+            showToast('Error al actualizar.', 'error');
+          }
+          return;
+        }
         const ahora = nuevoCerrado ? new Date().toISOString() : null;
         setRegistros(prev => prev.map(r =>
           (r.loteId === reg.loteId && r.bloque === reg.bloque) ? { ...r, cerrado: nuevoCerrado, fechaCierre: ahora } : r
@@ -440,7 +474,15 @@ function SiembraHistorial() {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
+          const res = await apiFetch(`/api/siembras/${id}`, { method: 'DELETE' });
+          if (!res.ok) {
+            if (res.status === 403) {
+              showToast('No tienes permiso para eliminar registros de siembra.', 'error');
+            } else {
+              showToast('Error al eliminar.', 'error');
+            }
+            return;
+          }
           setRegistros(prev => prev.filter(r => r.id !== id));
           showToast('Registro eliminado.');
         } catch {
@@ -453,12 +495,28 @@ function SiembraHistorial() {
   const handleEditSave = async (data) => {
     setEditSaving(true);
     try {
-      await apiFetch(`/api/siembras/${editRecord.id}`, {
+      const res = await apiFetch(`/api/siembras/${editRecord.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      setRegistros(prev => prev.map(r => r.id === editRecord.id ? { ...r, ...data } : r));
+      if (!res.ok) {
+        if (res.status === 403) {
+          showToast('No tienes permiso para realizar esta acción.', 'error');
+        } else if (res.status === 400) {
+          showToast('Los datos no son válidos. Revisa los campos.', 'error');
+        } else {
+          showToast('Error al actualizar.', 'error');
+        }
+        return;
+      }
+      // Trust the server-canonical record over the form input: backend may
+      // normalize fields (truncate, recompute areaCalculada, set fechaCierre).
+      const body = await res.json().catch(() => null);
+      const canonical = body?.record;
+      setRegistros(prev => prev.map(r =>
+        r.id === editRecord.id ? (canonical ? { ...r, ...canonical } : { ...r, ...data }) : r
+      ));
       setEditRecord(null);
       showToast('Registro actualizado.');
     } catch {
@@ -546,6 +604,7 @@ function SiembraHistorial() {
           stats={stats}
           onClose={() => setShowPreview(false)}
           onExportXLSX={exportXLSX}
+          onError={(msg) => showToast(msg, 'error')}
         />
       )}
 
