@@ -40,6 +40,20 @@
   overflow: visible;
 }
 
+/* Header con borde inferior para marcar la división con el resto de la página. */
+.shp-historial .aur-sheet-header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--aur-divider);
+}
+
+/* En móvil el global hace wrap y manda los botones a la izquierda; los
+   forzamos al extremo derecho — patrón más reconocido. */
+@media (max-width: 768px) {
+  .shp-historial .aur-sheet-header-actions {
+    justify-content: flex-end;
+  }
+}
+
 /* Tabla sin bordes laterales (solo top/bottom) — scoped a esta página. */
 .shp-historial .aur-table-wrap {
   border-left: none;

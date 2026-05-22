@@ -559,6 +559,14 @@ function SiembraHistorial() {
                 Consulta, filtra, exporta y comparte los registros guardados.
               </p>
             </div>
+            <div className="aur-sheet-header-actions">
+              <button type="button" className="aur-chip aur-chip--ghost" onClick={() => setShowPreview(true)} title="Compartir, imprimir o exportar">
+                <FiShare2 size={12} /> <span className="shp-btn-label">Compartir</span>
+              </button>
+              <Link to="/siembra" state={{ openForm: true }} className="aur-btn-pill aur-btn-pill--sm" title="Crear nuevo registro de siembra">
+                <FiPlus size={14} /> Nuevo registro
+              </Link>
+            </div>
           </header>
 
           <section className="aur-section">
@@ -592,19 +600,9 @@ function SiembraHistorial() {
             trailingCell={trailingCell}
             rowClassName={r => r.cerrado ? 'row-cerrado' : ''}
             onDisplayDataChange={setDisplayData}
-            toolbarActions={
-              <>
-                <button type="button" className="aur-chip aur-chip--ghost" onClick={() => setShowPreview(true)} title="Compartir, imprimir o exportar">
-                  <FiShare2 size={12} /> <span className="shp-btn-label">Compartir</span>
-                </button>
-                <Link to="/siembra" state={{ openForm: true }} className="aur-btn-pill aur-btn-pill--sm" title="Crear nuevo registro de siembra">
-                  <FiPlus size={14} /> Nuevo registro
-                </Link>
-              </>
-            }
             emptyText={
               registros.length === 0
-                ? (<>Aún no hay registros que mostrar. Crea el primero en <Link to="/siembra" state={{ openForm: true }} className="aur-btn-text">Registro de siembra</Link>.</>)
+                ? 'Aún no hay registros que mostrar. Crea el primero en "Nuevo Registro"'
                 : 'No hay registros con los filtros aplicados.'
             }
           />
