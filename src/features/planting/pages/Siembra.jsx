@@ -40,25 +40,32 @@ function compressImage(file) {
 }
 
 // ── Draft persistence ─────────────────────────────────────────────────────────
-// Las keys del draft se scopean por uid + fincaId para que, si dos usuarios
-// comparten dispositivo o el mismo usuario alterna fincas, no se filtre
-// intent operacional entre sesiones. La key de sessionStorage también queda
-// scoped para no chocar con la badge de drafts de otras fincas.
+// El contenido del borrador (localStorage) se scopea por uid + fincaId para
+// que, si dos usuarios comparten dispositivo o el mismo usuario alterna
+// fincas, no se filtre intent operacional entre sesiones.
+//
+// El flag de sessionStorage usa una key plana — sessionStorage ya está
+// aislado por tab, y el flag sólo señala "hay un borrador" para que el
+// Sidebar pueda pintar el badge sobre el menú "Registro de Siembra"
+// (Sidebar.checkDraft hace lookup exacto por 'siembra-registro'). Sin la
+// key plana, la key scoped no matchea con la del menú y el badge queda
+// silencioso, lo cual era una regresión de UX. La señal no es PII; el
+// contenido sensible sigue en localStorage scoped.
 const draftLsKey = (uid, fincaId) => `aurora_draft_siembra__${uid || 'anon'}__${fincaId || 'none'}`;
-const draftSsKey = (uid, fincaId) => `aurora_draftActive_siembra-registro__${uid || 'anon'}__${fincaId || 'none'}`;
+const DRAFT_SS_KEY = 'aurora_draftActive_siembra-registro';
 
 function loadDraft(uid, fincaId)  { try { return JSON.parse(localStorage.getItem(draftLsKey(uid, fincaId))); } catch { return null; } }
 function saveDraft(uid, fincaId, fecha, rows)  {
   try {
     localStorage.setItem(draftLsKey(uid, fincaId), JSON.stringify({ fecha, rows }));
-    sessionStorage.setItem(draftSsKey(uid, fincaId), '1');
+    sessionStorage.setItem(DRAFT_SS_KEY, '1');
     window.dispatchEvent(new CustomEvent('aurora-draft-change'));
   } catch {}
 }
 function clearDraft(uid, fincaId) {
   try {
     localStorage.removeItem(draftLsKey(uid, fincaId));
-    sessionStorage.removeItem(draftSsKey(uid, fincaId));
+    sessionStorage.removeItem(DRAFT_SS_KEY);
     window.dispatchEvent(new CustomEvent('aurora-draft-change'));
   } catch {}
 }

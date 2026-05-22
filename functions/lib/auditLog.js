@@ -62,6 +62,15 @@ const ACTIONS = Object.freeze({
   LOTE_DELETE: 'lote.delete',
   SIEMBRA_DELETE: 'siembra.delete',
   SIEMBRA_BLOCK_REOPEN: 'siembra.block.reopen',
+  // Symmetric with REOPEN — emitted whenever a (lote, bloque) transitions
+  // to closed, regardless of which endpoint did it (POST single, POST /bulk
+  // cascade, PUT cerrado:true). Forensically valuable because once closed,
+  // a bloque rejects further POSTs and shapes downstream harvest planning.
+  SIEMBRA_BLOCK_CLOSE: 'siembra.block.close',
+  // AI vision call that reads a physical sowing form. Audited because it
+  // typically precedes a bulk save and gives "who scanned what when"
+  // visibility on top of the per-user rate-limit accounting.
+  SIEMBRA_SCAN: 'siembra.scan',
   MATERIAL_SIEMBRA_UPDATE: 'material_siembra.update',
   MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',

@@ -7,6 +7,7 @@ const { getAnthropicClient } = require('../../lib/clients');
 const { authenticate } = require('../../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const router = Router();
 
@@ -95,6 +96,23 @@ Reglas:
       console.error('Claude returned unparseable text (truncated):', rawText.slice(0, 200));
       return sendApiError(res, ERROR_CODES.EXTERNAL_SERVICE_ERROR, 'AI could not interpret the form. Try a clearer image.', 422);
     }
+
+    // "Who scanned what when" trail. Fires after a successful parse so we
+    // don't audit failed attempts (parsing errors are caught above and
+    // returned to the client without an audit row). Bounded by the
+    // ai_medium rate limit (15/min, 200/day per user), so the event stream
+    // can't be flooded by abuse.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.SIEMBRA_SCAN,
+      target: null,
+      metadata: {
+        filasCount: Array.isArray(filas) ? filas.length : 0,
+        mediaType: String(mediaType || '').slice(0, 32),
+      },
+      severity: SEVERITY.INFO,
+    });
 
     res.json({ filas, lotes, materiales });
   } catch (error) {

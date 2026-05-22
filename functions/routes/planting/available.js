@@ -7,11 +7,20 @@ const { Router } = require('express');
 const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { hasMinRoleBE } = require('../../lib/helpers');
 
 const router = Router();
 
 router.get('/api/siembras/disponibles', authenticate, async (req, res) => {
   try {
+    // Único consumidor legítimo es el form de creación/edición de grupo
+    // (GrupoManagement, gated a encargado+ en ROUTE_MIN_ROLE). El endpoint
+    // expone estado de aplicación por grupo + lista de bloques cerrados;
+    // sin el gate, un trabajador con sesión podría enumerar todo eso vía
+    // API directa.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read available bloques.', 403);
+    }
     const [siembrasSnap, gruposSnap, tasksSnap] = await Promise.all([
       db.collection('siembras')
         .where('fincaId', '==', req.fincaId)
