@@ -20,6 +20,10 @@ const ERROR_CODES = {
   NOT_FOUND: 'NOT_FOUND',
   ALREADY_EXISTS: 'ALREADY_EXISTS',
   CONFLICT: 'CONFLICT',
+  // Specialization of CONFLICT for delete blocked by inbound FK references.
+  // Use when other docs still point at the target — the caller needs to
+  // unhook those first.
+  RESOURCE_REFERENCED: 'RESOURCE_REFERENCED',
   USER_HAS_HR_HISTORY: 'USER_HAS_HR_HISTORY',
 
   // Input

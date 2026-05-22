@@ -5,14 +5,28 @@ import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiArrowLeft } from 'react-icon
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/siembra-materiales.css';
 
 const EMPTY = { nombre: '', rangoPesos: '', variedad: '', densidadDefault: '' };
+
+// Mirrors functions/routes/planting/schemas.js → materialInputSchema.
+const TEXT_MAX = 32;
 
 function toDensidadNumber(v) {
   if (v === '' || v === null || v === undefined) return 0;
   const n = Math.floor(Number(v));
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+// Reads the response body once and returns a discriminated result. On non-2xx
+// the error string is already translated to Spanish via translateApiError, so
+// the caller can drop it straight into a toast.
+async function readJsonResult(res, fallback) {
+  let body = null;
+  try { body = await res.json(); } catch { /* empty body — fine for 204 */ }
+  if (!res.ok) return { ok: false, error: translateApiError(body, fallback) };
+  return { ok: true, data: body };
 }
 
 function SiembraMateriales() {
@@ -24,29 +38,39 @@ function SiembraMateriales() {
   const [editData, setEditData]     = useState({ ...EMPTY });
   const [toast, setToast]           = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [busy, setBusy]             = useState(false);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   useEffect(() => {
-    apiFetch('/api/materiales-siembra').then(r => r.json()).then(setMateriales).catch(console.error);
+    apiFetch('/api/materiales-siembra')
+      .then(r => r.json())
+      .then(data => setMateriales(Array.isArray(data) ? data : []))
+      .catch(console.error);
   }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (busy) return;
     if (!form.nombre.trim()) { showToast('El nombre es obligatorio.', 'error'); return; }
-    const densidadDefault = toDensidadNumber(form.densidadDefault);
+    setBusy(true);
     try {
+      const densidadDefault = toDensidadNumber(form.densidadDefault);
       const res = await apiFetch('/api/materiales-siembra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, densidadDefault }),
       });
-      const { id } = await res.json();
+      const result = await readJsonResult(res, 'Error al crear material.');
+      if (!result.ok) { showToast(result.error, 'error'); return; }
+      const { id } = result.data || {};
       setMateriales(prev => [...prev, { id, ...form, densidadDefault }].sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setForm({ ...EMPTY });
       setShowForm(false);
       showToast('Material creado.');
     } catch {
       showToast('Error al crear material.', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -61,18 +85,24 @@ function SiembraMateriales() {
   };
 
   const saveEdit = async () => {
-    const densidadDefault = toDensidadNumber(editData.densidadDefault);
+    if (busy) return;
+    setBusy(true);
     try {
-      await apiFetch(`/api/materiales-siembra/${editingId}`, {
+      const densidadDefault = toDensidadNumber(editData.densidadDefault);
+      const res = await apiFetch(`/api/materiales-siembra/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...editData, densidadDefault }),
       });
+      const result = await readJsonResult(res, 'Error al actualizar.');
+      if (!result.ok) { showToast(result.error, 'error'); return; }
       setMateriales(prev => prev.map(m => m.id === editingId ? { ...m, ...editData, densidadDefault } : m));
       setEditingId(null);
       showToast('Material actualizado.');
     } catch {
       showToast('Error al actualizar.', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -87,17 +117,27 @@ function SiembraMateriales() {
   };
 
   const doDelete = async (id) => {
-    setConfirmModal(null);
+    if (busy) return;
+    setBusy(true);
+    // Keep the modal mounted while in flight so AuroraConfirmModal can render
+    // the "Procesando…" state via `loading` and block accidental backdrop close.
+    setConfirmModal(prev => prev ? { ...prev, loading: true } : null);
     try {
-      await apiFetch(`/api/materiales-siembra/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/materiales-siembra/${id}`, { method: 'DELETE' });
+      const result = await readJsonResult(res, 'Error al eliminar.');
+      if (!result.ok) { showToast(result.error, 'error'); return; }
       setMateriales(prev => prev.filter(m => m.id !== id));
       showToast('Material eliminado.');
     } catch {
       showToast('Error al eliminar.', 'error');
+    } finally {
+      setBusy(false);
+      setConfirmModal(null);
     }
   };
 
   const cancelCreate = () => {
+    if (busy) return;
     setShowForm(false);
     setForm({ ...EMPTY });
   };
@@ -116,7 +156,7 @@ function SiembraMateriales() {
           <Link to="/siembra" className="aur-chip aur-chip--ghost">
             <FiArrowLeft size={12} /> Volver
           </Link>
-          <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => setShowForm(true)}>
+          <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => setShowForm(true)} disabled={busy}>
             <FiPlus size={14} /> Nuevo material
           </button>
         </div>
@@ -141,6 +181,7 @@ function SiembraMateriales() {
                     value={form.nombre}
                     onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
                     placeholder="Ej. CM, MD2, Cayena Lisa"
+                    maxLength={TEXT_MAX}
                     autoFocus
                   />
                 </div>
@@ -152,6 +193,7 @@ function SiembraMateriales() {
                     value={form.rangoPesos}
                     onChange={e => setForm(p => ({ ...p, rangoPesos: e.target.value }))}
                     placeholder="Ej. 200g – 300g"
+                    maxLength={TEXT_MAX}
                   />
                 </div>
                 <div className="aur-row">
@@ -162,6 +204,7 @@ function SiembraMateriales() {
                     value={form.variedad}
                     onChange={e => setForm(p => ({ ...p, variedad: e.target.value }))}
                     placeholder="Ej. Amarilla, Roja"
+                    maxLength={TEXT_MAX}
                   />
                 </div>
                 <div className="aur-row">
@@ -179,8 +222,10 @@ function SiembraMateriales() {
                 </div>
               </div>
               <div className="aur-modal-actions">
-                <button type="button" className="aur-btn-text" onClick={cancelCreate}>Cancelar</button>
-                <button type="submit" className="aur-btn-pill">Crear material</button>
+                <button type="button" className="aur-btn-text" onClick={cancelCreate} disabled={busy}>Cancelar</button>
+                <button type="submit" className="aur-btn-pill" disabled={busy}>
+                  {busy ? 'Creando…' : 'Crear material'}
+                </button>
               </div>
             </form>
           </div>
@@ -206,18 +251,21 @@ function SiembraMateriales() {
                         placeholder="Nombre"
                         value={editData.nombre}
                         onChange={e => setEditData(p => ({ ...p, nombre: e.target.value }))}
+                        maxLength={TEXT_MAX}
                       />
                       <input
                         className="aur-input"
                         placeholder="Rango de pesos"
                         value={editData.rangoPesos}
                         onChange={e => setEditData(p => ({ ...p, rangoPesos: e.target.value }))}
+                        maxLength={TEXT_MAX}
                       />
                       <input
                         className="aur-input"
                         placeholder="Variedad"
                         value={editData.variedad}
                         onChange={e => setEditData(p => ({ ...p, variedad: e.target.value }))}
+                        maxLength={TEXT_MAX}
                       />
                       <input
                         className="aur-input"
@@ -230,10 +278,10 @@ function SiembraMateriales() {
                       />
                     </div>
                     <div className="mat-actions">
-                      <button type="button" className="aur-icon-btn aur-icon-btn--success" onClick={saveEdit} title="Guardar">
+                      <button type="button" className="aur-icon-btn aur-icon-btn--success" onClick={saveEdit} disabled={busy} title="Guardar">
                         <FiCheck size={14} />
                       </button>
-                      <button type="button" className="aur-icon-btn" onClick={() => setEditingId(null)} title="Cancelar">
+                      <button type="button" className="aur-icon-btn" onClick={() => setEditingId(null)} disabled={busy} title="Cancelar">
                         <FiX size={14} />
                       </button>
                     </div>
@@ -253,10 +301,10 @@ function SiembraMateriales() {
                       )}
                     </div>
                     <div className="mat-actions">
-                      <button type="button" className="aur-icon-btn" onClick={() => startEdit(m)} title="Editar">
+                      <button type="button" className="aur-icon-btn" onClick={() => startEdit(m)} disabled={busy} title="Editar">
                         <FiEdit2 size={14} />
                       </button>
-                      <button type="button" className="aur-icon-btn aur-icon-btn--danger" onClick={() => askDelete(m)} title="Eliminar">
+                      <button type="button" className="aur-icon-btn aur-icon-btn--danger" onClick={() => askDelete(m)} disabled={busy} title="Eliminar">
                         <FiTrash2 size={14} />
                       </button>
                     </div>

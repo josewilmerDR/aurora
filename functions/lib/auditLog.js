@@ -62,6 +62,7 @@ const ACTIONS = Object.freeze({
   LOTE_DELETE: 'lote.delete',
   SIEMBRA_DELETE: 'siembra.delete',
   SIEMBRA_BLOCK_REOPEN: 'siembra.block.reopen',
+  MATERIAL_SIEMBRA_UPDATE: 'material_siembra.update',
   MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',
   PAYROLL_PAY: 'payroll.pay',

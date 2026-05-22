@@ -12,14 +12,21 @@ const { z } = require('zod');
 
 // Field length limits enforced server-side to prevent storage abuse via
 // direct API calls that bypass the UI.
+//
+// materialNombre/variedad/rangoPesos are kept tight (32) because the only
+// legitimate path for these values is denormalization from the catalog
+// (materiales_siembra), whose own input is also capped at 32 by
+// materialInputSchema below. Both schemas share these constants so the
+// catalog and the siembra record stay in lockstep — raising the catalog
+// limit later only needs an edit here.
 const STR_LIMITS = {
   bloque: 4,
   loteId: 64,
   loteNombre: 200,
   materialId: 64,
-  materialNombre: 200,
-  variedad: 120,
-  rangoPesos: 64,
+  materialNombre: 32,
+  variedad: 32,
+  rangoPesos: 32,
 };
 
 const MAX_NUM_RANGE = 199999;
@@ -90,9 +97,9 @@ const densidadDefault = z.unknown().transform((v, ctx) => {
 // ─── Materiales — POST + PUT comparten el mismo shape ────────────────────
 
 const materialInputSchema = z.object({
-  nombre: requiredString(32, 'Name is required.', 'Name too long.'),
-  rangoPesos: optionalString(32),
-  variedad: optionalString(32),
+  nombre: requiredString(STR_LIMITS.materialNombre, 'Name is required.', 'Name too long.'),
+  rangoPesos: optionalString(STR_LIMITS.rangoPesos),
+  variedad: optionalString(STR_LIMITS.variedad),
   densidadDefault,
 });
 
