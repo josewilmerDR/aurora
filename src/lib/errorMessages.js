@@ -22,6 +22,7 @@ export const ERROR_MESSAGES = {
   NOT_FOUND: 'Recurso no encontrado.',
   ALREADY_EXISTS: 'El recurso ya existe.',
   CONFLICT: 'Conflicto con el estado actual del recurso.',
+  RESOURCE_REFERENCED: 'No se puede eliminar: aún hay registros que lo referencian. Quítalo de ellos antes de borrarlo.',
   USER_HAS_HR_HISTORY: 'No se puede eliminar: la persona tiene historial laboral. Usa "Rescindir contrato" y/o "Quitar acceso" en su lugar.',
 
   // Input
