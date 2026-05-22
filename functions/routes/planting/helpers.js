@@ -1,34 +1,8 @@
-// Helpers compartidos por los handlers del dominio planting (siembras +
-// materiales). Aquí viven constantes de validación, coercion utilities y
-// queries reutilizadas (responsable lookup, canonical record serialization).
+// Helpers de runtime para los handlers del dominio planting. Validación de
+// payloads vive en schemas.js (Zod); aquí solo viven utilities que requieren
+// Firestore (lookups, serialización canónica).
 
 const { db } = require('../../lib/firebase');
-
-// Field length limits for siembra string fields. Mirrored from the frontend UI
-// constraints; enforced server-side to prevent storage abuse via direct API
-// calls that bypass the UI.
-const STR_LIMITS = {
-  bloque: 4,
-  loteNombre: 200,
-  materialNombre: 200,
-  variedad: 120,
-  rangoPesos: 64,
-  responsableNombre: 200,
-};
-
-const isValidISODate = (s) => {
-  if (typeof s !== 'string' || s.length < 8 || s.length > 32) return false;
-  const d = new Date(s);
-  return !Number.isNaN(d.getTime());
-};
-
-// Coerce raw densidadDefault to a clean number in [0, 199999]; 0 means "not configured".
-function coerceDensidadDefault(raw) {
-  if (raw === undefined || raw === null || raw === '') return 0;
-  const n = Math.floor(Number(raw));
-  if (!Number.isFinite(n) || n < 0 || n > 199999) return null;
-  return n;
-}
 
 // Resolve the canonical (id, nombre) of the responsable from the auth uid,
 // scoped to the finca. Returns empty strings if no users row exists for
@@ -63,9 +37,6 @@ async function readSiembra(id) {
 }
 
 module.exports = {
-  STR_LIMITS,
-  isValidISODate,
-  coerceDensidadDefault,
   getResponsableFromUid,
   readSiembra,
 };

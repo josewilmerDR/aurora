@@ -7,23 +7,23 @@ const { Router } = require('express');
 const { db, Timestamp, FieldValue } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { getResponsableFromUid, readSiembra } = require('./helpers');
 const {
-  STR_LIMITS,
-  isValidISODate,
-  getResponsableFromUid,
-  readSiembra,
-} = require('./helpers');
+  buildSiembraCreateDoc,
+  buildSiembraUpdateDoc,
+  buildSiembraListFilters,
+} = require('./schemas');
 
 const router = Router();
 
 router.get('/api/siembras', authenticate, async (req, res) => {
   try {
-    const { loteId, desde, hasta } = req.query;
-    if (desde !== undefined && !isValidISODate(desde)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid "desde" date.', 400);
-    if (hasta !== undefined && !isValidISODate(hasta)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid "hasta" date.', 400);
-    if (loteId !== undefined && (typeof loteId !== 'string' || loteId.length > 64)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid loteId.', 400);
+    const { error, data: filters } = buildSiembraListFilters(req.query);
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
+    const { loteId, desde, hasta } = filters;
     let query = db.collection('siembras').where('fincaId', '==', req.fincaId);
     if (loteId) query = query.where('loteId', '==', loteId);
     if (desde)  query = query.where('fecha', '>=', Timestamp.fromDate(new Date(desde)));
@@ -39,37 +39,27 @@ router.get('/api/siembras', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/siembras', authenticate, async (req, res) => {
+router.post('/api/siembras', authenticate, rateLimit('siembras_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register siembras.', 403);
     }
-    const { loteId, loteNombre, bloque, plantas, densidad, materialId, materialNombre, rangoPesos, variedad, cerrado, fecha } = req.body;
-    if (!loteId || !fecha) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Lote and fecha are required.', 400);
+    const { error, data: input } = buildSiembraCreateDoc(req.body);
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
-    const plantCount = parseInt(plantas) || 0;
-    const density = parseFloat(densidad) || 0;
-    if (plantCount < 0 || plantCount > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Plants out of valid range.', 400);
-    if (density < 0 || density > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Density out of valid range.', 400);
-    for (const [field, max] of Object.entries(STR_LIMITS)) {
-      const v = req.body[field];
-      if (typeof v === 'string' && v.length > max) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `${field} too long.`, 400);
-    }
-    if (!isValidISODate(fecha)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid fecha.', 400);
-    const loteSnap = await db.collection('lotes').doc(loteId).get();
+    const loteSnap = await db.collection('lotes').doc(input.loteId).get();
     if (!loteSnap.exists || loteSnap.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote does not belong to this finca.', 400);
     }
-    const bloqueNorm = (bloque || '').slice(0, 4);
 
     // Block invariant: cannot add a siembra to a (lote, bloque) pair that has
     // already been closed. The frontend guards this but a direct API call
     // would otherwise bypass it and corrupt historical records.
-    if (bloqueNorm) {
+    if (input.bloque) {
       const closedSnap = await db.collection('siembras')
         .where('fincaId', '==', req.fincaId)
-        .where('loteId', '==', loteId)
-        .where('bloque', '==', bloqueNorm)
+        .where('loteId', '==', input.loteId)
+        .where('bloque', '==', input.bloque)
         .where('cerrado', '==', true)
         .limit(1)
         .get();
@@ -82,10 +72,11 @@ router.post('/api/siembras', authenticate, async (req, res) => {
     // would let a worker attribute records to a supervisor.
     const responsable = await getResponsableFromUid(req.uid, req.fincaId);
 
-    const areaCalculada = density > 0 ? parseFloat((plantCount / density).toFixed(4)) : 0;
-    const isClosed = cerrado === true || cerrado === 'true';
+    const areaCalculada = input.densidad > 0
+      ? parseFloat((input.plantas / input.densidad).toFixed(4))
+      : 0;
     const inputFechaCierre = req.body.fechaCierre;
-    const fechaCierre = isClosed
+    const fechaCierre = input.cerrado
       ? (inputFechaCierre && String(inputFechaCierre).trim()
           ? Timestamp.fromDate(new Date(String(inputFechaCierre).trim() + 'T12:00:00'))
           : Timestamp.now())
@@ -93,27 +84,29 @@ router.post('/api/siembras', authenticate, async (req, res) => {
 
     const ref = await db.collection('siembras').add({
       fincaId: req.fincaId,
-      loteId, loteNombre: loteNombre || '',
-      bloque: bloqueNorm,
-      plantas: plantCount, densidad: density,
+      loteId: input.loteId,
+      loteNombre: input.loteNombre,
+      bloque: input.bloque,
+      plantas: input.plantas,
+      densidad: input.densidad,
       areaCalculada,
-      materialId: materialId || '',
-      materialNombre: materialNombre || '',
-      rangoPesos: rangoPesos || '',
-      variedad: variedad || '',
-      cerrado: isClosed,
+      materialId: input.materialId,
+      materialNombre: input.materialNombre,
+      rangoPesos: input.rangoPesos,
+      variedad: input.variedad,
+      cerrado: input.cerrado,
       ...(fechaCierre && { fechaCierre }),
-      fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
+      fecha: Timestamp.fromDate(new Date(input.fecha + 'T12:00:00')),
       responsableId: responsable.id,
       responsableNombre: responsable.nombre,
       createdAt: Timestamp.now(),
     });
 
-    if (isClosed) {
+    if (input.cerrado) {
       const siblingsSnap = await db.collection('siembras')
         .where('fincaId', '==', req.fincaId)
-        .where('loteId', '==', loteId)
-        .where('bloque', '==', bloqueNorm)
+        .where('loteId', '==', input.loteId)
+        .where('bloque', '==', input.bloque)
         .get();
       const batch = db.batch();
       siblingsSnap.docs.forEach(d => {
@@ -133,25 +126,10 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update siembras.', 403);
     }
-    const ALLOWED = ['fecha', 'loteId', 'loteNombre', 'bloque', 'plantas', 'densidad', 'materialId', 'materialNombre', 'rangoPesos', 'variedad', 'cerrado'];
-    const updates = {};
-    for (const key of ALLOWED) {
-      if (req.body[key] !== undefined) updates[key] = req.body[key];
-    }
-    if (updates.plantas !== undefined) {
-      updates.plantas = parseInt(updates.plantas) || 0;
-      if (updates.plantas < 0 || updates.plantas > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Plants out of valid range.', 400);
-    }
-    if (updates.densidad !== undefined) {
-      updates.densidad = parseFloat(updates.densidad) || 0;
-      if (updates.densidad < 0 || updates.densidad > 199999) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Density out of valid range.', 400);
-    }
-    for (const [field, max] of Object.entries(STR_LIMITS)) {
-      const v = updates[field];
-      if (typeof v === 'string' && v.length > max) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `${field} too long.`, 400);
-    }
+    const { error, data: updates } = buildSiembraUpdateDoc(req.body);
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
+
     if (updates.fecha !== undefined) {
-      if (!isValidISODate(updates.fecha)) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid fecha.', 400);
       updates.fecha = Timestamp.fromDate(new Date(updates.fecha));
     }
 

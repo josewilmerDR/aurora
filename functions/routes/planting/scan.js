@@ -88,8 +88,12 @@ Reglas:
     try {
       filas = JSON.parse(jsonText);
     } catch {
-      console.error('Claude returned unparseable text:', rawText);
-      return res.status(422).json({ code: ERROR_CODES.INTERNAL_ERROR, message: 'AI could not interpret the form. Try a clearer image.', raw: rawText });
+      // Don't expose the raw model output to the client. It may contain
+      // catalog data (lote/material IDs and names) used in the prompt
+      // context, or surprising tokens the model emitted. Server-side log
+      // captures a truncated snippet for debugging.
+      console.error('Claude returned unparseable text (truncated):', rawText.slice(0, 200));
+      return sendApiError(res, ERROR_CODES.EXTERNAL_SERVICE_ERROR, 'AI could not interpret the form. Try a clearer image.', 422);
     }
 
     res.json({ filas, lotes, materiales });
