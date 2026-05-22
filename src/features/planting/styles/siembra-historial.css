@@ -40,17 +40,24 @@
   overflow: visible;
 }
 
-/* Header con borde inferior para marcar la división con el resto de la página. */
-.shp-historial .aur-sheet-header {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--aur-divider);
-}
-
 /* En móvil el global hace wrap y manda los botones a la izquierda; los
-   forzamos al extremo derecho — patrón más reconocido. */
+   forzamos al extremo derecho — patrón más reconocido — y los dimensionamos
+   40%/60% del ancho compartiendo el gap de 8px para que nunca colapsen a
+   una segunda línea. */
 @media (max-width: 768px) {
   .shp-historial .aur-sheet-header-actions {
     justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+  .shp-historial .aur-sheet-header-actions > .aur-chip {
+    flex: 0 0 calc(40% - 4px);
+    min-width: 0;
+    justify-content: center;
+  }
+  .shp-historial .aur-sheet-header-actions > .aur-btn-pill {
+    flex: 0 0 calc(60% - 4px);
+    min-width: 0;
+    justify-content: center;
   }
 }
 
@@ -373,10 +380,6 @@
   }
   .shp-stats {
     gap: 8px;
-  }
-  /* En móvil, el botón "Compartir" del toolbar se reduce al ícono. */
-  .shp-historial .shp-btn-label {
-    display: none;
   }
   /* En móvil, ocultar el botón "Limpiar filtros" para reducir clutter. */
   .shp-historial .aur-table-clear-filters {

@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    SIEMBRA — registro de filas (page-specific overrides on .aur-* primitives)
-   El sheet, secciones, settings list, inputs, chips, btn-pill, icon-btn,
-   toggle y modal vienen de aurora.css. Aquí sólo viven los pedazos únicos
-   de la página: ancho del sheet, banner de borrador, cards de fila con
-   swipe + duplicate/delete hints, dropdown del combobox de lote y modal
-   de nuevo material (form modal sobre .aur-modal-*).
+   El sheet, secciones, inputs, chips, btn-pill, icon-btn, toggle y modal
+   vienen de aurora.css. Aquí sólo viven los pedazos únicos de la página:
+   banners (borrador / post-save), cards de fila con swipe (duplicate/delete
+   hints), wrapper del EntityCombo compartido por Lote y Material, footer
+   de acciones, y el modal "Nuevo material" (form modal sobre .aur-modal-*).
 
    Tokens: usa --aur-* heredados; sin variables locales.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -150,15 +150,18 @@
   flex: 1;
   min-width: 0;
 }
-.psb-lote-field {
+/* Wrapper genérico para EntityCombo (Lote y Material comparten estos
+   estilos para garantizar look idéntico). El input interno rellena el
+   wrapper externo (psb-row-lote / psb-row-mat-select) que define ancho. */
+.psb-combo-field {
   position: relative;
 }
-.psb-lote-input {
-  /* override del .aur-input dentro del header de la card para no parecer pesado */
+.psb-combo-input {
+  /* override del .aur-input dentro del card para no parecer pesado */
   background: var(--aur-bg-hover);
   padding-right: 28px;
 }
-.psb-lote-chevron {
+.psb-combo-chevron {
   position: absolute;
   right: 10px;
   top: 50%;
@@ -167,9 +170,14 @@
   pointer-events: none;
   transition: transform 0.18s ease;
 }
-.psb-lote-field--open .psb-lote-chevron {
+.psb-combo-field--open .psb-combo-chevron {
   transform: translateY(-50%) rotate(180deg);
   color: var(--aur-accent);
+}
+/* Suffix gris en items con extras (rango, variedad, densidad). */
+.psb-combo-option-extras {
+  color: var(--aur-text-3);
+  font-size: 0.92em;
 }
 .psb-row-actions {
   display: inline-flex;
@@ -253,37 +261,28 @@
   cursor: not-allowed;
 }
 
-/* ── Footer del form (gestionar materiales · guardar) ───────────────────── */
+/* ── Footer del form (botón Guardar alineado a la derecha) ──────────────── */
 .psb-form-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   padding-top: 18px;
   border-top: 1px solid var(--aur-divider);
   margin-top: 18px;
 }
-/* Desktop: agrandar Guardar para que no quede atrapado bajo el FAB del chat */
+/* Desktop: agrandar Guardar (10% más alto, ~100% más ancho que un chip base)
+   para darle presencia como acción principal del form. */
 @media (min-width: 769px) {
   .psb-form-actions .aur-btn-pill {
-    min-width: 200px;
-    padding: 14px 36px;
-    font-size: var(--aur-fs-callout);
+    min-width: 180px;
+    padding: 8px 20px;
+    justify-content: center;
   }
-}
-.psb-manage-mats-link {
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-accent);
-  text-decoration: none;
-  letter-spacing: -0.01em;
-  transition: opacity 0.2s;
-}
-.psb-manage-mats-link:hover {
-  opacity: 0.75;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   COMBOBOX (LoteCombobox) — dropdown portaled
+   COMBOBOX (EntityCombo) — dropdown portaled, compartido por Lote y Material
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .psb-combo-dropdown {
@@ -353,13 +352,43 @@
   letter-spacing: -0.01em;
 }
 
+/* Link "Gestionar todos los materiales" dentro del modal NuevoMaterial —
+   discoverable cuando el usuario ya está en modo "configurando materiales",
+   sin ensuciar el footer del form principal. */
+.psb-mat-modal-manage {
+  padding: 12px 0 4px 0;
+  text-align: center;
+}
+.psb-manage-mats-link {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-accent);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: opacity 0.2s;
+}
+.psb-manage-mats-link:hover {
+  opacity: 0.75;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE (≤ 768px)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-  .psb-sheet .aur-sheet-header-actions > .aur-chip {
-    flex: 1;
+  /* "Historial" 40% / "Leer con IA" 60% — comparten el gap de 8px del
+     contenedor (4px c/u) para sumar exactamente 100% y no colapsar a
+     segunda fila. */
+  .psb-sheet .aur-sheet-header-actions {
+    flex-wrap: nowrap;
+  }
+  .psb-sheet .aur-sheet-header-actions > .aur-chip--ghost {
+    flex: 0 0 calc(40% - 4px);
+    min-width: 0;
+    justify-content: center;
+  }
+  .psb-sheet .aur-sheet-header-actions > .aur-chip--ai {
+    flex: 0 0 calc(60% - 4px);
+    min-width: 0;
     justify-content: center;
   }
   .psb-row-head {
@@ -388,11 +417,6 @@
   }
   .psb-form-actions .aur-btn-pill {
     justify-content: center;
-  }
-  .psb-manage-mats-link {
-    display: block;
-    text-align: center;
-    padding: 8px 0;
   }
 }
 
