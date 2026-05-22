@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership, writeFeedEvent, sendNotificationWithLink } = require('../lib/helpers');
+const { pick, verifyOwnership, writeFeedEvent, sendNotificationWithLink, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
@@ -19,6 +19,9 @@ router.get('/api/lotes', authenticate, async (req, res) => {
 });
 
 router.post('/api/lotes', authenticate, async (req, res) => {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+        return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create lotes.', 403);
+    }
     const codigoLote = typeof req.body.codigoLote === 'string' ? req.body.codigoLote.trim() : '';
     const nombreLote = typeof req.body.nombreLote === 'string' ? req.body.nombreLote.trim() : '';
     const { fechaCreacion, paqueteId, hectareas } = req.body;
@@ -106,6 +109,9 @@ router.post('/api/lotes', authenticate, async (req, res) => {
 
 router.put('/api/lotes/:id', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update lotes.', 403);
+        }
         const { id } = req.params;
         const ownership = await verifyOwnership('lotes', id, req.fincaId);
         if (!ownership.ok) {
@@ -210,6 +216,9 @@ router.get('/api/lotes/:id/task-count', authenticate, async (req, res) => {
 
 router.delete('/api/lotes/:id', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete lotes.', 403);
+        }
         const { id } = req.params;
         const ownership = await verifyOwnership('lotes', id, req.fincaId);
         if (!ownership.ok) {
