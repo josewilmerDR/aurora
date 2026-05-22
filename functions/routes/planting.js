@@ -5,6 +5,23 @@ const { authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
 const { hasMinRoleBE } = require('../lib/helpers');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
+
+// Resolve the canonical (id, nombre) of the responsable from the auth uid,
+// scoped to the finca. Returns empty strings if no users row exists for
+// this membership (e.g., legacy member without a users doc). Used to derive
+// responsable* fields in POST /api/siembras from req.uid instead of trusting
+// values supplied by the client body.
+async function getResponsableFromUid(uid, fincaId) {
+  if (!uid || !fincaId) return { id: '', nombre: '' };
+  const snap = await db.collection('users')
+    .where('uid', '==', uid)
+    .where('fincaId', '==', fincaId)
+    .limit(1)
+    .get();
+  if (snap.empty) return { id: '', nombre: '' };
+  return { id: snap.docs[0].id, nombre: snap.docs[0].data().nombre || '' };
+}
 
 // Field length limits for siembra string fields. Mirrored from the frontend UI
 // constraints; enforced server-side to prevent storage abuse via direct API
@@ -49,6 +66,9 @@ function coerceDensidadDefault(raw) {
 
 router.post('/api/materiales-siembra', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create materials.', 403);
+    }
     const { nombre, rangoPesos, variedad } = req.body;
     if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
     if (nombre.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long.', 400);
@@ -67,6 +87,9 @@ router.post('/api/materiales-siembra', authenticate, async (req, res) => {
 
 router.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update materials.', 403);
+    }
     const { nombre, rangoPesos, variedad } = req.body;
     if (!nombre || typeof nombre !== 'string' || !nombre.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
     if (nombre.length > 32) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long.', 400);
@@ -83,9 +106,26 @@ router.put('/api/materiales-siembra/:id', authenticate, async (req, res) => {
 
 router.delete('/api/materiales-siembra/:id', authenticate, async (req, res) => {
   try {
+    // Destructive op on a shared catalog — only supervisor or above.
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can delete materials.', 403);
+    }
     const doc = await db.collection('materiales_siembra').doc(req.params.id).get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Material not found.', 404);
+    const prev = doc.data();
     await doc.ref.delete();
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.MATERIAL_SIEMBRA_DELETE,
+      target: { type: 'material_siembra', id: req.params.id },
+      metadata: {
+        nombre: prev.nombre || null,
+        variedad: prev.variedad || null,
+        rangoPesos: prev.rangoPesos || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete material.', 500);
@@ -309,7 +349,10 @@ router.get('/api/siembras', authenticate, async (req, res) => {
 
 router.post('/api/siembras', authenticate, async (req, res) => {
   try {
-    const { loteId, loteNombre, bloque, plantas, densidad, materialId, materialNombre, rangoPesos, variedad, cerrado, fecha, responsableId, responsableNombre } = req.body;
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register siembras.', 403);
+    }
+    const { loteId, loteNombre, bloque, plantas, densidad, materialId, materialNombre, rangoPesos, variedad, cerrado, fecha } = req.body;
     if (!loteId || !fecha) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Lote and fecha are required.', 400);
 
     const plantCount = parseInt(plantas) || 0;
@@ -325,6 +368,28 @@ router.post('/api/siembras', authenticate, async (req, res) => {
     if (!loteSnap.exists || loteSnap.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote does not belong to this finca.', 400);
     }
+    const bloqueNorm = (bloque || '').slice(0, 4);
+
+    // Block invariant: cannot add a siembra to a (lote, bloque) pair that has
+    // already been closed. The frontend guards this but a direct API call
+    // would otherwise bypass it and corrupt historical records.
+    if (bloqueNorm) {
+      const closedSnap = await db.collection('siembras')
+        .where('fincaId', '==', req.fincaId)
+        .where('loteId', '==', loteId)
+        .where('bloque', '==', bloqueNorm)
+        .where('cerrado', '==', true)
+        .limit(1)
+        .get();
+      if (!closedSnap.empty) {
+        return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot add a siembra to a closed bloque. Reopen it first.', 409);
+      }
+    }
+
+    // Derive responsable from req.uid — never trust body-supplied values, which
+    // would let a worker attribute records to a supervisor.
+    const responsable = await getResponsableFromUid(req.uid, req.fincaId);
+
     const areaCalculada = density > 0 ? parseFloat((plantCount / density).toFixed(4)) : 0;
     const isClosed = cerrado === true || cerrado === 'true';
     const inputFechaCierre = req.body.fechaCierre;
@@ -334,7 +399,6 @@ router.post('/api/siembras', authenticate, async (req, res) => {
           : Timestamp.now())
       : null;
 
-    const bloqueNorm = (bloque || '').slice(0, 4);
     const ref = await db.collection('siembras').add({
       fincaId: req.fincaId,
       loteId, loteNombre: loteNombre || '',
@@ -348,8 +412,8 @@ router.post('/api/siembras', authenticate, async (req, res) => {
       cerrado: isClosed,
       ...(fechaCierre && { fechaCierre }),
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
-      responsableId: responsableId || '',
-      responsableNombre: responsableNombre || '',
+      responsableId: responsable.id,
+      responsableNombre: responsable.nombre,
       createdAt: Timestamp.now(),
     });
 
@@ -374,6 +438,9 @@ router.post('/api/siembras', authenticate, async (req, res) => {
 
 router.put('/api/siembras/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update siembras.', 403);
+    }
     const ALLOWED = ['fecha', 'loteId', 'loteNombre', 'bloque', 'plantas', 'densidad', 'materialId', 'materialNombre', 'rangoPesos', 'variedad', 'cerrado'];
     const updates = {};
     for (const key of ALLOWED) {
@@ -402,10 +469,25 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
 
     // P0: reopening a closed block requires supervisor (mirrors the UI gate so
     // a worker cannot bypass it via direct API call).
-    if (updates.cerrado === false && doc.data().cerrado === true) {
+    const isReopening = updates.cerrado === false && doc.data().cerrado === true;
+    if (isReopening) {
       if (!hasMinRoleBE(req.userRole, 'supervisor')) {
         return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only a supervisor can reopen a closed block.', 403);
       }
+      const prev = doc.data();
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.SIEMBRA_BLOCK_REOPEN,
+        target: { type: 'siembra', id: req.params.id },
+        metadata: {
+          loteId: prev.loteId || null,
+          loteNombre: prev.loteNombre || null,
+          bloque: prev.bloque || null,
+          previousFechaCierre: prev.fechaCierre?.toDate ? prev.fechaCierre.toDate().toISOString() : null,
+        },
+        severity: SEVERITY.WARNING,
+      });
     }
 
     // P2: if loteId is being changed, verify the new lote belongs to the same
@@ -478,7 +560,25 @@ router.delete('/api/siembras/:id', authenticate, async (req, res) => {
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only a supervisor can delete siembra records.', 403);
     }
+    const prev = doc.data();
     await doc.ref.delete();
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.SIEMBRA_DELETE,
+      target: { type: 'siembra', id: req.params.id },
+      metadata: {
+        loteId: prev.loteId || null,
+        loteNombre: prev.loteNombre || null,
+        bloque: prev.bloque || null,
+        plantas: prev.plantas || 0,
+        densidad: prev.densidad || 0,
+        materialId: prev.materialId || null,
+        fecha: prev.fecha?.toDate ? prev.fecha.toDate().toISOString() : null,
+        cerrado: prev.cerrado === true,
+      },
+      severity: SEVERITY.WARNING,
+    });
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete siembra.', 500);

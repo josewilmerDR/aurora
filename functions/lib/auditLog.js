@@ -60,6 +60,9 @@ const ACTIONS = Object.freeze({
   // not audited to keep the stream focused on security + money + loss.
   PRODUCTO_DELETE: 'producto.delete',
   LOTE_DELETE: 'lote.delete',
+  SIEMBRA_DELETE: 'siembra.delete',
+  SIEMBRA_BLOCK_REOPEN: 'siembra.block.reopen',
+  MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',
   PAYROLL_PAY: 'payroll.pay',
   PURCHASE_ORDER_CREATE: 'purchase_order.create',
