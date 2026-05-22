@@ -6,6 +6,7 @@ import { useUser } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/siembra.css';
 import '../styles/siembra-form.css';
 
@@ -39,21 +40,25 @@ function compressImage(file) {
 }
 
 // ── Draft persistence ─────────────────────────────────────────────────────────
-const DRAFT_LS  = 'aurora_draft_siembra';
-const DRAFT_SS  = 'aurora_draftActive_siembra-registro';
+// Las keys del draft se scopean por uid + fincaId para que, si dos usuarios
+// comparten dispositivo o el mismo usuario alterna fincas, no se filtre
+// intent operacional entre sesiones. La key de sessionStorage también queda
+// scoped para no chocar con la badge de drafts de otras fincas.
+const draftLsKey = (uid, fincaId) => `aurora_draft_siembra__${uid || 'anon'}__${fincaId || 'none'}`;
+const draftSsKey = (uid, fincaId) => `aurora_draftActive_siembra-registro__${uid || 'anon'}__${fincaId || 'none'}`;
 
-function loadDraft()  { try { return JSON.parse(localStorage.getItem(DRAFT_LS)); } catch { return null; } }
-function saveDraft(fecha, rows)  {
+function loadDraft(uid, fincaId)  { try { return JSON.parse(localStorage.getItem(draftLsKey(uid, fincaId))); } catch { return null; } }
+function saveDraft(uid, fincaId, fecha, rows)  {
   try {
-    localStorage.setItem(DRAFT_LS, JSON.stringify({ fecha, rows }));
-    sessionStorage.setItem(DRAFT_SS, '1');
+    localStorage.setItem(draftLsKey(uid, fincaId), JSON.stringify({ fecha, rows }));
+    sessionStorage.setItem(draftSsKey(uid, fincaId), '1');
     window.dispatchEvent(new CustomEvent('aurora-draft-change'));
   } catch {}
 }
-function clearDraft() {
+function clearDraft(uid, fincaId) {
   try {
-    localStorage.removeItem(DRAFT_LS);
-    sessionStorage.removeItem(DRAFT_SS);
+    localStorage.removeItem(draftLsKey(uid, fincaId));
+    sessionStorage.removeItem(draftSsKey(uid, fincaId));
     window.dispatchEvent(new CustomEvent('aurora-draft-change'));
   } catch {}
 }
@@ -463,21 +468,26 @@ function NuevoLoteModal({ initial, fecha, onConfirm, onCancel }) {
 
 function Siembra() {
   const apiFetch = useApiFetch();
-  const { currentUser } = useUser();
+  const { currentUser, activeFincaId } = useUser();
+  // Identifier for scoping the draft a (user, finca) tuple. Calculated once on
+  // mount: ProtectedRoute guarantees currentUser is loaded before this
+  // component renders, so the value is stable for the session.
+  const draftUid = currentUser?.id;
+  const draftFincaId = activeFincaId;
   const location = useLocation();
   const [lotes, setLotes]           = useState([]);
   const [materiales, setMateriales] = useState([]);
-  const [fecha, setFecha]           = useState(() => loadDraft()?.fecha || HOY);
-  const [rows, setRows]             = useState(() => { const d = loadDraft(); return d?.rows?.length ? d.rows : [{ ...EMPTY_ROW }]; });
+  const [fecha, setFecha]           = useState(() => loadDraft(draftUid, draftFincaId)?.fecha || HOY);
+  const [rows, setRows]             = useState(() => { const d = loadDraft(draftUid, draftFincaId); return d?.rows?.length ? d.rows : [{ ...EMPTY_ROW }]; });
   const [draftRestored, setDraftRestored] = useState(() => {
-    const d = loadDraft();
+    const d = loadDraft(draftUid, draftFincaId);
     return !!(d && (d.fecha !== HOY || (d.rows || []).some(r => r.loteId || r.plantas)));
   });
   const [registros, setRegistros]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
   const [showForm, setShowForm]     = useState(() => {
-    const d = loadDraft();
+    const d = loadDraft(draftUid, draftFincaId);
     return !!(d && (d.fecha !== HOY || (d.rows || []).some(r => r.loteId || r.plantas)));
   });
   const [scanning, setScanning]     = useState(false);
@@ -499,8 +509,23 @@ function Siembra() {
   }, []);
 
   useEffect(() => {
-    apiFetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : [])).catch(console.error);
-    apiFetch('/api/materiales-siembra').then(r => r.json()).then(d => setMateriales(Array.isArray(d) ? d : [])).catch(console.error);
+    // Initial catalog loads: si la respuesta no es ok o la red falla, el usuario
+    // se quedaría con un select vacío sin saber por qué. Mostramos toast traducido
+    // y la lista queda vacía (estado degradado pero no roto).
+    apiFetch('/api/lotes')
+      .then(async r => {
+        if (!r.ok) throw await r.json().catch(() => ({}));
+        return r.json();
+      })
+      .then(d => setLotes(Array.isArray(d) ? d : []))
+      .catch(body => showToast(translateApiError(body, 'No se pudieron cargar los lotes.'), 'error'));
+    apiFetch('/api/materiales-siembra')
+      .then(async r => {
+        if (!r.ok) throw await r.json().catch(() => ({}));
+        return r.json();
+      })
+      .then(d => setMateriales(Array.isArray(d) ? d : []))
+      .catch(body => showToast(translateApiError(body, 'No se pudieron cargar los materiales.'), 'error'));
     cargarRegistros();
   }, []);
 
@@ -713,18 +738,29 @@ function Siembra() {
     }
 
     setSaving(true);
-    let errores = 0;
 
-    // Mapas para evitar crear duplicados dentro del mismo guardado
+    // Map: índice en `rows` (no en `validos`) → razón de falla. Permite
+    // mantener exactamente esas filas en el form al terminar, para reintento.
+    const failedByRowIdx = new Map();
+    // Mapa de filas válidas con sus precursores ya resueltos. Mantenemos el
+    // índice original en `rows` para poder marcar fallas con precisión.
+    const resolvedPayloads = []; // { rowIdx, payload }
+
+    // Mapas para evitar crear duplicados dentro del mismo guardado.
     const createdLoteMap = {};   // nombreLote -> { id, nombreLote }
     const createdMatMap  = {};   // nombreMat   -> { id, nombre, rangoPesos, variedad }
 
-    for (const row of validos) {
+    // PASO 1: resolver precursores (lotes y materiales nuevos) row-by-row.
+    // No usamos bulk aquí porque cada creación devuelve un ID que necesitamos
+    // para construir el payload de la siembra.
+    for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+      const row = rows[rowIdx];
+      const isValido = (row.loteId || row.loteNuevoNombre.trim()) && row.plantas && row.densidad;
+      if (!isValido) continue;
       try {
         let loteId = row.loteId;
         let loteNombre = '';
 
-        // Crear nuevo lote si es necesario (path de IA: usa el nombre como código truncado)
         if (loteId === '__nuevo__' && row.loteNuevoNombre.trim()) {
           const nombre = row.loteNuevoNombre.trim();
           if (createdLoteMap[nombre]) {
@@ -738,7 +774,10 @@ function Siembra() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion: fecha }),
             });
-            if (!res.ok) throw new Error('No se pudo crear el lote.');
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              throw new Error(translateApiError(body, 'No se pudo crear el lote.'));
+            }
             const created = await res.json();
             loteId     = created.id;
             loteNombre = nombreLote || codigoLote;
@@ -749,7 +788,6 @@ function Siembra() {
           loteNombre = loteDisplayName(lotes.find(l => l.id === loteId));
         }
 
-        // Crear nuevo material si es necesario (solo una vez por nombre)
         let mat = materialFor(row.materialId);
         let materialId = row.materialId || '';
         if (row.materialId === '__nuevo__' && row.matNuevoNombre.trim()) {
@@ -767,7 +805,10 @@ function Siembra() {
                 variedad:   row.matNuevoVariedad   || '',
               }),
             });
-            if (!mRes.ok) throw new Error('No se pudo crear el material.');
+            if (!mRes.ok) {
+              const body = await mRes.json().catch(() => ({}));
+              throw new Error(translateApiError(body, 'No se pudo crear el material.'));
+            }
             const mCreated = await mRes.json();
             mat        = { id: mCreated.id, nombre, rangoPesos: row.matNuevoRangoPesos || '', variedad: row.matNuevoVariedad || '' };
             materialId = mCreated.id;
@@ -776,10 +817,9 @@ function Siembra() {
           }
         }
 
-        await apiFetch('/api/siembras', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        resolvedPayloads.push({
+          rowIdx,
+          payload: {
             loteId, loteNombre,
             bloque: row.bloque,
             plantas: parseInt(row.plantas),
@@ -790,34 +830,80 @@ function Siembra() {
             variedad: mat?.variedad || '',
             cerrado: row.cerrado,
             fecha,
-            responsableId: currentUser?.id || '',
-            responsableNombre: currentUser?.nombre || '',
-          }),
+          },
         });
+      } catch (err) {
+        failedByRowIdx.set(rowIdx, err.message || 'Error al crear lote/material.');
+      }
+    }
+
+    // PASO 2: si quedan filas válidas tras los precursores, mandarlas al bulk.
+    if (resolvedPayloads.length > 0) {
+      try {
+        const res = await apiFetch('/api/siembras/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: resolvedPayloads.map(r => r.payload) }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          // Falló el endpoint entero — todas las filas de este batch fallan.
+          const msg = translateApiError(body, 'No se pudieron guardar los registros.');
+          for (const { rowIdx } of resolvedPayloads) failedByRowIdx.set(rowIdx, msg);
+        } else {
+          const results = Array.isArray(body?.results) ? body.results : [];
+          for (const r of results) {
+            if (!r.ok) {
+              const rowIdx = resolvedPayloads[r.index]?.rowIdx;
+              if (rowIdx !== undefined) {
+                failedByRowIdx.set(rowIdx, translateApiError({ code: r.code, message: r.message }, r.message || 'No se pudo guardar.'));
+              }
+            }
+          }
+        }
       } catch {
-        errores++;
+        const msg = 'No se pudieron guardar los registros (error de red).';
+        for (const { rowIdx } of resolvedPayloads) failedByRowIdx.set(rowIdx, msg);
       }
     }
 
     setSaving(false);
-    if (errores > 0) {
-      showToast(`${errores} fila(s) no pudieron guardarse.`, 'error');
-    } else {
-      showToast(`${validos.length} registro(s) guardados correctamente.`);
+
+    const totalIntentados = validos.length;
+    const totalFallidos = failedByRowIdx.size;
+    const totalExitosos = totalIntentados - totalFallidos;
+
+    if (totalFallidos === 0) {
+      // Happy path — limpia el form y resetea draft.
+      showToast(`${totalIntentados} registro(s) guardados correctamente.`);
       saveResetGuard.current = Date.now();
       setRows([{ ...EMPTY_ROW }]);
       setFecha(HOY);
       setDraftRestored(false);
-      clearDraft();
-      setLastSave({ count: validos.length });
+      clearDraft(draftUid, draftFincaId);
+      setLastSave({ count: totalIntentados });
       cargarRegistros();
+    } else {
+      // Conserva solo las filas que fallaron; las exitosas se sacan del form.
+      const remainingRows = rows.filter((_, idx) => failedByRowIdx.has(idx));
+      const finalRows = remainingRows.length > 0 ? remainingRows : [{ ...EMPTY_ROW }];
+      const msg = totalExitosos > 0
+        ? `${totalExitosos} guardada(s), ${totalFallidos} pendiente(s) por reintento.`
+        : `No se pudo guardar ninguna de las ${totalFallidos} fila(s).`;
+      showToast(msg, 'error');
+      setRows(finalRows);
+      if (totalExitosos > 0) {
+        // Sacar las exitosas del banner/badge; el draft persistente queda con
+        // las filas pendientes para que el usuario pueda terminar de pulir.
+        cargarRegistros();
+      }
     }
   };
 
   // ── Draft: save on every change, restore badge on mount ──────────────────
   useEffect(() => {
-    if (isDraftMeaningful(fecha, rows)) saveDraft(fecha, rows);
-    else clearDraft();
+    if (isDraftMeaningful(fecha, rows)) saveDraft(draftUid, draftFincaId, fecha, rows);
+    else clearDraft(draftUid, draftFincaId);
   }, [fecha, rows]);
 
   // ── Save banner: clear it when user starts editing again after a save ────

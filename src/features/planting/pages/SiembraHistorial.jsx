@@ -675,6 +675,11 @@ function SiembraHistorial() {
       {rowMenu !== null && (() => {
         const r = registros.find(x => x.id === rowMenu);
         if (!r) return null;
+        // "Abrir bloque" requiere supervisor — defensa secundaria al gate
+        // del backend (planting/siembras.js). Para "Cerrar bloque" no hay
+        // restricción de rol más allá del gate de la página.
+        const esSupervisor = hasMinRole(currentUser?.rol, 'supervisor');
+        const showToggleCerrado = !r.cerrado || esSupervisor;
         return createPortal(
           <div
             className="hist-kebab-dropdown hist-kebab-dropdown-fixed"
@@ -685,10 +690,12 @@ function SiembraHistorial() {
               <FiEdit2 size={13} />
               Editar
             </button>
-            <button className="hist-kebab-item" onClick={() => { setRowMenu(null); toggleCerrado(r); }}>
-              {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
-              {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
-            </button>
+            {showToggleCerrado && (
+              <button className="hist-kebab-item" onClick={() => { setRowMenu(null); toggleCerrado(r); }}>
+                {r.cerrado ? <FiCircle size={13} /> : <FiCheckCircle size={13} />}
+                {r.cerrado ? 'Abrir bloque' : 'Cerrar bloque'}
+              </button>
+            )}
             <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setRowMenu(null); handleDelete(r.id); }}>
               <FiTrash2 size={13} />
               Eliminar
