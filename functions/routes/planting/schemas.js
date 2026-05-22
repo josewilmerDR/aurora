@@ -82,6 +82,28 @@ const truthyBool = z.unknown().transform((v) => v === true || v === 'true');
 const isoDateString = (message) =>
   z.string().refine(isValidISODate, { message });
 
+// Optional `YYYY-MM-DD` date — undefined/null/empty becomes undefined; any
+// non-empty value must match the strict day pattern. We enforce the strict
+// shape (not the looser `isValidISODate`) because the handlers concatenate
+// `T12:00:00` to build the noon-of-day Timestamp; a full ISO timestamp like
+// `2026-05-22T10:00:00Z` would parse as a valid date here but yield
+// `Invalid Date` after the concat, surfacing as an opaque 500.
+const optionalDayString = (message) =>
+  z.unknown().transform((v, ctx) => {
+    if (v === undefined || v === null) return undefined;
+    if (typeof v !== 'string') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+      return z.NEVER;
+    }
+    const trimmed = v.trim();
+    if (!trimmed) return undefined;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || Number.isNaN(new Date(trimmed).getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+      return z.NEVER;
+    }
+    return trimmed;
+  });
+
 // densidadDefault: 0 means "not configured"; null means invalid input.
 // Mirrors the legacy coerceDensidadDefault behavior.
 const densidadDefault = z.unknown().transform((v, ctx) => {
@@ -125,6 +147,10 @@ const siembraCreateSchema = z.object({
   rangoPesos: optionalString(STR_LIMITS.rangoPesos),
   variedad: optionalString(STR_LIMITS.variedad),
   cerrado: truthyBool.default(false),
+  // Optional `YYYY-MM-DD`. Server defaults to `Timestamp.now()` when cerrado
+  // is true and this is omitted. Validated via the strict day pattern so a
+  // malformed value cannot bypass Zod and 500 inside Timestamp.fromDate.
+  fechaCierre: optionalDayString('Invalid fechaCierre (expected YYYY-MM-DD).'),
 });
 
 function buildSiembraCreateDoc(body) {

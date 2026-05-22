@@ -22,6 +22,14 @@ const router = Router();
 
 router.get('/api/siembras', authenticate, async (req, res) => {
   try {
+    // Simétrico con GET /api/materiales-siembra: los 3 frontends que consumen
+    // este endpoint (Siembra, SiembraHistorial, SiembraMateriales) están
+    // gated a encargado+ en ROUTE_MIN_ROLE. Sin este check, un trabajador
+    // autenticado a la finca podría enumerar el histórico completo vía API
+    // directa, bypasseando el gate del UI.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read siembras.', 403);
+    }
     const { error, data: filters } = buildSiembraListFilters(req.query);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     const { loteId, desde, hasta } = filters;
@@ -76,10 +84,12 @@ router.post('/api/siembras', authenticate, rateLimit('siembras_write', 'write'),
     const areaCalculada = input.densidad > 0
       ? parseFloat((input.plantas / input.densidad).toFixed(4))
       : 0;
-    const inputFechaCierre = req.body.fechaCierre;
+    // input.fechaCierre is now validated by Zod (strict YYYY-MM-DD or
+    // undefined). When cerrado is true and no fechaCierre was provided,
+    // default to Timestamp.now() so the close is dated to the request time.
     const fechaCierre = input.cerrado
-      ? (inputFechaCierre && String(inputFechaCierre).trim()
-          ? Timestamp.fromDate(new Date(String(inputFechaCierre).trim() + 'T12:00:00'))
+      ? (input.fechaCierre
+          ? Timestamp.fromDate(new Date(input.fechaCierre + 'T12:00:00'))
           : Timestamp.now())
       : null;
 
@@ -103,6 +113,7 @@ router.post('/api/siembras', authenticate, rateLimit('siembras_write', 'write'),
       createdAt: Timestamp.now(),
     });
 
+    let siblingsClosed = 0;
     if (input.cerrado) {
       const siblingsSnap = await db.collection('siembras')
         .where('fincaId', '==', req.fincaId)
@@ -111,9 +122,32 @@ router.post('/api/siembras', authenticate, rateLimit('siembras_write', 'write'),
         .get();
       const batch = db.batch();
       siblingsSnap.docs.forEach(d => {
-        if (d.id !== ref.id) batch.update(d.ref, { cerrado: true, fechaCierre });
+        if (d.id !== ref.id) {
+          batch.update(d.ref, { cerrado: true, fechaCierre });
+          siblingsClosed++;
+        }
       });
       await batch.commit();
+    }
+
+    // Audit block-close transitions only when a named bloque is involved;
+    // mirrors the SIEMBRA_BLOCK_REOPEN counterpart on PUT so the audit
+    // stream tells a complete close↔reopen story per (lote, bloque).
+    if (input.cerrado && input.bloque) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.SIEMBRA_BLOCK_CLOSE,
+        target: { type: 'siembra_block', id: `${input.loteId}__${input.bloque}` },
+        metadata: {
+          loteId: input.loteId,
+          loteNombre: input.loteNombre || null,
+          bloque: input.bloque,
+          via: 'create',
+          siblingsClosed,
+        },
+        severity: SEVERITY.INFO,
+      });
     }
 
     res.status(201).json({ id: ref.id, areaCalculada });
@@ -149,11 +183,13 @@ router.post('/api/siembras/bulk', authenticate, rateLimit('siembras_write', 'wri
     }
 
     // Per-row validation. Failed rows carry their reason; valid rows carry
-    // normalized data for the batch step below.
+    // normalized data for the batch step below. `data.fechaCierre` is the
+    // validated YYYY-MM-DD value (or undefined) — no need to re-read from
+    // the raw row.
     const results = rows.map((row, index) => {
       const { error, data } = buildSiembraCreateDoc(row);
       if (error) return { index, ok: false, code: ERROR_CODES.VALIDATION_FAILED, message: error };
-      return { index, ok: true, data, fechaCierreInput: row?.fechaCierre };
+      return { index, ok: true, data };
     });
 
     // Verify each unique loteId belongs to this finca (single read per lote).
@@ -215,8 +251,8 @@ router.post('/api/siembras/bulk', authenticate, rateLimit('siembras_write', 'wri
       const d = r.data;
       const areaCalculada = d.densidad > 0 ? parseFloat((d.plantas / d.densidad).toFixed(4)) : 0;
       const fechaCierre = d.cerrado
-        ? (r.fechaCierreInput && String(r.fechaCierreInput).trim()
-            ? Timestamp.fromDate(new Date(String(r.fechaCierreInput).trim() + 'T12:00:00'))
+        ? (d.fechaCierre
+            ? Timestamp.fromDate(new Date(d.fechaCierre + 'T12:00:00'))
             : Timestamp.now())
         : null;
       const ref = db.collection('siembras').doc();
@@ -266,12 +302,32 @@ router.post('/api/siembras/bulk', authenticate, rateLimit('siembras_write', 'wri
           .where('bloque', '==', entry.bloque)
           .get();
         const cascadeBatch = db.batch();
+        let siblingsClosed = 0;
         siblingsSnap.docs.forEach(d => {
           if (!entry.newRefIds.has(d.id)) {
             cascadeBatch.update(d.ref, { cerrado: true, fechaCierre: entry.fechaCierre });
+            siblingsClosed++;
           }
         });
         await cascadeBatch.commit();
+        // One audit event per (lote, bloque) that transitioned to closed via
+        // this bulk call. Symmetric with the single-POST and PUT close audits;
+        // a bulk that closes N blocks yields N events, which matches forensic
+        // intent (each closed bloque is its own state transition).
+        writeAuditEvent({
+          fincaId: req.fincaId,
+          actor: req,
+          action: ACTIONS.SIEMBRA_BLOCK_CLOSE,
+          target: { type: 'siembra_block', id: `${entry.loteId}__${entry.bloque}` },
+          metadata: {
+            loteId: entry.loteId,
+            bloque: entry.bloque,
+            via: 'bulk',
+            newRows: entry.newRefIds.size,
+            siblingsClosed,
+          },
+          severity: SEVERITY.INFO,
+        });
       } catch (err) {
         console.error('[siembras/bulk] cascade-close failed', entry.loteId, entry.bloque, err);
       }
@@ -290,7 +346,7 @@ function stripInternalFields(r) {
   return { index: r.index, ok: false, code: r.code, message: r.message };
 }
 
-router.put('/api/siembras/:id', authenticate, async (req, res) => {
+router.put('/api/siembras/:id', authenticate, rateLimit('siembras_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update siembras.', 403);
@@ -329,6 +385,31 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
       });
     }
 
+    // Symmetric audit for the close direction. We fire it here (before the
+    // commit further down) for the same reason REOPEN does: the value lives
+    // in capturing intent, not in proving the write landed — and
+    // writeAuditEvent is fail-open anyway.
+    const isClosing = updates.cerrado === true && doc.data().cerrado !== true;
+    if (isClosing) {
+      const prev = doc.data();
+      if (prev.bloque) {
+        writeAuditEvent({
+          fincaId: req.fincaId,
+          actor: req,
+          action: ACTIONS.SIEMBRA_BLOCK_CLOSE,
+          target: { type: 'siembra_block', id: `${prev.loteId}__${prev.bloque}` },
+          metadata: {
+            loteId: prev.loteId || null,
+            loteNombre: prev.loteNombre || null,
+            bloque: prev.bloque || null,
+            via: 'update',
+            siembraId: req.params.id,
+          },
+          severity: SEVERITY.INFO,
+        });
+      }
+    }
+
     // P2: if loteId is being changed, verify the new lote belongs to the same
     // finca (the existing fincaId check on the doc covers ownership of the
     // siembra record but not of the target lote).
@@ -336,6 +417,34 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
       const newLoteSnap = await db.collection('lotes').doc(updates.loteId).get();
       if (!newLoteSnap.exists || newLoteSnap.data().fincaId !== req.fincaId) {
         return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Lote does not belong to this finca.', 400);
+      }
+    }
+
+    // P2: mirror the closed-bloque invariant from POST. The create flow
+    // refuses to add a row to a (lote, bloque) pair that's already closed;
+    // without this check an encargado could PUT loteId/bloque to relocate
+    // a row into a closed bloque, corrupting the historical record exactly
+    // the same way a direct POST would.
+    //
+    // We only check when the *target* differs from the current location —
+    // otherwise the doc itself would match the closedSnap. Also skipped when
+    // the target bloque is empty: POST has the same skip (closed-block is
+    // only meaningful within a named bloque).
+    const currentLoteId = doc.data().loteId;
+    const currentBloque = doc.data().bloque;
+    const targetLoteId = updates.loteId !== undefined ? updates.loteId : currentLoteId;
+    const targetBloque = updates.bloque !== undefined ? updates.bloque : currentBloque;
+    const movingTarget = targetLoteId !== currentLoteId || targetBloque !== currentBloque;
+    if (movingTarget && targetBloque) {
+      const closedSnap = await db.collection('siembras')
+        .where('fincaId', '==', req.fincaId)
+        .where('loteId', '==', targetLoteId)
+        .where('bloque', '==', targetBloque)
+        .where('cerrado', '==', true)
+        .limit(1)
+        .get();
+      if (!closedSnap.empty) {
+        return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot move a siembra into a closed bloque. Reopen it first.', 409);
       }
     }
     if (needsDoc) {
@@ -374,7 +483,7 @@ router.put('/api/siembras/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/siembras/:id', authenticate, async (req, res) => {
+router.delete('/api/siembras/:id', authenticate, rateLimit('siembras_write', 'write'), async (req, res) => {
   try {
     const doc = await db.collection('siembras').doc(req.params.id).get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Record not found.', 404);
