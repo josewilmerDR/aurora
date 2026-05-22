@@ -4,6 +4,7 @@ const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, writeFeedEvent, sendNotificationWithLink, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.get('/api/lotes', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/lotes', authenticate, async (req, res) => {
+router.post('/api/lotes', authenticate, rateLimit('lotes_write', 'write'), async (req, res) => {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
         return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create lotes.', 403);
     }
