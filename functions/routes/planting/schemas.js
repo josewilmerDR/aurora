@@ -198,6 +198,13 @@ function buildSiembraListFilters(query) {
   return { data: parsed.data };
 }
 
+// ─── Siembras — POST /bulk (cap por payload) ─────────────────────────────
+
+// Tope sano para una sola llamada del UI. Un save típico de Siembra.jsx son
+// 1–5 filas; cualquier cosa por encima de 50 ya luce como script abuse y
+// además se acerca al límite de Firestore batch (500 ops/batch).
+const BULK_MAX_ROWS = 50;
+
 module.exports = {
   // Wrappers — preferred entry points from handlers.
   buildMaterialDoc,
@@ -209,4 +216,6 @@ module.exports = {
   siembraCreateSchema,
   siembraUpdateSchema,
   siembraListQuerySchema,
+  // Constants.
+  BULK_MAX_ROWS,
 };
