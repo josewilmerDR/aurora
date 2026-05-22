@@ -59,6 +59,8 @@ const COLUMNS = [
 const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
 
+const EXPORT_HEADERS = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
+
 function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onExportXLSX }) {
   const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
   const docRef = useRef(null);
@@ -150,9 +152,12 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onE
               <table className="pr-doc-meta-table">
                 <tbody>
                   <tr><td>Emisión:</td><td>{fechaEmision}</td></tr>
-                  {displayData.find(r => r.variedad) && (
-                    <tr><td>Variedad:</td><td>{displayData.find(r => r.variedad)?.variedad}</td></tr>
-                  )}
+                  {(() => {
+                    const conVariedad = displayData.find(r => r.variedad);
+                    return conVariedad && (
+                      <tr><td>Variedad:</td><td>{conVariedad.variedad}</td></tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -463,20 +468,17 @@ function SiembraHistorial() {
     }
   };
 
-  // ── Export helpers ────────────────────────────────────────────────────────
-  const EXPORT_HEADERS = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
-  const buildExportRows = () => displayData.map(r => [
-    r.fecha, r.loteNombre || '', r.bloque || '',
-    r.plantas, r.densidad,
-    r.areaCalculada || '',
-    r.materialNombre || '', r.variedad || '',
-    r.cerrado ? 'Sí' : 'No',
-    r.fechaCierre ? formatFecha(r.fechaCierre) : '',
-    r.responsableNombre || '',
-  ]);
-
+  // ── Export ───────────────────────────────────────────────────────────────
   const exportXLSX = () => {
-    const rows = buildExportRows();
+    const rows = displayData.map(r => [
+      r.fecha, r.loteNombre || '', r.bloque || '',
+      r.plantas, r.densidad,
+      r.areaCalculada || '',
+      r.materialNombre || '', r.variedad || '',
+      r.cerrado ? 'Sí' : 'No',
+      r.fechaCierre ? formatFecha(r.fechaCierre) : '',
+      r.responsableNombre || '',
+    ]);
     const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
     ws['!cols'] = EXPORT_HEADERS.map((h, i) => ({
       wch: Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2,

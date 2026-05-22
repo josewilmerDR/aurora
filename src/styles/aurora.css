@@ -41,6 +41,13 @@
   --aur-accent-tint:   rgba(51, 255, 153, 0.12);
   --aur-accent-tint-2: rgba(51, 255, 153, 0.20);
   --aur-accent-tint-3: rgba(51, 255, 153, 0.30);
+  /* Botón primario "tonal": superficie integrada a la paleta (color del
+     --aurora-border, que ya vive en la página), borde casi imperceptible
+     y texto blanco. El "primary" lo señala el ícono coloreado en verde
+     Aurora vía .aur-btn-pill__state--idle > svg — patrón Apple/Sonoma:
+     calm en surface, brand color en el glyph. */
+  --aur-accent-button:       var(--aurora-border);
+  --aur-accent-button-hover: #3a6a8a;
 
   /* ── Danger: magenta (acciones destructivas) ───────────────────────────── */
   --aur-danger:        var(--aurora-magenta);
@@ -146,6 +153,10 @@ html[data-theme="light"] {
   --aur-accent-tint:   rgba(10, 160, 92, 0.10);
   --aur-accent-tint-2: rgba(10, 160, 92, 0.18);
   --aur-accent-tint-3: rgba(10, 160, 92, 0.30);
+  /* En modo claro el accent ya es un emerald oscuro (no neón); no necesita
+     desaturarse más para botones. Alias por consistencia con el token. */
+  --aur-accent-button:       var(--aur-accent);
+  --aur-accent-button-hover: var(--aur-accent);
 
   /* Danger — darker magenta for AA on light */
   --aur-danger:        #b01ed8;
@@ -272,6 +283,8 @@ html[data-theme="light"] {
   align-items: flex-start;
   gap: 16px;
   margin: 0 0 24px 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--aur-divider);
 }
 .aur-sheet-header-text {
   flex: 1;
@@ -558,10 +571,10 @@ html[data-theme="light"] .aur-select {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--aur-accent);
-  color: var(--aurora-dark-blue);
-  border: none;
-  padding: 10px 24px;
+  background: var(--aur-accent-button);
+  color: var(--aur-text);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 20px;
   border-radius: var(--aur-r-pill);
   font-size: var(--aur-fs-body);
   font-weight: 600;
@@ -570,10 +583,10 @@ html[data-theme="light"] .aur-select {
   text-decoration: none;
   font-family: inherit;
   box-shadow: var(--aur-shadow-pill);
-  transition: transform 0.15s var(--aur-ease), box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: transform 0.15s var(--aur-ease), box-shadow 0.15s ease, opacity 0.15s ease, background-color 0.15s ease;
 }
 .aur-btn-pill:hover:not(:disabled) {
-  box-shadow: var(--aur-shadow-pill-hover);
+  background: var(--aur-accent-button-hover);
 }
 .aur-btn-pill:active:not(:disabled) {
   transform: scale(0.97);
@@ -583,6 +596,7 @@ html[data-theme="light"] .aur-select {
   cursor: not-allowed;
   box-shadow: none;
 }
+
 .aur-btn-pill--danger {
   background: var(--aur-danger);
   color: white;
@@ -671,26 +685,46 @@ html[data-theme="light"] .aur-select {
   background: var(--aur-bg-hover);
 }
 
-/* Variante IA — para botones de lectura/escaneo con Claude.
-   Estilo "tinted" inspirado en iOS/macOS: misma forma de chip, pero
-   con material translúcido más denso, hairline sólido y un highlight
-   superior interno (glass edge). Gana peso por densidad, no por color. */
+/* Variante "IA" — botones de acciones agénticas (lectura/escaneo con Claude,
+   sugerencias inteligentes, etc.). Identidad visual: gradiente verde→magenta
+   (los dos acentos de Aurora, que además son los colores de la aurora boreal)
+   en borde y fondo tintado sutil. El truco padding-box + border-box permite
+   gradient border conservando el border-radius del chip. */
 .aur-chip--ai {
-  background: var(--aur-bg-strong);
-  border-color: var(--aur-divider-3);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(51, 255, 153, 0.10),
+      rgba(204, 51, 255, 0.10)
+    ) padding-box,
+    linear-gradient(
+      135deg,
+      rgba(51, 255, 153, 0.55),
+      rgba(204, 51, 255, 0.55)
+    ) border-box;
+  border: 1px solid transparent;
   color: var(--aur-text);
   font-weight: 600;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  /* Padding-inline extendido (vs chip base 12px) para darle peso a las
+     acciones agénticas. Mantiene el padding-block del chip base. */
+  padding-inline: 42px;
 }
 .aur-chip--ai:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(51, 255, 153, 0.18),
+      rgba(204, 51, 255, 0.18)
+    ) padding-box,
+    linear-gradient(
+      135deg,
+      rgba(51, 255, 153, 0.85),
+      rgba(204, 51, 255, 0.85)
+    ) border-box;
   color: var(--aur-text);
 }
 .aur-chip--ai:focus-visible {
-  border-color: var(--aur-accent);
-  box-shadow: var(--aur-ring),
-              0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  box-shadow: var(--aur-ring);
 }
 
 /* Chip como <select> con chevron SVG inline */

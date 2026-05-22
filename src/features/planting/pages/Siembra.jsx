@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiChevronDown, FiCheckCircle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiClock, FiCpu, FiCopy, FiChevronDown, FiCheckCircle, FiSave } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -72,12 +72,28 @@ const EMPTY_ROW = {
 
 const loteDisplayName = (l) => l?.nombreLote || l?.codigoLote || '';
 
-// ── Combobox lote ────────────────────────────────────────────────────────────
-function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
+// ── Combobox genérico (usado por Lote y Material para look idéntico) ────────
+// Recibe config por props para que cada campo defina cómo identifica items,
+// cómo los muestra, qué muestra en suffix (rango, variedad, etc.), y los
+// labels del item "+ Crear nuevo".
+function EntityCombo({
+  value, newItemName = '',
+  onChange, onCreate,
+  items,
+  getId,
+  getDisplay,
+  getExtras,
+  matchText,
+  matchExact,
+  placeholder,
+  createLabel,
+  getCreateLabelTyping,
+}) {
   const nameFor = useCallback((id) => {
-    if (id === '__nuevo__') return nuevoNombre || '';
-    return loteDisplayName(lotes.find(l => l.id === id));
-  }, [lotes, nuevoNombre]);
+    if (id === '__nuevo__') return newItemName || '';
+    const item = items.find(it => getId(it) === id);
+    return item ? getDisplay(item) : '';
+  }, [items, newItemName, getId, getDisplay]);
 
   const listId = useId();
   const optionId = (i) => `${listId}-opt-${i}`;
@@ -98,16 +114,11 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
   }, [value, nameFor]);
 
   const trimmed = text.trim();
-  const matchesText = (l, t) =>
-    (l.nombreLote || '').toLowerCase().includes(t) ||
-    (l.codigoLote || '').toLowerCase().includes(t);
-  const matchesExact = (l, t) =>
-    (l.nombreLote || '').toLowerCase() === t ||
-    (l.codigoLote || '').toLowerCase() === t;
 
-  const filtered = lotes.filter(l => !text || matchesText(l, text.toLowerCase()));
-  const exactMatch = trimmed ? lotes.find(l => matchesExact(l, trimmed.toLowerCase())) : null;
-  const showCreate = trimmed.length > 0 && !exactMatch;
+  const filtered = items.filter(it => !text || matchText(it, text.toLowerCase()));
+  const exactMatch = trimmed ? items.find(it => matchExact(it, trimmed.toLowerCase())) : null;
+  const showCreate = !!onCreate;
+  const createHasTypedText = trimmed.length > 0 && !exactMatch;
   const optionsCount = filtered.length + (showCreate ? 1 : 0);
 
   const openDropdown = () => {
@@ -119,11 +130,11 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
     setHi(0);
   };
 
-  const selectOption = (lote) => {
-    setText(loteDisplayName(lote));
+  const selectOption = (item) => {
+    setText(getDisplay(item));
     setOpen(false);
     setHi(0);
-    onChange(lote.id, '');
+    onChange(getId(item), '');
   };
 
   const selectCreate = () => {
@@ -143,7 +154,7 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
     const t = e.target.value;
     setText(t);
     openDropdown();
-    // Live-sync the new-lote name while in __nuevo__ mode; otherwise clear stale selection
+    // Live-sync the new-item name while in __nuevo__ mode; otherwise clear stale selection
     if (value === '__nuevo__') onChange('__nuevo__', t.trim());
     else if (value) onChange('', '');
   };
@@ -158,12 +169,12 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
           if (value) onChange('', '');
           return;
         }
-        const existing = lotes.find(l => matchesExact(l, t.toLowerCase()));
+        const existing = items.find(it => matchExact(it, t.toLowerCase()));
         if (existing) {
-          setText(loteDisplayName(existing));
-          onChange(existing.id, '');
+          setText(getDisplay(existing));
+          onChange(getId(existing), '');
         } else if (onCreate) {
-          // Don't auto-promote — user must explicitly pick "Crear lote" to open the modal
+          // Don't auto-promote — user must explicitly pick "+ Crear" to open the modal
           setText(t);
         } else {
           setText(t);
@@ -210,13 +221,13 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
 
   return (
     <>
-      <div className={`psb-lote-field${open ? ' psb-lote-field--open' : ''}`}>
+      <div className={`psb-combo-field${open ? ' psb-combo-field--open' : ''}`}>
         <input
           ref={inputRef}
-          className="aur-input psb-lote-input"
+          className="aur-input psb-combo-input"
           value={text}
           autoComplete="off"
-          placeholder="— Lote —"
+          placeholder={placeholder}
           onChange={handleChange}
           onFocus={openDropdown}
           onBlur={handleBlur}
@@ -227,7 +238,7 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
           aria-controls={listId}
           aria-activedescendant={activeDescendant}
         />
-        <FiChevronDown className="psb-lote-chevron" size={14} aria-hidden="true" />
+        <FiChevronDown className="psb-combo-chevron" size={14} aria-hidden="true" />
       </div>
       {open && optionsCount > 0 && createPortal(
         <ul
@@ -237,19 +248,25 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
           className="psb-combo-dropdown"
           style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
         >
-          {filtered.map((l, i) => (
-            <li
-              key={l.id}
-              id={optionId(i)}
-              role="option"
-              aria-selected={i === hi}
-              className={`psb-combo-option${i === hi ? ' psb-combo-option--active' : ''}`}
-              onMouseDown={() => selectOption(l)}
-              onMouseEnter={() => setHi(i)}
-            >
-              {loteDisplayName(l)}
-            </li>
-          ))}
+          {filtered.map((item, i) => {
+            const extras = getExtras ? getExtras(item) : null;
+            return (
+              <li
+                key={getId(item)}
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === hi}
+                className={`psb-combo-option${i === hi ? ' psb-combo-option--active' : ''}`}
+                onMouseDown={() => selectOption(item)}
+                onMouseEnter={() => setHi(i)}
+              >
+                {getDisplay(item)}
+                {extras && extras.length > 0 && (
+                  <span className="psb-combo-option-extras"> — {extras.join(' · ')}</span>
+                )}
+              </li>
+            );
+          })}
           {showCreate && (
             <li
               key="__create__"
@@ -260,7 +277,7 @@ function LoteCombobox({ value, nuevoNombre = '', onChange, onCreate, lotes }) {
               onMouseDown={selectCreate}
               onMouseEnter={() => setHi(filtered.length)}
             >
-              <FiPlus size={12} /> Crear lote: «{trimmed}»
+              <FiPlus size={12} /> {createHasTypedText ? getCreateLabelTyping(trimmed) : createLabel}
             </li>
           )}
         </ul>,
@@ -341,6 +358,11 @@ function NuevoMaterialModal({ initial, onConfirm, onCancel }) {
               disabled={saving}
             />
           </label>
+        </div>
+        <div className="psb-mat-modal-manage">
+          <Link to="/siembra/materiales" className="psb-manage-mats-link">
+            Gestionar todos los materiales →
+          </Link>
         </div>
         <div className="aur-modal-actions">
           <button
@@ -984,16 +1006,29 @@ function Siembra() {
                   <div className="psb-row-head">
                     <div className="psb-row-lote psb-row-field">
                       <label>Lote</label>
-                      <LoteCombobox
+                      <EntityCombo
                         value={row.loteId}
-                        nuevoNombre={row.loteNuevoNombre}
+                        newItemName={row.loteNuevoNombre}
                         onChange={(id, nuevoNombre) => setRows(prev => {
                           const next = [...prev];
                           next[idx] = { ...next[idx], loteId: id, loteNuevoNombre: nuevoNombre };
                           return next;
                         })}
                         onCreate={(typedText) => openLoteModal(idx, typedText)}
-                        lotes={lotes}
+                        items={lotes}
+                        getId={(l) => l.id}
+                        getDisplay={(l) => loteDisplayName(l)}
+                        matchText={(l, t) =>
+                          (l.nombreLote || '').toLowerCase().includes(t) ||
+                          (l.codigoLote || '').toLowerCase().includes(t)
+                        }
+                        matchExact={(l, t) =>
+                          (l.nombreLote || '').toLowerCase() === t ||
+                          (l.codigoLote || '').toLowerCase() === t
+                        }
+                        placeholder="— Lote —"
+                        createLabel="Nuevo lote"
+                        getCreateLabelTyping={(t) => <>Crear lote: «{t}»</>}
                       />
                     </div>
                     <div className="psb-row-actions">
@@ -1070,40 +1105,40 @@ function Siembra() {
                   </div>
 
                   <div className="psb-row-foot">
-                    <select
-                      className="aur-select psb-row-mat-select"
-                      value={row.materialId}
-                      onChange={e => {
-                        const v = e.target.value;
-                        if (v === '__nuevo__') {
-                          setMatModal({ idx, nombre: '', rango: '', variedad: '', densidad: '' });
-                          return;
-                        }
-                        setRows(prev => {
+                    <div className="psb-row-mat-select">
+                      <EntityCombo
+                        value={row.materialId}
+                        onChange={(id) => setRows(prev => {
                           const next = [...prev];
                           const cur = next[idx];
-                          const mat = materiales.find(m => m.id === v);
+                          const mat = materiales.find(m => m.id === id);
                           const matDensidad = Number(mat?.densidadDefault) || 0;
                           const shouldAdopt = matDensidad > 0 && (!cur.densidad || cur.densidad === DEFAULT_DENSIDAD);
                           next[idx] = {
                             ...cur,
-                            materialId: v,
+                            materialId: id,
                             densidad: shouldAdopt ? String(matDensidad) : cur.densidad,
                           };
                           return next;
-                        });
-                      }}
-                      aria-label="Material"
-                    >
-                      <option value="">Material</option>
-                      {materiales.map(m => {
-                        const dens = Number(m.densidadDefault) || 0;
-                        const extras = [m.rangoPesos, m.variedad, dens > 0 ? `${dens} pl/ha` : null].filter(Boolean);
-                        const suffix = extras.length ? ` — ${extras.join(' · ')}` : '';
-                        return <option key={m.id} value={m.id}>{m.nombre}{suffix}</option>;
-                      })}
-                      <option value="__nuevo__">+ Nuevo material</option>
-                    </select>
+                        })}
+                        onCreate={(typedText) => setMatModal({ idx, nombre: typedText, rango: '', variedad: '', densidad: '' })}
+                        items={materiales}
+                        getId={(m) => m.id}
+                        getDisplay={(m) => m.nombre}
+                        getExtras={(m) => {
+                          const dens = Number(m.densidadDefault) || 0;
+                          return [m.rangoPesos, m.variedad, dens > 0 ? `${dens} pl/ha` : null].filter(Boolean);
+                        }}
+                        matchText={(m, t) =>
+                          (m.nombre || '').toLowerCase().includes(t) ||
+                          (m.variedad || '').toLowerCase().includes(t)
+                        }
+                        matchExact={(m, t) => (m.nombre || '').toLowerCase() === t}
+                        placeholder="— Material —"
+                        createLabel="Nuevo material"
+                        getCreateLabelTyping={(t) => <>Crear material: «{t}»</>}
+                      />
+                    </div>
                     <label
                       className={`aur-toggle${!Number(row.plantas) ? ' aur-toggle--disabled' : ''}`}
                     >
@@ -1133,15 +1168,12 @@ function Siembra() {
           </section>
 
           <footer className="psb-form-actions">
-            <Link to="/siembra/materiales" className="psb-manage-mats-link">
-              Gestionar materiales
-            </Link>
             <button
               type="submit"
-              className="aur-btn-pill"
+              className="aur-btn-pill aur-btn-pill--sm"
               disabled={saving || scanning}
             >
-              {saving ? 'Guardando…' : 'Guardar'}
+              <FiSave size={14} /> {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </footer>
         </form>
