@@ -60,6 +60,13 @@ const ACTIONS = Object.freeze({
   // not audited to keep the stream focused on security + money + loss.
   PRODUCTO_DELETE: 'producto.delete',
   LOTE_DELETE: 'lote.delete',
+  // Paquetes de aplicaciones. DELETE rompe referencias en lotes/grupos
+  // (forensic: quién lo borró, qué nombre tenía, cuántas actividades se
+  // perdieron). Archive/unarchive son reversibles pero merecen rastro porque
+  // condicionan qué paquetes aparecen al asignar a nuevos lotes/grupos.
+  PACKAGE_DELETE: 'package.delete',
+  PACKAGE_ARCHIVE: 'package.archive',
+  PACKAGE_UNARCHIVE: 'package.unarchive',
   SIEMBRA_DELETE: 'siembra.delete',
   SIEMBRA_BLOCK_REOPEN: 'siembra.block.reopen',
   // Symmetric with REOPEN — emitted whenever a (lote, bloque) transitions
