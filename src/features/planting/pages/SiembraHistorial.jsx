@@ -661,6 +661,7 @@ function SiembraHistorial() {
             trailingCell={trailingCell}
             rowClassName={r => r.cerrado ? 'row-cerrado' : ''}
             onDisplayDataChange={setDisplayData}
+            emptyIcon={registros.length === 0 ? null : undefined}
             emptyText={
               registros.length === 0
                 ? 'Aún no hay registros que mostrar. Crea el primero en "Nuevo Registro"'
