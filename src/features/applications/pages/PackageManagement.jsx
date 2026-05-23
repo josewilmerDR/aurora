@@ -2036,6 +2036,12 @@ function PackageManagement() {
           {(() => {
             const renderItem = (pkg, isArchived) => {
               const itemActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
+              // Avatar con el mismo hash determinista que el carrusel mobile
+              // para que un paquete se vea con el mismo color en ambos sitios.
+              // Cuando el item está activo, CSS pinta el avatar verde Aurora
+              // (igual que .pkg-bubble--active en el carrusel) y descartamos
+              // el style inline.
+              const avatarStyle = itemActive ? undefined : pickPkgAvatarStyle(pkg.nombrePaquete);
               return (
                 <li
                   key={pkg.id}
@@ -2045,6 +2051,13 @@ function PackageManagement() {
                     handleSelectPkg(pkg);
                   })}
                 >
+                  <span
+                    className="pkg-list-avatar"
+                    style={avatarStyle ? { background: avatarStyle.bg, color: avatarStyle.fg } : undefined}
+                    aria-hidden="true"
+                  >
+                    {getPkgInitials(pkg.nombrePaquete)}
+                  </span>
                   <div className="lote-list-info">
                     <span className="lote-list-code">
                       {pkg.nombrePaquete}
