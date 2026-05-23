@@ -50,7 +50,11 @@
 .aur-empty-title {
   font-size: var(--aur-fs-body);
   font-weight: 500;
-  color: var(--aur-text);
+  /* aur-text-2 (apagado) en vez de aur-text (encendido): un empty state
+     vive dentro de una sección que ya tiene jerarquía visual propia; el
+     mensaje informa la ausencia de datos sin competir con el resto de
+     la UI. Es el estándar (Apple HIG, Material) para empty states. */
+  color: var(--aur-text-2);
   letter-spacing: -0.01em;
   max-width: 380px;
 }
