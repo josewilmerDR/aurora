@@ -2059,7 +2059,7 @@ function PackageManagement() {
                     {getPkgInitials(pkg.nombrePaquete)}
                   </span>
                   <div className="lote-list-info">
-                    <span className="lote-list-code">
+                    <span className="lote-list-code" title={pkg.nombrePaquete}>
                       {pkg.nombrePaquete}
                       {isArchived && <span className="pkg-list-archived-badge" title="Paquete archivado">Archivado</span>}
                     </span>
@@ -2070,34 +2070,39 @@ function PackageManagement() {
                         `${pkg.activities.length} act.`,
                       ].filter(Boolean).join(' · ')}
                     </span>
+                    {(() => {
+                      // Costo como tercera línea dentro de info. Antes vivía
+                      // en una columna a la derecha pero, en paneles angostos,
+                      // esa columna se llevaba ~90px y empujaba el nombre a
+                      // partirse en pedazos. Ahora el nombre tiene todo el
+                      // ancho de la columna (truncado con … si es muy largo)
+                      // y el costo queda debajo del meta con tipografía
+                      // diferenciada — sigue prominent pero ya no compite por
+                      // espacio horizontal con el nombre.
+                      const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
+                      if (costo.totals.length === 0) return null;
+                      return (
+                        <div
+                          className="pkg-list-cost-row"
+                          title={
+                            costo.hasMissingPrice
+                              ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                              : 'Costo total del paquete por hectárea'
+                          }
+                        >
+                          {costo.totals.map(([mon, total]) => (
+                            <span key={mon} className="pkg-list-cost-amount">
+                              {total.toFixed(2)}
+                              <span className="pkg-list-cost-unit">{mon}/Ha</span>
+                            </span>
+                          ))}
+                          {costo.hasMissingPrice && (
+                            <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
-                  {(() => {
-                    // Costo en columna propia a la derecha (entre info y
-                    // chevron). Multi-moneda stackea verticalmente para que
-                    // los montos se alineen entre filas con tabular-nums.
-                    const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
-                    if (costo.totals.length === 0) return null;
-                    return (
-                      <div
-                        className="pkg-list-cost-col"
-                        title={
-                          costo.hasMissingPrice
-                            ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
-                            : 'Costo total del paquete por hectárea'
-                        }
-                      >
-                        {costo.totals.map(([mon, total]) => (
-                          <span key={mon} className="pkg-list-cost-amount">
-                            {total.toFixed(2)}
-                            <span className="pkg-list-cost-unit">{mon}/Ha</span>
-                          </span>
-                        ))}
-                        {costo.hasMissingPrice && (
-                          <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
-                        )}
-                      </div>
-                    );
-                  })()}
                   <FiChevronRight size={14} className="lote-list-arrow" />
                 </li>
               );

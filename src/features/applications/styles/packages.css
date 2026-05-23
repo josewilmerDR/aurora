@@ -311,7 +311,7 @@
    por si se mezclan en el futuro). */
 .pkg-list-item--archived .lote-list-code,
 .pkg-list-item--archived .lote-list-name,
-.pkg-list-item--archived .pkg-list-cost-col,
+.pkg-list-item--archived .pkg-list-cost-row,
 .pkg-list-item--archived .pkg-list-avatar {
   opacity: 0.55;
 }
@@ -1244,8 +1244,16 @@ input.fld-error-input,
   min-width: 0;
 }
 .pkg-page-wrapper .lote-list-code {
-  white-space: normal;
-  word-break: break-word;
+  /* Una sola línea, trunca con … si excede. Antes era word-break:
+     break-word (permitía wrap a múltiples líneas), pero con la columna
+     angosta del panel + el costo abajo, el nombre se partía en pedacitos
+     mid-word ("Paque/te de/prueb/a 1") — ilegible. El title atributo en
+     el span deja al usuario ver el nombre completo on hover. */
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Avatar pequeño del item de lista. Mismas tokens visuales que
@@ -1275,27 +1283,34 @@ input.fld-error-input,
   color: var(--aurora-green);
 }
 
-/* Columna de costo a la derecha (entre info y chevron). Antes vivía como
-   sufijo del meta-line junto a tipo/etapa/N act., mismo tamaño y peso —
-   se perdía el costo entre el resto. Ahora tiene su propia columna con
-   tipografía diferenciada (peso 600, tabular-nums) y el verde Aurora del
-   accent para que sea la información que más resalta de cada row. Multi-
-   moneda stackea verticalmente para alinear los montos entre filas. */
-.pkg-list-cost-col {
-  flex-shrink: 0;
+/* Costo como tercera línea dentro del bloque de info, debajo del meta.
+   Antes vivía en columna propia a la derecha pero, en paneles angostos,
+   esa columna se llevaba ~90px y empujaba el nombre a partirse en
+   pedazos mid-word. Ahora ocupa una fila completa con tipografía
+   diferenciada (peso 600, verde Aurora, tabular-nums) que la mantiene
+   visible y comparable entre filas. Multi-moneda se separa con `·`. */
+.pkg-list-cost-row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  text-align: right;
+  align-items: baseline;
+  gap: 8px;
   font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+  flex-wrap: wrap;
 }
 .pkg-list-cost-amount {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--aurora-green);
   line-height: 1.15;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+}
+.pkg-list-cost-amount + .pkg-list-cost-amount::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--aur-text-3, #6b819b);
+  font-weight: 400;
 }
 .pkg-list-cost-unit {
   margin-left: 3px;
@@ -1304,6 +1319,38 @@ input.fld-error-input,
   color: var(--aur-text-3, #6b819b);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* ── Landing view (sin paquete elegido): single-row layout ─────────────────────
+   En la vista de aterrizaje el panel de lista ocupa el ancho completo de la
+   página, no la sidebar de 260px. Apilar nombre/meta/costo en 3 líneas dejaba
+   el 80% del ancho vacío a la derecha. En esta vista los items pasan a una
+   sola fila — el costo se va al extremo derecho con margin-left:auto, el
+   nombre absorbe el espacio sobrante y trunca con … si es muy largo.
+
+   Scope: `:not(.pkg-page--selected)` desactiva esta regla apenas se abre el
+   hub o form (donde el panel se contrae a 260px y necesitamos el stack
+   apilado). Mobile (≤768px) tampoco lo aplica — ahí el panel también es
+   ancho pero la pantalla del dispositivo es angosta, así que el stack vertical
+   se ve mejor. */
+@media (min-width: 769px) {
+  .pkg-page-wrapper:not(.pkg-page--selected) .lote-list-info {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+  }
+  .pkg-page-wrapper:not(.pkg-page--selected) .lote-list-code {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .pkg-page-wrapper:not(.pkg-page--selected) .lote-list-name {
+    flex-shrink: 0;
+  }
+  .pkg-page-wrapper:not(.pkg-page--selected) .pkg-list-cost-row {
+    margin-top: 0;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
