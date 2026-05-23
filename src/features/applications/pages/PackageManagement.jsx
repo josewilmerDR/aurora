@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw, FiBookmark } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
@@ -513,6 +512,11 @@ function PackageManagement() {
   const [pendingDeletePkg, setPendingDeletePkg] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
   const [pendingArchivePkg, setPendingArchivePkg] = useState(null); // { id, nombrePaquete, lotesCount, gruposCount }
+  // Modal compacto para crear plantilla desde una actividad sin salir del
+  // form del paquete. Pre-llena desde la actividad si tiene datos válidos.
+  // Forma: { activityIndex, nombre, responsableId, includeProductos } | null
+  const [templateModal, setTemplateModal] = useState(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -917,6 +921,60 @@ function PackageManagement() {
     markDirty();
   };
 
+  // ── Crear plantilla inline desde el form del paquete ────────────────────────
+  // El flujo de /tasks para crear plantillas tiene muchos campos extra
+  // (fecha, lote, bloque, etc.) que no aplican acá. Este modal compacto usa
+  // la misma ruta `POST /api/task-templates` pero solo pide lo esencial:
+  // nombre + responsable + (opcional) productos copiados de la actividad
+  // actual. Si la actividad ya está rellena, crear plantilla es un click más.
+  const openTemplateModal = (activityIndex) => {
+    const act = formData.activities[activityIndex] || {};
+    const hasProductos = (act.productos || []).length > 0;
+    setTemplateModal({
+      activityIndex,
+      nombre: (act.name || '').trim(),
+      responsableId: act.responsableId || '',
+      includeProductos: hasProductos, // si la actividad tiene productos, default a incluirlos
+    });
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateModal) return;
+    const nombre = templateModal.nombre.trim();
+    if (!nombre) return;
+    setSavingTemplate(true);
+    try {
+      const act = formData.activities[templateModal.activityIndex] || {};
+      const productosPayload = templateModal.includeProductos
+        ? (act.productos || []).map(p => ({
+            productoId: p.productoId,
+            cantidad: Number(p.cantidadPorHa) || 0,
+          }))
+        : [];
+      const res = await apiFetch('/api/task-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          responsableId: templateModal.responsableId || '',
+          productos: productosPayload,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw body;
+      }
+      const created = await res.json();
+      setPlantillas(prev => [...prev, created]);
+      showToast(`Plantilla "${nombre}" creada.`);
+      setTemplateModal(null);
+    } catch (body) {
+      showToast(translateApiError(body, 'No se pudo crear la plantilla.'), 'error');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   const handleEdit = (pkg) => {
     const normalizedActivities = (pkg.activities || [])
       .map(a => ({ type: 'notificacion', productos: [], ...a }))
@@ -1299,6 +1357,103 @@ function PackageManagement() {
           }}
           onCancel={() => setPendingArchivePkg(null)}
         />
+      )}
+
+      {templateModal && createPortal(
+        <div className="aur-modal-backdrop" onClick={() => !savingTemplate && setTemplateModal(null)}>
+          <div
+            className="aur-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pkg-template-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="aur-modal-header">
+              <span className="aur-modal-icon"><FiBookmark size={16} /></span>
+              <h3 className="aur-modal-title" id="pkg-template-modal-title">Nueva plantilla</h3>
+              <button
+                type="button"
+                className="aur-icon-btn aur-modal-close"
+                onClick={() => setTemplateModal(null)}
+                aria-label="Cerrar"
+                disabled={savingTemplate}
+              >
+                <FiX size={16} />
+              </button>
+            </div>
+            <div className="aur-modal-content">
+              <div className="pkg-template-fields">
+                <label className="pkg-template-field">
+                  <span>Nombre <span aria-hidden="true">*</span></span>
+                  <input
+                    className="aur-input"
+                    value={templateModal.nombre}
+                    placeholder="Ej. Aplicación inicial postforza"
+                    maxLength={ACT_NAME_MAX}
+                    onChange={e => setTemplateModal(prev => ({ ...prev, nombre: e.target.value }))}
+                    autoFocus
+                    disabled={savingTemplate}
+                  />
+                </label>
+                <label className="pkg-template-field">
+                  <span>Responsable</span>
+                  <select
+                    className="aur-select"
+                    value={templateModal.responsableId}
+                    onChange={e => setTemplateModal(prev => ({ ...prev, responsableId: e.target.value }))}
+                    disabled={savingTemplate}
+                  >
+                    <option value="">Sin asignar</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                  </select>
+                </label>
+                {(() => {
+                  const act = formData.activities[templateModal.activityIndex] || {};
+                  const prods = act.productos || [];
+                  if (prods.length === 0) {
+                    return (
+                      <p className="pkg-template-hint">
+                        Esta actividad no tiene productos. La plantilla se guardará solo con nombre y responsable.
+                      </p>
+                    );
+                  }
+                  return (
+                    <label className="pkg-template-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={templateModal.includeProductos}
+                        onChange={e => setTemplateModal(prev => ({ ...prev, includeProductos: e.target.checked }))}
+                        disabled={savingTemplate}
+                      />
+                      <span>
+                        Incluir los {prods.length === 1 ? 'productos' : `${prods.length} productos`} de esta actividad
+                      </span>
+                    </label>
+                  );
+                })()}
+              </div>
+            </div>
+            <div className="aur-modal-actions">
+              <button
+                type="button"
+                className="aur-btn-text"
+                onClick={() => setTemplateModal(null)}
+                disabled={savingTemplate}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={handleSaveTemplate}
+                disabled={!templateModal.nombre.trim() || savingTemplate}
+              >
+                {savingTemplate ? 'Creando…' : 'Crear plantilla'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {pendingNavAction && (
@@ -1751,33 +1906,25 @@ function PackageManagement() {
                             <option value="">Calibración</option>
                             {calibraciones.map(cal => <option key={cal.id} value={cal.id}>{cal.nombre}</option>)}
                           </select>
-                          {plantillas.length > 0 ? (
-                            <select
-                              className="aur-chip aur-chip--ghost"
-                              value=""
-                              onChange={(e) => {
-                                if (e.target.value) aplicarPlantillaAActividad(index, e.target.value);
-                              }}
-                              aria-label="Cargar desde plantilla"
-                            >
-                              <option value="">+ Plantilla</option>
-                              {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                            </select>
-                          ) : (
-                            // Sin plantillas: link estilo chip que navega a
-                            // /tasks donde se crean (guardando una tarea como
-                            // plantilla). El draft autosave preserva el form
-                            // que el usuario está editando, así no pierde
-                            // trabajo al ir a crear la plantilla.
-                            <Link
-                              to="/tasks"
-                              className="aur-chip aur-chip--ghost pkg-chip-empty"
-                              title="Las plantillas guardan combinaciones de nombre + productos reutilizables entre actividades. Aún no tienes ninguna — se crean en el módulo de Tareas guardando una tarea como reutilizable."
-                              aria-label="Sin plantillas — ir a Tareas para crear una"
-                            >
-                              + Plantilla
-                            </Link>
-                          )}
+                          <select
+                            className="aur-chip aur-chip--ghost"
+                            value=""
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === '__create__') openTemplateModal(index);
+                              else if (v) aplicarPlantillaAActividad(index, v);
+                            }}
+                            aria-label="Plantillas de aplicaciones"
+                          >
+                            <option value="">+ Plantilla</option>
+                            {plantillas.length === 0 && (
+                              <option value="" disabled>No hay plantillas de aplicaciones</option>
+                            )}
+                            {plantillas.map(p => (
+                              <option key={p.id} value={p.id}>{p.nombre}</option>
+                            ))}
+                            <option value="__create__">+ Crear plantilla…</option>
+                          </select>
                         </div>
                       </div>
 
