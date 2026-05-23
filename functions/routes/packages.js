@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE, writeFeedEvent } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
@@ -112,6 +112,19 @@ router.post('/api/packages', authenticate, requireSupervisor, rateLimit('package
     }
     const pkg = { ...validated.data, fincaId: req.fincaId };
     const docRef = await db.collection('packages').add(pkg);
+
+    // Feed event: paquete creado. Para que aparezca en el muro de actividad
+    // junto con altas de lotes / siembras / cosechas. Fire-and-forget al
+    // estilo del resto de callers (writeFeedEvent silencia errores adentro).
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      uid: req.uid,
+      userEmail: req.userEmail,
+      eventType: 'package_created',
+      activityType: 'package',
+      title: `Paquete creado: "${pkg.nombrePaquete}"`,
+    });
+
     res.status(201).json({ id: docRef.id, ...pkg });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create package.', 500);
@@ -161,6 +174,18 @@ router.delete('/api/packages/:id', authenticate, requireSupervisor, rateLimit('p
         activitiesCount: Array.isArray(prevData.activities) ? prevData.activities.length : 0,
       },
       severity: SEVERITY.WARNING,
+    });
+
+    // Feed event: paquete eliminado. Complementa al audit log — éste va al
+    // muro de actividad visible para los usuarios, no a la consola de
+    // auditoría que solo ve admin.
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      uid: req.uid,
+      userEmail: req.userEmail,
+      eventType: 'package_deleted',
+      activityType: 'package',
+      title: `Paquete eliminado: "${prevData.nombrePaquete || id}"`,
     });
 
     res.status(200).json({ ok: true });
