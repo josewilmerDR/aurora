@@ -8,6 +8,47 @@ import AuroraField, { TextInput, Textarea } from '../../../components/AuroraFiel
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
+// ── Draft persistence ────────────────────────────────────────────────────────
+// El borrador se guarda solo en modo "crear" — al editar un paquete existente
+// no queremos que cambios a medio terminar se conviertan en un "draft global"
+// que se restauraría como nuevo paquete en el siguiente montaje. Mismo criterio
+// que LoteManagement: una sola key por dominio, scope "nuevo".
+const PKG_DRAFT_LS_KEY = 'aurora_draft_paquete-nuevo';
+const PKG_DRAFT_SS_KEY = 'aurora_draftActive_paquete-nuevo';
+
+function loadPackageDraft() {
+  try { return JSON.parse(localStorage.getItem(PKG_DRAFT_LS_KEY)); } catch { return null; }
+}
+function savePackageDraft(data) {
+  try {
+    localStorage.setItem(PKG_DRAFT_LS_KEY, JSON.stringify(data));
+    sessionStorage.setItem(PKG_DRAFT_SS_KEY, '1');
+    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+  } catch {}
+}
+function clearPackageDraft() {
+  try {
+    localStorage.removeItem(PKG_DRAFT_LS_KEY);
+    sessionStorage.removeItem(PKG_DRAFT_SS_KEY);
+    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+  } catch {}
+}
+function isPackageDraftMeaningful(d) {
+  if (!d) return false;
+  if ((d.nombrePaquete || '').trim()) return true;
+  if ((d.descripcion || '').trim()) return true;
+  if (d.tipoCosecha) return true;
+  if (d.etapaCultivo) return true;
+  if (d.tecnicoResponsable) return true;
+  return (d.activities || []).some(a =>
+    (a?.name || '').trim() ||
+    (a?.day !== '' && a?.day != null) ||
+    a?.responsableId ||
+    a?.calibracionId ||
+    (a?.productos || []).length > 0
+  );
+}
+
 // ── Mensaje específico de validación del form ────────────────────────────────
 // Convierte el objeto `formErrors` en un toast accionable: si hay un solo
 // error, lo nombra; si hay varios, separa cuántos son de campos top-level
@@ -311,6 +352,53 @@ function PackageManagement() {
     apiFetch('/api/calibraciones').then(res => res.json()).then(setCalibraciones).catch(console.error);
   }, []);
 
+  // Restaurar borrador al montar: si hay datos persistidos de una sesión
+  // anterior, abrir el form en modo "nuevo" con esos datos. Mismo patrón que
+  // LoteManagement — la badge en el sidebar avisa que hay algo pendiente.
+  useEffect(() => {
+    const draft = loadPackageDraft();
+    if (!isPackageDraftMeaningful(draft)) {
+      clearPackageDraft();
+      return;
+    }
+    const activities = Array.isArray(draft.activities) ? draft.activities : [];
+    setFormData({
+      id: null,
+      nombrePaquete: draft.nombrePaquete || '',
+      descripcion: draft.descripcion || '',
+      tipoCosecha: draft.tipoCosecha || '',
+      etapaCultivo: draft.etapaCultivo || '',
+      tecnicoResponsable: draft.tecnicoResponsable || '',
+      activities,
+    });
+    setIsEditing(false);
+    setIsFormOpen(true);
+    setSelectedPkg(null);
+    setExpandedActivities(new Set(activities.map((_, i) => i)));
+    setIsDirty(false);
+    try {
+      sessionStorage.setItem(PKG_DRAFT_SS_KEY, '1');
+      window.dispatchEvent(new CustomEvent('aurora-draft-change'));
+    } catch {}
+  }, []);
+
+  // Autoguardado del borrador en cada cambio del form de creación. Excluye
+  // edit-mode (no queremos que un PUT a medio terminar se "rescate" como nuevo
+  // paquete) y la vista hub (selectedPkg !== null), que no tiene form.
+  useEffect(() => {
+    if (isEditing || !isFormOpen || selectedPkg) return;
+    const snapshot = {
+      nombrePaquete: formData.nombrePaquete,
+      descripcion: formData.descripcion,
+      tipoCosecha: formData.tipoCosecha,
+      etapaCultivo: formData.etapaCultivo,
+      tecnicoResponsable: formData.tecnicoResponsable,
+      activities: formData.activities,
+    };
+    if (isPackageDraftMeaningful(snapshot)) savePackageDraft(snapshot);
+    else clearPackageDraft();
+  }, [formData, isEditing, isFormOpen, selectedPkg]);
+
   // Atajo Ctrl/Cmd + S → enviar el form mientras se edita/crea un paquete.
   // Solo se activa cuando el form está abierto en modo crear/editar
   // (no en la vista de hub, donde no hay form).
@@ -540,6 +628,7 @@ function PackageManagement() {
     setExpandedActivities(new Set(normalizedActivities.map((_, i) => i)));
     setFormErrors({});
     setIsDirty(false);
+    clearPackageDraft();
     window.scrollTo(0, 0);
   };
 
@@ -552,6 +641,7 @@ function PackageManagement() {
     setFormErrors({});
     setIsDirty(false);
     setIsSubmitting(false);
+    clearPackageDraft();
   };
 
   const handleNew = () => {
