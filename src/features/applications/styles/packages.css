@@ -311,7 +311,7 @@
    por si se mezclan en el futuro). */
 .pkg-list-item--archived .lote-list-code,
 .pkg-list-item--archived .lote-list-name,
-.pkg-list-item--archived .pkg-list-total-cost,
+.pkg-list-item--archived .pkg-list-cost-col,
 .pkg-list-item--archived .pkg-list-avatar {
   opacity: 0.55;
 }
@@ -1227,25 +1227,12 @@ input.fld-error-input,
   background-color: rgba(51, 255, 153, 0.08);
 }
 
-/* ── Total cost en la list-item del lote-list-panel ──────────────────────── */
-.pkg-list-total-cost {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--aurora-green);
-  opacity: 0.8;
-}
-
-/* ── List-item en dos líneas (override sobre legacy-globals.css) ─────────────
-   El default global (.lote-list-info: row) sirve para LoteManagement pero aquí
-   se rompe: el detalle (tipo · etapa · N act. · costo) es más largo y se
-   pisaba con el nombre. Forzamos columna en la página de paquetes y damos a
-   `.pkg-list-meta-line` su propio row interno para que detalles + costo
-   compartan la línea 2. */
-/* Con el avatar agregado, el `<li>` pasa de 2 a 3 hijos
-   (avatar | info | arrow). El default global usa `justify-content:
-   space-between` que con 3 hijos genera gaps raros — switcheamos a layout
-   gap-based con info como flex:1 para que la flecha quede a la derecha y
-   el avatar pegado a la izquierda sin huecos vacíos. */
+/* ── List-item layout (override sobre legacy-globals.css) ─────────────────────
+   El item tiene 3 ó 4 hijos: avatar | info | (cost) | arrow. El cost es
+   condicional — paquetes sin productos no lo renderizan. Layout gap-based
+   con `flex:1` en info para que ocupe el espacio variable y el resto quede
+   alineado a sus extremos. El default global con `justify-content:
+   space-between` no funciona con N>2 hijos (genera gaps raros entre cada par). */
 .pkg-page-wrapper .lote-list-item {
   gap: 10px;
 }
@@ -1287,13 +1274,36 @@ input.fld-error-input,
   border-color: var(--aurora-green);
   color: var(--aurora-green);
 }
-.pkg-page-wrapper .pkg-list-meta-line {
+
+/* Columna de costo a la derecha (entre info y chevron). Antes vivía como
+   sufijo del meta-line junto a tipo/etapa/N act., mismo tamaño y peso —
+   se perdía el costo entre el resto. Ahora tiene su propia columna con
+   tipografía diferenciada (peso 600, tabular-nums) y el verde Aurora del
+   accent para que sea la información que más resalta de cada row. Multi-
+   moneda stackea verticalmente para alinear los montos entre filas. */
+.pkg-list-cost-col {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pkg-list-cost-amount {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--aurora-green);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.pkg-list-cost-unit {
+  margin-left: 3px;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--aur-text-3, #6b819b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
