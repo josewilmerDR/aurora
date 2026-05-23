@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db } = require('../lib/firebase');
+const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
@@ -116,6 +116,42 @@ router.delete('/api/packages/:id', authenticate, async (req, res) => {
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete package.', 500);
+  }
+});
+
+// Archive / unarchive: solo flip de un timestamp en `archivedAt`. NO afecta
+// referencias existentes (lotes/grupos que apuntan al paquete siguen
+// resolviendo) — distinto de DELETE que rompe esas referencias. La UI usa
+// archivedAt como toggle: presente → archivado; ausente → activo.
+router.post('/api/packages/:id/archive', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('packages', id, req.fincaId);
+    if (!ownership.ok) {
+      return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    }
+    await db.collection('packages').doc(id).update({
+      archivedAt: FieldValue.serverTimestamp(),
+    });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to archive package.', 500);
+  }
+});
+
+router.post('/api/packages/:id/unarchive', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ownership = await verifyOwnership('packages', id, req.fincaId);
+    if (!ownership.ok) {
+      return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    }
+    await db.collection('packages').doc(id).update({
+      archivedAt: FieldValue.delete(),
+    });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to unarchive package.', 500);
   }
 });
 

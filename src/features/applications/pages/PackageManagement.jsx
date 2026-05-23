@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
@@ -475,19 +475,31 @@ function PackageManagement() {
   const [filterEtapaCultivo, setFilterEtapaCultivo] = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
 
+  // Sección de archivados colapsada por defecto. Cuando se expande, la lista
+  // muestra los paquetes con `archivedAt` debajo de los activos.
+  const [showArchived, setShowArchived] = useState(false);
+
   const hasActiveCategoryFilter = !!(filterTipoCosecha || filterEtapaCultivo);
   const hasAnyFilter = hasActiveCategoryFilter || !!searchQuery.trim();
 
-  const filteredPackages = useMemo(() => {
+  // applyFilters reutilizable para activos y archivados — antes era una sola
+  // lista, ahora se split en dos para que carousel/list panel los manejen
+  // separados sin duplicar la lógica de filtro.
+  const applyFilters = useCallback((list) => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q && !filterTipoCosecha && !filterEtapaCultivo) return packages;
-    return packages.filter(pkg => {
+    if (!q && !filterTipoCosecha && !filterEtapaCultivo) return list;
+    return list.filter(pkg => {
       if (q && !(pkg.nombrePaquete || '').toLowerCase().includes(q)) return false;
       if (filterTipoCosecha && pkg.tipoCosecha !== filterTipoCosecha) return false;
       if (filterEtapaCultivo && pkg.etapaCultivo !== filterEtapaCultivo) return false;
       return true;
     });
-  }, [packages, searchQuery, filterTipoCosecha, filterEtapaCultivo]);
+  }, [searchQuery, filterTipoCosecha, filterEtapaCultivo]);
+
+  const activePackages = useMemo(() => packages.filter(p => !p.archivedAt), [packages]);
+  const archivedPackages = useMemo(() => packages.filter(p => p.archivedAt), [packages]);
+  const filteredActivePackages = useMemo(() => applyFilters(activePackages), [activePackages, applyFilters]);
+  const filteredArchivedPackages = useMemo(() => applyFilters(archivedPackages), [archivedPackages, applyFilters]);
 
   const clearCategoryFilters = () => {
     setFilterTipoCosecha('');
@@ -1050,6 +1062,38 @@ function PackageManagement() {
     }
   };
 
+  // Archivar = setear archivedAt sin tocar referencias existentes. El paquete
+  // sigue resolviendo desde lotes/grupos que lo referencian — solo desaparece
+  // de la lista activa. Desarchivar revierte. Distinto de DELETE, que rompe
+  // las referencias.
+  const handleArchive = async (pkg) => {
+    try {
+      const res = await apiFetch(`/api/packages/${pkg.id}/archive`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      // Optimistic update local: marca el paquete como archivado en memoria.
+      // El timestamp exacto se actualiza con el refetch siguiente.
+      setPackages(prev => prev.map(p => p.id === pkg.id ? { ...p, archivedAt: new Date().toISOString() } : p));
+      showToast(`Paquete "${pkg.nombrePaquete}" archivado.`);
+    } catch {
+      showToast('Error al archivar el paquete.', 'error');
+    }
+  };
+
+  const handleUnarchive = async (pkg) => {
+    try {
+      const res = await apiFetch(`/api/packages/${pkg.id}/unarchive`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      setPackages(prev => prev.map(p => {
+        if (p.id !== pkg.id) return p;
+        const { archivedAt, ...rest } = p;
+        return rest;
+      }));
+      showToast(`Paquete "${pkg.nombrePaquete}" reactivado.`);
+    } catch {
+      showToast('Error al desarchivar el paquete.', 'error');
+    }
+  };
+
   const handleDeleteClick = async (pkg) => {
     try {
       const [lotesData, gruposData] = await Promise.all([
@@ -1300,7 +1344,9 @@ function PackageManagement() {
       {/* ── Mobile sticky carousel ── */}
       {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
-          {filteredPackages.map(pkg => {
+          {/* Carrusel mobile = solo activos. Archivados se acceden desde el
+              panel de lista (visible en mobile cuando no hay paquete elegido). */}
+          {filteredActivePackages.map(pkg => {
             const isActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
             // Cuando la burbuja está activa, dejamos que la regla CSS
             // .pkg-bubble--active .pkg-bubble-avatar pinte el verde Aurora.
@@ -1721,6 +1767,19 @@ function PackageManagement() {
           <button className="lote-hub-back" onClick={resetForm}>
             <FiArrowLeft size={13} /> Todos los paquetes
           </button>
+          {selectedPkg.archivedAt && (
+            <div className="pkg-archived-banner" role="status">
+              <FiArchive size={13} aria-hidden="true" />
+              <span>Este paquete está archivado. Los lotes y grupos que ya lo referencian siguen funcionando, pero no aparece al elegir paquete para uno nuevo.</span>
+              <button
+                type="button"
+                className="pkg-archived-banner-action"
+                onClick={() => handleUnarchive(selectedPkg)}
+              >
+                Desarchivar
+              </button>
+            </div>
+          )}
           <div className="hub-header">
             <div className="hub-title-block">
               <h2 className="hub-lote-code">{selectedPkg.nombrePaquete}</h2>
@@ -1753,7 +1812,16 @@ function PackageManagement() {
               <button onClick={() => handleDuplicate(selectedPkg)} className="icon-btn" title="Duplicar paquete">
                 <FiCopy size={16} />
               </button>
-              <button onClick={() => handleDeleteClick(selectedPkg)} className="icon-btn delete" title="Eliminar paquete">
+              {selectedPkg.archivedAt ? (
+                <button onClick={() => handleUnarchive(selectedPkg)} className="icon-btn" title="Desarchivar paquete">
+                  <FiRotateCcw size={16} />
+                </button>
+              ) : (
+                <button onClick={() => handleArchive(selectedPkg)} className="icon-btn" title="Archivar paquete">
+                  <FiArchive size={16} />
+                </button>
+              )}
+              <button onClick={() => handleDeleteClick(selectedPkg)} className="icon-btn delete" title="Eliminar permanentemente">
                 <FiTrash2 size={16} />
               </button>
             </div>
@@ -1886,65 +1954,114 @@ function PackageManagement() {
               )}
             </div>
           )}
-          {packages.length === 0 ? (
-            <p className="empty-state">
-              Aún no hay registros que mostrar. Crea el primero en "Nuevo Paquete".
-            </p>
-          ) : filteredPackages.length === 0 ? (
-            <p className="empty-state">
-              Sin resultados para los filtros aplicados.{' '}
-              <button type="button" className="aur-btn-text pkg-list-clear-link" onClick={clearAllFilters}>
-                Limpiar filtros
-              </button>
-            </p>
-          ) : (
-          <ul className="lote-list">
-            {filteredPackages.map(pkg => (
-              <li
-                key={pkg.id}
-                className={`lote-list-item${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' active' : ''}`}
-                onClick={() => guardedNav(() => {
-                  if (selectedPkg?.id === pkg.id && !isEditing) { resetForm(); return; }
-                  handleSelectPkg(pkg);
-                })}
-              >
-                <div className="lote-list-info">
-                  <span className="lote-list-code">{pkg.nombrePaquete}</span>
-                  <div className="pkg-list-meta-line">
-                    <span className="lote-list-name">
-                      {[
-                        pkg.tipoCosecha,
-                        pkg.etapaCultivo && pkg.etapaCultivo !== 'N/A' ? pkg.etapaCultivo : null,
-                        `${pkg.activities.length} act.`,
-                      ].filter(Boolean).join(' · ')}
+          {(() => {
+            const renderItem = (pkg, isArchived) => {
+              const itemActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
+              return (
+                <li
+                  key={pkg.id}
+                  className={`lote-list-item${itemActive ? ' active' : ''}${isArchived ? ' pkg-list-item--archived' : ''}`}
+                  onClick={() => guardedNav(() => {
+                    if (selectedPkg?.id === pkg.id && !isEditing) { resetForm(); return; }
+                    handleSelectPkg(pkg);
+                  })}
+                >
+                  <div className="lote-list-info">
+                    <span className="lote-list-code">
+                      {pkg.nombrePaquete}
+                      {isArchived && <span className="pkg-list-archived-badge" title="Paquete archivado">Archivado</span>}
                     </span>
-                    {(() => {
-                      const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
-                      if (costo.totals.length === 0) return null;
-                      const label = costo.totals.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ');
-                      return (
-                        <span
-                          className="pkg-list-total-cost"
-                          title={
-                            costo.hasMissingPrice
-                              ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
-                              : 'Costo total del paquete por hectárea'
-                          }
-                        >
-                          {label}
-                          {costo.hasMissingPrice && (
-                            <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">{' *'}</span>
-                          )}
-                        </span>
-                      );
-                    })()}
+                    <div className="pkg-list-meta-line">
+                      <span className="lote-list-name">
+                        {[
+                          pkg.tipoCosecha,
+                          pkg.etapaCultivo && pkg.etapaCultivo !== 'N/A' ? pkg.etapaCultivo : null,
+                          `${pkg.activities.length} act.`,
+                        ].filter(Boolean).join(' · ')}
+                      </span>
+                      {(() => {
+                        const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
+                        if (costo.totals.length === 0) return null;
+                        const label = costo.totals.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ');
+                        return (
+                          <span
+                            className="pkg-list-total-cost"
+                            title={
+                              costo.hasMissingPrice
+                                ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                                : 'Costo total del paquete por hectárea'
+                            }
+                          >
+                            {label}
+                            {costo.hasMissingPrice && (
+                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">{' *'}</span>
+                            )}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
-                <FiChevronRight size={14} className="lote-list-arrow" />
-              </li>
-            ))}
-          </ul>
-          )}
+                  <FiChevronRight size={14} className="lote-list-arrow" />
+                </li>
+              );
+            };
+
+            if (packages.length === 0) {
+              return (
+                <p className="empty-state">
+                  Aún no hay registros que mostrar. Crea el primero en "Nuevo Paquete".
+                </p>
+              );
+            }
+
+            const totalFiltered = filteredActivePackages.length + filteredArchivedPackages.length;
+            if (totalFiltered === 0) {
+              return (
+                <p className="empty-state">
+                  Sin resultados para los filtros aplicados.{' '}
+                  <button type="button" className="aur-btn-text pkg-list-clear-link" onClick={clearAllFilters}>
+                    Limpiar filtros
+                  </button>
+                </p>
+              );
+            }
+
+            return (
+              <>
+                {filteredActivePackages.length > 0 && (
+                  <ul className="lote-list">
+                    {filteredActivePackages.map(pkg => renderItem(pkg, false))}
+                  </ul>
+                )}
+                {filteredArchivedPackages.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className="pkg-list-archived-toggle"
+                      onClick={() => setShowArchived(prev => !prev)}
+                      aria-expanded={showArchived}
+                    >
+                      <FiArchive size={12} />
+                      <span>
+                        {showArchived ? 'Ocultar' : 'Ver'} {filteredArchivedPackages.length === 1
+                          ? '1 archivado'
+                          : `${filteredArchivedPackages.length} archivados`}
+                      </span>
+                      <FiChevronDown
+                        size={12}
+                        className={`pkg-list-archived-chevron${showArchived ? ' is-open' : ''}`}
+                      />
+                    </button>
+                    {showArchived && (
+                      <ul className="lote-list pkg-list--archived-section">
+                        {filteredArchivedPackages.map(pkg => renderItem(pkg, true))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
       </div>}
