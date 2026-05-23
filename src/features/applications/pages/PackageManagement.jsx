@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
@@ -384,6 +384,12 @@ function PackageManagement() {
   const [isDirty, setIsDirty] = useState(false);
   const [pendingNavAction, setPendingNavAction] = useState(null);
 
+  // Banner "Borrador restaurado". Se inicializa al montar mirando localStorage
+  // para que aparezca incluso antes del primer render del form. Cualquier
+  // transición explícita (Cancelar, Nuevo, abrir otro paquete, descartar) lo
+  // pone en false — el draft sigue intacto en disco, solo escondemos el aviso.
+  const [draftRestored, setDraftRestored] = useState(() => isPackageDraftMeaningful(loadPackageDraft()));
+
   // Búsqueda y filtros sobre la lista/carrusel de paquetes. No se persisten
   // entre sesiones — cada visita arranca con todos los paquetes visibles.
   const [searchQuery, setSearchQuery] = useState('');
@@ -763,6 +769,7 @@ function PackageManagement() {
     setExpandedActivities(new Set(normalizedActivities.map((_, i) => i)));
     setFormErrors({});
     setIsDirty(false);
+    setDraftRestored(false);
     window.scrollTo(0, 0);
   };
 
@@ -775,6 +782,7 @@ function PackageManagement() {
     setFormErrors({});
     setIsDirty(false);
     setIsSubmitting(false);
+    setDraftRestored(false);
     clearPackageDraft();
   };
 
@@ -794,6 +802,7 @@ function PackageManagement() {
     setExpandedActivities(new Set([0]));
     setFormErrors({});
     setIsDirty(false);
+    setDraftRestored(false);
   };
 
   const handleSelectPkg = (pkg) => {
@@ -804,6 +813,7 @@ function PackageManagement() {
     setHubExpandedActivities(new Set());
     setFormErrors({});
     setIsDirty(false);
+    setDraftRestored(false);
     window.scrollTo(0, 0);
   };
 
@@ -1250,6 +1260,19 @@ function PackageManagement() {
       {!loading && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
         <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
+          {draftRestored && (
+            <div className="pkg-draft-banner" role="status" aria-live="polite">
+              <FiClock size={12} aria-hidden="true" />
+              <span>Borrador restaurado · tienes cambios sin guardar.</span>
+              <button
+                type="button"
+                className="pkg-draft-discard"
+                onClick={() => setDraftRestored(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
           <section className="aur-section">
             <div className="aur-section-header">
               <h3>Identidad</h3>
