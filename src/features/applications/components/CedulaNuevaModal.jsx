@@ -1,12 +1,48 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye, FiAlertTriangle } from 'react-icons/fi';
+import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye, FiAlertTriangle, FiClock } from 'react-icons/fi';
+import { useDraft } from '../../../hooks/useDraft';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 
 // Frontend validation limits
 const MAX_ACTIVITY_LEN = 64;
 const MAX_TECNICO_LEN = 48;
 const MAX_FUTURE_DAYS = 1825; // tope duro ~5 años
 const WARN_FUTURE_DAYS = 14;  // umbral de alerta "fecha inusual"
+
+// Draft persistence: el form completo se guarda en localStorage bajo el key
+// `aurora_draft_${DRAFT_KEY}` (prefijo añadido por useDraft). Storage = 'local'
+// sobrevive cierres de pestaña — el caso de uso real es el encargado armando
+// varias cédulas seguidas, tocando backdrop por accidente, o cerrando el
+// navegador en medio. Sin esto se pierden hasta 10 productos + bloques + meta.
+const DRAFT_KEY = 'cedula-nueva';
+
+const todayYmd = () => new Date().toISOString().split('T')[0];
+
+const makeInitialForm = () => ({
+  activityName: '',
+  fecha: todayYmd(),
+  tecnicoResponsable: '',
+  loteId: '',
+  calibracionId: '',
+  selectedBloques: [],
+  productos: [],
+});
+
+// "Significativo" = el draft contiene algo que el usuario tipeó o seleccionó.
+// La fecha default (hoy) no cuenta — solo está pre-llenada por conveniencia,
+// no representa input intencional. Sin esta guarda, abrir el modal por primera
+// vez dispararía el banner "Borrador restaurado" sobre un form vacío.
+const isFormMeaningful = (form) => {
+  if (!form) return false;
+  if ((form.activityName || '').trim()) return true;
+  if ((form.tecnicoResponsable || '').trim()) return true;
+  if (form.loteId) return true;
+  if (form.calibracionId) return true;
+  if (Array.isArray(form.selectedBloques) && form.selectedBloques.length > 0) return true;
+  if (Array.isArray(form.productos) && form.productos.length > 0) return true;
+  return false;
+};
 
 const addDaysYmd = (days) => {
   const d = new Date();
@@ -16,15 +52,22 @@ const addDaysYmd = (days) => {
 };
 
 function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose, onPreviewDraft }) {
-  const [form, setForm] = useState({
-    activityName: '',
-    fecha: new Date().toISOString().split('T')[0],
-    tecnicoResponsable: '',
-    loteId: '',
-    calibracionId: '',
-    selectedBloques: [],
-    productos: [],
+  const [form, setForm, clearFormDraft] = useDraft(DRAFT_KEY, makeInitialForm, { storage: 'local' });
+
+  // Restored-from-draft: chequeo de una sola vez al montar, antes de que el
+  // usuario altere `form` y rompa la heurística. Inspecciona LS directo usando
+  // el mismo naming que useDraft (`aurora_draft_${key}`) para no acoplarnos a
+  // su API interna; si el storage es inaccesible, asumimos "no restaurado".
+  const [restoredFromDraft, setRestoredFromDraft] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`aurora_draft_${DRAFT_KEY}`);
+      if (!raw) return false;
+      return isFormMeaningful(JSON.parse(raw));
+    } catch { return false; }
   });
+
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+
   const [prodSearch, setProdSearch] = useState('');
   const [prodOpen, setProdOpen] = useState(false);
   const [prodDropdownPos, setProdDropdownPos] = useState({ top: 0, left: 0, width: 0 });
@@ -35,6 +78,33 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
   const cantidadRefs = useRef({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // ── Cierre con guardia de borrador ────────────────────────────────────────
+  // Backdrop tap y botón Cancelar pasan por handleCloseRequest. Si el form
+  // está vacío (puede tener solo la fecha default), cerramos directo y
+  // limpiamos el draft para no dejar shape vacío en LS. Si tiene contenido
+  // significativo, abrimos AuroraConfirmModal para que el usuario decida
+  // entre "Descartar" (perder el draft) o "Mantener borrador" (el modal se
+  // cierra y la próxima apertura restaura con banner).
+  const handleCloseRequest = () => {
+    if (isFormMeaningful(form)) {
+      setDiscardConfirmOpen(true);
+    } else {
+      clearFormDraft();
+      onClose();
+    }
+  };
+  const handleDiscardDraft = () => {
+    clearFormDraft();
+    setForm(makeInitialForm());
+    setRestoredFromDraft(false);
+    setDiscardConfirmOpen(false);
+    onClose();
+  };
+  const handleKeepDraft = () => {
+    setDiscardConfirmOpen(false);
+    onClose();
+  };
 
   // ── Plantillas ────────────────────────────────────────────────────────────
   const [plantillas, setPlantillas] = useState([]);
@@ -280,6 +350,9 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message || 'Error al crear la cédula.'); return; }
+      // Éxito: el draft ya cumplió su rol. Limpiarlo evita que la próxima
+      // apertura muestre "Borrador restaurado" sobre datos ya consumidos.
+      clearFormDraft();
       onSuccess(data.cedula, data.task);
     } catch {
       setError('Error de conexión. Intente nuevamente.');
@@ -322,7 +395,8 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
   );
 
   return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+    <>
+    <div className="aur-modal-backdrop" onPointerDown={handleCloseRequest}>
       <div className="aur-modal aur-modal--xl nca-modal" onPointerDown={e => e.stopPropagation()}>
 
         <div className="aur-modal-header">
@@ -333,6 +407,20 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
         </div>
 
         <form className="aur-modal-content" onSubmit={handleSubmit}>
+
+          {restoredFromDraft && (
+            <div className="aur-banner aur-banner--info nca-draft-banner" role="status" aria-live="polite">
+              <FiClock size={14} />
+              <span>Borrador restaurado · tienes cambios sin guardar.</span>
+              <button
+                type="button"
+                className="aur-btn-text nca-draft-discard"
+                onClick={handleDiscardDraft}
+              >
+                Descartar
+              </button>
+            </div>
+          )}
 
           {plantillas.length > 0 && (
             <div className="nca-plantillas-section">
@@ -643,7 +731,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
           <button
             type="button"
             className="aur-btn-text"
-            onClick={onClose}
+            onClick={handleCloseRequest}
             disabled={submitting}
           >
             Cancelar
@@ -659,7 +747,19 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
           </button>
         </div>
       </div>
-    </div>,
+    </div>
+    {discardConfirmOpen && (
+      <AuroraConfirmModal
+        danger
+        title="¿Descartar cambios?"
+        body="Tienes contenido sin guardar en esta cédula. Si descartas, el borrador se borra. Si lo mantienes, podrás continuarlo la próxima vez que abras el formulario."
+        confirmLabel="Descartar"
+        cancelLabel="Mantener borrador"
+        onConfirm={handleDiscardDraft}
+        onCancel={handleKeepDraft}
+      />
+    )}
+    </>,
     document.body
   );
 }
