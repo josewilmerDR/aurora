@@ -425,22 +425,48 @@
   box-shadow: inset 3px 0 0 var(--aur-warning, #ffb84d);
 }
 
-/* Chip de plantilla en estado vacío: link estilo ghost que invita a navegar
-   a /tasks para crear la primera plantilla. Sin esto, el chip "+ Plantilla"
-   sólo aparecía cuando ya había alguna, así que un usuario nuevo nunca
-   descubría la feature. Atenuado vs el chip normal porque es un placeholder
-   informativo, no un control activo. */
-.aur-chip.pkg-chip-empty {
-  color: var(--aur-text-3, #6b819b);
-  border-color: var(--aur-divider, var(--aurora-border));
-  text-decoration: none;
-  cursor: help;
+/* ── Modal "Nueva plantilla" (inline desde una actividad del paquete) ─────────
+   El flujo de /tasks tiene muchos campos extra (fecha, lote, bloque…). Este
+   modal compacto pide solo lo esencial — nombre + responsable + opcional
+   "incluir productos de esta actividad". Pre-llena desde la actividad si
+   tiene datos, así crear es casi un solo click. */
+.pkg-template-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 22px 14px;
 }
-.aur-chip.pkg-chip-empty:hover {
-  color: var(--aurora-green);
-  border-color: rgba(51, 255, 153, 0.35);
-  background: rgba(51, 255, 153, 0.06);
+.pkg-template-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pkg-template-field > span {
+  font-size: var(--aur-fs-footnote, 0.85rem);
+  color: var(--aur-text-2, #9fb3c8);
+  font-weight: 500;
+}
+.pkg-template-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--aur-fs-footnote, 0.85rem);
+  color: var(--aur-text-2, #9fb3c8);
   cursor: pointer;
+  padding-top: 2px;
+}
+.pkg-template-checkbox input[type="checkbox"] {
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+}
+.pkg-template-hint {
+  margin: 0;
+  font-size: var(--aur-fs-footnote, 0.85rem);
+  color: var(--aur-text-3, #6b819b);
+  line-height: 1.4;
+  padding: 8px 12px;
+  background: rgba(230, 242, 255, 0.04);
+  border-radius: 6px;
 }
 
 /* ── Modal de filtros (selects de categorías) ─────────────────────────────── */
