@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
@@ -186,6 +186,22 @@ function GrupoManagement() {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  // Deep-link entrante (e.g. desde el modal de dependencias en /packages):
+  // si la navegación viene con `state.selectGrupoId`, auto-seleccionamos ese
+  // grupo cuando los datos terminen de cargar. La ref evita re-seleccionar
+  // si `grupos` se refetchea después por cualquier motivo.
+  const location = useLocation();
+  const incomingSelectGrupoId = location.state?.selectGrupoId;
+  const deepLinkProcessedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkProcessedRef.current) return;
+    if (!incomingSelectGrupoId || !Array.isArray(grupos) || grupos.length === 0) return;
+    const found = grupos.find(g => g.id === incomingSelectGrupoId);
+    if (!found) return;
+    deepLinkProcessedRef.current = true;
+    setSelectedGrupo(found);
+  }, [grupos, incomingSelectGrupoId]);
 
   // Centra la burbuja activa en el carousel cuando cambia el grupo seleccionado
   useEffect(() => {

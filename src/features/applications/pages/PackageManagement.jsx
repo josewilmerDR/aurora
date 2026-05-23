@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import '../styles/packages.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw, FiBookmark } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
@@ -1574,7 +1575,22 @@ function PackageManagement() {
               <>
                 <p className="pkg-deps-section-label">Lotes</p>
                 <ul className="pkg-deps-list">
-                  {pkgDepsModal.lotes.map(l => <li key={l.id}>{l.nombreLote}</li>)}
+                  {pkgDepsModal.lotes.map(l => (
+                    <li key={l.id}>
+                      {/* Link con `state` para que LoteManagement auto-seleccione
+                          el lote al montar — el usuario aterriza directamente
+                          en el hub del lote, listo para reasignarle otro
+                          paquete o detacharlo. Mismo patrón con grupos. */}
+                      <Link
+                        to="/lotes"
+                        state={{ selectLoteId: l.id }}
+                        className="pkg-deps-link"
+                        onClick={() => setPkgDepsModal(null)}
+                      >
+                        {l.nombreLote || l.codigoLote || l.id}
+                      </Link>
+                    </li>
+                  ))}
                 </ul>
               </>
             )}
@@ -1582,7 +1598,18 @@ function PackageManagement() {
               <>
                 <p className="pkg-deps-section-label">Grupos</p>
                 <ul className="pkg-deps-list">
-                  {pkgDepsModal.grupos.map(g => <li key={g.id}>{g.nombreGrupo}</li>)}
+                  {pkgDepsModal.grupos.map(g => (
+                    <li key={g.id}>
+                      <Link
+                        to="/grupos"
+                        state={{ selectGrupoId: g.id }}
+                        className="pkg-deps-link"
+                        onClick={() => setPkgDepsModal(null)}
+                      >
+                        {g.nombreGrupo}
+                      </Link>
+                    </li>
+                  ))}
                 </ul>
               </>
             )}

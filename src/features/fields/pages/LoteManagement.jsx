@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter } from 'react-icons/fi';
@@ -106,6 +107,16 @@ function LoteManagement() {
     apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
   }, [apiFetch]);
 
+  // Deep-link entrante: si la navegación viene con `state.selectLoteId`
+  // (e.g. desde el modal de dependencias del paquete que se intentó borrar),
+  // auto-seleccionamos ese lote cuando los datos terminen de cargar. Si el
+  // id no está en la lista (filtrado por finca, borrado, etc.) el state
+  // queda silencioso — no rompemos la página. La ref evita re-seleccionar
+  // si `lotes` se refetchea después por cualquier motivo.
+  const location = useLocation();
+  const incomingSelectLoteId = location.state?.selectLoteId;
+  const deepLinkProcessedRef = useRef(false);
+
   useEffect(() => {
     fetchLotes();
     fetchPackages();
@@ -113,6 +124,16 @@ function LoteManagement() {
     apiFetch('/api/siembras').then(res => res.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
     apiFetch('/api/config').then(res => res.json()).then(setEmpresaConfig).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (deepLinkProcessedRef.current) return;
+    if (!incomingSelectLoteId || !Array.isArray(lotes) || lotes.length === 0) return;
+    const found = lotes.find(l => l.id === incomingSelectLoteId);
+    if (!found) return;
+    deepLinkProcessedRef.current = true;
+    setSelectedLote(found);
+    setView('hub');
+  }, [lotes, incomingSelectLoteId]);
 
   // Restore draft on mount (survives navigation and tab close)
   useEffect(() => {
