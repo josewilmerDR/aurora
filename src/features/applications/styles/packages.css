@@ -425,6 +425,24 @@
   box-shadow: inset 3px 0 0 var(--aur-warning, #ffb84d);
 }
 
+/* Chip de plantilla en estado vacío: link estilo ghost que invita a navegar
+   a /tasks para crear la primera plantilla. Sin esto, el chip "+ Plantilla"
+   sólo aparecía cuando ya había alguna, así que un usuario nuevo nunca
+   descubría la feature. Atenuado vs el chip normal porque es un placeholder
+   informativo, no un control activo. */
+.aur-chip.pkg-chip-empty {
+  color: var(--aur-text-3, #6b819b);
+  border-color: var(--aur-divider, var(--aurora-border));
+  text-decoration: none;
+  cursor: help;
+}
+.aur-chip.pkg-chip-empty:hover {
+  color: var(--aurora-green);
+  border-color: rgba(51, 255, 153, 0.35);
+  background: rgba(51, 255, 153, 0.06);
+  cursor: pointer;
+}
+
 /* ── Modal de filtros (selects de categorías) ─────────────────────────────── */
 .pkg-filtro-grid {
   display: flex;

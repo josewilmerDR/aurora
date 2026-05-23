@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import '../styles/packages.css';
 import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
@@ -1750,7 +1751,7 @@ function PackageManagement() {
                             <option value="">Calibración</option>
                             {calibraciones.map(cal => <option key={cal.id} value={cal.id}>{cal.nombre}</option>)}
                           </select>
-                          {plantillas.length > 0 && (
+                          {plantillas.length > 0 ? (
                             <select
                               className="aur-chip aur-chip--ghost"
                               value=""
@@ -1762,6 +1763,20 @@ function PackageManagement() {
                               <option value="">+ Plantilla</option>
                               {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                             </select>
+                          ) : (
+                            // Sin plantillas: link estilo chip que navega a
+                            // /tasks donde se crean (guardando una tarea como
+                            // plantilla). El draft autosave preserva el form
+                            // que el usuario está editando, así no pierde
+                            // trabajo al ir a crear la plantilla.
+                            <Link
+                              to="/tasks"
+                              className="aur-chip aur-chip--ghost pkg-chip-empty"
+                              title="Las plantillas guardan combinaciones de nombre + productos reutilizables entre actividades. Aún no tienes ninguna — se crean en el módulo de Tareas guardando una tarea como reutilizable."
+                              aria-label="Sin plantillas — ir a Tareas para crear una"
+                            >
+                              + Plantilla
+                            </Link>
                           )}
                         </div>
                       </div>
