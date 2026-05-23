@@ -531,6 +531,21 @@
   margin-bottom: 20px;
 }
 
+/* Banner "Borrador restaurado": ajusta el .aur-banner base (align top → center)
+   y empuja el botón Descartar a la derecha. Se mantiene scoped al modal para
+   no afectar otros usos de aur-banner. */
+.nca-draft-banner {
+  align-items: center;
+  margin-bottom: 12px;
+}
+.nca-draft-banner > span {
+  flex: 1;
+}
+.nca-draft-discard {
+  padding: 2px 8px;
+  font-size: var(--aur-fs-footnote);
+}
+
 /* ── Plantillas de cédula ────────────────────────────────────────────────── */
 .nca-plantillas-section {
   display: flex;
