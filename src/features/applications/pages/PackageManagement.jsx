@@ -36,189 +36,11 @@ import {
   isPackageDraftMeaningful,
 } from '../lib/packages-draft';
 import { computePackageChanges } from '../lib/packages-diff';
+import PackageTimeline from '../components/PackageTimeline';
+import ActivityCard from '../components/ActivityCard';
 
 // Helpers puros, draft persistence y diff viven en ../lib/packages-*.js
 // (extracción Fases A+B del refactor para bajar el archivo bajo 600 LOC).
-
-// ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
-function ProdCombobox({ productos, excludeIds, onSelect }) {
-  const [text, setText]       = useState('');
-  const [open, setOpen]       = useState(false);
-  const [hi,   setHi]         = useState(0);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
-  const wrapRef               = useRef(null);
-  const listRef               = useRef(null);
-
-  const filtered = productos
-    .filter(p => !excludeIds.includes(p.id))
-    .filter(p => !text ||
-      p.nombreComercial?.toLowerCase().includes(text.toLowerCase()) ||
-      p.ingredienteActivo?.toLowerCase().includes(text.toLowerCase())
-    );
-
-  const openDropdown = useCallback(() => {
-    if (wrapRef.current) {
-      const r = wrapRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
-    }
-    setOpen(true);
-    setHi(0);
-  }, []);
-
-  const selectOption = (producto) => {
-    setText('');
-    setOpen(false);
-    setHi(0);
-    onSelect(producto.id);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-      setText('');
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (wrapRef.current?.contains(e.target) || listRef.current?.contains(e.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <div className="aur-combo pkg-prod-combo" ref={wrapRef}>
-      <div className="aur-combo-input-wrap">
-        <FiSearch size={13} />
-        <input
-          type="text"
-          className="aur-combo-input"
-          placeholder="+ Agregar producto..."
-          value={text}
-          autoComplete="off"
-          onChange={e => { setText(e.target.value); openDropdown(); }}
-          onFocus={openDropdown}
-          onBlur={() => setTimeout(() => {
-            if (!listRef.current?.contains(document.activeElement)) setOpen(false);
-          }, 150)}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-      {open && filtered.length > 0 && createPortal(
-        <ul
-          ref={listRef}
-          className="aur-combo-dropdown"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width }}
-        >
-          {filtered.map((p, i) => (
-            <li
-              key={p.id}
-              className={`aur-combo-option${i === hi ? ' aur-combo-option--active' : ''}`}
-              onMouseDown={() => selectOption(p)}
-              onMouseEnter={() => setHi(i)}
-            >
-              <span className="aur-combo-name">{p.nombreComercial}</span>
-              {p.ingredienteActivo && <span className="aur-combo-meta">{p.ingredienteActivo}</span>}
-            </li>
-          ))}
-        </ul>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-// ── Timeline horizontal de actividades (vista hub, read-only) ────────────────
-// Renderiza cada actividad como un punto en una línea proporcional al día en
-// que se ejecuta. Permite ver de un vistazo:
-//   - distribución temporal del programa (gaps, aglomeraciones)
-//   - cuáles son aplicaciones (verde) vs notificaciones (gris)
-//   - el día exacto on hover (tooltip)
-//
-// Decisiones:
-//   - Eventos puntuales, no rangos → puntos en eje, no barras Gantt.
-//   - Eje se auto-escala al maxDay del paquete (con piso de 30d para que
-//     paquetes muy cortos no se vean colapsados).
-//   - Actividades en el mismo día se agrupan en un solo marker con badge
-//     contador (caso real: dos aplicaciones distintas el día 0).
-//   - Tooltip listo del navegador (atributo title) — sin lib de tooltips
-//     para mantener el archivo manejable.
-function PackageTimeline({ activities }) {
-  if (!activities || activities.length === 0) return null;
-
-  const items = activities.map(a => ({
-    day: Number.isFinite(Number(a.day)) ? Number(a.day) : 0,
-    name: (a.name || '').trim() || '(sin nombre)',
-    type: a.type || 'notificacion',
-  }));
-  const maxDay = Math.max(...items.map(it => it.day), 30);
-
-  // Agrupar por día para mostrar marker único con badge contador.
-  const byDay = new Map();
-  items.forEach(it => {
-    if (!byDay.has(it.day)) byDay.set(it.day, []);
-    byDay.get(it.day).push(it);
-  });
-  const sortedDays = [...byDay.keys()].sort((a, b) => a - b);
-
-  return (
-    <div className="pkg-timeline" role="img" aria-label="Timeline de actividades del paquete">
-      <div className="pkg-timeline-track">
-        <div className="pkg-timeline-line" />
-        {sortedDays.map(day => {
-          const acts = byDay.get(day);
-          const pct = maxDay > 0 ? (day / maxDay) * 100 : 0;
-          const hasAplicacion = acts.some(a => a.type === 'aplicacion');
-          const cls = hasAplicacion ? 'pkg-timeline-marker--apl' : 'pkg-timeline-marker--notif';
-          const labels = acts.map(a => a.name).join(' · ');
-          const title = acts.length === 1
-            ? `Día ${day} · ${labels}`
-            : `Día ${day} · ${acts.length} actividades: ${labels}`;
-          return (
-            <div
-              key={day}
-              className={`pkg-timeline-marker ${cls}`}
-              style={{ left: `${pct}%` }}
-              title={title}
-            >
-              <span className="pkg-timeline-marker-dot">
-                {acts.length > 1 && (
-                  <span className="pkg-timeline-marker-count">{acts.length}</span>
-                )}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="pkg-timeline-axis">
-        <span>Día 0</span>
-        <span>Día {maxDay}</span>
-      </div>
-      <div className="pkg-timeline-legend" aria-hidden="true">
-        <span className="pkg-timeline-legend-item">
-          <span className="pkg-timeline-legend-dot pkg-timeline-legend-dot--apl" /> Aplicación
-        </span>
-        <span className="pkg-timeline-legend-item">
-          <span className="pkg-timeline-legend-dot pkg-timeline-legend-dot--notif" /> Notificación
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function PackageManagement() {
   const apiFetch = useApiFetch();
@@ -1765,240 +1587,43 @@ function PackageManagement() {
               )}
             </div>
             <ul className="pkg-act-list">
-              {formData.activities.map((activity, index) => {
-                const expanded = expandedActivities.has(index);
-                const costo = formActivityCosts[index] || { totals: [], hasMissingPrice: false, withoutPrice: 0 };
-                const costEntries = costo.totals;
-                return (
-                  <li
-                    key={`act-${index}`}
-                    className={`pkg-act-card${changes.activities.has(index) ? ' pkg-act-card--modified' : ''}`}
-                  >
-                    <div className="pkg-act-row">
-                      <div className="pkg-act-day">
-                        <input
-                          type="number"
-                          min={0}
-                          max={1825}
-                          step={1}
-                          value={activity.day}
-                          onChange={(e) => handleActivityChange(index, 'day', e.target.value)}
-                          onBlur={() => handleActivityBlur(index, 'day')}
-                          aria-label="Día"
-                          placeholder="0"
-                          className={formErrors[`act-${index}-day`] ? 'fld-error-input' : ''}
-                          title={formErrors[`act-${index}-day`] || undefined}
-                          required
-                        />
-                        <span className="pkg-act-day-suffix">día</span>
-                      </div>
-
-                      <div className="pkg-act-body">
-                        <input
-                          type="text"
-                          className={`pkg-act-name${formErrors[`act-${index}-name`] ? ' fld-error-input' : ''}`}
-                          value={activity.name}
-                          onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
-                          onBlur={() => handleActivityBlur(index, 'name')}
-                          placeholder="Nombre de la actividad"
-                          required
-                          maxLength={ACT_NAME_MAX}
-                          aria-label="Nombre de la actividad"
-                          title={formErrors[`act-${index}-name`] || undefined}
-                        />
-                        <div className="pkg-act-meta">
-                          {(() => {
-                            // Si el responsable ya guardado no está en la lista
-                            // elegible (perdió acceso o salió de planilla), lo
-                            // añadimos como opción "huérfana" para no descartar
-                            // el valor silenciosamente — el usuario decide si
-                            // lo mantiene o lo cambia.
-                            const current = activity.responsableId;
-                            const orphan = current
-                              && !eligibleResponsables.some(u => u.id === current)
-                              && users.find(u => u.id === current);
-                            return (
-                              <select
-                                className="aur-chip"
-                                value={current || ''}
-                                onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}
-                                aria-label="Responsable"
-                              >
-                                <option value="">Responsable</option>
-                                {eligibleResponsables.map(user => (
-                                  <option key={user.id} value={user.id}>{user.nombre}</option>
-                                ))}
-                                {orphan && (
-                                  <option value={orphan.id}>{orphan.nombre} (no disponible)</option>
-                                )}
-                                {eligibleResponsables.length === 0 && !orphan && (
-                                  <option value="" disabled>No hay empleados con acceso</option>
-                                )}
-                              </select>
-                            );
-                          })()}
-                          <select
-                            className="aur-chip"
-                            value={activity.calibracionId || ''}
-                            onChange={(e) => handleActivityChange(index, 'calibracionId', e.target.value)}
-                            aria-label="Calibración"
-                          >
-                            <option value="">Calibración</option>
-                            {calibraciones.map(cal => <option key={cal.id} value={cal.id}>{cal.nombre}</option>)}
-                          </select>
-                          <select
-                            className="aur-chip aur-chip--ghost"
-                            value=""
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === '__create__') openTemplateModal(index);
-                              else if (v) aplicarPlantillaAActividad(index, v);
-                            }}
-                            aria-label="Plantillas de aplicaciones"
-                          >
-                            <option value="">+ Plantilla</option>
-                            {plantillas.length === 0 && (
-                              <option value="" disabled>No hay plantillas de aplicaciones</option>
-                            )}
-                            {plantillas.map(p => (
-                              <option key={p.id} value={p.id}>{p.nombre}</option>
-                            ))}
-                            <option value="__create__">+ Crear plantilla a partir de esta actividad…</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}
-                        title={
-                          costo.total === 0
-                            ? 'Sin productos asignados'
-                            : costo.allMissingPrice
-                              ? 'Todos los productos están sin precio en el catálogo'
-                              : costo.hasMissingPrice
-                                ? `Costo de la mezcla por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
-                                : 'Costo de la mezcla por hectárea'
-                        }
-                      >
-                        {costEntries.length === 0 ? (
-                          <span aria-label={costo.allMissingPrice ? 'Sin precio' : 'Sin productos'}>
-                            {costo.allMissingPrice ? 'Sin precio' : '—'}
-                          </span>
-                        ) : (
-                          <>
-                            {costEntries.map(([mon, total]) => (
-                              <div key={mon}>
-                                {total.toFixed(2)}
-                                <span className="pkg-act-cost-mon">{mon}/Ha</span>
-                              </div>
-                            ))}
-                            {costo.hasMissingPrice && (
-                              <span className="pkg-cost-warn" role="status">Costo incompleto</span>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      <div className="pkg-act-actions">
-                        {pendingDeleteIdx === index ? (
-                          <div className="aur-inline-confirm">
-                            <span className="aur-inline-confirm-text">¿Eliminar?</span>
-                            <button type="button" className="aur-inline-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
-                            <button type="button" className="aur-inline-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
-                          </div>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="aur-icon-btn"
-                              onClick={() => duplicateActivity(index)}
-                              title="Duplicar actividad"
-                            >
-                              <FiCopy size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="aur-icon-btn aur-icon-btn--danger"
-                              onClick={() => setPendingDeleteIdx(index)}
-                              title="Eliminar actividad"
-                            >
-                              <FiX size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className={`aur-icon-btn pkg-act-expand${expanded ? ' is-open' : ''}`}
-                              onClick={() => toggleActivityExpand(index)}
-                              title={expanded ? 'Ocultar productos' : 'Productos de mezcla'}
-                            >
-                              <FiChevronDown size={14} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {expanded && (
-                      <div className="pkg-act-products">
-                        <span className="pkg-act-products-label">Productos de mezcla</span>
-                        <div className="pkg-act-products-list">
-                          {(activity.productos || []).map(p => {
-                            const catProd = productosById.get(p.productoId);
-                            const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
-                            const moneda = catProd?.moneda || '';
-                            const qty = parseFloat(p.cantidadPorHa) || 0;
-                            const precioTotal = qty * precioUnitario;
-                            return (
-                              <div key={p.productoId} className="pkg-prod-row">
-                                <span className="pkg-prod-row-name">{p.nombreComercial}</span>
-                                <div className="pkg-prod-row-qty">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    max="1023.99"
-                                    value={p.cantidadPorHa}
-                                    onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
-                                    onBlur={(e) => handleProductCantidadBlur(index, p.productoId, e.target.value)}
-                                    data-prod-qty={`${index}-${p.productoId}`}
-                                    className={formErrors[`act-${index}-prod-${p.productoId}-cant`] ? 'fld-error-input' : ''}
-                                    title={formErrors[`act-${index}-prod-${p.productoId}-cant`] || 'Cantidad por Ha'}
-                                  />
-                                  <span className="pkg-prod-row-unit">{p.unidad}/Ha</span>
-                                </div>
-                                {precioUnitario > 0 ? (
-                                  <span className="pkg-prod-row-cost" title="Costo por hectárea">
-                                    {precioTotal.toFixed(2)}
-                                    <span className="pkg-prod-row-mon">{moneda}/Ha</span>
-                                  </span>
-                                ) : <span />}
-                                <button
-                                  type="button"
-                                  className="pkg-prod-row-remove"
-                                  onClick={() => removeProductFromActivity(index, p.productoId)}
-                                  title="Quitar producto"
-                                >
-                                  <FiX size={12} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                          <ProdCombobox
-                            productos={productos}
-                            excludeIds={(activity.productos || []).map(p => p.productoId)}
-                            onSelect={(productoId) => {
-                              addProductToActivity(index, productoId);
-                              setTimeout(() => {
-                                const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
-                                if (el) { el.focus(); el.select(); }
-                              }, 0);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
+              {formData.activities.map((activity, index) => (
+                <ActivityCard
+                  key={`act-${index}`}
+                  activity={activity}
+                  index={index}
+                  expanded={expandedActivities.has(index)}
+                  modified={changes.activities.has(index)}
+                  pendingDelete={pendingDeleteIdx === index}
+                  costo={formActivityCosts[index] || { totals: [], hasMissingPrice: false, withoutPrice: 0 }}
+                  formErrors={formErrors}
+                  users={users}
+                  productos={productos}
+                  productosById={productosById}
+                  calibraciones={calibraciones}
+                  plantillas={plantillas}
+                  eligibleResponsables={eligibleResponsables}
+                  onActivityChange={(field, value) => handleActivityChange(index, field, value)}
+                  onActivityBlur={(field) => handleActivityBlur(index, field)}
+                  onRequestDelete={() => setPendingDeleteIdx(index)}
+                  onCancelDelete={() => setPendingDeleteIdx(null)}
+                  onConfirmDelete={() => removeActivity(index)}
+                  onDuplicate={() => duplicateActivity(index)}
+                  onToggleExpand={() => toggleActivityExpand(index)}
+                  onOpenTemplateModal={() => openTemplateModal(index)}
+                  onApplyPlantilla={(plantillaId) => aplicarPlantillaAActividad(index, plantillaId)}
+                  onAddProduct={(productoId) => {
+                    addProductToActivity(index, productoId);
+                    setTimeout(() => {
+                      const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
+                      if (el) { el.focus(); el.select(); }
+                    }, 0);
+                  }}
+                  onRemoveProduct={(productoId) => removeProductFromActivity(index, productoId)}
+                  onProductCantidadChange={(productoId, value) => updateProductCantidad(index, productoId, value)}
+                  onProductCantidadBlur={(productoId, value) => handleProductCantidadBlur(index, productoId, value)}
+                />
+              ))}
             </ul>
             <button type="button" onClick={addActivity} className="pkg-add-activity">
               <FiPlus size={14} />
