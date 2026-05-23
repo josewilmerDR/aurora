@@ -6,6 +6,7 @@ import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
+import { translateApiError } from '../../../lib/errorMessages';
 import CedulaNuevaModal from '../components/CedulaNuevaModal';
 import MezclaListaModal from '../components/MezclaListaModal';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
@@ -429,29 +430,65 @@ function CedulasAplicacion() {
   const openedViaUrlRef  = useRef(false);
 
   useEffect(() => {
-    Promise.all([
-      apiFetch('/api/tasks').then(r => r.json()),
-      apiFetch('/api/lotes').then(r => r.json()),
-      apiFetch('/api/grupos').then(r => r.json()),
-      apiFetch('/api/siembras').then(r => r.json()),
-      apiFetch('/api/packages').then(r => r.json()),
-      apiFetch('/api/productos').then(r => r.json()),
-      apiFetch('/api/cedulas').then(r => r.json()),
-      apiFetch('/api/config').then(r => r.json()),
-      apiFetch('/api/calibraciones').then(r => r.json()),
-      apiFetch('/api/maquinaria').then(r => r.json()),
-    ]).then(([t, l, g, s, p, pr, c, cfg, cal, maq]) => {
-      setTasks(Array.isArray(t) ? t : []);
-      setLotes(Array.isArray(l) ? l : []);
-      setGrupos(Array.isArray(g) ? g : []);
-      setSiembras(Array.isArray(s) ? s : []);
-      setPackages(Array.isArray(p) ? p : []);
-      setProductos(Array.isArray(pr) ? pr : []);
-      setCedulas(Array.isArray(c) ? c : []);
-      setConfig(cfg || {});
-      setCalibraciones(Array.isArray(cal) ? cal : []);
-      setMaquinaria(Array.isArray(maq) ? maq : []);
-    }).catch(console.error).finally(() => setLoading(false));
+    // Carga inicial separada en críticos (tasks + cédulas → manejan la lista)
+    // y secundarios (catálogos que solo alimentan el preview y los modales).
+    //
+    // 1. fetchSafe normaliza el rechazo con {body, label} para que
+    //    translateApiError dé el mensaje específico cuando hay UNA sola falla
+    //    (UNAUTHORIZED, INSUFFICIENT_ROLE, etc.).
+    // 2. El spinner se suelta apenas resuelvan tasks + cédulas. Los catálogos
+    //    siguen cargando en background — el preview y los modales degradan
+    //    a "—" hasta que cada respectivo catálogo llegue; mejor que un spinner
+    //    indefinido si /api/maquinaria está lento.
+    // 3. Promise.allSettled coalesce las fallas en un único toast — el stack
+    //    de toasts es MAX_VISIBLE=4 y apilar 10 mensajes perdería contexto.
+    const fetchSafe = (url, label) =>
+      apiFetch(url).then(async r => {
+        if (!r.ok) throw { body: await r.json().catch(() => ({})), label };
+        return r.json();
+      });
+
+    const tasksP = fetchSafe('/api/tasks',         'las tareas');
+    const cedsP  = fetchSafe('/api/cedulas',       'las cédulas');
+    const lotesP = fetchSafe('/api/lotes',         'los lotes');
+    const grpsP  = fetchSafe('/api/grupos',        'los grupos');
+    const siemP  = fetchSafe('/api/siembras',      'las siembras');
+    const pkgsP  = fetchSafe('/api/packages',      'los paquetes');
+    const prodsP = fetchSafe('/api/productos',     'los productos');
+    const cfgP   = fetchSafe('/api/config',        'la configuración');
+    const calsP  = fetchSafe('/api/calibraciones', 'las calibraciones');
+    const maqP   = fetchSafe('/api/maquinaria',    'la maquinaria');
+
+    // Aplicar resultados a medida que llegan. .catch(() => {}) en cada
+    // side-chain evita unhandled rejection; el reporte sale del allSettled.
+    tasksP.then(d => setTasks(Array.isArray(d) ? d : [])).catch(() => {});
+    cedsP .then(d => setCedulas(Array.isArray(d) ? d : [])).catch(() => {});
+    lotesP.then(d => setLotes(Array.isArray(d) ? d : [])).catch(() => {});
+    grpsP .then(d => setGrupos(Array.isArray(d) ? d : [])).catch(() => {});
+    siemP .then(d => setSiembras(Array.isArray(d) ? d : [])).catch(() => {});
+    pkgsP .then(d => setPackages(Array.isArray(d) ? d : [])).catch(() => {});
+    prodsP.then(d => setProductos(Array.isArray(d) ? d : [])).catch(() => {});
+    cfgP  .then(d => setConfig(d || {})).catch(() => {});
+    calsP .then(d => setCalibraciones(Array.isArray(d) ? d : [])).catch(() => {});
+    maqP  .then(d => setMaquinaria(Array.isArray(d) ? d : [])).catch(() => {});
+
+    // allSettled, no Promise.all: si tasks o cédulas fallan, la página igual
+    // debe renderizarse (mostrando el toast + EmptyState) en vez de quedar
+    // colgada en el spinner indefinidamente.
+    Promise.allSettled([tasksP, cedsP]).then(() => setLoading(false));
+
+    Promise.allSettled([tasksP, cedsP, lotesP, grpsP, siemP, pkgsP, prodsP, cfgP, calsP, maqP])
+      .then(results => {
+        const failed = results.filter(r => r.status === 'rejected').map(r => r.reason);
+        if (failed.length === 0) return;
+        if (failed.length === 1) {
+          const { body, label } = failed[0] || {};
+          toast.error(translateApiError(body, `No se pudieron cargar ${label}.`));
+          return;
+        }
+        const labels = failed.map(f => f?.label).filter(Boolean).join(', ');
+        toast.error(`No se pudieron cargar: ${labels}. Revisa tu conexión y recarga.`);
+      });
   }, []);
 
   // Open CedulaNuevaModal if navigated from HistorialAplicaciones empty state
