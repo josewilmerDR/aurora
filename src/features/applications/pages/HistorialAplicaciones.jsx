@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { FiFilter, FiX, FiPlusCircle, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import FilterButton from '../../../components/ui/FilterButton';
 import '../styles/historial.css';
 
 // Filtro por columna: 'date' y 'number' usan rango (De/A), el resto texto.
@@ -539,13 +540,26 @@ function HistorialAplicaciones() {
             Cédulas aplicadas con detalle por producto, cambios respecto al plan original y condiciones de campo.
           </p>
         </div>
+        <div className="aur-sheet-header-actions">
+          <FilterButton
+            active={!!(filterFrom || filterTo)}
+            onClick={() => setMostrarFiltros(true)}
+          />
+          <Link
+            to="/aplicaciones/cedulas"
+            state={{ openModal: true }}
+            className="aur-btn-pill"
+          >
+            <FiPlusCircle size={14} /> Nueva cédula
+          </Link>
+        </div>
       </header>
 
       <section className="aur-section">
         <div className="aur-section-header">
           <span className="ha-section-count">Registros {sorted.length}</span>
-          <div className="aur-section-actions">
-            {Object.values(colFilters).some(hasFilterValue) && (
+          {Object.values(colFilters).some(hasFilterValue) && (
+            <div className="aur-section-actions">
               <button
                 type="button"
                 className="aur-chip aur-chip--ghost"
@@ -553,25 +567,8 @@ function HistorialAplicaciones() {
               >
                 <FiX size={11} /> Limpiar filtros de columna
               </button>
-            )}
-            <button
-              type="button"
-              className="aur-chip aur-chip--ghost ha-filter-toggle"
-              onClick={() => setMostrarFiltros(true)}
-              aria-label="Filtrar por periodo"
-              aria-haspopup="dialog"
-            >
-              <FiFilter size={12} /> <span className="ha-filter-toggle-label">Filtro</span>
-              {(filterFrom || filterTo) && <span className="ha-filter-toggle-dot" aria-hidden="true" />}
-            </button>
-            <Link
-              to="/aplicaciones/cedulas"
-              state={{ openModal: true }}
-              className="aur-btn-pill aur-btn-pill--sm"
-            >
-              <FiPlusCircle size={14} /> Nueva cédula
-            </Link>
-          </div>
+            </div>
+          )}
         </div>
 
         {sorted.length === 0 && (

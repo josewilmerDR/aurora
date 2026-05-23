@@ -23,21 +23,7 @@
   letter-spacing: -0.01em;
 }
 
-/* ── Filtro: chip toggle en header + grid dentro del modal ─────────────── */
-.ha-filter-toggle {
-  position: relative;
-}
-.ha-filter-toggle-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--aur-accent);
-  box-shadow: 0 0 0 2px var(--aur-bg-sheet, var(--aurora-background));
-}
-
+/* ── Grid del modal de filtros ────────────────────────────────────────── */
 .ha-filtro-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

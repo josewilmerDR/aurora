@@ -32,44 +32,19 @@
   letter-spacing: 0.4px;
 }
 
-/* Toggle de filtros — siempre visible; punto indicador cuando hay periodo activo */
-.ca-filter-toggle {
-  display: inline-flex;
-  position: relative;
-}
-.ca-filter-toggle-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--aur-accent);
-  box-shadow: 0 0 0 2px var(--aur-bg-sheet, var(--aurora-background));
-}
-
+/* En mobile la página fuerza una fila única: cap los chips secundarios
+   (Filtro/Historial) a 20% para que "Nueva cédula" (pill) tome el resto.
+   El colapso a solo-ícono y demás defaults ya viven en aurora.css. */
 @media (max-width: 640px) {
-  /* "Filtro" e "Historial" en móvil quedan solo como ícono */
-  .ca-historial-label,
-  .ca-filter-toggle-label {
-    display: none;
-  }
-  .ca-historial-chip,
-  .ca-filter-toggle {
-    gap: 0;
-    padding-left: 8px;
-    padding-right: 8px;
-    /* Cap a 20% c/u para dejarle el resto a "Nueva cédula" en la misma fila */
-    max-width: 20%;
-    flex: 0 0 auto;
-    min-width: 0;
-  }
-  /* Evita que "Nueva cédula" salte a una segunda fila (gana al rule base de aurora.css) */
   .ca-page .aur-sheet-header-actions {
     flex-wrap: nowrap;
     gap: 6px;
   }
-  /* Permite que el pill primario se acomode al espacio restante */
+  .ca-page .aur-sheet-header-actions .aur-btn-filter,
+  .ca-page .aur-sheet-header-actions .aur-btn-historial {
+    max-width: 20%;
+    flex: 0 0 auto;
+  }
   .ca-page .aur-sheet-header-actions .aur-btn-pill {
     flex: 1 1 auto;
     min-width: 0;

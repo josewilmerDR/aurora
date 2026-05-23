@@ -727,6 +727,45 @@ html[data-theme="light"] .aur-select {
   box-shadow: var(--aur-ring);
 }
 
+/* ── Default secondary buttons: "Filtro" e "Historial" ──────────────────────
+   Botones por defecto para acciones secundarias de página (abrir filtros,
+   navegar a historial). Heredan de .aur-chip --ghost y aportan:
+   - min-width compartido para que ambos rendericen del mismo tamaño,
+   - dot indicador opcional en .aur-btn-filter cuando hay filtros activos,
+   - colapso a solo-ícono en mobile (≤ 640px).
+   Consumir vía <FilterButton /> y <HistorialButton /> en src/components/ui/. */
+.aur-btn-filter,
+.aur-btn-historial {
+  min-width: 96px;
+  justify-content: center;
+}
+.aur-btn-filter {
+  position: relative;
+}
+.aur-btn-filter-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aur-accent);
+  box-shadow: 0 0 0 2px var(--aur-bg-sheet, var(--aurora-background));
+}
+@media (max-width: 640px) {
+  .aur-btn-filter-label,
+  .aur-btn-historial-label {
+    display: none;
+  }
+  .aur-btn-filter,
+  .aur-btn-historial {
+    gap: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    min-width: 0;
+  }
+}
+
 /* Chip como <select> con chevron SVG inline */
 select.aur-chip {
   padding-right: 28px;
