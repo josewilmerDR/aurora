@@ -28,105 +28,17 @@ import {
   getPkgInitials,
   pickPkgAvatarStyle,
 } from '../lib/packages-helpers';
+import {
+  PKG_DRAFT_SS_KEY,
+  loadPackageDraft,
+  savePackageDraft,
+  clearPackageDraft,
+  isPackageDraftMeaningful,
+} from '../lib/packages-draft';
+import { computePackageChanges } from '../lib/packages-diff';
 
-// ── Draft persistence ────────────────────────────────────────────────────────
-// Un solo slot global que captura el form completo (incluye `id`) sirve tanto
-// para crear como para editar: como solo hay un form abierto a la vez, no se
-// pueden editar dos paquetes en paralelo. En la restauración usamos `id` para
-// recuperar el modo (con id → editar; sin id → crear). Mismo patrón que
-// MaquinariaList y Calibraciones.
-const PKG_DRAFT_LS_KEY = 'aurora_draft_paquete';
-const PKG_DRAFT_SS_KEY = 'aurora_draftActive_paquete';
-
-function loadPackageDraft() {
-  try { return JSON.parse(localStorage.getItem(PKG_DRAFT_LS_KEY)); } catch { return null; }
-}
-function savePackageDraft(data) {
-  try {
-    localStorage.setItem(PKG_DRAFT_LS_KEY, JSON.stringify(data));
-    sessionStorage.setItem(PKG_DRAFT_SS_KEY, '1');
-    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
-  } catch {}
-}
-function clearPackageDraft() {
-  try {
-    localStorage.removeItem(PKG_DRAFT_LS_KEY);
-    sessionStorage.removeItem(PKG_DRAFT_SS_KEY);
-    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
-  } catch {}
-}
-function isPackageDraftMeaningful(d) {
-  if (!d) return false;
-  if ((d.nombrePaquete || '').trim()) return true;
-  if ((d.descripcion || '').trim()) return true;
-  if (d.tipoCosecha) return true;
-  if (d.etapaCultivo) return true;
-  if (d.tecnicoResponsable) return true;
-  return (d.activities || []).some(a =>
-    (a?.name || '').trim() ||
-    (a?.day !== '' && a?.day != null) ||
-    a?.responsableId ||
-    a?.calibracionId ||
-    (a?.productos || []).length > 0
-  );
-}
-
-// Validators, constants y helpers puros viven en ../lib/packages-helpers.js
-// (extracción Fase A del refactor para bajar el archivo bajo 600 LOC).
-
-// ── Diff entre formData actual y el paquete guardado (modo edición) ──────────
-// Identifica qué campos/actividades fueron modificados respecto al snapshot
-// del servidor para que la UI pueda marcar dot indicators y mostrar el badge
-// "N cambios sin guardar". Comparación por posición en activities: añadidas
-// y modificadas se marcan en card; eliminadas se cuentan en el header pero
-// no tienen card a marcar.
-const PKG_DIFF_FIELDS = ['nombrePaquete', 'descripcion', 'tipoCosecha', 'etapaCultivo', 'tecnicoResponsable'];
-
-function activitiesEqual(a, b) {
-  if (!a || !b) return false;
-  if ((a.name || '') !== (b.name || '')) return false;
-  if (String(a.day ?? '') !== String(b.day ?? '')) return false;
-  if ((a.responsableId || '') !== (b.responsableId || '')) return false;
-  if ((a.calibracionId || '') !== (b.calibracionId || '')) return false;
-  const aprods = a.productos || [];
-  const bprods = b.productos || [];
-  if (aprods.length !== bprods.length) return false;
-  // Productos no tienen orden estable; sort por productoId antes de comparar.
-  const sortByPid = (arr) => [...arr].sort((x, y) => (x.productoId || '').localeCompare(y.productoId || ''));
-  const sA = sortByPid(aprods);
-  const sB = sortByPid(bprods);
-  for (let i = 0; i < sA.length; i++) {
-    if (sA[i].productoId !== sB[i].productoId) return false;
-    if (Number(sA[i].cantidadPorHa) !== Number(sB[i].cantidadPorHa)) return false;
-  }
-  return true;
-}
-
-function computePackageChanges(current, original) {
-  const empty = { count: 0, fields: new Set(), activities: new Set() };
-  if (!original) return empty;
-  const fields = new Set();
-  for (const f of PKG_DIFF_FIELDS) {
-    if ((current[f] || '') !== (original[f] || '')) fields.add(f);
-  }
-  const activities = new Set();
-  const curActs = current.activities || [];
-  const origActs = original.activities || [];
-  let removed = 0;
-  const maxLen = Math.max(curActs.length, origActs.length);
-  for (let i = 0; i < maxLen; i++) {
-    const cur = curActs[i];
-    const orig = origActs[i];
-    if (cur && !orig) activities.add(i);                 // añadida
-    else if (!cur && orig) removed += 1;                  // eliminada (no card a marcar)
-    else if (cur && orig && !activitiesEqual(cur, orig)) activities.add(i); // modificada
-  }
-  return {
-    count: fields.size + activities.size + removed,
-    fields,
-    activities,
-  };
-}
+// Helpers puros, draft persistence y diff viven en ../lib/packages-*.js
+// (extracción Fases A+B del refactor para bajar el archivo bajo 600 LOC).
 
 // ── Product search combobox (sobre .aur-combo-*) ─────────────────────────────
 function ProdCombobox({ productos, excludeIds, onSelect }) {
