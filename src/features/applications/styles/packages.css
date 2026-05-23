@@ -69,11 +69,19 @@
 /* En móvil el default de aurora.css hace wrap del aur-sheet-header-actions
    y manda el botón al flex-start (izquierda). Lo forzamos al extremo derecho
    para alinearnos con el patrón ya establecido en Historial de siembra y
-   otras páginas (FilterButton + botón primario). */
+   otras páginas (FilterButton + botón primario). El botón "Nuevo Paquete"
+   ocupa 60% del ancho — mismo share que el botón primario en
+   SiembraHistorial — para mantener proporciones consistentes aunque aquí
+   no haya un FilterButton acompañante. */
 @media (max-width: 768px) {
   .pkg-page-wrapper .aur-sheet-header-actions {
     justify-content: flex-end;
     flex-wrap: nowrap;
+  }
+  .pkg-page-wrapper .aur-sheet-header-actions > .aur-btn-pill {
+    flex: 0 0 60%;
+    min-width: 0;
+    justify-content: center;
   }
 }
 
