@@ -39,9 +39,11 @@ export default function EmptyState({
   const wrapperClass = `aur-empty aur-empty--${variant}${className ? ' ' + className : ''}`;
   return (
     <div className={wrapperClass}>
-      <div className="aur-empty-icon" aria-hidden="true">
-        <Icon />
-      </div>
+      {Icon && (
+        <div className="aur-empty-icon" aria-hidden="true">
+          <Icon />
+        </div>
+      )}
       {title && <div className="aur-empty-title">{title}</div>}
       {subtitle && <div className="aur-empty-subtitle">{subtitle}</div>}
       {action && <div className="aur-empty-action">{action}</div>}
