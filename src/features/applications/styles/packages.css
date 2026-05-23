@@ -916,6 +916,31 @@ input.fld-error-input,
   opacity: 0.8;
 }
 
+/* ── List-item en dos líneas (override sobre legacy-globals.css) ─────────────
+   El default global (.lote-list-info: row) sirve para LoteManagement pero aquí
+   se rompe: el detalle (tipo · etapa · N act. · costo) es más largo y se
+   pisaba con el nombre. Forzamos columna en la página de paquetes y damos a
+   `.pkg-list-meta-line` su propio row interno para que detalles + costo
+   compartan la línea 2. */
+.pkg-page-wrapper .lote-list-info {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+}
+.pkg-page-wrapper .lote-list-code {
+  white-space: normal;
+  word-break: break-word;
+}
+.pkg-page-wrapper .pkg-list-meta-line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE (≤768px)
    ═══════════════════════════════════════════════════════════════════════════ */
