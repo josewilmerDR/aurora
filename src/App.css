@@ -140,7 +140,9 @@
 /* aur-icon-btn(--success) ya da bg/color/transitions/hover; aquí sólo afinamos
    a 34px circular con bg var(--aur-bg-hover) (vs transparent default) para que
    el botón sea visible sobre el header opaco. position:relative para que el
-   counter absolute se anchore al botón. */
+   counter absolute se anchore al botón. Mismo shell para chat + autopilot:
+   ambos son entradas a features AI globales, viven adyacentes en el header. */
+.aur-header-chat-btn,
 .aur-header-autopilot-btn {
   position: relative;
   width: 34px;
@@ -149,10 +151,12 @@
   background: var(--aur-bg-hover);
   border: 1px solid var(--aur-divider);
 }
+.aur-header-chat-btn:hover:not(:disabled),
 .aur-header-autopilot-btn:hover:not(:disabled) {
   background: var(--aur-accent-tint);
   border-color: var(--aur-accent-tint-3);
 }
+.aur-header-chat-btn.is-active,
 .aur-header-autopilot-btn.is-active {
   background: var(--aur-accent-tint-2);
   border-color: var(--aur-accent-tint-3);
@@ -173,12 +177,16 @@
   line-height: 1;
 }
 
-/* Si autopilot está presente, sólo él lleva margin-left:auto; si no,
-   lo lleva profile. */
+/* Cluster right-aligned: el primero (chat, siempre presente) recibe
+   margin-left:auto y empuja al resto a la derecha. Autopilot y profile
+   siguen sin spacer cuando el chat está presente. */
+.aur-header-chat-btn,
 .aur-header-autopilot-btn,
 .aur-header-profile-btn {
   margin-left: auto;
 }
+.aur-header-chat-btn ~ .aur-header-autopilot-btn,
+.aur-header-chat-btn ~ .aur-header-profile-btn,
 .aur-header-autopilot-btn ~ .aur-header-profile-btn {
   margin-left: 0;
 }
@@ -311,6 +319,7 @@
   }
 
   /* En mobile los botones del header vuelven a su flujo flex normal */
+  .aur-header-chat-btn,
   .aur-header-autopilot-btn,
   .aur-header-profile-btn {
     margin-left: 0;

@@ -194,6 +194,8 @@ const MainLayout = () => {
   const { currentUser } = useUser();
   const [profileOpen, setProfileOpen] = useState(false);
   const [autopilotOpen, setAutopilotOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatBadge, setChatBadge] = useState(0);
   const { pendingReminders, dismissReminder } = useReminderPoller();
   const { reload: reloadReminders } = useReminders();
   useAutoPageTitle();
@@ -222,10 +224,12 @@ const MainLayout = () => {
 
   const openAutopilot = () => {
     setProfileOpen(false);
+    setChatOpen(false);
     setAutopilotOpen(true);
   };
   const toggleProfile = () => {
     setAutopilotOpen(false);
+    setChatOpen(false);
     setProfileOpen(o => {
       const next = !o;
       // Cuando se abre el panel, refresca recordatorios para captar cambios
@@ -234,6 +238,17 @@ const MainLayout = () => {
       return next;
     });
   };
+  const toggleChat = () => {
+    setProfileOpen(false);
+    setAutopilotOpen(false);
+    setChatOpen(o => !o);
+  };
+  const openChat = () => {
+    setProfileOpen(false);
+    setAutopilotOpen(false);
+    setChatOpen(true);
+  };
+  const closeChat = () => setChatOpen(false);
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try { return localStorage.getItem('aurora_sidebar_collapsed') === 'true'; }
@@ -255,6 +270,9 @@ const MainLayout = () => {
         onToggleProfile={toggleProfile}
         autopilotOpen={autopilotOpen}
         onOpenAutopilot={openAutopilot}
+        chatOpen={chatOpen}
+        onToggleChat={toggleChat}
+        chatBadge={chatBadge}
       />
 
       {/* ── Body ── */}
@@ -266,7 +284,12 @@ const MainLayout = () => {
       </div>
 
       <MobileNav />
-      <AuroraChat />
+      <AuroraChat
+        open={chatOpen}
+        onClose={closeChat}
+        onRequestOpen={openChat}
+        onBadgeChange={setChatBadge}
+      />
       <OnboardingChecklist />
       <ReminderNotification reminders={pendingReminders} onDismiss={dismissReminder} />
 
