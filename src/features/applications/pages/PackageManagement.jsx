@@ -1421,7 +1421,7 @@ function PackageManagement() {
         <div className="lote-list-panel">
           {packages.length === 0 ? (
             <p className="empty-state">
-              No hay paquetes de aplicaciones creados. Crea el primero dando click en "Nuevo Paquete".
+              Aún no hay registros que mostrar. Crea el primero en "Nuevo Paquete".
             </p>
           ) : (
           <ul className="lote-list">
