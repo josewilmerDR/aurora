@@ -429,6 +429,30 @@ function CedulasAplicacion() {
   const savedScrollRef   = useRef(0);
   const openedViaUrlRef  = useRef(false);
 
+  // Highlight + scroll a la card recién creada: reemplaza el feedback "vuelve
+  // la lista, ¿se creó o no?". El Set captura task IDs (no cedula IDs) porque
+  // los split multi-lote comparten task. CSS animation de 3s + timeout de
+  // cleanup en 3.5s para sacar el className del DOM tras la animación.
+  const [highlightedTaskIds, setHighlightedTaskIds] = useState(() => new Set());
+  const highlightTimerRef = useRef(null);
+  const highlightAndScrollTo = (taskIds) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightedTaskIds(new Set(taskIds));
+    // rAF asegura que el DOM ya tiene el `data-task-id` actualizado cuando
+    // buscamos el elemento — necesario tras un setCedulas/setTasks reciente.
+    requestAnimationFrame(() => {
+      const el = taskIds[0] && document.querySelector(`[data-task-id="${taskIds[0]}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedTaskIds(new Set());
+      highlightTimerRef.current = null;
+    }, 3500);
+  };
+  useEffect(() => () => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+  }, []);
+
   useEffect(() => {
     // Carga inicial separada en críticos (tasks + cédulas → manejan la lista)
     // y secundarios (catálogos que solo alimentan el preview y los modales).
@@ -650,12 +674,20 @@ function CedulasAplicacion() {
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 409 && data.cedulas) {
-          // Cedulas already exist in DB but weren't in local state (stale cache) — recover silently
+          // Cédulas ya existen en DB pero el cliente las desconocía (caché
+          // stale). Las inyectamos en estado y avisamos al usuario que el
+          // botón "produjo" algo aunque técnicamente fue una sync, no una
+          // creación — sin esto la fila "magicamente" cambia y vuelve la
+          // duda "¿qué hizo el botón?".
           setCedulas(prev => {
             const existingIds = new Set(prev.map(c => c.id));
             const newOnes = data.cedulas.filter(c => !existingIds.has(c.id));
             return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
           });
+          if (data.cedulas.length > 0) {
+            toast.info('La cédula ya existía. Sincronizada con tu vista.');
+            highlightAndScrollTo([taskId]);
+          }
         } else {
           toast.error(data.message || 'Error al generar la cédula.');
         }
@@ -664,6 +696,15 @@ function CedulasAplicacion() {
       // Response is either a single cedula object or an array (multi-lote split)
       const newCedulas = Array.isArray(data) ? data : [data];
       setCedulas(prev => [...prev, ...newCedulas]);
+      // Acuse explícito: si fue split multi-lote, listamos cuántas se
+      // crearon para que el usuario sepa que es 1 task → N cédulas.
+      const consecutivos = newCedulas.map(c => c.consecutivo).filter(Boolean);
+      toast.success(
+        newCedulas.length === 1
+          ? `Cédula ${consecutivos[0] || 'creada'}.`
+          : `${newCedulas.length} cédulas creadas (${consecutivos.join(', ')}).`
+      );
+      highlightAndScrollTo([taskId]);
     } finally {
       setActionLoading(null);
     }
@@ -866,6 +907,8 @@ function CedulasAplicacion() {
     setCedulas(prev => [...prev, cedula]);
     setTasks(prev => [...prev, task]);
     setShowNuevaModal(false);
+    toast.success(`Cédula ${cedula.consecutivo || 'creada'}.`);
+    if (task?.id) highlightAndScrollTo([task.id]);
   };
 
   const handlePreviewDraft = (formData) => {
@@ -970,7 +1013,11 @@ function CedulasAplicacion() {
     // ── Multi-lote split: una sub-fila por cédula ──────────────────────────
     if (isSplit) {
       return (
-        <article key={task.id} className={`ca-cedula-card ca-cedula-card--split${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}`}>
+        <article
+          key={task.id}
+          data-task-id={task.id}
+          className={`ca-cedula-card ca-cedula-card--split${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}${highlightedTaskIds.has(task.id) ? ' is-highlighted' : ''}`}
+        >
           <div className="ca-cedula-head">
             <div className="ca-cedula-info">
               <h4 className="ca-cedula-name" title={task.activityName}>
@@ -1071,7 +1118,11 @@ function CedulasAplicacion() {
     const canAnular = cedula && cedula.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
 
     return (
-      <article key={task.id} className={`ca-cedula-card${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}`}>
+      <article
+        key={task.id}
+        data-task-id={task.id}
+        className={`ca-cedula-card${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}${highlightedTaskIds.has(task.id) ? ' is-highlighted' : ''}`}
+      >
         <div className="ca-cedula-head">
           <div className="ca-cedula-info">
             <h4 className="ca-cedula-name" title={task.activityName}>
