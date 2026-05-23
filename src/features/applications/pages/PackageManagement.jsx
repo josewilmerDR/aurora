@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw, FiBookmark } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter, FiClock, FiArchive, FiRotateCcw, FiBookmark, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
@@ -509,6 +509,11 @@ function PackageManagement() {
   const carouselRef = useRef(null);
 
   const [hubExpandedActivities, setHubExpandedActivities] = useState(new Set());
+  // Banner persistente de confirmación de guardado. Sustituye al toast
+  // efímero para que el usuario tenga evidencia visual del save tras volver
+  // a la lista. Se limpia al abrir cualquier form (Nuevo o Editar) y por
+  // botón "Cerrar". Forma: { id, nombrePaquete, action: 'created'|'updated' } | null
+  const [lastSavedPkg, setLastSavedPkg] = useState(null);
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkg, setPendingDeletePkg] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
@@ -988,6 +993,7 @@ function PackageManagement() {
     setFormErrors({});
     setIsDirty(false);
     setDraftRestored(false);
+    setLastSavedPkg(null);
     window.scrollTo(0, 0);
   };
 
@@ -1021,6 +1027,7 @@ function PackageManagement() {
     setFormErrors({});
     setIsDirty(false);
     setDraftRestored(false);
+    setLastSavedPkg(null);
   };
 
   const handleSelectPkg = (pkg) => {
@@ -1154,10 +1161,20 @@ function PackageManagement() {
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('Error al guardar el paquete');
+      // POST devuelve `{ id, ...pkg }`; PUT no devuelve el id porque ya lo
+      // tenemos. Capturamos id + nombre ANTES de resetForm() para alimentar
+      // el banner persistente — resetForm limpia formData.
+      const savedId = isEditing
+        ? formData.id
+        : await response.clone().json().then(d => d?.id).catch(() => null);
+      const savedName = formData.nombrePaquete;
+      const savedAction = isEditing ? 'updated' : 'created';
       const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
       setPackages(updatedPackages);
       resetForm();
-      showToast(isEditing ? 'Paquete actualizado correctamente' : 'Paquete guardado correctamente');
+      if (savedId) {
+        setLastSavedPkg({ id: savedId, nombrePaquete: savedName, action: savedAction });
+      }
     } catch (error) {
       showToast('Ocurrió un error al guardar.', 'error');
     } finally {
@@ -1697,6 +1714,40 @@ function PackageManagement() {
           }
         />
       )}
+
+      {/* ── Banner persistente: confirmación de guardado ──
+          Visible tras un save exitoso hasta que el usuario lo cierre o
+          inicie otro form. Reemplaza al toast efímero por una señal estable
+          con acceso directo al paquete recién guardado. */}
+      {!loading && lastSavedPkg && (
+        <div className="pkg-save-banner" role="status" aria-live="polite">
+          <FiCheck size={14} aria-hidden="true" />
+          <span className="pkg-save-banner-msg">
+            Paquete <strong>"{lastSavedPkg.nombrePaquete}"</strong>{' '}
+            {lastSavedPkg.action === 'created' ? 'creado.' : 'actualizado.'}
+          </span>
+          <button
+            type="button"
+            className="pkg-save-banner-action"
+            onClick={() => {
+              const pkg = packages.find(p => p.id === lastSavedPkg.id);
+              setLastSavedPkg(null);
+              if (pkg) handleSelectPkg(pkg);
+            }}
+          >
+            Abrir →
+          </button>
+          <button
+            type="button"
+            className="pkg-save-banner-close"
+            onClick={() => setLastSavedPkg(null)}
+            aria-label="Cerrar"
+          >
+            <FiX size={14} />
+          </button>
+        </div>
+      )}
+
       {/* ── Mobile sticky carousel ── */}
       {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>

@@ -248,6 +248,68 @@
   background: var(--aur-bg-hover);
 }
 
+/* ── Banner persistente de confirmación de guardado ──
+   Reemplaza al toast efímero para que la evidencia visual del save sobreviva
+   varios segundos hasta que el usuario decida (Abrir, Cerrar) o inicie otro
+   form. Visual cercano al banner de borrador pero con check + acento verde. */
+.pkg-save-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--aur-accent-tint);
+  border: 1px solid rgba(51, 255, 153, 0.28);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.pkg-save-banner > svg {
+  color: var(--aurora-green);
+  flex-shrink: 0;
+}
+.pkg-save-banner-msg {
+  flex: 1;
+  line-height: 1.4;
+}
+.pkg-save-banner-msg strong {
+  font-weight: 600;
+}
+.pkg-save-banner-action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(51, 255, 153, 0.35);
+  color: var(--aurora-green);
+  cursor: pointer;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.pkg-save-banner-action:hover {
+  background: rgba(51, 255, 153, 0.12);
+  border-color: rgba(51, 255, 153, 0.55);
+}
+.pkg-save-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--aur-text-3, #6b819b);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.pkg-save-banner-close:hover {
+  color: var(--aur-text);
+  background: var(--aur-bg-hover);
+}
+
 /* ── Búsqueda inline en el panel de lista ─────────────────────────────────── */
 .pkg-list-search {
   display: flex;
