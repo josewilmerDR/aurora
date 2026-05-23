@@ -39,7 +39,7 @@ const ALL_MODULES = [
         label: 'Aplicaciones', icon: FiPackage, minRole: 'encargado', children: [
           { label: 'Cédulas de Aplicación',   to: '/aplicaciones/cedulas',   icon: FiFileText, minRole: 'encargado' },
           { label: 'Historial de Aplicaciones', to: '/aplicaciones/historial', icon: FiList,     minRole: 'encargado' },
-          { label: 'Paquetes de Aplicaciones', to: '/packages', icon: FiPackage, minRole: 'supervisor', draftKey: 'paquete-nuevo' },
+          { label: 'Paquetes de Aplicaciones', to: '/packages', icon: FiPackage, minRole: 'supervisor', draftKey: 'paquete' },
         ]
       },
       {

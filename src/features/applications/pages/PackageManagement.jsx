@@ -9,12 +9,13 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Draft persistence ────────────────────────────────────────────────────────
-// El borrador se guarda solo en modo "crear" — al editar un paquete existente
-// no queremos que cambios a medio terminar se conviertan en un "draft global"
-// que se restauraría como nuevo paquete en el siguiente montaje. Mismo criterio
-// que LoteManagement: una sola key por dominio, scope "nuevo".
-const PKG_DRAFT_LS_KEY = 'aurora_draft_paquete-nuevo';
-const PKG_DRAFT_SS_KEY = 'aurora_draftActive_paquete-nuevo';
+// Un solo slot global que captura el form completo (incluye `id`) sirve tanto
+// para crear como para editar: como solo hay un form abierto a la vez, no se
+// pueden editar dos paquetes en paralelo. En la restauración usamos `id` para
+// recuperar el modo (con id → editar; sin id → crear). Mismo patrón que
+// MaquinariaList y Calibraciones.
+const PKG_DRAFT_LS_KEY = 'aurora_draft_paquete';
+const PKG_DRAFT_SS_KEY = 'aurora_draftActive_paquete';
 
 function loadPackageDraft() {
   try { return JSON.parse(localStorage.getItem(PKG_DRAFT_LS_KEY)); } catch { return null; }
@@ -353,8 +354,8 @@ function PackageManagement() {
   }, []);
 
   // Restaurar borrador al montar: si hay datos persistidos de una sesión
-  // anterior, abrir el form en modo "nuevo" con esos datos. Mismo patrón que
-  // LoteManagement — la badge en el sidebar avisa que hay algo pendiente.
+  // anterior, abrir el form con esos datos. El draft.id distingue el modo —
+  // con id se reabre como edición del paquete; sin id, como nuevo paquete.
   useEffect(() => {
     const draft = loadPackageDraft();
     if (!isPackageDraftMeaningful(draft)) {
@@ -363,7 +364,7 @@ function PackageManagement() {
     }
     const activities = Array.isArray(draft.activities) ? draft.activities : [];
     setFormData({
-      id: null,
+      id: draft.id || null,
       nombrePaquete: draft.nombrePaquete || '',
       descripcion: draft.descripcion || '',
       tipoCosecha: draft.tipoCosecha || '',
@@ -371,7 +372,7 @@ function PackageManagement() {
       tecnicoResponsable: draft.tecnicoResponsable || '',
       activities,
     });
-    setIsEditing(false);
+    setIsEditing(!!draft.id);
     setIsFormOpen(true);
     setSelectedPkg(null);
     setExpandedActivities(new Set(activities.map((_, i) => i)));
@@ -382,12 +383,14 @@ function PackageManagement() {
     } catch {}
   }, []);
 
-  // Autoguardado del borrador en cada cambio del form de creación. Excluye
-  // edit-mode (no queremos que un PUT a medio terminar se "rescate" como nuevo
-  // paquete) y la vista hub (selectedPkg !== null), que no tiene form.
+  // Autoguardado del borrador en cada cambio del form (crear o editar).
+  // Se omite solo la vista hub (selectedPkg !== null), que no tiene form, y
+  // cuando el form está cerrado. Persiste `id` para que la restauración pueda
+  // reabrir en el mismo modo en el que estaba el usuario.
   useEffect(() => {
-    if (isEditing || !isFormOpen || selectedPkg) return;
+    if (!isFormOpen || selectedPkg) return;
     const snapshot = {
+      id: formData.id || null,
       nombrePaquete: formData.nombrePaquete,
       descripcion: formData.descripcion,
       tipoCosecha: formData.tipoCosecha,
@@ -397,7 +400,7 @@ function PackageManagement() {
     };
     if (isPackageDraftMeaningful(snapshot)) savePackageDraft(snapshot);
     else clearPackageDraft();
-  }, [formData, isEditing, isFormOpen, selectedPkg]);
+  }, [formData, isFormOpen, selectedPkg]);
 
   // Atajo Ctrl/Cmd + S → enviar el form mientras se edita/crea un paquete.
   // Solo se activa cuando el form está abierto en modo crear/editar
@@ -628,7 +631,6 @@ function PackageManagement() {
     setExpandedActivities(new Set(normalizedActivities.map((_, i) => i)));
     setFormErrors({});
     setIsDirty(false);
-    clearPackageDraft();
     window.scrollTo(0, 0);
   };
 
@@ -886,6 +888,10 @@ function PackageManagement() {
             const action = pendingNavAction;
             setPendingNavAction(null);
             setIsDirty(false);
+            // Descartar es intención explícita: tirar el borrador. Necesario
+            // sobre todo cuando `action` es handleSelectPkg → cierra el form
+            // hacia la vista hub, donde el effect de autoguardado no corre.
+            clearPackageDraft();
             action();
           }}
           onCancel={() => setPendingNavAction(null)}
