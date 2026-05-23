@@ -1248,6 +1248,50 @@ input.fld-error-input,
   opacity: 0.5;
 }
 
+/* Meta row del item colapsado: agrupa responsable + chips de productos/cal.
+   Los chips dan visibilidad de qué hay dentro sin obligar a expandir, y
+   funcionan también como botón para abrir el detalle (refuerzan al icono ojo). */
+.pkg-hub-activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.pkg-hub-activity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.08);
+  border: 1px solid rgba(51, 255, 153, 0.2);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.pkg-hub-activity-chip:hover {
+  background: rgba(51, 255, 153, 0.16);
+  border-color: rgba(51, 255, 153, 0.4);
+}
+
+.pkg-hub-activity-chip--cal {
+  color: var(--aurora-magenta);
+  background: rgba(204, 51, 255, 0.08);
+  border-color: rgba(204, 51, 255, 0.22);
+}
+
+.pkg-hub-activity-chip--cal:hover {
+  background: rgba(204, 51, 255, 0.16);
+  border-color: rgba(204, 51, 255, 0.42);
+}
+
 .pkg-hub-activity-detail {
   display: flex;
   flex-direction: column;
