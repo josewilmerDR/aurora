@@ -36,8 +36,8 @@ import {
   isPackageDraftMeaningful,
 } from '../lib/packages-draft';
 import { computePackageChanges } from '../lib/packages-diff';
-import ProdCombobox from '../components/ProdCombobox';
 import PackageTimeline from '../components/PackageTimeline';
+import ActivityCard from '../components/ActivityCard';
 
 // Helpers puros, draft persistence y diff viven en ../lib/packages-*.js
 // (extracción Fases A+B del refactor para bajar el archivo bajo 600 LOC).
@@ -1587,240 +1587,43 @@ function PackageManagement() {
               )}
             </div>
             <ul className="pkg-act-list">
-              {formData.activities.map((activity, index) => {
-                const expanded = expandedActivities.has(index);
-                const costo = formActivityCosts[index] || { totals: [], hasMissingPrice: false, withoutPrice: 0 };
-                const costEntries = costo.totals;
-                return (
-                  <li
-                    key={`act-${index}`}
-                    className={`pkg-act-card${changes.activities.has(index) ? ' pkg-act-card--modified' : ''}`}
-                  >
-                    <div className="pkg-act-row">
-                      <div className="pkg-act-day">
-                        <input
-                          type="number"
-                          min={0}
-                          max={1825}
-                          step={1}
-                          value={activity.day}
-                          onChange={(e) => handleActivityChange(index, 'day', e.target.value)}
-                          onBlur={() => handleActivityBlur(index, 'day')}
-                          aria-label="Día"
-                          placeholder="0"
-                          className={formErrors[`act-${index}-day`] ? 'fld-error-input' : ''}
-                          title={formErrors[`act-${index}-day`] || undefined}
-                          required
-                        />
-                        <span className="pkg-act-day-suffix">día</span>
-                      </div>
-
-                      <div className="pkg-act-body">
-                        <input
-                          type="text"
-                          className={`pkg-act-name${formErrors[`act-${index}-name`] ? ' fld-error-input' : ''}`}
-                          value={activity.name}
-                          onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
-                          onBlur={() => handleActivityBlur(index, 'name')}
-                          placeholder="Nombre de la actividad"
-                          required
-                          maxLength={ACT_NAME_MAX}
-                          aria-label="Nombre de la actividad"
-                          title={formErrors[`act-${index}-name`] || undefined}
-                        />
-                        <div className="pkg-act-meta">
-                          {(() => {
-                            // Si el responsable ya guardado no está en la lista
-                            // elegible (perdió acceso o salió de planilla), lo
-                            // añadimos como opción "huérfana" para no descartar
-                            // el valor silenciosamente — el usuario decide si
-                            // lo mantiene o lo cambia.
-                            const current = activity.responsableId;
-                            const orphan = current
-                              && !eligibleResponsables.some(u => u.id === current)
-                              && users.find(u => u.id === current);
-                            return (
-                              <select
-                                className="aur-chip"
-                                value={current || ''}
-                                onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}
-                                aria-label="Responsable"
-                              >
-                                <option value="">Responsable</option>
-                                {eligibleResponsables.map(user => (
-                                  <option key={user.id} value={user.id}>{user.nombre}</option>
-                                ))}
-                                {orphan && (
-                                  <option value={orphan.id}>{orphan.nombre} (no disponible)</option>
-                                )}
-                                {eligibleResponsables.length === 0 && !orphan && (
-                                  <option value="" disabled>No hay empleados con acceso</option>
-                                )}
-                              </select>
-                            );
-                          })()}
-                          <select
-                            className="aur-chip"
-                            value={activity.calibracionId || ''}
-                            onChange={(e) => handleActivityChange(index, 'calibracionId', e.target.value)}
-                            aria-label="Calibración"
-                          >
-                            <option value="">Calibración</option>
-                            {calibraciones.map(cal => <option key={cal.id} value={cal.id}>{cal.nombre}</option>)}
-                          </select>
-                          <select
-                            className="aur-chip aur-chip--ghost"
-                            value=""
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === '__create__') openTemplateModal(index);
-                              else if (v) aplicarPlantillaAActividad(index, v);
-                            }}
-                            aria-label="Plantillas de aplicaciones"
-                          >
-                            <option value="">+ Plantilla</option>
-                            {plantillas.length === 0 && (
-                              <option value="" disabled>No hay plantillas de aplicaciones</option>
-                            )}
-                            {plantillas.map(p => (
-                              <option key={p.id} value={p.id}>{p.nombre}</option>
-                            ))}
-                            <option value="__create__">+ Crear plantilla a partir de esta actividad…</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`pkg-act-cost${costEntries.length === 0 ? ' pkg-act-cost--empty' : ''}`}
-                        title={
-                          costo.total === 0
-                            ? 'Sin productos asignados'
-                            : costo.allMissingPrice
-                              ? 'Todos los productos están sin precio en el catálogo'
-                              : costo.hasMissingPrice
-                                ? `Costo de la mezcla por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
-                                : 'Costo de la mezcla por hectárea'
-                        }
-                      >
-                        {costEntries.length === 0 ? (
-                          <span aria-label={costo.allMissingPrice ? 'Sin precio' : 'Sin productos'}>
-                            {costo.allMissingPrice ? 'Sin precio' : '—'}
-                          </span>
-                        ) : (
-                          <>
-                            {costEntries.map(([mon, total]) => (
-                              <div key={mon}>
-                                {total.toFixed(2)}
-                                <span className="pkg-act-cost-mon">{mon}/Ha</span>
-                              </div>
-                            ))}
-                            {costo.hasMissingPrice && (
-                              <span className="pkg-cost-warn" role="status">Costo incompleto</span>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      <div className="pkg-act-actions">
-                        {pendingDeleteIdx === index ? (
-                          <div className="aur-inline-confirm">
-                            <span className="aur-inline-confirm-text">¿Eliminar?</span>
-                            <button type="button" className="aur-inline-confirm-yes" onClick={() => removeActivity(index)}>Sí</button>
-                            <button type="button" className="aur-inline-confirm-no" onClick={() => setPendingDeleteIdx(null)}>No</button>
-                          </div>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="aur-icon-btn"
-                              onClick={() => duplicateActivity(index)}
-                              title="Duplicar actividad"
-                            >
-                              <FiCopy size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="aur-icon-btn aur-icon-btn--danger"
-                              onClick={() => setPendingDeleteIdx(index)}
-                              title="Eliminar actividad"
-                            >
-                              <FiX size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className={`aur-icon-btn pkg-act-expand${expanded ? ' is-open' : ''}`}
-                              onClick={() => toggleActivityExpand(index)}
-                              title={expanded ? 'Ocultar productos' : 'Productos de mezcla'}
-                            >
-                              <FiChevronDown size={14} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {expanded && (
-                      <div className="pkg-act-products">
-                        <span className="pkg-act-products-label">Productos de mezcla</span>
-                        <div className="pkg-act-products-list">
-                          {(activity.productos || []).map(p => {
-                            const catProd = productosById.get(p.productoId);
-                            const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
-                            const moneda = catProd?.moneda || '';
-                            const qty = parseFloat(p.cantidadPorHa) || 0;
-                            const precioTotal = qty * precioUnitario;
-                            return (
-                              <div key={p.productoId} className="pkg-prod-row">
-                                <span className="pkg-prod-row-name">{p.nombreComercial}</span>
-                                <div className="pkg-prod-row-qty">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    max="1023.99"
-                                    value={p.cantidadPorHa}
-                                    onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
-                                    onBlur={(e) => handleProductCantidadBlur(index, p.productoId, e.target.value)}
-                                    data-prod-qty={`${index}-${p.productoId}`}
-                                    className={formErrors[`act-${index}-prod-${p.productoId}-cant`] ? 'fld-error-input' : ''}
-                                    title={formErrors[`act-${index}-prod-${p.productoId}-cant`] || 'Cantidad por Ha'}
-                                  />
-                                  <span className="pkg-prod-row-unit">{p.unidad}/Ha</span>
-                                </div>
-                                {precioUnitario > 0 ? (
-                                  <span className="pkg-prod-row-cost" title="Costo por hectárea">
-                                    {precioTotal.toFixed(2)}
-                                    <span className="pkg-prod-row-mon">{moneda}/Ha</span>
-                                  </span>
-                                ) : <span />}
-                                <button
-                                  type="button"
-                                  className="pkg-prod-row-remove"
-                                  onClick={() => removeProductFromActivity(index, p.productoId)}
-                                  title="Quitar producto"
-                                >
-                                  <FiX size={12} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                          <ProdCombobox
-                            productos={productos}
-                            excludeIds={(activity.productos || []).map(p => p.productoId)}
-                            onSelect={(productoId) => {
-                              addProductToActivity(index, productoId);
-                              setTimeout(() => {
-                                const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
-                                if (el) { el.focus(); el.select(); }
-                              }, 0);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
+              {formData.activities.map((activity, index) => (
+                <ActivityCard
+                  key={`act-${index}`}
+                  activity={activity}
+                  index={index}
+                  expanded={expandedActivities.has(index)}
+                  modified={changes.activities.has(index)}
+                  pendingDelete={pendingDeleteIdx === index}
+                  costo={formActivityCosts[index] || { totals: [], hasMissingPrice: false, withoutPrice: 0 }}
+                  formErrors={formErrors}
+                  users={users}
+                  productos={productos}
+                  productosById={productosById}
+                  calibraciones={calibraciones}
+                  plantillas={plantillas}
+                  eligibleResponsables={eligibleResponsables}
+                  onActivityChange={(field, value) => handleActivityChange(index, field, value)}
+                  onActivityBlur={(field) => handleActivityBlur(index, field)}
+                  onRequestDelete={() => setPendingDeleteIdx(index)}
+                  onCancelDelete={() => setPendingDeleteIdx(null)}
+                  onConfirmDelete={() => removeActivity(index)}
+                  onDuplicate={() => duplicateActivity(index)}
+                  onToggleExpand={() => toggleActivityExpand(index)}
+                  onOpenTemplateModal={() => openTemplateModal(index)}
+                  onApplyPlantilla={(plantillaId) => aplicarPlantillaAActividad(index, plantillaId)}
+                  onAddProduct={(productoId) => {
+                    addProductToActivity(index, productoId);
+                    setTimeout(() => {
+                      const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
+                      if (el) { el.focus(); el.select(); }
+                    }, 0);
+                  }}
+                  onRemoveProduct={(productoId) => removeProductFromActivity(index, productoId)}
+                  onProductCantidadChange={(productoId, value) => updateProductCantidad(index, productoId, value)}
+                  onProductCantidadBlur={(productoId, value) => handleProductCantidadBlur(index, productoId, value)}
+                />
+              ))}
             </ul>
             <button type="button" onClick={addActivity} className="pkg-add-activity">
               <FiPlus size={14} />
