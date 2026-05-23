@@ -51,20 +51,30 @@
   max-width: 720px;
 }
 
-/* Quita los bordes laterales e inferior del panel de lista en esta página */
+/* Quita todos los bordes del panel de lista en esta página: el borde superior
+   se omite porque el PageHeader ya aporta su propia línea inferior y, si lo
+   dejáramos, formaría una doble línea con la divisoria del header. */
 .pkg-page-wrapper .lote-list-panel {
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
+  border: none;
   border-radius: 0;
 }
 
-/* Quita los bordes laterales e inferior del hub de detalle en esta página */
+/* Mismo motivo que arriba: el borde superior del hub duplicaba la línea
+   inferior del PageHeader, así que removemos todos los bordes del panel. */
 .pkg-page-wrapper .lote-hub {
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
+  border: none;
   border-radius: 0;
+}
+
+/* En móvil el default de aurora.css hace wrap del aur-sheet-header-actions
+   y manda el botón al flex-start (izquierda). Lo forzamos al extremo derecho
+   para alinearnos con el patrón ya establecido en Historial de siembra y
+   otras páginas (FilterButton + botón primario). */
+@media (max-width: 768px) {
+  .pkg-page-wrapper .aur-sheet-header-actions {
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
 }
 
 /* Asterisco de advertencia: aparece al lado de un costo cuando hay productos
