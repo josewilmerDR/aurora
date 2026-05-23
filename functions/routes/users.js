@@ -42,6 +42,40 @@ router.get('/api/users', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/users/lite — directorio mínimo de personas de la finca.
+//
+// Surge de la auditoría de Paquetes: pantallas que solo necesitan resolver
+// `id → nombre` (pickers de responsable, orphan-check de plantillas) estaban
+// jalando el GET completo, que incluye email, teléfono y rol de TODOS los
+// usuarios para cualquier trabajador autenticado. Eso es over-fetch de PII.
+//
+// Esta variante devuelve solo lo que esos call sites necesitan:
+//   - id, nombre               → render
+//   - empleadoPlanilla,        → derivar `eligibleResponsables`
+//     tieneAcceso                (empleado en planilla con acceso al sistema)
+//
+// Sin email, teléfono, rol, restrictedTo ni cualquier flag de RR.HH. La ruta
+// queda abierta a cualquier autenticado (igual que /api/users), porque
+// trabajadores legítimos necesitan resolver nombres de responsables en sus
+// propias pantallas.
+router.get('/api/users/lite', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('users').where('fincaId', '==', req.fincaId).get();
+    const lite = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        nombre: d.nombre || '',
+        empleadoPlanilla: d.empleadoPlanilla === true,
+        tieneAcceso: d.tieneAcceso === true,
+      };
+    });
+    res.status(200).json(lite);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener directorio.' });
+  }
+});
+
 router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
   try {
     const { errs, clean } = validateUserPayload(req.body, { mode: 'create' });

@@ -8,6 +8,7 @@ import PageHeader from '../../../components/PageHeader';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import FilterButton from '../../../components/ui/FilterButton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { translateApiError } from '../../../lib/errorMessages';
 import {
   calcularCosto,
@@ -39,6 +40,13 @@ const parseOrThrowJson = async (res) => {
 
 function PackageManagement() {
   const apiFetch = useApiFetch();
+  const { currentUser } = useUser();
+  // Defense-in-depth: aunque la ruta /packages se gateó a supervisor en
+  // App.jsx + backend en Tanda 1, "eliminar paquete" rompe referencias en
+  // lotes/grupos sin undo, así que lo restringimos a admin en la UI. El
+  // backend de DELETE no exige admin (solo supervisor) — esto es solo el
+  // segundo cinturón.
+  const canDeletePkg = hasMinRole(currentUser?.rol, 'administrador');
   const [packages, setPackages] = useState([]);
   const [users, setUsers] = useState([]);
   const [productos, setProductos] = useState([]);
@@ -72,6 +80,12 @@ function PackageManagement() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const carouselRef = useRef(null);
+
+  // Id del paquete con una mutación en vuelo (duplicate/archive/unarchive/
+  // delete/lookup-deps). PackageHub deshabilita sus botones cuando coincide
+  // con selectedPkg para evitar doble-click → doble request → "Error" en el
+  // segundo (Punto 12 de la auditoría).
+  const [mutatingPkgId, setMutatingPkgId] = useState(null);
 
   const [hubExpandedActivities, setHubExpandedActivities] = useState(new Set());
   // Banner persistente de confirmación de guardado. Sustituye al toast
@@ -211,7 +225,12 @@ function PackageManagement() {
       });
 
     const pkgsP  = fetchSafe('/api/packages',       'los paquetes');
-    const usrsP  = fetchSafe('/api/users',          'los usuarios');
+    // /api/users/lite en vez de /api/users: la página solo necesita id +
+    // nombre + flags de empleo/acceso para los pickers y la orphan-check.
+    // El endpoint pesado incluye email/teléfono/rol que la página no usa y
+    // queda en React state innecesariamente (PII overshare — auditoría
+    // Punto 9).
+    const usrsP  = fetchSafe('/api/users/lite',     'los usuarios');
     const prodsP = fetchSafe('/api/productos',      'los productos');
     const tplsP  = fetchSafe('/api/task-templates', 'las plantillas');
     const calsP  = fetchSafe('/api/calibraciones',  'las calibraciones');
@@ -357,6 +376,7 @@ function PackageManagement() {
   };
 
   const handleDuplicate = async (pkg) => {
+    if (mutatingPkgId) return;
     const body = {
       nombrePaquete: `Copia de ${pkg.nombrePaquete}`,
       tipoCosecha: pkg.tipoCosecha,
@@ -364,6 +384,7 @@ function PackageManagement() {
       tecnicoResponsable: pkg.tecnicoResponsable || '',
       activities: pkg.activities || [],
     };
+    setMutatingPkgId(pkg.id);
     try {
       const created = await parseOrThrowJson(await apiFetch('/api/packages', {
         method: 'POST',
@@ -389,6 +410,8 @@ function PackageManagement() {
       }
     } catch (errBody) {
       showToast(translateApiError(errBody, 'No se pudo duplicar el paquete.'), 'error');
+    } finally {
+      setMutatingPkgId(null);
     }
   };
 
@@ -402,6 +425,8 @@ function PackageManagement() {
   // confirma. Desarchivar es benigno (restaura algo que el usuario archivó
   // adrede), no requiere confirmación.
   const handleArchiveClick = async (pkg) => {
+    if (mutatingPkgId) return;
+    setMutatingPkgId(pkg.id);
     try {
       const [lotesData, gruposData] = await Promise.all([
         parseOrThrowJson(await apiFetch('/api/lotes')),
@@ -417,10 +442,16 @@ function PackageManagement() {
       });
     } catch (errBody) {
       showToast(translateApiError(errBody, 'No se pudo verificar el paquete.'), 'error');
+    } finally {
+      // Liberamos el lock incluso si pasamos a mostrar el modal de confirm:
+      // performArchive volverá a tomar el lock cuando el usuario confirme.
+      setMutatingPkgId(null);
     }
   };
 
   const performArchive = async (pkg) => {
+    if (mutatingPkgId) return;
+    setMutatingPkgId(pkg.id);
     try {
       const res = await apiFetch(`/api/packages/${pkg.id}/archive`, { method: 'POST' });
       if (!res.ok) throw await res.json().catch(() => ({}));
@@ -435,10 +466,14 @@ function PackageManagement() {
       showToast(`Paquete "${pkg.nombrePaquete}" archivado.`);
     } catch (errBody) {
       showToast(translateApiError(errBody, 'No se pudo archivar el paquete.'), 'error');
+    } finally {
+      setMutatingPkgId(null);
     }
   };
 
   const handleUnarchive = async (pkg) => {
+    if (mutatingPkgId) return;
+    setMutatingPkgId(pkg.id);
     try {
       const res = await apiFetch(`/api/packages/${pkg.id}/unarchive`, { method: 'POST' });
       if (!res.ok) throw await res.json().catch(() => ({}));
@@ -458,10 +493,14 @@ function PackageManagement() {
       showToast(`Paquete "${pkg.nombrePaquete}" reactivado.`);
     } catch (errBody) {
       showToast(translateApiError(errBody, 'No se pudo desarchivar el paquete.'), 'error');
+    } finally {
+      setMutatingPkgId(null);
     }
   };
 
   const handleDeleteClick = async (pkg) => {
+    if (mutatingPkgId) return;
+    setMutatingPkgId(pkg.id);
     try {
       const [lotesData, gruposData] = await Promise.all([
         parseOrThrowJson(await apiFetch('/api/lotes')),
@@ -480,10 +519,17 @@ function PackageManagement() {
       }
     } catch (errBody) {
       showToast(translateApiError(errBody, 'No se pudieron verificar las dependencias.'), 'error');
+    } finally {
+      // Igual que en handleArchiveClick: liberamos el lock para que el
+      // performDelete subsiguiente (cuando el usuario confirme el modal)
+      // pueda tomarlo de nuevo sin quedar bloqueado.
+      setMutatingPkgId(null);
     }
   };
 
   const handleDelete = async (id) => {
+    if (mutatingPkgId) return;
+    setMutatingPkgId(id);
     try {
       const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
       if (!response.ok) throw await response.json().catch(() => ({}));
@@ -493,6 +539,8 @@ function PackageManagement() {
       showToast('Paquete eliminado correctamente');
     } catch (errBody) {
       showToast(translateApiError(errBody, 'No se pudo eliminar el paquete.'), 'error');
+    } finally {
+      setMutatingPkgId(null);
     }
   };
 
@@ -900,6 +948,8 @@ function PackageManagement() {
           productosById={productosById}
           expandedActivities={hubExpandedActivities}
           activityCosts={selectedPkgActivityCosts}
+          canDelete={canDeletePkg}
+          isMutating={mutatingPkgId === selectedPkg.id}
           onBack={resetForm}
           onEdit={handleEdit}
           onDuplicate={handleDuplicate}
