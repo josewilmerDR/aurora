@@ -1028,7 +1028,20 @@ function PackageManagement() {
     setIsEditing(false);
     setIsFormOpen(true);
     setExpandedActivities(new Set());
-    setHubExpandedActivities(new Set());
+    // Auto-expandir: si exactamente una actividad tiene detalles (productos o
+    // calibración), abrimos su detalle al entrar al hub. Para múltiples
+    // actividades con detalles dejamos todo colapsado y los chips inline
+    // indican qué hay dentro de cada una. Si ninguna tiene detalles, no hay
+    // nada que expandir.
+    const sorted = [...(pkg.activities || [])].sort((a, b) => Number(a.day) - Number(b.day));
+    const withDetailsIndices = [];
+    sorted.forEach((a, i) => {
+      const hasDetails = (a.productos?.length > 0) || !!calibraciones.find(c => c.id === a.calibracionId);
+      if (hasDetails) withDetailsIndices.push(i);
+    });
+    setHubExpandedActivities(
+      withDetailsIndices.length === 1 ? new Set(withDetailsIndices) : new Set()
+    );
     setFormErrors({});
     setIsDirty(false);
     setDraftRestored(false);
@@ -2217,7 +2230,39 @@ function PackageManagement() {
                       <span className="pkg-hub-activity-day">Día {act.day}</span>
                       <div className="pkg-hub-activity-info">
                         <span className="pkg-hub-activity-name">{act.name}</span>
-                        {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
+                        {(resp || act.productos?.length > 0 || cal) && (
+                          <div className="pkg-hub-activity-meta">
+                            {resp && <span className="pkg-hub-activity-resp">{resp.nombre}</span>}
+                            {act.productos?.length > 0 && (
+                              <button
+                                type="button"
+                                className="pkg-hub-activity-chip"
+                                title="Ver productos y dosis"
+                                onClick={() => setHubExpandedActivities(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(i)) next.delete(i); else next.add(i);
+                                  return next;
+                                })}
+                              >
+                                {act.productos.length} {act.productos.length === 1 ? 'producto' : 'productos'}
+                              </button>
+                            )}
+                            {cal && (
+                              <button
+                                type="button"
+                                className="pkg-hub-activity-chip pkg-hub-activity-chip--cal"
+                                title={`Calibración: ${cal.nombre}`}
+                                onClick={() => setHubExpandedActivities(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(i)) next.delete(i); else next.add(i);
+                                  return next;
+                                })}
+                              >
+                                Calibración
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {actCostoInfo.totals.length > 0 && (
                           <span
                             className="pkg-hub-activity-cost"
