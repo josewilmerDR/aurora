@@ -490,6 +490,12 @@ function PackageManagement() {
   const [productos, setProductos] = useState([]);
   const [plantillas, setPlantillas] = useState([]);
   const [calibraciones, setCalibraciones] = useState([]);
+  // Lotes/grupos completos: necesarios para el contador de uso del hub
+  // ("aplicado en N lotes / M grupos"). Antes solo se consultaban on-demand
+  // al archivar; ahora también se usan en el hub view, así que se cargan en
+  // paralelo con el resto de catálogos.
+  const [lotes, setLotes] = useState([]);
+  const [grupos, setGrupos] = useState([]);
   const [formData, setFormData] = useState({
     id: null,
     nombrePaquete: '',
@@ -580,6 +586,27 @@ function PackageManagement() {
     [formData, originalSnapshot]
   );
 
+  // Responsables elegibles para una ACTIVIDAD: empleados en planilla con
+  // acceso al sistema. Cada actividad genera una tarea con notificación y
+  // dueño asignado — debe ser alguien interno con cuenta activa, no un
+  // asesor externo. El `tecnicoResponsable` del paquete (texto libre) es
+  // independiente: ahí sí se permite cualquier nombre, ver sección Identidad.
+  const eligibleResponsables = useMemo(
+    () => users.filter(u => u.empleadoPlanilla === true && u.tieneAcceso === true),
+    [users]
+  );
+
+  // Conteo de uso del paquete seleccionado para mostrar en hub-pills.
+  // Solo cuenta lo que apunta directamente a `selectedPkg.id`; no expande
+  // grupos→lotes (un lote heredando de un grupo no se duplica).
+  const selectedPkgUsage = useMemo(() => {
+    if (!selectedPkg?.id) return { lotes: 0, grupos: 0 };
+    return {
+      lotes: lotes.filter(l => l.paqueteId === selectedPkg.id).length,
+      grupos: grupos.filter(g => g.paqueteId === selectedPkg.id).length,
+    };
+  }, [selectedPkg?.id, lotes, grupos]);
+
   const clearCategoryFilters = () => {
     setFilterTipoCosecha('');
     setFilterEtapaCultivo('');
@@ -638,6 +665,8 @@ function PackageManagement() {
     const prodsP = fetchSafe('/api/productos',      'los productos');
     const tplsP  = fetchSafe('/api/task-templates', 'las plantillas');
     const calsP  = fetchSafe('/api/calibraciones',  'las calibraciones');
+    const lotesP = fetchSafe('/api/lotes',          'los lotes');
+    const grpsP  = fetchSafe('/api/grupos',         'los grupos');
 
     // Aplicar resultados a medida que llegan. El .catch(() => {}) en cada
     // side-chain evita unhandled rejection — el reporte sale del allSettled.
@@ -646,8 +675,10 @@ function PackageManagement() {
     prodsP.then(d => setProductos(Array.isArray(d) ? d : [])).catch(() => {});
     tplsP.then(d => setPlantillas(Array.isArray(d) ? d : [])).catch(() => {});
     calsP.then(d => setCalibraciones(Array.isArray(d) ? d : [])).catch(() => {});
+    lotesP.then(d => setLotes(Array.isArray(d) ? d : [])).catch(() => {});
+    grpsP.then(d => setGrupos(Array.isArray(d) ? d : [])).catch(() => {});
 
-    Promise.allSettled([pkgsP, usrsP, prodsP, tplsP, calsP]).then(results => {
+    Promise.allSettled([pkgsP, usrsP, prodsP, tplsP, calsP, lotesP, grpsP]).then(results => {
       const failed = results.filter(r => r.status === 'rejected').map(r => r.reason);
       if (failed.length === 0) return;
       if (failed.length === 1) {
@@ -1428,15 +1459,31 @@ function PackageManagement() {
                 </label>
                 <label className="pkg-template-field">
                   <span>Responsable</span>
-                  <select
-                    className="aur-select"
-                    value={templateModal.responsableId}
-                    onChange={e => setTemplateModal(prev => ({ ...prev, responsableId: e.target.value }))}
-                    disabled={savingTemplate}
-                  >
-                    <option value="">Sin asignar</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                  </select>
+                  {(() => {
+                    // Mismo criterio que en la card de actividad: solo empleados
+                    // con acceso, preservando el valor actual si quedó huérfano.
+                    const current = templateModal.responsableId;
+                    const orphan = current
+                      && !eligibleResponsables.some(u => u.id === current)
+                      && users.find(u => u.id === current);
+                    return (
+                      <select
+                        className="aur-select"
+                        value={current || ''}
+                        onChange={e => setTemplateModal(prev => ({ ...prev, responsableId: e.target.value }))}
+                        disabled={savingTemplate}
+                      >
+                        <option value="">Sin asignar</option>
+                        {eligibleResponsables.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                        {orphan && (
+                          <option value={orphan.id}>{orphan.nombre} (no disponible)</option>
+                        )}
+                        {eligibleResponsables.length === 0 && !orphan && (
+                          <option value="" disabled>No hay empleados con acceso</option>
+                        )}
+                      </select>
+                    );
+                  })()}
                 </label>
                 {(() => {
                   const act = formData.activities[templateModal.activityIndex] || {};
@@ -1845,6 +1892,29 @@ function PackageManagement() {
                   maxLength={DESCRIPCION_MAX}
                 />
               </AuroraField>
+              {/* Técnico responsable: campo de texto libre. Es la persona que
+                  define/recomienda el paquete técnico — puede ser ingeniero
+                  interno, dueño, o asesor externo. No se modela como FK a
+                  `users` porque no siempre es alguien con cuenta del sistema.
+                  El "responsable" de cada actividad sí es un id de empleado
+                  (ver select más abajo). */}
+              <AuroraField
+                label="Técnico responsable"
+                htmlFor="tecnicoResponsable"
+                layout="row"
+                error={formErrors.tecnicoResponsable}
+                counter={{ value: (formData.tecnicoResponsable || '').length, max: TECNICO_MAX }}
+                className={changes.fields.has('tecnicoResponsable') ? 'pkg-field--modified' : ''}
+              >
+                <TextInput
+                  name="tecnicoResponsable"
+                  value={formData.tecnicoResponsable || ''}
+                  onChange={handleInputChange}
+                  onBlur={() => handleFieldBlur('tecnicoResponsable')}
+                  maxLength={TECNICO_MAX}
+                  placeholder="Ej. Ing. Pérez (asesor agronómico)"
+                />
+              </AuroraField>
             </div>
           </section>
 
@@ -1888,26 +1958,6 @@ function PackageManagement() {
                   <option value="Desarrollo">Desarrollo</option>
                   <option value="Postforza">Postforza</option>
                   <option value="N/A">N/A</option>
-                </select>
-              </div>
-              <div className={`aur-row${changes.fields.has('tecnicoResponsable') ? ' pkg-field--modified' : ''}`}>
-                <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
-                <select
-                  id="tecnicoResponsable"
-                  name="tecnicoResponsable"
-                  className={`aur-select${formErrors.tecnicoResponsable ? ' fld-error-input' : ''}`}
-                  value={formData.tecnicoResponsable || ''}
-                  onChange={handleInputChange}
-                  onBlur={() => handleFieldBlur('tecnicoResponsable')}
-                  title={formErrors.tecnicoResponsable || undefined}
-                >
-                  <option value="">Sin asignar</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
-                  ))}
-                  {formData.tecnicoResponsable && !users.find(u => u.nombre === formData.tecnicoResponsable) && (
-                    <option value={formData.tecnicoResponsable}>{formData.tecnicoResponsable}</option>
-                  )}
                 </select>
               </div>
             </div>
@@ -1979,15 +2029,36 @@ function PackageManagement() {
                           title={formErrors[`act-${index}-name`] || undefined}
                         />
                         <div className="pkg-act-meta">
-                          <select
-                            className="aur-chip"
-                            value={activity.responsableId}
-                            onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}
-                            aria-label="Responsable"
-                          >
-                            <option value="">Responsable</option>
-                            {users.map(user => <option key={user.id} value={user.id}>{user.nombre}</option>)}
-                          </select>
+                          {(() => {
+                            // Si el responsable ya guardado no está en la lista
+                            // elegible (perdió acceso o salió de planilla), lo
+                            // añadimos como opción "huérfana" para no descartar
+                            // el valor silenciosamente — el usuario decide si
+                            // lo mantiene o lo cambia.
+                            const current = activity.responsableId;
+                            const orphan = current
+                              && !eligibleResponsables.some(u => u.id === current)
+                              && users.find(u => u.id === current);
+                            return (
+                              <select
+                                className="aur-chip"
+                                value={current || ''}
+                                onChange={(e) => handleActivityChange(index, 'responsableId', e.target.value)}
+                                aria-label="Responsable"
+                              >
+                                <option value="">Responsable</option>
+                                {eligibleResponsables.map(user => (
+                                  <option key={user.id} value={user.id}>{user.nombre}</option>
+                                ))}
+                                {orphan && (
+                                  <option value={orphan.id}>{orphan.nombre} (no disponible)</option>
+                                )}
+                                {eligibleResponsables.length === 0 && !orphan && (
+                                  <option value="" disabled>No hay empleados con acceso</option>
+                                )}
+                              </select>
+                            );
+                          })()}
                           <select
                             className="aur-chip"
                             value={activity.calibracionId || ''}
@@ -2253,6 +2324,28 @@ function PackageManagement() {
             {selectedPkg.tecnicoResponsable && (
               <span className="hub-pill">{selectedPkg.tecnicoResponsable}</span>
             )}
+            {/* Uso actual del paquete: cuántos lotes/grupos lo aplican.
+                Pill con estilo diferenciado para que se lea como "estado vivo"
+                y no como "categoría". Si nadie lo usa, mostramos "Sin uso aún"
+                en lugar de ocultar — ayuda a confirmar que es seguro archivar
+                o eliminar. */}
+            {(() => {
+              const { lotes: nLotes, grupos: nGrupos } = selectedPkgUsage;
+              if (nLotes === 0 && nGrupos === 0) {
+                return <span className="hub-pill hub-pill--usage hub-pill-muted">Sin uso aún</span>;
+              }
+              const parts = [];
+              if (nLotes > 0) parts.push(`${nLotes} ${nLotes === 1 ? 'lote' : 'lotes'}`);
+              if (nGrupos > 0) parts.push(`${nGrupos} ${nGrupos === 1 ? 'grupo' : 'grupos'}`);
+              return (
+                <span
+                  className="hub-pill hub-pill--usage"
+                  title="Lotes y grupos que aplican este paquete actualmente"
+                >
+                  Aplicado en {parts.join(' · ')}
+                </span>
+              );
+            })()}
           </div>
 
           {selectedPkg.descripcion && (
