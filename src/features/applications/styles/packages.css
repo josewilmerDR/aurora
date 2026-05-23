@@ -88,12 +88,26 @@
 /* Asterisco de advertencia: aparece al lado de un costo cuando hay productos
    en la mezcla sin precio en el catálogo. El total mostrado los excluye,
    así que avisamos al usuario que el número podría estar subestimado. */
+/* Badge "Costo incompleto" — aviso honesto cuando hay productos sin precio
+   en el catálogo. El asterisco anterior era demasiado discreto: el usuario
+   podía tomar decisiones con datos parciales sin notarlo. Tinte ámbar para
+   leer como "warning" sin elevar a error rojo. El detalle (cuántos sin
+   precio) sigue en el title del contenedor para no saturar el badge. */
 .pkg-cost-warn {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
   color: var(--aur-warning, #ffb84d);
-  font-weight: 700;
+  background: rgba(255, 184, 77, 0.12);
+  border: 1px solid rgba(255, 184, 77, 0.35);
   cursor: help;
-  margin-left: 2px;
-  font-size: 0.95em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Ícono de info junto al header de "Programa de actividades" */
@@ -616,7 +630,14 @@
     display: none;
   }
 
-  .pkg-page--selected .pkg-page-header .aur-btn-pill {
+  /* Mobile: el bubble "+ Nuevo" del carrusel sirve como CTA primario para
+     crear un paquete. Ocultar el botón del header en este viewport evita
+     la duplicación reportada en el audit (punto 21) sin perder la acción.
+     Excepción: cuando no hay paquetes, el carrusel no se renderiza y el
+     empty state apunta explícitamente a este botón ("Crea el primero en
+     'Nuevo Paquete'") — por eso solo se oculta cuando .pkg-page--has-packages
+     está presente. */
+  .pkg-page--has-packages .pkg-header-new-btn {
     display: none;
   }
 }

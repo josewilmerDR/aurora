@@ -229,12 +229,20 @@ function buildValidationToast(errors) {
 // hay productos sin precio (que quedarían fuera del costo). Esto evita que el
 // usuario crea que un paquete cuesta menos de lo real solo porque su catálogo
 // está incompleto.
-function calcularCosto(productosUsados, productosCatalogo) {
+// Acepta el catálogo como array o como Map<id, producto>. El llamador
+// debería pasar Map (via productosById useMemo) para evitar el .find() O(n)
+// por cada producto de la mezcla — clave para listas con 30+ paquetes que
+// se re-renderizan en cada keystroke del form.
+function calcularCosto(productosUsados, productosCatalogoOrMap) {
+  const isMap = productosCatalogoOrMap instanceof Map;
+  const lookup = isMap
+    ? (id) => productosCatalogoOrMap.get(id)
+    : (id) => (productosCatalogoOrMap || []).find(cp => cp.id === id);
   const totals = {};
   let withoutPrice = 0;
   const total = (productosUsados || []).length;
   (productosUsados || []).forEach(p => {
-    const cat = productosCatalogo.find(cp => cp.id === p.productoId);
+    const cat = lookup(p.productoId);
     const precio = parseFloat(cat?.precioUnitario) || 0;
     if (precio <= 0) {
       withoutPrice += 1;
@@ -585,6 +593,43 @@ function PackageManagement() {
     () => computePackageChanges(formData, originalSnapshot),
     [formData, originalSnapshot]
   );
+
+  // Catálogo de productos indexado por id — base para todos los cálculos de
+  // costo. Sin este Map cada calcularCosto haría .find() O(n) por producto,
+  // y la lista de paquetes corre N veces por render. Con 30+ paquetes y form
+  // abierto eso era el cuello de botella del que habla el audit (punto 18).
+  const productosById = useMemo(() => {
+    const m = new Map();
+    (productos || []).forEach(p => m.set(p.id, p));
+    return m;
+  }, [productos]);
+
+  // Costo total por paquete, precomputado una sola vez. Lo consumen la lista
+  // (call site 4) y el header del hub (call site 2) sin recalcular en cada
+  // render del padre.
+  const packageCostsById = useMemo(() => {
+    const m = new Map();
+    (packages || []).forEach(p => {
+      m.set(p.id, calcularCosto(flattenActivityProducts(p.activities), productosById));
+    });
+    return m;
+  }, [packages, productosById]);
+
+  // Costos por actividad del paquete abierto en hub. El sort por día se hace
+  // dentro del memo para que el índice coincida con el render.
+  const selectedPkgActivityCosts = useMemo(() => {
+    if (!selectedPkg?.activities) return [];
+    return [...selectedPkg.activities]
+      .sort((a, b) => Number(a.day) - Number(b.day))
+      .map(act => calcularCosto(act.productos, productosById));
+  }, [selectedPkg, productosById]);
+
+  // Costos por actividad en el form de edición/creación. Recalcula cuando
+  // cambian las actividades o el catálogo de productos; cuando el usuario
+  // tipea en campos no-producto el memo evita rehacer estas cuentas.
+  const formActivityCosts = useMemo(() => {
+    return (formData.activities || []).map(act => calcularCosto(act.productos, productosById));
+  }, [formData.activities, productosById]);
 
   // Responsables elegibles para una ACTIVIDAD: empleados en planilla con
   // acceso al sistema. Cada actividad genera una tarea con notificación y
@@ -1753,7 +1798,10 @@ function PackageManagement() {
                 />
               )}
               {(!isFormOpen || selectedPkg) && (
-                <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
+                <button
+                  className="aur-btn-pill pkg-header-new-btn"
+                  onClick={() => guardedNav(handleNew)}
+                >
                   <FiPlus size={14} /> Nuevo Paquete
                 </button>
               )}
@@ -1989,7 +2037,7 @@ function PackageManagement() {
             <ul className="pkg-act-list">
               {formData.activities.map((activity, index) => {
                 const expanded = expandedActivities.has(index);
-                const costo = calcularCosto(activity.productos, productos);
+                const costo = formActivityCosts[index] || { totals: [], hasMissingPrice: false, withoutPrice: 0 };
                 const costEntries = costo.totals;
                 return (
                   <li
@@ -2115,7 +2163,7 @@ function PackageManagement() {
                               </div>
                             ))}
                             {costo.hasMissingPrice && (
-                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                              <span className="pkg-cost-warn" role="status">Costo incompleto</span>
                             )}
                           </>
                         )}
@@ -2164,7 +2212,7 @@ function PackageManagement() {
                         <span className="pkg-act-products-label">Productos de mezcla</span>
                         <div className="pkg-act-products-list">
                           {(activity.productos || []).map(p => {
-                            const catProd = productos.find(cp => cp.id === p.productoId);
+                            const catProd = productosById.get(p.productoId);
                             const precioUnitario = parseFloat(catProd?.precioUnitario) || 0;
                             const moneda = catProd?.moneda || '';
                             const qty = parseFloat(p.cantidadPorHa) || 0;
@@ -2273,7 +2321,8 @@ function PackageManagement() {
             <div className="hub-title-block">
               <h2 className="hub-lote-code">{selectedPkg.nombrePaquete}</h2>
               {(() => {
-                const costo = calcularCosto(flattenActivityProducts(selectedPkg.activities), productos);
+                const costo = packageCostsById.get(selectedPkg.id)
+                  || { totals: [], hasMissingPrice: false, withoutPrice: 0 };
                 if (costo.totals.length === 0) return null;
                 return (
                   <span
@@ -2288,7 +2337,7 @@ function PackageManagement() {
                       <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-total-cost-mon">{mon}/Ha</span></span>
                     ))}
                     {costo.hasMissingPrice && (
-                      <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                      <span className="pkg-cost-warn" role="status">Costo incompleto</span>
                     )}
                   </span>
                 );
@@ -2368,7 +2417,8 @@ function PackageManagement() {
                   const cal = calibraciones.find(c => c.id === act.calibracionId);
                   const hasDetails = (act.productos?.length > 0) || !!cal;
                   const expanded = hubExpandedActivities.has(i);
-                  const actCostoInfo = calcularCosto(act.productos, productos);
+                  const actCostoInfo = selectedPkgActivityCosts[i]
+                    || { totals: [], hasMissingPrice: false, withoutPrice: 0 };
                   return (
                     <li key={i} className="pkg-hub-activity-item">
                       <span className="pkg-hub-activity-day">Día {act.day}</span>
@@ -2420,7 +2470,7 @@ function PackageManagement() {
                               <span key={mon}>{total.toFixed(2)} <span className="pkg-hub-activity-cost-mon">{mon}/Ha</span></span>
                             ))}
                             {actCostoInfo.hasMissingPrice && (
-                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                              <span className="pkg-cost-warn" role="status">Costo incompleto</span>
                             )}
                           </span>
                         )}
@@ -2430,7 +2480,7 @@ function PackageManagement() {
                               <span className="pkg-hub-detail-cal">Cal: {cal.nombre}</span>
                             )}
                             {act.productos?.map(p => {
-                              const cat = productos.find(cp => cp.id === p.productoId);
+                              const cat = productosById.get(p.productoId);
                               const precioUnitario = parseFloat(cat?.precioUnitario) || 0;
                               const moneda = cat?.moneda || '';
                               const precioTotal = (p.cantidadPorHa || 0) * precioUnitario;
@@ -2543,7 +2593,8 @@ function PackageManagement() {
                       // y el costo queda debajo del meta con tipografía
                       // diferenciada — sigue prominent pero ya no compite por
                       // espacio horizontal con el nombre.
-                      const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
+                      const costo = packageCostsById.get(pkg.id)
+                        || { totals: [], hasMissingPrice: false, withoutPrice: 0 };
                       if (costo.totals.length === 0) return null;
                       return (
                         <div
@@ -2561,7 +2612,7 @@ function PackageManagement() {
                             </span>
                           ))}
                           {costo.hasMissingPrice && (
-                            <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                            <span className="pkg-cost-warn" role="status">Costo incompleto</span>
                           )}
                         </div>
                       );
