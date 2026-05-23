@@ -114,6 +114,60 @@ function getProductCantidadError(value) {
   return null;
 }
 
+// ── Diff entre formData actual y el paquete guardado (modo edición) ──────────
+// Identifica qué campos/actividades fueron modificados respecto al snapshot
+// del servidor para que la UI pueda marcar dot indicators y mostrar el badge
+// "N cambios sin guardar". Comparación por posición en activities: añadidas
+// y modificadas se marcan en card; eliminadas se cuentan en el header pero
+// no tienen card a marcar.
+const PKG_DIFF_FIELDS = ['nombrePaquete', 'descripcion', 'tipoCosecha', 'etapaCultivo', 'tecnicoResponsable'];
+
+function activitiesEqual(a, b) {
+  if (!a || !b) return false;
+  if ((a.name || '') !== (b.name || '')) return false;
+  if (String(a.day ?? '') !== String(b.day ?? '')) return false;
+  if ((a.responsableId || '') !== (b.responsableId || '')) return false;
+  if ((a.calibracionId || '') !== (b.calibracionId || '')) return false;
+  const aprods = a.productos || [];
+  const bprods = b.productos || [];
+  if (aprods.length !== bprods.length) return false;
+  // Productos no tienen orden estable; sort por productoId antes de comparar.
+  const sortByPid = (arr) => [...arr].sort((x, y) => (x.productoId || '').localeCompare(y.productoId || ''));
+  const sA = sortByPid(aprods);
+  const sB = sortByPid(bprods);
+  for (let i = 0; i < sA.length; i++) {
+    if (sA[i].productoId !== sB[i].productoId) return false;
+    if (Number(sA[i].cantidadPorHa) !== Number(sB[i].cantidadPorHa)) return false;
+  }
+  return true;
+}
+
+function computePackageChanges(current, original) {
+  const empty = { count: 0, fields: new Set(), activities: new Set() };
+  if (!original) return empty;
+  const fields = new Set();
+  for (const f of PKG_DIFF_FIELDS) {
+    if ((current[f] || '') !== (original[f] || '')) fields.add(f);
+  }
+  const activities = new Set();
+  const curActs = current.activities || [];
+  const origActs = original.activities || [];
+  let removed = 0;
+  const maxLen = Math.max(curActs.length, origActs.length);
+  for (let i = 0; i < maxLen; i++) {
+    const cur = curActs[i];
+    const orig = origActs[i];
+    if (cur && !orig) activities.add(i);                 // añadida
+    else if (!cur && orig) removed += 1;                  // eliminada (no card a marcar)
+    else if (cur && orig && !activitiesEqual(cur, orig)) activities.add(i); // modificada
+  }
+  return {
+    count: fields.size + activities.size + removed,
+    fields,
+    activities,
+  };
+}
+
 // ── Mensaje específico de validación del form ────────────────────────────────
 // Convierte el objeto `formErrors` en un toast accionable: si hay un solo
 // error, lo nombra; si hay varios, separa cuántos son de campos top-level
@@ -501,6 +555,19 @@ function PackageManagement() {
   const archivedPackages = useMemo(() => packages.filter(p => p.archivedAt), [packages]);
   const filteredActivePackages = useMemo(() => applyFilters(activePackages), [activePackages, applyFilters]);
   const filteredArchivedPackages = useMemo(() => applyFilters(archivedPackages), [archivedPackages, applyFilters]);
+
+  // Snapshot del paquete tal como vive en el server. Derivado de `packages`
+  // (no almacenado aparte) para que se mantenga sincronizado con cambios
+  // remotos sin gestión manual. Solo aplica en modo editar — `null` en
+  // creación porque ahí no hay "original" contra el cual comparar.
+  const originalSnapshot = useMemo(() => {
+    if (!isEditing || !formData.id) return null;
+    return packages.find(p => p.id === formData.id) || null;
+  }, [packages, isEditing, formData.id]);
+  const changes = useMemo(
+    () => computePackageChanges(formData, originalSnapshot),
+    [formData, originalSnapshot]
+  );
 
   const clearCategoryFilters = () => {
     setFilterTipoCosecha('');
@@ -1374,7 +1441,21 @@ function PackageManagement() {
         <PageHeader
           title={
             isFormOpen && !selectedPkg
-              ? (isEditing ? 'Editar paquete' : 'Nuevo paquete')
+              ? (isEditing
+                  ? (
+                    <>
+                      Editar paquete
+                      {changes.count > 0 && (
+                        <span
+                          className="pkg-changes-badge"
+                          title="Diferencias respecto a la versión guardada en el servidor"
+                        >
+                          {changes.count === 1 ? '1 cambio sin guardar' : `${changes.count} cambios sin guardar`}
+                        </span>
+                      )}
+                    </>
+                  )
+                  : 'Nuevo paquete')
               : 'Paquetes de aplicaciones'
           }
           subtitle={
@@ -1488,6 +1569,7 @@ function PackageManagement() {
                 required
                 error={formErrors.nombrePaquete}
                 counter={{ value: (formData.nombrePaquete || '').length, max: NOMBRE_MAX }}
+                className={changes.fields.has('nombrePaquete') ? 'pkg-field--modified' : ''}
               >
                 <TextInput
                   name="nombrePaquete"
@@ -1504,6 +1586,7 @@ function PackageManagement() {
                 htmlFor="descripcion"
                 layout="row"
                 error={formErrors.descripcion}
+                className={changes.fields.has('descripcion') ? 'pkg-field--modified' : ''}
               >
                 <Textarea
                   name="descripcion"
@@ -1523,7 +1606,7 @@ function PackageManagement() {
               <h3>Clasificación</h3>
             </div>
             <div className="aur-list">
-              <div className="aur-row">
+              <div className={`aur-row${changes.fields.has('tipoCosecha') ? ' pkg-field--modified' : ''}`}>
                 <label className="aur-row-label" htmlFor="tipoCosecha">Tipo de cosecha</label>
                 <select
                   id="tipoCosecha"
@@ -1542,7 +1625,7 @@ function PackageManagement() {
                   <option value="Semillero">Semillero</option>
                 </select>
               </div>
-              <div className="aur-row">
+              <div className={`aur-row${changes.fields.has('etapaCultivo') ? ' pkg-field--modified' : ''}`}>
                 <label className="aur-row-label" htmlFor="etapaCultivo">Etapa del cultivo</label>
                 <select
                   id="etapaCultivo"
@@ -1560,7 +1643,7 @@ function PackageManagement() {
                   <option value="N/A">N/A</option>
                 </select>
               </div>
-              <div className="aur-row">
+              <div className={`aur-row${changes.fields.has('tecnicoResponsable') ? ' pkg-field--modified' : ''}`}>
                 <label className="aur-row-label" htmlFor="tecnicoResponsable">Técnico responsable</label>
                 <select
                   id="tecnicoResponsable"
@@ -1612,7 +1695,10 @@ function PackageManagement() {
                 const costo = calcularCosto(activity.productos, productos);
                 const costEntries = costo.totals;
                 return (
-                  <li key={`act-${index}`} className="pkg-act-card">
+                  <li
+                    key={`act-${index}`}
+                    className={`pkg-act-card${changes.activities.has(index) ? ' pkg-act-card--modified' : ''}`}
+                  >
                     <div className="pkg-act-row">
                       <div className="pkg-act-day">
                         <input

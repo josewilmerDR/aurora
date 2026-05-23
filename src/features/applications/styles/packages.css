@@ -380,6 +380,51 @@
   background: rgba(51, 255, 153, 0.10);
 }
 
+/* ── Indicadores de cambios sin guardar (modo edición) ────────────────────────
+   Cuando se edita un paquete, computePackageChanges compara formData contra
+   el snapshot del server. Para cada campo top-level / actividad modificada,
+   la UI marca:
+   - Badge en el header del form: "N cambios sin guardar"
+   - Dot ámbar antes del label de cada campo modificado
+   - Dot ámbar en la card de cada actividad modificada
+   Color ámbar (--aur-warning) en vez de verde para que el dot lea "atención,
+   esto difiere de lo guardado" y no se confunda con un estado de éxito. */
+.pkg-changes-badge {
+  display: inline-block;
+  margin-left: 14px;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--aur-warning, #ffb84d);
+  background: rgba(255, 184, 77, 0.10);
+  border: 1px solid rgba(255, 184, 77, 0.28);
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.pkg-field--modified .aur-field-label::before,
+.pkg-field--modified .aur-row-label::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aur-warning, #ffb84d);
+  margin-right: 6px;
+  vertical-align: 1px;
+  flex-shrink: 0;
+}
+/* Activity card: franja ámbar en el borde izquierdo via box-shadow inset.
+   No uso ::before absoluto porque .pkg-act-card tiene overflow:hidden y el
+   dot quedaría clippeado o competiría con el círculo del día (que ya vive
+   en la zona izquierda del card). La franja inset no afecta layout y se
+   lee a primera vista como "este card cambió". */
+.pkg-act-card--modified {
+  box-shadow: inset 3px 0 0 var(--aur-warning, #ffb84d);
+}
+
 /* ── Modal de filtros (selects de categorías) ─────────────────────────────── */
 .pkg-filtro-grid {
   display: flex;
