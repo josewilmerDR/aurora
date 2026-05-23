@@ -1001,6 +1001,24 @@
   /* sutil ribbon magenta a la izquierda para tareas manuales */
   background: linear-gradient(to right, rgba(204, 51, 255, 0.04), transparent 200px), var(--aur-bg-input);
 }
+
+/* Highlight tras crear/sincronizar una cédula. Pulse verde de 3s que decae a
+   transparente; el className se retira ~500ms después de que termina (timer
+   en CedulasAplicacion.jsx) — sin esto, la animación replay si la card
+   re-renderiza. `box-shadow` en vez de border evita layout shift. */
+.ca-cedula-card.is-highlighted {
+  animation: ca-cedula-highlight 3s ease-out;
+}
+@keyframes ca-cedula-highlight {
+  0% {
+    background: rgba(51, 255, 153, 0.18);
+    box-shadow: 0 0 0 2px var(--aurora-green), 0 0 14px rgba(51, 255, 153, 0.35);
+  }
+  100% {
+    background: var(--aur-bg-input);
+    box-shadow: none;
+  }
+}
 .ca-cedula-card.is-overdue.is-manual {
   background: rgba(204, 51, 255, 0.05);
 }
