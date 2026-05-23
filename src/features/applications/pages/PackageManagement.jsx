@@ -457,6 +457,7 @@ function PackageManagement() {
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkg, setPendingDeletePkg] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
+  const [pendingArchivePkg, setPendingArchivePkg] = useState(null); // { id, nombrePaquete, lotesCount, gruposCount }
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -1066,13 +1067,42 @@ function PackageManagement() {
   // sigue resolviendo desde lotes/grupos que lo referencian — solo desaparece
   // de la lista activa. Desarchivar revierte. Distinto de DELETE, que rompe
   // las referencias.
-  const handleArchive = async (pkg) => {
+  //
+  // Flujo: handleArchiveClick consulta dependencias y abre el modal de
+  // confirmación con la info; performArchive es la mutación cuando el usuario
+  // confirma. Desarchivar es benigno (restaura algo que el usuario archivó
+  // adrede), no requiere confirmación.
+  const handleArchiveClick = async (pkg) => {
+    try {
+      const [lotesData, gruposData] = await Promise.all([
+        apiFetch('/api/lotes').then(r => r.json()),
+        apiFetch('/api/grupos').then(r => r.json()),
+      ]);
+      const lotesCount = (lotesData || []).filter(l => l.paqueteId === pkg.id).length;
+      const gruposCount = (gruposData || []).filter(g => g.paqueteId === pkg.id).length;
+      setPendingArchivePkg({
+        id: pkg.id,
+        nombrePaquete: pkg.nombrePaquete,
+        lotesCount,
+        gruposCount,
+      });
+    } catch {
+      showToast('Error al verificar el paquete.', 'error');
+    }
+  };
+
+  const performArchive = async (pkg) => {
     try {
       const res = await apiFetch(`/api/packages/${pkg.id}/archive`, { method: 'POST' });
       if (!res.ok) throw new Error();
       // Optimistic update local: marca el paquete como archivado en memoria.
-      // El timestamp exacto se actualiza con el refetch siguiente.
-      setPackages(prev => prev.map(p => p.id === pkg.id ? { ...p, archivedAt: new Date().toISOString() } : p));
+      // Hay que actualizar BOTH `packages` (para la lista/carrusel) y
+      // `selectedPkg` (para el hub abierto) porque selectedPkg fue
+      // snapshoteado al click — si no, el ícono del header sigue mostrando
+      // "archivar" cuando ya está archivado.
+      const optimisticAt = new Date().toISOString();
+      setPackages(prev => prev.map(p => p.id === pkg.id ? { ...p, archivedAt: optimisticAt } : p));
+      setSelectedPkg(prev => (prev && prev.id === pkg.id) ? { ...prev, archivedAt: optimisticAt } : prev);
       showToast(`Paquete "${pkg.nombrePaquete}" archivado.`);
     } catch {
       showToast('Error al archivar el paquete.', 'error');
@@ -1083,11 +1113,19 @@ function PackageManagement() {
     try {
       const res = await apiFetch(`/api/packages/${pkg.id}/unarchive`, { method: 'POST' });
       if (!res.ok) throw new Error();
+      // Mismo motivo que en performArchive: hay que sincronizar selectedPkg
+      // además de packages para que el ícono del header se actualice al
+      // instante.
       setPackages(prev => prev.map(p => {
         if (p.id !== pkg.id) return p;
         const { archivedAt, ...rest } = p;
         return rest;
       }));
+      setSelectedPkg(prev => {
+        if (!prev || prev.id !== pkg.id) return prev;
+        const { archivedAt, ...rest } = prev;
+        return rest;
+      });
       showToast(`Paquete "${pkg.nombrePaquete}" reactivado.`);
     } catch {
       showToast('Error al desarchivar el paquete.', 'error');
@@ -1151,6 +1189,47 @@ function PackageManagement() {
           confirmLabel="Eliminar"
           onConfirm={() => handleDelete(pendingDeletePkg.id)}
           onCancel={() => setPendingDeletePkg(null)}
+        />
+      )}
+
+      {pendingArchivePkg && (
+        <AuroraConfirmModal
+          title="¿Archivar paquete?"
+          body={
+            <>
+              Vas a archivar <strong>"{pendingArchivePkg.nombrePaquete}"</strong>.
+              {' '}Dejará de aparecer al elegir paquete para nuevos lotes o grupos.
+              {(pendingArchivePkg.lotesCount > 0 || pendingArchivePkg.gruposCount > 0) && (
+                <>
+                  {' '}Hay{' '}
+                  {pendingArchivePkg.lotesCount > 0 && (
+                    <strong>
+                      {pendingArchivePkg.lotesCount === 1
+                        ? '1 lote'
+                        : `${pendingArchivePkg.lotesCount} lotes`}
+                    </strong>
+                  )}
+                  {pendingArchivePkg.lotesCount > 0 && pendingArchivePkg.gruposCount > 0 && ' y '}
+                  {pendingArchivePkg.gruposCount > 0 && (
+                    <strong>
+                      {pendingArchivePkg.gruposCount === 1
+                        ? '1 grupo'
+                        : `${pendingArchivePkg.gruposCount} grupos`}
+                    </strong>
+                  )}
+                  {' '}usando este paquete — sus actividades programadas seguirán ejecutándose normalmente.
+                </>
+              )}
+              {' '}Puedes desarchivarlo cuando quieras.
+            </>
+          }
+          confirmLabel="Archivar"
+          onConfirm={() => {
+            const pkg = pendingArchivePkg;
+            setPendingArchivePkg(null);
+            performArchive({ id: pkg.id, nombrePaquete: pkg.nombrePaquete });
+          }}
+          onCancel={() => setPendingArchivePkg(null)}
         />
       )}
 
@@ -1813,11 +1892,11 @@ function PackageManagement() {
                 <FiCopy size={16} />
               </button>
               {selectedPkg.archivedAt ? (
-                <button onClick={() => handleUnarchive(selectedPkg)} className="icon-btn" title="Desarchivar paquete">
+                <button onClick={() => handleUnarchive(selectedPkg)} className="icon-btn pkg-icon-btn--archived" title="Desarchivar paquete">
                   <FiRotateCcw size={16} />
                 </button>
               ) : (
-                <button onClick={() => handleArchive(selectedPkg)} className="icon-btn" title="Archivar paquete">
+                <button onClick={() => handleArchiveClick(selectedPkg)} className="icon-btn" title="Archivar paquete">
                   <FiArchive size={16} />
                 </button>
               )}

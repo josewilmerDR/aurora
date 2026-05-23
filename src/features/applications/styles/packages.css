@@ -368,6 +368,17 @@
   background: rgba(51, 255, 153, 0.06);
 }
 
+/* Botón Desarchivar en hub header: tint ámbar para que el estado "este
+   paquete está archivado, puedes desarchivar" se lea sin abrir el tooltip. */
+.icon-btn.pkg-icon-btn--archived {
+  color: var(--aur-warning, #ffb84d);
+  background: rgba(255, 184, 77, 0.08);
+}
+.icon-btn.pkg-icon-btn--archived:hover {
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.10);
+}
+
 /* ── Modal de filtros (selects de categorías) ─────────────────────────────── */
 .pkg-filtro-grid {
   display: flex;
