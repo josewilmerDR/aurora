@@ -218,10 +218,24 @@
 /* En móvil el default de aurora.css hace wrap del aur-sheet-header-actions
    y manda los botones (Filtro + "Nueva cédula") al flex-start (izquierda).
    Los forzamos al extremo derecho para alinearnos con el patrón ya
-   establecido en SiembraHistorial y PackageManagement. */
+   establecido en SiembraHistorial y PackageManagement.
+
+   Reparto 40/60 del ancho — mismo share que en SiembraHistorial —
+   restando 4px a cada lado para compartir el gap de 8px del contenedor
+   y sumar exactamente 100%, así nunca colapsa a una segunda fila. */
 @media (max-width: 768px) {
   .ha-page .aur-sheet-header-actions {
     justify-content: flex-end;
     flex-wrap: nowrap;
+  }
+  .ha-page .aur-sheet-header-actions > .aur-chip {
+    flex: 0 0 calc(40% - 4px);
+    min-width: 0;
+    justify-content: center;
+  }
+  .ha-page .aur-sheet-header-actions > .aur-btn-pill {
+    flex: 0 0 calc(60% - 4px);
+    min-width: 0;
+    justify-content: center;
   }
 }
