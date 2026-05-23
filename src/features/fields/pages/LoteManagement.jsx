@@ -543,9 +543,13 @@ function LoteManagement() {
             </span>
           )}
           {pkg && (
-            <span className="aur-badge aur-badge--blue">
+            <span
+              className={`aur-badge aur-badge--blue${pkg.archivedAt ? ' aur-badge--archived' : ''}`}
+              title={pkg.archivedAt ? 'El paquete técnico asignado a este lote está archivado.' : undefined}
+            >
               <FiPackage size={13} />
               {pkg.nombrePaquete}
+              {pkg.archivedAt && <span className="aur-badge-archived-tag">archivado</span>}
             </span>
           )}
           {!selectedLote.paqueteId && (

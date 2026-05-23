@@ -1049,12 +1049,20 @@ function GrupoManagement() {
               {selectedBloques.length} bloque(s)
             </span>
           )}
-          {selectedGrupo.paqueteId && (
-            <span className="aur-badge">
-              <FiPackage size={13} />
-              {getPackageName(selectedGrupo.paqueteId)}
-            </span>
-          )}
+          {selectedGrupo.paqueteId && (() => {
+            const grupoPkg = packages.find(p => p.id === selectedGrupo.paqueteId);
+            const isArchivedPkg = !!(grupoPkg && grupoPkg.archivedAt);
+            return (
+              <span
+                className={`aur-badge${isArchivedPkg ? ' aur-badge--archived' : ''}`}
+                title={isArchivedPkg ? 'El paquete técnico asignado a este grupo está archivado.' : undefined}
+              >
+                <FiPackage size={13} />
+                {getPackageName(selectedGrupo.paqueteId)}
+                {isArchivedPkg && <span className="aur-badge-archived-tag">archivado</span>}
+              </span>
+            );
+          })()}
           {selectedGrupo.paqueteMuestreoId && (
             <span className="aur-badge">
               <FiPackage size={13} />
