@@ -978,6 +978,8 @@ function CedulasAplicacion() {
       const blob = pdf.output('blob');
       const file = new File([blob], filename, { type: 'application/pdf' });
       if (navigator.canShare?.({ files: [file] })) {
+        // navigator.share rechaza con AbortError cuando el usuario cancela la
+        // hoja de compartir nativa — esa rama no es un error.
         try { await navigator.share({ files: [file], title: filename }); } catch {}
       } else {
         const url = URL.createObjectURL(blob);
@@ -985,8 +987,14 @@ function CedulasAplicacion() {
         a.href = url; a.download = filename; a.click();
         URL.revokeObjectURL(url);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      // Causas frecuentes: html2canvas falla con imágenes CORS (logoUrl
+      // externo), jsPDF revienta en navegadores móviles antiguos, dynamic
+      // import bloqueado offline. Antes era `// silently fail` — el botón
+      // se veía muerto y el usuario reintentaba. Toast accionable + log
+      // del error real para soporte.
+      console.error('[handleShare] failed to generate/share PDF:', err);
+      toast.error('No se pudo generar el PDF. Probá Imprimir desde el navegador.');
     }
   };
 

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye, FiAlertTriangle, FiClock } from 'react-icons/fi';
 import { useDraft } from '../../../hooks/useDraft';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import { useToast } from '../../../contexts/ToastContext';
+import { translateApiError } from '../../../lib/errorMessages';
 
 // Frontend validation limits
 const MAX_ACTIVITY_LEN = 64;
@@ -52,6 +54,7 @@ const addDaysYmd = (days) => {
 };
 
 function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose, onPreviewDraft }) {
+  const toast = useToast();
   const [form, setForm, clearFormDraft] = useDraft(DRAFT_KEY, makeInitialForm, { storage: 'local' });
 
   // Restored-from-draft: chequeo de una sola vez al montar, antes de que el
@@ -112,7 +115,21 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
   const [plantillaSaved, setPlantillaSaved] = useState(false);
 
   useEffect(() => {
-    apiFetch('/api/cedula-templates').then(r => r.json()).then(setPlantillas).catch(() => {});
+    // Antes era `.catch(() => {})` silencioso: si /api/cedula-templates fallaba
+    // (401, 500, network) el chip-bar de plantillas quedaba vacío sin pista de
+    // por qué. Además `.then(r => r.json())` ignoraba res.ok — un 403 con body
+    // JSON terminaba como `setPlantillas({code: 'FORBIDDEN'})`, un objeto-no-array
+    // que rompía el `.map()` del render.
+    apiFetch('/api/cedula-templates')
+      .then(async r => {
+        if (!r.ok) throw { body: await r.json().catch(() => ({})), status: r.status };
+        return r.json();
+      })
+      .then(data => setPlantillas(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error('[cedula-templates] load failed:', err);
+        toast.error(translateApiError(err?.body, 'No se pudieron cargar las plantillas.'));
+      });
   }, []);
 
   const aplicarPlantilla = (p) => {
@@ -148,13 +165,19 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
           })),
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Preservar body para que translateApiError pueda dar el mensaje
+        // específico (VALIDATION_FAILED, ALREADY_EXISTS, etc.) en vez del
+        // genérico "no se pudo guardar".
+        throw { body: await res.json().catch(() => ({})), status: res.status };
+      }
       const nueva = await res.json();
       setPlantillas(prev => [...prev, nueva]);
       setPlantillaSaved(true);
       setTimeout(() => setPlantillaSaved(false), 2500);
-    } catch {
-      // silently ignore
+    } catch (err) {
+      console.error('[cedula-templates] save failed:', err);
+      toast.error(translateApiError(err?.body, 'No se pudo guardar la plantilla.'));
     } finally {
       setSavingPlantilla(false);
     }
@@ -162,10 +185,17 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
 
   const eliminarPlantilla = async (id) => {
     try {
-      await apiFetch(`/api/cedula-templates/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/cedula-templates/${id}`, { method: 'DELETE' });
+      // Antes el código no chequeaba res.ok: un 403 quitaba la plantilla del
+      // estado local pero el backend la conservaba — la siguiente apertura del
+      // modal la traía de vuelta, dando la ilusión de que "no se elimina".
+      if (!res.ok) {
+        throw { body: await res.json().catch(() => ({})), status: res.status };
+      }
       setPlantillas(prev => prev.filter(p => p.id !== id));
-    } catch {
-      // silently ignore
+    } catch (err) {
+      console.error('[cedula-templates] delete failed:', err);
+      toast.error(translateApiError(err?.body, 'No se pudo eliminar la plantilla.'));
     }
   };
 
