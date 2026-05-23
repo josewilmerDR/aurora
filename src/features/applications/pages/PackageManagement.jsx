@@ -1923,7 +1923,7 @@ function PackageManagement() {
                             {plantillas.map(p => (
                               <option key={p.id} value={p.id}>{p.nombre}</option>
                             ))}
-                            <option value="__create__">+ Crear plantilla…</option>
+                            <option value="__create__">+ Crear plantilla a partir de esta actividad…</option>
                           </select>
                         </div>
                       </div>
