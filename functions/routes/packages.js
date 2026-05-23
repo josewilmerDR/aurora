@@ -3,6 +3,8 @@ const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -83,7 +85,7 @@ router.get('/api/packages', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/packages', authenticate, requireSupervisor, async (req, res) => {
+router.post('/api/packages', authenticate, requireSupervisor, rateLimit('packages_write', 'write'), async (req, res) => {
   try {
     const validationError = validatePackagePayload(req.body);
     if (validationError) {
@@ -97,7 +99,7 @@ router.post('/api/packages', authenticate, requireSupervisor, async (req, res) =
   }
 });
 
-router.put('/api/packages/:id', authenticate, requireSupervisor, async (req, res) => {
+router.put('/api/packages/:id', authenticate, requireSupervisor, rateLimit('packages_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
@@ -116,14 +118,33 @@ router.put('/api/packages/:id', authenticate, requireSupervisor, async (req, res
   }
 });
 
-router.delete('/api/packages/:id', authenticate, requireSupervisor, async (req, res) => {
+router.delete('/api/packages/:id', authenticate, requireSupervisor, rateLimit('packages_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
     if (!ownership.ok) {
       return sendApiError(res, ownership.code, ownership.message, ownership.status);
     }
+    const prevData = ownership.doc.data();
     await db.collection('packages').doc(id).delete();
+
+    // Audit WARNING: DELETE rompe referencias en lotes/grupos sin posibilidad
+    // de undo. Snapshoteamos nombre + tipo + #actividades porque después del
+    // delete no hay forma de reconstruir qué era.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PACKAGE_DELETE,
+      target: { type: 'package', id },
+      metadata: {
+        nombrePaquete: prevData.nombrePaquete || null,
+        tipoCosecha: prevData.tipoCosecha || null,
+        etapaCultivo: prevData.etapaCultivo || null,
+        activitiesCount: Array.isArray(prevData.activities) ? prevData.activities.length : 0,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete package.', 500);
@@ -134,32 +155,54 @@ router.delete('/api/packages/:id', authenticate, requireSupervisor, async (req, 
 // referencias existentes (lotes/grupos que apuntan al paquete siguen
 // resolviendo) — distinto de DELETE que rompe esas referencias. La UI usa
 // archivedAt como toggle: presente → archivado; ausente → activo.
-router.post('/api/packages/:id/archive', authenticate, requireSupervisor, async (req, res) => {
+router.post('/api/packages/:id/archive', authenticate, requireSupervisor, rateLimit('packages_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
     if (!ownership.ok) {
       return sendApiError(res, ownership.code, ownership.message, ownership.status);
     }
+    const prevData = ownership.doc.data();
     await db.collection('packages').doc(id).update({
       archivedAt: FieldValue.serverTimestamp(),
     });
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PACKAGE_ARCHIVE,
+      target: { type: 'package', id },
+      metadata: { nombrePaquete: prevData.nombrePaquete || null },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to archive package.', 500);
   }
 });
 
-router.post('/api/packages/:id/unarchive', authenticate, requireSupervisor, async (req, res) => {
+router.post('/api/packages/:id/unarchive', authenticate, requireSupervisor, rateLimit('packages_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
     if (!ownership.ok) {
       return sendApiError(res, ownership.code, ownership.message, ownership.status);
     }
+    const prevData = ownership.doc.data();
     await db.collection('packages').doc(id).update({
       archivedAt: FieldValue.delete(),
     });
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PACKAGE_UNARCHIVE,
+      target: { type: 'package', id },
+      metadata: { nombrePaquete: prevData.nombrePaquete || null },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to unarchive package.', 500);

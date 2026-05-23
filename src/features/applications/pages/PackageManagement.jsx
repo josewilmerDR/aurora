@@ -27,6 +27,16 @@ import PackageForm from '../components/PackageForm';
 // Helpers puros, draft persistence y diff viven en ../lib/packages-*.js
 // (extracción Fases A+B del refactor para bajar el archivo bajo 600 LOC).
 
+// Parsea una Response a JSON, o lanza el body de error para que el catch
+// pueda traducirlo via `translateApiError(err, fallback)`. Centraliza el
+// patrón `if (!res.ok) throw await res.json()...` que antes faltaba en
+// varios handlers — un GET fallido aterrizaba en `setPackages(<error>)` y
+// rompía los renders posteriores.
+const parseOrThrowJson = async (res) => {
+  if (!res.ok) throw await res.json().catch(() => ({}));
+  return res.json();
+};
+
 function PackageManagement() {
   const apiFetch = useApiFetch();
   const [packages, setPackages] = useState([]);
@@ -331,9 +341,15 @@ function PackageManagement() {
 
   // Callback que el form invoca tras un POST/PUT exitoso. Refresca la lista
   // de paquetes, dispara el banner persistente y cierra el form (unmount).
+  // Si el refresh falla, el paquete ya está guardado: cerramos el form igual
+  // y mostramos toast — la lista quedará desfasada hasta el próximo reload.
   const handleSavePackage = async ({ savedId, savedName, savedAction }) => {
-    const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
-    setPackages(updatedPackages);
+    try {
+      const updatedPackages = await parseOrThrowJson(await apiFetch('/api/packages'));
+      setPackages(updatedPackages);
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudo recargar la lista de paquetes.'), 'error');
+    }
     resetForm();
     if (savedId) {
       setLastSavedPkg({ id: savedId, nombrePaquete: savedName, action: savedAction });
@@ -349,14 +365,12 @@ function PackageManagement() {
       activities: pkg.activities || [],
     };
     try {
-      const response = await apiFetch('/api/packages', {
+      const created = await parseOrThrowJson(await apiFetch('/api/packages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error();
-      const created = await response.json();
-      const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
+      }));
+      const updatedPackages = await parseOrThrowJson(await apiFetch('/api/packages'));
       setPackages(updatedPackages);
       // Abrir el form sobre la copia con el nombre seleccionado para renombrar
       // inmediatamente — evita acumular "Copia de Copia de X" sin notar.
@@ -373,8 +387,8 @@ function PackageManagement() {
       } else {
         showToast(`Paquete duplicado: "${body.nombrePaquete}"`);
       }
-    } catch {
-      showToast('Error al duplicar el paquete.', 'error');
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudo duplicar el paquete.'), 'error');
     }
   };
 
@@ -390,8 +404,8 @@ function PackageManagement() {
   const handleArchiveClick = async (pkg) => {
     try {
       const [lotesData, gruposData] = await Promise.all([
-        apiFetch('/api/lotes').then(r => r.json()),
-        apiFetch('/api/grupos').then(r => r.json()),
+        parseOrThrowJson(await apiFetch('/api/lotes')),
+        parseOrThrowJson(await apiFetch('/api/grupos')),
       ]);
       const lotesCount = (lotesData || []).filter(l => l.paqueteId === pkg.id).length;
       const gruposCount = (gruposData || []).filter(g => g.paqueteId === pkg.id).length;
@@ -401,15 +415,15 @@ function PackageManagement() {
         lotesCount,
         gruposCount,
       });
-    } catch {
-      showToast('Error al verificar el paquete.', 'error');
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudo verificar el paquete.'), 'error');
     }
   };
 
   const performArchive = async (pkg) => {
     try {
       const res = await apiFetch(`/api/packages/${pkg.id}/archive`, { method: 'POST' });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw await res.json().catch(() => ({}));
       // Optimistic update local: marca el paquete como archivado en memoria.
       // Hay que actualizar BOTH `packages` (para la lista/carrusel) y
       // `selectedPkg` (para el hub abierto) porque selectedPkg fue
@@ -419,15 +433,15 @@ function PackageManagement() {
       setPackages(prev => prev.map(p => p.id === pkg.id ? { ...p, archivedAt: optimisticAt } : p));
       setSelectedPkg(prev => (prev && prev.id === pkg.id) ? { ...prev, archivedAt: optimisticAt } : prev);
       showToast(`Paquete "${pkg.nombrePaquete}" archivado.`);
-    } catch {
-      showToast('Error al archivar el paquete.', 'error');
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudo archivar el paquete.'), 'error');
     }
   };
 
   const handleUnarchive = async (pkg) => {
     try {
       const res = await apiFetch(`/api/packages/${pkg.id}/unarchive`, { method: 'POST' });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw await res.json().catch(() => ({}));
       // Mismo motivo que en performArchive: hay que sincronizar selectedPkg
       // además de packages para que el ícono del header se actualice al
       // instante.
@@ -442,16 +456,16 @@ function PackageManagement() {
         return rest;
       });
       showToast(`Paquete "${pkg.nombrePaquete}" reactivado.`);
-    } catch {
-      showToast('Error al desarchivar el paquete.', 'error');
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudo desarchivar el paquete.'), 'error');
     }
   };
 
   const handleDeleteClick = async (pkg) => {
     try {
       const [lotesData, gruposData] = await Promise.all([
-        apiFetch('/api/lotes').then(r => r.json()),
-        apiFetch('/api/grupos').then(r => r.json()),
+        parseOrThrowJson(await apiFetch('/api/lotes')),
+        parseOrThrowJson(await apiFetch('/api/grupos')),
       ]);
       const depLotes = lotesData.filter(l => l.paqueteId === pkg.id);
       const depGrupos = gruposData.filter(g => g.paqueteId === pkg.id);
@@ -464,21 +478,21 @@ function PackageManagement() {
           actCount: (pkg.activities || []).length,
         });
       }
-    } catch {
-      showToast('Error al verificar dependencias.', 'error');
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudieron verificar las dependencias.'), 'error');
     }
   };
 
   const handleDelete = async (id) => {
     try {
       const response = await apiFetch(`/api/packages/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Error al eliminar el paquete');
+      if (!response.ok) throw await response.json().catch(() => ({}));
       setPackages(packages.filter(p => p.id !== id));
       setPendingDeletePkg(null);
       if (selectedPkg?.id === id) resetForm();
       showToast('Paquete eliminado correctamente');
-    } catch (error) {
-      showToast('Error al eliminar el paquete.', 'error');
+    } catch (errBody) {
+      showToast(translateApiError(errBody, 'No se pudo eliminar el paquete.'), 'error');
     }
   };
 
