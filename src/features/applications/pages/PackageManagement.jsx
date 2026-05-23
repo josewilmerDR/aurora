@@ -1793,6 +1793,7 @@ function PackageManagement() {
             <>
               {packages.length > 0 && (
                 <FilterButton
+                  className="pkg-header-filter-btn"
                   active={hasActiveCategoryFilter}
                   onClick={() => setMostrarFiltros(true)}
                 />
@@ -2545,6 +2546,14 @@ function PackageManagement() {
                   <FiX size={12} />
                 </button>
               )}
+              {/* Filtro inline solo en mobile — desktop conserva el del header.
+                  Patrón search + filter contiguos resuelve la "isla" del header
+                  cuando "+ Nuevo Paquete" se oculta en mobile (punto 21 audit). */}
+              <FilterButton
+                className="pkg-inline-filter-btn"
+                active={hasActiveCategoryFilter}
+                onClick={() => setMostrarFiltros(true)}
+              />
             </div>
           )}
           {(() => {
