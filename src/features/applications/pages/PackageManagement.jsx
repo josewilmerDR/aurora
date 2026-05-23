@@ -8,6 +8,7 @@ import AuroraField, { TextInput, Textarea } from '../../../components/AuroraFiel
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import FilterButton from '../../../components/ui/FilterButton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 
 // ── Draft persistence ────────────────────────────────────────────────────────
 // Un solo slot global que captura el form completo (incluye `id`) sirve tanto
@@ -377,11 +378,51 @@ function PackageManagement() {
   }, [selectedPkg?.id, formData.id, isFormOpen]);
 
   useEffect(() => {
-    apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error).finally(() => setLoading(false));
-    apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error);
-    apiFetch('/api/productos').then(res => res.json()).then(setProductos).catch(console.error);
-    apiFetch('/api/task-templates').then(res => res.json()).then(setPlantillas).catch(console.error);
-    apiFetch('/api/calibraciones').then(res => res.json()).then(setCalibraciones).catch(console.error);
+    // Carga inicial de catálogos. Antes era `.catch(console.error)` silencioso
+    // — si /api/productos fallaba, el combobox de productos quedaba vacío sin
+    // explicación y el usuario asumía "no hay productos en catálogo". Ahora:
+    //
+    // 1. Cada fetch fallido se reporta con su body+label para que
+    //    translateApiError pueda dar el mensaje específico (UNAUTHORIZED,
+    //    INSUFFICIENT_ROLE, etc.) cuando hay solo una falla.
+    // 2. Promise.allSettled coalesce todas las fallas en UN solo toast —
+    //    con 5 endpoints, replicar Siembra verbatim daría hasta 5 toasts
+    //    apilados, pero como el componente Toast solo muestra el último, el
+    //    usuario perdería contexto sobre qué exactamente falló.
+    // 3. El spinner se cierra apenas resuelven los paquetes (recurso
+    //    crítico), aunque los catálogos secundarios sigan cargando en
+    //    background — no bloqueamos el render por plantillas o calibraciones.
+    const fetchSafe = (url, label) =>
+      apiFetch(url).then(async r => {
+        if (!r.ok) throw { body: await r.json().catch(() => ({})), label };
+        return r.json();
+      });
+
+    const pkgsP  = fetchSafe('/api/packages',       'los paquetes');
+    const usrsP  = fetchSafe('/api/users',          'los usuarios');
+    const prodsP = fetchSafe('/api/productos',      'los productos');
+    const tplsP  = fetchSafe('/api/task-templates', 'las plantillas');
+    const calsP  = fetchSafe('/api/calibraciones',  'las calibraciones');
+
+    // Aplicar resultados a medida que llegan. El .catch(() => {}) en cada
+    // side-chain evita unhandled rejection — el reporte sale del allSettled.
+    pkgsP.then(d => setPackages(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false));
+    usrsP.then(d => setUsers(Array.isArray(d) ? d : [])).catch(() => {});
+    prodsP.then(d => setProductos(Array.isArray(d) ? d : [])).catch(() => {});
+    tplsP.then(d => setPlantillas(Array.isArray(d) ? d : [])).catch(() => {});
+    calsP.then(d => setCalibraciones(Array.isArray(d) ? d : [])).catch(() => {});
+
+    Promise.allSettled([pkgsP, usrsP, prodsP, tplsP, calsP]).then(results => {
+      const failed = results.filter(r => r.status === 'rejected').map(r => r.reason);
+      if (failed.length === 0) return;
+      if (failed.length === 1) {
+        const { body, label } = failed[0] || {};
+        showToast(translateApiError(body, `No se pudieron cargar ${label}.`), 'error');
+        return;
+      }
+      const labels = failed.map(f => f?.label).filter(Boolean).join(', ');
+      showToast(`No se pudieron cargar: ${labels}. Revisa tu conexión y recarga.`, 'error');
+    });
   }, []);
 
   // Restaurar borrador al montar: si hay datos persistidos de una sesión
