@@ -1,10 +1,21 @@
 const { Router } = require('express');
 const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership } = require('../lib/helpers');
+const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
+
+// Mutaciones de paquetes requieren supervisor+. La UI ya filtra la ruta
+// `/packages` con `minRole: 'supervisor'`, pero el backend tenía cero gate de
+// rol — un trabajador con un token Firebase válido podía hacer POST/PUT/DELETE
+// directamente. Esto cierra esa brecha de defense-in-depth.
+function requireSupervisor(req, res, next) {
+  if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Supervisor role required to manage packages.', 403);
+  }
+  next();
+}
 
 // --- Package payload validation ---
 const VALID_HARVEST_TYPES = ['I Cosecha', 'II Cosecha', 'III Cosecha', 'Semillero'];
@@ -72,7 +83,7 @@ router.get('/api/packages', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/packages', authenticate, async (req, res) => {
+router.post('/api/packages', authenticate, requireSupervisor, async (req, res) => {
   try {
     const validationError = validatePackagePayload(req.body);
     if (validationError) {
@@ -86,7 +97,7 @@ router.post('/api/packages', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/packages/:id', authenticate, async (req, res) => {
+router.put('/api/packages/:id', authenticate, requireSupervisor, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
@@ -105,7 +116,7 @@ router.put('/api/packages/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/packages/:id', authenticate, async (req, res) => {
+router.delete('/api/packages/:id', authenticate, requireSupervisor, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
@@ -123,7 +134,7 @@ router.delete('/api/packages/:id', authenticate, async (req, res) => {
 // referencias existentes (lotes/grupos que apuntan al paquete siguen
 // resolviendo) — distinto de DELETE que rompe esas referencias. La UI usa
 // archivedAt como toggle: presente → archivado; ausente → activo.
-router.post('/api/packages/:id/archive', authenticate, async (req, res) => {
+router.post('/api/packages/:id/archive', authenticate, requireSupervisor, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
@@ -139,7 +150,7 @@ router.post('/api/packages/:id/archive', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/packages/:id/unarchive', authenticate, async (req, res) => {
+router.post('/api/packages/:id/unarchive', authenticate, requireSupervisor, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('packages', id, req.fincaId);
