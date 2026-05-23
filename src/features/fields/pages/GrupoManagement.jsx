@@ -317,12 +317,27 @@ function GrupoManagement() {
     ])].sort(),
   [grupos, packages, localEtapas]);
 
+  // Solo paquetes activos (no archivados) y que matcheen cosecha/etapa del
+  // grupo. Si el grupo ya tenía un paquete archivado asignado previamente,
+  // ese valor se conserva en el select vía un fallback option (ver más abajo)
+  // para no perder la asociación al editar.
   const filteredPackages = useMemo(() =>
     packages.filter(p =>
+      !p.archivedAt &&
       (!formData.cosecha || p.tipoCosecha === formData.cosecha) &&
       (!formData.etapa   || p.etapaCultivo === formData.etapa)
     ),
   [packages, formData.cosecha, formData.etapa]);
+
+  // Paquete actualmente asignado al grupo en edición. Si está archivado o no
+  // matchea los filtros activos, no aparecería en `filteredPackages`, dejando
+  // el select sin opción visible. Lo emitimos como fallback option marcado.
+  const archivedCurrentPackage = useMemo(() => {
+    if (!formData.paqueteId) return null;
+    const cur = packages.find(p => p.id === formData.paqueteId);
+    if (!cur) return null;
+    return filteredPackages.find(p => p.id === cur.id) ? null : cur;
+  }, [packages, formData.paqueteId, filteredPackages]);
 
   // ── Datos del grupo seleccionado (hub) ────────────────────────────────────
   // Un mismo bloque físico (lote+bloque) puede tener varias siembras (registros
@@ -776,10 +791,19 @@ function GrupoManagement() {
                     className="aur-select"
                     value={formData.paqueteId}
                     onChange={handleInputChange}
-                    disabled={filteredPackages.length === 0}
+                    disabled={filteredPackages.length === 0 && !archivedCurrentPackage}
                   >
-                    <option value="">{filteredPackages.length === 0 ? '— Sin paquetes para esta cosecha/etapa —' : '— Seleccionar Paquete —'}</option>
+                    <option value="">{filteredPackages.length === 0 && !archivedCurrentPackage ? '— Sin paquetes para esta cosecha/etapa —' : '— Seleccionar Paquete —'}</option>
                     {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
+                    {/* Fallback para preservar el valor cuando el paquete
+                        asignado quedó archivado (o cambiaron los filtros).
+                        Sin esto, el select pierde su selección al editar. */}
+                    {archivedCurrentPackage && (
+                      <option value={archivedCurrentPackage.id}>
+                        {archivedCurrentPackage.nombrePaquete}
+                        {archivedCurrentPackage.archivedAt ? ' (archivado)' : ' (no coincide con filtros)'}
+                      </option>
+                    )}
                   </select>
                 </div>
                 <div className="aur-row">
