@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import '../styles/packages.css';
-import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiSearch, FiCopy, FiChevronRight, FiChevronDown, FiChevronUp, FiArrowLeft, FiInfo, FiFilter } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import FilterButton from '../../../components/ui/FilterButton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Draft persistence ────────────────────────────────────────────────────────
@@ -319,6 +320,36 @@ function PackageManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [pendingNavAction, setPendingNavAction] = useState(null);
+
+  // Búsqueda y filtros sobre la lista/carrusel de paquetes. No se persisten
+  // entre sesiones — cada visita arranca con todos los paquetes visibles.
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTipoCosecha, setFilterTipoCosecha] = useState('');
+  const [filterEtapaCultivo, setFilterEtapaCultivo] = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  const hasActiveCategoryFilter = !!(filterTipoCosecha || filterEtapaCultivo);
+  const hasAnyFilter = hasActiveCategoryFilter || !!searchQuery.trim();
+
+  const filteredPackages = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q && !filterTipoCosecha && !filterEtapaCultivo) return packages;
+    return packages.filter(pkg => {
+      if (q && !(pkg.nombrePaquete || '').toLowerCase().includes(q)) return false;
+      if (filterTipoCosecha && pkg.tipoCosecha !== filterTipoCosecha) return false;
+      if (filterEtapaCultivo && pkg.etapaCultivo !== filterEtapaCultivo) return false;
+      return true;
+    });
+  }, [packages, searchQuery, filterTipoCosecha, filterEtapaCultivo]);
+
+  const clearCategoryFilters = () => {
+    setFilterTipoCosecha('');
+    setFilterEtapaCultivo('');
+  };
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    clearCategoryFilters();
+  };
 
   const NOMBRE_MAX = 32;
 
@@ -898,6 +929,83 @@ function PackageManagement() {
         />
       )}
 
+      {mostrarFiltros && createPortal(
+        <div className="aur-modal-backdrop" onClick={() => setMostrarFiltros(false)}>
+          <div
+            className="aur-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pkg-filtro-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="aur-modal-header">
+              <span className="aur-modal-icon"><FiFilter size={16} /></span>
+              <h3 className="aur-modal-title" id="pkg-filtro-modal-title">Filtrar paquetes</h3>
+              <button
+                type="button"
+                className="aur-icon-btn aur-modal-close"
+                onClick={() => setMostrarFiltros(false)}
+                aria-label="Cerrar"
+              >
+                <FiX size={16} />
+              </button>
+            </div>
+            <div className="aur-modal-content">
+              <div className="pkg-filtro-grid">
+                <div className="pkg-filtro-field">
+                  <label htmlFor="pkg-filtro-tipo">Tipo de cosecha</label>
+                  <select
+                    id="pkg-filtro-tipo"
+                    className="aur-select"
+                    value={filterTipoCosecha}
+                    onChange={e => setFilterTipoCosecha(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    <option value="I Cosecha">I Cosecha</option>
+                    <option value="II Cosecha">II Cosecha</option>
+                    <option value="III Cosecha">III Cosecha</option>
+                    <option value="Semillero">Semillero</option>
+                  </select>
+                </div>
+                <div className="pkg-filtro-field">
+                  <label htmlFor="pkg-filtro-etapa">Etapa del cultivo</label>
+                  <select
+                    id="pkg-filtro-etapa"
+                    className="aur-select"
+                    value={filterEtapaCultivo}
+                    onChange={e => setFilterEtapaCultivo(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    <option value="Desarrollo">Desarrollo</option>
+                    <option value="Postforza">Postforza</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="aur-modal-actions">
+              {hasActiveCategoryFilter && (
+                <button
+                  type="button"
+                  className="aur-chip aur-chip--ghost"
+                  onClick={clearCategoryFilters}
+                >
+                  <FiX size={12} /> Limpiar
+                </button>
+              )}
+              <button
+                type="button"
+                className="aur-btn-pill"
+                onClick={() => setMostrarFiltros(false)}
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {pkgDepsModal && (
         <AuroraConfirmModal
           size="wide"
@@ -965,21 +1073,32 @@ function PackageManagement() {
                     ))
           }
           actions={
-            // Visible en el estado inicial y en la vista hub (paquete
-            // seleccionado). Solo lo ocultamos cuando el form de crear/editar
-            // está abierto — ahí el botón "Nuevo Paquete" no aplica.
-            (!isFormOpen || selectedPkg) ? (
-              <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
-                <FiPlus size={14} /> Nuevo Paquete
-              </button>
-            ) : null
+            // - FilterButton: visible siempre que haya paquetes (la lista del
+            //   panel es visible en casi todos los estados; en form/hub también
+            //   ayuda a navegar paquetes hermanos).
+            // - "Nuevo Paquete": visible en estado inicial y en hub view; lo
+            //   ocultamos cuando el form de crear/editar está abierto — ahí
+            //   sería confuso ofrecer "crear otro" mientras hay uno a medias.
+            <>
+              {packages.length > 0 && (
+                <FilterButton
+                  active={hasActiveCategoryFilter}
+                  onClick={() => setMostrarFiltros(true)}
+                />
+              )}
+              {(!isFormOpen || selectedPkg) && (
+                <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
+                  <FiPlus size={14} /> Nuevo Paquete
+                </button>
+              )}
+            </>
           }
         />
       )}
       {/* ── Mobile sticky carousel ── */}
       {!loading && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
-          {packages.map(pkg => {
+          {filteredPackages.map(pkg => {
             const isActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
             // Cuando la burbuja está activa, dejamos que la regla CSS
             // .pkg-bubble--active .pkg-bubble-avatar pinte el verde Aurora.
@@ -1518,13 +1637,43 @@ function PackageManagement() {
 
       {(packages.length > 0 || !isFormOpen) && (
         <div className="lote-list-panel">
+          {packages.length > 0 && (
+            <div className="pkg-list-search">
+              <FiSearch size={13} aria-hidden="true" />
+              <input
+                type="search"
+                className="pkg-list-search-input"
+                placeholder="Buscar paquete por nombre…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                aria-label="Buscar paquete por nombre"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="pkg-list-search-clear"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Limpiar búsqueda"
+                >
+                  <FiX size={12} />
+                </button>
+              )}
+            </div>
+          )}
           {packages.length === 0 ? (
             <p className="empty-state">
               Aún no hay registros que mostrar. Crea el primero en "Nuevo Paquete".
             </p>
+          ) : filteredPackages.length === 0 ? (
+            <p className="empty-state">
+              Sin resultados para los filtros aplicados.{' '}
+              <button type="button" className="aur-btn-text pkg-list-clear-link" onClick={clearAllFilters}>
+                Limpiar filtros
+              </button>
+            </p>
           ) : (
           <ul className="lote-list">
-            {packages.map(pkg => (
+            {filteredPackages.map(pkg => (
               <li
                 key={pkg.id}
                 className={`lote-list-item${(selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id)) ? ' active' : ''}`}
