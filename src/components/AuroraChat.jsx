@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiSend, FiPaperclip, FiX, FiMessageSquare, FiMic, FiMicOff, FiCheck, FiEdit2, FiBell, FiMapPin } from 'react-icons/fi';
+import { FiSend, FiPaperclip, FiX, FiMic, FiMicOff, FiCheck, FiEdit2, FiBell } from 'react-icons/fi';
 import { useUser } from '../contexts/UserContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { markVisited as markOnboardingVisited } from '../features/dashboard/lib/onboardingState';
@@ -37,11 +37,10 @@ function compressImage(file) {
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-export default function AuroraChat() {
+export default function AuroraChat({ open = false, onClose, onRequestOpen, onBadgeChange }) {
   const apiFetch = useApiFetch();
   const { currentUser, firebaseUser, activeFincaId } = useUser();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '¡Hola! Soy Aurora, tu asistente de sistema.\n¿En qué puedo ayudarte hoy?' },
   ]);
@@ -55,38 +54,20 @@ export default function AuroraChat() {
   const [planillaDraftStates, setPlanillaDraftStates] = useState({});
   const [reminderBadge, setReminderBadge] = useState(0);
 
-  const [pinned, setPinned] = useState(() =>
-    localStorage.getItem('aurora_chat_pinned') === 'true'
-  );
-
   const fileRef = useRef(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
   const pendingRemindersRef = useRef([]);
   const openRef = useRef(open);
-  const panelRef = useRef(null);
-  const fabRef = useRef(null);
 
   const speechSupported = !!SpeechRecognition;
 
-  // Keep openRef in sync so async effects can read it
   useEffect(() => { openRef.current = open; }, [open]);
 
-  // Close on click outside panel and FAB (only when not pinned)
   useEffect(() => {
-    if (!open || pinned) return;
-    const handler = (e) => {
-      if (
-        panelRef.current && !panelRef.current.contains(e.target) &&
-        fabRef.current   && !fabRef.current.contains(e.target)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open, pinned]);
+    onBadgeChange?.(reminderBadge);
+  }, [reminderBadge, onBadgeChange]);
 
   useEffect(() => {
     if (open) {
@@ -212,14 +193,14 @@ export default function AuroraChat() {
   // Listen for external open requests (e.g. from dashboard search bar)
   useEffect(() => {
     const handler = (e) => {
-      setOpen(true);
+      onRequestOpen?.();
       if (e.detail?.query) {
         handleSend(e.detail.query);
       }
     };
     window.addEventListener('aurora:open', handler);
     return () => window.removeEventListener('aurora:open', handler);
-  }, [handleSend]);
+  }, [handleSend, onRequestOpen]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -310,7 +291,7 @@ export default function AuroraChat() {
   };
 
   const handleDraftReview = (filas) => {
-    setOpen(false);
+    onClose?.();
     navigate('/operaciones/horimetro', { state: { horimetroDraft: filas } });
   };
 
@@ -352,7 +333,7 @@ export default function AuroraChat() {
   };
 
   const handlePlanillaReview = (draft) => {
-    setOpen(false);
+    onClose?.();
     navigate('/hr/planilla/horas', { state: { planillaDraft: draft } });
   };
 
@@ -464,145 +445,121 @@ export default function AuroraChat() {
     );
   };
 
+  if (!open) return null;
+
   return (
     <>
-      {open && (
-        <div className="aurora-chat-panel" ref={panelRef}>
-          <div className="aurora-chat-header">
-            <span className="aurora-chat-header-title">✦ Aurora</span>
-            <div className="aurora-chat-header-actions">
-              <button
-                className={`aur-icon-btn aur-icon-btn--sm aurora-chat-pin-btn${pinned ? ' aur-icon-btn--success' : ''}`}
-                onClick={() => {
-                  const next = !pinned;
-                  setPinned(next);
-                  localStorage.setItem('aurora_chat_pinned', String(next));
-                }}
-                title={pinned ? 'Desfijar chat' : 'Fijar chat (mantener abierto)'}
-              >
-                <FiMapPin size={14} />
-              </button>
-              <button
-                className="aur-icon-btn aur-icon-btn--sm"
-                onClick={() => setOpen(false)}
-                title="Cerrar"
-              >
-                <FiX size={15} />
-              </button>
-            </div>
-          </div>
-
-          <div className="aurora-chat-messages">
-            {messages.map((msg, i) => (
-              msg.role === 'reminder' ? (
-                <div key={i} className="aurora-reminder-card">
-                  <span className="aurora-reminder-icon"><FiBell size={14} /></span>
-                  <div className="aurora-reminder-body">
-                    <span className="aur-badge aur-badge--yellow aurora-reminder-label">Recordatorio</span>
-                    <p className="aurora-reminder-text">{msg.text}</p>
-                  </div>
-                </div>
-              ) : (
-                <div key={i} className={`aurora-msg aurora-msg-${msg.role}`}>
-                  {msg.imagePreview && (
-                    <img src={msg.imagePreview} className="aurora-msg-image" alt="adjunto" />
-                  )}
-                  {msg.text}
-                  {msg.horimetroDraft && renderDraftCard(msg.horimetroDraft, i)}
-                  {msg.planillaDraft && renderPlanillaDraftCard(msg.planillaDraft, i)}
-                </div>
-              )
-            ))}
-            {thinking && (
-              <div className="aurora-chat-thinking">
-                <span className="aurora-thinking-dots">Aurora está procesando</span>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {image && (
-            <div className="aurora-chat-img-bar">
-              <div className="aurora-img-preview">
-                <img src={image.previewUrl} alt="imagen adjunta" />
-                <button
-                  className="aur-icon-btn aur-icon-btn--sm aurora-img-preview-remove"
-                  onClick={() => setImage(null)}
-                  title="Quitar imagen"
-                >
-                  <FiX size={11} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {speechError && (
-            <div className="aurora-speech-error">{speechError}</div>
-          )}
-
-          <div className="aurora-chat-input-area">
-            <button
-              className="aur-icon-btn"
-              onClick={() => fileRef.current?.click()}
-              title="Adjuntar imagen"
-              disabled={thinking || recording}
-            >
-              <FiPaperclip size={16} />
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              style={{ display: 'none' }}
-              onChange={handleImageFile}
-            />
-
-            <textarea
-              ref={textareaRef}
-              className="aur-textarea aurora-chat-input"
-              placeholder={recording ? 'Escuchando…' : 'Escribe o usa el micrófono…'}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={thinking}
-            />
-
-            {speechSupported && (
-              <button
-                className={`aur-icon-btn${recording ? ' aurora-chat-mic-active' : ''}`}
-                onClick={toggleRecording}
-                title={recording ? 'Detener grabación' : 'Hablar'}
-                disabled={thinking}
-              >
-                {recording ? <FiMicOff size={16} /> : <FiMic size={16} />}
-              </button>
-            )}
-
-            <button
-              className="aur-icon-btn aurora-chat-send"
-              onClick={() => handleSend()}
-              disabled={thinking || recording || (!input.trim() && !image)}
-              title="Enviar"
-            >
-              <FiSend size={15} />
-            </button>
-          </div>
+      <div className="aurora-chat-backdrop" onClick={onClose} />
+      <div className="aurora-chat-panel">
+        <div className="aurora-chat-header">
+          <span className="aurora-chat-header-title">✦ Aurora</span>
+          <button
+            className="aur-icon-btn aur-icon-btn--sm"
+            onClick={onClose}
+            title="Cerrar"
+          >
+            <FiX size={15} />
+          </button>
         </div>
-      )}
 
-      <button
-        ref={fabRef}
-        className={`aurora-chat-fab${open ? ' aurora-chat-fab-open' : ''}`}
-        onClick={() => setOpen(o => !o)}
-        title="Aurora AI"
-      >
-        {open ? <FiX size={22} /> : <FiMessageSquare size={22} />}
-        {!open && reminderBadge > 0 && (
-          <span className="aurora-chat-fab-badge">{reminderBadge}</span>
+        <div className="aurora-chat-messages">
+          {messages.map((msg, i) => (
+            msg.role === 'reminder' ? (
+              <div key={i} className="aurora-reminder-card">
+                <span className="aurora-reminder-icon"><FiBell size={14} /></span>
+                <div className="aurora-reminder-body">
+                  <span className="aur-badge aur-badge--yellow aurora-reminder-label">Recordatorio</span>
+                  <p className="aurora-reminder-text">{msg.text}</p>
+                </div>
+              </div>
+            ) : (
+              <div key={i} className={`aurora-msg aurora-msg-${msg.role}`}>
+                {msg.imagePreview && (
+                  <img src={msg.imagePreview} className="aurora-msg-image" alt="adjunto" />
+                )}
+                {msg.text}
+                {msg.horimetroDraft && renderDraftCard(msg.horimetroDraft, i)}
+                {msg.planillaDraft && renderPlanillaDraftCard(msg.planillaDraft, i)}
+              </div>
+            )
+          ))}
+          {thinking && (
+            <div className="aurora-chat-thinking">
+              <span className="aurora-thinking-dots">Aurora está procesando</span>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {image && (
+          <div className="aurora-chat-img-bar">
+            <div className="aurora-img-preview">
+              <img src={image.previewUrl} alt="imagen adjunta" />
+              <button
+                className="aur-icon-btn aur-icon-btn--sm aurora-img-preview-remove"
+                onClick={() => setImage(null)}
+                title="Quitar imagen"
+              >
+                <FiX size={11} />
+              </button>
+            </div>
+          </div>
         )}
-      </button>
+
+        {speechError && (
+          <div className="aurora-speech-error">{speechError}</div>
+        )}
+
+        <div className="aurora-chat-input-area">
+          <button
+            className="aur-icon-btn"
+            onClick={() => fileRef.current?.click()}
+            title="Adjuntar imagen"
+            disabled={thinking || recording}
+          >
+            <FiPaperclip size={16} />
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={handleImageFile}
+          />
+
+          <textarea
+            ref={textareaRef}
+            className="aur-textarea aurora-chat-input"
+            placeholder={recording ? 'Escuchando…' : 'Escribe o usa el micrófono…'}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            rows={1}
+            disabled={thinking}
+          />
+
+          {speechSupported && (
+            <button
+              className={`aur-icon-btn${recording ? ' aurora-chat-mic-active' : ''}`}
+              onClick={toggleRecording}
+              title={recording ? 'Detener grabación' : 'Hablar'}
+              disabled={thinking}
+            >
+              {recording ? <FiMicOff size={16} /> : <FiMic size={16} />}
+            </button>
+          )}
+
+          <button
+            className="aur-icon-btn aurora-chat-send"
+            onClick={() => handleSend()}
+            disabled={thinking || recording || (!input.trim() && !image)}
+            title="Enviar"
+          >
+            <FiSend size={15} />
+          </button>
+        </div>
+      </div>
     </>
   );
 }

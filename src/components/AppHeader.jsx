@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { FiMenu, FiUser, FiSearch, FiArrowLeft, FiCpu } from 'react-icons/fi';
+import { FiMenu, FiUser, FiSearch, FiArrowLeft, FiCpu, FiMessageSquare } from 'react-icons/fi';
 import { useNavigate, NavLink } from 'react-router-dom';
 import { useUser, hasMinRole } from '../contexts/UserContext';
 import { useReminders } from '../contexts/RemindersContext';
@@ -7,13 +7,16 @@ import { useApiFetch } from '../hooks/useApiFetch';
 import { ADVANCED_ENABLED } from '../lib/features';
 import { MODULES } from './Sidebar';
 
-export default function AppHeader({ 
+export default function AppHeader({
   isCollapsed,
   toggleCollapse,
   profileOpen,
   onToggleProfile,
   autopilotOpen,
   onOpenAutopilot,
+  chatOpen,
+  onToggleChat,
+  chatBadge = 0,
 }) {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
@@ -193,6 +196,21 @@ export default function AppHeader({
         aria-label="Abrir búsqueda"
       >
         <FiSearch size={19} />
+      </button>
+
+      <button
+        className={`aur-icon-btn aur-icon-btn--success aur-header-chat-btn${chatOpen ? ' is-active' : ''}`}
+        onClick={onToggleChat}
+        title={chatBadge > 0 ? `Aurora chat — ${chatBadge} recordatorio(s)` : 'Aurora chat'}
+        aria-label={chatBadge > 0 ? `Aurora chat — ${chatBadge} recordatorio(s)` : 'Aurora chat'}
+        aria-expanded={chatOpen}
+      >
+        <FiMessageSquare size={17} />
+        {chatBadge > 0 && (
+          <span className="aur-badge aur-badge--yellow aur-header-counter" aria-hidden="true">
+            {chatBadge > 99 ? '99+' : chatBadge}
+          </span>
+        )}
       </button>
 
       {canSeeAutopilot && (

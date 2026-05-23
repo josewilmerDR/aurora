@@ -1,81 +1,37 @@
-/* ── Floating Action Button ─────────────────────────────────────────────────── */
-/* No hay primitiva FAB en aurora.css; este shell consume tokens del sistema. */
-.aurora-chat-fab {
+/* ── Backdrop ───────────────────────────────────────────────────────────────── */
+/* Mismo patrón soft-modal que .profile-panel-backdrop / .autopilot-panel-backdrop:
+   captura de clicks transparente que cierra el panel al hacer click fuera. */
+.aurora-chat-backdrop {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--aur-accent);
-  color: var(--aur-bg-modal);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--aur-shadow-pill);
-  z-index: 1100;
-  transition: transform 0.2s var(--aur-ease), box-shadow 0.2s var(--aur-ease);
-}
-
-.aurora-chat-fab:hover {
-  transform: scale(1.08);
-  box-shadow: var(--aur-shadow-pill-hover);
-}
-
-.aurora-chat-fab:focus-visible {
-  outline: none;
-  box-shadow: var(--aur-shadow-pill), var(--aur-ring);
-}
-
-.aurora-chat-fab-open {
-  background: var(--aur-bg-strong);
-  color: var(--aur-text);
-  box-shadow: var(--aur-shadow-popover);
-}
-
-/* Badge de recordatorios sobre el FAB. aur-badge--yellow ya provee bg/fg
-   amber; aquí solo afinamos posicionamiento absoluto y tamaño compacto. */
-.aurora-chat-fab-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  font-size: var(--aur-fs-caption);
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  line-height: 1;
-  background: var(--aur-warn);
-  color: var(--aur-bg-modal);
-  border: 2px solid var(--aur-bg-modal);
-  pointer-events: none;
+  inset: 0;
+  z-index: 298;
+  background: transparent;
 }
 
 /* ── Chat Panel ─────────────────────────────────────────────────────────────── */
-/* Shell flotante. No hay primitiva de panel persistente en aurora.css
-   (no es modal, no es sheet, no es popover); aquí consume tokens del
-   sistema con shadow modal-like + border-radius card. */
+/* Popover anclado bajo el header (top: 62px = altura del header). En desktop
+   se posiciona como popover compacto a la derecha; en móvil colapsa a un
+   bottom-sheet para mejor ergonomía con el pulgar. */
 .aurora-chat-panel {
   position: fixed;
-  bottom: 88px;
-  right: 24px;
-  width: 360px;
-  height: 520px;
+  top: calc(62px + 8px);
+  right: 16px;
+  width: 380px;
+  height: min(560px, calc(100dvh - 62px - 24px));
   background: var(--aur-bg-modal);
   border: 1px solid var(--aur-divider-2);
   border-radius: var(--aur-r-card);
   display: flex;
   flex-direction: column;
-  z-index: 1100;
+  z-index: 299;
   box-shadow: var(--aur-shadow-modal);
   overflow: hidden;
-  animation: chatSlideUp 0.2s ease-out;
+  animation: chatSlideDown 0.2s ease-out;
+}
+
+@keyframes chatSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes chatSlideUp {
@@ -99,12 +55,6 @@
   color: var(--aur-accent);
   font-size: var(--aur-fs-callout);
   letter-spacing: 0.01em;
-}
-
-.aurora-chat-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
 }
 
 /* ── Messages ───────────────────────────────────────────────────────────────── */
@@ -304,25 +254,19 @@
 }
 
 /* ── Responsive: mobile ─────────────────────────────────────────────────────── */
+/* En móvil el popover anclado al header se transforma en bottom-sheet: pega
+   abajo y ocupa todo el ancho, mejor ergonomía con el pulgar (input cerca
+   del teclado, mensajes scrollean desde arriba). El backdrop sigue cerrando
+   al tocar fuera. */
 @media (max-width: 480px) {
   .aurora-chat-panel {
+    top: auto;
     right: 0;
     bottom: 0;
     width: 100%;
-    height: 70vh;
+    height: 70dvh;
     border-radius: var(--aur-r-card) var(--aur-r-card) 0 0;
-  }
-
-  .aurora-chat-fab {
-    bottom: calc(62px + 14px); /* above the bottom nav bar */
-    right: 16px;
-  }
-
-  /* Panel abierto: FAB se oculta porque el header del panel ya provee
-     un botón de cerrar — y el patrón pin no aplica en móvil. */
-  .aurora-chat-fab-open,
-  .aurora-chat-pin-btn {
-    display: none;
+    animation: chatSlideUp 0.2s ease-out;
   }
 }
 
