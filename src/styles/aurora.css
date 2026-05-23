@@ -861,6 +861,22 @@ select.aur-chip option {
 .aur-badge--violet  { background: var(--aur-badge-violet-bg);  color: var(--aur-badge-violet-fg); }
 .aur-badge--gray    { background: var(--aur-badge-gray-bg);    color: var(--aur-badge-gray-fg); }
 
+/* Modifier para indicar "este recurso referenciado está archivado". Se
+   atenúa el badge entero, y el sufijo `.aur-badge-archived-tag` agrega un
+   "· archivado" más tenue al final del label. */
+.aur-badge--archived {
+  opacity: 0.55;
+}
+.aur-badge-archived-tag {
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid currentColor;
+  font-weight: 500;
+  font-size: 0.92em;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MODAL — sheet flotante con backdrop blur (portaled a body)
    ═══════════════════════════════════════════════════════════════════════════ */
