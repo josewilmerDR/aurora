@@ -1,27 +1,15 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import '../styles/packages.css';
-import { FiPlus, FiX, FiSearch, FiChevronRight, FiChevronDown, FiChevronUp, FiInfo, FiFilter, FiClock, FiArchive, FiBookmark, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiX, FiSearch, FiChevronRight, FiChevronDown, FiArchive, FiCheck, FiFilter, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
-import AuroraField, { TextInput, Textarea } from '../../../components/AuroraField';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import FilterButton from '../../../components/ui/FilterButton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { translateApiError } from '../../../lib/errorMessages';
 import {
-  NOMBRE_MAX,
-  DESCRIPCION_MAX,
-  TECNICO_MAX,
-  ACT_NAME_MAX,
-  ACT_DAY_MAX,
-  ACT_PRODUCTOS_MAX,
-  PRODUCT_CANT_MAX,
-  getPackageFieldError,
-  getActivityFieldError,
-  getProductCantidadError,
-  buildValidationToast,
   calcularCosto,
   flattenActivityProducts,
   missingPriceTooltip,
@@ -29,15 +17,12 @@ import {
   pickPkgAvatarStyle,
 } from '../lib/packages-helpers';
 import {
-  PKG_DRAFT_SS_KEY,
   loadPackageDraft,
-  savePackageDraft,
   clearPackageDraft,
   isPackageDraftMeaningful,
 } from '../lib/packages-draft';
-import { computePackageChanges } from '../lib/packages-diff';
-import ActivityCard from '../components/ActivityCard';
 import PackageHub from '../components/PackageHub';
+import PackageForm from '../components/PackageForm';
 
 // Helpers puros, draft persistence y diff viven en ../lib/packages-*.js
 // (extracción Fases A+B del refactor para bajar el archivo bajo 600 LOC).
@@ -55,20 +40,21 @@ function PackageManagement() {
   // paralelo con el resto de catálogos.
   const [lotes, setLotes] = useState([]);
   const [grupos, setGrupos] = useState([]);
-  const [formData, setFormData] = useState({
-    id: null,
-    nombrePaquete: '',
-    descripcion: '',
-    tipoCosecha: '',
-    etapaCultivo: '',
-    tecnicoResponsable: '',
-    activities: []
-  });
+  // Estado del padre sobre el form: solo lo necesario para decidir qué mostrar
+  // y cómo iniciarlo. El estado interno del form (formData, formErrors,
+  // expandedActivities, etc.) vive en <PackageForm>.
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState(null);
-  const [expandedActivities, setExpandedActivities] = useState(new Set());
+  const [formInitialData, setFormInitialData] = useState(null);
+  // True cuando los datos iniciales vienen de un draft de localStorage —
+  // habilita el banner "Borrador restaurado" dentro del form.
+  const [restoredFromDraft, setRestoredFromDraft] = useState(false);
+  // Espejo del isDirty del form: el padre lo usa para decidir si mostrar el
+  // modal "¿Descartar cambios?" cuando se navega desde otros lugares (carrusel,
+  // selección de paquete, etc.). Actualizado vía onDirtyChange del form.
+  const [formIsDirty, setFormIsDirty] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const carouselRef = useRef(null);
@@ -79,25 +65,10 @@ function PackageManagement() {
   // a la lista. Se limpia al abrir cualquier form (Nuevo o Editar) y por
   // botón "Cerrar". Forma: { id, nombrePaquete, action: 'created'|'updated' } | null
   const [lastSavedPkg, setLastSavedPkg] = useState(null);
-  const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
   const [pendingDeletePkg, setPendingDeletePkg] = useState(null);
   const [pkgDepsModal, setPkgDepsModal] = useState(null);
   const [pendingArchivePkg, setPendingArchivePkg] = useState(null); // { id, nombrePaquete, lotesCount, gruposCount }
-  // Modal compacto para crear plantilla desde una actividad sin salir del
-  // form del paquete. Pre-llena desde la actividad si tiene datos válidos.
-  // Forma: { activityIndex, nombre, responsableId, includeProductos } | null
-  const [templateModal, setTemplateModal] = useState(null);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [formErrors, setFormErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
   const [pendingNavAction, setPendingNavAction] = useState(null);
-
-  // Banner "Borrador restaurado". Se inicializa al montar mirando localStorage
-  // para que aparezca incluso antes del primer render del form. Cualquier
-  // transición explícita (Cancelar, Nuevo, abrir otro paquete, descartar) lo
-  // pone en false — el draft sigue intacto en disco, solo escondemos el aviso.
-  const [draftRestored, setDraftRestored] = useState(() => isPackageDraftMeaningful(loadPackageDraft()));
 
   // Búsqueda y filtros sobre la lista/carrusel de paquetes. No se persisten
   // entre sesiones — cada visita arranca con todos los paquetes visibles.
@@ -132,19 +103,6 @@ function PackageManagement() {
   const filteredActivePackages = useMemo(() => applyFilters(activePackages), [activePackages, applyFilters]);
   const filteredArchivedPackages = useMemo(() => applyFilters(archivedPackages), [archivedPackages, applyFilters]);
 
-  // Snapshot del paquete tal como vive en el server. Derivado de `packages`
-  // (no almacenado aparte) para que se mantenga sincronizado con cambios
-  // remotos sin gestión manual. Solo aplica en modo editar — `null` en
-  // creación porque ahí no hay "original" contra el cual comparar.
-  const originalSnapshot = useMemo(() => {
-    if (!isEditing || !formData.id) return null;
-    return packages.find(p => p.id === formData.id) || null;
-  }, [packages, isEditing, formData.id]);
-  const changes = useMemo(
-    () => computePackageChanges(formData, originalSnapshot),
-    [formData, originalSnapshot]
-  );
-
   // Catálogo de productos indexado por id — base para todos los cálculos de
   // costo. Sin este Map cada calcularCosto haría .find() O(n) por producto,
   // y la lista de paquetes corre N veces por render. Con 30+ paquetes y form
@@ -174,13 +132,6 @@ function PackageManagement() {
       .sort((a, b) => Number(a.day) - Number(b.day))
       .map(act => calcularCosto(act.productos, productosById));
   }, [selectedPkg, productosById]);
-
-  // Costos por actividad en el form de edición/creación. Recalcula cuando
-  // cambian las actividades o el catálogo de productos; cuando el usuario
-  // tipea en campos no-producto el memo evita rehacer estas cuentas.
-  const formActivityCosts = useMemo(() => {
-    return (formData.activities || []).map(act => calcularCosto(act.productos, productosById));
-  }, [formData.activities, productosById]);
 
   // Responsables elegibles para una ACTIVIDAD: empleados en planilla con
   // acceso al sistema. Cada actividad genera una tarea con notificación y
@@ -212,19 +163,8 @@ function PackageManagement() {
     clearCategoryFilters();
   };
 
-  const clearError = (key) => {
-    setFormErrors(prev => {
-      if (!(key in prev)) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  };
-
-  const markDirty = () => setIsDirty(true);
-
   const guardedNav = (action) => {
-    if (isDirty) setPendingNavAction(() => action);
+    if (formIsDirty) setPendingNavAction(() => action);
     else action();
   };
 
@@ -233,7 +173,7 @@ function PackageManagement() {
     if (!isFormOpen || !carouselRef.current) return;
     const active = carouselRef.current.querySelector('.pkg-bubble--active');
     active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [selectedPkg?.id, formData.id, isFormOpen]);
+  }, [selectedPkg?.id, formInitialData?.id, isFormOpen]);
 
   useEffect(() => {
     // Carga inicial de catálogos. Antes era `.catch(console.error)` silencioso
@@ -290,6 +230,7 @@ function PackageManagement() {
   // Restaurar borrador al montar: si hay datos persistidos de una sesión
   // anterior, abrir el form con esos datos. El draft.id distingue el modo —
   // con id se reabre como edición del paquete; sin id, como nuevo paquete.
+  // El form gestiona su propio estado a partir de `formInitialData`.
   useEffect(() => {
     const draft = loadPackageDraft();
     if (!isPackageDraftMeaningful(draft)) {
@@ -297,7 +238,7 @@ function PackageManagement() {
       return;
     }
     const activities = Array.isArray(draft.activities) ? draft.activities : [];
-    setFormData({
+    setFormInitialData({
       id: draft.id || null,
       nombrePaquete: draft.nombrePaquete || '',
       descripcion: draft.descripcion || '',
@@ -309,336 +250,43 @@ function PackageManagement() {
     setIsEditing(!!draft.id);
     setIsFormOpen(true);
     setSelectedPkg(null);
-    setExpandedActivities(new Set(activities.map((_, i) => i)));
-    setIsDirty(false);
-    try {
-      sessionStorage.setItem(PKG_DRAFT_SS_KEY, '1');
-      window.dispatchEvent(new CustomEvent('aurora-draft-change'));
-    } catch {}
+    setRestoredFromDraft(true);
   }, []);
 
-  // Autoguardado del borrador en cada cambio del form (crear o editar).
-  // Se omite solo la vista hub (selectedPkg !== null), que no tiene form, y
-  // cuando el form está cerrado. Persiste `id` para que la restauración pueda
-  // reabrir en el mismo modo en el que estaba el usuario.
-  useEffect(() => {
-    if (!isFormOpen || selectedPkg) return;
-    const snapshot = {
-      id: formData.id || null,
-      nombrePaquete: formData.nombrePaquete,
-      descripcion: formData.descripcion,
-      tipoCosecha: formData.tipoCosecha,
-      etapaCultivo: formData.etapaCultivo,
-      tecnicoResponsable: formData.tecnicoResponsable,
-      activities: formData.activities,
-    };
-    if (isPackageDraftMeaningful(snapshot)) savePackageDraft(snapshot);
-    else clearPackageDraft();
-  }, [formData, isFormOpen, selectedPkg]);
+  // Effects de autoguardado, atajo Ctrl+S, y handlers de edición/validación/
+  // submit viven ahora en <PackageForm> (Fase F del refactor).
 
-  // Atajo Ctrl/Cmd + S → enviar el form mientras se edita/crea un paquete.
-  // Solo se activa cuando el form está abierto en modo crear/editar
-  // (no en la vista de hub, donde no hay form).
-  useEffect(() => {
-    if (!isFormOpen || selectedPkg) return;
-    const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        e.preventDefault();
-        document.querySelector('.pkg-form')?.requestSubmit?.();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isFormOpen, selectedPkg]);
-
-  // Estado derivado: ¿todas las actividades están expandidas?
-  const allActivitiesExpanded = formData.activities.length > 0
-    && formData.activities.every((_, i) => expandedActivities.has(i));
-
-  const toggleAllActivities = () => {
-    if (allActivitiesExpanded) {
-      setExpandedActivities(new Set());
-    } else {
-      setExpandedActivities(new Set(formData.activities.map((_, i) => i)));
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-      ...(name === 'tipoCosecha' && value === 'Semillero' ? { etapaCultivo: 'N/A' } : {}),
-    }));
-    markDirty();
-    clearError(name);
-    if (name === 'tipoCosecha' && value === 'Semillero') clearError('etapaCultivo');
-  };
-
-  const handleActivityChange = (index, field, value) => {
-    const updatedActivities = [...formData.activities];
-    updatedActivities[index] = { ...updatedActivities[index], [field]: value };
-    setFormData(prev => ({ ...prev, activities: updatedActivities }));
-    markDirty();
-    if (field === 'day' || field === 'name') clearError(`act-${index}-${field}`);
-  };
-
-  const addActivity = () => {
-    setFormData(prev => {
-      const newIndex = prev.activities.length;
-      setExpandedActivities(exp => {
-        const next = new Set(exp);
-        next.add(newIndex);
-        return next;
-      });
-      return {
-        ...prev,
-        activities: [...prev.activities, { day: '', name: '', responsableId: '', calibracionId: '', productos: [] }]
-      };
-    });
-    markDirty();
-  };
-
-  // Shift error keys when activities are inserted/removed at `index`.
-  // delta = +1 when inserting at index+1; delta = -1 when removing at index.
-  const shiftActivityErrors = (index, delta) => {
-    setFormErrors(prev => {
-      const next = {};
-      Object.entries(prev).forEach(([k, v]) => {
-        const m = k.match(/^act-(\d+)-(.+)$/);
-        if (!m) { next[k] = v; return; }
-        const i = Number(m[1]);
-        if (delta < 0 && i === index) return; // drop errors of removed activity
-        if (delta > 0 && i > index) next[`act-${i + 1}-${m[2]}`] = v;
-        else if (delta < 0 && i > index) next[`act-${i - 1}-${m[2]}`] = v;
-        else next[k] = v;
-      });
-      return next;
-    });
-  };
-
-  const duplicateActivity = (index) => {
-    setFormData(prev => {
-      const copy = JSON.parse(JSON.stringify(prev.activities[index]));
-      if (copy.name) copy.name = `Copia de ${copy.name}`;
-      return {
-        ...prev,
-        activities: [
-          ...prev.activities.slice(0, index + 1),
-          copy,
-          ...prev.activities.slice(index + 1),
-        ],
-      };
-    });
-    // Shift expanded indices > index up by 1 so the expansion state
-    // keeps pointing to the same activities after the splice.
-    setExpandedActivities(prev => {
-      const next = new Set();
-      prev.forEach(i => { if (i <= index) next.add(i); else next.add(i + 1); });
-      return next;
-    });
-    shiftActivityErrors(index, +1);
-    setPendingDeleteIdx(null);
-    markDirty();
-  };
-
-  const removeActivity = (index) => {
-    setFormData(prev => ({ ...prev, activities: prev.activities.filter((_, i) => i !== index) }));
-    setPendingDeleteIdx(null);
-    setExpandedActivities(prev => {
-      const next = new Set();
-      prev.forEach(i => { if (i < index) next.add(i); else if (i > index) next.add(i - 1); });
-      return next;
-    });
-    shiftActivityErrors(index, -1);
-    markDirty();
-  };
-
-  const toggleActivityExpand = (index) => {
-    setExpandedActivities(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  };
-
-  const addProductToActivity = (activityIndex, productoId) => {
-    if (!productoId) return;
-    const producto = productos.find(p => p.id === productoId);
-    if (!producto) return;
-    const updatedActivities = [...formData.activities];
-    const existing = updatedActivities[activityIndex].productos || [];
-    if (existing.find(p => p.productoId === productoId)) return;
-    if (existing.length >= ACT_PRODUCTOS_MAX) {
-      showToast(`Máximo ${ACT_PRODUCTOS_MAX} productos por aplicación.`, 'error');
-      return;
-    }
-    updatedActivities[activityIndex] = {
-      ...updatedActivities[activityIndex],
-      productos: [
-        ...existing,
-        {
-          productoId: producto.id,
-          nombreComercial: producto.nombreComercial,
-          cantidadPorHa: '',
-          unidad: producto.unidad,
-          periodoReingreso: producto.periodoReingreso,
-          periodoACosecha: producto.periodoACosecha,
-        },
-      ],
-    };
-    setFormData(prev => ({ ...prev, activities: updatedActivities }));
-    clearError(`act-${activityIndex}-prods`);
-    markDirty();
-  };
-
-  const removeProductFromActivity = (activityIndex, productoId) => {
-    const updatedActivities = [...formData.activities];
-    updatedActivities[activityIndex] = {
-      ...updatedActivities[activityIndex],
-      productos: updatedActivities[activityIndex].productos.filter(p => p.productoId !== productoId),
-    };
-    setFormData(prev => ({ ...prev, activities: updatedActivities }));
-    clearError(`act-${activityIndex}-prod-${productoId}-cant`);
-    clearError(`act-${activityIndex}-prods`);
-    markDirty();
-  };
-
-  const updateProductCantidad = (activityIndex, productoId, newCantidad) => {
-    const updatedActivities = [...formData.activities];
-    updatedActivities[activityIndex] = {
-      ...updatedActivities[activityIndex],
-      productos: updatedActivities[activityIndex].productos.map(p =>
-        p.productoId === productoId ? { ...p, cantidadPorHa: newCantidad } : p
-      ),
-    };
-    setFormData(prev => ({ ...prev, activities: updatedActivities }));
-    clearError(`act-${activityIndex}-prod-${productoId}-cant`);
-    markDirty();
-  };
-
-  const aplicarPlantillaAActividad = (activityIndex, plantillaId) => {
-    const plantilla = plantillas.find(p => p.id === plantillaId);
-    if (!plantilla) return;
-    const productosDeActividad = plantilla.productos
-      .map(tp => {
-        const cat = productos.find(p => p.id === tp.productoId);
-        if (!cat) return null;
-        return {
-          productoId: cat.id,
-          nombreComercial: cat.nombreComercial,
-          cantidadPorHa: tp.cantidad || 0,
-          unidad: cat.unidad,
-          periodoReingreso: cat.periodoReingreso,
-          periodoACosecha: cat.periodoACosecha,
-        };
-      })
-      .filter(Boolean);
-    const updatedActivities = [...formData.activities];
-    updatedActivities[activityIndex] = {
-      ...updatedActivities[activityIndex],
-      name: plantilla.nombre || updatedActivities[activityIndex].name,
-      responsableId: plantilla.responsableId || updatedActivities[activityIndex].responsableId,
-      productos: productosDeActividad,
-    };
-    setFormData(prev => ({ ...prev, activities: updatedActivities }));
-    setExpandedActivities(prev => new Set(prev).add(activityIndex));
-    setFormErrors(prev => {
-      const next = {};
-      Object.entries(prev).forEach(([k, v]) => {
-        if (!k.startsWith(`act-${activityIndex}-`)) next[k] = v;
-      });
-      return next;
-    });
-    markDirty();
-  };
-
-  // ── Crear plantilla inline desde el form del paquete ────────────────────────
-  // El flujo de /tasks para crear plantillas tiene muchos campos extra
-  // (fecha, lote, bloque, etc.) que no aplican acá. Este modal compacto usa
-  // la misma ruta `POST /api/task-templates` pero solo pide lo esencial:
-  // nombre + responsable + (opcional) productos copiados de la actividad
-  // actual. Si la actividad ya está rellena, crear plantilla es un click más.
-  const openTemplateModal = (activityIndex) => {
-    const act = formData.activities[activityIndex] || {};
-    const hasProductos = (act.productos || []).length > 0;
-    setTemplateModal({
-      activityIndex,
-      nombre: (act.name || '').trim(),
-      responsableId: act.responsableId || '',
-      includeProductos: hasProductos, // si la actividad tiene productos, default a incluirlos
-    });
-  };
-
-  const handleSaveTemplate = async () => {
-    if (!templateModal) return;
-    const nombre = templateModal.nombre.trim();
-    if (!nombre) return;
-    setSavingTemplate(true);
-    try {
-      const act = formData.activities[templateModal.activityIndex] || {};
-      const productosPayload = templateModal.includeProductos
-        ? (act.productos || []).map(p => ({
-            productoId: p.productoId,
-            cantidad: Number(p.cantidadPorHa) || 0,
-          }))
-        : [];
-      const res = await apiFetch('/api/task-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre,
-          responsableId: templateModal.responsableId || '',
-          productos: productosPayload,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw body;
-      }
-      const created = await res.json();
-      setPlantillas(prev => [...prev, created]);
-      showToast(`Plantilla "${nombre}" creada.`);
-      setTemplateModal(null);
-    } catch (body) {
-      showToast(translateApiError(body, 'No se pudo crear la plantilla.'), 'error');
-    } finally {
-      setSavingTemplate(false);
-    }
-  };
-
+  // Abre el form en modo editar con los datos del paquete normalizados.
+  // El form se encarga de su propio estado interno a partir de initialData.
   const handleEdit = (pkg) => {
     const normalizedActivities = (pkg.activities || [])
       .map(a => ({ type: 'notificacion', productos: [], ...a }))
       .sort((a, b) => Number(a.day) - Number(b.day));
-    setFormData({ ...pkg, activities: normalizedActivities });
+    setFormInitialData({ ...pkg, activities: normalizedActivities });
+    setRestoredFromDraft(false);
     setIsEditing(true);
     setIsFormOpen(true);
     setSelectedPkg(null);
-    setExpandedActivities(new Set(normalizedActivities.map((_, i) => i)));
-    setFormErrors({});
-    setIsDirty(false);
-    setDraftRestored(false);
     setLastSavedPkg(null);
     window.scrollTo(0, 0);
   };
 
+  // Cierra el form (unmount). Limpia draft porque salir del form es intención
+  // de "no continuar este borrador". Para descartar tras un dirty-prompt,
+  // mismo punto de entrada.
   const resetForm = () => {
-    setFormData({ id: null, nombrePaquete: '', descripcion: '', tipoCosecha: '', etapaCultivo: '', tecnicoResponsable: '', activities: [] });
-    setIsEditing(false);
     setIsFormOpen(false);
+    setIsEditing(false);
     setSelectedPkg(null);
-    setExpandedActivities(new Set());
-    setFormErrors({});
-    setIsDirty(false);
-    setIsSubmitting(false);
-    setDraftRestored(false);
+    setFormInitialData(null);
+    setRestoredFromDraft(false);
+    setFormIsDirty(false);
     clearPackageDraft();
   };
 
+  // Abre el form en modo crear con una actividad vacía pre-cargada.
   const handleNew = () => {
-    setFormData({
+    setFormInitialData({
       id: null,
       nombrePaquete: '',
       descripcion: '',
@@ -647,13 +295,10 @@ function PackageManagement() {
       tecnicoResponsable: '',
       activities: [{ day: '', name: '', responsableId: '', calibracionId: '', productos: [] }],
     });
+    setRestoredFromDraft(false);
     setIsEditing(false);
     setIsFormOpen(true);
     setSelectedPkg(null);
-    setExpandedActivities(new Set([0]));
-    setFormErrors({});
-    setIsDirty(false);
-    setDraftRestored(false);
     setLastSavedPkg(null);
   };
 
@@ -661,7 +306,7 @@ function PackageManagement() {
     setSelectedPkg(pkg);
     setIsEditing(false);
     setIsFormOpen(true);
-    setExpandedActivities(new Set());
+    setFormInitialData(null);
     // Auto-expandir: si exactamente una actividad tiene detalles (productos o
     // calibración), abrimos su detalle al entrar al hub. Para múltiples
     // actividades con detalles dejamos todo colapsado y los chips inline
@@ -676,136 +321,18 @@ function PackageManagement() {
     setHubExpandedActivities(
       withDetailsIndices.length === 1 ? new Set(withDetailsIndices) : new Set()
     );
-    setFormErrors({});
-    setIsDirty(false);
-    setDraftRestored(false);
+    setFormIsDirty(false);
     window.scrollTo(0, 0);
   };
 
-  const validateForm = () => {
-    const errors = {};
-    const expandIndices = new Set();
-
-    for (const f of ['nombrePaquete', 'descripcion', 'tecnicoResponsable', 'tipoCosecha', 'etapaCultivo']) {
-      const e = getPackageFieldError(f, formData[f]);
-      if (e) errors[f] = e;
-    }
-
-    formData.activities.forEach((a, i) => {
-      const nameErr = getActivityFieldError('name', a.name);
-      if (nameErr) { errors[`act-${i}-name`] = nameErr; expandIndices.add(i); }
-
-      const dayErr = getActivityFieldError('day', a.day);
-      if (dayErr) { errors[`act-${i}-day`] = dayErr; expandIndices.add(i); }
-
-      const prods = a.productos || [];
-      if (prods.length > ACT_PRODUCTOS_MAX) {
-        errors[`act-${i}-prods`] = `Máximo ${ACT_PRODUCTOS_MAX} productos por aplicación.`;
-        expandIndices.add(i);
-      }
-      prods.forEach(p => {
-        const cantErr = getProductCantidadError(p.cantidadPorHa);
-        if (cantErr) {
-          errors[`act-${i}-prod-${p.productoId}-cant`] = cantErr;
-          expandIndices.add(i);
-        }
-      });
-    });
-
-    return { errors, expandIndices };
-  };
-
-  // ── Blur handlers para validación progresiva ───────────────────────────────
-  // Cada uno calcula el error con la misma función pura que usa validateForm
-  // y lo monta/quita en formErrors. Disparados en onBlur — el usuario recibe
-  // feedback apenas sale del campo, sin esperar al submit. Los on-change
-  // existentes ya limpian el error mientras se escribe (clearError en
-  // handleInputChange/handleActivityChange/updateProductCantidad), así que
-  // este flujo "set on blur, clear on change" funciona simétrico.
-  const handleFieldBlur = (field) => {
-    const err = getPackageFieldError(field, formData[field]);
-    if (err) setFormErrors(prev => ({ ...prev, [field]: err }));
-    else clearError(field);
-  };
-
-  const handleActivityBlur = (index, field) => {
-    const err = getActivityFieldError(field, formData.activities[index]?.[field]);
-    const key = `act-${index}-${field}`;
-    if (err) setFormErrors(prev => ({ ...prev, [key]: err }));
-    else clearError(key);
-  };
-
-  const handleProductCantidadBlur = (activityIndex, productoId, value) => {
-    const err = getProductCantidadError(value);
-    const key = `act-${activityIndex}-prod-${productoId}-cant`;
-    if (err) setFormErrors(prev => ({ ...prev, [key]: err }));
-    else clearError(key);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    const { errors, expandIndices } = validateForm();
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      setExpandedActivities(prev => {
-        const next = new Set(prev);
-        expandIndices.forEach(i => next.add(i));
-        return next;
-      });
-      showToast(buildValidationToast(errors), 'error');
-      // Scroll al primer error tras el siguiente repaint (espera a que las
-      // actividades en error se expandan y reciban el className de error).
-      requestAnimationFrame(() => {
-        const first = document.querySelector('.pkg-form .fld-error-input');
-        if (first) {
-          first.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          try { first.focus({ preventScroll: true }); } catch { /* noop */ }
-        }
-      });
-      return;
-    }
-
-    setFormErrors({});
-    setIsSubmitting(true);
-
-    const url = isEditing ? `/api/packages/${formData.id}` : '/api/packages';
-    const method = isEditing ? 'PUT' : 'POST';
-    const sortedActivities = [...formData.activities].sort((a, b) => Number(a.day) - Number(b.day));
-    const body = {
-      ...formData,
-      activities: sortedActivities.map(a => ({
-        ...a,
-        type: (a.productos && a.productos.length > 0) ? 'aplicacion' : 'notificacion',
-        productos: (a.productos || []).map(p => ({ ...p, cantidadPorHa: Number(p.cantidadPorHa) })),
-      })),
-    };
-    try {
-      const response = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error('Error al guardar el paquete');
-      // POST devuelve `{ id, ...pkg }`; PUT no devuelve el id porque ya lo
-      // tenemos. Capturamos id + nombre ANTES de resetForm() para alimentar
-      // el banner persistente — resetForm limpia formData.
-      const savedId = isEditing
-        ? formData.id
-        : await response.clone().json().then(d => d?.id).catch(() => null);
-      const savedName = formData.nombrePaquete;
-      const savedAction = isEditing ? 'updated' : 'created';
-      const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
-      setPackages(updatedPackages);
-      resetForm();
-      if (savedId) {
-        setLastSavedPkg({ id: savedId, nombrePaquete: savedName, action: savedAction });
-      }
-    } catch (error) {
-      showToast('Ocurrió un error al guardar.', 'error');
-    } finally {
-      setIsSubmitting(false);
+  // Callback que el form invoca tras un POST/PUT exitoso. Refresca la lista
+  // de paquetes, dispara el banner persistente y cierra el form (unmount).
+  const handleSavePackage = async ({ savedId, savedName, savedAction }) => {
+    const updatedPackages = await apiFetch('/api/packages').then(res => res.json());
+    setPackages(updatedPackages);
+    resetForm();
+    if (savedId) {
+      setLastSavedPkg({ id: savedId, nombrePaquete: savedName, action: savedAction });
     }
   };
 
@@ -1017,118 +544,6 @@ function PackageManagement() {
         />
       )}
 
-      {templateModal && createPortal(
-        <div className="aur-modal-backdrop" onClick={() => !savingTemplate && setTemplateModal(null)}>
-          <div
-            className="aur-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pkg-template-modal-title"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="aur-modal-header">
-              <span className="aur-modal-icon"><FiBookmark size={16} /></span>
-              <h3 className="aur-modal-title" id="pkg-template-modal-title">Nueva plantilla</h3>
-              <button
-                type="button"
-                className="aur-icon-btn aur-modal-close"
-                onClick={() => setTemplateModal(null)}
-                aria-label="Cerrar"
-                disabled={savingTemplate}
-              >
-                <FiX size={16} />
-              </button>
-            </div>
-            <div className="aur-modal-content">
-              <div className="pkg-template-fields">
-                <label className="pkg-template-field">
-                  <span>Nombre <span aria-hidden="true">*</span></span>
-                  <input
-                    className="aur-input"
-                    value={templateModal.nombre}
-                    placeholder="Ej. Aplicación inicial postforza"
-                    maxLength={ACT_NAME_MAX}
-                    onChange={e => setTemplateModal(prev => ({ ...prev, nombre: e.target.value }))}
-                    autoFocus
-                    disabled={savingTemplate}
-                  />
-                </label>
-                <label className="pkg-template-field">
-                  <span>Responsable</span>
-                  {(() => {
-                    // Mismo criterio que en la card de actividad: solo empleados
-                    // con acceso, preservando el valor actual si quedó huérfano.
-                    const current = templateModal.responsableId;
-                    const orphan = current
-                      && !eligibleResponsables.some(u => u.id === current)
-                      && users.find(u => u.id === current);
-                    return (
-                      <select
-                        className="aur-select"
-                        value={current || ''}
-                        onChange={e => setTemplateModal(prev => ({ ...prev, responsableId: e.target.value }))}
-                        disabled={savingTemplate}
-                      >
-                        <option value="">Sin asignar</option>
-                        {eligibleResponsables.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                        {orphan && (
-                          <option value={orphan.id}>{orphan.nombre} (no disponible)</option>
-                        )}
-                        {eligibleResponsables.length === 0 && !orphan && (
-                          <option value="" disabled>No hay empleados con acceso</option>
-                        )}
-                      </select>
-                    );
-                  })()}
-                </label>
-                {(() => {
-                  const act = formData.activities[templateModal.activityIndex] || {};
-                  const prods = act.productos || [];
-                  if (prods.length === 0) {
-                    return (
-                      <p className="pkg-template-hint">
-                        Para incluir productos en la plantilla, agrégalos primero a la actividad.
-                      </p>
-                    );
-                  }
-                  return (
-                    <label className="pkg-template-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={templateModal.includeProductos}
-                        onChange={e => setTemplateModal(prev => ({ ...prev, includeProductos: e.target.checked }))}
-                        disabled={savingTemplate}
-                      />
-                      <span>
-                        Incluir los {prods.length === 1 ? 'productos' : `${prods.length} productos`} de esta actividad
-                      </span>
-                    </label>
-                  );
-                })()}
-              </div>
-            </div>
-            <div className="aur-modal-actions">
-              <button
-                type="button"
-                className="aur-btn-text"
-                onClick={() => setTemplateModal(null)}
-                disabled={savingTemplate}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="aur-btn-pill"
-                onClick={handleSaveTemplate}
-                disabled={!templateModal.nombre.trim() || savingTemplate}
-              >
-                {savingTemplate ? 'Creando…' : 'Crear plantilla'}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {pendingNavAction && (
         <AuroraConfirmModal
@@ -1140,7 +555,7 @@ function PackageManagement() {
           onConfirm={() => {
             const action = pendingNavAction;
             setPendingNavAction(null);
-            setIsDirty(false);
+            setFormIsDirty(false);
             // Descartar es intención explícita: tirar el borrador. Necesario
             // sobre todo cuando `action` es handleSelectPkg → cierra el form
             // hacia la vista hub, donde el effect de autoguardado no corre.
@@ -1401,7 +816,7 @@ function PackageManagement() {
           {/* Carrusel mobile = solo activos. Archivados se acceden desde el
               panel de lista (visible en mobile cuando no hay paquete elegido). */}
           {filteredActivePackages.map(pkg => {
-            const isActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
+            const isActive = selectedPkg?.id === pkg.id || (isEditing && formInitialData?.id === pkg.id);
             // Cuando la burbuja está activa, dejamos que la regla CSS
             // .pkg-bubble--active .pkg-bubble-avatar pinte el verde Aurora.
             // Solo pintamos el color del hash cuando la burbuja NO está activa.
@@ -1437,221 +852,23 @@ function PackageManagement() {
 
       {!loading && <div className="lote-management-layout">
       {isFormOpen && !selectedPkg && (
-        <form onSubmit={handleSubmit} className="aur-sheet pkg-form" noValidate>
-          {draftRestored && (
-            <div className="pkg-draft-banner" role="status" aria-live="polite">
-              <FiClock size={12} aria-hidden="true" />
-              <span>Borrador restaurado · tienes cambios sin guardar.</span>
-              <button
-                type="button"
-                className="pkg-draft-discard"
-                onClick={() => setDraftRestored(false)}
-              >
-                Cerrar
-              </button>
-            </div>
-          )}
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Identidad</h3>
-            </div>
-            <div className="aur-list">
-              <AuroraField
-                label="Nombre"
-                htmlFor="nombrePaquete"
-                layout="row"
-                required
-                error={formErrors.nombrePaquete}
-                counter={{ value: (formData.nombrePaquete || '').length, max: NOMBRE_MAX }}
-                className={changes.fields.has('nombrePaquete') ? 'pkg-field--modified' : ''}
-              >
-                <TextInput
-                  name="nombrePaquete"
-                  value={formData.nombrePaquete}
-                  onChange={handleInputChange}
-                  onBlur={() => handleFieldBlur('nombrePaquete')}
-                  maxLength={NOMBRE_MAX}
-                  placeholder="Ej. Postforza Premium"
-                  required
-                />
-              </AuroraField>
-              <AuroraField
-                label="Descripción"
-                htmlFor="descripcion"
-                layout="row"
-                error={formErrors.descripcion}
-                className={changes.fields.has('descripcion') ? 'pkg-field--modified' : ''}
-              >
-                <Textarea
-                  name="descripcion"
-                  value={formData.descripcion}
-                  onChange={handleInputChange}
-                  onBlur={() => handleFieldBlur('descripcion')}
-                  placeholder="Resumen breve del propósito del paquete..."
-                  rows={3}
-                  maxLength={DESCRIPCION_MAX}
-                />
-              </AuroraField>
-              {/* Técnico responsable: campo de texto libre. Es la persona que
-                  define/recomienda el paquete técnico — puede ser ingeniero
-                  interno, dueño, o asesor externo. No se modela como FK a
-                  `users` porque no siempre es alguien con cuenta del sistema.
-                  El "responsable" de cada actividad sí es un id de empleado
-                  (ver select más abajo). */}
-              <AuroraField
-                label="Técnico responsable"
-                htmlFor="tecnicoResponsable"
-                layout="row"
-                error={formErrors.tecnicoResponsable}
-                counter={{ value: (formData.tecnicoResponsable || '').length, max: TECNICO_MAX }}
-                className={changes.fields.has('tecnicoResponsable') ? 'pkg-field--modified' : ''}
-              >
-                <TextInput
-                  name="tecnicoResponsable"
-                  value={formData.tecnicoResponsable || ''}
-                  onChange={handleInputChange}
-                  onBlur={() => handleFieldBlur('tecnicoResponsable')}
-                  maxLength={TECNICO_MAX}
-                  placeholder="Ej. Ing. Pérez (asesor agronómico)"
-                />
-              </AuroraField>
-            </div>
-          </section>
-
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Clasificación</h3>
-            </div>
-            <div className="aur-list">
-              <div className={`aur-row${changes.fields.has('tipoCosecha') ? ' pkg-field--modified' : ''}`}>
-                <label className="aur-row-label" htmlFor="tipoCosecha">Tipo de cosecha</label>
-                <select
-                  id="tipoCosecha"
-                  name="tipoCosecha"
-                  className={`aur-select${formErrors.tipoCosecha ? ' fld-error-input' : ''}`}
-                  value={formData.tipoCosecha}
-                  onChange={handleInputChange}
-                  onBlur={() => handleFieldBlur('tipoCosecha')}
-                  title={formErrors.tipoCosecha || undefined}
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  <option value="I Cosecha">I Cosecha</option>
-                  <option value="II Cosecha">II Cosecha</option>
-                  <option value="III Cosecha">III Cosecha</option>
-                  <option value="Semillero">Semillero</option>
-                </select>
-              </div>
-              <div className={`aur-row${changes.fields.has('etapaCultivo') ? ' pkg-field--modified' : ''}`}>
-                <label className="aur-row-label" htmlFor="etapaCultivo">Etapa del cultivo</label>
-                <select
-                  id="etapaCultivo"
-                  name="etapaCultivo"
-                  className={`aur-select${formErrors.etapaCultivo ? ' fld-error-input' : ''}`}
-                  value={formData.etapaCultivo}
-                  onChange={handleInputChange}
-                  onBlur={() => handleFieldBlur('etapaCultivo')}
-                  title={formErrors.etapaCultivo || undefined}
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  <option value="Desarrollo">Desarrollo</option>
-                  <option value="Postforza">Postforza</option>
-                  <option value="N/A">N/A</option>
-                </select>
-              </div>
-            </div>
-          </section>
-
-          <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Programa de actividades</h3>
-              <span className="aur-section-count">{formData.activities.length}</span>
-              <span
-                className="pkg-day-hint"
-                title={'El "Día" se cuenta desde la fecha de creación del grupo o lote al que se aplique este paquete (Día 0). Ejemplo: si el grupo se crea el 5 de mayo y la actividad es "Día 15", se ejecutará el 20 de mayo.'}
-                aria-label="Información sobre el campo Día"
-              >
-                <FiInfo size={13} />
-              </span>
-              {formData.activities.length > 1 && (
-                <button
-                  type="button"
-                  className="pkg-toggle-all-btn"
-                  onClick={toggleAllActivities}
-                  title={allActivitiesExpanded ? 'Colapsar todas las actividades' : 'Expandir todas las actividades'}
-                >
-                  {allActivitiesExpanded ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
-                  <span>{allActivitiesExpanded ? 'Colapsar todas' : 'Expandir todas'}</span>
-                </button>
-              )}
-            </div>
-            <ul className="pkg-act-list">
-              {formData.activities.map((activity, index) => (
-                <ActivityCard
-                  key={`act-${index}`}
-                  activity={activity}
-                  index={index}
-                  expanded={expandedActivities.has(index)}
-                  modified={changes.activities.has(index)}
-                  pendingDelete={pendingDeleteIdx === index}
-                  costo={formActivityCosts[index] || { totals: [], hasMissingPrice: false, withoutPrice: 0 }}
-                  formErrors={formErrors}
-                  users={users}
-                  productos={productos}
-                  productosById={productosById}
-                  calibraciones={calibraciones}
-                  plantillas={plantillas}
-                  eligibleResponsables={eligibleResponsables}
-                  onActivityChange={(field, value) => handleActivityChange(index, field, value)}
-                  onActivityBlur={(field) => handleActivityBlur(index, field)}
-                  onRequestDelete={() => setPendingDeleteIdx(index)}
-                  onCancelDelete={() => setPendingDeleteIdx(null)}
-                  onConfirmDelete={() => removeActivity(index)}
-                  onDuplicate={() => duplicateActivity(index)}
-                  onToggleExpand={() => toggleActivityExpand(index)}
-                  onOpenTemplateModal={() => openTemplateModal(index)}
-                  onApplyPlantilla={(plantillaId) => aplicarPlantillaAActividad(index, plantillaId)}
-                  onAddProduct={(productoId) => {
-                    addProductToActivity(index, productoId);
-                    setTimeout(() => {
-                      const el = document.querySelector(`[data-prod-qty="${index}-${productoId}"]`);
-                      if (el) { el.focus(); el.select(); }
-                    }, 0);
-                  }}
-                  onRemoveProduct={(productoId) => removeProductFromActivity(index, productoId)}
-                  onProductCantidadChange={(productoId, value) => updateProductCantidad(index, productoId, value)}
-                  onProductCantidadBlur={(productoId, value) => handleProductCantidadBlur(index, productoId, value)}
-                />
-              ))}
-            </ul>
-            <button type="button" onClick={addActivity} className="pkg-add-activity">
-              <FiPlus size={14} />
-              Añadir actividad
-            </button>
-          </section>
-
-          <footer className="pkg-form-actions">
-            <button
-              type="button"
-              onClick={() => guardedNav(resetForm)}
-              className="aur-btn-text"
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="aur-btn-pill"
-              disabled={isSubmitting}
-              title="Guardar (Ctrl+S)"
-            >
-              {isSubmitting
-                ? 'Guardando…'
-                : isEditing ? 'Actualizar paquete' : 'Guardar paquete'}
-            </button>
-          </footer>
-        </form>
+        <PackageForm
+          mode={isEditing ? 'edit' : 'create'}
+          initialData={formInitialData}
+          restoredFromDraft={restoredFromDraft}
+          users={users}
+          productos={productos}
+          productosById={productosById}
+          calibraciones={calibraciones}
+          plantillas={plantillas}
+          eligibleResponsables={eligibleResponsables}
+          apiFetch={apiFetch}
+          onSave={handleSavePackage}
+          onCancel={() => guardedNav(resetForm)}
+          onDirtyChange={setFormIsDirty}
+          onShowToast={showToast}
+          onPlantillaCreated={(p) => setPlantillas(prev => [...prev, p])}
+        />
       )}
 
       {isFormOpen && selectedPkg && (
@@ -1713,7 +930,7 @@ function PackageManagement() {
           )}
           {(() => {
             const renderItem = (pkg, isArchived) => {
-              const itemActive = selectedPkg?.id === pkg.id || (isEditing && formData.id === pkg.id);
+              const itemActive = selectedPkg?.id === pkg.id || (isEditing && formInitialData?.id === pkg.id);
               // Avatar con el mismo hash determinista que el carrusel mobile
               // para que un paquete se vea con el mismo color en ambos sitios.
               // Cuando el item está activo, CSS pinta el avatar verde Aurora
