@@ -225,3 +225,13 @@
     flex-wrap: nowrap;
   }
 }
+
+/* El default global de aurora.css colapsa el FilterButton a solo-ícono en
+   ≤640px. En esta página el botón comparte la fila de acciones del header
+   con "Nueva cédula" en un reparto 40/60, así que conservamos la palabra
+   "Filtro" para que el botón no se vea desproporcionadamente vacío. */
+@media (max-width: 640px) {
+  .ha-page .aur-btn-filter-label {
+    display: inline;
+  }
+}
