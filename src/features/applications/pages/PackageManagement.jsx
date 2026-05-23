@@ -1413,7 +1413,7 @@ function PackageManagement() {
                   if (prods.length === 0) {
                     return (
                       <p className="pkg-template-hint">
-                        Esta actividad no tiene productos. La plantilla se guardará solo con nombre y responsable.
+                        Para incluir productos en la plantilla, agrégalos primero a la actividad.
                       </p>
                     );
                   }
