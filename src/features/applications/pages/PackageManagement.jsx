@@ -965,7 +965,10 @@ function PackageManagement() {
                     ))
           }
           actions={
-            !isFormOpen ? (
+            // Visible en el estado inicial y en la vista hub (paquete
+            // seleccionado). Solo lo ocultamos cuando el form de crear/editar
+            // está abierto — ahí el botón "Nuevo Paquete" no aplica.
+            (!isFormOpen || selectedPkg) ? (
               <button className="aur-btn-pill" onClick={() => guardedNav(handleNew)}>
                 <FiPlus size={14} /> Nuevo Paquete
               </button>
