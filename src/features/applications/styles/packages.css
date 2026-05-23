@@ -185,6 +185,42 @@
   border-bottom: none;
 }
 
+/* ── Banner "Borrador restaurado" ─────────────────────────────────────────────
+   Mismas reglas que `.psb-draft-banner` en siembra-form.css; replicadas acá
+   en lugar de compartir clases entre features para que cada módulo dueñe sus
+   estilos. Un futuro PR puede extraerlo a aurora.css como `.aur-draft-banner`
+   y migrar ambos consumidores. */
+.pkg-draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--aur-accent-tint);
+  border: 1px solid rgba(51, 255, 153, 0.20);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  letter-spacing: -0.01em;
+}
+.pkg-draft-banner > span {
+  flex: 1;
+}
+.pkg-draft-discard {
+  background: none;
+  border: none;
+  color: var(--aur-text-3);
+  cursor: pointer;
+  font-size: var(--aur-fs-footnote);
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.pkg-draft-discard:hover {
+  color: var(--aur-text);
+  background: var(--aur-bg-hover);
+}
+
 /* ── Búsqueda inline en el panel de lista ─────────────────────────────────── */
 .pkg-list-search {
   display: flex;
