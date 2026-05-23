@@ -55,6 +55,9 @@ const EMPTY_FORM_DATA = {
  *   - onSave({savedId, savedName, savedAction})  · post-success
  *   - onCancel       fn   · click en "Cancelar" (padre decide guardar/descartar)
  *   - onDirtyChange  fn   · notifica isDirty al padre para guardedNav externos
+ *   - onChangesCountChange(count) · notifica al padre el conteo del diff para
+ *                                   pintar el badge "N cambios sin guardar"
+ *                                   en el header de la página.
  *   - onShowToast(msg, type) · feedback efímero
  *   - onPlantillaCreated(plantilla) · cuando se crea desde el modal inline
  */
@@ -72,6 +75,7 @@ export default function PackageForm({
   onSave,
   onCancel,
   onDirtyChange,
+  onChangesCountChange,
   onShowToast,
   onPlantillaCreated,
 }) {
@@ -117,6 +121,17 @@ export default function PackageForm({
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
+
+  // ── Notificación al padre del conteo de cambios para el badge del header ───
+  // El header vive en <PackageManagement> (sibling), no en este componente,
+  // así que el conteo del diff (que solo conocemos acá) tiene que viajar
+  // hacia arriba. Sin esto el padre intentaba leer `changes.count` desde un
+  // scope donde no existe → ReferenceError al editar.
+  useEffect(() => {
+    onChangesCountChange?.(changes.count);
+    // Al desmontar (cerrar el form), resetear el contador del padre.
+    return () => onChangesCountChange?.(0);
+  }, [changes.count, onChangesCountChange]);
 
   // ── Autoguardado del borrador en cada cambio del form ───────────────────────
   // Persiste `id` para que la restauración pueda reabrir en el mismo modo.

@@ -55,6 +55,10 @@ function PackageManagement() {
   // modal "¿Descartar cambios?" cuando se navega desde otros lugares (carrusel,
   // selección de paquete, etc.). Actualizado vía onDirtyChange del form.
   const [formIsDirty, setFormIsDirty] = useState(false);
+  // Conteo de cambios del form (diff vs. snapshot original). Vive en el
+  // padre porque el badge se renderiza en el header de la página, fuera del
+  // <PackageForm>. El form lo notifica vía onChangesCountChange.
+  const [formChangesCount, setFormChangesCount] = useState(0);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const carouselRef = useRef(null);
@@ -716,12 +720,12 @@ function PackageManagement() {
                   ? (
                     <>
                       Editar paquete
-                      {changes.count > 0 && (
+                      {formChangesCount > 0 && (
                         <span
                           className="pkg-changes-badge"
                           title="Diferencias respecto a la versión guardada en el servidor"
                         >
-                          {changes.count === 1 ? '1 cambio sin guardar' : `${changes.count} cambios sin guardar`}
+                          {formChangesCount === 1 ? '1 cambio sin guardar' : `${formChangesCount} cambios sin guardar`}
                         </span>
                       )}
                     </>
@@ -866,6 +870,7 @@ function PackageManagement() {
           onSave={handleSavePackage}
           onCancel={() => guardedNav(resetForm)}
           onDirtyChange={setFormIsDirty}
+          onChangesCountChange={setFormChangesCount}
           onShowToast={showToast}
           onPlantillaCreated={(p) => setPlantillas(prev => [...prev, p])}
         />
