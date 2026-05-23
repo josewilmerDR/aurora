@@ -52,6 +52,68 @@ function isPackageDraftMeaningful(d) {
   );
 }
 
+// ── Reglas de validación reutilizables ───────────────────────────────────────
+// Funciones puras compartidas entre el submit batch (`validateForm`) y los
+// blur handlers (validación progresiva por campo). Centralizar acá previene
+// drift entre ambos caminos — antes el submit definía las reglas inline y no
+// había forma de validar por campo sin duplicar.
+const NOMBRE_MAX = 32;
+const DESCRIPCION_MAX = 1024;
+const TECNICO_MAX = 48;
+const ACT_NAME_MAX = 120;
+const ACT_DAY_MAX = 1825;
+const ACT_PRODUCTOS_MAX = 24;
+const PRODUCT_CANT_MAX = 1024;
+
+function getPackageFieldError(field, value) {
+  switch (field) {
+    case 'nombrePaquete': {
+      const v = (value || '').trim();
+      if (!v) return 'El nombre es requerido.';
+      if ((value || '').length > NOMBRE_MAX) return `Máximo ${NOMBRE_MAX} caracteres.`;
+      return null;
+    }
+    case 'descripcion':
+      return ((value || '').length > DESCRIPCION_MAX) ? `Máximo ${DESCRIPCION_MAX} caracteres.` : null;
+    case 'tecnicoResponsable':
+      return ((value || '').length > TECNICO_MAX) ? `Máximo ${TECNICO_MAX} caracteres.` : null;
+    case 'tipoCosecha':
+      return !value ? 'Selecciona el tipo de cosecha.' : null;
+    case 'etapaCultivo':
+      return !value ? 'Selecciona la etapa.' : null;
+    default:
+      return null;
+  }
+}
+
+function getActivityFieldError(field, value) {
+  switch (field) {
+    case 'name': {
+      const v = (value || '').trim();
+      if (!v) return 'Nombre requerido.';
+      if ((value || '').length > ACT_NAME_MAX) return `Máximo ${ACT_NAME_MAX} caracteres.`;
+      return null;
+    }
+    case 'day': {
+      const n = Number(value);
+      if (value === '' || value == null || !Number.isInteger(n) || n < 0 || n > ACT_DAY_MAX) {
+        return `Día entre 0 y ${ACT_DAY_MAX}.`;
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+function getProductCantidadError(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0 || n >= PRODUCT_CANT_MAX) {
+    return `Cantidad mayor a 0 y menor a ${PRODUCT_CANT_MAX}.`;
+  }
+  return null;
+}
+
 // ── Mensaje específico de validación del form ────────────────────────────────
 // Convierte el objeto `formErrors` en un toast accionable: si hay un solo
 // error, lo nombra; si hay varios, separa cuántos son de campos top-level
@@ -352,8 +414,6 @@ function PackageManagement() {
     clearCategoryFilters();
   };
 
-  const NOMBRE_MAX = 32;
-
   const clearError = (key) => {
     setFormErrors(prev => {
       if (!(key in prev)) return prev;
@@ -608,8 +668,8 @@ function PackageManagement() {
     const updatedActivities = [...formData.activities];
     const existing = updatedActivities[activityIndex].productos || [];
     if (existing.find(p => p.productoId === productoId)) return;
-    if (existing.length >= 24) {
-      showToast('Máximo 24 productos por aplicación.', 'error');
+    if (existing.length >= ACT_PRODUCTOS_MAX) {
+      showToast(`Máximo ${ACT_PRODUCTOS_MAX} productos por aplicación.`, 'error');
       return;
     }
     updatedActivities[activityIndex] = {
@@ -751,47 +811,60 @@ function PackageManagement() {
     const errors = {};
     const expandIndices = new Set();
 
-    const nombre = (formData.nombrePaquete || '').trim();
-    if (!nombre) errors.nombrePaquete = 'El nombre es requerido.';
-    else if (formData.nombrePaquete.length > NOMBRE_MAX) errors.nombrePaquete = `Máximo ${NOMBRE_MAX} caracteres.`;
-
-    if ((formData.descripcion || '').length > 1024) errors.descripcion = 'Máximo 1024 caracteres.';
-    if ((formData.tecnicoResponsable || '').length > 48) errors.tecnicoResponsable = 'Máximo 48 caracteres.';
-
-    if (!formData.tipoCosecha) errors.tipoCosecha = 'Selecciona el tipo de cosecha.';
-    if (!formData.etapaCultivo) errors.etapaCultivo = 'Selecciona la etapa.';
+    for (const f of ['nombrePaquete', 'descripcion', 'tecnicoResponsable', 'tipoCosecha', 'etapaCultivo']) {
+      const e = getPackageFieldError(f, formData[f]);
+      if (e) errors[f] = e;
+    }
 
     formData.activities.forEach((a, i) => {
-      const aName = (a.name || '').trim();
-      if (!aName) {
-        errors[`act-${i}-name`] = 'Nombre requerido.';
-        expandIndices.add(i);
-      } else if (a.name.length > 120) {
-        errors[`act-${i}-name`] = 'Máximo 120 caracteres.';
-        expandIndices.add(i);
-      }
+      const nameErr = getActivityFieldError('name', a.name);
+      if (nameErr) { errors[`act-${i}-name`] = nameErr; expandIndices.add(i); }
 
-      const day = Number(a.day);
-      if (a.day === '' || a.day === null || a.day === undefined || !Number.isInteger(day) || day < 0 || day > 1825) {
-        errors[`act-${i}-day`] = 'Día entre 0 y 1825.';
-        expandIndices.add(i);
-      }
+      const dayErr = getActivityFieldError('day', a.day);
+      if (dayErr) { errors[`act-${i}-day`] = dayErr; expandIndices.add(i); }
 
       const prods = a.productos || [];
-      if (prods.length > 24) {
-        errors[`act-${i}-prods`] = 'Máximo 24 productos por aplicación.';
+      if (prods.length > ACT_PRODUCTOS_MAX) {
+        errors[`act-${i}-prods`] = `Máximo ${ACT_PRODUCTOS_MAX} productos por aplicación.`;
         expandIndices.add(i);
       }
       prods.forEach(p => {
-        const cant = Number(p.cantidadPorHa);
-        if (!Number.isFinite(cant) || cant <= 0 || cant >= 1024) {
-          errors[`act-${i}-prod-${p.productoId}-cant`] = 'Cantidad mayor a 0 y menor a 1024.';
+        const cantErr = getProductCantidadError(p.cantidadPorHa);
+        if (cantErr) {
+          errors[`act-${i}-prod-${p.productoId}-cant`] = cantErr;
           expandIndices.add(i);
         }
       });
     });
 
     return { errors, expandIndices };
+  };
+
+  // ── Blur handlers para validación progresiva ───────────────────────────────
+  // Cada uno calcula el error con la misma función pura que usa validateForm
+  // y lo monta/quita en formErrors. Disparados en onBlur — el usuario recibe
+  // feedback apenas sale del campo, sin esperar al submit. Los on-change
+  // existentes ya limpian el error mientras se escribe (clearError en
+  // handleInputChange/handleActivityChange/updateProductCantidad), así que
+  // este flujo "set on blur, clear on change" funciona simétrico.
+  const handleFieldBlur = (field) => {
+    const err = getPackageFieldError(field, formData[field]);
+    if (err) setFormErrors(prev => ({ ...prev, [field]: err }));
+    else clearError(field);
+  };
+
+  const handleActivityBlur = (index, field) => {
+    const err = getActivityFieldError(field, formData.activities[index]?.[field]);
+    const key = `act-${index}-${field}`;
+    if (err) setFormErrors(prev => ({ ...prev, [key]: err }));
+    else clearError(key);
+  };
+
+  const handleProductCantidadBlur = (activityIndex, productoId, value) => {
+    const err = getProductCantidadError(value);
+    const key = `act-${activityIndex}-prod-${productoId}-cant`;
+    if (err) setFormErrors(prev => ({ ...prev, [key]: err }));
+    else clearError(key);
   };
 
   const handleSubmit = async (e) => {
@@ -1194,6 +1267,7 @@ function PackageManagement() {
                   name="nombrePaquete"
                   value={formData.nombrePaquete}
                   onChange={handleInputChange}
+                  onBlur={() => handleFieldBlur('nombrePaquete')}
                   maxLength={NOMBRE_MAX}
                   placeholder="Ej. Postforza Premium"
                   required
@@ -1209,9 +1283,10 @@ function PackageManagement() {
                   name="descripcion"
                   value={formData.descripcion}
                   onChange={handleInputChange}
+                  onBlur={() => handleFieldBlur('descripcion')}
                   placeholder="Resumen breve del propósito del paquete..."
                   rows={3}
-                  maxLength={1024}
+                  maxLength={DESCRIPCION_MAX}
                 />
               </AuroraField>
             </div>
@@ -1230,6 +1305,7 @@ function PackageManagement() {
                   className={`aur-select${formErrors.tipoCosecha ? ' fld-error-input' : ''}`}
                   value={formData.tipoCosecha}
                   onChange={handleInputChange}
+                  onBlur={() => handleFieldBlur('tipoCosecha')}
                   title={formErrors.tipoCosecha || undefined}
                   required
                 >
@@ -1248,6 +1324,7 @@ function PackageManagement() {
                   className={`aur-select${formErrors.etapaCultivo ? ' fld-error-input' : ''}`}
                   value={formData.etapaCultivo}
                   onChange={handleInputChange}
+                  onBlur={() => handleFieldBlur('etapaCultivo')}
                   title={formErrors.etapaCultivo || undefined}
                   required
                 >
@@ -1265,6 +1342,7 @@ function PackageManagement() {
                   className={`aur-select${formErrors.tecnicoResponsable ? ' fld-error-input' : ''}`}
                   value={formData.tecnicoResponsable || ''}
                   onChange={handleInputChange}
+                  onBlur={() => handleFieldBlur('tecnicoResponsable')}
                   title={formErrors.tecnicoResponsable || undefined}
                 >
                   <option value="">Sin asignar</option>
@@ -1318,6 +1396,7 @@ function PackageManagement() {
                           step={1}
                           value={activity.day}
                           onChange={(e) => handleActivityChange(index, 'day', e.target.value)}
+                          onBlur={() => handleActivityBlur(index, 'day')}
                           aria-label="Día"
                           placeholder="0"
                           className={formErrors[`act-${index}-day`] ? 'fld-error-input' : ''}
@@ -1333,9 +1412,10 @@ function PackageManagement() {
                           className={`pkg-act-name${formErrors[`act-${index}-name`] ? ' fld-error-input' : ''}`}
                           value={activity.name}
                           onChange={(e) => handleActivityChange(index, 'name', e.target.value)}
+                          onBlur={() => handleActivityBlur(index, 'name')}
                           placeholder="Nombre de la actividad"
                           required
-                          maxLength={120}
+                          maxLength={ACT_NAME_MAX}
                           aria-label="Nombre de la actividad"
                           title={formErrors[`act-${index}-name`] || undefined}
                         />
@@ -1464,6 +1544,7 @@ function PackageManagement() {
                                     max="1023.99"
                                     value={p.cantidadPorHa}
                                     onChange={(e) => updateProductCantidad(index, p.productoId, e.target.value)}
+                                    onBlur={(e) => handleProductCantidadBlur(index, p.productoId, e.target.value)}
                                     data-prod-qty={`${index}-${p.productoId}`}
                                     className={formErrors[`act-${index}-prod-${p.productoId}-cant`] ? 'fld-error-input' : ''}
                                     title={formErrors[`act-${index}-prod-${p.productoId}-cant`] || 'Cantidad por Ha'}
