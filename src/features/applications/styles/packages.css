@@ -640,6 +640,24 @@
   .pkg-page--has-packages .pkg-header-new-btn {
     display: none;
   }
+
+  /* Filtro: en mobile el header queda vacío (sin "+ Nuevo" ni FilterButton).
+     El botón inline al lado del search lo reemplaza — más cerca del contexto
+     "estoy buscando un paquete". Desktop mantiene el del header. */
+  .pkg-header-filter-btn {
+    display: none;
+  }
+}
+
+/* Inline filter solo aparece en mobile (default desktop = oculto). */
+.pkg-inline-filter-btn {
+  display: none;
+}
+@media (max-width: 768px) {
+  .pkg-inline-filter-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
 }
 
 .pkg-bubble {
