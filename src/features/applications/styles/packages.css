@@ -855,6 +855,112 @@ input.fld-error-input,
   gap: 6px;
 }
 
+/* ── Timeline horizontal de actividades (vista hub) ───────────────────────────
+   Renderiza cada actividad como un punto sobre una línea horizontal,
+   proporcional al `day`. Aplicaciones en verde Aurora, notificaciones en
+   gris atenuado. Mismo día → marker único con badge contador. Eje
+   etiquetado solo en los endpoints para evitar overlap de labels cuando
+   los días están cerca. */
+.pkg-timeline {
+  margin: 10px 0 6px;
+  padding: 18px 14px 6px;
+  background: rgba(230, 242, 255, 0.03);
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+}
+.pkg-timeline-track {
+  position: relative;
+  height: 28px;
+  margin-bottom: 4px;
+}
+.pkg-timeline-line {
+  position: absolute;
+  top: 13px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--aurora-border);
+  border-radius: 1px;
+}
+.pkg-timeline-marker {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: help;
+}
+.pkg-timeline-marker-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--aurora-border);
+  border: 2px solid var(--aurora-background);
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.pkg-timeline-marker:hover .pkg-timeline-marker-dot {
+  transform: scale(1.35);
+}
+.pkg-timeline-marker--apl .pkg-timeline-marker-dot {
+  background: var(--aurora-green);
+  box-shadow: 0 0 0 2px rgba(51, 255, 153, 0.18);
+}
+.pkg-timeline-marker--notif .pkg-timeline-marker-dot {
+  background: var(--aurora-light);
+  opacity: 0.55;
+}
+.pkg-timeline-marker:hover.pkg-timeline-marker--apl .pkg-timeline-marker-dot {
+  box-shadow: 0 0 0 4px rgba(51, 255, 153, 0.28);
+}
+.pkg-timeline-marker-count {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  background: var(--aurora-magenta);
+  color: var(--aurora-dark-blue);
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 10px;
+  line-height: 1.1;
+  min-width: 14px;
+  text-align: center;
+}
+.pkg-timeline-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--aur-text-3, #6b819b);
+  padding: 0 2px;
+}
+.pkg-timeline-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 0.65rem;
+  color: var(--aur-text-3, #6b819b);
+}
+.pkg-timeline-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pkg-timeline-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.pkg-timeline-legend-dot--apl {
+  background: var(--aurora-green);
+}
+.pkg-timeline-legend-dot--notif {
+  background: var(--aurora-light);
+  opacity: 0.55;
+}
+
 .pkg-hub-count {
   display: inline-flex;
   align-items: center;
