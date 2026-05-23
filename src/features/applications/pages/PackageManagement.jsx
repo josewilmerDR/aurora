@@ -2063,36 +2063,41 @@ function PackageManagement() {
                       {pkg.nombrePaquete}
                       {isArchived && <span className="pkg-list-archived-badge" title="Paquete archivado">Archivado</span>}
                     </span>
-                    <div className="pkg-list-meta-line">
-                      <span className="lote-list-name">
-                        {[
-                          pkg.tipoCosecha,
-                          pkg.etapaCultivo && pkg.etapaCultivo !== 'N/A' ? pkg.etapaCultivo : null,
-                          `${pkg.activities.length} act.`,
-                        ].filter(Boolean).join(' · ')}
-                      </span>
-                      {(() => {
-                        const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
-                        if (costo.totals.length === 0) return null;
-                        const label = costo.totals.map(([mon, total]) => `${total.toFixed(2)} ${mon}/Ha`).join(' + ');
-                        return (
-                          <span
-                            className="pkg-list-total-cost"
-                            title={
-                              costo.hasMissingPrice
-                                ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
-                                : 'Costo total del paquete por hectárea'
-                            }
-                          >
-                            {label}
-                            {costo.hasMissingPrice && (
-                              <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">{' *'}</span>
-                            )}
-                          </span>
-                        );
-                      })()}
-                    </div>
+                    <span className="lote-list-name">
+                      {[
+                        pkg.tipoCosecha,
+                        pkg.etapaCultivo && pkg.etapaCultivo !== 'N/A' ? pkg.etapaCultivo : null,
+                        `${pkg.activities.length} act.`,
+                      ].filter(Boolean).join(' · ')}
+                    </span>
                   </div>
+                  {(() => {
+                    // Costo en columna propia a la derecha (entre info y
+                    // chevron). Multi-moneda stackea verticalmente para que
+                    // los montos se alineen entre filas con tabular-nums.
+                    const costo = calcularCosto(flattenActivityProducts(pkg.activities), productos);
+                    if (costo.totals.length === 0) return null;
+                    return (
+                      <div
+                        className="pkg-list-cost-col"
+                        title={
+                          costo.hasMissingPrice
+                            ? `Costo total del paquete por hectárea. ${missingPriceTooltip(costo.withoutPrice)}`
+                            : 'Costo total del paquete por hectárea'
+                        }
+                      >
+                        {costo.totals.map(([mon, total]) => (
+                          <span key={mon} className="pkg-list-cost-amount">
+                            {total.toFixed(2)}
+                            <span className="pkg-list-cost-unit">{mon}/Ha</span>
+                          </span>
+                        ))}
+                        {costo.hasMissingPrice && (
+                          <span className="pkg-cost-warn" aria-label="Algunos productos sin precio">*</span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <FiChevronRight size={14} className="lote-list-arrow" />
                 </li>
               );
