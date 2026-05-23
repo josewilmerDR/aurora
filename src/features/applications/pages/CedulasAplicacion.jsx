@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FiFileText, FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiAlertTriangle, FiArrowLeft, FiClock, FiEdit2, FiFilter } from 'react-icons/fi';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiAlertTriangle, FiArrowLeft, FiEdit2, FiFilter } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
@@ -10,6 +10,9 @@ import CedulaNuevaModal from '../components/CedulaNuevaModal';
 import MezclaListaModal from '../components/MezclaListaModal';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import EmptyState from '../../../components/ui/EmptyState';
+import FilterButton from '../../../components/ui/FilterButton';
+import HistorialButton from '../../../components/ui/HistorialButton';
 import '../styles/cedulas.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1160,23 +1163,11 @@ function CedulasAplicacion() {
               <p className="aur-sheet-subtitle">Aquí están las cédulas (u órdenes) de aplicación pendientes para tus cultivos, según los Paquetes de aplicaciones definidos. También puedes crear nuevas cédulas o modificar las existentes.</p>
             </div>
             <div className="aur-sheet-header-actions">
-              <button
-                type="button"
-                className="aur-chip aur-chip--ghost ca-filter-toggle"
+              <FilterButton
+                active={!!(dateFrom || dateTo)}
                 onClick={() => setMostrarFiltros(true)}
-                aria-label="Filtrar por periodo"
-                aria-haspopup="dialog"
-              >
-                <FiFilter size={12} /> <span className="ca-filter-toggle-label">Filtro</span>
-                {(dateFrom || dateTo) && <span className="ca-filter-toggle-dot" aria-hidden="true" />}
-              </button>
-              <Link
-                to="/aplicaciones/historial"
-                className="aur-chip aur-chip--ghost ca-historial-chip"
-                aria-label="Historial"
-              >
-                <FiClock size={12} /> <span className="ca-historial-label">Historial</span>
-              </Link>
+              />
+              <HistorialButton to="/aplicaciones/historial" />
               {hasMinRole(currentUser?.rol, 'encargado') && (
                 <button
                   type="button"
@@ -1190,21 +1181,24 @@ function CedulasAplicacion() {
           </header>
 
           <section className="aur-section">
-            <div className="aur-section-header">
-              <h3>Cédulas</h3>
-              <span className="aur-section-count">{visibleTasks.length}</span>
-            </div>
-            {visibleTasks.length === 0 ? (
-              <div className="aur-banner">
-                <FiFileText size={14} />
-                <span>
-                  {aplicacionTasks.length === 0
-                    ? (hasMinRole(currentUser?.rol, 'encargado')
-                        ? 'Aún no hay cédulas de aplicación para tus cultivos. Crea la primera con el botón "Nueva cédula" de arriba.'
-                        : 'Aún no hay cédulas de aplicación para tus cultivos.')
-                    : 'No hay aplicaciones programadas para este período.'}
-                </span>
+            {visibleTasks.length > 0 && (
+              <div className="aur-section-header">
+                <h3>Cédulas</h3>
+                <span className="aur-section-count">{visibleTasks.length}</span>
               </div>
+            )}
+            {visibleTasks.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                icon={null}
+                title={
+                  aplicacionTasks.length === 0
+                    ? (hasMinRole(currentUser?.rol, 'encargado')
+                        ? 'Aún no hay registros que mostrar. Crea el primero en "Nueva cédula"'
+                        : 'Aún no hay cédulas de aplicación para tus cultivos.')
+                    : 'No hay aplicaciones programadas para este período.'
+                }
+              />
             ) : (
               <div className="ca-cedula-list">
                 {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
