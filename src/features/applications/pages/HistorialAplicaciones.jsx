@@ -5,6 +5,7 @@ import { FiFilter, FiX, FiPlusCircle, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import FilterButton from '../../../components/ui/FilterButton';
+import EmptyState from '../../../components/ui/EmptyState';
 import '../styles/historial.css';
 
 // Filtro por columna: 'date' y 'number' usan rango (De/A), el resto texto.
@@ -535,7 +536,7 @@ function HistorialAplicaciones() {
 
       <header className="aur-sheet-header">
         <div className="aur-sheet-header-text">
-          <h2 className="aur-sheet-title">Registro de aplicaciones</h2>
+          <h2 className="aur-sheet-title">Historial de aplicaciones</h2>
           <p className="aur-sheet-subtitle">
             Cédulas aplicadas con detalle por producto, cambios respecto al plan original y condiciones de campo.
           </p>
@@ -556,34 +557,33 @@ function HistorialAplicaciones() {
       </header>
 
       <section className="aur-section">
-        <div className="aur-section-header">
-          <span className="ha-section-count">Registros {sorted.length}</span>
-          {Object.values(colFilters).some(hasFilterValue) && (
-            <div className="aur-section-actions">
-              <button
-                type="button"
-                className="aur-chip aur-chip--ghost"
-                onClick={() => { setColFilters({}); setPage(1); }}
-              >
-                <FiX size={11} /> Limpiar filtros de columna
-              </button>
-            </div>
-          )}
-        </div>
+        {sorted.length > 0 && (
+          <div className="aur-section-header">
+            <span className="ha-section-count">Registros {sorted.length}</span>
+            {Object.values(colFilters).some(hasFilterValue) && (
+              <div className="aur-section-actions">
+                <button
+                  type="button"
+                  className="aur-chip aur-chip--ghost"
+                  onClick={() => { setColFilters({}); setPage(1); }}
+                >
+                  <FiX size={11} /> Limpiar filtros de columna
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {sorted.length === 0 && (
-          <div className={`ha-count${cedulas.length === 0 ? ' ha-count--empty-cta' : ''}`}>
-            {cedulas.length === 0
-              ? (
-                <>
-                  Aún no hay aplicaciones registradas. Registra la primera desde{' '}
-                  <Link to="/aplicaciones/cedulas" state={{ openModal: true }} className="historial-cedula-link">
-                    Cédulas de aplicación
-                  </Link>.
-                </>
-              )
-              : 'Sin resultados para los filtros aplicados.'}
-          </div>
+          <EmptyState
+            variant="compact"
+            icon={null}
+            title={
+              cedulas.length === 0
+                ? 'Aún no hay registros que mostrar. Crea el primero en "Nueva cédula"'
+                : 'Sin resultados para los filtros aplicados.'
+            }
+          />
         )}
 
       {/* ── Tabla ── */}

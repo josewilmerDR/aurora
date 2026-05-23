@@ -46,14 +46,6 @@
   letter-spacing: 0.4px;
 }
 
-.ha-count {
-  font-size: 12px;
-  color: var(--aur-text-3);
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-  margin-bottom: 10px;
-}
 /* Contador "Registros N" en texto normal junto al h3 (sin pill) */
 .ha-section-count {
   font-size: 13px;
@@ -61,14 +53,6 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-}
-
-/* Aviso CTA cuando no hay aplicaciones registradas: centrado y un toque más visible */
-.ha-count--empty-cta {
-  text-align: center;
-  font-size: 13px;
-  color: var(--aur-text-2);
-  padding: 24px 16px;
 }
 
 /* ── Tabla ancha (override de .aur-table para 41 columnas) ──────────────── */
