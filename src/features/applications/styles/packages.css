@@ -273,6 +273,112 @@
   margin-left: 4px;
 }
 
+/* ── Sección de archivados en el panel de lista ───────────────────────────── */
+.pkg-list-archived-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 8px;
+  margin-top: 6px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--aurora-border);
+  color: var(--aur-text-3, #6b819b);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 0;
+  transition: color 0.15s ease;
+}
+.pkg-list-archived-toggle:hover {
+  color: var(--aurora-light);
+}
+.pkg-list-archived-toggle > span {
+  flex: 1;
+}
+.pkg-list-archived-chevron {
+  transition: transform 0.18s ease;
+}
+.pkg-list-archived-chevron.is-open {
+  transform: rotate(180deg);
+}
+.pkg-list--archived-section {
+  margin-top: 4px;
+}
+/* Paquetes archivados en cualquier sección de la lista (en realidad solo
+   aparecen en la sección de archivados, pero el flag deja la regla aplicable
+   por si se mezclan en el futuro). */
+.pkg-list-item--archived .lote-list-code,
+.pkg-list-item--archived .lote-list-name,
+.pkg-list-item--archived .pkg-list-total-cost {
+  opacity: 0.55;
+}
+.pkg-list-archived-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--aur-text-3, #6b819b);
+  background: rgba(230, 242, 255, 0.08);
+  border-radius: 4px;
+  vertical-align: 2px;
+  opacity: 0.85;
+}
+
+/* ── Banner "Paquete archivado" en hub view ───────────────────────────────── */
+.pkg-archived-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 8px 0 14px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aurora-border);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2, #9fb3c8);
+  letter-spacing: -0.01em;
+}
+.pkg-archived-banner > svg {
+  color: var(--aur-text-3, #6b819b);
+  flex-shrink: 0;
+}
+.pkg-archived-banner > span {
+  flex: 1;
+  line-height: 1.4;
+}
+.pkg-archived-banner-action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  cursor: pointer;
+  font-size: var(--aur-fs-footnote);
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.pkg-archived-banner-action:hover {
+  color: var(--aurora-green);
+  border-color: rgba(51, 255, 153, 0.4);
+  background: rgba(51, 255, 153, 0.06);
+}
+
+/* Botón Desarchivar en hub header: tint ámbar para que el estado "este
+   paquete está archivado, puedes desarchivar" se lea sin abrir el tooltip. */
+.icon-btn.pkg-icon-btn--archived {
+  color: var(--aur-warning, #ffb84d);
+  background: rgba(255, 184, 77, 0.08);
+}
+.icon-btn.pkg-icon-btn--archived:hover {
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.10);
+}
+
 /* ── Modal de filtros (selects de categorías) ─────────────────────────────── */
 .pkg-filtro-grid {
   display: flex;
