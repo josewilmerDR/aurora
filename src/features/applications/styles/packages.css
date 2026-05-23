@@ -310,6 +310,17 @@
   background: var(--aur-bg-hover);
 }
 
+/* ── Pill de uso del paquete en hub ──
+   Distingue visualmente "uso vivo" (Aplicado en 4 lotes · 2 grupos) de las
+   pills de categoría (tipoCosecha, etapaCultivo, responsable). Tinte verde
+   Aurora para sugerir "estado actual / dinámico". Scope dentro del wrapper
+   para no contaminar otras páginas que comparten .hub-pill. */
+.pkg-page-wrapper .hub-pill--usage {
+  color: var(--aurora-green);
+  background-color: rgba(51, 255, 153, 0.08);
+  border-color: rgba(51, 255, 153, 0.22);
+}
+
 /* ── Búsqueda inline en el panel de lista ─────────────────────────────────── */
 .pkg-list-search {
   display: flex;
