@@ -29,6 +29,15 @@ import { missingPriceTooltip } from '../lib/packages-helpers';
  *   - expandedActivities   Set<number>    · índices (post-sort) expandidos
  *   - activityCosts        array          · selectedPkgActivityCosts (post-sort)
  *
+ * Props gating / estado de mutación:
+ *   - canDelete            bool         · si false, el botón de eliminar se
+ *                                         oculta (defense-in-depth contra el
+ *                                         backend que solo exige supervisor).
+ *   - isMutating           bool         · si true, todas las acciones se
+ *                                         deshabilitan — evita doble-click →
+ *                                         doble request → "Error" en el segundo
+ *                                         (DELETE 404 sobre doc ya borrado, etc.).
+ *
  * Props handlers (recibe el paquete cuando aplica para no acoplar al closure):
  *   - onBack()
  *   - onEdit(pkg)
@@ -47,6 +56,8 @@ export default function PackageHub({
   productosById,
   expandedActivities,
   activityCosts,
+  canDelete = true,
+  isMutating = false,
   onBack,
   onEdit,
   onDuplicate,
@@ -101,24 +112,51 @@ export default function PackageHub({
           )}
         </div>
         <div className="hub-header-actions">
-          <button onClick={() => onEdit(selectedPkg)} className="icon-btn" title="Editar paquete">
+          <button
+            onClick={() => onEdit(selectedPkg)}
+            className="icon-btn"
+            title="Editar paquete"
+            disabled={isMutating}
+          >
             <FiEdit size={16} />
           </button>
-          <button onClick={() => onDuplicate(selectedPkg)} className="icon-btn" title="Duplicar paquete">
+          <button
+            onClick={() => onDuplicate(selectedPkg)}
+            className="icon-btn"
+            title="Duplicar paquete"
+            disabled={isMutating}
+          >
             <FiCopy size={16} />
           </button>
           {selectedPkg.archivedAt ? (
-            <button onClick={() => onUnarchive(selectedPkg)} className="icon-btn pkg-icon-btn--archived" title="Desarchivar paquete">
+            <button
+              onClick={() => onUnarchive(selectedPkg)}
+              className="icon-btn pkg-icon-btn--archived"
+              title="Desarchivar paquete"
+              disabled={isMutating}
+            >
               <FiRotateCcw size={16} />
             </button>
           ) : (
-            <button onClick={() => onArchive(selectedPkg)} className="icon-btn" title="Archivar paquete">
+            <button
+              onClick={() => onArchive(selectedPkg)}
+              className="icon-btn"
+              title="Archivar paquete"
+              disabled={isMutating}
+            >
               <FiArchive size={16} />
             </button>
           )}
-          <button onClick={() => onDelete(selectedPkg)} className="icon-btn delete" title="Eliminar permanentemente">
-            <FiTrash2 size={16} />
-          </button>
+          {canDelete && (
+            <button
+              onClick={() => onDelete(selectedPkg)}
+              className="icon-btn delete"
+              title="Eliminar permanentemente"
+              disabled={isMutating}
+            >
+              <FiTrash2 size={16} />
+            </button>
+          )}
         </div>
       </div>
 

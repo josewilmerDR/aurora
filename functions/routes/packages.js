@@ -1,7 +1,8 @@
 const { Router } = require('express');
+const { z } = require('zod');
 const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
@@ -19,59 +20,77 @@ function requireSupervisor(req, res, next) {
   next();
 }
 
-// --- Package payload validation ---
+// --- Package payload validation (Zod) ---
+//
+// Migración desde el validador hand-rolled a Zod (Tanda 3 de la auditoría —
+// CLAUDE.md §3 exige Zod cuando se toca el archivo; el contrato de error
+// sigue siendo "mensaje en inglés del primer issue"). Cambios materiales
+// respecto al legacy:
+//
+//   - Nested objects (activities[], productos[]) ahora se validan con su
+//     propia schema y se filtran a sus campos conocidos. Antes `pick()`
+//     filtraba solo a nivel raíz, así que cualquier atributo extra dentro
+//     de una activity/producto persistía en Firestore.
+//   - responsableId / calibracionId / productoId tienen formato (string ≤128)
+//     en vez de aceptar cualquier valor.
+//   - nombreComercial / unidad / periodos: caps de longitud (antes ilimitados).
+//
+// `buildPackagePayload(body)` devuelve `{ data, error }`. `data` es el doc
+// listo para persistir; el handler solo agrega `fincaId` y lo guarda.
+
 const VALID_HARVEST_TYPES = ['I Cosecha', 'II Cosecha', 'III Cosecha', 'Semillero'];
 const VALID_CROP_STAGES = ['Desarrollo', 'Postforza', 'N/A'];
+const ACT_PRODUCTOS_MAX = 24;
+const ACTIVITIES_MAX = 200;
+const FIRESTORE_ID_MAX = 128;
 
-function validatePackagePayload(body) {
-  const nombre = body.nombrePaquete;
-  if (typeof nombre !== 'string' || nombre.trim().length === 0) {
-    return 'Package name is required.';
+const productoSchema = z.object({
+  productoId: z.string().min(1).max(FIRESTORE_ID_MAX),
+  nombreComercial: z.string().max(200).optional().default(''),
+  cantidadPorHa: z.coerce.number()
+    .refine((n) => Number.isFinite(n) && n > 0 && n < 1024, {
+      message: 'cantidadPorHa must be > 0 and < 1024.',
+    }),
+  unidad: z.string().max(32).optional().default(''),
+  // periodoReingreso/periodoACosecha vienen del catálogo de productos como
+  // string ("12h", "7 días") o número crudo. Aceptamos ambos pero acotados.
+  periodoReingreso: z.union([z.string().max(32), z.number()]).optional(),
+  periodoACosecha: z.union([z.string().max(32), z.number()]).optional(),
+});
+
+const activitySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  day: z.coerce.number().int().min(0).max(1825),
+  // `type` se denormaliza desde el form (productos.length > 0 → 'aplicacion').
+  // El cron de tareas lo consume, así que limitamos el enum.
+  type: z.enum(['notificacion', 'aplicacion']).optional(),
+  responsableId: z.string().max(FIRESTORE_ID_MAX).optional().default(''),
+  calibracionId: z.string().max(FIRESTORE_ID_MAX).optional().default(''),
+  productos: z.array(productoSchema).max(ACT_PRODUCTOS_MAX).optional().default([]),
+});
+
+// Mantenemos tipoCosecha/etapaCultivo como opcionales para no romper PUTs
+// sobre paquetes históricos que se crearon antes de que el form los marcara
+// requeridos. Cuando vienen, deben ser enums válidos.
+const packageSchema = z.object({
+  nombrePaquete: z.string().trim().min(1).max(128),
+  descripcion: z.string().max(1024).optional().default(''),
+  tecnicoResponsable: z.string().max(48).optional().default(''),
+  tipoCosecha: z.enum(VALID_HARVEST_TYPES).optional(),
+  etapaCultivo: z.enum(VALID_CROP_STAGES).optional(),
+  activities: z.array(activitySchema).max(ACTIVITIES_MAX).optional().default([]),
+});
+
+function buildPackagePayload(body) {
+  const parsed = packageSchema.safeParse(body || {});
+  if (!parsed.success) {
+    // El primer issue es el que el usuario percibe — mensaje en inglés con
+    // el path Zod (p. ej. "activities.2.productos.0.cantidadPorHa: must be...").
+    const issue = parsed.error.issues[0];
+    const path = issue.path.length > 0 ? `${issue.path.join('.')}: ` : '';
+    return { error: `${path}${issue.message}` };
   }
-  if (nombre.length > 128) {
-    return 'Package name cannot exceed 128 characters.';
-  }
-  const descripcion = body.descripcion || '';
-  if (typeof descripcion !== 'string' || descripcion.length > 1024) {
-    return 'Description cannot exceed 1024 characters.';
-  }
-  const tecnico = body.tecnicoResponsable || '';
-  if (typeof tecnico !== 'string' || tecnico.length > 48) {
-    return 'Responsible technician cannot exceed 48 characters.';
-  }
-  if (body.tipoCosecha && !VALID_HARVEST_TYPES.includes(body.tipoCosecha)) {
-    return 'Invalid harvest type.';
-  }
-  if (body.etapaCultivo && !VALID_CROP_STAGES.includes(body.etapaCultivo)) {
-    return 'Invalid crop stage.';
-  }
-  const activities = Array.isArray(body.activities) ? body.activities : [];
-  for (let i = 0; i < activities.length; i++) {
-    const a = activities[i] || {};
-    const actName = typeof a.name === 'string' ? a.name : '';
-    if (actName.trim().length === 0) {
-      return `Activity ${i + 1}: name is required.`;
-    }
-    if (actName.length > 120) {
-      return `Activity ${i + 1}: name cannot exceed 120 characters.`;
-    }
-    const day = Number(a.day);
-    if (!Number.isInteger(day) || day < 0 || day > 1825) {
-      return `Activity ${i + 1}: day must be an integer between 0 and 1825.`;
-    }
-    const prods = Array.isArray(a.productos) ? a.productos : [];
-    if (prods.length > 24) {
-      return `Activity ${i + 1}: maximum 24 products per application.`;
-    }
-    for (const p of prods) {
-      const qty = Number(p && p.cantidadPorHa);
-      if (!Number.isFinite(qty) || qty <= 0 || qty >= 1024) {
-        const nombre = (p && p.nombreComercial) || 'product';
-        return `Activity ${i + 1}: quantity for "${nombre}" must be greater than 0 and less than 1024.`;
-      }
-    }
-  }
-  return null;
+  return { data: parsed.data };
 }
 
 // --- API ENDPOINTS: PACKAGES ---
@@ -87,11 +106,11 @@ router.get('/api/packages', authenticate, async (req, res) => {
 
 router.post('/api/packages', authenticate, requireSupervisor, rateLimit('packages_write', 'write'), async (req, res) => {
   try {
-    const validationError = validatePackagePayload(req.body);
-    if (validationError) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationError, 400);
+    const validated = buildPackagePayload(req.body);
+    if (validated.error) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validated.error, 400);
     }
-    const pkg = { ...pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'tecnicoResponsable', 'activities', 'descripcion']), fincaId: req.fincaId };
+    const pkg = { ...validated.data, fincaId: req.fincaId };
     const docRef = await db.collection('packages').add(pkg);
     res.status(201).json({ id: docRef.id, ...pkg });
   } catch (error) {
@@ -106,13 +125,12 @@ router.put('/api/packages/:id', authenticate, requireSupervisor, rateLimit('pack
     if (!ownership.ok) {
       return sendApiError(res, ownership.code, ownership.message, ownership.status);
     }
-    const validationError = validatePackagePayload(req.body);
-    if (validationError) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationError, 400);
+    const validated = buildPackagePayload(req.body);
+    if (validated.error) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validated.error, 400);
     }
-    const pkgData = pick(req.body, ['nombrePaquete', 'tipoCosecha', 'etapaCultivo', 'tecnicoResponsable', 'activities', 'descripcion']);
-    await db.collection('packages').doc(id).update(pkgData);
-    res.status(200).json({ id, ...pkgData });
+    await db.collection('packages').doc(id).update(validated.data);
+    res.status(200).json({ id, ...validated.data });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update package.', 500);
   }
