@@ -185,6 +185,76 @@
   border-bottom: none;
 }
 
+/* ── Búsqueda inline en el panel de lista ─────────────────────────────────── */
+.pkg-list-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: 6px;
+  color: var(--aur-text-3, #6b819b);
+}
+.pkg-list-search:focus-within {
+  border-color: var(--aurora-green);
+}
+.pkg-list-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  outline: none;
+  padding: 0;
+  /* Anula el "X" nativo de Safari/Chrome para no duplicar nuestro botón */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.pkg-list-search-input::-webkit-search-cancel-button { display: none; }
+.pkg-list-search-input::placeholder {
+  color: var(--aur-text-3, #6b819b);
+}
+.pkg-list-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aur-text-3, #6b819b);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 3px;
+}
+.pkg-list-search-clear:hover {
+  color: var(--aurora-light);
+  background: rgba(230, 242, 255, 0.08);
+}
+.pkg-list-clear-link {
+  display: inline;
+  padding: 0;
+  margin-left: 4px;
+}
+
+/* ── Modal de filtros (selects de categorías) ─────────────────────────────── */
+.pkg-filtro-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 22px 18px;
+}
+.pkg-filtro-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pkg-filtro-field label {
+  font-size: var(--aur-fs-footnote, 0.85rem);
+  color: var(--aur-text-2, #9fb3c8);
+  font-weight: 500;
+}
+
 /* ── Mobile sticky carousel ───────────────────────────────────────────────── */
 .pkg-carousel {
   display: none;
