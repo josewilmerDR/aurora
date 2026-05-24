@@ -117,6 +117,62 @@
   line-height: 1.45;
 }
 
+/* ── Banner persistente de confirmación de guardado ───────────────────────── */
+/* Mirror de `.pkg-save-banner` (packages.css). Reemplaza al toast efímero
+   para que la evidencia visual del save sobreviva hasta que el usuario
+   decida (Abrir, Cerrar, o iniciar otro flujo de crear/editar). Cuando se
+   promueva a primitiva (`.aur-save-banner-*`) ambos consumers migran. */
+.lote-save-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--aur-accent-tint, rgba(51, 255, 153, 0.08));
+  border: 1px solid rgba(51, 255, 153, 0.28);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+}
+.lote-save-banner > svg { color: var(--aurora-green); flex-shrink: 0; }
+.lote-save-banner-msg { flex: 1; line-height: 1.4; }
+.lote-save-banner-msg strong { font-weight: 600; }
+
+.lote-save-banner-action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(51, 255, 153, 0.35);
+  color: var(--aurora-green);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lote-save-banner-action:hover {
+  background: rgba(51, 255, 153, 0.12);
+  border-color: rgba(51, 255, 153, 0.55);
+}
+
+.lote-save-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--aur-text-3, #6b819b);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.lote-save-banner-close:hover {
+  color: var(--aurora-light);
+  background: rgba(230, 242, 255, 0.08);
+}
+
 /* ── Banner de error de carga ─────────────────────────────────────────────── */
 /* Aparece cuando alguno de los fetches iniciales falla. No es bloqueante:
    la página renderiza con lo que sí llegó. Tono magenta porque indica un
