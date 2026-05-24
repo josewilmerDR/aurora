@@ -69,7 +69,7 @@ export default function CedulaSplitCard({
 
       <ul className="ca-split-list">
         {cedulas.map(c => {
-          const isLdg     = actionLoading === c.id;
+          const isLdg     = actionLoading.has(c.id);
           const canAnular = c.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
           const sb        = statusBadge(c.status);
           return (

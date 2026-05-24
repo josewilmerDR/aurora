@@ -109,7 +109,7 @@ function ToolbarFlowAction({
   if (previewTask.isDraft) return null;
   if (!activeCedula) return null;
 
-  const isLdg = actionLoading === activeCedula.id;
+  const isLdg = actionLoading.has(activeCedula.id);
 
   if (activeCedula.status === 'aplicada_en_campo') {
     return (
