@@ -41,7 +41,12 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
   const [observacionesAplicacion, setObservacionesAplicacion] = useState('');
   const [fetchingWeather,   setFetchingWeather]   = useState(false);
 
+  // formError = error cross-field (sobrante sin lote, hora-rango invertida).
+  // Single-field errors viven inline al lado del input para que el usuario
+  // sepa CUÁL está mal sin tener que leer arriba. Punto #16 audit.
   const [formError, setFormError] = useState('');
+  const [tempError, setTempError] = useState('');
+  const [humError,  setHumError]  = useState('');
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -75,8 +80,35 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
     return () => { cancelled = true; };
   }, []);
 
+  // Validadores single-field reutilizables: handleConfirm + onBlur usan los
+  // mismos para que el mensaje sea idéntico esté donde esté. String vacío
+  // = sin error, así un truthy check sirve igual que un .has().
+  const validateTemp = (v) => {
+    if (v === '' || v == null) return '';
+    const n = Number(v);
+    return Number.isFinite(n) && n >= -60 && n <= 70
+      ? '' : 'Temperatura fuera de rango (-60 a 70 °C).';
+  };
+  const validateHum = (v) => {
+    if (v === '' || v == null) return '';
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n <= 100
+      ? '' : 'Humedad relativa fuera de rango (0 a 100 %).';
+  };
+
+  // Scroll + focus al primer field con error: el usuario puede estar en el
+  // bottom del modal cuando clickea Confirmar, sin ver dónde está el problema.
+  const focusFieldById = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.focus({ preventScroll: true });
+  };
+
   const handleConfirm = () => {
     setFormError('');
+    // Cross-field primero: el banner global sigue siendo el lugar correcto
+    // para errores que involucran más de un campo.
     if (sobrante && !sobranteLoteId) {
       setFormError('Seleccione el lote donde fue depositado el sobrante.');
       return;
@@ -85,26 +117,19 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
       setFormError('La hora de inicio debe ser menor que la hora final.');
       return;
     }
-    let tempNum = null;
-    if (temperatura !== '' && temperatura != null) {
-      tempNum = Number(temperatura);
-      if (!Number.isFinite(tempNum) || tempNum < -60 || tempNum > 70) {
-        setFormError('Temperatura fuera de rango (-60 a 70 °C).');
-        return;
-      }
-    }
-    let humNum = null;
-    if (humedadRelativa !== '' && humedadRelativa != null) {
-      humNum = Number(humedadRelativa);
-      if (!Number.isFinite(humNum) || humNum < 0 || humNum > 100) {
-        setFormError('Humedad relativa fuera de rango (0 a 100 %).');
-        return;
-      }
-    }
-    if (observacionesAplicacion.length > 500) {
-      setFormError('Las observaciones no pueden exceder 500 caracteres.');
-      return;
-    }
+    // Single-field: validamos de nuevo en confirm como red de seguridad (el
+    // usuario puede haber tipeado y clickeado sin blur), y mostramos el
+    // error inline al lado del campo + scroll-focus al primero invalido.
+    const tErr = validateTemp(temperatura);
+    const hErr = validateHum(humedadRelativa);
+    setTempError(tErr);
+    setHumError(hErr);
+    if (tErr) { focusFieldById('apl-temp'); return; }
+    if (hErr) { focusFieldById('apl-hum');  return; }
+    // observacionesAplicacion ya está capped a 500 en onChange (slice), así
+    // que el chequeo de overflow legacy era dead code — eliminado.
+    const tempNum = temperatura      !== '' && temperatura      != null ? Number(temperatura)      : null;
+    const humNum  = humedadRelativa  !== '' && humedadRelativa  != null ? Number(humedadRelativa)  : null;
     // El nombre tipeado es la fuente de verdad para el documento auditable. El
     // *UserId companion viaja en paralelo para que el backend lo persista
     // cuando agreguemos el campo a la schema — hoy lo ignora (lee solo lo que
@@ -201,34 +226,50 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
               <label className="aur-row-label" htmlFor="apl-temp">
                 Temperatura (°C){fetchingWeather ? ' · obteniendo…' : ''}
               </label>
-              <input
-                id="apl-temp"
-                type="number"
-                step="0.1"
-                min="-60"
-                max="70"
-                className="aur-input aur-input--num"
-                value={temperatura}
-                onChange={e => setTemperatura(e.target.value)}
-                placeholder="—"
-              />
+              <div>
+                <input
+                  id="apl-temp"
+                  type="number"
+                  step="0.1"
+                  min="-60"
+                  max="70"
+                  className="aur-input aur-input--num"
+                  value={temperatura}
+                  aria-invalid={!!tempError}
+                  onChange={e => {
+                    setTemperatura(e.target.value);
+                    if (tempError) setTempError('');
+                  }}
+                  onBlur={() => setTempError(validateTemp(temperatura))}
+                  placeholder="—"
+                />
+                {tempError && <span className="aur-field-error">{tempError}</span>}
+              </div>
             </div>
 
             <div className="aur-row">
               <label className="aur-row-label" htmlFor="apl-hum">
                 Humedad relativa (%){fetchingWeather ? ' · obteniendo…' : ''}
               </label>
-              <input
-                id="apl-hum"
-                type="number"
-                step="1"
-                min="0"
-                max="100"
-                className="aur-input aur-input--num"
-                value={humedadRelativa}
-                onChange={e => setHumedadRelativa(e.target.value)}
-                placeholder="—"
-              />
+              <div>
+                <input
+                  id="apl-hum"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="100"
+                  className="aur-input aur-input--num"
+                  value={humedadRelativa}
+                  aria-invalid={!!humError}
+                  onChange={e => {
+                    setHumedadRelativa(e.target.value);
+                    if (humError) setHumError('');
+                  }}
+                  onBlur={() => setHumError(validateHum(humedadRelativa))}
+                  placeholder="—"
+                />
+                {humError && <span className="aur-field-error">{humError}</span>}
+              </div>
             </div>
 
             <div className="aur-row">
@@ -320,7 +361,13 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
             <div className="aur-row aur-row--multiline">
               <label className="aur-row-label" htmlFor="apl-obs">
                 Observaciones (opcional)
-                <span className="aur-field-hint"> · {observacionesAplicacion.length}/500</span>
+                {/* Cuenta sube en tiempo real; cuando llega al cap se pinta
+                    como error para señalizar al usuario que el slice() en
+                    onChange ya está cortando texto adicional. Sin esto el
+                    paste de un párrafo largo se truncaba silenciosamente. */}
+                <span className={`aur-field-hint${observacionesAplicacion.length >= 500 ? ' is-at-limit' : ''}`}>
+                  {' · '}{observacionesAplicacion.length}/500
+                </span>
               </label>
               <textarea
                 id="apl-obs"
