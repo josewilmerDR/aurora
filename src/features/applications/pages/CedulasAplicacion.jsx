@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiX, FiCheckCircle, FiPlusCircle, FiEye, FiEdit2, FiFilter } from 'react-icons/fi';
-import { FaTractor } from 'react-icons/fa';
+import { FiX, FiPlusCircle, FiFilter } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -12,6 +11,8 @@ import MezclaListaModal from '../components/MezclaListaModal';
 import AplicadaModal from '../components/AplicadaModal';
 import CedulaDocumento from '../components/CedulaDocumento';
 import CedulaPreviewModal from '../components/CedulaPreviewModal';
+import CedulaCard from '../components/CedulaCard';
+import CedulaSplitCard from '../components/CedulaSplitCard';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import FilterButton from '../../../components/ui/FilterButton';
@@ -635,251 +636,6 @@ function CedulasAplicacion() {
   };
 
   // ── Row renderer (shared between overdue panel and main list) ────────────
-  const renderCedulaRow = (task, { allowSkipTask = false } = {}) => {
-    const allCedulas = cedulasByTaskId[task.id] || [];
-    const isSplit    = allCedulas.length > 1;
-    const overdue    = isOverdue(task);
-
-    // Status → badge variant del sistema Aurora
-    const statusBadge = (cedulaStatus) => {
-      if (cedulaStatus === 'aplicada_en_campo') return { cls: 'aur-badge--green',   label: 'Aplicada' };
-      if (cedulaStatus === 'en_transito')        return { cls: 'aur-badge--blue',    label: 'En Tránsito' };
-      return { cls: 'aur-badge--yellow', label: 'Pendiente' };
-    };
-
-    const openPreview = (cedulaId) => {
-      openedViaUrlRef.current = false;
-      savedScrollRef.current = window.scrollY;
-      setPreviewTask(task);
-      setPreviewCedulaId(cedulaId);
-    };
-
-    // ── Multi-lote split: una sub-fila por cédula ──────────────────────────
-    if (isSplit) {
-      return (
-        <article
-          key={task.id}
-          data-task-id={task.id}
-          className={`ca-cedula-card ca-cedula-card--split${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}${highlightedTaskIds.has(task.id) ? ' is-highlighted' : ''}`}
-        >
-          <div className="ca-cedula-head">
-            <div className="ca-cedula-info">
-              <h4 className="ca-cedula-name" title={task.activityName}>
-                {task.activityName}
-                {isManualTask(task) && <span className="aur-badge aur-badge--magenta">Adicional</span>}
-              </h4>
-              <p className="ca-cedula-meta">
-                {task.loteName}
-                {task.responsableName ? ` · ${task.responsableName}` : ''}
-              </p>
-            </div>
-            <div className="ca-cedula-status">
-              <span className={`aur-badge ${overdue ? 'aur-badge--magenta' : 'aur-badge--yellow'}`}>
-                {overdue ? 'Vencida' : 'Pendiente'}
-              </span>
-              <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
-            </div>
-          </div>
-
-          <ul className="ca-split-list">
-            {allCedulas.map(c => {
-              const isLdg = actionLoading === c.id;
-              const canAnular = c.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
-              const sb = statusBadge(c.status);
-              return (
-                <li key={c.id} className="ca-split-row">
-                  <div className="ca-split-info">
-                    <span className="ca-split-lote">{c.splitLoteNombre || '—'}</span>
-                    <span className="ca-cedula-consecutivo">{c.consecutivo}</span>
-                    <span className={`aur-badge ${sb.cls}`}>{sb.label}</span>
-                  </div>
-                  <div className="ca-split-actions">
-                    {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-                      <button
-                        type="button"
-                        className="aur-chip"
-                        onClick={() => handleEditarProductos(c.id)}
-                        disabled={isLdg}
-                        title="Editar productos y dosis"
-                      >
-                        <FiEdit2 size={12} /> Editar
-                      </button>
-                    )}
-                    {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-                      <button
-                        type="button"
-                        className="aur-btn-pill aur-btn-pill--sm"
-                        onClick={() => handleMezclaLista(c.id)}
-                        disabled={isLdg}
-                      >
-                        <FiCheckCircle size={12} />
-                        {isLdg ? 'Procesando…' : 'Mezcla lista'}
-                      </button>
-                    )}
-                    {c.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
-                      <button
-                        type="button"
-                        className="aur-btn-pill aur-btn-pill--sm"
-                        onClick={() => handleAplicada(c.id)}
-                        disabled={isLdg}
-                      >
-                        <FaTractor size={12} />
-                        {isLdg ? 'Registrando…' : 'Aplicada en campo'}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="aur-chip aur-chip--ghost"
-                      onClick={() => openPreview(c.id)}
-                      title="Ver cédula de aplicación"
-                    >
-                      <FiEye size={12} /> Ver
-                    </button>
-                    {canAnular && (
-                      <button
-                        type="button"
-                        className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
-                        onClick={() => handleAnular(c.id)}
-                        disabled={isLdg}
-                        title="Anular cédula"
-                      >
-                        <FiX size={13} />
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </article>
-      );
-    }
-
-    // ── Cédula única ───────────────────────────────────────────────────────
-    const cedula   = allCedulas[0] || null;
-    const isLdg    = actionLoading === (cedula ? cedula.id : `new-${task.id}`)
-                  || actionLoading === `skip-${task.id}`;
-    const canAnular = cedula && cedula.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
-
-    return (
-      <article
-        key={task.id}
-        data-task-id={task.id}
-        className={`ca-cedula-card${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}${highlightedTaskIds.has(task.id) ? ' is-highlighted' : ''}`}
-      >
-        <div className="ca-cedula-head">
-          <div className="ca-cedula-info">
-            <h4 className="ca-cedula-name" title={task.activityName}>
-              {task.activityName}
-              {isManualTask(task) && <span className="aur-badge aur-badge--magenta">Adicional</span>}
-            </h4>
-            <p className="ca-cedula-meta">
-              {task.loteName}
-              {task.responsableName ? ` · ${task.responsableName}` : ''}
-              {cedula && <span className="ca-cedula-consecutivo">{cedula.consecutivo}</span>}
-            </p>
-          </div>
-          <div className="ca-cedula-status">
-            <span className={`aur-badge ${overdue ? 'aur-badge--magenta' : 'aur-badge--yellow'}`}>
-              {overdue ? 'Vencida' : 'Pendiente'}
-            </span>
-            <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
-            {cedula?.status === 'pendiente' && <span className="aur-badge aur-badge--yellow">Pendiente</span>}
-            {cedula?.status === 'en_transito' && <span className="aur-badge aur-badge--blue">En Tránsito</span>}
-          </div>
-        </div>
-
-        <div className="ca-cedula-actions">
-          {!cedula && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              type="button"
-              className="aur-btn-pill aur-btn-pill--sm"
-              onClick={() => handleGenerarCedula(task.id)}
-              disabled={isLdg}
-              title="Generar cédula de aplicación"
-            >
-              <FiPlusCircle size={12} />
-              {isLdg ? 'Generando…' : 'Generar cédula'}
-            </button>
-          )}
-
-          {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              type="button"
-              className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
-              onClick={() => handleOmitirTarea(task.id)}
-              disabled={isLdg}
-              title="Omitir esta tarea sin generar cédula"
-            >
-              <FiX size={13} />
-            </button>
-          )}
-
-          {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              type="button"
-              className="aur-chip"
-              onClick={() => handleEditarProductos(cedula.id)}
-              disabled={isLdg}
-              title="Editar productos y dosis"
-            >
-              <FiEdit2 size={12} /> Editar
-            </button>
-          )}
-
-          {cedula?.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (
-            <button
-              type="button"
-              className="aur-btn-pill aur-btn-pill--sm"
-              onClick={() => handleMezclaLista(cedula.id)}
-              disabled={isLdg}
-              title="Confirmar que la mezcla está lista"
-            >
-              <FiCheckCircle size={12} />
-              {isLdg ? 'Procesando…' : 'Mezcla lista'}
-            </button>
-          )}
-
-          {cedula?.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador') && (
-            <button
-              type="button"
-              className="aur-btn-pill aur-btn-pill--sm"
-              onClick={() => handleAplicada(cedula.id)}
-              disabled={isLdg}
-              title="Confirmar aplicación en campo"
-            >
-              <FaTractor size={12} />
-              {isLdg ? 'Registrando…' : 'Aplicada en campo'}
-            </button>
-          )}
-
-          {cedula && (
-            <button
-              type="button"
-              className="aur-chip aur-chip--ghost"
-              onClick={() => openPreview(cedula.id)}
-              title="Ver cédula de aplicación"
-            >
-              <FiEye size={12} /> Ver cédula
-            </button>
-          )}
-
-          {canAnular && (
-            <button
-              type="button"
-              className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
-              onClick={() => handleAnular(cedula.id)}
-              disabled={isLdg}
-              title="Anular cédula"
-            >
-              <FiX size={13} />
-            </button>
-          )}
-        </div>
-      </article>
-    );
-  };
-
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="ca-page">
@@ -933,7 +689,51 @@ function CedulasAplicacion() {
               />
             ) : (
               <div className="ca-cedula-list">
-                {visibleTasks.map(task => renderCedulaRow(task, { allowSkipTask: isOverdue(task) }))}
+                {visibleTasks.map(task => {
+                  const allCedulas = cedulasByTaskId[task.id] || [];
+                  const isHighlighted = highlightedTaskIds.has(task.id);
+                  // Closure captura `task` para que el preview sepa cuál
+                  // abrir; setear el scroll antes del cambio de state
+                  // preserva la posición al cerrar.
+                  const onPreview = (cedulaId) => {
+                    openedViaUrlRef.current = false;
+                    savedScrollRef.current = window.scrollY;
+                    setPreviewTask(task);
+                    setPreviewCedulaId(cedulaId);
+                  };
+                  return allCedulas.length > 1 ? (
+                    <CedulaSplitCard
+                      key={task.id}
+                      task={task}
+                      cedulas={allCedulas}
+                      isHighlighted={isHighlighted}
+                      actionLoading={actionLoading}
+                      currentUser={currentUser}
+                      onPreview={onPreview}
+                      onEditar={handleEditarProductos}
+                      onMezclaLista={handleMezclaLista}
+                      onAplicada={handleAplicada}
+                      onAnular={handleAnular}
+                    />
+                  ) : (
+                    <CedulaCard
+                      key={task.id}
+                      task={task}
+                      cedula={allCedulas[0] || null}
+                      isHighlighted={isHighlighted}
+                      allowSkipTask={isOverdue(task)}
+                      actionLoading={actionLoading}
+                      currentUser={currentUser}
+                      onPreview={onPreview}
+                      onGenerar={handleGenerarCedula}
+                      onOmitir={handleOmitirTarea}
+                      onEditar={handleEditarProductos}
+                      onMezclaLista={handleMezclaLista}
+                      onAplicada={handleAplicada}
+                      onAnular={handleAnular}
+                    />
+                  );
+                })}
               </div>
             )}
           </section>
