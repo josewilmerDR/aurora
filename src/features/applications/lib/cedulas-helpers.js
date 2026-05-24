@@ -35,6 +35,22 @@ export const formatShortDate = (iso) => {
   });
 };
 
+/** Filtra tasks por rango de fechas inclusivo en dueDate. `dateFrom` y
+ *  `dateTo` son strings YYYY-MM-DD (como los devuelve <input type="date">).
+ *  Si alguno está vacío, ese extremo del rango se ignora. Pure — sin side
+ *  effects, OK para llamar desde useMemo y desde código no-React. */
+export const filterTasksByDateRange = (tasks, dateFrom, dateTo) => {
+  if (!dateFrom && !dateTo) return tasks;
+  const start = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
+  const end   = dateTo   ? new Date(dateTo   + 'T23:59:59') : null;
+  return tasks.filter(t => {
+    const due = new Date(t.dueDate);
+    if (start && due < start) return false;
+    if (end   && due > end)   return false;
+    return true;
+  });
+};
+
 /** "12 ha" / "12.5 ha" / null si el valor no es numérico positivo. Sin
  *  decimal cuando es entero (12 ha en vez de 12.0 ha). Usado por los
  *  chips informativos en las cards del listing (punto #15 audit). */

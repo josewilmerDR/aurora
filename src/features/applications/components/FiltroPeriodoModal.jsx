@@ -16,8 +16,15 @@ export default function FiltroPeriodoModal({
   setDateFrom,
   dateTo,
   setDateTo,
+  matchCount,                 // cédulas que matchean el rango actual (live)
   onClose,
 }) {
+  // Live count: cuando hay rango activo, "X cédulas en el periodo"; cuando
+  // está vacío, "X cédulas en total". Resuelve el roundtrip Listo → "0
+  // resultados" → reabrir filtro → probar otro rango. Punto #17 audit.
+  const hasRange = !!(dateFrom || dateTo);
+  const cedulaWord = matchCount === 1 ? 'cédula' : 'cédulas';
+  const countLabel = `${matchCount} ${cedulaWord} en ${hasRange ? 'el periodo' : 'total'}`;
   return createPortal(
     <div
       className="aur-modal-backdrop"
@@ -71,7 +78,10 @@ export default function FiltroPeriodoModal({
           </div>
         </div>
         <div className="aur-modal-actions">
-          {(dateFrom || dateTo) && (
+          <span className="aur-field-hint ca-periodo-count" aria-live="polite">
+            {countLabel}
+          </span>
+          {hasRange && (
             <button
               type="button"
               className="aur-chip aur-chip--ghost"
