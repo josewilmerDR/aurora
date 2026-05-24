@@ -8,6 +8,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import LoteFormModal from '../components/LoteFormModal';
 
 // ── Module helpers ───────────────────────────────────────────────────────────
 const formatDateLong = (date) => {
@@ -41,28 +42,6 @@ const LOTE_BLOQUE_COLS = [
   { id: 'material', label: 'Material' },
 ];
 
-// ── Draft persistence ─────────────────────────────────────────────────────────
-const DRAFT_LS = 'aurora_draft_lote-nuevo';
-const DRAFT_SS = 'aurora_draftActive_lote-nuevo';
-const EMPTY_FORM = { id: null, codigoLote: '', nombreLote: '', fechaCreacion: '' };
-
-function loadLoteDraft() { try { return JSON.parse(localStorage.getItem(DRAFT_LS)); } catch { return null; } }
-function saveLoteDraft(data) {
-  try {
-    localStorage.setItem(DRAFT_LS, JSON.stringify(data));
-    sessionStorage.setItem(DRAFT_SS, '1');
-    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
-  } catch {}
-}
-function clearLoteDraft() {
-  try {
-    localStorage.removeItem(DRAFT_LS);
-    sessionStorage.removeItem(DRAFT_SS);
-    window.dispatchEvent(new CustomEvent('aurora-draft-change'));
-  } catch {}
-}
-function isLoteDraftMeaningful(d) { return d && (d.codigoLote || d.nombreLote || d.fechaCreacion); }
-
 // ── Main Component ────────────────────────────────────────────────────────────
 function LoteManagement() {
   const apiFetch = useApiFetch();
@@ -70,13 +49,12 @@ function LoteManagement() {
   const [packages, setPackages] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [selectedLote, setSelectedLote] = useState(null);
-  const [view, setView] = useState('hub'); // 'hub' | 'form'
-  const [isEditing, setIsEditing] = useState(false);
+  // null | { mode: 'create' } | { mode: 'edit', lote }
+  const [modalState, setModalState] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
   const [confirmModal, setConfirmModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [formData, setFormData] = useState(EMPTY_FORM);
   const [siembras, setSiembras] = useState([]);
   const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'grupo', dir: 'asc' }]);
   const [bloqueColFilters, setBloqueColFilters] = useState({});
@@ -132,29 +110,7 @@ function LoteManagement() {
     if (!found) return;
     deepLinkProcessedRef.current = true;
     setSelectedLote(found);
-    setView('hub');
   }, [lotes, incomingSelectLoteId]);
-
-  // Restore draft on mount (survives navigation and tab close)
-  useEffect(() => {
-    const draft = loadLoteDraft();
-    if (!isLoteDraftMeaningful(draft)) return;
-    setFormData({ ...EMPTY_FORM, codigoLote: draft.codigoLote || '', nombreLote: draft.nombreLote || '', fechaCreacion: draft.fechaCreacion || '' });
-    setView('form');
-    setIsEditing(false);
-    try { sessionStorage.setItem(DRAFT_SS, '1'); window.dispatchEvent(new CustomEvent('aurora-draft-change')); } catch {}
-  }, []);
-
-  // Save draft on every change to the creation form
-  useEffect(() => {
-    if (isEditing || view !== 'form') return;
-    const { codigoLote, nombreLote, fechaCreacion } = formData;
-    if (codigoLote || nombreLote || fechaCreacion) {
-      saveLoteDraft({ codigoLote, nombreLote, fechaCreacion });
-    } else {
-      clearLoteDraft();
-    }
-  }, [formData, isEditing, view]);
 
   // ── Table data ────────────────────────────────────────────────────────────
   const loteTableRows = useMemo(() => {
@@ -310,57 +266,31 @@ function LoteManagement() {
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const formatDateForInput = (timestamp) => {
-    const date = new Date(timestamp._seconds * 1000);
-    date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-    return date.toISOString().split('T')[0];
-  };
-
   const formatDate = (timestamp) => {
     if (!timestamp) return '—';
     const d = timestamp._seconds ? new Date(timestamp._seconds * 1000) : new Date(timestamp);
     return d.toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const resetForm = () => {
-    if (!isEditing) clearLoteDraft();
-    setIsEditing(false);
-    setFormData(EMPTY_FORM);
-    setView('hub');
-  };
-
   const handleSelectLote = (lote) => {
     setSelectedLote(lote);
-    setView('hub');
     if (window.innerWidth <= 768)
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleNewLote = () => {
-    const draft = loadLoteDraft();
-    setIsEditing(false);
-    setFormData(isLoteDraftMeaningful(draft)
-      ? { ...EMPTY_FORM, codigoLote: draft.codigoLote || '', nombreLote: draft.nombreLote || '', fechaCreacion: draft.fechaCreacion || '' }
-      : EMPTY_FORM
-    );
-    setView('form');
-    setSelectedLote(null);
-  };
+  const handleNewLote = () => setModalState({ mode: 'create' });
+  const handleEdit = (lote) => setModalState({ mode: 'edit', lote });
 
-  const handleEdit = (lote) => {
-    setIsEditing(true);
-    setFormData({
-      id: lote.id,
-      codigoLote: lote.codigoLote || '',
-      nombreLote: lote.nombreLote || '',
-      fechaCreacion: formatDateForInput(lote.fechaCreacion),
-    });
-    setView('form');
+  const handleModalSuccess = async (savedLote) => {
+    const isEditing = modalState?.mode === 'edit';
+    const targetId = isEditing ? modalState.lote.id : savedLote?.id;
+    setModalState(null);
+    const newLotes = await fetchLotes();
+    if (targetId && newLotes) {
+      const found = newLotes.find(l => l.id === targetId);
+      if (found) setSelectedLote(found);
+    }
+    showToast(isEditing ? 'Lote actualizado correctamente' : 'Lote creado y tareas programadas');
   };
 
   const handleDeleteClick = async (lote) => {
@@ -386,32 +316,6 @@ function LoteManagement() {
       showToast('Error al eliminar el lote.', 'error');
     } finally {
       setDeleting(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const url = isEditing ? `/api/lotes/${formData.id}` : '/api/lotes';
-    const method = isEditing ? 'PUT' : 'POST';
-    const { id, ...payload } = formData;
-    try {
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isEditing ? formData : payload),
-      });
-      if (!res.ok) throw new Error('Error al guardar el lote');
-      const saved = await res.json();
-      const newLotes = await fetchLotes();
-      const savedId = isEditing ? formData.id : saved.id;
-      if (savedId && newLotes) {
-        const found = newLotes.find(l => l.id === savedId);
-        if (found) setSelectedLote(found);
-      }
-      resetForm();
-      showToast(isEditing ? 'Lote actualizado correctamente' : 'Lote creado y tareas programadas');
-    } catch {
-      showToast('Ocurrió un error al guardar.', 'error');
     }
   };
 
@@ -455,74 +359,6 @@ function LoteManagement() {
   const pkg = selectedLote ? packages.find(p => p.id === selectedLote.paqueteId) : null;
 
   const renderRightPanel = () => {
-    if (view === 'form') {
-      return (
-        <div className="aur-sheet">
-          <header className="aur-sheet-header">
-            <div className="aur-sheet-header-text">
-              <h1 className="aur-sheet-title">{isEditing ? 'Editar Lote' : 'Crear Nuevo Lote'}</h1>
-            </div>
-          </header>
-          <form onSubmit={handleSubmit} noValidate>
-            <section className="aur-section">
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="codigoLote">Código del Lote</label>
-                  <input
-                    id="codigoLote"
-                    name="codigoLote"
-                    className="aur-input"
-                    value={formData.codigoLote}
-                    onChange={handleInputChange}
-                    placeholder="Ej: L2604"
-                    maxLength={16}
-                    required
-                  />
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="nombreLote">
-                    Nombre amigable <span className="aur-field-hint">(opcional)</span>
-                  </label>
-                  <input
-                    id="nombreLote"
-                    name="nombreLote"
-                    className="aur-input"
-                    value={formData.nombreLote}
-                    onChange={handleInputChange}
-                    placeholder="Ej: 4, Lote de Aurora"
-                    maxLength={32}
-                  />
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="fechaCreacion">Fecha de Creación</label>
-                  <input
-                    id="fechaCreacion"
-                    name="fechaCreacion"
-                    className="aur-input"
-                    value={formData.fechaCreacion}
-                    onChange={handleInputChange}
-                    type="date"
-                    max={new Date().toISOString().split('T')[0]}
-                    required
-                  />
-                </div>
-              </div>
-            </section>
-
-            <div className="aur-form-actions">
-              <button type="button" onClick={resetForm} className="aur-btn-text">
-                Cancelar
-              </button>
-              <button type="submit" className="aur-btn-pill">
-                <FiPlus size={14} />
-                {isEditing ? 'Actualizar Lote' : 'Crear Lote'}
-              </button>
-            </div>
-          </form>
-        </div>
-      );
-    }
-
     if (!selectedLote) {
       return null;
     }
@@ -660,8 +496,17 @@ function LoteManagement() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className={`lote-page${selectedLote && view === 'hub' ? ' lote-page--selected' : ''}`}>
+    <div className={`lote-page${selectedLote ? ' lote-page--selected' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {modalState && (
+        <LoteFormModal
+          mode={modalState.mode}
+          loteToEdit={modalState.lote}
+          apiFetch={apiFetch}
+          onSuccess={handleModalSuccess}
+          onClose={() => setModalState(null)}
+        />
+      )}
       {confirmModal && (
         <AuroraConfirmModal
           danger
@@ -679,7 +524,7 @@ function LoteManagement() {
       )}
 
       {/* ── Mobile sticky carousel ── */}
-      {selectedLote && view === 'hub' && (
+      {selectedLote && (
         <div className="lote-carousel" ref={carouselRef}>
           {lotes.map(lote => (
             <button
@@ -701,19 +546,17 @@ function LoteManagement() {
       )}
 
       {/* ── Page header ── */}
-      {view !== 'form' && (
-        <div className="lote-page-header">
-          <div className="lote-page-title-block">
-            <h2 className="lote-page-title">Lotes Activos</h2>
-            <p className="lote-page-hint">
-              Espacios físicos donde viven tus cultivos y la unidad básica para registrar actividades y costos.
-            </p>
-          </div>
-          <button onClick={handleNewLote} className="aur-btn-pill">
-            <FiPlus size={14} /> Nuevo Lote
-          </button>
+      <div className="lote-page-header">
+        <div className="lote-page-title-block">
+          <h2 className="lote-page-title">Lotes Activos</h2>
+          <p className="lote-page-hint">
+            Espacios físicos donde viven tus cultivos y la unidad básica para registrar actividades y costos.
+          </p>
         </div>
-      )}
+        <button onClick={handleNewLote} className="aur-btn-pill">
+          <FiPlus size={14} /> Nuevo Lote
+        </button>
+      </div>
 
       <div className="lote-management-layout">
         {/* ── Left: form or hub ── */}
@@ -774,7 +617,7 @@ function LoteManagement() {
         document.body
       )}
 
-      {view !== 'form' && <div className="lote-list-panel">
+      <div className="lote-list-panel">
 
           {lotes.length === 0
           ? (
@@ -788,8 +631,8 @@ function LoteManagement() {
               {lotes.map(lote => (
                 <li
                   key={lote.id}
-                  className={`lote-list-item ${selectedLote?.id === lote.id && view === 'hub' ? 'active' : ''}`}
-                  onClick={() => selectedLote?.id === lote.id && view === 'hub' ? setSelectedLote(null) : handleSelectLote(lote)}
+                  className={`lote-list-item ${selectedLote?.id === lote.id ? 'active' : ''}`}
+                  onClick={() => selectedLote?.id === lote.id ? setSelectedLote(null) : handleSelectLote(lote)}
                 >
                   <div className="lote-list-info">
                     <span className="lote-list-code">{lote.codigoLote}</span>
@@ -806,7 +649,7 @@ function LoteManagement() {
             </ul>
           )
         }
-        </div>}
+        </div>
       </div>
 
       {/* ── Preview modal (PDF / impresión) ── */}
