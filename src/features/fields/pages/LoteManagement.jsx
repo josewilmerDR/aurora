@@ -720,14 +720,21 @@ function LoteManagement() {
           {loading ? (
             <AuroraSkeleton variant="row" count={6} label="Cargando lotes…" />
           ) : lotes.length === 0 ? (
-            // Si hubo error de carga no mostramos "Sin lotes creados" — sería
+            // Si hubo error de carga no mostramos el empty state — sería
             // falso, no sabemos si está vacío o si la red murió. El banner
             // arriba ya explica qué pasó y tiene el botón Reintentar.
             loadError ? null : (
-              <div className="grupo-cta">
-                <div className="grupo-cta-icon"><FiPlus size={24} /></div>
-                <p className="grupo-cta-title">Sin lotes creados</p>
-              </div>
+              <EmptyState
+                variant="compact"
+                icon={FiLayers}
+                title="Aún no hay lotes"
+                subtitle="Crea tu primer lote para empezar a registrar siembras y aplicaciones."
+                action={
+                  <button type="button" className="aur-btn-pill" onClick={handleNewLote}>
+                    <FiPlus size={14} /> Crear primer lote
+                  </button>
+                }
+              />
             )
           ) : displayedLotes.length === 0 ? (
             <p className="lote-list-no-results">
