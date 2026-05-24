@@ -460,6 +460,45 @@
   text-align: right;
 }
 
+/* Mini-tabla de calibración en la columna 3 del header del documento.
+   Mismo lenguaje visual que .ca-doc-table (header oscuro #1a2a3a), pero
+   compacta: cell padding más chico, font más pequeña, primera columna
+   con la label en peso 600. El aplicador en campo escanea de arriba a
+   abajo siguiendo la grilla en vez de leer 7 pares <span> sueltos.
+   Punto #21 audit. */
+.ca-cal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.ca-cal-table th {
+  background: #1a2a3a;
+  color: #ffffff;
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.73rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.ca-cal-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid #e8edf2;
+  color: #222;
+  line-height: 1.25;
+}
+.ca-cal-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.ca-cal-label {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 .ca-empty-products {
   color: #888;
   text-align: center;
