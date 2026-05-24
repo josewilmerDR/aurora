@@ -285,10 +285,22 @@ function CedulasAplicacion() {
   const previewCedula = previewCedulaId ? (cedulasById.get(previewCedulaId) || null) : null;
   const activeCedula = previewCedula || (previewTask ? (cedulasByTaskId[previewTask.id]?.[0] || null) : null);
 
-  const previewSource = previewTask ? getSource(previewTask) : null;
-  const previewPkg = previewSource?.paqueteId
-    ? (packagesById.get(previewSource.paqueteId) || null)
-    : null;
+  // previewSource memoizado: el cálculo inline previo era "estable por
+  // accidente" — lotesById/gruposById están memoizados y .get() devuelve
+  // siempre el mismo object reference. Pero la útilidad real del memo es
+  // documental: que un futuro refactor no rompa la estabilidad referencial
+  // sin aviso (p.ej. si alguien cambia `lotesById` a un object literal
+  // recreado cada render). previewBloques abajo depende de previewSource,
+  // así que cualquier inestabilidad upstream invalida ese memo también.
+  // Punto #20 audit.
+  const previewSource = useMemo(
+    () => (previewTask ? getSource(previewTask) : null),
+    [previewTask, lotesById, gruposById]
+  );
+  const previewPkg = useMemo(
+    () => (previewSource?.paqueteId ? (packagesById.get(previewSource.paqueteId) || null) : null),
+    [previewSource, packagesById]
+  );
   const previewPackageName = previewPkg?.nombrePaquete || null;
   const previewTecnicoResponsable = previewTask?.isDraft
     ? (previewTask.tecnicoResponsable || previewPkg?.tecnicoResponsable || null)
