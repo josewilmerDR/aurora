@@ -1162,6 +1162,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Modificador del counter `X/500` en AplicadaModal: se pinta como error
+   cuando el textarea alcanzó el cap. Sin esto el paste de un párrafo largo
+   se truncaba silenciosamente sin señal visual. Punto #16 audit. */
+.aur-field-hint.is-at-limit {
+  color: var(--aur-danger);
+  opacity: 1;
+  font-weight: 600;
+}
+
 /* ── Chips informativos en el meta de la card (ha / paquete / # productos)
    Aparecen abajo de .ca-cedula-meta. Sutil low-contrast para no competir
    con el activityName y los badges de estado. Punto #15 audit. */
