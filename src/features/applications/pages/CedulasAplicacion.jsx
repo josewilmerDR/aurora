@@ -54,7 +54,23 @@ function CedulasAplicacion() {
   // responsableName y consecutivo de cualquier cédula activa de la task.
   // No se persiste — cada visita arranca limpio.
   const [searchQuery, setSearchQuery] = useState('');
-  const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
+  // Set de IDs de acciones en vuelo. Cada elemento es un cedulaId, o
+  // `new-${taskId}` (generar cédula), o `skip-${taskId}` (omitir tarea).
+  // Set en vez de string para no bloquear B mientras A está en proceso —
+  // antes el botón de B seguía verde y los clicks eran no-op silenciosos
+  // (punto #10 audit).
+  const [actionLoading, setActionLoading] = useState(() => new Set());
+  const addLoading = (id) => setActionLoading(prev => {
+    const next = new Set(prev);
+    next.add(id);
+    return next;
+  });
+  const removeLoading = (id) => setActionLoading(prev => {
+    if (!prev.has(id)) return prev;
+    const next = new Set(prev);
+    next.delete(id);
+    return next;
+  });
   const [showNuevaModal, setShowNuevaModal] = useState(false);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
@@ -335,7 +351,8 @@ function CedulasAplicacion() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleGenerarCedula = async (taskId) => {
-    setActionLoading(`new-${taskId}`);
+    const loadingId = `new-${taskId}`;
+    addLoading(loadingId);
     try {
       const res = await apiFetch('/api/cedulas', {
         method: 'POST',
@@ -377,7 +394,7 @@ function CedulasAplicacion() {
       );
       highlightAndScrollTo([taskId]);
     } finally {
-      setActionLoading(null);
+      removeLoading(loadingId);
     }
   };
 
@@ -394,7 +411,7 @@ function CedulasAplicacion() {
   };
 
   const submitMezclaLista = async (cedulaId, payload) => {
-    setActionLoading(cedulaId);
+    addLoading(cedulaId);
     try {
       const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, {
         method: 'PUT',
@@ -427,7 +444,7 @@ function CedulasAplicacion() {
       // Re-throw para que el modal muestre el error inline en vez de cerrarse
       throw e;
     } finally {
-      setActionLoading(null);
+      removeLoading(cedulaId);
     }
   };
 
@@ -436,7 +453,7 @@ function CedulasAplicacion() {
   };
 
   const submitEdicionProductos = async (cedulaId, payload) => {
-    setActionLoading(cedulaId);
+    addLoading(cedulaId);
     try {
       const res = await apiFetch(`/api/cedulas/${cedulaId}/editar-productos`, {
         method: 'PUT',
@@ -465,7 +482,7 @@ function CedulasAplicacion() {
       // Re-throw para que el modal muestre el error inline en vez de cerrarse
       throw e;
     } finally {
-      setActionLoading(null);
+      removeLoading(cedulaId);
     }
   };
 
@@ -496,7 +513,7 @@ function CedulasAplicacion() {
 
   const submitAplicada = async (cedulaId, data) => {
     setAplicadaModal(null);
-    setActionLoading(cedulaId);
+    addLoading(cedulaId);
     try {
       const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, {
         method: 'PUT',
@@ -514,7 +531,7 @@ function CedulasAplicacion() {
         const allDone = siblings.every(c => c.status === 'aplicada_en_campo' || c.status === 'anulada');
         if (allDone) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed_by_user' } : t));
       }
-    } finally { setActionLoading(null); }
+    } finally { removeLoading(cedulaId); }
   };
 
   const handleAnular = (cedulaId) => {
@@ -529,7 +546,7 @@ function CedulasAplicacion() {
       danger: true,
       onConfirm: async () => {
         setConfirmModal(null);
-        setActionLoading(cedulaId);
+        addLoading(cedulaId);
         try {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al anular la cédula.'); return; }
@@ -547,7 +564,7 @@ function CedulasAplicacion() {
             }
           }
           window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
-        } finally { setActionLoading(null); }
+        } finally { removeLoading(cedulaId); }
       },
     });
   };
@@ -560,7 +577,8 @@ function CedulasAplicacion() {
       danger: true,
       onConfirm: async () => {
         setConfirmModal(null);
-        setActionLoading(`skip-${taskId}`);
+        const loadingId = `skip-${taskId}`;
+        addLoading(loadingId);
         try {
           const res = await apiFetch(`/api/tasks/${taskId}`, {
             method: 'PUT',
@@ -569,7 +587,7 @@ function CedulasAplicacion() {
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al omitir la tarea.'); return; }
           setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'skipped' } : t));
           window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
-        } finally { setActionLoading(null); }
+        } finally { removeLoading(loadingId); }
       },
     });
   };

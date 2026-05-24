@@ -33,8 +33,8 @@ export default function CedulaCard({
   onAnular,
 }) {
   const overdue   = isOverdue(task);
-  const isLdg     = actionLoading === (cedula ? cedula.id : `new-${task.id}`)
-                 || actionLoading === `skip-${task.id}`;
+  const isLdg     = actionLoading.has(cedula ? cedula.id : `new-${task.id}`)
+                 || actionLoading.has(`skip-${task.id}`);
   const canAnular = cedula && cedula.status !== 'aplicada_en_campo'
                  && hasMinRole(currentUser?.rol, 'encargado');
 
