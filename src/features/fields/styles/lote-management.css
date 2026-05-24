@@ -3,6 +3,90 @@
    `src/styles/legacy-globals.css` (cargado globalmente desde main.jsx).
    GrupoManagement.css ya no necesita `@import` de este archivo. */
 
+/* ── Búsqueda + orden en el panel de lista ────────────────────────────────── */
+/* Mirror del patrón `.pkg-list-search` en packages.css. Cuando se promueva
+   a primitiva (`.aur-list-search`) ambos consumers migran juntos. */
+.lote-list-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: 6px;
+  color: var(--aur-text-3, #6b819b);
+}
+.lote-list-search:focus-within { border-color: var(--aurora-green); }
+
+.lote-list-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  outline: none;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lote-list-search-input::-webkit-search-cancel-button { display: none; }
+.lote-list-search-input::placeholder { color: var(--aur-text-3, #6b819b); }
+
+.lote-list-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aur-text-3, #6b819b);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 3px;
+}
+.lote-list-search-clear:hover {
+  color: var(--aurora-light);
+  background: rgba(230, 242, 255, 0.08);
+}
+
+.lote-list-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+.lote-list-sort-label {
+  font-size: 0.7rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.lote-list-sort-select {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--aurora-border);
+  color: var(--aurora-light);
+  font-size: 0.78rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.lote-list-sort-select:focus,
+.lote-list-sort-select:hover { border-color: var(--aurora-green); }
+
+.lote-list-no-results {
+  margin: 0;
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  line-height: 1.45;
+}
+
 /* ── Subtotal row (tabla de bloques de Lote) ──────────────────────────────── */
 .lote-subtotal-row {
   background: rgba(42, 74, 106, 0.35);

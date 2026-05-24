@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'rea
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
@@ -56,6 +56,8 @@ function LoteManagement() {
   const [confirmModal, setConfirmModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [siembras, setSiembras] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortMode, setSortMode]   = useState('recent'); // 'recent' | 'oldest' | 'alpha'
   const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'grupo', dir: 'asc' }]);
   const [bloqueColFilters, setBloqueColFilters] = useState({});
   const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
@@ -111,6 +113,28 @@ function LoteManagement() {
     deepLinkProcessedRef.current = true;
     setSelectedLote(found);
   }, [lotes, incomingSelectLoteId]);
+
+  // ── Lista filtrada + ordenada (sidebar + carousel mobile) ─────────────────
+  // Filtra por código o nombre amigable (case-insensitive). El orden por
+  // defecto es por fecha de siembra descendente — lo más reciente arriba —
+  // porque es el caso de uso dominante (encargado abre la página para tocar
+  // el lote que recién creó). El usuario puede cambiar a alfabético cuando
+  // quiere encontrar uno viejo y solo recuerda el código.
+  const displayedLotes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? lotes.filter(l =>
+          (l.codigoLote || '').toLowerCase().includes(q) ||
+          (l.nombreLote || '').toLowerCase().includes(q))
+      : lotes;
+    const tsOf = (l) => l.fechaCreacion?._seconds ?? 0;
+    const sorted = [...filtered];
+    if (sortMode === 'recent')      sorted.sort((a, b) => tsOf(b) - tsOf(a));
+    else if (sortMode === 'oldest') sorted.sort((a, b) => tsOf(a) - tsOf(b));
+    else if (sortMode === 'alpha')  sorted.sort((a, b) =>
+      (a.codigoLote || '').localeCompare(b.codigoLote || '', 'es', { numeric: true }));
+    return sorted;
+  }, [lotes, searchQuery, sortMode]);
 
   // ── Table data ────────────────────────────────────────────────────────────
   const loteTableRows = useMemo(() => {
@@ -526,7 +550,7 @@ function LoteManagement() {
       {/* ── Mobile sticky carousel ── */}
       {selectedLote && (
         <div className="lote-carousel" ref={carouselRef}>
-          {lotes.map(lote => (
+          {displayedLotes.map(lote => (
             <button
               key={lote.id}
               className={`lote-bubble${selectedLote?.id === lote.id ? ' lote-bubble--active' : ''}`}
@@ -619,16 +643,60 @@ function LoteManagement() {
 
       <div className="lote-list-panel">
 
-          {lotes.length === 0
-          ? (
+          {lotes.length > 0 && (
+            <>
+              <div className="lote-list-search">
+                <FiSearch size={13} aria-hidden="true" />
+                <input
+                  type="search"
+                  className="lote-list-search-input"
+                  placeholder="Buscar por código o nombre…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  aria-label="Buscar lote por código o nombre"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="lote-list-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <FiX size={12} />
+                  </button>
+                )}
+              </div>
+              <div className="lote-list-sort">
+                <label htmlFor="lote-sort-mode" className="lote-list-sort-label">Ordenar</label>
+                <select
+                  id="lote-sort-mode"
+                  className="lote-list-sort-select"
+                  value={sortMode}
+                  onChange={e => setSortMode(e.target.value)}
+                >
+                  <option value="recent">Recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="alpha">Alfabético</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {lotes.length === 0 ? (
             <div className="grupo-cta">
               <div className="grupo-cta-icon"><FiPlus size={24} /></div>
               <p className="grupo-cta-title">Sin lotes creados</p>
             </div>
-          )
-          : (
+          ) : displayedLotes.length === 0 ? (
+            <p className="lote-list-no-results">
+              Sin resultados para "{searchQuery}".{' '}
+              <button type="button" className="aur-btn-text" onClick={() => setSearchQuery('')}>
+                Limpiar
+              </button>
+            </p>
+          ) : (
             <ul className="lote-list">
-              {lotes.map(lote => (
+              {displayedLotes.map(lote => (
                 <li
                   key={lote.id}
                   className={`lote-list-item ${selectedLote?.id === lote.id ? 'active' : ''}`}
@@ -647,8 +715,7 @@ function LoteManagement() {
                 </li>
               ))}
             </ul>
-          )
-        }
+          )}
         </div>
       </div>
 
