@@ -125,10 +125,15 @@ function LoteManagement() {
   // pendiente. Antes, si `lotes` resolvía después de que el usuario eligió
   // algo manualmente, el efecto de deep-link pisaba la elección. Acepta
   // `null` para soportar el flujo de deselect (back button + toggle).
+  //
+  // En mobile siempre scrolleamos `.content-area` al top, tanto en select
+  // como en deselect: al deseleccionar el hub desaparece y la lista vuelve
+  // a aparecer; si el usuario había scrolleado dentro del hub, sin este
+  // scroll se queda con el header fuera de viewport.
   const handleSelectLote = (lote) => {
     deepLinkProcessedRef.current = true;
     setSelectedLote(lote);
-    if (lote && window.innerWidth <= 768)
+    if (window.innerWidth <= 768)
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
