@@ -56,9 +56,18 @@ export default function BloqueSortTh({
     setFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
   };
 
+  // Tooltip dinámico — el <th> es clickable pero el affordance no es
+  // obvio. Decir explícitamente qué pasa al click reduce la fricción del
+  // primer encuentro con la tabla, sobre todo en mobile donde no hay
+  // estado de hover que sugiera interacción.
+  const sortTitle = active
+    ? `Ordenado ${dir === 'asc' ? 'ascendente' : 'descendente'} · clic para invertir`
+    : 'Clic para ordenar por esta columna';
+
   return (
     <th
       className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
+      title={sortTitle}
       onClick={toggleSort}
     >
       <span className="aur-th-content">
