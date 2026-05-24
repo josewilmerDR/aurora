@@ -22,6 +22,7 @@ import {
   isOverdue,
   isManualTask,
   filterTasksByDateRange,
+  computeTaskStatusFromCedulas,
 } from '../lib/cedulas-helpers';
 import '../styles/cedulas.css';
 
@@ -521,15 +522,26 @@ function CedulasAplicacion() {
       });
       if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al registrar la aplicación.'); return; }
       const taskId = cedulasById.get(cedulaId)?.taskId;
-      setCedulas(prev => prev.map(c =>
-        c.id === cedulaId ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString(), ...data } : c
-      ));
-      // Only mark task completed if all sibling cedulas are now applied/annulled
-      if (taskId) {
-        const siblings = cedulas.filter(c => c.taskId === taskId && c.id !== cedulaId);
-        const allDone = siblings.every(c => c.status === 'aplicada_en_campo' || c.status === 'anulada');
-        if (allDone) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed_by_user' } : t));
-      }
+      // Functional updater + selector puro: el siblings.every() del
+      // antes leía `cedulas` por closure (stale antes del setCedulas),
+      // y solo funcionaba "por casualidad" porque el filtro excluía a la
+      // recién actualizada. Si en el futuro aparece un status no terminal
+      // ('en_revision'), o si llegan dos updates en paralelo, el sync de
+      // tasks rompía sin aviso. Punto #19 audit.
+      setCedulas(prev => {
+        const next = prev.map(c =>
+          c.id === cedulaId
+            ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString(), ...data }
+            : c
+        );
+        if (taskId) {
+          const newStatus = computeTaskStatusFromCedulas(next, taskId);
+          if (newStatus !== 'pending') {
+            setTasks(ts => ts.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+          }
+        }
+        return next;
+      });
     } finally { removeLoading(cedulaId); }
   };
 
@@ -550,18 +562,19 @@ function CedulasAplicacion() {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al anular la cédula.'); return; }
           const taskId = cedulasById.get(cedulaId)?.taskId;
-          // Marcar como anulada en lugar de eliminar para mantener consistencia con el backend
-          setCedulas(prev => prev.map(c => c.id === cedulaId ? { ...c, status: 'anulada' } : c));
-          if (taskId) {
-            const remaining = cedulas.filter(c => c.id !== cedulaId && c.taskId === taskId);
-            const allInactive = remaining.every(c => c.status === 'anulada' || c.status === 'aplicada_en_campo');
-            if (allInactive) {
-              const anyApplied = remaining.some(c => c.status === 'aplicada_en_campo');
-              setTasks(prev => prev.map(t => t.id === taskId
-                ? { ...t, status: anyApplied ? 'completed_by_user' : 'skipped' }
-                : t));
+          // Functional updater + selector puro: el cálculo de allInactive/
+          // anyApplied antes leía `cedulas` por closure (stale). Idéntica
+          // sintomatología que submitAplicada. Punto #19 audit.
+          setCedulas(prev => {
+            const next = prev.map(c => c.id === cedulaId ? { ...c, status: 'anulada' } : c);
+            if (taskId) {
+              const newStatus = computeTaskStatusFromCedulas(next, taskId);
+              if (newStatus !== 'pending') {
+                setTasks(ts => ts.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+              }
             }
-          }
+            return next;
+          });
           window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
         } finally { removeLoading(cedulaId); }
       },
