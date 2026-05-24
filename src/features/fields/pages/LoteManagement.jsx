@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'rea
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiSliders, FiX, FiEye, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
@@ -11,8 +11,9 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
+import LotePreviewModal from '../components/LotePreviewModal';
 import BloqueSortTh from '../components/BloqueSortTh';
-import { formatDate, formatDateLong, multiSort } from '../lib/lotes-helpers';
+import { formatDate, multiSort } from '../lib/lotes-helpers';
 
 const LOTE_BLOQUE_COLS = [
   { id: 'grupo',    label: 'Grupo'    },
@@ -53,7 +54,6 @@ function LoteManagement() {
   // Shape: { id, label, action: 'created' | 'updated' } | null
   const [lastSavedLote, setLastSavedLote] = useState(null);
   const carouselRef = useRef(null);
-  const docRef      = useRef(null);
 
   // Centra la burbuja activa en el carousel cuando cambia el lote seleccionado
   useEffect(() => {
@@ -219,62 +219,6 @@ function LoteManagement() {
       totalPlantas: rows.reduce((s, b) => s + (b.plantas || 0), 0),
     }));
   }, [loteBloqueSorted]);
-
-  // ── Preview (PDF / print) ───────────────────────────────────────────────
-  const previewGrouped = useMemo(() => {
-    if (!previewLote) return [];
-    const map = new Map();
-    for (const row of loteTableRows) {
-      if (!map.has(row.grupo)) map.set(row.grupo, []);
-      map.get(row.grupo).push(row);
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b, 'es', { numeric: true }))
-      .map(([grupo, rows]) => ({
-        grupo,
-        rows: [...rows].sort((a, b) => (a.bloque || '').localeCompare(b.bloque || '', 'es', { numeric: true })),
-        totalHa:      rows.reduce((s, b) => s + (b.ha || 0), 0),
-        totalPlantas: rows.reduce((s, b) => s + (b.plantas || 0), 0),
-      }));
-  }, [previewLote, loteTableRows]);
-
-  const pvTotalHa      = previewGrouped.reduce((s, g) => s + g.totalHa, 0);
-  const pvTotalPlantas = previewGrouped.reduce((s, g) => s + g.totalPlantas, 0);
-
-  const handleCompartirLote = async () => {
-    if (!docRef.current) return;
-    try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const canvas  = await html2canvas(docRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const pageW   = pdf.internal.pageSize.getWidth();
-      const pageH   = pdf.internal.pageSize.getHeight();
-      const imgH    = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
-      const filename = `Lote-${previewLote?.codigoLote || 'doc'}.pdf`;
-      const blob     = pdf.output('blob');
-      const file     = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.canShare?.({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: filename }); } catch {}
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch {
-      showToast('No se pudo generar el PDF.', 'error');
-    }
-  };
 
   const setBloqueColFilter = (field, filterObj) => {
     const empty = !filterObj ||
@@ -819,114 +763,15 @@ function LoteManagement() {
         </div>
       </div>
 
-      {/* ── Preview modal (PDF / impresión) ── */}
-      {previewLote && createPortal(
-        <div className="gp-preview-backdrop">
-          <div className="gp-preview-toolbar">
-            <button className="aur-chip gp-toolbar-icon-btn" onClick={() => setPreviewLote(null)}>
-              <FiArrowLeft size={15} /> <span className="gp-toolbar-btn-text">Volver</span>
-            </button>
-            <span className="gp-preview-toolbar-title">Lote — {previewLote.codigoLote}</span>
-            <div className="gp-preview-toolbar-actions">
-              <button className="aur-chip gp-toolbar-icon-btn" onClick={handleCompartirLote}>
-                <FiShare2 size={15} /> <span className="gp-toolbar-btn-text">Compartir</span>
-              </button>
-              <button className="aur-chip gp-toolbar-icon-btn" onClick={() => window.print()}>
-                <FiPrinter size={15} /> <span className="gp-toolbar-btn-text">Imprimir</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="gp-doc-wrap">
-            <div className="gp-document" ref={docRef}>
-              <div className="gp-doc-header">
-                <div className="gp-doc-brand">
-                  {empresaConfig.logoUrl
-                    ? <img src={empresaConfig.logoUrl} alt="Logo" className="gp-doc-logo-img" />
-                    : <div className="gp-doc-logo">AU</div>}
-                  <div className="gp-doc-brand-info">
-                    <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
-                    {empresaConfig.identificacion && <div className="gp-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
-                    {empresaConfig.whatsapp       && <div className="gp-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
-                    {empresaConfig.correo         && <div className="gp-doc-brand-sub">{empresaConfig.correo}</div>}
-                    {empresaConfig.direccion      && <div className="gp-doc-brand-sub">{empresaConfig.direccion}</div>}
-                  </div>
-                </div>
-                <div className="gp-doc-date">
-                  Fecha: <strong>{formatDateLong(new Date())}</strong>
-                </div>
-              </div>
-
-              <hr className="gp-doc-divider" />
-
-              <div className="gp-doc-grupo-info">
-                <div className="gp-doc-grupo-title">
-                  LOTE: {previewLote.codigoLote}
-                  {previewLote.nombreLote && previewLote.nombreLote !== previewLote.codigoLote && ` — ${previewLote.nombreLote}`}
-                </div>
-                <div className="gp-doc-grupo-meta">
-                  <span><strong>Fecha de siembra:</strong> {formatDateLong(previewLote.fechaCreacion?._seconds ? new Date(previewLote.fechaCreacion._seconds * 1000) : new Date(previewLote.fechaCreacion))}</span>
-                  {previewLote.hectareas && <span><strong>Hectáreas:</strong> {previewLote.hectareas} ha</span>}
-                  {packages.find(p => p.id === previewLote.paqueteId) && (
-                    <span><strong>Paquete técnico:</strong> {packages.find(p => p.id === previewLote.paqueteId).nombrePaquete}</span>
-                  )}
-                </div>
-              </div>
-
-              <table className="gp-doc-table">
-                <thead>
-                  <tr>
-                    <th>Grupo</th>
-                    <th>Bloque</th>
-                    <th className="gp-col-num">Ha.</th>
-                    <th className="gp-col-num">Plantas</th>
-                    <th>Material</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewGrouped.length === 0 && (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '12px', color: '#999' }}>Sin bloques</td></tr>
-                  )}
-                  {previewGrouped.map(({ grupo, rows, totalHa, totalPlantas }) => (
-                    <Fragment key={grupo}>
-                      {rows.map(b => (
-                        <tr key={b.id}>
-                          <td>{b.grupo}</td>
-                          <td>{b.bloque}</td>
-                          <td className="gp-col-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>
-                          <td className="gp-col-num">{b.plantas?.toLocaleString() ?? '—'}</td>
-                          <td>{b.material || '—'}</td>
-                        </tr>
-                      ))}
-                      <tr className="gp-doc-subtotal-row">
-                        <td className="gp-doc-subtotal-label">{grupo}</td>
-                        <td />
-                        <td className="gp-col-num">{totalHa.toFixed(4)}</td>
-                        <td className="gp-col-num">{totalPlantas.toLocaleString()}</td>
-                        <td />
-                      </tr>
-                    </Fragment>
-                  ))}
-                </tbody>
-                {previewGrouped.length > 0 && (
-                  <tfoot>
-                    <tr>
-                      <td colSpan={2}><strong>Totales</strong></td>
-                      <td className="gp-col-num"><strong>{pvTotalHa.toFixed(4)}</strong></td>
-                      <td className="gp-col-num"><strong>{pvTotalPlantas.toLocaleString()}</strong></td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-
-              <div className="gp-doc-footer">
-                Documento generado por Sistema Aurora
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {previewLote && (
+        <LotePreviewModal
+          lote={previewLote}
+          loteTableRows={loteTableRows}
+          packages={packages}
+          empresaConfig={empresaConfig}
+          onClose={() => setPreviewLote(null)}
+          onShareError={() => showToast('No se pudo generar el PDF.', 'error')}
+        />
       )}
     </div>
   );
