@@ -1,27 +1,16 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiSliders, FiX, FiEye, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiChevronRight, FiLayers, FiX, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
-import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import EmptyState from '../../../components/ui/EmptyState';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
-import LotePreviewModal from '../components/LotePreviewModal';
-import BloqueSortTh from '../components/BloqueSortTh';
-import { formatDate, multiSort } from '../lib/lotes-helpers';
-
-const LOTE_BLOQUE_COLS = [
-  { id: 'grupo',    label: 'Grupo'    },
-  { id: 'bloque',   label: 'Bloque'   },
-  { id: 'ha',       label: 'Ha.',     filterType: 'number' },
-  { id: 'plantas',  label: 'Plantas', filterType: 'number' },
-  { id: 'material', label: 'Material' },
-];
+import LoteHub from '../components/LoteHub';
+import { formatDate } from '../lib/lotes-helpers';
 
 // ── Main Component ────────────────────────────────────────────────────────────
 function LoteManagement() {
@@ -39,13 +28,7 @@ function LoteManagement() {
   const [siembras, setSiembras] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode]   = useState('recent'); // 'recent' | 'oldest' | 'alpha'
-  const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'grupo', dir: 'asc' }]);
-  const [bloqueColFilters, setBloqueColFilters] = useState({});
-  const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
-  const [bloqueHiddenCols, setBloqueHiddenCols] = useState(new Set());
-  const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
   const [empresaConfig, setEmpresaConfig] = useState({});
-  const [previewLote,   setPreviewLote]   = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [loadError,    setLoadError]    = useState(null);
   // Banner persistente post-save. Reemplaza al toast efímero como evidencia
@@ -138,103 +121,6 @@ function LoteManagement() {
     return sorted;
   }, [lotes, searchQuery, sortMode]);
 
-  // ── Table data ────────────────────────────────────────────────────────────
-  const loteTableRows = useMemo(() => {
-    if (!selectedLote || !siembras.length) return [];
-    const loteSiembras = siembras.filter(s => s.loteId === selectedLote.id);
-    if (!loteSiembras.length) return [];
-    const bloqueData = new Map();
-    for (const s of loteSiembras) {
-      const key = s.bloque || 'Sin bloque';
-      if (!bloqueData.has(key)) bloqueData.set(key, { plantas: 0, ha: 0, materiales: new Set() });
-      const d = bloqueData.get(key);
-      d.plantas += s.plantas || 0;
-      d.ha      += parseFloat(s.areaCalculada) || 0;
-      if (s.materialNombre) {
-        const mat = s.materialNombre + (s.variedad ? ` · ${s.variedad}` : '');
-        d.materiales.add(mat);
-      }
-    }
-    const siembraIds     = new Set(loteSiembras.map(s => s.id));
-    const siembraToBloque = new Map(loteSiembras.map(s => [s.id, s.bloque || 'Sin bloque']));
-    const bloqueToGrupo  = new Map();
-    for (const g of grupos) {
-      for (const sid of (g.bloques || [])) {
-        if (siembraIds.has(sid)) {
-          const label = siembraToBloque.get(sid);
-          if (!bloqueToGrupo.has(label)) bloqueToGrupo.set(label, g.nombreGrupo);
-        }
-      }
-    }
-    return [...bloqueData.entries()].map(([bloque, d]) => ({
-      id:       bloque,
-      grupo:    bloqueToGrupo.get(bloque) || 'Sin grupo',
-      bloque,
-      ha:       d.ha,
-      plantas:  d.plantas,
-      material: [...d.materiales].join(' / ') || '',
-    }));
-  }, [selectedLote, siembras, grupos]);
-
-  const loteBloquesFiltered = useMemo(() => {
-    const active = Object.entries(bloqueColFilters).filter(([, f]) => {
-      if (!f) return false;
-      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
-      return !!f.value?.trim();
-    });
-    if (!active.length) return loteTableRows;
-    return loteTableRows.filter(r => {
-      for (const [field, filter] of active) {
-        const cell = r[field];
-        if (filter.type === 'range') {
-          if (cell == null || cell === '') return false;
-          const num = Number(cell);
-          if (!isNaN(num)) {
-            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
-            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
-          }
-        } else {
-          if (cell == null) return false;
-          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
-        }
-      }
-      return true;
-    });
-  }, [loteTableRows, bloqueColFilters]);
-
-  const loteBloqueSorted  = useMemo(() => multiSort(loteBloquesFiltered, bloqueSorts), [loteBloquesFiltered, bloqueSorts]);
-  const filtTotalHa       = loteBloqueSorted.reduce((s, b) => s + (b.ha || 0), 0);
-  const filtTotalPlantas  = loteBloqueSorted.reduce((s, b) => s + (b.plantas || 0), 0);
-
-  const groupedBloques = useMemo(() => {
-    const map = new Map();
-    for (const row of loteBloqueSorted) {
-      if (!map.has(row.grupo)) map.set(row.grupo, []);
-      map.get(row.grupo).push(row);
-    }
-    return [...map.entries()].map(([grupo, rows]) => ({
-      grupo,
-      rows,
-      totalHa:      rows.reduce((s, b) => s + (b.ha || 0), 0),
-      totalPlantas: rows.reduce((s, b) => s + (b.plantas || 0), 0),
-    }));
-  }, [loteBloqueSorted]);
-
-  const setBloqueColFilter = (field, filterObj) => {
-    const empty = !filterObj ||
-      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
-    setBloqueColFilters(prev => empty
-      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
-      : { ...prev, [field]: filterObj }
-    );
-  };
-
-  const handleBloqueColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
-  };
-
   // Cualquier interacción del usuario con la selección consume el deep-link
   // pendiente. Antes, si `lotes` resolvía después de que el usuario eligió
   // algo manualmente, el efecto de deep-link pisaba la elección. Acepta
@@ -310,168 +196,6 @@ function LoteManagement() {
     } finally {
       setDeleting(false);
     }
-  };
-
-  // ── Hub panel ─────────────────────────────────────────────────────────────
-  const pkg = selectedLote ? packages.find(p => p.id === selectedLote.paqueteId) : null;
-
-  // Bundle de props compartidas para BloqueSortTh — todas las 5 columnas
-  // necesitan acceso al mismo state de sort + filter + popover. Spread en
-  // cada callsite mantiene los <th> legibles sin sacrificar el contrato
-  // explícito del componente.
-  const sortThProps = {
-    sorts: bloqueSorts,
-    setSorts: setBloqueSorts,
-    colFilters: bloqueColFilters,
-    filterPop: bloqueFilterPop,
-    setFilterPop: setBloqueFilterPop,
-  };
-
-  const renderRightPanel = () => {
-    if (!selectedLote) {
-      return null;
-    }
-
-    return (
-      <div className="lote-hub">
-        <button className="lote-hub-back" onClick={() => handleSelectLote(null)}>
-          <FiArrowLeft size={13} /> Todos los lotes
-        </button>
-        <div className="hub-header">
-          <div className="hub-title-block">
-            <h2 className="hub-lote-code">{selectedLote.codigoLote}</h2>
-            {selectedLote.nombreLote && selectedLote.nombreLote !== selectedLote.codigoLote && (
-              <span className="hub-lote-name">{selectedLote.nombreLote}</span>
-            )}
-          </div>
-          <div className="hub-header-actions">
-            <button onClick={() => setPreviewLote(selectedLote)} className="aur-icon-btn" title="Vista previa / PDF">
-              <FiEye size={16} />
-            </button>
-            <button onClick={() => handleEdit(selectedLote)} className="aur-icon-btn" title="Editar lote">
-              <FiEdit size={16} />
-            </button>
-            <button onClick={() => handleDeleteClick(selectedLote)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar lote">
-              <FiTrash2 size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="hub-info-pills">
-          <span className="aur-badge">
-            <FiCalendar size={13} />
-            Siembra: {formatDate(selectedLote.fechaCreacion)}
-          </span>
-          {selectedLote.hectareas && (
-            <span className="aur-badge aur-badge--green">
-              <FiLayers size={13} />
-              {selectedLote.hectareas} ha
-            </span>
-          )}
-          {pkg && (
-            <button
-              type="button"
-              className={`aur-badge aur-badge--blue lote-paquete-pill${pkg.archivedAt ? ' aur-badge--archived' : ''}`}
-              title={pkg.archivedAt
-                ? 'El paquete técnico asignado a este lote está archivado. Clic para reasignar.'
-                : 'Clic para cambiar el paquete técnico.'}
-              onClick={() => handleEdit(selectedLote, 'paquete')}
-            >
-              <FiPackage size={13} />
-              {pkg.nombrePaquete}
-              {pkg.archivedAt && <span className="aur-badge-archived-tag">archivado</span>}
-            </button>
-          )}
-          {!selectedLote.paqueteId && (
-            <button
-              type="button"
-              className="aur-badge lote-paquete-pill"
-              title="Clic para asignar un paquete técnico a este lote."
-              onClick={() => handleEdit(selectedLote, 'paquete')}
-            >
-              <FiPackage size={13} /> Asignar paquete técnico
-            </button>
-          )}
-        </div>
-
-        <div className="grupo-hub-bloques-header">
-          <p className="grupo-hub-bloques-title">Bloques</p>
-          {Object.values(bloqueColFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
-            <button className="aur-btn-text" onClick={() => setBloqueColFilters({})}>
-              <FiX size={11} /> Limpiar filtros
-            </button>
-          )}
-        </div>
-        {loteTableRows.length === 0 ? (
-          <EmptyState
-            variant="compact"
-            icon={FiLayers}
-            title="No hay registros de siembra para este lote"
-            subtitle="Cuando registres una siembra para este lote aparecerán aquí los bloques sembrados."
-          />
-        ) : (
-          <div className="aur-table-wrap">
-            <table className="aur-table grupo-hub-table">
-              <thead>
-                <tr>
-                  {!bloqueHiddenCols.has('grupo')    && <BloqueSortTh {...sortThProps} field="grupo">Grupo</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('bloque')   && <BloqueSortTh {...sortThProps} field="bloque">Bloque</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('ha')       && <BloqueSortTh {...sortThProps} field="ha" filterType="number">Ha.</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('plantas')  && <BloqueSortTh {...sortThProps} field="plantas" filterType="number">Plantas</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('material') && <BloqueSortTh {...sortThProps} field="material">Material</BloqueSortTh>}
-                  <th className="aur-th-col-menu">
-                    <button
-                      className={`aur-col-menu-trigger${bloqueHiddenCols.size > 0 ? ' is-active' : ''}`}
-                      onClick={handleBloqueColBtnClick}
-                      title="Personalizar columnas visibles"
-                    >
-                      <FiSliders size={12} />
-                      {bloqueHiddenCols.size > 0 && <span className="aur-col-hidden-badge">{bloqueHiddenCols.size}</span>}
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedBloques.map(({ grupo, rows, totalHa, totalPlantas }) => (
-                  <Fragment key={grupo}>
-                    {rows.map(b => (
-                      <tr key={b.id}>
-                        {!bloqueHiddenCols.has('grupo')    && <td>{b.grupo}</td>}
-                        {!bloqueHiddenCols.has('bloque')   && <td>{b.bloque}</td>}
-                        {!bloqueHiddenCols.has('ha')       && <td className="aur-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
-                        {!bloqueHiddenCols.has('plantas')  && <td className="aur-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
-                        {!bloqueHiddenCols.has('material') && <td>{b.material || '—'}</td>}
-                        <td />
-                      </tr>
-                    ))}
-                    <tr className="lote-subtotal-row">
-                      {!bloqueHiddenCols.has('grupo')    && <td className="lote-subtotal-label">{grupo}</td>}
-                      {!bloqueHiddenCols.has('bloque')   && <td />}
-                      {!bloqueHiddenCols.has('ha')       && <td className="aur-td-num">{totalHa.toFixed(4)}</td>}
-                      {!bloqueHiddenCols.has('plantas')  && <td className="aur-td-num">{totalPlantas.toLocaleString()}</td>}
-                      {!bloqueHiddenCols.has('material') && <td />}
-                      <td />
-                    </tr>
-                  </Fragment>
-                ))}
-              </tbody>
-              {loteBloqueSorted.length > 0 && (
-                <tfoot>
-                  <tr>
-                    {!bloqueHiddenCols.has('grupo')    && <td><strong>Totales</strong></td>}
-                    {!bloqueHiddenCols.has('bloque')   && <td />}
-                    {!bloqueHiddenCols.has('ha')       && <td className="aur-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
-                    {!bloqueHiddenCols.has('plantas')  && <td className="aur-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
-                    {!bloqueHiddenCols.has('material') && <td />}
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-      </div>
-    );
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -613,64 +337,22 @@ function LoteManagement() {
          de acciones. Equivalente al rule legacy en .lote-page-header. */}
 
       <div className="lote-management-layout">
-        {/* ── Left: form or hub ── */}
-        {renderRightPanel()}
+        {/* ── Left: hub del lote seleccionado ── */}
+        {selectedLote && (
+          <LoteHub
+            lote={selectedLote}
+            siembras={siembras}
+            grupos={grupos}
+            packages={packages}
+            empresaConfig={empresaConfig}
+            onBack={() => handleSelectLote(null)}
+            onEdit={handleEdit}
+            onDelete={handleDeleteClick}
+            onPreviewError={() => showToast('No se pudo generar el PDF.', 'error')}
+          />
+        )}
 
         {/* ── Right: lote list ── */}
-        {bloqueFilterPop && (
-          bloqueFilterPop.filterType !== 'text' ? (
-            <AuroraFilterPopover
-              x={bloqueFilterPop.x}
-              y={bloqueFilterPop.y}
-              filterType="number"
-              fromValue={bloqueColFilters[bloqueFilterPop.field]?.from || ''}
-              toValue={bloqueColFilters[bloqueFilterPop.field]?.to || ''}
-              onFromChange={(from) => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from, to: bloqueColFilters[bloqueFilterPop.field]?.to || '' })}
-              onToChange={(to) => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from: bloqueColFilters[bloqueFilterPop.field]?.from || '', to })}
-              onClear={() => setBloqueColFilter(bloqueFilterPop.field, null)}
-              onClose={() => setBloqueFilterPop(null)}
-            />
-          ) : (
-            <AuroraFilterPopover
-              x={bloqueFilterPop.x}
-              y={bloqueFilterPop.y}
-              filterType="text"
-              textValue={bloqueColFilters[bloqueFilterPop.field]?.value || ''}
-              onTextChange={(value) => setBloqueColFilter(bloqueFilterPop.field, { type: 'text', value })}
-              onClear={() => setBloqueColFilter(bloqueFilterPop.field, null)}
-              onClose={() => setBloqueFilterPop(null)}
-            />
-          )
-        )}
-      {bloqueColMenu && createPortal(
-        <>
-          <div className="aur-filter-backdrop" onClick={() => setBloqueColMenu(null)} />
-          <div className="aur-col-menu" style={{ left: bloqueColMenu.x, top: bloqueColMenu.y }}>
-            <div className="aur-col-menu-title">Columnas visibles</div>
-            {LOTE_BLOQUE_COLS.map(col => (
-              <label key={col.id} className="aur-col-menu-item">
-                <input
-                  type="checkbox"
-                  checked={!bloqueHiddenCols.has(col.id)}
-                  onChange={() => setBloqueHiddenCols(prev => {
-                    const next = new Set(prev);
-                    next.has(col.id) ? next.delete(col.id) : next.add(col.id);
-                    return next;
-                  })}
-                />
-                <span>{col.label}</span>
-              </label>
-            ))}
-            {bloqueHiddenCols.size > 0 && (
-              <button className="aur-col-menu-reset" onClick={() => { setBloqueHiddenCols(new Set()); setBloqueColMenu(null); }}>
-                Mostrar todas
-              </button>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
-
       <div className="lote-list-panel">
 
           {lotes.length > 0 && (
@@ -763,16 +445,6 @@ function LoteManagement() {
         </div>
       </div>
 
-      {previewLote && (
-        <LotePreviewModal
-          lote={previewLote}
-          loteTableRows={loteTableRows}
-          packages={packages}
-          empresaConfig={empresaConfig}
-          onClose={() => setPreviewLote(null)}
-          onShareError={() => showToast('No se pudo generar el PDF.', 'error')}
-        />
-      )}
     </div>
   );
 }
