@@ -1406,7 +1406,11 @@ html[data-theme="light"] .aur-modal-actions {
   height: 18px;
   border-radius: 999px;
   cursor: pointer;
-  opacity: 0;
+  /* Siempre visible a baja opacidad. Espeja el patrón de .aur-th-arrow (que
+     también arranca en 0.4): el affordance de "esta columna se filtra" no
+     debería depender de hover, donde un usuario nuevo no descubre que
+     existe el control. */
+  opacity: 0.4;
   color: var(--aur-text-3);
   background: transparent;
   border: 0;
@@ -1415,7 +1419,7 @@ html[data-theme="light"] .aur-modal-actions {
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .aur-th-sortable:hover .aur-th-funnel {
-  opacity: 0.55;
+  opacity: 0.8;
 }
 .aur-th-funnel:hover {
   opacity: 1 !important;
@@ -1427,9 +1431,8 @@ html[data-theme="light"] .aur-modal-actions {
   color: var(--aur-accent);
   background: var(--aur-accent-tint);
 }
-/* Dispositivos sin hover (táctil): el embudo se queda siempre visible para
-   que el filtro por columna sea accionable sin depender de :hover, que en
-   móvil solo dispara tras el primer tap (a veces accidental). */
+/* En dispositivos sin hover (táctil) elevamos un poco la opacidad base
+   porque no hay un step intermedio de :hover que ayude a notar el control. */
 @media (hover: none) {
   .aur-th-funnel { opacity: 0.55; }
 }
