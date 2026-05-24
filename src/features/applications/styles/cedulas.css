@@ -522,6 +522,23 @@
   border-top: 1px solid #eee;
 }
 
+/* ── UserCombo (Operario, Encargados, Sup. aplicaciones en AplicadaModal) ── */
+/* .aur-combo es display:inline-block por default — necesitamos full width
+   en las filas de AplicadaModal para que el dropdown se alinee bien y el
+   input no quede a la izquierda como si fuera un search compacto. */
+.ucm-row {
+  display: block;
+  width: 100%;
+}
+.ucm-picked {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--aurora-green);
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
 /* ── Modal Nueva Cédula ──────────────────────────────────────────────────── */
 .nca-modal {
   max-width: 760px;
