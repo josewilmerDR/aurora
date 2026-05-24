@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPlusCircle, FiSearch, FiX } from 'react-icons/fi';
+ import { FiPlusCircle, FiSearch, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -167,10 +167,10 @@ function CedulasAplicacion() {
     const params = new URLSearchParams(location.search);
     const openId = params.get('open');
     if (openId) {
-      const task = tasks.find(t => t.id === openId);
+      const task = tasksById.get(openId);
       if (task) { openedViaUrlRef.current = true; setPreviewTask(task); }
     }
-  }, [tasks, location.search]);
+  }, [tasks, tasksById, location.search]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const aplicacionTasks = useMemo(() =>
@@ -196,6 +196,22 @@ function CedulasAplicacion() {
     }
     return map;
   }, [cedulas]);
+
+  // ── Índices id → entidad para reemplazar .find() O(N) por .get() O(1) ─────
+  // El listing + el preview ejecutan muchos lookups por render (≈ 50 cédulas
+  // × 5 productos = 250 .find() solo para periodoReingreso/ACosecha). En
+  // mobile con CPU lenta cada keystroke en un modal hijo dispara re-render
+  // del orquestador y se siente. Patrón: mismo Map<id, entity> que
+  // packagesById en PackageManagement (punto 18 de su audit).
+  const productosById     = useMemo(() => new Map((productos     || []).map(p => [p.id, p])), [productos]);
+  const lotesById         = useMemo(() => new Map((lotes         || []).map(l => [l.id, l])), [lotes]);
+  const gruposById        = useMemo(() => new Map((grupos        || []).map(g => [g.id, g])), [grupos]);
+  const packagesById      = useMemo(() => new Map((packages      || []).map(p => [p.id, p])), [packages]);
+  const siembrasById      = useMemo(() => new Map((siembras      || []).map(s => [s.id, s])), [siembras]);
+  const calibracionesById = useMemo(() => new Map((calibraciones || []).map(c => [c.id, c])), [calibraciones]);
+  const maquinariaById    = useMemo(() => new Map((maquinaria    || []).map(m => [m.id, m])), [maquinaria]);
+  const tasksById         = useMemo(() => new Map((tasks         || []).map(t => [t.id, t])), [tasks]);
+  const cedulasById       = useMemo(() => new Map((cedulas       || []).map(c => [c.id, c])), [cedulas]);
 
   const visibleTasks = useMemo(() => {
     // Filtrado por rango de fechas (opcional)
@@ -237,25 +253,25 @@ function CedulasAplicacion() {
   }, [aplicacionTasks, dateFrom, dateTo, searchQuery, cedulasByTaskId]);
 
   const getSource = (task) => {
-    if (task.loteId)  return lotes.find(l => l.id === task.loteId)   || null;
-    if (task.grupoId) return grupos.find(g => g.id === task.grupoId) || null;
+    if (task.loteId)  return lotesById.get(task.loteId)   || null;
+    if (task.grupoId) return gruposById.get(task.grupoId) || null;
     return null;
   };
 
   const getPackageName = (paqueteId) =>
-    packages.find(p => p.id === paqueteId)?.nombrePaquete || null;
+    packagesById.get(paqueteId)?.nombrePaquete || null;
 
   const getProductoCatalog = (productoId) =>
-    productos.find(p => p.id === productoId) || null;
+    productosById.get(productoId) || null;
 
   // ── Computed preview data ─────────────────────────────────────────────────
   // The specific cedula shown in the preview (set on "Ver Cédula" click)
-  const previewCedula = previewCedulaId ? (cedulas.find(c => c.id === previewCedulaId) || null) : null;
+  const previewCedula = previewCedulaId ? (cedulasById.get(previewCedulaId) || null) : null;
   const activeCedula = previewCedula || (previewTask ? (cedulasByTaskId[previewTask.id]?.[0] || null) : null);
 
   const previewSource = previewTask ? getSource(previewTask) : null;
   const previewPkg = previewSource?.paqueteId
-    ? (packages.find(p => p.id === previewSource.paqueteId) || null)
+    ? (packagesById.get(previewSource.paqueteId) || null)
     : null;
   const previewPackageName = previewPkg?.nombrePaquete || null;
   const previewTecnicoResponsable = previewTask?.isDraft
@@ -277,16 +293,16 @@ function CedulasAplicacion() {
     // For split cedulas: use only this lote's blocks
     if (previewCedula?.splitBloqueIds?.length > 0) {
       return previewCedula.splitBloqueIds
-        .map(id => siembras.find(s => s.id === id))
+        .map(id => siembrasById.get(id))
         .filter(Boolean);
     }
     // For manual cedulas, use task-level bloques (subset); otherwise use source bloques
     const bloqueIds = previewTask?.bloques || previewSource?.bloques;
     if (!bloqueIds) return [];
     return bloqueIds
-      .map(id => siembras.find(s => s.id === id))
+      .map(id => siembrasById.get(id))
       .filter(Boolean);
-  }, [previewSource, siembras, previewCedula, previewTask, cedulas]);
+  }, [previewSource, siembrasById, previewCedula, previewTask]);
 
   const pvTotalHa = previewBloques.reduce(
     (s, b) => s + (parseFloat(b.areaCalculada) || 0), 0
@@ -299,7 +315,7 @@ function CedulasAplicacion() {
       // 2. fallback: buscar la actividad equivalente en el paquete actual
       || (() => {
         if (!previewSource?.paqueteId || !previewTask) return null;
-        const pkg = packages.find(p => p.id === previewSource.paqueteId);
+        const pkg = packagesById.get(previewSource.paqueteId);
         if (!pkg) return null;
         const actName = previewTask.activityName || previewTask.activity?.name;
         const actDay  = previewTask.activity?.day;
@@ -308,13 +324,13 @@ function CedulasAplicacion() {
         );
         return pkgAct?.calibracionId || null;
       })();
-    return calId ? (calibraciones.find(c => c.id === calId) || null) : null;
+    return calId ? (calibracionesById.get(calId) || null) : null;
   })();
   const previewCalAplicador = previewCal?.aplicadorId
-    ? (maquinaria.find(m => m.id === previewCal.aplicadorId) || null)
+    ? (maquinariaById.get(previewCal.aplicadorId) || null)
     : null;
   const previewCalTractor = previewCal?.tractorId
-    ? (maquinaria.find(m => m.id === previewCal.tractorId) || null)
+    ? (maquinariaById.get(previewCal.tractorId) || null)
     : null;
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -454,10 +470,10 @@ function CedulasAplicacion() {
   };
 
   const handleAplicada = (cedulaId) => {
-    const cedula = cedulas.find(c => c.id === cedulaId);
-    const task   = tasks.find(t => t.id === cedula?.taskId);
+    const cedula = cedulasById.get(cedulaId);
+    const task   = tasksById.get(cedula?.taskId);
     const source = task ? getSource(task) : null;
-    const pkg    = source?.paqueteId ? packages.find(p => p.id === source.paqueteId) : null;
+    const pkg    = source?.paqueteId ? packagesById.get(source.paqueteId) : null;
     // Resolver calibracionId: desde la tarea o desde la actividad del paquete
     let calId = task?.activity?.calibracionId;
     if (!calId && pkg) {
@@ -468,7 +484,7 @@ function CedulasAplicacion() {
       );
       calId = pkgAct?.calibracionId || null;
     }
-    const cal = calId ? calibraciones.find(c => c.id === calId) : null;
+    const cal = calId ? calibracionesById.get(calId) : null;
     setAplicadaModal({
       cedulaId,
       metodoAplicacion: cal?.metodo           || '',
@@ -488,7 +504,7 @@ function CedulasAplicacion() {
         body: JSON.stringify(data),
       });
       if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al registrar la aplicación.'); return; }
-      const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
+      const taskId = cedulasById.get(cedulaId)?.taskId;
       setCedulas(prev => prev.map(c =>
         c.id === cedulaId ? { ...c, status: 'aplicada_en_campo', aplicadaAt: new Date().toISOString(), ...data } : c
       ));
@@ -502,7 +518,7 @@ function CedulasAplicacion() {
   };
 
   const handleAnular = (cedulaId) => {
-    const cedula = cedulas.find(c => c.id === cedulaId);
+    const cedula = cedulasById.get(cedulaId);
     const body = cedula?.status === 'en_transito'
       ? '¿Anular esta cédula? La mezcla ya fue preparada — el inventario será restaurado automáticamente.'
       : '¿Anular esta cédula? La tarea asociada quedará como omitida.';
@@ -517,7 +533,7 @@ function CedulasAplicacion() {
         try {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
           if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al anular la cédula.'); return; }
-          const taskId = cedulas.find(c => c.id === cedulaId)?.taskId;
+          const taskId = cedulasById.get(cedulaId)?.taskId;
           // Marcar como anulada en lugar de eliminar para mantener consistencia con el backend
           setCedulas(prev => prev.map(c => c.id === cedulaId ? { ...c, status: 'anulada' } : c));
           if (taskId) {
@@ -567,7 +583,7 @@ function CedulasAplicacion() {
   };
 
   const handlePreviewDraft = (formData) => {
-    const lote = lotes.find(l => l.id === formData.loteId) || null;
+    const lote = lotesById.get(formData.loteId) || null;
     const draftTask = {
       id: 'draft',
       isDraft: true,
@@ -846,8 +862,8 @@ function CedulasAplicacion() {
       )}
       {/* ── Mezcla Lista Modal ── */}
       {mezclaModal && (() => {
-        const cedula = cedulas.find(c => c.id === mezclaModal.cedulaId);
-        const task   = cedula ? tasks.find(t => t.id === cedula.taskId) : null;
+        const cedula = cedulasById.get(mezclaModal.cedulaId);
+        const task   = cedula ? tasksById.get(cedula.taskId) : null;
         if (!cedula) return null;
         return (
           <MezclaListaModal
@@ -875,8 +891,8 @@ function CedulasAplicacion() {
 
       {/* ── Editar Productos Modal ── */}
       {editModal && (() => {
-        const cedula = cedulas.find(c => c.id === editModal.cedulaId);
-        const task   = cedula ? tasks.find(t => t.id === cedula.taskId) : null;
+        const cedula = cedulasById.get(editModal.cedulaId);
+        const task   = cedula ? tasksById.get(cedula.taskId) : null;
         if (!cedula) return null;
         return (
           <MezclaListaModal
