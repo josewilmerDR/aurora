@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'rea
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
@@ -11,6 +11,7 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
+import BloqueSortTh from '../components/BloqueSortTh';
 import { formatDate, formatDateLong, multiSort } from '../lib/lotes-helpers';
 
 const LOTE_BLOQUE_COLS = [
@@ -362,44 +363,20 @@ function LoteManagement() {
     }
   };
 
-  // ── BloqueSortTh ──────────────────────────────────────────────────────────
-  const BloqueSortTh = ({ field, children, filterType = 'text' }) => {
-    const active    = bloqueSorts[0].field === field;
-    const dir       = active ? bloqueSorts[0].dir : null;
-    const f         = bloqueColFilters[field];
-    const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
-    return (
-      <th
-        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
-        onClick={() => setBloqueSorts(prev => {
-          const next = [...prev];
-          next[0] = next[0].field === field ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' };
-          return next;
-        })}
-      >
-        <span className="aur-th-content">
-          {children}
-          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-          <span
-            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
-            title="Filtrar columna"
-            onClick={e => {
-              e.stopPropagation();
-              if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
-              const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-              const rect = th.getBoundingClientRect();
-              setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
-            }}
-          >
-            <FiFilter size={10} />
-          </span>
-        </span>
-      </th>
-    );
-  };
-
   // ── Hub panel ─────────────────────────────────────────────────────────────
   const pkg = selectedLote ? packages.find(p => p.id === selectedLote.paqueteId) : null;
+
+  // Bundle de props compartidas para BloqueSortTh — todas las 5 columnas
+  // necesitan acceso al mismo state de sort + filter + popover. Spread en
+  // cada callsite mantiene los <th> legibles sin sacrificar el contrato
+  // explícito del componente.
+  const sortThProps = {
+    sorts: bloqueSorts,
+    setSorts: setBloqueSorts,
+    colFilters: bloqueColFilters,
+    filterPop: bloqueFilterPop,
+    setFilterPop: setBloqueFilterPop,
+  };
 
   const renderRightPanel = () => {
     if (!selectedLote) {
@@ -488,11 +465,11 @@ function LoteManagement() {
             <table className="aur-table grupo-hub-table">
               <thead>
                 <tr>
-                  {!bloqueHiddenCols.has('grupo')    && <BloqueSortTh field="grupo">Grupo</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('bloque')   && <BloqueSortTh field="bloque">Bloque</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('ha')       && <BloqueSortTh field="ha" filterType="number">Ha.</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('plantas')  && <BloqueSortTh field="plantas" filterType="number">Plantas</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('material') && <BloqueSortTh field="material">Material</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('grupo')    && <BloqueSortTh {...sortThProps} field="grupo">Grupo</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('bloque')   && <BloqueSortTh {...sortThProps} field="bloque">Bloque</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('ha')       && <BloqueSortTh {...sortThProps} field="ha" filterType="number">Ha.</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('plantas')  && <BloqueSortTh {...sortThProps} field="plantas" filterType="number">Plantas</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('material') && <BloqueSortTh {...sortThProps} field="material">Material</BloqueSortTh>}
                   <th className="aur-th-col-menu">
                     <button
                       className={`aur-col-menu-trigger${bloqueHiddenCols.size > 0 ? ' is-active' : ''}`}
