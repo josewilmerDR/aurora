@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiPlusCircle, FiEdit, FiAlertTriangle, FiClock } from 'react-icons/fi';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import { formatDateForInput } from '../lib/lotes-helpers';
 
 const DRAFT_KEY = 'lote-nuevo';
 
@@ -23,16 +24,6 @@ const isFormMeaningful = (form) => {
   if ((form.fechaCreacion || '').trim()) return true;
   if ((form.paqueteId || '').trim()) return true;
   return false;
-};
-
-// El backend devuelve fechas como Firestore Timestamp `{_seconds, _nanoseconds}`.
-// Para prellenar <input type="date"> necesitamos YYYY-MM-DD en zona local.
-const formatDateForInput = (timestamp) => {
-  if (!timestamp) return '';
-  const ms = timestamp._seconds ? timestamp._seconds * 1000 : timestamp;
-  const date = new Date(ms);
-  date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-  return date.toISOString().split('T')[0];
 };
 
 function LoteFormModal({

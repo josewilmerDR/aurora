@@ -11,31 +11,8 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
+import { formatDate, formatDateLong, multiSort } from '../lib/lotes-helpers';
 
-// ── Module helpers ───────────────────────────────────────────────────────────
-const formatDateLong = (date) => {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
-};
-
-// ── Table helpers ─────────────────────────────────────────────────────────────
-function compare(a, b, field) {
-  const av = a[field] ?? '';
-  const bv = b[field] ?? '';
-  if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-  return String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
-}
-function multiSort(records, sorts) {
-  const active = sorts.filter(s => s.field);
-  if (!active.length) return [...records];
-  return [...records].sort((a, b) => {
-    for (const s of active) {
-      const r = compare(a, b, s.field);
-      if (r !== 0) return s.dir === 'desc' ? -r : r;
-    }
-    return 0;
-  });
-}
 const LOTE_BLOQUE_COLS = [
   { id: 'grupo',    label: 'Grupo'    },
   { id: 'bloque',   label: 'Bloque'   },
@@ -311,13 +288,6 @@ function LoteManagement() {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
     setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
-  };
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '—';
-    const d = timestamp._seconds ? new Date(timestamp._seconds * 1000) : new Date(timestamp);
-    return d.toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   const handleSelectLote = (lote) => {
