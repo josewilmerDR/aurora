@@ -60,9 +60,13 @@ export default function CedulaSplitCard({
           </p>
         </div>
         <div className="ca-cedula-status">
-          <span className={`aur-badge ${overdue ? 'aur-badge--magenta' : 'aur-badge--yellow'}`}>
-            {overdue ? 'Vencida' : 'Pendiente'}
-          </span>
+          {/* En split no mostramos badge de estado a nivel task: cada
+              sub-row pinta el estado real de su cédula. Antes era una
+              "Pendiente" conflada con "Vencida" en el mismo slot, que
+              fingía hablar del task pero competía visualmente con los
+              badges de las sub-rows. Vencida queda como pill paralelo.
+              Punto #14 audit. */}
+          {overdue && <span className="aur-badge aur-badge--magenta">Vencida</span>}
           <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
         </div>
       </div>

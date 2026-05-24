@@ -56,12 +56,22 @@ export default function CedulaCard({
           </p>
         </div>
         <div className="ca-cedula-status">
-          <span className={`aur-badge ${overdue ? 'aur-badge--magenta' : 'aur-badge--yellow'}`}>
-            {overdue ? 'Vencida' : 'Pendiente'}
-          </span>
+          {/* Un solo badge de estado: cédula si existe (fuente de verdad
+              de la ejecución), tarea si todavía no se generó. Antes
+              mostrábamos ambos: en pendiente+pendiente repetía el badge
+              amarillo, y en pendiente+en_transito dejaba al usuario
+              adivinando cuál mandaba. Vencida queda como pill paralelo,
+              no sustituye al estado. Punto #14 audit. */}
+          {cedula
+            ? (cedula.status === 'en_transito'
+                ? <span className="aur-badge aur-badge--blue">En Tránsito</span>
+                : cedula.status === 'aplicada_en_campo'
+                  ? <span className="aur-badge aur-badge--green">Aplicada</span>
+                  : <span className="aur-badge aur-badge--yellow">Pendiente</span>)
+            : <span className="aur-badge aur-badge--yellow">Pendiente</span>
+          }
+          {overdue && <span className="aur-badge aur-badge--magenta">Vencida</span>}
           <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
-          {cedula?.status === 'pendiente' && <span className="aur-badge aur-badge--yellow">Pendiente</span>}
-          {cedula?.status === 'en_transito' && <span className="aur-badge aur-badge--blue">En Tránsito</span>}
         </div>
       </div>
 
