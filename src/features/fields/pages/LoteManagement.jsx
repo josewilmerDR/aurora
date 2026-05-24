@@ -639,8 +639,10 @@ function LoteManagement() {
               <span className="lote-bubble-label">{lote.codigoLote}</span>
             </button>
           ))}
-          <button className="lote-bubble lote-bubble--add" onClick={handleNewLote}>
-            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+          <button className="lote-bubble lote-bubble--add" onClick={handleNewLote} aria-label="Crear nuevo lote">
+            <span className="lote-bubble-avatar lote-bubble-avatar--add" aria-hidden="true">
+              <FiPlus size={22} />
+            </span>
             <span className="lote-bubble-label">Nuevo</span>
           </button>
         </div>
