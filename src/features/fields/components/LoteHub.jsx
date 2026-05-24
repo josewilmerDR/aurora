@@ -108,7 +108,7 @@ export default function LoteHub({
           <FiCalendar size={13} />
           Siembra: {formatDate(lote.fechaCreacion)}
         </span>
-        {lote.hectareas && (
+        {lote.hectareas > 0 && (
           <span className="aur-badge aur-badge--green">
             <FiLayers size={13} />
             {lote.hectareas} ha
