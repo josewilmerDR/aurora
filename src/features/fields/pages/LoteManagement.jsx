@@ -454,17 +454,28 @@ function LoteManagement() {
             </span>
           )}
           {pkg && (
-            <span
-              className={`aur-badge aur-badge--blue${pkg.archivedAt ? ' aur-badge--archived' : ''}`}
-              title={pkg.archivedAt ? 'El paquete técnico asignado a este lote está archivado.' : undefined}
+            <button
+              type="button"
+              className={`aur-badge aur-badge--blue lote-paquete-pill${pkg.archivedAt ? ' aur-badge--archived' : ''}`}
+              title={pkg.archivedAt
+                ? 'El paquete técnico asignado a este lote está archivado. Clic para reasignar.'
+                : 'Clic para cambiar el paquete técnico.'}
+              onClick={() => setModalState({ mode: 'edit', lote: selectedLote, focus: 'paquete' })}
             >
               <FiPackage size={13} />
               {pkg.nombrePaquete}
               {pkg.archivedAt && <span className="aur-badge-archived-tag">archivado</span>}
-            </span>
+            </button>
           )}
           {!selectedLote.paqueteId && (
-            <span className="aur-badge">Sin paquete técnico</span>
+            <button
+              type="button"
+              className="aur-badge lote-paquete-pill"
+              title="Clic para asignar un paquete técnico a este lote."
+              onClick={() => setModalState({ mode: 'edit', lote: selectedLote, focus: 'paquete' })}
+            >
+              <FiPackage size={13} /> Asignar paquete técnico
+            </button>
           )}
         </div>
 
@@ -556,6 +567,8 @@ function LoteManagement() {
         <LoteFormModal
           mode={modalState.mode}
           loteToEdit={modalState.lote}
+          packages={packages}
+          initialFocusField={modalState.focus || 'codigo'}
           apiFetch={apiFetch}
           onSuccess={handleModalSuccess}
           onClose={() => setModalState(null)}

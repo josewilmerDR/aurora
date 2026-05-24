@@ -3,6 +3,24 @@
    `src/styles/legacy-globals.css` (cargado globalmente desde main.jsx).
    GrupoManagement.css ya no necesita `@import` de este archivo. */
 
+/* ── Badge clickeable para asignar/cambiar paquete técnico ────────────────── */
+/* Las 3 variantes del badge de paquete (activo / archivado / "Asignar")
+   ahora son <button> clickeables que abren el modal de edición enfocando
+   el select de paquete. Las clases .aur-badge* aplican igual a button —
+   acá solo agregamos cursor + override de chrome nativo + hover sutil. */
+.lote-paquete-pill {
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  transition: filter 0.15s, transform 0.05s;
+}
+.lote-paquete-pill:hover { filter: brightness(1.15); }
+.lote-paquete-pill:active { transform: scale(0.98); }
+.lote-paquete-pill:focus-visible {
+  outline: 2px solid var(--aurora-green);
+  outline-offset: 1px;
+}
+
 /* ── Header en mobile cuando hay lote seleccionado ────────────────────────── */
 /* Tras migrar a <PageHeader>, el header de la página se renderiza como
    `.aur-sheet-header`. La regla legacy `.lote-page--selected .lote-page-header`

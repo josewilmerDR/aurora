@@ -13,6 +13,7 @@ const makeInitialForm = () => ({
   codigoLote: '',
   nombreLote: '',
   fechaCreacion: '',
+  paqueteId: '',
 });
 
 const isFormMeaningful = (form) => {
@@ -20,6 +21,7 @@ const isFormMeaningful = (form) => {
   if ((form.codigoLote || '').trim()) return true;
   if ((form.nombreLote || '').trim()) return true;
   if ((form.fechaCreacion || '').trim()) return true;
+  if ((form.paqueteId || '').trim()) return true;
   return false;
 };
 
@@ -33,7 +35,15 @@ const formatDateForInput = (timestamp) => {
   return date.toISOString().split('T')[0];
 };
 
-function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
+function LoteFormModal({
+  mode,
+  loteToEdit,
+  apiFetch,
+  onSuccess,
+  onClose,
+  packages = [],
+  initialFocusField = 'codigo',
+}) {
   const isEditing = mode === 'edit';
 
   // En crear usamos useDraft (localStorage, sobrevive cierre de pestaña).
@@ -44,6 +54,7 @@ function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
     codigoLote: loteToEdit.codigoLote || '',
     nombreLote: loteToEdit.nombreLote || '',
     fechaCreacion: formatDateForInput(loteToEdit.fechaCreacion),
+    paqueteId: loteToEdit.paqueteId || '',
   } : makeInitialForm());
 
   const form = isEditing ? editForm : draftForm;
@@ -116,7 +127,14 @@ function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
     try {
       const url = isEditing ? `/api/lotes/${loteToEdit.id}` : '/api/lotes';
       const method = isEditing ? 'PUT' : 'POST';
-      const payload = { codigoLote, nombreLote, fechaCreacion };
+      // paqueteId va siempre — incluso null cuando el usuario eligió
+      // "Sin paquete técnico". Antes el form omitía el campo y el backend,
+      // al hacer pick(), recibía undefined → lo trataba como "cambió a
+      // null" → borraba todas las scheduled_tasks del lote (incluidas las
+      // completed e históricas) cada vez que se editaba nombreLote o
+      // codigoLote en un lote-con-paquete. Enviar siempre el valor real
+      // del form elimina ese falso "changed" en el backend.
+      const payload = { codigoLote, nombreLote, fechaCreacion, paqueteId: form.paqueteId || null };
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -144,6 +162,26 @@ function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
     : '';
   const nombreWarning = form.nombreLote.length >= MAX_NOMBRE_LEN
     ? `Máximo ${MAX_NOMBRE_LEN} caracteres alcanzado.`
+    : '';
+
+  // Opciones del select: activos + (si editando con un paquete archivado
+  // seleccionado) ese archivado al final con sufijo, para que el usuario
+  // pueda verlo y reasignar a uno activo sin perder visibilidad.
+  const activePackages = packages.filter(p => !p.archivedAt);
+  const currentPkg = isEditing && loteToEdit?.paqueteId
+    ? packages.find(p => p.id === loteToEdit.paqueteId)
+    : null;
+  const showArchivedOption = currentPkg?.archivedAt && !activePackages.some(p => p.id === currentPkg.id);
+
+  // Warning destructivo: si en edit el paqueteId cambia, el backend hoy
+  // borra TODAS las scheduled_tasks (pending + completed + skipped) y
+  // regenera desde cero. Aviso al usuario antes de submit.
+  const originalPaqueteId = isEditing ? (loteToEdit?.paqueteId || '') : '';
+  const paqueteChanged = isEditing && (form.paqueteId || '') !== originalPaqueteId;
+  const paqueteChangeWarning = paqueteChanged && originalPaqueteId
+    ? (form.paqueteId
+        ? 'Cambiar el paquete técnico regenerará las tareas programadas del lote — las tareas históricas (completadas, saltadas, pendientes) se borran. Esta acción no se puede deshacer.'
+        : 'Quitar el paquete técnico borrará todas las tareas programadas del lote, incluyendo las históricas. Esta acción no se puede deshacer.')
     : '';
 
   return createPortal(
@@ -183,6 +221,13 @@ function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
               </div>
             )}
 
+            {paqueteChangeWarning && (
+              <div className="aur-banner aur-banner--danger" role="status" aria-live="polite">
+                <FiAlertTriangle size={14} />
+                <span>{paqueteChangeWarning}</span>
+              </div>
+            )}
+
             <div className="aur-list">
               <div className="aur-row">
                 <label className="aur-row-label" htmlFor="lfm-codigo">Código del Lote</label>
@@ -195,7 +240,7 @@ function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
                     placeholder="Ej: L2604"
                     value={form.codigoLote}
                     onChange={e => setForm(prev => ({ ...prev, codigoLote: e.target.value.slice(0, MAX_CODIGO_LEN) }))}
-                    autoFocus
+                    autoFocus={initialFocusField !== 'paquete'}
                   />
                   {codigoWarning && <span className="aur-field-error">{codigoWarning}</span>}
                 </div>
@@ -229,6 +274,27 @@ function LoteFormModal({ mode, loteToEdit, apiFetch, onSuccess, onClose }) {
                   value={form.fechaCreacion}
                   onChange={e => setForm(prev => ({ ...prev, fechaCreacion: e.target.value }))}
                 />
+              </div>
+
+              <div className="aur-row">
+                <label className="aur-row-label" htmlFor="lfm-paquete">
+                  Paquete técnico <span className="aur-field-hint">(opcional)</span>
+                </label>
+                <select
+                  id="lfm-paquete"
+                  className="aur-input"
+                  value={form.paqueteId}
+                  onChange={e => setForm(prev => ({ ...prev, paqueteId: e.target.value }))}
+                  autoFocus={initialFocusField === 'paquete'}
+                >
+                  <option value="">— Sin paquete técnico —</option>
+                  {activePackages.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombrePaquete}</option>
+                  ))}
+                  {showArchivedOption && (
+                    <option value={currentPkg.id}>{currentPkg.nombrePaquete} (archivado)</option>
+                  )}
+                </select>
               </div>
             </div>
           </form>
