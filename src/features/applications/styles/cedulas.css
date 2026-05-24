@@ -904,7 +904,15 @@
     margin: 0 -12px;
     width: calc(100% + 24px);
   }
-  .ca-preview-toolbar-actions .btn {
+  /* Strip-style flatten para el toolbar en mobile. Antes apuntaba a `.btn`
+     / `.btn-primary` que ya no matchean nada — el JSX (CedulaPreviewModal)
+     usa `.aur-chip` (Compartir/Imprimir), `.aur-btn-pill` (Mezcla Lista /
+     Aplicada en Campo) y `.ca-toolbar-applied-badge` (estado terminal).
+     El bug: en mobile las acciones se veían pegadas, sin la grilla de
+     separadores verticales prevista. Punto #11 audit. */
+  .ca-preview-toolbar-actions > .aur-chip,
+  .ca-preview-toolbar-actions > .aur-btn-pill,
+  .ca-preview-toolbar-actions > .ca-toolbar-applied-badge {
     flex: 1;
     justify-content: center;
     min-width: 0;
@@ -913,14 +921,16 @@
     border-radius: 0;
     border: none;
     border-right: 1px solid var(--aurora-border);
-    background: transparent;
   }
-  .ca-preview-toolbar-actions .btn:last-child {
+  .ca-preview-toolbar-actions > *:last-child {
     border-right: none;
   }
-  .ca-preview-toolbar-actions .btn.btn-primary {
-    background: var(--aurora-green);
-    color: var(--aurora-dark-blue);
+  /* Chips ghost (Compartir/Imprimir) sobre fondo transparente; el pill
+     primary (Mezcla Lista / Aplicada en Campo) conserva su verde Aurora
+     propio y el badge applied su tinte verde-12%, así la jerarquía visual
+     sigue funcionando en el strip aplanado. */
+  .ca-preview-toolbar-actions > .aur-chip {
+    background: transparent;
   }
   .ca-toolbar-btn-text {
     display: none;
