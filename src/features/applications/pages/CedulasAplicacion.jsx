@@ -798,6 +798,15 @@ function CedulasAplicacion() {
                 {visibleTasks.map(task => {
                   const allCedulas = cedulasByTaskId[task.id] || [];
                   const isHighlighted = highlightedTaskIds.has(task.id);
+                  // Chips informativos del meta de la card (punto #15 audit):
+                  // hectáreas / paquete / # productos. Se derivan acá para
+                  // mantener las cards puramente presentacionales — la
+                  // resolución de source → paquete usa los Maps memoizados
+                  // y por eso no encaja como cálculo interno del card.
+                  const source = getSource(task);
+                  const packageName  = source?.paqueteId ? getPackageName(source.paqueteId) : null;
+                  const productCount = task.activity?.productos?.length || 0;
+                  const hectareas    = task.loteHectareas ?? source?.hectareas ?? null;
                   // Closure captura `task` para que el preview sepa cuál
                   // abrir; setear el scroll antes del cambio de state
                   // preserva la posición al cerrar.
@@ -815,6 +824,9 @@ function CedulasAplicacion() {
                       isHighlighted={isHighlighted}
                       actionLoading={actionLoading}
                       currentUser={currentUser}
+                      packageName={packageName}
+                      productCount={productCount}
+                      hectareas={hectareas}
                       onPreview={onPreview}
                       onEditar={handleEditarProductos}
                       onMezclaLista={handleMezclaLista}
@@ -830,6 +842,9 @@ function CedulasAplicacion() {
                       allowSkipTask={isOverdue(task)}
                       actionLoading={actionLoading}
                       currentUser={currentUser}
+                      packageName={packageName}
+                      productCount={productCount}
+                      hectareas={hectareas}
                       onPreview={onPreview}
                       onGenerar={handleGenerarCedula}
                       onOmitir={handleOmitirTarea}

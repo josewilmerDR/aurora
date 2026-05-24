@@ -35,6 +35,15 @@ export const formatShortDate = (iso) => {
   });
 };
 
+/** "12 ha" / "12.5 ha" / null si el valor no es numérico positivo. Sin
+ *  decimal cuando es entero (12 ha en vez de 12.0 ha). Usado por los
+ *  chips informativos en las cards del listing (punto #15 audit). */
+export const formatHectareas = (ha) => {
+  const n = Number(ha);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${n.toFixed(1).replace(/\.0$/, '')} ha`;
+};
+
 /** Defaults de días por ciclo (siembra → I cosecha, etc.). El admin puede
  *  pisarlos en /config y `calcFechaCosecha` los mergea on top. */
 export const PARAM_DEFAULTS = {
