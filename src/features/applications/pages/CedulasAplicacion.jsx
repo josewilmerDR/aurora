@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPlusCircle } from 'react-icons/fi';
+import { FiPlusCircle, FiSearch, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -50,6 +50,10 @@ function CedulasAplicacion() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo,   setDateTo]   = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  // Búsqueda libre sobre el listing. Filtra por activityName, loteName,
+  // responsableName y consecutivo de cualquier cédula activa de la task.
+  // No se persiste — cada visita arranca limpio.
+  const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState(null); // cedulaId | 'new-{taskId}'
   const [showNuevaModal, setShowNuevaModal] = useState(false);
   const [confirmModal,  setConfirmModal]  = useState(null);
@@ -208,6 +212,20 @@ function CedulasAplicacion() {
         return true;
       });
     }
+    // Filtrado por texto sobre actividad/lote/responsable/consecutivo. Case
+    // insensitive con .includes — sin normalización de acentos para no romper
+    // matches exactos en español (si llega a ser un problema real, usar
+    // normalize('NFD').replace(/\p{Diacritic}/gu, '') en ambos lados).
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter(t => {
+        if ((t.activityName    || '').toLowerCase().includes(q)) return true;
+        if ((t.loteName        || '').toLowerCase().includes(q)) return true;
+        if ((t.responsableName || '').toLowerCase().includes(q)) return true;
+        const taskCedulas = cedulasByTaskId[t.id] || [];
+        return taskCedulas.some(c => (c.consecutivo || '').toLowerCase().includes(q));
+      });
+    }
     // Sort: manual cedulas ("additional") first, then system ones.
     // Dentro de cada grupo se preserva el orden por dueDate ascendente heredado de aplicacionTasks.
     return [...filtered].sort((a, b) => {
@@ -216,7 +234,7 @@ function CedulasAplicacion() {
       if (am !== bm) return am - bm;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [aplicacionTasks, dateFrom, dateTo]);
+  }, [aplicacionTasks, dateFrom, dateTo, searchQuery, cedulasByTaskId]);
 
   const getSource = (task) => {
     if (task.loteId)  return lotes.find(l => l.id === task.loteId)   || null;
@@ -669,6 +687,29 @@ function CedulasAplicacion() {
           </header>
 
           <section className="aur-section">
+            {aplicacionTasks.length > 0 && (
+              <div className="ca-list-search">
+                <FiSearch size={13} aria-hidden="true" />
+                <input
+                  type="search"
+                  className="ca-list-search-input"
+                  placeholder="Buscar por actividad, lote, responsable o consecutivo…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  aria-label="Buscar cédula"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="ca-list-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <FiX size={12} />
+                  </button>
+                )}
+              </div>
+            )}
             {visibleTasks.length > 0 && (
               <div className="aur-section-header">
                 <h3>Cédulas</h3>
@@ -684,7 +725,9 @@ function CedulasAplicacion() {
                     ? (hasMinRole(currentUser?.rol, 'encargado')
                         ? 'Aún no hay registros que mostrar. Crea el primero en "Nueva cédula"'
                         : 'Aún no hay cédulas de aplicación para tus cultivos.')
-                    : 'No hay aplicaciones programadas para este período.'
+                    : searchQuery.trim()
+                      ? `No hay resultados para «${searchQuery.trim()}».`
+                      : 'No hay aplicaciones programadas para este período.'
                 }
               />
             ) : (
