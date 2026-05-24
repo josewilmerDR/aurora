@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'rea
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
@@ -69,6 +69,11 @@ function LoteManagement() {
   const [previewLote,   setPreviewLote]   = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [loadError,    setLoadError]    = useState(null);
+  // Banner persistente post-save. Reemplaza al toast efímero como evidencia
+  // visual de que el guardado pasó. Vive hasta que el usuario lo cierre,
+  // haga clic en Abrir, o arranque otro flujo de crear/editar.
+  // Shape: { id, label, action: 'created' | 'updated' } | null
+  const [lastSavedLote, setLastSavedLote] = useState(null);
   const carouselRef = useRef(null);
   const docRef      = useRef(null);
 
@@ -321,19 +326,33 @@ function LoteManagement() {
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleNewLote = () => setModalState({ mode: 'create' });
-  const handleEdit = (lote) => setModalState({ mode: 'edit', lote });
+  // Abrir un nuevo flujo de crear/editar invalida el banner del save previo —
+  // es intención nueva del usuario, no queremos mezclar evidencias visuales.
+  const handleNewLote = () => { setLastSavedLote(null); setModalState({ mode: 'create' }); };
+  const handleEdit = (lote, focus) => {
+    setLastSavedLote(null);
+    setModalState({ mode: 'edit', lote, ...(focus ? { focus } : {}) });
+  };
 
   const handleModalSuccess = async (savedLote) => {
     const isEditing = modalState?.mode === 'edit';
     const targetId = isEditing ? modalState.lote.id : savedLote?.id;
     setModalState(null);
     const newLotes = await fetchLotes();
+    let saved = null;
     if (targetId && newLotes) {
-      const found = newLotes.find(l => l.id === targetId);
-      if (found) setSelectedLote(found);
+      saved = newLotes.find(l => l.id === targetId);
+      if (saved) setSelectedLote(saved);
     }
-    showToast(isEditing ? 'Lote actualizado correctamente' : 'Lote creado y tareas programadas');
+    // Banner persistente en vez del toast de 3s — la evidencia de "creé este
+    // lote" sobrevive hasta que el usuario decida. El toast de error vive
+    // dentro del modal mismo, así que acá solo tratamos el éxito.
+    if (saved) {
+      const label = saved.nombreLote && saved.nombreLote !== saved.codigoLote
+        ? `${saved.codigoLote} — ${saved.nombreLote}`
+        : saved.codigoLote;
+      setLastSavedLote({ id: saved.id, label, action: isEditing ? 'updated' : 'created' });
+    }
   };
 
   const handleDeleteClick = async (lote) => {
@@ -460,7 +479,7 @@ function LoteManagement() {
               title={pkg.archivedAt
                 ? 'El paquete técnico asignado a este lote está archivado. Clic para reasignar.'
                 : 'Clic para cambiar el paquete técnico.'}
-              onClick={() => setModalState({ mode: 'edit', lote: selectedLote, focus: 'paquete' })}
+              onClick={() => handleEdit(selectedLote, 'paquete')}
             >
               <FiPackage size={13} />
               {pkg.nombrePaquete}
@@ -472,7 +491,7 @@ function LoteManagement() {
               type="button"
               className="aur-badge lote-paquete-pill"
               title="Clic para asignar un paquete técnico a este lote."
-              onClick={() => setModalState({ mode: 'edit', lote: selectedLote, focus: 'paquete' })}
+              onClick={() => handleEdit(selectedLote, 'paquete')}
             >
               <FiPackage size={13} /> Asignar paquete técnico
             </button>
@@ -621,6 +640,39 @@ function LoteManagement() {
           >
             <FiRefreshCw size={12} aria-hidden="true" />
             {loading ? 'Cargando…' : 'Reintentar'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner persistente: confirmación de guardado ──
+          Visible tras un save exitoso hasta que el usuario lo cierre, haga
+          clic en Abrir, o arranque otro flujo. Reemplaza al toast efímero
+          por una señal estable con acceso directo al lote recién guardado. */}
+      {!loading && lastSavedLote && (
+        <div className="lote-save-banner" role="status" aria-live="polite">
+          <FiCheck size={14} aria-hidden="true" />
+          <span className="lote-save-banner-msg">
+            Lote <strong>"{lastSavedLote.label}"</strong>{' '}
+            {lastSavedLote.action === 'created' ? 'creado.' : 'actualizado.'}
+          </span>
+          <button
+            type="button"
+            className="lote-save-banner-action"
+            onClick={() => {
+              const lote = lotes.find(l => l.id === lastSavedLote.id);
+              setLastSavedLote(null);
+              if (lote) handleSelectLote(lote);
+            }}
+          >
+            Abrir →
+          </button>
+          <button
+            type="button"
+            className="lote-save-banner-close"
+            onClick={() => setLastSavedLote(null)}
+            aria-label="Cerrar"
+          >
+            <FiX size={14} />
           </button>
         </div>
       )}
