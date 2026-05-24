@@ -291,9 +291,14 @@ function LoteManagement() {
     setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
   };
 
+  // Cualquier interacción del usuario con la selección consume el deep-link
+  // pendiente. Antes, si `lotes` resolvía después de que el usuario eligió
+  // algo manualmente, el efecto de deep-link pisaba la elección. Acepta
+  // `null` para soportar el flujo de deselect (back button + toggle).
   const handleSelectLote = (lote) => {
+    deepLinkProcessedRef.current = true;
     setSelectedLote(lote);
-    if (window.innerWidth <= 768)
+    if (lote && window.innerWidth <= 768)
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -385,7 +390,7 @@ function LoteManagement() {
 
     return (
       <div className="lote-hub">
-        <button className="lote-hub-back" onClick={() => setSelectedLote(null)}>
+        <button className="lote-hub-back" onClick={() => handleSelectLote(null)}>
           <FiArrowLeft size={13} /> Todos los lotes
         </button>
         <div className="hub-header">
@@ -631,7 +636,7 @@ function LoteManagement() {
             <button
               key={lote.id}
               className={`lote-bubble${selectedLote?.id === lote.id ? ' lote-bubble--active' : ''}`}
-              onClick={() => selectedLote?.id === lote.id ? setSelectedLote(null) : handleSelectLote(lote)}
+              onClick={() => handleSelectLote(selectedLote?.id === lote.id ? null : lote)}
             >
               <span className="lote-bubble-avatar">
                 {(lote.nombreLote && lote.nombreLote !== lote.codigoLote ? lote.nombreLote : lote.codigoLote).slice(0, 4)}
@@ -795,7 +800,7 @@ function LoteManagement() {
                 <li
                   key={lote.id}
                   className={`lote-list-item ${selectedLote?.id === lote.id ? 'active' : ''}`}
-                  onClick={() => selectedLote?.id === lote.id ? setSelectedLote(null) : handleSelectLote(lote)}
+                  onClick={() => handleSelectLote(selectedLote?.id === lote.id ? null : lote)}
                 >
                   <div className="lote-list-info">
                     <span className="lote-list-code">{lote.codigoLote}</span>
