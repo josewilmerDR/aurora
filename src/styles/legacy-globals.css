@@ -118,7 +118,6 @@
 /* ── Panel lateral con la lista ──────────────────────────────────────────── */
 .lote-list-panel {
   background-color: var(--aurora-background);
-  border-top: 1px solid var(--aurora-border);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -403,7 +402,6 @@
 
 .lote-hub {
   background-color: var(--aurora-background);
-  border-top: 1px solid var(--aurora-border);
   padding: 24px;
   min-height: 400px;
 }

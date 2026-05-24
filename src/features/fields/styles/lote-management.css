@@ -33,9 +33,41 @@
   }
 }
 
+/* `.aur-sheet-header` trae un `margin-bottom: 24px` que se suma al `gap: 16px`
+   de `.lote-page` — ~40px de aire entre header y body. Era invisible cuando
+   el body tenía `border-top`; sin esa línea, queda un hueco. Anulamos el
+   margin del header acá y dejamos que el gap del wrapper sea el único
+   separador (16px), consistente con el espaciado entre los banners. */
+.lote-page .aur-sheet-header {
+  margin-bottom: 0;
+}
+
+/* En mobile el `.content-area` ya aporta 15px de gutter horizontal; el
+   padding default del hub (24px) y del panel de lista (16px) se suman a
+   ese gutter y dejan al body con ~80px menos de ancho útil de los ~390px
+   del viewport. Reducimos solo el eje horizontal en mobile — el vertical
+   mantiene su aire. El gutter de `.content-area` ya basta como respiro;
+   acá llevamos el padding-inline casi a cero para maximizar ancho útil. */
+@media (max-width: 768px) {
+  .lote-page .lote-hub        { padding-inline: 6px; }
+  .lote-page .lote-list-panel { padding-inline: 4px; }
+}
+
 /* ── Búsqueda + orden en el panel de lista ────────────────────────────────── */
 /* Mirror del patrón `.pkg-list-search` en packages.css. Cuando se promueva
    a primitiva (`.aur-list-search`) ambos consumers migran juntos. */
+
+/* Toolbar: search ocupa la fila, sort se reduce a un ícono embudo a la
+   derecha que despliega las opciones como menú. Sin el embudo, en el panel
+   estrecho (260px cuando hay lote seleccionado) el select de orden ahogaba
+   al search. Ahora la barra mantiene preponderancia en todos los anchos. */
+.lote-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lote-list-toolbar .lote-list-search { flex: 1; min-width: 0; }
+
 .lote-list-search {
   display: flex;
   align-items: center;
@@ -78,34 +110,78 @@
   background: rgba(230, 242, 255, 0.08);
 }
 
-.lote-list-sort {
-  display: flex;
+.lote-list-sort-wrap { position: relative; flex-shrink: 0; }
+
+/* Trigger: ícono embudo de 32px que matchea la altura visual del search.
+   `.is-active` cuando el sort no está en su default (Recientes) — señal de
+   que hay un orden custom aplicado, equivalente al funnel teñido en la
+   tabla de bloques. */
+.lote-list-sort-trigger {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 2px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: 6px;
+  color: var(--aur-text-3, #6b819b);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
-.lote-list-sort-label {
-  font-size: 0.7rem;
+.lote-list-sort-trigger:hover {
+  color: var(--aurora-light);
+  border-color: var(--aurora-green);
+}
+.lote-list-sort-trigger.is-active {
+  color: var(--aurora-green);
+  border-color: var(--aurora-green);
+}
+
+/* Menú: dropdown absolute anchored al wrapper. El backdrop (fixed z 1100)
+   captura el click-fuera; el menú vive sobre él con z 1101. */
+.lote-list-sort-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1101;
+  min-width: 180px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.lote-list-sort-menu-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--aurora-light);
   opacity: 0.5;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  padding: 6px 8px 4px;
 }
-.lote-list-sort-select {
-  flex: 1;
-  min-width: 0;
+.lote-list-sort-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   background: transparent;
-  border: 1px solid var(--aurora-border);
+  border: none;
   color: var(--aurora-light);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-family: inherit;
-  outline: none;
-  cursor: pointer;
-  padding: 3px 6px;
+  text-align: left;
+  padding: 6px 8px;
   border-radius: 4px;
+  cursor: pointer;
 }
-.lote-list-sort-select:focus,
-.lote-list-sort-select:hover { border-color: var(--aurora-green); }
+.lote-list-sort-menu-item:hover {
+  background: rgba(230, 242, 255, 0.06);
+}
+.lote-list-sort-menu-item.is-active {
+  color: var(--aurora-green);
+}
 
 .lote-list-no-results {
   margin: 0;

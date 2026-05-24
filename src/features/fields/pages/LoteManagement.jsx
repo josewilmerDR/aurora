@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import '../styles/lote-management.css';
-import { FiPlus, FiChevronRight, FiLayers, FiX, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiChevronRight, FiLayers, FiX, FiSearch, FiAlertTriangle, FiRefreshCw, FiCheck, FiFilter } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
@@ -11,6 +11,12 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
 import LoteHub from '../components/LoteHub';
 import { formatDate } from '../lib/lotes-helpers';
+
+const SORT_OPTIONS = [
+  { value: 'recent', label: 'Recientes' },
+  { value: 'oldest', label: 'Más antiguos' },
+  { value: 'alpha',  label: 'Alfabético' },
+];
 
 // ── Main Component ────────────────────────────────────────────────────────────
 function LoteManagement() {
@@ -28,6 +34,7 @@ function LoteManagement() {
   const [siembras, setSiembras] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode]   = useState('recent'); // 'recent' | 'oldest' | 'alpha'
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [empresaConfig, setEmpresaConfig] = useState({});
   const [loading,      setLoading]      = useState(true);
   const [loadError,    setLoadError]    = useState(null);
@@ -361,7 +368,7 @@ function LoteManagement() {
       <div className="lote-list-panel">
 
           {lotes.length > 0 && (
-            <>
+            <div className="lote-list-toolbar">
               <div className="lote-list-search">
                 <FiSearch size={13} aria-hidden="true" />
                 <input
@@ -383,20 +390,40 @@ function LoteManagement() {
                   </button>
                 )}
               </div>
-              <div className="lote-list-sort">
-                <label htmlFor="lote-sort-mode" className="lote-list-sort-label">Ordenar</label>
-                <select
-                  id="lote-sort-mode"
-                  className="lote-list-sort-select"
-                  value={sortMode}
-                  onChange={e => setSortMode(e.target.value)}
+              <div className="lote-list-sort-wrap">
+                <button
+                  type="button"
+                  className={`lote-list-sort-trigger${sortMode !== 'recent' ? ' is-active' : ''}`}
+                  onClick={() => setSortMenuOpen(o => !o)}
+                  aria-haspopup="menu"
+                  aria-expanded={sortMenuOpen}
+                  title="Ordenar lotes"
                 >
-                  <option value="recent">Recientes</option>
-                  <option value="oldest">Más antiguos</option>
-                  <option value="alpha">Alfabético</option>
-                </select>
+                  <FiFilter size={14} />
+                </button>
+                {sortMenuOpen && (
+                  <>
+                    <div className="aur-filter-backdrop" onClick={() => setSortMenuOpen(false)} />
+                    <div className="lote-list-sort-menu" role="menu">
+                      <div className="lote-list-sort-menu-title">Ordenar por</div>
+                      {SORT_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={sortMode === opt.value}
+                          className={`lote-list-sort-menu-item${sortMode === opt.value ? ' is-active' : ''}`}
+                          onClick={() => { setSortMode(opt.value); setSortMenuOpen(false); }}
+                        >
+                          <span>{opt.label}</span>
+                          {sortMode === opt.value && <FiCheck size={12} />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-            </>
+            </div>
           )}
 
           {loading ? (
