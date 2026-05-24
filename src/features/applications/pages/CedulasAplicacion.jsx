@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
- import { FiPlusCircle, FiSearch, FiX } from 'react-icons/fi';
+import { FiPlusCircle, FiSearch, FiX, FiClipboard } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -760,19 +760,39 @@ function CedulasAplicacion() {
               </div>
             )}
             {visibleTasks.length === 0 ? (
-              <EmptyState
-                variant="compact"
-                icon={null}
-                title={
-                  aplicacionTasks.length === 0
-                    ? (hasMinRole(currentUser?.rol, 'encargado')
-                        ? 'Aún no hay registros que mostrar. Crea el primero en "Nueva cédula"'
-                        : 'Aún no hay cédulas de aplicación para tus cultivos.')
-                    : searchQuery.trim()
-                      ? `No hay resultados para «${searchQuery.trim()}».`
-                      : 'No hay aplicaciones programadas para este período.'
-                }
-              />
+              aplicacionTasks.length === 0 ? (
+                // Vacío real: el usuario ve la página por primera vez (o tras
+                // limpiar todo). Variant default con ícono + subtitle que
+                // explica el flujo automático paquete → lote → cédula, y CTA
+                // directo para el rol que puede crear. Punto #13 audit.
+                <EmptyState
+                  variant="default"
+                  icon={FiClipboard}
+                  title="Aún no hay cédulas de aplicación"
+                  subtitle={hasMinRole(currentUser?.rol, 'encargado')
+                    ? 'Las cédulas se generan automáticamente desde los Paquetes de aplicaciones de tus lotes. También podés crear una manualmente.'
+                    : 'Las cédulas se generan automáticamente desde los Paquetes de aplicaciones de los lotes de la finca.'}
+                  action={hasMinRole(currentUser?.rol, 'encargado') && (
+                    <button
+                      type="button"
+                      className="aur-btn-pill"
+                      onClick={() => setShowNuevaModal(true)}
+                    >
+                      <FiPlusCircle size={14} /> Nueva cédula
+                    </button>
+                  )}
+                />
+              ) : (
+                // Lista filtrada (search o fechas) sin matches: variant compact
+                // sin ícono, mensaje contextual al filtro activo.
+                <EmptyState
+                  variant="compact"
+                  icon={null}
+                  title={searchQuery.trim()
+                    ? `No hay resultados para «${searchQuery.trim()}».`
+                    : 'No hay aplicaciones programadas para este período.'}
+                />
+              )
             ) : (
               <div className="ca-cedula-list">
                 {visibleTasks.map(task => {
