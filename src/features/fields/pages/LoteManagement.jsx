@@ -337,10 +337,21 @@ function LoteManagement() {
   };
 
   const handleDeleteClick = async (lote) => {
+    // Local-first: si hay siembras vinculadas, bloqueamos el delete sin
+    // golpear el backend. Hoy `DELETE /api/lotes/:id` borra el lote y sus
+    // scheduled_tasks pero NO toca siembras — sin este bloqueo, las
+    // siembras quedarían huérfanas referenciando un loteId borrado. La
+    // data de siembras ya está cargada en memoria, no hace falta roundtrip.
+    const siembraCount = siembras.filter(s => s.loteId === lote.id).length;
+    const loteName = lote.nombreLote || lote.codigoLote;
+    if (siembraCount > 0) {
+      setConfirmModal({ mode: 'blocked', loteName, siembraCount });
+      return;
+    }
     try {
       const res = await apiFetch(`/api/lotes/${lote.id}/task-count`);
       const { count } = await res.json();
-      setConfirmModal({ loteId: lote.id, loteName: lote.nombreLote || lote.codigoLote, taskCount: count });
+      setConfirmModal({ mode: 'delete', loteId: lote.id, loteName, taskCount: count });
     } catch {
       showToast('Error al verificar las tareas del lote.', 'error');
     }
@@ -550,7 +561,25 @@ function LoteManagement() {
           onClose={() => setModalState(null)}
         />
       )}
-      {confirmModal && (
+      {confirmModal?.mode === 'blocked' && (
+        <AuroraConfirmModal
+          title="No es posible eliminar este lote"
+          body={
+            <>
+              El lote <strong>"{confirmModal.loteName}"</strong> tiene{' '}
+              <strong>{confirmModal.siembraCount}</strong>{' '}
+              {confirmModal.siembraCount === 1 ? 'siembra asociada' : 'siembras asociadas'}.
+              Eliminá o reasigná {confirmModal.siembraCount === 1 ? 'la siembra' : 'las siembras'}{' '}
+              antes de borrar el lote — si no, quedarían huérfanas apuntando a un lote que ya no existe.
+            </>
+          }
+          showCancel={false}
+          confirmLabel="Entendido"
+          onConfirm={() => setConfirmModal(null)}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
+      {confirmModal?.mode === 'delete' && (
         <AuroraConfirmModal
           danger
           title={`¿Eliminar "${confirmModal.loteName}"?`}
