@@ -334,17 +334,51 @@
   color: var(--aurora-green);
 }
 
+/* La burbuja "+" se queda pegada al borde derecho del carousel para que
+   crear-lote esté siempre a la mano. Sin esto, en una finca con N lotes
+   había que scrollear N burbujas hasta encontrar el "+" al final. */
+.lote-bubble--add {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--aurora-dark-blue);
+  /* scroll-snap natural empuja la "+" hacia su slot al hacer flick,
+     contradice la intención sticky. La excluimos del snap. */
+  scroll-snap-align: none;
+}
+
+/* Gradient en el borde izquierdo de la burbuja sticky — señaliza que hay
+   contenido que pasa por detrás. Sin este indicio, el usuario podría no
+   notar que más burbujas siguen scrolleando bajo el "+". */
+.lote-bubble--add::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  background: linear-gradient(to right, transparent, var(--aurora-dark-blue));
+  pointer-events: none;
+}
+
 .lote-bubble-avatar--add {
-  font-size: 1.5rem;
-  font-weight: 300;
-  background: rgba(230, 242, 255, 0.04);
+  /* Verde de acento desde el reposo — en mobile no hay :hover que
+     descubra el affordance, hace falta que se lea como CTA de entrada. */
+  background: rgba(51, 255, 153, 0.1);
   border-style: dashed;
+  border-color: rgba(51, 255, 153, 0.45);
+  color: var(--aurora-green);
+}
+
+.lote-bubble--add .lote-bubble-label {
+  color: var(--aurora-green);
+  opacity: 0.85;
 }
 
 .lote-bubble--add:hover .lote-bubble-avatar {
   border-color: var(--aurora-green);
   color: var(--aurora-green);
-  background: rgba(51, 255, 153, 0.08);
+  background: rgba(51, 255, 153, 0.18);
 }
 
 /* ── Hub (panel central) ─────────────────────────────────────────────────── */
