@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiX, FiPlusCircle, FiFilter } from 'react-icons/fi';
+import { FiPlusCircle } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -13,6 +12,7 @@ import CedulaDocumento from '../components/CedulaDocumento';
 import CedulaPreviewModal from '../components/CedulaPreviewModal';
 import CedulaCard from '../components/CedulaCard';
 import CedulaSplitCard from '../components/CedulaSplitCard';
+import FiltroPeriodoModal from '../components/FiltroPeriodoModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import FilterButton from '../../../components/ui/FilterButton';
@@ -820,79 +820,14 @@ function CedulasAplicacion() {
       })()}
 
       {/* ── Filtro de Periodo Modal ── */}
-      {mostrarFiltros && createPortal(
-        <div
-          className="aur-modal-backdrop"
-          onClick={() => setMostrarFiltros(false)}
-        >
-          <div
-            className="aur-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="ca-filtro-modal-title"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="aur-modal-header">
-              <span className="aur-modal-icon">
-                <FiFilter size={16} />
-              </span>
-              <h3 className="aur-modal-title" id="ca-filtro-modal-title">
-                Filtrar por periodo
-              </h3>
-              <button
-                type="button"
-                className="aur-icon-btn aur-modal-close"
-                onClick={() => setMostrarFiltros(false)}
-                aria-label="Cerrar"
-              >
-                <FiX size={16} />
-              </button>
-            </div>
-            <div className="aur-modal-content">
-              <div className="ca-periodo-grid">
-                <div className="ca-periodo-field">
-                  <label htmlFor="ca-from">Desde</label>
-                  <input
-                    id="ca-from"
-                    type="date"
-                    className="aur-input"
-                    value={dateFrom}
-                    onChange={e => setDateFrom(e.target.value)}
-                  />
-                </div>
-                <div className="ca-periodo-field">
-                  <label htmlFor="ca-to">Hasta</label>
-                  <input
-                    id="ca-to"
-                    type="date"
-                    className="aur-input"
-                    value={dateTo}
-                    onChange={e => setDateTo(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="aur-modal-actions">
-              {(dateFrom || dateTo) && (
-                <button
-                  type="button"
-                  className="aur-chip aur-chip--ghost"
-                  onClick={() => { setDateFrom(''); setDateTo(''); }}
-                >
-                  <FiX size={12} /> Limpiar
-                </button>
-              )}
-              <button
-                type="button"
-                className="aur-btn-pill"
-                onClick={() => setMostrarFiltros(false)}
-              >
-                Listo
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {mostrarFiltros && (
+        <FiltroPeriodoModal
+          dateFrom={dateFrom}
+          setDateFrom={setDateFrom}
+          dateTo={dateTo}
+          setDateTo={setDateTo}
+          onClose={() => setMostrarFiltros(false)}
+        />
       )}
 
       {/* ── Editar Productos Modal ── */}
