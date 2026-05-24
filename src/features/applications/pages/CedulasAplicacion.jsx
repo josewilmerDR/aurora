@@ -121,8 +121,17 @@ function AplicadaModal({ lotes, currentUser, prefill, onClose, onConfirm }) {
           );
           const d = await r.json();
           if (cancelled) return;
-          if (d.current?.temperature_2m    != null) setTemperatura(String(d.current.temperature_2m));
-          if (d.current?.relative_humidity_2m != null) setHumedadRelativa(String(d.current.relative_humidity_2m));
+          // Seed solo si el campo sigue vacío. open-meteo puede tardar 5-8s y
+          // el usuario suele tipear el valor del termohigrómetro del aplicador
+          // mientras esperamos — sobreescribirlo silenciosamente altera un dato
+          // de auditoría regulatoria. Setter funcional para no race con un
+          // teclazo simultáneo entre el read del state y el set.
+          if (d.current?.temperature_2m != null) {
+            setTemperatura(prev => prev || String(d.current.temperature_2m));
+          }
+          if (d.current?.relative_humidity_2m != null) {
+            setHumedadRelativa(prev => prev || String(d.current.relative_humidity_2m));
+          }
         } catch { /* sin internet o API no disponible — el usuario llena manualmente */ }
         if (!cancelled) setFetchingWeather(false);
       },
