@@ -174,6 +174,27 @@ function CedulasAplicacion() {
       });
   }, []);
 
+  // ── Índices id → entidad para reemplazar .find() O(N) por .get() O(1) ─────
+  // El listing + el preview ejecutan muchos lookups por render (≈ 50 cédulas
+  // × 5 productos = 250 .find() solo para periodoReingreso/ACosecha). En
+  // mobile con CPU lenta cada keystroke en un modal hijo dispara re-render
+  // del orquestador y se siente. Patrón: mismo Map<id, entity> que
+  // packagesById en PackageManagement (punto 18 de su audit).
+  //
+  // Declarados ANTES de los useEffects que los consumen (auto-open lee
+  // tasksById en su body y deps array). El deps array se evalúa durante
+  // render, y un tasksById declarado más abajo dispara ReferenceError
+  // por TDZ. Ordering matters.
+  const productosById     = useMemo(() => new Map((productos     || []).map(p => [p.id, p])), [productos]);
+  const lotesById         = useMemo(() => new Map((lotes         || []).map(l => [l.id, l])), [lotes]);
+  const gruposById        = useMemo(() => new Map((grupos        || []).map(g => [g.id, g])), [grupos]);
+  const packagesById      = useMemo(() => new Map((packages      || []).map(p => [p.id, p])), [packages]);
+  const siembrasById      = useMemo(() => new Map((siembras      || []).map(s => [s.id, s])), [siembras]);
+  const calibracionesById = useMemo(() => new Map((calibraciones || []).map(c => [c.id, c])), [calibraciones]);
+  const maquinariaById    = useMemo(() => new Map((maquinaria    || []).map(m => [m.id, m])), [maquinaria]);
+  const tasksById         = useMemo(() => new Map((tasks         || []).map(t => [t.id, t])), [tasks]);
+  const cedulasById       = useMemo(() => new Map((cedulas       || []).map(c => [c.id, c])), [cedulas]);
+
   // Open CedulaNuevaModal if navigated from HistorialAplicaciones empty state
   useEffect(() => {
     if (location.state?.openModal) setShowNuevaModal(true);
@@ -214,22 +235,6 @@ function CedulasAplicacion() {
     }
     return map;
   }, [cedulas]);
-
-  // ── Índices id → entidad para reemplazar .find() O(N) por .get() O(1) ─────
-  // El listing + el preview ejecutan muchos lookups por render (≈ 50 cédulas
-  // × 5 productos = 250 .find() solo para periodoReingreso/ACosecha). En
-  // mobile con CPU lenta cada keystroke en un modal hijo dispara re-render
-  // del orquestador y se siente. Patrón: mismo Map<id, entity> que
-  // packagesById en PackageManagement (punto 18 de su audit).
-  const productosById     = useMemo(() => new Map((productos     || []).map(p => [p.id, p])), [productos]);
-  const lotesById         = useMemo(() => new Map((lotes         || []).map(l => [l.id, l])), [lotes]);
-  const gruposById        = useMemo(() => new Map((grupos        || []).map(g => [g.id, g])), [grupos]);
-  const packagesById      = useMemo(() => new Map((packages      || []).map(p => [p.id, p])), [packages]);
-  const siembrasById      = useMemo(() => new Map((siembras      || []).map(s => [s.id, s])), [siembras]);
-  const calibracionesById = useMemo(() => new Map((calibraciones || []).map(c => [c.id, c])), [calibraciones]);
-  const maquinariaById    = useMemo(() => new Map((maquinaria    || []).map(m => [m.id, m])), [maquinaria]);
-  const tasksById         = useMemo(() => new Map((tasks         || []).map(t => [t.id, t])), [tasks]);
-  const cedulasById       = useMemo(() => new Map((cedulas       || []).map(c => [c.id, c])), [cedulas]);
 
   // Tasks que matchean SOLO el filtro de fecha (sin search). Lo consume:
   // (1) visibleTasks como input para aplicar después search + sort;
