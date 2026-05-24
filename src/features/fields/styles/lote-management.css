@@ -3,6 +3,18 @@
    `src/styles/legacy-globals.css` (cargado globalmente desde main.jsx).
    GrupoManagement.css ya no necesita `@import` de este archivo. */
 
+/* ── Header en mobile cuando hay lote seleccionado ────────────────────────── */
+/* Tras migrar a <PageHeader>, el header de la página se renderiza como
+   `.aur-sheet-header`. La regla legacy `.lote-page--selected .lote-page-header`
+   en legacy-globals.css ya no aplica para esta página — necesitamos su
+   equivalente sobre el nuevo selector. Sin esto, en mobile el header y el
+   carousel sticky aparecen juntos y duplican la barra de acciones. */
+@media (max-width: 768px) {
+  .lote-page--selected .aur-sheet-header {
+    display: none;
+  }
+}
+
 /* ── Búsqueda + orden en el panel de lista ────────────────────────────────── */
 /* Mirror del patrón `.pkg-list-search` en packages.css. Cuando se promueva
    a primitiva (`.aur-list-search`) ambos consumers migran juntos. */

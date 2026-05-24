@@ -8,6 +8,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import EmptyState from '../../../components/ui/EmptyState';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
+import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
 
@@ -605,17 +606,19 @@ function LoteManagement() {
       )}
 
       {/* ── Page header ── */}
-      <div className="lote-page-header">
-        <div className="lote-page-title-block">
-          <h2 className="lote-page-title">Lotes Activos</h2>
-          <p className="lote-page-hint">
-            Espacios físicos donde viven tus cultivos y la unidad básica para registrar actividades y costos.
-          </p>
-        </div>
-        <button onClick={handleNewLote} className="aur-btn-pill">
-          <FiPlus size={14} /> Nuevo Lote
-        </button>
-      </div>
+      <PageHeader
+        level={2}
+        title="Lotes Activos"
+        subtitle="Espacios físicos donde viven tus cultivos y la unidad básica para registrar actividades y costos."
+        actions={
+          <button onClick={handleNewLote} className="aur-btn-pill">
+            <FiPlus size={14} /> Nuevo Lote
+          </button>
+        }
+      />
+      {/* En mobile, cuando hay un lote seleccionado el carousel sticky reemplaza
+         visualmente al header — el header se oculta para no duplicar la barra
+         de acciones. Equivalente al rule legacy en .lote-page-header. */}
 
       <div className="lote-management-layout">
         {/* ── Left: form or hub ── */}
