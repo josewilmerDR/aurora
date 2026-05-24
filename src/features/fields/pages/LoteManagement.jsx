@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'rea
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/lote-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiArrowLeft, FiFilter, FiSliders, FiX, FiEye, FiShare2, FiPrinter, FiSearch, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import EmptyState from '../../../components/ui/EmptyState';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import LoteFormModal from '../components/LoteFormModal';
 
@@ -65,6 +66,8 @@ function LoteManagement() {
   const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
   const [empresaConfig, setEmpresaConfig] = useState({});
   const [previewLote,   setPreviewLote]   = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [loadError,    setLoadError]    = useState(null);
   const carouselRef = useRef(null);
   const docRef      = useRef(null);
 
@@ -76,6 +79,9 @@ function LoteManagement() {
   }, [selectedLote]);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
+  // `fetchLotes` se conserva separada porque los handlers de crear/eliminar
+  // necesitan refrescar solo la lista de lotes y reusar el array devuelto
+  // para encontrar el lote recién guardado y seleccionarlo.
   const fetchLotes = useCallback(() => {
     return apiFetch('/api/lotes').then(res => res.json()).then(data => {
       setLotes(data);
@@ -83,9 +89,29 @@ function LoteManagement() {
     }).catch(console.error);
   }, [apiFetch]);
 
-  const fetchPackages = useCallback(() => {
-    apiFetch('/api/packages').then(res => res.json()).then(setPackages).catch(console.error);
+  // Carga inicial de los 5 recursos en paralelo. Promise.allSettled deja que
+  // un fetch lento o caído no bloquee el resto — el usuario ve lo que sí
+  // llegó y un banner de error con CTA para reintentar. Antes los errores
+  // se tragaban en console.error y la página mostraba un falso "Sin lotes
+  // creados" cuando en realidad la red estaba caída.
+  const reloadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    const results = await Promise.allSettled([
+      apiFetch('/api/lotes').then(r => r.json()).then(setLotes),
+      apiFetch('/api/packages').then(r => r.json()).then(setPackages),
+      apiFetch('/api/grupos').then(r => r.json()).then(setGrupos),
+      apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])),
+      apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig),
+    ]);
+    const failed = results.filter(r => r.status === 'rejected').length;
+    setLoadError(failed > 0
+      ? `No se pudieron cargar ${failed} de ${results.length} recursos. La información mostrada puede estar incompleta.`
+      : null);
+    setLoading(false);
   }, [apiFetch]);
+
+  useEffect(() => { reloadAll(); }, [reloadAll]);
 
   // Deep-link entrante: si la navegación viene con `state.selectLoteId`
   // (e.g. desde el modal de dependencias del paquete que se intentó borrar),
@@ -96,14 +122,6 @@ function LoteManagement() {
   const location = useLocation();
   const incomingSelectLoteId = location.state?.selectLoteId;
   const deepLinkProcessedRef = useRef(false);
-
-  useEffect(() => {
-    fetchLotes();
-    fetchPackages();
-    apiFetch('/api/grupos').then(res => res.json()).then(setGrupos).catch(console.error);
-    apiFetch('/api/siembras').then(res => res.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
-    apiFetch('/api/config').then(res => res.json()).then(setEmpresaConfig).catch(console.error);
-  }, []);
 
   useEffect(() => {
     if (deepLinkProcessedRef.current) return;
@@ -547,6 +565,23 @@ function LoteManagement() {
         />
       )}
 
+      {/* ── Banner de error de carga (algún fetch inicial falló) ── */}
+      {loadError && (
+        <div className="lote-load-error" role="alert">
+          <FiAlertTriangle size={14} aria-hidden="true" />
+          <span className="lote-load-error-msg">{loadError}</span>
+          <button
+            type="button"
+            className="lote-load-error-retry"
+            onClick={reloadAll}
+            disabled={loading}
+          >
+            <FiRefreshCw size={12} aria-hidden="true" />
+            {loading ? 'Cargando…' : 'Reintentar'}
+          </button>
+        </div>
+      )}
+
       {/* ── Mobile sticky carousel ── */}
       {selectedLote && (
         <div className="lote-carousel" ref={carouselRef}>
@@ -682,11 +717,18 @@ function LoteManagement() {
             </>
           )}
 
-          {lotes.length === 0 ? (
-            <div className="grupo-cta">
-              <div className="grupo-cta-icon"><FiPlus size={24} /></div>
-              <p className="grupo-cta-title">Sin lotes creados</p>
-            </div>
+          {loading ? (
+            <AuroraSkeleton variant="row" count={6} label="Cargando lotes…" />
+          ) : lotes.length === 0 ? (
+            // Si hubo error de carga no mostramos "Sin lotes creados" — sería
+            // falso, no sabemos si está vacío o si la red murió. El banner
+            // arriba ya explica qué pasó y tiene el botón Reintentar.
+            loadError ? null : (
+              <div className="grupo-cta">
+                <div className="grupo-cta-icon"><FiPlus size={24} /></div>
+                <p className="grupo-cta-title">Sin lotes creados</p>
+              </div>
+            )
           ) : displayedLotes.length === 0 ? (
             <p className="lote-list-no-results">
               Sin resultados para "{searchQuery}".{' '}
