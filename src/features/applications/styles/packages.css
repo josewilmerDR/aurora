@@ -630,6 +630,19 @@
     display: none;
   }
 
+  /* Migración al patrón Lotes: en hub mode (paquete seleccionado en vista
+     read-only) ocultamos por completo el header de la página. PackageHub ya
+     muestra internamente el nombre del paquete + acciones + botón de back,
+     así que el header del wrapper sería redundante.
+
+     Importante: solo `.pkg-page--hub`, NO `.pkg-page--selected` — el form
+     (mode create/edit) no tiene header propio y depende del PageHeader para
+     mostrar "Nuevo paquete" / "Editar paquete" + el badge de cambios sin
+     guardar, así que en form mode el header debe seguir visible. */
+  .pkg-page--hub .aur-sheet-header {
+    display: none;
+  }
+
   /* Mobile: el bubble "+ Nuevo" del carrusel sirve como CTA primario para
      crear un paquete. Ocultar el botón del header en este viewport evita
      la duplicación reportada en el audit (punto 21) sin perder la acción.

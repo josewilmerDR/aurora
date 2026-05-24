@@ -545,7 +545,7 @@ function PackageManagement() {
   };
 
   return (
-    <div className={`pkg-page-wrapper${isFormOpen ? ' pkg-page--selected' : ''}${packages.length > 0 ? ' pkg-page--has-packages' : ''}`}>
+    <div className={`pkg-page-wrapper${isFormOpen ? ' pkg-page--selected' : ''}${selectedPkg ? ' pkg-page--hub' : ''}${packages.length > 0 ? ' pkg-page--has-packages' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {pendingDeletePkg && (
@@ -876,8 +876,12 @@ function PackageManagement() {
         </div>
       )}
 
-      {/* ── Mobile sticky carousel ── */}
-      {!loading && packages.length > 0 && (
+      {/* ── Mobile sticky carousel ──
+          Migración al patrón de Lotes: el carousel solo aparece cuando hay
+          foco en un paquete (form abierto o hub abierto). En landing —cuando
+          no hay nada seleccionado— se muestra solo la lista del panel,
+          alineando el comportamiento de mobile con LoteManagement. */}
+      {!loading && isFormOpen && packages.length > 0 && (
         <div className="pkg-carousel" ref={carouselRef}>
           {/* Carrusel mobile = solo activos. Archivados se acceden desde el
               panel de lista (visible en mobile cuando no hay paquete elegido). */}
