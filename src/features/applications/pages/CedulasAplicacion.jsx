@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPrinter, FiShare2, FiX, FiCheckCircle, FiPlusCircle, FiEye, FiArrowLeft, FiEdit2, FiFilter } from 'react-icons/fi';
+import { FiX, FiCheckCircle, FiPlusCircle, FiEye, FiEdit2, FiFilter } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
@@ -11,6 +11,7 @@ import CedulaNuevaModal from '../components/CedulaNuevaModal';
 import MezclaListaModal from '../components/MezclaListaModal';
 import AplicadaModal from '../components/AplicadaModal';
 import CedulaDocumento from '../components/CedulaDocumento';
+import CedulaPreviewModal from '../components/CedulaPreviewModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import FilterButton from '../../../components/ui/FilterButton';
@@ -940,98 +941,35 @@ function CedulasAplicacion() {
       )}
 
       {/* ── PREVIEW MODAL ── */}
-      {previewTask && createPortal(
-        <div className="ca-preview-backdrop" onClick={handleCloseViewer}>
-          <div className="ca-preview-container" onClick={e => e.stopPropagation()}>
-
-            {/* Toolbar */}
-            <div className="ca-preview-toolbar">
-              <button className="ca-preview-back-btn" onClick={handleCloseViewer} title="Volver">
-                <FiArrowLeft size={16} />
-                <span>Volver</span>
-              </button>
-              <span className="ca-preview-toolbar-title">
-                Cédula de Aplicación — {previewTask.activityName}
-                {previewTask.isDraft
-                  ? <span className="ca-toolbar-draft-badge">BORRADOR</span>
-                  : activeCedula && (
-                    <span className="ca-toolbar-consecutivo">
-                      {activeCedula.consecutivo}
-                    </span>
-                  )
-                }
-              </span>
-              <div className="ca-preview-toolbar-actions">
-                {/* ── Acciones de flujo inline (ocultas en borrador) ── */}
-                {!previewTask.isDraft && (() => {
-                  const cedula = activeCedula;
-                  const isLdg  = actionLoading === cedula?.id;
-                  if (!cedula) return null;
-                  if (cedula.status === 'aplicada_en_campo') {
-                    return (
-                      <span className="ca-toolbar-applied-badge">
-                        <FiCheckCircle size={14} /> Aplicada
-                      </span>
-                    );
-                  }
-                  if (cedula.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado')) {
-                    return (
-                      <button
-                        className="aur-btn-pill"
-                        onClick={() => handleMezclaLista(cedula.id)}
-                        disabled={isLdg}
-                      >
-                        <FiCheckCircle size={14} />
-                        {isLdg ? 'Procesando…' : 'Mezcla Lista'}
-                      </button>
-                    );
-                  }
-                  if (cedula.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador')) {
-                    return (
-                      <button
-                        className="aur-btn-pill"
-                        onClick={() => handleAplicada(cedula.id)}
-                        disabled={isLdg}
-                      >
-                        <FaTractor size={14} />
-                        {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
-                      </button>
-                    );
-                  }
-                  return null;
-                })()}
-
-                <button className="aur-chip ca-toolbar-icon-btn" onClick={handleShare}>
-                  <FiShare2 size={15} /> <span className="ca-toolbar-btn-text">Compartir</span>
-                </button>
-                <button className="aur-chip ca-toolbar-icon-btn" onClick={handlePrint}>
-                  <FiPrinter size={15} /> <span className="ca-toolbar-btn-text">Imprimir</span>
-                </button>
-              </div>
-            </div>
-
-            <CedulaDocumento
-              ref={docRef}
-              config={config}
-              previewTask={previewTask}
-              activeCedula={activeCedula}
-              previewSource={previewSource}
-              previewPkg={previewPkg}
-              previewPackageName={previewPackageName}
-              previewTecnicoResponsable={previewTecnicoResponsable}
-              previewProductos={previewProductos}
-              previewBloques={previewBloques}
-              pvTotalHa={pvTotalHa}
-              previewCal={previewCal}
-              previewCalAplicador={previewCalAplicador}
-              previewCalTractor={previewCalTractor}
-              getProductoCatalog={getProductoCatalog}
-            />
-
-          </div>
-        </div>,
-        document.body
-      )}
+      <CedulaPreviewModal
+        previewTask={previewTask}
+        activeCedula={activeCedula}
+        actionLoading={actionLoading}
+        currentUser={currentUser}
+        onClose={handleCloseViewer}
+        onShare={handleShare}
+        onPrint={handlePrint}
+        onMezclaLista={handleMezclaLista}
+        onAplicada={handleAplicada}
+      >
+        <CedulaDocumento
+          ref={docRef}
+          config={config}
+          previewTask={previewTask}
+          activeCedula={activeCedula}
+          previewSource={previewSource}
+          previewPkg={previewPkg}
+          previewPackageName={previewPackageName}
+          previewTecnicoResponsable={previewTecnicoResponsable}
+          previewProductos={previewProductos}
+          previewBloques={previewBloques}
+          pvTotalHa={pvTotalHa}
+          previewCal={previewCal}
+          previewCalAplicador={previewCalAplicador}
+          previewCalTractor={previewCalTractor}
+          getProductoCatalog={getProductoCatalog}
+        />
+      </CedulaPreviewModal>
 
       {/* ── Nueva Cédula Modal ── */}
       {showNuevaModal && (
