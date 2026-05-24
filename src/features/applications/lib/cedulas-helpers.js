@@ -35,6 +35,34 @@ export const formatShortDate = (iso) => {
   });
 };
 
+/** Calcula el status que una task debería tener según el estado actual de
+ *  sus cédulas. Pura, idempotente — apta para llamar desde un updater de
+ *  `setCedulas(prev => ...)` sin stale closures.
+ *
+ *  Reglas:
+ *   - 'pending'           si ≥1 cédula sigue activa (no terminó en
+ *                         `aplicada_en_campo` ni `anulada`). Cualquier
+ *                         status nuevo en el futuro (`'en_revision'`, etc.)
+ *                         se trata como activo por default — fail-safe:
+ *                         nunca completa una task por accidente.
+ *   - 'completed_by_user' si todas las cédulas son terminales y al menos
+ *                         una fue aplicada en campo.
+ *   - 'skipped'           si todas las cédulas son terminales y ninguna
+ *                         fue aplicada (todas anuladas).
+ *   - 'pending'           defensivo si no hay cédulas para esa task —
+ *                         situación degenerada, no debería ocurrir tras
+ *                         un update válido. Punto #19 audit. */
+export const computeTaskStatusFromCedulas = (cedulas, taskId) => {
+  const siblings = cedulas.filter(c => c.taskId === taskId);
+  if (siblings.length === 0) return 'pending';
+  const stillActive = siblings.some(c =>
+    c.status !== 'aplicada_en_campo' && c.status !== 'anulada'
+  );
+  if (stillActive) return 'pending';
+  const anyApplied = siblings.some(c => c.status === 'aplicada_en_campo');
+  return anyApplied ? 'completed_by_user' : 'skipped';
+};
+
 /** Filtra tasks por rango de fechas inclusivo en dueDate. `dateFrom` y
  *  `dateTo` son strings YYYY-MM-DD (como los devuelve <input type="date">).
  *  Si alguno está vacío, ese extremo del rango se ignora. Pure — sin side
