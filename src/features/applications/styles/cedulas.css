@@ -1171,6 +1171,20 @@
   font-weight: 600;
 }
 
+/* Contador live "X cédulas en el periodo" en el footer de FiltroPeriodoModal.
+   margin-right:auto lo empuja a la izquierda del flex-end row (Limpiar +
+   Listo quedan a la derecha). text-transform:none anula el uppercase del
+   .aur-field-hint base — leer "12 CÉDULAS" en gritón rompe la sensación
+   de feedback suave. Punto #17 audit. */
+.ca-periodo-count {
+  margin-right: auto;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.78rem;
+  opacity: 1;
+  color: var(--aur-text-2, var(--aurora-light));
+}
+
 /* ── Chips informativos en el meta de la card (ha / paquete / # productos)
    Aparecen abajo de .ca-cedula-meta. Sutil low-contrast para no competir
    con el activityName y los badges de estado. Punto #15 audit. */

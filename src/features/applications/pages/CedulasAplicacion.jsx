@@ -21,6 +21,7 @@ import {
   formatShortDate,
   isOverdue,
   isManualTask,
+  filterTasksByDateRange,
 } from '../lib/cedulas-helpers';
 import '../styles/cedulas.css';
 
@@ -229,25 +230,23 @@ function CedulasAplicacion() {
   const tasksById         = useMemo(() => new Map((tasks         || []).map(t => [t.id, t])), [tasks]);
   const cedulasById       = useMemo(() => new Map((cedulas       || []).map(c => [c.id, c])), [cedulas]);
 
+  // Tasks que matchean SOLO el filtro de fecha (sin search). Lo consume:
+  // (1) visibleTasks como input para aplicar después search + sort;
+  // (2) FiltroPeriodoModal como contador live "X cédulas en el periodo".
+  // Separar el step de fecha lo hace reutilizable y mantiene una sola
+  // fuente de verdad del cálculo (antes inline en visibleTasks). Punto
+  // #17 audit.
+  const tasksByDateRange = useMemo(
+    () => filterTasksByDateRange(aplicacionTasks, dateFrom, dateTo),
+    [aplicacionTasks, dateFrom, dateTo]
+  );
+
   const visibleTasks = useMemo(() => {
-    // Filtrado por rango de fechas (opcional)
-    let filtered;
-    if (!dateFrom && !dateTo) {
-      filtered = aplicacionTasks;
-    } else {
-      const start = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
-      const end   = dateTo   ? new Date(dateTo   + 'T23:59:59') : null;
-      filtered = aplicacionTasks.filter(t => {
-        const due = new Date(t.dueDate);
-        if (start && due < start) return false;
-        if (end   && due > end)   return false;
-        return true;
-      });
-    }
     // Filtrado por texto sobre actividad/lote/responsable/consecutivo. Case
     // insensitive con .includes — sin normalización de acentos para no romper
     // matches exactos en español (si llega a ser un problema real, usar
     // normalize('NFD').replace(/\p{Diacritic}/gu, '') en ambos lados).
+    let filtered = tasksByDateRange;
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       filtered = filtered.filter(t => {
@@ -266,7 +265,7 @@ function CedulasAplicacion() {
       if (am !== bm) return am - bm;
       return new Date(a.dueDate) - new Date(b.dueDate);
     });
-  }, [aplicacionTasks, dateFrom, dateTo, searchQuery, cedulasByTaskId]);
+  }, [tasksByDateRange, searchQuery, cedulasByTaskId]);
 
   const getSource = (task) => {
     if (task.loteId)  return lotesById.get(task.loteId)   || null;
@@ -947,6 +946,7 @@ function CedulasAplicacion() {
           setDateFrom={setDateFrom}
           dateTo={dateTo}
           setDateTo={setDateTo}
+          matchCount={tasksByDateRange.length}
           onClose={() => setMostrarFiltros(false)}
         />
       )}
