@@ -1162,6 +1162,33 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Chips informativos en el meta de la card (ha / paquete / # productos)
+   Aparecen abajo de .ca-cedula-meta. Sutil low-contrast para no competir
+   con el activityName y los badges de estado. Punto #15 audit. */
+.ca-cedula-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ca-cedula-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  border-radius: 10px;
+  background: rgba(230, 242, 255, 0.06);
+  color: var(--aur-text-2, var(--aurora-light));
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.ca-cedula-chip svg {
+  color: var(--aur-text-3, #6b819b);
+  flex-shrink: 0;
+}
+
 .ca-cedula-status {
   display: flex;
   align-items: center;

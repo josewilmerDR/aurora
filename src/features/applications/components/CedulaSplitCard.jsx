@@ -1,7 +1,7 @@
-import { FiX, FiCheckCircle, FiEye, FiEdit2 } from 'react-icons/fi';
+import { FiX, FiCheckCircle, FiEye, FiEdit2, FiMap, FiPackage, FiDroplet } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { hasMinRole } from '../../../contexts/UserContext';
-import { formatShortDate, isOverdue, isManualTask } from '../lib/cedulas-helpers';
+import { formatShortDate, isOverdue, isManualTask, formatHectareas } from '../lib/cedulas-helpers';
 
 // Mapping del status de cédula a clase de badge + label. Local porque solo
 // la usa el split-card: la single-card en CedulaCard.jsx muestra el status
@@ -35,6 +35,9 @@ export default function CedulaSplitCard({
   isHighlighted,
   actionLoading,
   currentUser,
+  packageName,             // resuelto en el orquestador via getPackageName
+  productCount,            // task.activity.productos.length
+  hectareas,               // total del grupo (source.hectareas / task.loteHectareas)
   onPreview,
   onEditar,
   onMezclaLista,
@@ -58,6 +61,28 @@ export default function CedulaSplitCard({
             {task.loteName}
             {task.responsableName ? ` · ${task.responsableName}` : ''}
           </p>
+          {/* Chips informativos: ha total del grupo / paquete / # productos
+              de la mezcla planificada. Mismo patrón que CedulaCard. Punto
+              #15 audit. */}
+          {(formatHectareas(hectareas) || packageName || productCount > 0) && (
+            <div className="ca-cedula-chips">
+              {formatHectareas(hectareas) && (
+                <span className="ca-cedula-chip" title="Hectáreas totales del grupo">
+                  <FiMap size={11} aria-hidden="true" /> {formatHectareas(hectareas)}
+                </span>
+              )}
+              {packageName && (
+                <span className="ca-cedula-chip" title="Paquete de aplicaciones">
+                  <FiPackage size={11} aria-hidden="true" /> {packageName}
+                </span>
+              )}
+              {productCount > 0 && (
+                <span className="ca-cedula-chip" title="Productos en la mezcla planificada">
+                  <FiDroplet size={11} aria-hidden="true" /> {productCount} producto{productCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="ca-cedula-status">
           {/* En split no mostramos badge de estado a nivel task: cada

@@ -1,7 +1,7 @@
-import { FiX, FiCheckCircle, FiPlusCircle, FiEye, FiEdit2 } from 'react-icons/fi';
+import { FiX, FiCheckCircle, FiPlusCircle, FiEye, FiEdit2, FiMap, FiPackage, FiDroplet } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { hasMinRole } from '../../../contexts/UserContext';
-import { formatShortDate, isOverdue, isManualTask } from '../lib/cedulas-helpers';
+import { formatShortDate, isOverdue, isManualTask, formatHectareas } from '../lib/cedulas-helpers';
 
 // ── CedulaCard ───────────────────────────────────────────────────────────────
 // Card del listing principal para una task con UNA cédula (o ninguna todavía).
@@ -24,6 +24,9 @@ export default function CedulaCard({
   allowSkipTask,
   actionLoading,
   currentUser,
+  packageName,             // resuelto en el orquestador via getPackageName
+  productCount,            // task.activity.productos.length
+  hectareas,               // task.loteHectareas ?? source.hectareas
   onPreview,
   onGenerar,
   onOmitir,
@@ -54,6 +57,30 @@ export default function CedulaCard({
             {task.responsableName ? ` · ${task.responsableName}` : ''}
             {cedula && <span className="ca-cedula-consecutivo">{cedula.consecutivo}</span>}
           </p>
+          {/* Chips informativos densos: ha / paquete / # productos.
+              Permite decidir "¿voy a generar esta cédula ahora?" sin
+              abrir el preview. Punto #15 audit. Solo se rendea la fila
+              si hay al menos un valor — evita huecos visuales en cards
+              minimal-data. */}
+          {(formatHectareas(hectareas) || packageName || productCount > 0) && (
+            <div className="ca-cedula-chips">
+              {formatHectareas(hectareas) && (
+                <span className="ca-cedula-chip" title="Hectáreas del lote">
+                  <FiMap size={11} aria-hidden="true" /> {formatHectareas(hectareas)}
+                </span>
+              )}
+              {packageName && (
+                <span className="ca-cedula-chip" title="Paquete de aplicaciones">
+                  <FiPackage size={11} aria-hidden="true" /> {packageName}
+                </span>
+              )}
+              {productCount > 0 && (
+                <span className="ca-cedula-chip" title="Productos en la mezcla planificada">
+                  <FiDroplet size={11} aria-hidden="true" /> {productCount} producto{productCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="ca-cedula-status">
           {/* Un solo badge de estado: cédula si existe (fuente de verdad
