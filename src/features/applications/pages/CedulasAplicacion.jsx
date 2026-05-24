@@ -624,9 +624,18 @@ function CedulasAplicacion() {
   };
 
   const handlePrint = () => {
+    // body.ca-printing oculta #root via @media print, dejando solo el
+    // portal del preview en el snapshot impreso. La limpieza va detrás de
+    // `afterprint` porque `window.print()` no es síncrono en todos los
+    // browsers (Firefox / Safari mobile pueden devolver antes de capturar
+    // el DOM, y un `remove` inmediato re-mostraba la chrome en el output).
     document.body.classList.add('ca-printing');
+    const cleanup = () => {
+      document.body.classList.remove('ca-printing');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
     window.print();
-    document.body.classList.remove('ca-printing');
   };
 
   // ── Cerrar viewer (back-aware) ────────────────────────────────────────────
