@@ -153,12 +153,16 @@ export default function CedulaSplitCard({
                 {canAnular && (
                   <button
                     type="button"
-                    className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+                    className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm ca-row-action"
                     onClick={() => onAnular(c.id)}
                     disabled={isLdg}
                     title="Anular cédula"
+                    aria-label="Anular cédula"
                   >
                     <FiX size={13} />
+                    {/* Label visible solo en mobile — afford táctil para una
+                        acción destructiva. Punto #27 audit. */}
+                    <span className="ca-row-action-label">Anular</span>
                   </button>
                 )}
               </div>
