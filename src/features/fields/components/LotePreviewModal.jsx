@@ -130,7 +130,12 @@ export default function LotePreviewModal({
           <div className="gp-doc-header">
             <div className="gp-doc-brand">
               {empresaConfig.logoUrl
-                ? <img src={empresaConfig.logoUrl} alt="Logo" className="gp-doc-logo-img" />
+                ? <img
+                    src={empresaConfig.logoUrl}
+                    alt="Logo"
+                    className="gp-doc-logo-img"
+                    referrerPolicy="no-referrer"
+                  />
                 : <div className="gp-doc-logo">AU</div>}
               <div className="gp-doc-brand-info">
                 <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
