@@ -460,6 +460,48 @@
   text-align: right;
 }
 
+/* Lista de productos que se restauran al anular una cédula en_transito.
+   Aparece como children dentro de AuroraConfirmModal abajo del body para
+   que el regente vea exactamente qué se le devuelve al stock antes de
+   confirmar (antes confirmaba a ciegas). Punto #24 audit. */
+.ca-anular-prod-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.ca-anular-prod-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.ca-anular-prod-name {
+  font-weight: 600;
+  color: var(--aurora-light);
+  min-width: 0;
+  flex: 1;
+}
+.ca-anular-prod-amount {
+  color: var(--aurora-green);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ca-anular-prod-rate {
+  color: var(--aur-text-3, #6b819b);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+
 /* Mini-tabla de calibración en la columna 3 del header del documento.
    Mismo lenguaje visual que .ca-doc-table (header oscuro #1a2a3a), pero
    compacta: cell padding más chico, font más pequeña, primera columna
