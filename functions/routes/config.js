@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { admin, db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
@@ -15,8 +16,17 @@ router.get('/api/config', authenticate, async (req, res) => {
   }
 });
 
+// Escritura de config requiere administrador. El payload incluye logoUrl (que
+// se renderiza embebido en PDFs de Lotes/Grupos/Cédulas), identidad legal de
+// la finca, contactos públicos y parámetros de cultivo (díasIDesarrollo,
+// kgPorPlanta, etc.) que alimentan proyecciones de cosecha y costos. Sin
+// gate, un trabajador podía alterar todo eso vía API directa — desde plantar
+// un tracking pixel como logo hasta envenenar las proyecciones del año.
 router.put('/api/config', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'administrador')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only administrador can update finca config.', 403);
+    }
     const { nombreEmpresa, identificacion, representanteLegal, administrador, direccion, whatsapp, correo, logoBase64, mediaType,
             diasIDesarrollo, diasIIDesarrollo, diasPostForza,
             diasSiembraICosecha, diasForzaICosecha, diasChapeaIICosecha, diasForzaIICosecha,
