@@ -187,21 +187,52 @@ function GrupoManagement() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  // Deep-link entrante (e.g. desde el modal de dependencias en /packages):
-  // si la navegación viene con `state.selectGrupoId`, auto-seleccionamos ese
-  // grupo cuando los datos terminen de cargar. La ref evita re-seleccionar
-  // si `grupos` se refetchea después por cualquier motivo.
+  // Deep-link entrante (e.g. desde el modal de dependencias en /packages,
+  // o desde el panel de cobertura del hub de un lote en /lotes):
+  //   - state.selectGrupoId      → auto-seleccionar ese grupo al cargar
+  //   - state.preloadSiembraIds  → abrir el form de nuevo grupo con esos
+  //                                 siembraIds ya marcados como bloques
+  //                                 (flujo "Crear grupo con estos bloques")
+  // La ref evita re-aplicar el deep-link si `grupos` se refetchea después.
   const location = useLocation();
-  const incomingSelectGrupoId = location.state?.selectGrupoId;
+  const incomingSelectGrupoId  = location.state?.selectGrupoId;
+  const incomingPreloadIds     = location.state?.preloadSiembraIds;
+  const incomingPreloadLote    = location.state?.preloadLoteCode;
   const deepLinkProcessedRef = useRef(false);
   useEffect(() => {
     if (deepLinkProcessedRef.current) return;
-    if (!incomingSelectGrupoId || !Array.isArray(grupos) || grupos.length === 0) return;
-    const found = grupos.find(g => g.id === incomingSelectGrupoId);
-    if (!found) return;
-    deepLinkProcessedRef.current = true;
-    setSelectedGrupo(found);
-  }, [grupos, incomingSelectGrupoId]);
+    if (incomingSelectGrupoId) {
+      if (!Array.isArray(grupos) || grupos.length === 0) return;
+      const found = grupos.find(g => g.id === incomingSelectGrupoId);
+      if (!found) return;
+      deepLinkProcessedRef.current = true;
+      setSelectedGrupo(found);
+      return;
+    }
+    if (Array.isArray(incomingPreloadIds) && incomingPreloadIds.length > 0) {
+      // No esperamos a `bloquesDisponibles` — el form preselecciona por id y
+      // tolera ids que el picker aún no listó (se renderean cuando llega la
+      // data). Si algún id fue movido a otro grupo mientras tanto, el move
+      // modal del propio form maneja el conflicto al guardar.
+      deepLinkProcessedRef.current = true;
+      setIsEditing(false);
+      setSelectedGrupo(null);
+      setFormData({
+        id: null,
+        nombreGrupo: '',
+        cosecha: '',
+        etapa: '',
+        fechaCreacion: '',
+        bloques: incomingPreloadIds,
+        paqueteId: '',
+        paqueteMuestreoId: '',
+      });
+      setShowForm(true);
+      if (incomingPreloadLote) {
+        showToast(`Creá un grupo con los bloques sin agrupar de ${incomingPreloadLote}.`, 'info');
+      }
+    }
+  }, [grupos, incomingSelectGrupoId, incomingPreloadIds, incomingPreloadLote]);
 
   // Centra la burbuja activa en el carousel cuando cambia el grupo seleccionado
   useEffect(() => {
