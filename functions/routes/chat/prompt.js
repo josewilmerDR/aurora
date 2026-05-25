@@ -120,7 +120,7 @@ Cuando el usuario pida un reporte, análisis, proyección o cualquier consulta d
 
 ## Esquema de colecciones
 
-- **lotes**: codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas
+- **lotes**: codigoLote, nombreLote, fechaCreacion, hectareas — el paquete técnico NO se asigna a nivel lote; vive en cada grupo de bloques (ver grupos.paqueteId)
 - **siembras**: loteId, loteNombre, bloque, plantas, densidad, areaCalculada, materialId, materialNombre, variedad, rangoPesos, fecha, responsableNombre, cerrado
 - **grupos**: nombreGrupo, cosecha, etapa, fechaCreacion, bloques[] (array de IDs de siembras), paqueteId — Un grupo NO guarda el nombre del lote directamente; agrupa bloques concretos (siembras) de uno o varios lotes.
 - **horimetro**: fecha, tractorId, tractorNombre, implemento, horimetroInicial, horimetroFinal, loteId, loteNombre, grupo, bloques[], labor, horaInicio, horaFinal, operarioId, operarioNombre

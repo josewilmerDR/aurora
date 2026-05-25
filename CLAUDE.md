@@ -108,7 +108,8 @@ functions/
 
 | Collection | Key fields |
 |---|---|
-| `lotes` | `nombreLote`, `paqueteId`, `hectareas`, `fincaId` |
+| `lotes` | `codigoLote`, `nombreLote`, `fechaCreacion`, `hectareas`, `fincaId` — el paquete técnico se asigna por grupo, NO a nivel lote (campo legacy `paqueteId` puede existir en docs antiguos pero no se usa) |
+| `grupos` | `nombreGrupo`, `cosecha`, `etapa`, `fechaCreacion`, `bloques[]` (siembraIds), `paqueteId`, `paqueteMuestreoId`, `fincaId` |
 | `packages` | `nombrePaquete`, `tipoCosecha`, `etapaCultivo`, `activities[]` |
 | `scheduled_tasks` | `type`, `executeAt`, `status`, `loteId`, `fincaId`, `activity: {name, day, responsableId, type?, productos?[]}` |
 | `usuarios` | `nombre`, `email`, `telefono`, `fincaId` |

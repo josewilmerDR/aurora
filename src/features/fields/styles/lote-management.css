@@ -3,20 +3,73 @@
    `src/styles/legacy-globals.css` (cargado globalmente desde main.jsx).
    GrupoManagement.css ya no necesita `@import` de este archivo. */
 
-/* ── Badge clickeable para asignar/cambiar paquete técnico ────────────────── */
-/* Las 3 variantes del badge de paquete (activo / archivado / "Asignar")
-   ahora son <button> clickeables que abren el modal de edición enfocando
-   el select de paquete. Las clases .aur-badge* aplican igual a button —
-   acá solo agregamos cursor + override de chrome nativo + hover sutil. */
-.lote-paquete-pill {
+/* ── Panel de cobertura de aplicaciones del lote ──────────────────────────── */
+/* El paquete técnico vive en el grupo, no en el lote. Acá resumimos en qué
+   estado está la cobertura del lote: bloques sin agrupar, grupos sin paquete
+   y paquetes activos. Cada tarjeta empuja al usuario a la acción correcta
+   (crear grupo, asignar paquete) vía deep-link a /grupos. */
+.lote-coverage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.lote-coverage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--aurora-border);
+  background: rgba(13, 26, 38, 0.45);
+}
+
+.lote-coverage-card--warn {
+  border-color: rgba(255, 196, 84, 0.4);
+  background: rgba(255, 196, 84, 0.08);
+}
+
+.lote-coverage-card--ok {
+  border-color: rgba(51, 255, 153, 0.3);
+  background: rgba(51, 255, 153, 0.06);
+}
+
+.lote-coverage-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--aurora-light);
+}
+
+.lote-coverage-card--warn .lote-coverage-card-head { color: #ffc454; }
+.lote-coverage-card--ok   .lote-coverage-card-head { color: var(--aurora-green); }
+
+.lote-coverage-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--aurora-light);
+  opacity: 0.85;
+  padding-left: 22px;
+}
+
+.lote-coverage-card .aur-btn-pill {
+  align-self: flex-start;
+  margin-left: 22px;
+}
+
+.lote-coverage-pill {
   cursor: pointer;
   font: inherit;
   letter-spacing: inherit;
   transition: filter 0.15s, transform 0.05s;
 }
-.lote-paquete-pill:hover { filter: brightness(1.15); }
-.lote-paquete-pill:active { transform: scale(0.98); }
-.lote-paquete-pill:focus-visible {
+.lote-coverage-pill:hover  { filter: brightness(1.15); }
+.lote-coverage-pill:active { transform: scale(0.98); }
+.lote-coverage-pill:focus-visible {
   outline: 2px solid var(--aurora-green);
   outline-offset: 1px;
 }

@@ -56,14 +56,13 @@ const CHAT_TOOLS = [
   },
   {
     name: 'crear_lote',
-    description: 'Crea un nuevo lote en el sistema, con sus tareas programadas si se asigna un paquete. Úsala cuando el usuario pida crear o registrar un nuevo lote.',
+    description: 'Crea un nuevo lote en el sistema. El paquete técnico se asigna por grupo de bloques (no a nivel lote) — después de crear el lote, el usuario registra siembras y arma grupos en /grupos para asignarles paquete.',
     input_schema: {
       type: 'object',
       properties: {
         codigoLote:    { type: 'string', description: 'Código estructurado del lote, ej: L2606. Generado automáticamente: "L" + año (2 dígitos) + número de lote (2 dígitos).' },
         nombreLote:    { type: 'string', description: 'Nombre amigable del lote, opcional. Ej: "6", "Norte", "Lote de Rojas".' },
         fechaCreacion: { type: 'string', description: 'Fecha de inicio del lote en formato YYYY-MM-DD.' },
-        paqueteId:     { type: 'string', description: 'ID del paquete técnico a asignar (opcional).' },
         hectareas:     { type: 'number', description: 'Superficie del lote en hectáreas (opcional).' },
       },
       required: ['codigoLote', 'fechaCreacion'],

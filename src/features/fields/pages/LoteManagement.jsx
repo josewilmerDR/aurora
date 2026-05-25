@@ -147,9 +147,9 @@ function LoteManagement() {
   // Abrir un nuevo flujo de crear/editar invalida el banner del save previo —
   // es intención nueva del usuario, no queremos mezclar evidencias visuales.
   const handleNewLote = () => { setLastSavedLote(null); setModalState({ mode: 'create' }); };
-  const handleEdit = (lote, focus) => {
+  const handleEdit = (lote) => {
     setLastSavedLote(null);
-    setModalState({ mode: 'edit', lote, ...(focus ? { focus } : {}) });
+    setModalState({ mode: 'edit', lote });
   };
 
   const handleModalSuccess = async (savedLote) => {
@@ -218,8 +218,6 @@ function LoteManagement() {
         <LoteFormModal
           mode={modalState.mode}
           loteToEdit={modalState.lote}
-          packages={packages}
-          initialFocusField={modalState.focus || 'codigo'}
           apiFetch={apiFetch}
           onSuccess={handleModalSuccess}
           onClose={() => setModalState(null)}

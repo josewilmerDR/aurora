@@ -1,9 +1,11 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   FiArrowLeft, FiEye, FiEdit, FiTrash2,
   FiCalendar, FiLayers, FiPackage,
   FiX, FiSliders,
+  FiAlertTriangle, FiCheckCircle, FiArrowRight,
 } from 'react-icons/fi';
 import EmptyState from '../../../components/ui/EmptyState';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
@@ -23,22 +25,25 @@ const LOTE_BLOQUE_COLS = [
 /**
  * LoteHub — panel central del lote seleccionado.
  *
- * Antes era `renderRightPanel()` dentro de LoteManagement (~130 LOC entre
- * markup, popover de filtros y portal de columnas). Encapsula todo lo que
- * el usuario ve cuando hay un lote elegido: header de acciones, pills de
- * metadata, badges clickeables de paquete, y la tabla de bloques con su
- * estado completo vía `useBloqueTable`.
+ * Encapsula todo lo que el usuario ve cuando hay un lote elegido: header
+ * de acciones, pills de metadata, panel de cobertura de aplicaciones, y la
+ * tabla de bloques con su estado completo vía `useBloqueTable`.
+ *
+ * El paquete técnico ya no se asigna a nivel lote (eso vivía como pill
+ * clickeable acá y rompía el modelo de grupo→paquete duplicando tareas).
+ * En su lugar, este hub muestra un panel de cobertura que detecta bloques
+ * sin agrupar y grupos sin paquete técnico activo, y dirige al usuario a
+ * /grupos con deep-link state para crear el grupo o asignar el paquete.
  *
  * Props:
  *   - lote          object  · el lote activo (parent ya filtra cuando es null)
- *   - siembras      array   · pasadas a useBloqueTable
- *   - grupos        array   · pasadas a useBloqueTable
- *   - packages      array   · para resolver el paquete técnico y su estado
- *                              de archivado en el badge
+ *   - siembras      array   · pasadas a useBloqueTable + panel de cobertura
+ *   - grupos        array   · pasadas a useBloqueTable + panel de cobertura
+ *   - packages      array   · resuelve grupo.paqueteId → nombre del paquete
+ *                              en la sección "Paquetes activos" del panel
  *   - empresaConfig object  · branding para el documento del preview/PDF
  *   - onBack        fn      · cerrar el hub ("Todos los lotes")
- *   - onEdit        fn(lote, focus?) · abrir el modal de editar; `focus`
- *                              ='paquete' cuando vino del click en un badge
+ *   - onEdit        fn(lote) · abrir el modal de editar lote
  *   - onDelete      fn(lote) · abrir el flujo de eliminar (con su guardia)
  *   - onPreviewError fn     · invocado si la generación del PDF falla — el
  *                              parent decide cómo notificar (toast hoy)
@@ -58,6 +63,7 @@ export default function LoteHub({
   onDelete,
   onPreviewError,
 }) {
+  const navigate = useNavigate();
   const {
     tableRows,
     groupedRows, totalHa, totalPlantas,
@@ -70,7 +76,75 @@ export default function LoteHub({
 
   const [previewLote, setPreviewLote] = useState(null);
 
-  const pkg = packages.find(p => p.id === lote.paqueteId);
+  // ── Cobertura de aplicaciones del lote ─────────────────────────────────────
+  // El paquete técnico ya no se asigna a nivel lote — vive en el grupo. Acá
+  // resumimos en qué estado está la cobertura del lote: bloques sin agrupar,
+  // grupos sin paquete, y paquetes activos. La info viaja vía deep-link al
+  // hub de Grupos cuando el usuario quiere actuar.
+  const coverage = useMemo(() => {
+    // Bloques físicos del lote consolidados, conservando los siembraIds
+    // (varias siembras pueden compartir un (lote, bloque) cuando hay
+    // materiales/captures parciales).
+    const blockMap = new Map();
+    for (const s of siembras) {
+      if (s.loteId !== lote.id) continue;
+      const key = s.bloque || 'Sin bloque';
+      if (!blockMap.has(key)) blockMap.set(key, { bloque: key, siembraIds: [] });
+      blockMap.get(key).siembraIds.push(s.id);
+    }
+    const blocks = [...blockMap.values()];
+
+    // Resolver bloque → grupo cruzando grupo.bloques[] (que son siembraIds)
+    // contra las siembras del lote. Un mismo bloque solo puede vivir en un
+    // grupo a la vez (regla del módulo), así que el primer match gana.
+    const blockToGroup = new Map();
+    for (const g of grupos) {
+      for (const sid of (g.bloques || [])) {
+        const siembra = siembras.find(x => x.id === sid);
+        if (!siembra || siembra.loteId !== lote.id) continue;
+        const key = siembra.bloque || 'Sin bloque';
+        if (!blockToGroup.has(key)) blockToGroup.set(key, g);
+      }
+    }
+
+    const ungroupedBlocks = blocks.filter(b => !blockToGroup.has(b.bloque));
+    const ungroupedSiembraIds = ungroupedBlocks.flatMap(b => b.siembraIds);
+
+    const linkedGroups = [];
+    const seen = new Set();
+    for (const b of blocks) {
+      const g = blockToGroup.get(b.bloque);
+      if (g && !seen.has(g.id)) { seen.add(g.id); linkedGroups.push(g); }
+    }
+    const groupsWithoutPackage = linkedGroups.filter(g => !g.paqueteId);
+    const groupsWithPackage = linkedGroups
+      .filter(g => g.paqueteId)
+      .map(g => ({ ...g, package: packages.find(p => p.id === g.paqueteId) }));
+
+    return {
+      hasSiembras: blocks.length > 0,
+      ungroupedBlocks,
+      ungroupedSiembraIds,
+      groupsWithoutPackage,
+      groupsWithPackage,
+    };
+  }, [lote, siembras, grupos, packages]);
+
+  const hasCoverageIssues = coverage.ungroupedBlocks.length > 0 || coverage.groupsWithoutPackage.length > 0;
+  const allCovered = coverage.hasSiembras && !hasCoverageIssues && coverage.groupsWithPackage.length > 0;
+
+  const handleCreateGroupWithUngrouped = () => {
+    navigate('/grupos', {
+      state: {
+        preloadSiembraIds: coverage.ungroupedSiembraIds,
+        preloadLoteCode: lote.codigoLote,
+      },
+    });
+  };
+
+  const handleAssignPackageToGroup = (grupoId) => {
+    navigate('/grupos', { state: { selectGrupoId: grupoId } });
+  };
 
   // Bundle compartido por las 5 cabeceras sortables. La identidad del
   // objeto cambia cada render, pero BloqueSortTh no está memoizado (ver
@@ -114,31 +188,80 @@ export default function LoteHub({
             {lote.hectareas} ha
           </span>
         )}
-        {pkg && (
-          <button
-            type="button"
-            className={`aur-badge aur-badge--blue lote-paquete-pill${pkg.archivedAt ? ' aur-badge--archived' : ''}`}
-            title={pkg.archivedAt
-              ? 'El paquete técnico asignado a este lote está archivado. Clic para reasignar.'
-              : 'Clic para cambiar el paquete técnico.'}
-            onClick={() => onEdit(lote, 'paquete')}
-          >
-            <FiPackage size={13} />
-            {pkg.nombrePaquete}
-            {pkg.archivedAt && <span className="aur-badge-archived-tag">archivado</span>}
-          </button>
-        )}
-        {!lote.paqueteId && (
-          <button
-            type="button"
-            className="aur-badge lote-paquete-pill"
-            title="Clic para asignar un paquete técnico a este lote."
-            onClick={() => onEdit(lote, 'paquete')}
-          >
-            <FiPackage size={13} /> Asignar paquete técnico
-          </button>
-        )}
       </div>
+
+      {/* Panel de cobertura: solo aparece cuando hay siembras registradas.
+         Antes acá vivía la pill "Asignar paquete técnico", que escribía
+         lote.paqueteId y generaba tareas a nivel lote en paralelo a las
+         del grupo → duplicación silenciosa. Ahora el paquete vive en el
+         grupo y este panel resume el estado de cobertura del lote. */}
+      {coverage.hasSiembras && (
+        <div className="lote-coverage">
+          {coverage.ungroupedBlocks.length > 0 && (
+            <div className="lote-coverage-card lote-coverage-card--warn">
+              <div className="lote-coverage-card-head">
+                <FiAlertTriangle size={14} />
+                <span>
+                  <strong>{coverage.ungroupedBlocks.length}</strong>{' '}
+                  {coverage.ungroupedBlocks.length === 1 ? 'bloque sin agrupar' : 'bloques sin agrupar'}
+                </span>
+              </div>
+              <div className="lote-coverage-card-body">
+                {coverage.ungroupedBlocks.map(b => b.bloque).join(', ')}
+              </div>
+              <button
+                type="button"
+                className="aur-btn-pill aur-btn-pill--sm"
+                onClick={handleCreateGroupWithUngrouped}
+              >
+                Crear grupo con {coverage.ungroupedBlocks.length === 1 ? 'este bloque' : 'estos bloques'}
+                <FiArrowRight size={12} />
+              </button>
+            </div>
+          )}
+
+          {coverage.groupsWithoutPackage.map(g => (
+            <div key={g.id} className="lote-coverage-card lote-coverage-card--warn">
+              <div className="lote-coverage-card-head">
+                <FiAlertTriangle size={14} />
+                <span>
+                  Grupo <strong>{g.nombreGrupo}</strong> sin paquete técnico
+                </span>
+              </div>
+              <button
+                type="button"
+                className="aur-btn-pill aur-btn-pill--sm"
+                onClick={() => handleAssignPackageToGroup(g.id)}
+              >
+                Asignar paquete <FiArrowRight size={12} />
+              </button>
+            </div>
+          ))}
+
+          {allCovered && (
+            <div className="lote-coverage-card lote-coverage-card--ok">
+              <div className="lote-coverage-card-head">
+                <FiCheckCircle size={14} />
+                <span>Todos los bloques están agrupados y con paquete técnico activo.</span>
+              </div>
+              <div className="lote-coverage-card-body">
+                {coverage.groupsWithPackage.map(g => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className="aur-badge aur-badge--blue lote-coverage-pill"
+                    onClick={() => handleAssignPackageToGroup(g.id)}
+                    title={`Abrir ${g.nombreGrupo} en Grupos`}
+                  >
+                    <FiPackage size={11} />
+                    {g.nombreGrupo} — {g.package?.nombrePaquete || 'paquete'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grupo-hub-bloques-header">
         <p className="grupo-hub-bloques-title">Bloques</p>

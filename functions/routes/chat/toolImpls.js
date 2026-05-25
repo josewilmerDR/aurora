@@ -12,7 +12,6 @@
 // `{ error: err.message }`.
 
 const { db, Timestamp } = require('../../lib/firebase');
-const { sendNotificationWithLink } = require('../../lib/helpers');
 // User-targeted tools (crear/editar empleado) live in a separate file to keep
 // this one under the route-LOC budget. They are re-exported below so the
 // dispatcher (and integration tests) keep importing from this module.
@@ -190,8 +189,12 @@ async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, lim
   return { coleccion, total: docs.length, datos: docs };
 }
 
-// Tool: create a new lote with its scheduled tasks.
-async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paqueteId, hectareas }, fincaId) {
+// Tool: create a new lote.
+// El paquete técnico ya no se asigna a nivel lote — vive en el grupo. Si el
+// LLM intenta pasar paqueteId, lo ignoramos silenciosamente para mantener
+// paridad con el endpoint HTTP, y el usuario asigna el paquete cuando arme
+// los grupos de bloques en /grupos.
+async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, hectareas }, fincaId) {
   const loteData = {
     codigoLote,
     ...(nombreLote ? { nombreLote } : {}),
@@ -199,54 +202,12 @@ async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, paquet
     hectareas: parseFloat(hectareas) || 0,
     fincaId,
   };
-  if (paqueteId) loteData.paqueteId = paqueteId;
 
   const loteRef = await db.collection('lotes').add(loteData);
-
-  if (!paqueteId) {
-    return { id: loteRef.id, codigoLote, mensaje: `Lote ${codigoLote} creado sin paquete técnico.` };
-  }
-
-  const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
-  if (!paqueteDoc.exists) throw new Error('Paquete no encontrado');
-  const paqueteData = paqueteDoc.data();
-
-  const loteCreationDate = new Date(fechaCreacion);
-  const tasksBatch = db.batch();
-  const tasksForImmediateNotification = [];
-
-  for (const activity of paqueteData.activities) {
-    const activityDay = parseInt(activity.day);
-    const activityDate = new Date(loteCreationDate);
-    activityDate.setDate(loteCreationDate.getDate() + activityDay);
-
-    const reminderDate = new Date(activityDate);
-    reminderDate.setDate(reminderDate.getDate() - 3);
-
-    const reminderTaskRef = db.collection('scheduled_tasks').doc();
-    tasksBatch.set(reminderTaskRef, { type: 'REMINDER_3_DAY', executeAt: Timestamp.fromDate(reminderDate), loteId: loteRef.id, activity, status: 'pending', fincaId });
-
-    const dueTaskRef = db.collection('scheduled_tasks').doc();
-    const dueTaskData = { type: 'REMINDER_DUE_DAY', executeAt: Timestamp.fromDate(activityDate), loteId: loteRef.id, activity, status: 'pending', fincaId };
-    tasksBatch.set(dueTaskRef, dueTaskData);
-
-    if (activityDay >= 0 && activityDay <= 3) {
-      tasksForImmediateNotification.push({ ref: dueTaskRef, data: dueTaskData });
-    }
-  }
-
-  await tasksBatch.commit();
-
-  const loteNombreDisplay = nombreLote || codigoLote;
-  for (const taskToNotify of tasksForImmediateNotification) {
-    await sendNotificationWithLink(taskToNotify.ref, taskToNotify.data, loteNombreDisplay);
-  }
-
   return {
     id: loteRef.id,
     codigoLote,
-    tareasCreadas: paqueteData.activities.length * 2,
-    mensaje: `Lote ${codigoLote} creado con ${paqueteData.activities.length} actividades programadas.`,
+    mensaje: `Lote ${codigoLote} creado. Recordá registrar las siembras y agruparlas para asignar paquete técnico por grupo.`,
   };
 }
 
