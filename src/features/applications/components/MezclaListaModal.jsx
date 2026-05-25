@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiX, FiCheckCircle, FiTrash2, FiPlusCircle, FiAlertTriangle, FiInfo, FiEdit2 } from 'react-icons/fi';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 
 const MAX_NOMBRE_LEN = 48;
 const MAX_OBS_LEN = 288;
@@ -102,6 +103,10 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   // Guardia contra doble submit: setSubmitting(true) es async, un doble click
   // rápido podría disparar onConfirm dos veces antes del primer re-render.
   const submittingRef = useRef(false);
+
+  // ESC cierra el modal. Bloqueado durante submit (mismo gate que el
+  // backdrop onPointerDown). Punto #28 audit.
+  useEscapeClose(submitting ? null : onClose);
 
   const catalogoMap = useMemo(() => {
     const m = {};

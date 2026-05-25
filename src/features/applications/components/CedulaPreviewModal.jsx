@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { hasMinRole } from '../../../contexts/UserContext';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 
 // ── CedulaPreviewModal ────────────────────────────────────────────────────────
 // Full-screen preview overlay para una cédula. Contiene:
@@ -36,6 +37,12 @@ export default function CedulaPreviewModal({
   onAplicada,
   children,
 }) {
+  // Cierre con ESC — solo activo cuando el modal está visible. Punto #28
+  // audit. El hook se llama incondicionalmente (rule of hooks); el null
+  // gating se aplica adentro: cuando previewTask es null, el modal no
+  // está montado y onClose no debe disparar.
+  useEscapeClose(previewTask ? onClose : null);
+
   if (!previewTask) return null;
 
   return createPortal(
