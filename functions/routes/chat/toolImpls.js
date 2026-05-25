@@ -12,6 +12,7 @@
 // `{ error: err.message }`.
 
 const { db, Timestamp } = require('../../lib/firebase');
+const { writeFeedEvent } = require('../../lib/helpers');
 // User-targeted tools (crear/editar empleado) live in a separate file to keep
 // this one under the route-LOC budget. They are re-exported below so the
 // dispatcher (and integration tests) keep importing from this module.
@@ -194,7 +195,7 @@ async function chatToolConsultarDatos({ coleccion, filtros = [], ordenarPor, lim
 // LLM intenta pasar paqueteId, lo ignoramos silenciosamente para mantener
 // paridad con el endpoint HTTP, y el usuario asigna el paquete cuando arme
 // los grupos de bloques en /grupos.
-async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, hectareas }, fincaId) {
+async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, hectareas }, fincaId, uid, userName) {
   const loteData = {
     codigoLote,
     ...(nombreLote ? { nombreLote } : {}),
@@ -204,6 +205,19 @@ async function chatToolCrearLote({ codigoLote, nombreLote, fechaCreacion, hectar
   };
 
   const loteRef = await db.collection('lotes').add(loteData);
+
+  // Feed event: paridad con POST /api/lotes. Sin esto, lotes creados desde el
+  // chat de Aurora no aparecían en el muro de actividad. Fire-and-forget al
+  // estilo del resto de callers (writeFeedEvent silencia errores adentro).
+  writeFeedEvent({
+    fincaId,
+    uid,
+    userName,
+    eventType: 'lote_created',
+    title: nombreLote || codigoLote,
+    loteNombre: nombreLote || codigoLote,
+  });
+
   return {
     id: loteRef.id,
     codigoLote,

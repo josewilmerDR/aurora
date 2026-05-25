@@ -59,7 +59,7 @@ async function dispatchTool(block, ctx, drafts) {
         return await chatToolConsultarDatos(block.input, fincaId, allowedColsList);
 
       case 'crear_lote':
-        return await chatToolCrearLote(block.input, fincaId);
+        return await chatToolCrearLote(block.input, fincaId, uid, userName);
 
       case 'escanear_formulario_siembra':
         if (!imageBase64 || !mediaType) {

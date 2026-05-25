@@ -8,6 +8,7 @@ import EmptyState from '../../../components/ui/EmptyState';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import LoteFormModal from '../components/LoteFormModal';
 import LoteHub from '../components/LoteHub';
 import { formatDate } from '../lib/lotes-helpers';
@@ -187,10 +188,19 @@ function LoteManagement() {
     }
     try {
       const res = await apiFetch(`/api/lotes/${lote.id}/task-count`);
+      if (!res.ok) {
+        // Antes el handler hacía `await res.json()` sin chequear res.ok y
+        // accedía a `count` que venía undefined cuando el backend devolvía un
+        // error (403/404/429). El toast hardcoded ocultaba la razón real;
+        // ahora se traduce vía translateApiError leyendo el `code` del body.
+        const body = await res.json().catch(() => null);
+        showToast(translateApiError(body, 'Error al verificar las tareas del lote.'), 'error');
+        return;
+      }
       const { count } = await res.json();
       setConfirmModal({ mode: 'delete', loteId: lote.id, loteName, taskCount: count });
     } catch {
-      showToast('Error al verificar las tareas del lote.', 'error');
+      showToast('Error de conexión al verificar las tareas del lote.', 'error');
     }
   };
 
@@ -198,13 +208,17 @@ function LoteManagement() {
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/lotes/${confirmModal.loteId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Error al eliminar');
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        showToast(translateApiError(body, 'Error al eliminar el lote.'), 'error');
+        return;
+      }
       if (selectedLote?.id === confirmModal.loteId) setSelectedLote(null);
       setConfirmModal(null);
       await fetchLotes();
       showToast('Lote eliminado correctamente');
     } catch {
-      showToast('Error al eliminar el lote.', 'error');
+      showToast('Error de conexión al eliminar el lote.', 'error');
     } finally {
       setDeleting(false);
     }

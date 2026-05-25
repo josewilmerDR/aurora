@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiPlusCircle, FiEdit, FiAlertTriangle, FiClock } from 'react-icons/fi';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import { translateApiError } from '../../../lib/errorMessages';
 import { formatDateForInput } from '../lib/lotes-helpers';
 
 const DRAFT_KEY = 'lote-nuevo';
@@ -120,7 +121,13 @@ function LoteFormModal({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        setError(isEditing ? 'Error al actualizar el lote.' : 'Error al crear el lote.');
+        // translateApiError lee el `code` del body (FORBIDDEN, RATE_LIMITED,
+        // VALIDATION_FAILED, etc.) y devuelve el mensaje en español. El
+        // fallback genérico solo aplica si el backend no envió un code
+        // conocido. Antes acá había un string hardcoded que silenciaba la
+        // razón real del fallo.
+        const body = await res.json().catch(() => null);
+        setError(translateApiError(body, isEditing ? 'Error al actualizar el lote.' : 'Error al crear el lote.'));
         return;
       }
       const saved = await res.json();
