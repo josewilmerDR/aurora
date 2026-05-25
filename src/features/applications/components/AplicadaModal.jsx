@@ -6,6 +6,7 @@ import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import AuroraField, { TextInput, NumberInput, Select } from '../../../components/AuroraField';
 import UserCombo from './UserCombo';
 import { nowTimeStr, CONDICIONES_TIEMPO } from '../lib/cedulas-helpers';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 
 // ── Modal Aplicada en Campo ───────────────────────────────────────────────────
 // Confirma la transición en_transito → aplicada_en_campo de una cédula. El
@@ -17,6 +18,7 @@ import { nowTimeStr, CONDICIONES_TIEMPO } from '../lib/cedulas-helpers';
 // audit UX/UI). El modal ya era autónomo (recibe lotes, users, currentUser,
 // prefill, onClose, onConfirm) → mudanza limpia sin tocar lógica.
 export default function AplicadaModal({ lotes, users, currentUser, prefill, onClose, onConfirm }) {
+  useEscapeClose(onClose); // Punto #28 audit.
   const [sobrante,          setSobrante]          = useState(false);
   const [sobranteLoteId,    setSobranteLoteId]    = useState('');
   const [condicionesTiempo, setCondicionesTiempo] = useState('');

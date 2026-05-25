@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiX, FiPlusCircle, FiTrash2, FiSearch, FiEye, FiAlertTriangle, FiClock } from 'react-icons/fi';
 import { useDraft } from '../../../hooks/useDraft';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { translateApiError } from '../../../lib/errorMessages';
@@ -108,6 +109,13 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
     setDiscardConfirmOpen(false);
     onClose();
   };
+
+  // ESC dispara el mismo flujo de cierre que el backdrop/Cancelar: si hay
+  // contenido significativo abre el AuroraConfirmModal de descarte, si no
+  // cierra directo. Se desactiva cuando el confirm de descarte ya está
+  // abierto — ese modal tiene su propia ESC (AuroraModal) y no queremos
+  // que ambos compitan. Punto #28 audit.
+  useEscapeClose(discardConfirmOpen ? null : handleCloseRequest);
 
   // ── Plantillas ────────────────────────────────────────────────────────────
   const [plantillas, setPlantillas] = useState([]);

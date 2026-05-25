@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { FiX, FiFilter } from 'react-icons/fi';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 
 // ── FiltroPeriodoModal ───────────────────────────────────────────────────────
 // Modal compacto con dos inputs date (Desde / Hasta) para filtrar el listing
@@ -19,6 +20,7 @@ export default function FiltroPeriodoModal({
   matchCount,                 // cédulas que matchean el rango actual (live)
   onClose,
 }) {
+  useEscapeClose(onClose); // Punto #28 audit.
   // Live count: cuando hay rango activo, "X cédulas en el periodo"; cuando
   // está vacío, "X cédulas en total". Resuelve el roundtrip Listo → "0
   // resultados" → reabrir filtro → probar otro rango. Punto #17 audit.
