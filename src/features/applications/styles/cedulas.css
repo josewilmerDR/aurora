@@ -944,8 +944,8 @@
   border-color: var(--aurora-green);
 }
 
-/* ── Mobile (<=600px): modal Mezcla Lista ────────────────────────────────── */
-@media (max-width: 600px) {
+/* ── Mobile: modal Mezcla Lista ──────────────────────────────────────────── */
+@media (max-width: 640px) {
   /* La tabla puede desbordar en pantallas de 360px: permitir scroll horizontal
      dentro de su sección contenedora y asegurar un ancho mínimo legible. */
   .mla-productos-table {
@@ -962,22 +962,17 @@
   }
 }
 
-/* ── Mobile: preview modal full-screen + Nueva Cédula compacto ───────────── */
-@media (max-width: 600px) {
-  /* Header actions ocupan el ancho completo, repartido entre Historial
-     y "Nueva cédula" cuando ambos están visibles. */
-  .ca-page .aur-sheet-header-actions {
-    width: 100%;
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-  .ca-page .aur-sheet-header-actions > .aur-chip,
-  .ca-page .aur-sheet-header-actions > .aur-btn-pill {
-    flex: 1 1 0;
-    justify-content: center;
-    min-width: 0;
-  }
-
+/* ── Mobile: preview modal full-screen + Nueva Cédula compacto ─────────────
+   Antes este bloque era @media (max-width: 600px), dejando un "limbo"
+   601-640 donde el preview se veía con cantos redondeados sobre fondo
+   gris en pantallas que ya son chicas. Consolidado a 640px junto con
+   el resto de mobile rules de la página. Punto #30 audit.
+   El header de la página ya tiene su layout intencional (pill toma el
+   resto, chips cap 20%) en el bloque @media (max-width: 640px) de
+   línea ~88, así que NO se replican overrides de aur-sheet-header-actions
+   acá (la versión 600px previa los redefinía equal-flex, choque con la
+   intención documentada). */
+@media (max-width: 640px) {
   /* Preview modal: pantalla completa */
   .ca-preview-backdrop {
     padding: 0;
