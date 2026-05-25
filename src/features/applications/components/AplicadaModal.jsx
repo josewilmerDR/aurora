@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FaTractor } from 'react-icons/fa';
 import { FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
+import AuroraField, { TextInput, NumberInput, Select } from '../../../components/AuroraField';
 import UserCombo from './UserCombo';
 import { nowTimeStr, CONDICIONES_TIEMPO } from '../lib/cedulas-helpers';
 
@@ -195,82 +196,66 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
             </div>
 
             {sobrante && (
-              <div className="aur-row">
-                <label className="aur-row-label" htmlFor="apl-sobrante-lote">Lote del sobrante</label>
-                <select
-                  id="apl-sobrante-lote"
-                  className="aur-select"
+              <AuroraField layout="row" htmlFor="apl-sobrante-lote" label="Lote del sobrante">
+                <Select
                   value={sobranteLoteId}
                   onChange={e => setSobranteLoteId(e.target.value)}
                 >
                   <option value="">— Seleccionar lote —</option>
                   {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
-                </select>
-              </div>
+                </Select>
+              </AuroraField>
             )}
 
-            <div className="aur-row">
-              <label className="aur-row-label" htmlFor="apl-tiempo">Condiciones del tiempo</label>
-              <select
-                id="apl-tiempo"
-                className="aur-select"
+            <AuroraField layout="row" htmlFor="apl-tiempo" label="Condiciones del tiempo">
+              <Select
                 value={condicionesTiempo}
                 onChange={e => setCondicionesTiempo(e.target.value)}
               >
                 <option value="">— Seleccionar —</option>
                 {CONDICIONES_TIEMPO.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+              </Select>
+            </AuroraField>
 
-            <div className="aur-row">
-              <label className="aur-row-label" htmlFor="apl-temp">
-                Temperatura (°C){fetchingWeather ? ' · obteniendo…' : ''}
-              </label>
-              <div>
-                <input
-                  id="apl-temp"
-                  type="number"
-                  step="0.1"
-                  min="-60"
-                  max="70"
-                  className="aur-input aur-input--num"
-                  value={temperatura}
-                  aria-invalid={!!tempError}
-                  onChange={e => {
-                    setTemperatura(e.target.value);
-                    if (tempError) setTempError('');
-                  }}
-                  onBlur={() => setTempError(validateTemp(temperatura))}
-                  placeholder="—"
-                />
-                {tempError && <span className="aur-field-error">{tempError}</span>}
-              </div>
-            </div>
+            <AuroraField
+              layout="row"
+              htmlFor="apl-temp"
+              label={<>Temperatura (°C){fetchingWeather ? ' · obteniendo…' : ''}</>}
+              error={tempError}
+            >
+              <NumberInput
+                step="0.1"
+                min="-60"
+                max="70"
+                value={temperatura}
+                onChange={e => {
+                  setTemperatura(e.target.value);
+                  if (tempError) setTempError('');
+                }}
+                onBlur={() => setTempError(validateTemp(temperatura))}
+                placeholder="—"
+              />
+            </AuroraField>
 
-            <div className="aur-row">
-              <label className="aur-row-label" htmlFor="apl-hum">
-                Humedad relativa (%){fetchingWeather ? ' · obteniendo…' : ''}
-              </label>
-              <div>
-                <input
-                  id="apl-hum"
-                  type="number"
-                  step="1"
-                  min="0"
-                  max="100"
-                  className="aur-input aur-input--num"
-                  value={humedadRelativa}
-                  aria-invalid={!!humError}
-                  onChange={e => {
-                    setHumedadRelativa(e.target.value);
-                    if (humError) setHumError('');
-                  }}
-                  onBlur={() => setHumError(validateHum(humedadRelativa))}
-                  placeholder="—"
-                />
-                {humError && <span className="aur-field-error">{humError}</span>}
-              </div>
-            </div>
+            <AuroraField
+              layout="row"
+              htmlFor="apl-hum"
+              label={<>Humedad relativa (%){fetchingWeather ? ' · obteniendo…' : ''}</>}
+              error={humError}
+            >
+              <NumberInput
+                step="1"
+                min="0"
+                max="100"
+                value={humedadRelativa}
+                onChange={e => {
+                  setHumedadRelativa(e.target.value);
+                  if (humError) setHumError('');
+                }}
+                onBlur={() => setHumError(validateHum(humedadRelativa))}
+                placeholder="—"
+              />
+            </AuroraField>
 
             <div className="aur-row">
               <label className="aur-row-label" htmlFor="apl-h-inicio">Hora inicio</label>
@@ -309,18 +294,14 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
               />
             </div>
 
-            <div className="aur-row">
-              <label className="aur-row-label" htmlFor="apl-metodo">Método de aplicación</label>
-              <input
-                id="apl-metodo"
-                type="text"
+            <AuroraField layout="row" htmlFor="apl-metodo" label="Método de aplicación">
+              <TextInput
                 maxLength={200}
-                className="aur-input"
                 value={metodoAplicacion}
                 onChange={e => setMetodoAplicacion(e.target.value)}
                 placeholder="Ej. Spray Boom, Drench…"
               />
-            </div>
+            </AuroraField>
 
             <div className="aur-row">
               <label className="aur-row-label" htmlFor="apl-finca">Encargado de finca</label>
