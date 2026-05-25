@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { tsToDate, formatDateLong, calcFechaCosecha } from '../lib/cedulas-helpers';
 
 // ── CedulaDocumento ──────────────────────────────────────────────────────────
@@ -34,6 +34,29 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
   previewCalTractor,
   getProductoCatalog,
 }, ref) {
+  // Periodo de carencia (días, max sobre todos los productos planificados) y
+  // periodo de reingreso (horas, idem). Antes eran dos IIFE inline que
+  // reducían previewProductos y llamaban getProductoCatalog por producto en
+  // cada render del documento. La tabla de productos abajo hace un tercer
+  // reduce. Con previewProductos estable y getProductoCatalog memoizado en
+  // el orquestador (useCallback sobre productosById), los memos son
+  // virtualmente gratis a partir de la 2da render. Punto #23 audit.
+  const periodoCarencia = useMemo(() => {
+    const max = previewProductos.reduce((m, p) => {
+      const dias = Number(getProductoCatalog(p.productoId)?.periodoACosecha) || 0;
+      return Math.max(m, dias);
+    }, 0);
+    return max > 0 ? `${max} días` : '—';
+  }, [previewProductos, getProductoCatalog]);
+
+  const periodoReingreso = useMemo(() => {
+    const max = previewProductos.reduce((m, p) => {
+      const horas = Number(getProductoCatalog(p.productoId)?.periodoReingreso) || 0;
+      return Math.max(m, horas);
+    }, 0);
+    return max > 0 ? `${max} h` : '—';
+  }, [previewProductos, getProductoCatalog]);
+
   return (
     <div className="ca-doc-wrap">
       <div className="ca-document" ref={ref}>
@@ -90,27 +113,11 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
             </div>
             <div className="ca-dato">
               <span className="ca-dato-label">Periodo de Carencia:</span>
-              <span className="ca-dato-value">
-                {(() => {
-                  const max = previewProductos.reduce((m, p) => {
-                    const dias = Number(getProductoCatalog(p.productoId)?.periodoACosecha) || 0;
-                    return Math.max(m, dias);
-                  }, 0);
-                  return max > 0 ? `${max} días` : '—';
-                })()}
-              </span>
+              <span className="ca-dato-value">{periodoCarencia}</span>
             </div>
             <div className="ca-dato">
               <span className="ca-dato-label">Periodo de Reingreso:</span>
-              <span className="ca-dato-value">
-                {(() => {
-                  const max = previewProductos.reduce((m, p) => {
-                    const horas = Number(getProductoCatalog(p.productoId)?.periodoReingreso) || 0;
-                    return Math.max(m, horas);
-                  }, 0);
-                  return max > 0 ? `${max} h` : '—';
-                })()}
-              </span>
+              <span className="ca-dato-value">{periodoReingreso}</span>
             </div>
             <div className="ca-dato">
               <span className="ca-dato-label">Método de Apl.:</span>
