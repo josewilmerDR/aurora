@@ -94,8 +94,17 @@ function buildPackagePayload(body) {
 }
 
 // --- API ENDPOINTS: PACKAGES ---
+// Lectura requiere encargado+. La página `/packages` está gated a supervisor,
+// pero el catálogo también lo consumen `/lotes` (panel de cobertura) y
+// `/grupos` (selector de paquete en el form), ambos a partir de encargado —
+// así que `encargado` es el mínimo compatible con todos los consumidores. Sin
+// este gate, un trabajador podía enumerar productos, dosis e ingredientes
+// activos del paquete técnico vía API directa (info competitiva).
 router.get('/api/packages', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read packages.', 403);
+    }
     const snapshot = await db.collection('packages').where('fincaId', '==', req.fincaId).get();
     const packages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(packages);

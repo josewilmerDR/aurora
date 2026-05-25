@@ -65,7 +65,7 @@ router.post('/api/lotes', authenticate, rateLimit('lotes_write', 'write'), async
     }
 });
 
-router.put('/api/lotes/:id', authenticate, async (req, res) => {
+router.put('/api/lotes/:id', authenticate, rateLimit('lotes_write', 'write'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update lotes.', 403);
@@ -150,7 +150,7 @@ router.get('/api/lotes/:id/task-count', authenticate, async (req, res) => {
     }
 });
 
-router.delete('/api/lotes/:id', authenticate, async (req, res) => {
+router.delete('/api/lotes/:id', authenticate, rateLimit('lotes_write', 'write'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete lotes.', 403);
