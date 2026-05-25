@@ -42,6 +42,17 @@
   margin-bottom: 0;
 }
 
+/* En mobile el default de aurora.css alinea `.aur-sheet-header-actions` a
+   `flex-start` (izquierda). Forzamos `flex-end` para alinearnos con el
+   patrón establecido en el módulo de siembra (historial, materiales,
+   form), packages, cédulas historial, machinery, etc. — el botón
+   primario de header siempre va a la derecha en mobile. */
+@media (max-width: 768px) {
+  .lote-page .aur-sheet-header-actions {
+    justify-content: flex-end;
+  }
+}
+
 /* En mobile el `.content-area` ya aporta 15px de gutter horizontal; el
    padding default del hub (24px) y del panel de lista (16px) se suman a
    ese gutter y dejan al body con ~80px menos de ancho útil de los ~390px

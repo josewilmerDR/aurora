@@ -19,7 +19,15 @@
 .pkg-page-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+}
+
+/* `.aur-sheet-header` trae un `margin-bottom: 24px` (aurora.css) que se suma
+   al `gap` del wrapper — ~44px de aire entre header y body. Lo anulamos para
+   que el gap del wrapper sea el único separador (16px), consistente con el
+   espaciado entre los banners y con el patrón de [.lote-page]. */
+.pkg-page-wrapper .aur-sheet-header {
+  margin-bottom: 0;
 }
 
 .pkg-page-header {
@@ -57,6 +65,16 @@
 .pkg-page-wrapper .lote-list-panel {
   border: none;
   border-radius: 0;
+}
+
+/* En la vista read-only del paquete (`.hub-header`) los valores default del
+   legacy global son `padding-bottom: 16px + margin-bottom: 16px` (~33px),
+   demasiado aire entre el título del paquete y el cuerpo. Compactamos a 12px
+   visuales (≈ 6+6 alrededor del divisor) solo en packages — Lotes mantiene
+   el ritmo original. */
+.pkg-page-wrapper .hub-header {
+  padding-bottom: 6px;
+  margin-bottom: 6px;
 }
 
 /* Mismo motivo que arriba: el borde superior del hub duplicaba la línea
@@ -643,19 +661,21 @@
     display: none;
   }
 
-  /* Mobile: el bubble "+ Nuevo" del carrusel sirve como CTA primario para
-     crear un paquete. Ocultar el botón del header en este viewport evita
-     la duplicación reportada en el audit (punto 21) sin perder la acción.
-     Excepción: cuando no hay paquetes, el carrusel no se renderiza y el
-     empty state apunta explícitamente a este botón ("Crea el primero en
-     'Nuevo Paquete'") — por eso solo se oculta cuando .pkg-page--has-packages
-     está presente. */
-  .pkg-page--has-packages .pkg-header-new-btn {
-    display: none;
+  /* En mobile hub mode el carousel sticky hace de "header" (el PageHeader
+     queda oculto por la regla de arriba). El gap del wrapper (16px) + el
+     padding del hub (24px en todos los lados) dejaban ~40px de hueco arriba
+     y 24px laterales que recortaban el ancho útil de la página. Compactamos
+     a 12px en todos los lados — el ancho ganado se nota especialmente en
+     viewports estrechos tipo iPhone SE. */
+  .pkg-page--hub {
+    gap: 0;
+  }
+  .pkg-page--hub .lote-hub {
+    padding: 12px;
   }
 
-  /* Filtro: en mobile el header queda vacío (sin "+ Nuevo" ni FilterButton).
-     El botón inline al lado del search lo reemplaza — más cerca del contexto
+  /* Filtro: en mobile el header queda vacío (sin FilterButton). El botón
+     inline al lado del search lo reemplaza — más cerca del contexto
      "estoy buscando un paquete". Desktop mantiene el del header. */
   .pkg-header-filter-btn {
     display: none;
