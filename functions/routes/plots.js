@@ -128,6 +128,18 @@ router.put('/api/lotes/:id', authenticate, async (req, res) => {
 router.get('/api/lotes/:id/task-count', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
+        // verifyOwnership cierra el cross-tenant leak: sin esto, cualquier
+        // usuario autenticado podía contar tareas de un loteId de OTRA finca
+        // (la query a scheduled_tasks no estaba scoped por fincaId, y este
+        // handler no validaba ownership). Una vez verificado que el lote
+        // pertenece a req.fincaId, las scheduled_tasks asociadas también lo
+        // hacen por construcción, así que el filter por loteId basta.
+        // verifyOwnership retorna 404 tanto para "no existe" como para "otra
+        // finca", evitando además enumeración por timing.
+        const ownership = await verifyOwnership('lotes', id, req.fincaId);
+        if (!ownership.ok) {
+            return sendApiError(res, ownership.code, ownership.message, ownership.status);
+        }
         const snapshot = await db.collection('scheduled_tasks')
             .where('loteId', '==', id)
             .get();
