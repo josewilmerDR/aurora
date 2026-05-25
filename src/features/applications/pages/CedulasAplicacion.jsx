@@ -745,11 +745,24 @@ function CedulasAplicacion() {
   const handleCloseViewer = () => {
     const viaUrl = openedViaUrlRef.current;
     const scroll = savedScrollRef.current;
+    const taskId = previewTask?.id;
     setPreviewTask(null);
     setPreviewCedulaId(null);
     openedViaUrlRef.current = false;
     if (viaUrl) {
-      navigate(-1);
+      // Vino por ?open=taskId (notificación push o link compartido). En vez
+      // de navigate(-1) — que saca al usuario de la página entera, perdiendo
+      // el contexto del listing al que llegó — limpiamos el query param y
+      // dejamos al usuario en el listing con la card destacada por unos
+      // segundos. Patrón típico de retorno desde detail-view. Punto #29 audit.
+      const params = new URLSearchParams(location.search);
+      params.delete('open');
+      const newSearch = params.toString();
+      navigate(
+        { pathname: location.pathname, search: newSearch ? `?${newSearch}` : '' },
+        { replace: true }
+      );
+      if (taskId) highlightAndScrollTo([taskId]);
     } else {
       requestAnimationFrame(() => window.scrollTo({ top: scroll, behavior: 'instant' }));
     }
