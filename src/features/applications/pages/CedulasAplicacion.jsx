@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FiPlusCircle, FiSearch, FiX, FiClipboard } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -282,8 +282,13 @@ function CedulasAplicacion() {
   const getPackageName = (paqueteId) =>
     packagesById.get(paqueteId)?.nombrePaquete || null;
 
-  const getProductoCatalog = (productoId) =>
-    productosById.get(productoId) || null;
+  // useCallback estabiliza la referencia para que <CedulaDocumento> pueda
+  // memoizar sus reducciones sobre previewProductos (punto #23 audit) sin
+  // que el callback recreado a cada render le invalide el memo.
+  const getProductoCatalog = useCallback(
+    (productoId) => productosById.get(productoId) || null,
+    [productosById]
+  );
 
   // ── Computed preview data ─────────────────────────────────────────────────
   // The specific cedula shown in the preview (set on "Ver Cédula" click)
