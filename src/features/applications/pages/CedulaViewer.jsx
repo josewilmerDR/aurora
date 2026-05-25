@@ -254,7 +254,12 @@ export default function CedulaViewer() {
                 <span className="ca-dato-value">{cedula.snap_litrosAplicador ?? calAplicador?.capacidad ?? '—'}</span>
               </div>
               <div className="ca-dato">
-                <span className="ca-dato-label">Total boones requeridos:</span>
+                <span
+                  className="ca-dato-label"
+                  title="Cantidad estimada de tanques (boom) necesarios para cubrir el área programada."
+                >
+                  Total tanques (boom):
+                </span>
                 <span className="ca-dato-value">
                   {cedula.snap_totalBoones != null ? Number(cedula.snap_totalBoones).toFixed(2) : '—'}
                 </span>

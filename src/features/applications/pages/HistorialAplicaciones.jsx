@@ -133,7 +133,7 @@ const COLUMNS = [
     render: (row) => n(row.snap_volumenPorHa) },
   { key: 'snap_litrosAplicador', label: 'Litros Aplicador',
     render: (row) => n(row.snap_litrosAplicador) },
-  { key: 'snap_totalBoones', label: 'Total Boones Req.',
+  { key: 'snap_totalBoones', label: 'Tanques (boom)',
     render: (row) => n(row.snap_totalBoones, 2) },
   { key: 'snap_calibracionNombre', label: 'Calibración', tdClass: 'historial-td-nowrap',
     render: (row) => row.snap_calibracionNombre || '—' },
