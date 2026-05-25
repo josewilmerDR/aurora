@@ -1,8 +1,9 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldValue, FieldPath } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership, sendNotificationWithLink } = require('../lib/helpers');
+const { pick, verifyOwnership, sendNotificationWithLink, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -160,8 +161,15 @@ function validateGrupoBody(body, { requireFields = false } = {}) {
 }
 
 // --- API ENDPOINTS: GRUPOS ---
+// Todos los endpoints requieren rol `encargado` o superior. Sin este gate, un
+// trabajador autenticado podía enumerar/crear/modificar/borrar grupos vía API
+// directa, saltándose el RoleRoute del frontend. Alineado con `/api/siembras`
+// que ya tenía el mismo gate explícito.
 router.get('/api/grupos', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read grupos.', 403);
+        }
         const snapshot = await db.collection('grupos').where('fincaId', '==', req.fincaId).get();
         const grupos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.status(200).json(grupos);
@@ -172,6 +180,9 @@ router.get('/api/grupos', authenticate, async (req, res) => {
 
 router.post('/api/grupos', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create grupos.', 403);
+        }
         const validationErrors = validateGrupoBody(req.body, { requireFields: true });
         if (validationErrors.length) {
             return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationErrors.join(' '), 400);
@@ -292,6 +303,9 @@ router.post('/api/grupos', authenticate, async (req, res) => {
 
 router.put('/api/grupos/:id', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update grupos.', 403);
+        }
         const validationErrors = validateGrupoBody(req.body);
         if (validationErrors.length) {
             return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationErrors.join(' '), 400);
@@ -347,9 +361,39 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
         if (hasDateChanged || hasPackageChanged || hasMuestreoPackageChanged) {
             // Delete previous tasks for this grupo
             const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
+            const tasksDeletedCount = tasksSnapshot.size;
             const deleteBatch = db.batch();
             tasksSnapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
             await deleteBatch.commit();
+
+            // Audit del cambio destructivo: wipe + regen de scheduled_tasks por
+            // cambio de paquete/fecha. Forensic value alto: si una cédula se
+            // pierde porque el grupo cambió de paquete, queda el rastro de
+            // quién y cuándo. Routine renames/cosecha/etapa changes NO entran
+            // acá, alineado con la política del audit log.
+            writeAuditEvent({
+                fincaId: req.fincaId,
+                actor: req,
+                action: ACTIONS.GRUPO_PACKAGE_CHANGE,
+                target: { type: 'grupo', id },
+                metadata: {
+                    nombreGrupo: originalData.nombreGrupo || null,
+                    packageChange: hasPackageChanged ? {
+                        from: originalData.paqueteId || null,
+                        to: grupoData.paqueteId || null,
+                    } : null,
+                    muestreoPackageChange: hasMuestreoPackageChanged ? {
+                        from: originalData.paqueteMuestreoId || null,
+                        to: grupoData.paqueteMuestreoId || null,
+                    } : null,
+                    dateChange: hasDateChanged ? {
+                        fromMs: originalData.fechaCreacion?.toMillis?.() || null,
+                        toMs: grupoData.fechaCreacion?.toMillis?.() || null,
+                    } : null,
+                    tasksDeleted: tasksDeletedCount,
+                },
+                severity: SEVERITY.WARNING,
+            });
 
             // Create new application tasks if there is a technical package
             if (grupoData.paqueteId) {
@@ -411,6 +455,9 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
 
 router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can check grupo dependencies.', 403);
+        }
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
         if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -449,12 +496,17 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
 
 router.delete('/api/grupos/:id', authenticate, async (req, res) => {
     try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete grupos.', 403);
+        }
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
         if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
-        const grupoDoc = await db.collection('grupos').doc(id).get();
-        const snap_grupoNombre = grupoDoc.data()?.nombreGrupo || '';
+        // verifyOwnership ya nos dio el doc; reutilizamos prevData para metadata
+        // del audit event y evitamos un segundo get() redundante.
+        const prevData = ownership.doc.data();
+        const snap_grupoNombre = prevData.nombreGrupo || '';
 
         const allTasksSnap = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
         const pendingTasks    = allTasksSnap.docs.filter(d => d.data().status === 'pending');
@@ -476,6 +528,7 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
         }
 
         const batch = db.batch();
+        let pendingCedulasDeleted = 0;
 
         // Snapshot the grupo name in completed/skipped tasks (history)
         completedTasks.forEach(doc => {
@@ -489,12 +542,36 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
             for (const chunk of chunks) {
                 const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
                 cSnap.docs.forEach(doc => batch.delete(doc.ref));
+                pendingCedulasDeleted += cSnap.size;
             }
             pendingTasks.forEach(doc => batch.delete(doc.ref));
         }
 
         batch.delete(db.collection('grupos').doc(id));
         await batch.commit();
+
+        // Audit del delete: operación irreversible que libera bloques al pool
+        // "Sin grupo", borra cedulas pendientes y scheduled_tasks pendientes,
+        // y deja tareas históricas con snap_grupoNombre apuntando a un grupo
+        // que ya no existe. Mismo patrón que LOTE_DELETE en plots.js.
+        writeAuditEvent({
+            fincaId: req.fincaId,
+            actor: req,
+            action: ACTIONS.GRUPO_DELETE,
+            target: { type: 'grupo', id },
+            metadata: {
+                nombreGrupo: prevData.nombreGrupo || null,
+                cosecha: prevData.cosecha || null,
+                etapa: prevData.etapa || null,
+                bloquesCount: Array.isArray(prevData.bloques) ? prevData.bloques.length : 0,
+                paqueteId: prevData.paqueteId || null,
+                paqueteMuestreoId: prevData.paqueteMuestreoId || null,
+                pendingTasksDeleted: pendingTasks.length,
+                pendingCedulasDeleted,
+                completedTasksKept: completedTasks.length,
+            },
+            severity: SEVERITY.WARNING,
+        });
 
         res.status(200).json({ ok: true });
     } catch (error) {

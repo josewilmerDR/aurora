@@ -60,6 +60,13 @@ const ACTIONS = Object.freeze({
   // not audited to keep the stream focused on security + money + loss.
   PRODUCTO_DELETE: 'producto.delete',
   LOTE_DELETE: 'lote.delete',
+  // Grupos. Mismo criterio que lote/siembra: solo DELETE (irreversible, libera
+  // bloques al pool y borra cedulas/tasks pendientes) y cambios destructivos
+  // en UPDATE (paqueteId/fechaCreacion/paqueteMuestreoId, que wipean las
+  // scheduled_tasks completas del grupo y regeneran desde cero). Los creates
+  // y los renames quedan fuera del audit log alineado con la política del archivo.
+  GRUPO_DELETE: 'grupo.delete',
+  GRUPO_PACKAGE_CHANGE: 'grupo.package.change',
   // Paquetes de aplicaciones. DELETE rompe referencias en lotes/grupos
   // (forensic: quién lo borró, qué nombre tenía, cuántas actividades se
   // perdieron). Archive/unarchive son reversibles pero merecen rastro porque
