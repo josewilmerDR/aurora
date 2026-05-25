@@ -461,6 +461,31 @@
   text-align: right;
 }
 
+/* Botones de acción destructiva (Anular / Omitir) en las cards: ícono solo
+   en desktop, ícono + label en mobile. Sin esto el title=… era invisible
+   en táctil — el usuario veía solo una X y leía "cerrar" en vez de
+   "anular". Riesgo de click accidental en una acción que toca inventario.
+   Punto #27 audit. */
+.ca-row-action-label {
+  display: none;
+}
+@media (max-width: 640px) {
+  .ca-row-action.aur-icon-btn--sm {
+    /* Aflojamos el width:26 height:26 del icon-btn--sm para que el label
+       quepa al lado del ícono, manteniendo border-radius coherente. */
+    width: auto;
+    padding: 0 10px 0 8px;
+    border-radius: 14px;
+    gap: 5px;
+  }
+  .ca-row-action .ca-row-action-label {
+    display: inline;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+}
+
 /* Lista de productos que se restauran al anular una cédula en_transito.
    Aparece como children dentro de AuroraConfirmModal abajo del body para
    que el regente vea exactamente qué se le devuelve al stock antes de

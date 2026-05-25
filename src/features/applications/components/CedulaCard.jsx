@@ -119,12 +119,16 @@ export default function CedulaCard({
         {!cedula && allowSkipTask && hasMinRole(currentUser?.rol, 'encargado') && (
           <button
             type="button"
-            className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+            className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm ca-row-action"
             onClick={() => onOmitir(task.id)}
             disabled={isLdg}
             title="Omitir esta tarea sin generar cédula"
+            aria-label="Omitir tarea"
           >
             <FiX size={13} />
+            {/* Label visible solo en mobile (CSS) — sin esto el ícono X solo
+                con title era invisible en táctil. Punto #27 audit. */}
+            <span className="ca-row-action-label">Omitir</span>
           </button>
         )}
 
@@ -180,12 +184,14 @@ export default function CedulaCard({
         {canAnular && (
           <button
             type="button"
-            className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm"
+            className="aur-icon-btn aur-icon-btn--danger aur-icon-btn--sm ca-row-action"
             onClick={() => onAnular(cedula.id)}
             disabled={isLdg}
             title="Anular cédula"
+            aria-label="Anular cédula"
           >
             <FiX size={13} />
+            <span className="ca-row-action-label">Anular</span>
           </button>
         )}
       </div>
