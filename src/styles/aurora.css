@@ -117,6 +117,30 @@
   /* color-scheme used by inputs/textarea/select to match native UI affordances
      (date pickers, scrollbars). */
   --aur-color-scheme: dark;
+
+  /* ── Document (paper) tokens ───────────────────────────────────────────────
+     Para superficies "papel" tipo el documento PDF de cédulas. NO se derivan
+     del tema activo: el documento debe verse igual en print y entre temas.
+     Si mañana se cambia el branding de la marca, cambiar acá una vez en vez
+     de buscar 40 hex en cedulas.css. Punto #25 audit. */
+  --aur-doc-bg:           #c8d8e8;  /* fondo gris detrás del papel */
+  --aur-doc-paper:        #ffffff;  /* el papel mismo */
+  --aur-doc-paper-soft:   #f5f7fa;  /* zona destacada (datos grid) */
+  --aur-doc-paper-tint:   #fafbfc;  /* hover de tabla / observaciones */
+  --aur-doc-ink:          #1a1a2e;  /* tinta principal */
+  --aur-doc-ink-mute:     #222222;  /* tablas, valores secundarios */
+  --aur-doc-ink-soft:     #555555;  /* labels, brand-sub */
+  --aur-doc-ink-faint:    #888888;  /* placeholder de tabla vacía */
+  --aur-doc-accent:       #1a2a3a;  /* azul oscuro (table headers, dividers) */
+  --aur-doc-accent-on:    #ffffff;  /* texto sobre accent */
+  --aur-doc-accent-mark:  #33ff99;  /* glyph del logo de fallback */
+  --aur-doc-rule:         #d0d8e4;  /* divisor principal */
+  --aur-doc-rule-soft:    #e8edf2;  /* divisor sutil (cell border, footer) */
+  --aur-doc-rule-sig:     #aaaaaa;  /* línea de firma (border-bottom) */
+  --aur-doc-warn-bg:      #fff8e6;  /* nota de seguridad: fondo */
+  --aur-doc-warn-border:  #f0d890;  /* nota de seguridad: borde */
+  --aur-doc-warn-ink:     #5a4a00;  /* nota de seguridad: texto */
+  --aur-doc-draft:        #b45309;  /* badge BORRADOR (consecutivo + toolbar) */
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
