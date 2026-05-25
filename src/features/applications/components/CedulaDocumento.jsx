@@ -162,7 +162,12 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
               </span>
             </div>
             <div className="ca-dato">
-              <span className="ca-dato-label">Total boones requeridos:</span>
+              <span
+                className="ca-dato-label"
+                title="Cantidad estimada de tanques (boom) necesarios para cubrir el área programada: (volumen · área) / capacidad del aplicador."
+              >
+                Total tanques (boom):
+              </span>
               <span className="ca-dato-value">
                 {(() => {
                   const volumen = parseFloat(previewCal?.volumen);
