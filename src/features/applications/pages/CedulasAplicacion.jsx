@@ -569,12 +569,81 @@ function CedulasAplicacion() {
 
   const handleAnular = (cedulaId) => {
     const cedula = cedulasById.get(cedulaId);
-    const body = cedula?.status === 'en_transito'
-      ? '¿Anular esta cédula? La mezcla ya fue preparada — el inventario será restaurado automáticamente.'
+    const enTransito = cedula?.status === 'en_transito';
+
+    // Para cédulas en_transito: listar productos y cantidad que se restaurará
+    // al stock. Antes el body decía solo "el inventario será restaurado
+    // automáticamente" sin detalle — el regente confirmaba a ciegas y a
+    // veces prefería editar dosis a anular. Punto #24 audit.
+    //
+    // Hectáreas usadas para el cálculo: sum de splitBloqueIds si la cédula
+    // es split; si no, sum de bloques de la task (o del source); fallback
+    // al loteHectareas de enrichTask. Mismo orden que el `previewBloques`
+    // del documento, así los números matchean lo que el usuario ve en el
+    // preview.
+    const sumBloques = (ids) => (ids || []).reduce(
+      (s, id) => s + (parseFloat(siembrasById.get(id)?.areaCalculada) || 0),
+      0
+    );
+    let hectareas = 0;
+    if (enTransito) {
+      if (Array.isArray(cedula?.splitBloqueIds) && cedula.splitBloqueIds.length > 0) {
+        hectareas = sumBloques(cedula.splitBloqueIds);
+      }
+      if (hectareas === 0) {
+        const task = tasksById.get(cedula?.taskId);
+        const source = task?.loteId
+          ? lotesById.get(task.loteId)
+          : task?.grupoId
+            ? gruposById.get(task.grupoId)
+            : null;
+        const bloqueIds = task?.bloques || source?.bloques;
+        if (Array.isArray(bloqueIds) && bloqueIds.length > 0) {
+          hectareas = sumBloques(bloqueIds);
+        }
+        if (hectareas === 0) {
+          hectareas = parseFloat(task?.loteHectareas) || 0;
+        }
+      }
+    }
+
+    const aplicados = enTransito && Array.isArray(cedula?.productosAplicados)
+      ? cedula.productosAplicados
+      : [];
+
+    const body = enTransito
+      ? (aplicados.length > 0
+          ? 'La mezcla ya fue preparada. Al anular se restaurarán al stock:'
+          : '¿Anular esta cédula? La mezcla ya fue preparada — el inventario será restaurado automáticamente.')
       : '¿Anular esta cédula? La tarea asociada quedará como omitida.';
+
+    const children = (enTransito && aplicados.length > 0) ? (
+      <ul className="ca-anular-prod-list">
+        {aplicados.map((p, i) => {
+          const info       = productosById.get(p.productoId);
+          const cantPorHa  = parseFloat(p.cantidadPorHa);
+          const unidad     = info?.unidad || '';
+          const nombre     = info?.nombreComercial || p.productoOriginalId || '—';
+          const hasTotal   = Number.isFinite(cantPorHa) && cantPorHa > 0 && hectareas > 0;
+          const total      = hasTotal ? (cantPorHa * hectareas) : null;
+          return (
+            <li key={p.productoId || i} className="ca-anular-prod-row">
+              <span className="ca-anular-prod-name">{nombre}</span>
+              <span className="ca-anular-prod-amount">
+                {hasTotal
+                  ? <><strong>+{total.toFixed(2)} {unidad}</strong> <span className="ca-anular-prod-rate">({cantPorHa} {unidad}/ha × {hectareas.toFixed(1)} ha)</span></>
+                  : <em className="ca-anular-prod-rate">cantidad por confirmar</em>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    ) : null;
+
     setConfirmModal({
       title: 'Anular cédula',
       body,
+      children,
       confirmLabel: 'Anular',
       danger: true,
       onConfirm: async () => {
