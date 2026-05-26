@@ -16,6 +16,62 @@
   animation: app-loading-spin 0.75s linear infinite;
 }
 
+/* ── Banner persistente post-save ──────────────────────────────────────────
+   Análogo a .lote-save-banner en lote-management.css. Reemplaza al toast
+   efímero para que la evidencia de "creé/edité este grupo" sobreviva hasta
+   que el usuario decida — vive hasta clic en Cerrar, Abrir, o arrancar
+   otro flujo de crear/editar. */
+.grupo-save-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--aur-accent-tint, rgba(51, 255, 153, 0.08));
+  border: 1px solid rgba(51, 255, 153, 0.28);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+}
+.grupo-save-banner > svg { color: var(--aurora-green); flex-shrink: 0; }
+.grupo-save-banner-msg { flex: 1; line-height: 1.4; }
+.grupo-save-banner-msg strong { font-weight: 600; }
+
+.grupo-save-banner-action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(51, 255, 153, 0.35);
+  color: var(--aurora-green);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.grupo-save-banner-action:hover {
+  background: rgba(51, 255, 153, 0.12);
+  border-color: rgba(51, 255, 153, 0.55);
+}
+
+.grupo-save-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--aur-text-3, #6b819b);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.grupo-save-banner-close:hover {
+  color: var(--aurora-light);
+  background: rgba(230, 242, 255, 0.08);
+}
+
 /* ── Banner de error de carga parcial (Promise.allSettled) ─────────────────
    Análogo a .lote-load-error en lote-management.css. Se muestra cuando uno
    o más de los 6 fetches iniciales falló — empty-state de "sin grupos"
