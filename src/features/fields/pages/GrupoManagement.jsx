@@ -298,6 +298,20 @@ function GrupoManagement() {
   // from raw siembras.
   const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
 
+  // Índices id → doc para lookup O(1). Los consumen selectedBlockCount,
+  // selectedBloques y previewBloques que antes hacían .find() lineal sobre
+  // arrays de cientos de items por cada bloque-id del grupo. Cada keystroke
+  // de filtro/sort de la tabla del hub recalcula esos derivados — sin el
+  // índice eran O(N·M) por render, perceptible como lag en mobile mid-range.
+  const siembrasById = useMemo(
+    () => new Map(siembras.map(s => [s.id, s])),
+    [siembras]
+  );
+  const bloquesDisponiblesById = useMemo(
+    () => new Map(bloquesDisponibles.map(b => [b.id, b])),
+    [bloquesDisponibles]
+  );
+
   const consolidatedBloques = useMemo(() => {
     const map = new Map();
     for (const s of bloquesDisponibles) {
@@ -391,11 +405,11 @@ function GrupoManagement() {
   const selectedBlockCount = useMemo(() => {
     const keys = new Set();
     for (const id of formData.bloques) {
-      const s = bloquesDisponibles.find(x => x.id === id) || siembras.find(x => x.id === id);
+      const s = bloquesDisponiblesById.get(id) || siembrasById.get(id);
       if (s) keys.add(`${s.loteId}__${s.bloque}`);
     }
     return keys.size;
-  }, [formData.bloques, bloquesDisponibles, siembras]);
+  }, [formData.bloques, bloquesDisponiblesById, siembrasById]);
 
   // ── Paquetes filtrados ────────────────────────────────────────────────────
   const cosechasCatalog = useMemo(() =>
@@ -444,10 +458,10 @@ function GrupoManagement() {
   const selectedBloques = useMemo(() => {
     if (!selectedGrupo) return [];
     const owned = (selectedGrupo.bloques || [])
-      .map(id => siembras.find(s => s.id === id))
+      .map(id => siembrasById.get(id))
       .filter(Boolean);
     return consolidateSiembrasByBloque(owned);
-  }, [selectedGrupo, siembras]);
+  }, [selectedGrupo, siembrasById]);
 
   const selectedFechaCosecha = useMemo(
     () => selectedGrupo ? calcFechaCosecha(selectedGrupo, empresaConfig) : null,
@@ -830,10 +844,10 @@ function GrupoManagement() {
   const previewBloques = useMemo(() => {
     if (!previewGrupo) return [];
     const owned = (previewGrupo.bloques || [])
-      .map(id => siembras.find(s => s.id === id))
+      .map(id => siembrasById.get(id))
       .filter(Boolean);
     return consolidateSiembrasByBloque(owned);
-  }, [previewGrupo, siembras]);
+  }, [previewGrupo, siembrasById]);
 
   const previewFechaCosecha  = previewGrupo ? calcFechaCosecha(previewGrupo, empresaConfig) : null;
   const previewFechaCreacion = previewGrupo ? tsToDate(previewGrupo.fechaCreacion) : null;
