@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
@@ -159,6 +159,13 @@ function GrupoManagement() {
   const [loading,       setLoading]       = useState(true);
   const [loadError,     setLoadError]     = useState(null);
   const [toast,         setToast]         = useState(null);
+  // Banner persistente post-save. Reemplaza el toast efímero como evidencia
+  // visual del guardado — vive hasta que el usuario lo cierre, clickee Abrir,
+  // o arranque otro flujo de crear/editar. Shape:
+  //   { id, label, action: 'created' | 'updated', tasksGenerated: boolean }
+  // `tasksGenerated` distingue el caso "Grupo creado y tareas programadas"
+  // que hoy aparecía en el toast cuando el grupo se creaba con paqueteId.
+  const [lastSavedGrupo, setLastSavedGrupo] = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
   const [saving,        setSaving]        = useState(false);
@@ -556,6 +563,9 @@ function GrupoManagement() {
   };
 
   const handleNewGrupo = () => {
+    // Iniciar un flujo nuevo invalida el banner del save previo — es
+    // intención nueva del usuario, no queremos mezclar evidencias.
+    setLastSavedGrupo(null);
     setIsEditing(false);
     setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
     setShowForm(true);
@@ -589,6 +599,7 @@ function GrupoManagement() {
   };
 
   const handleEdit = (grupo) => {
+    setLastSavedGrupo(null);
     setIsEditing(true);
     setShowForm(true);
     setFormData({
@@ -684,12 +695,23 @@ function GrupoManagement() {
       const saved     = await res.json();
       const newGrupos = await refreshAfterMutation();
       const savedId   = isEditing ? formData.id : saved.id;
+      let foundGrupo = null;
       if (savedId && newGrupos) {
-        const found = newGrupos.find(g => g.id === savedId);
-        if (found) setSelectedGrupo(found);
+        foundGrupo = newGrupos.find(g => g.id === savedId) || null;
+        if (foundGrupo) setSelectedGrupo(foundGrupo);
       }
       resetForm();
-      showToast(isEditing ? 'Grupo actualizado correctamente' : formData.paqueteId ? 'Grupo creado y tareas programadas' : 'Grupo creado correctamente');
+      // Banner persistente reemplaza el toast efímero. El toast de error
+      // (catch) sigue vivo porque ahí queremos algo que llame la atención
+      // y desaparezca solo cuando el usuario reintenta.
+      if (foundGrupo) {
+        setLastSavedGrupo({
+          id: foundGrupo.id,
+          label: foundGrupo.nombreGrupo || savedId,
+          action: isEditing ? 'updated' : 'created',
+          tasksGenerated: !isEditing && !!formData.paqueteId,
+        });
+      }
     } catch {
       showToast('Ocurrió un error al guardar.', 'error');
     } finally {
@@ -1370,6 +1392,42 @@ function GrupoManagement() {
           >
             <FiRefreshCw size={12} aria-hidden="true" />
             {loading ? 'Cargando…' : 'Reintentar'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner persistente: confirmación de guardado ──
+          Visible tras un save exitoso hasta que el usuario lo cierre, haga
+          clic en Abrir, o arranque otro flujo. Reemplaza al toast efímero
+          por una señal estable con acceso directo al grupo recién guardado.
+          Portado de LoteManagement.lote-save-banner. */}
+      {!loading && lastSavedGrupo && (
+        <div className="grupo-save-banner" role="status" aria-live="polite">
+          <FiCheck size={14} aria-hidden="true" />
+          <span className="grupo-save-banner-msg">
+            Grupo <strong>"{lastSavedGrupo.label}"</strong>{' '}
+            {lastSavedGrupo.action === 'created'
+              ? (lastSavedGrupo.tasksGenerated ? 'creado y tareas programadas.' : 'creado.')
+              : 'actualizado.'}
+          </span>
+          <button
+            type="button"
+            className="grupo-save-banner-action"
+            onClick={() => {
+              const grupo = grupos.find(g => g.id === lastSavedGrupo.id);
+              setLastSavedGrupo(null);
+              if (grupo) handleSelectGrupo(grupo);
+            }}
+          >
+            Abrir →
+          </button>
+          <button
+            type="button"
+            className="grupo-save-banner-close"
+            onClick={() => setLastSavedGrupo(null)}
+            aria-label="Cerrar"
+          >
+            <FiX size={14} />
           </button>
         </div>
       )}
