@@ -1457,16 +1457,21 @@ function GrupoManagement() {
         <div className="lote-carousel" ref={carouselRef} aria-label="Grupos">
           {grupos.map(grupo => {
             const isActive = selectedGrupo?.id === grupo.id;
+            // Fallback defensivo: el backend valida nombreGrupo 1-16 chars
+            // con Zod, pero docs pre-migración o ediciones manuales en
+            // Firestore pueden quedar con null/undefined. Sin esto,
+            // `.slice()` crashea la página entera al renderizar el avatar.
+            const nombre = grupo.nombreGrupo || '?';
             return (
               <button
                 key={grupo.id}
                 className={`lote-bubble${isActive ? ' lote-bubble--active' : ''}`}
                 onClick={() => isActive ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
                 aria-pressed={isActive}
-                aria-label={`Grupo ${grupo.nombreGrupo}${isActive ? ' (seleccionado, clic para cerrar)' : ''}`}
+                aria-label={`Grupo ${nombre}${isActive ? ' (seleccionado, clic para cerrar)' : ''}`}
               >
-                <span className="lote-bubble-avatar" aria-hidden="true">{grupo.nombreGrupo.slice(0, 4)}</span>
-                <span className="lote-bubble-label">{grupo.nombreGrupo}</span>
+                <span className="lote-bubble-avatar" aria-hidden="true">{nombre.slice(0, 4)}</span>
+                <span className="lote-bubble-label">{nombre}</span>
               </button>
             );
           })}
