@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiFilter, FiSliders } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import BloqueSortTh from '../components/BloqueSortTh';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -156,9 +157,11 @@ function GrupoManagement() {
   const [localCosechas, setLocalCosechas] = useState([]);
   const [localEtapas,   setLocalEtapas]   = useState([]);
   const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState(null);
   const [toast,         setToast]         = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
+  const [saving,        setSaving]        = useState(false);
   const [deleteModal,   setDeleteModal]   = useState(null);
   const [previewGrupo,     setPreviewGrupo]     = useState(null);
   const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'loteNombre', dir: 'asc' }]);
@@ -175,17 +178,44 @@ function GrupoManagement() {
     fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '',
   });
 
-  const fetchAll = () => {
-    const gruposP = apiFetch('/api/grupos').then(r => r.json()).then(data => { setGrupos(data); return data; }).catch(console.error).finally(() => setLoading(false));
-    apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])).catch(console.error);
-    apiFetch('/api/siembras/disponibles').then(r => r.json()).then(d => setBloquesDisponibles(Array.isArray(d) ? d : [])).catch(console.error);
-    apiFetch('/api/packages').then(r => r.json()).then(setPackages).catch(console.error);
-    apiFetch('/api/muestreos/paquetes').then(r => r.json()).then(setMonitoreoPackages).catch(console.error);
-    apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig).catch(console.error);
-    return gruposP;
-  };
+  // Carga inicial de los 6 recursos en paralelo. Promise.allSettled deja
+  // que un fetch caído no bloquee al resto — el usuario ve lo que sí llegó
+  // y un banner persistente con CTA Reintentar. Antes los errores se
+  // tragaban en console.error y la página mostraba un falso "Sin grupos
+  // creados" cuando en realidad la red estaba caída. Patrón portado de
+  // LoteManagement.reloadAll.
+  const reloadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    const results = await Promise.allSettled([
+      apiFetch('/api/grupos').then(r => r.json()).then(setGrupos),
+      apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])),
+      apiFetch('/api/siembras/disponibles').then(r => r.json()).then(d => setBloquesDisponibles(Array.isArray(d) ? d : [])),
+      apiFetch('/api/packages').then(r => r.json()).then(setPackages),
+      apiFetch('/api/muestreos/paquetes').then(r => r.json()).then(setMonitoreoPackages),
+      apiFetch('/api/config').then(r => r.json()).then(setEmpresaConfig),
+    ]);
+    const failed = results.filter(r => r.status === 'rejected').length;
+    setLoadError(failed > 0
+      ? `No se pudieron cargar ${failed} de ${results.length} recursos. La información mostrada puede estar incompleta.`
+      : null);
+    setLoading(false);
+  }, [apiFetch]);
 
-  useEffect(() => { fetchAll(); }, []);
+  // Refresh post-save/post-delete: solo los recursos volátiles (grupos +
+  // siembras + bloques disponibles). No toca loading porque la página ya
+  // está montada y visible — sería un flash UI raro. Devuelve el array de
+  // grupos para que los handlers puedan auto-seleccionar el doc guardado.
+  const refreshAfterMutation = useCallback(async () => {
+    const [gRes] = await Promise.allSettled([
+      apiFetch('/api/grupos').then(r => r.json()).then(d => { setGrupos(d); return d; }),
+      apiFetch('/api/siembras').then(r => r.json()).then(d => setSiembras(Array.isArray(d) ? d : [])),
+      apiFetch('/api/siembras/disponibles').then(r => r.json()).then(d => setBloquesDisponibles(Array.isArray(d) ? d : [])),
+    ]);
+    return gRes.status === 'fulfilled' ? gRes.value : null;
+  }, [apiFetch]);
+
+  useEffect(() => { reloadAll(); }, [reloadAll]);
 
   // Deep-link entrante (e.g. desde el modal de dependencias en /packages,
   // o desde el panel de cobertura del hub de un lote en /lotes):
@@ -469,41 +499,6 @@ function GrupoManagement() {
     setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
   };
 
-  const BloqueSortTh = ({ field, children, filterType = 'text' }) => {
-    const active    = bloqueSorts[0].field === field;
-    const dir       = active ? bloqueSorts[0].dir : null;
-    const f         = bloqueColFilters[field];
-    const hasFilter = f ? (f.type === 'range' ? !!(f.from?.trim() || f.to?.trim()) : !!f.value?.trim()) : false;
-    return (
-      <th
-        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
-        onClick={() => setBloqueSorts(prev => {
-          const next = [...prev];
-          next[0] = next[0].field === field ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' };
-          return next;
-        })}
-      >
-        <span className="aur-th-content">
-          {children}
-          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-          <span
-            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
-            title="Filtrar columna"
-            onClick={e => {
-              e.stopPropagation();
-              if (bloqueFilterPop?.field === field) { setBloqueFilterPop(null); return; }
-              const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-              const rect = th.getBoundingClientRect();
-              setBloqueFilterPop({ field, x: rect.left, y: rect.bottom + 4, filterType });
-            }}
-          >
-            <FiFilter size={10} />
-          </span>
-        </span>
-      </th>
-    );
-  };
-
   // ── Handlers form ─────────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -631,33 +626,47 @@ function GrupoManagement() {
       if (!res.ok) throw new Error();
       if (selectedGrupo?.id === confirmModal.grupoId) setSelectedGrupo(null);
       setConfirmModal(null);
-      fetchAll();
+      refreshAfterMutation();
       showToast('Grupo eliminado correctamente');
     } catch {
       showToast('Error al eliminar el grupo.', 'error');
     } finally { setDeleting(false); }
   };
 
+  // Una sola request al endpoint server-side que anula las cédulas en
+  // tránsito (con reversión de inventario) y elimina el grupo en batches
+  // transaccionales. Reemplaza el flujo previo de N PUT /anular + 1 DELETE
+  // que dejaba estado parcialmente mutado si fallaba a mitad.
   const handleAnularYEliminar = async () => {
     setDeleting(true);
     try {
-      for (const cedula of deleteModal.cedulasEnTransito) {
-        const res = await apiFetch(`/api/cedulas/${cedula.id}/anular`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: 'Anulada por eliminación de grupo' }) });
-        if (!res.ok) throw new Error(`No se pudo anular la cédula ${cedula.consecutivo}`);
+      const res = await apiFetch(`/api/grupos/${deleteModal.grupoId}/anular-y-eliminar`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        // CEDULA_APLICADA: race entre el delete-check del modal y este POST
+        // (alguien aplicó una cédula entre medio). Invitar a recargar para
+        // ver el modal correcto ("No es posible eliminar — hay aplicadas").
+        const msg = body?.code === 'CEDULA_APLICADA'
+          ? 'Alguna cédula fue aplicada en campo desde que abriste este modal. Recargá para ver el estado actualizado.'
+          : 'Error al eliminar el grupo.';
+        showToast(msg, 'error');
+        return;
       }
-      const res = await apiFetch(`/api/grupos/${deleteModal.grupoId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
       if (selectedGrupo?.id === deleteModal.grupoId) setSelectedGrupo(null);
       setDeleteModal(null);
-      fetchAll();
+      refreshAfterMutation();
       showToast('Cédulas anuladas y grupo eliminado correctamente');
-    } catch (err) {
-      showToast(err.message || 'Error al eliminar el grupo.', 'error');
+    } catch {
+      showToast('Error al eliminar el grupo.', 'error');
     } finally { setDeleting(false); }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Guard re-entry: el botón ya queda disabled durante saving, pero Enter
+    // en un input dispara onSubmit sin pasar por el botón — sin esto, dos
+    // Enter rápidos antes del re-render se traducen en dos POST.
+    if (saving) return;
     const nombre = formData.nombreGrupo.trim();
     if (!nombre || nombre.length > 16) { showToast('El nombre del grupo debe tener entre 1 y 16 caracteres.', 'error'); return; }
     if (!formData.fechaCreacion) { showToast('La fecha de creación es requerida.', 'error'); return; }
@@ -666,13 +675,14 @@ function GrupoManagement() {
     if (formData.bloques.length === 0) { showToast('Selecciona al menos un bloque.', 'error'); return; }
     const url    = isEditing ? `/api/grupos/${formData.id}` : '/api/grupos';
     const method = isEditing ? 'PUT' : 'POST';
+    setSaving(true);
     try {
       const { id: _id, ...payload } = formData;
       payload.nombreGrupo = payload.nombreGrupo.trim();
       const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error();
       const saved     = await res.json();
-      const newGrupos = await fetchAll();
+      const newGrupos = await refreshAfterMutation();
       const savedId   = isEditing ? formData.id : saved.id;
       if (savedId && newGrupos) {
         const found = newGrupos.find(g => g.id === savedId);
@@ -682,6 +692,8 @@ function GrupoManagement() {
       showToast(isEditing ? 'Grupo actualizado correctamente' : formData.paqueteId ? 'Grupo creado y tareas programadas' : 'Grupo creado correctamente');
     } catch {
       showToast('Ocurrió un error al guardar.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1008,16 +1020,19 @@ function GrupoManagement() {
                       type="button"
                       className="bloque-tier-toggle"
                       onClick={() => setShowEnAplicacion(v => !v)}
+                      aria-expanded={showEnAplicacion}
+                      aria-controls="bloque-tier-en-aplicacion-content"
                     >
                       <span className="bloque-tier-title">En aplicación activa</span>
                       <span className="bloque-tier-count">{enAplicacionCount}</span>
                       <FiChevronRight
                         size={14}
                         className={`bloque-tier-chevron${showEnAplicacion ? ' is-open' : ''}`}
+                        aria-hidden="true"
                       />
                     </button>
                     {showEnAplicacion && (
-                      <>
+                      <div id="bloque-tier-en-aplicacion-content">
                         <p className="bloque-tier-hint">
                           Pertenecen a otros grupos con paquete pendiente. Moverlos aquí interrumpe las aplicaciones programadas — usar con precaución.
                         </p>
@@ -1041,7 +1056,7 @@ function GrupoManagement() {
                             ))}
                           </div>
                         ))}
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1049,9 +1064,9 @@ function GrupoManagement() {
             )}
 
             <div className="aur-form-actions">
-              <button type="button" onClick={resetForm} className="aur-btn-text">Cancelar</button>
-              <button type="submit" className="aur-btn-pill">
-                <FiPlus size={14} /> {isEditing ? 'Actualizar Grupo' : 'Crear Grupo'}
+              <button type="button" onClick={resetForm} className="aur-btn-text" disabled={saving}>Cancelar</button>
+              <button type="submit" className="aur-btn-pill" disabled={saving}>
+                <FiPlus size={14} /> {saving ? 'Guardando…' : (isEditing ? 'Actualizar Grupo' : 'Crear Grupo')}
               </button>
             </div>
           </form>
@@ -1060,6 +1075,14 @@ function GrupoManagement() {
     }
 
     if (!selectedGrupo) return null;
+
+    const sortThProps = {
+      sorts:        bloqueSorts,
+      setSorts:     setBloqueSorts,
+      colFilters:   bloqueColFilters,
+      filterPop:    bloqueFilterPop,
+      setFilterPop: setBloqueFilterPop,
+    };
 
     return (
       <div className="grupo-hub">
@@ -1071,14 +1094,14 @@ function GrupoManagement() {
             <h2 className="hub-lote-code">{selectedGrupo.nombreGrupo}</h2>
           </div>
           <div className="hub-header-actions">
-            <button onClick={() => setPreviewGrupo(selectedGrupo)} className="aur-icon-btn" title="Vista previa / PDF">
-              <FiEye size={16} />
+            <button onClick={() => setPreviewGrupo(selectedGrupo)} className="aur-icon-btn" title="Vista previa / PDF" aria-label="Vista previa / PDF del grupo">
+              <FiEye size={16} aria-hidden="true" />
             </button>
-            <button onClick={() => handleEdit(selectedGrupo)} className="aur-icon-btn" title="Editar">
-              <FiEdit size={16} />
+            <button onClick={() => handleEdit(selectedGrupo)} className="aur-icon-btn" title="Editar" aria-label="Editar grupo">
+              <FiEdit size={16} aria-hidden="true" />
             </button>
-            <button onClick={() => handleDeleteClick(selectedGrupo)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar">
-              <FiTrash2 size={16} />
+            <button onClick={() => handleDeleteClick(selectedGrupo)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar" aria-label="Eliminar grupo">
+              <FiTrash2 size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -1138,19 +1161,22 @@ function GrupoManagement() {
             <table className="aur-table grupo-hub-table">
               <thead>
                 <tr>
-                  {!bloqueHiddenCols.has('loteNombre') && <BloqueSortTh field="loteNombre">Lote</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('bloque')     && <BloqueSortTh field="bloque">Bloque</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('ha')         && <BloqueSortTh field="ha" filterType="number">Ha.</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('plantas')    && <BloqueSortTh field="plantas" filterType="number">Plantas</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('material')   && <BloqueSortTh field="material">Material</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('kg')         && <BloqueSortTh field="kg" filterType="number">Kg Est.</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('loteNombre') && <BloqueSortTh {...sortThProps} field="loteNombre">Lote</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('bloque')     && <BloqueSortTh {...sortThProps} field="bloque">Bloque</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('ha')         && <BloqueSortTh {...sortThProps} field="ha" filterType="number">Ha.</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('plantas')    && <BloqueSortTh {...sortThProps} field="plantas" filterType="number">Plantas</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('material')   && <BloqueSortTh {...sortThProps} field="material">Material</BloqueSortTh>}
+                  {!bloqueHiddenCols.has('kg')         && <BloqueSortTh {...sortThProps} field="kg" filterType="number">Kg Est.</BloqueSortTh>}
                   <th className="aur-th-col-menu">
                     <button
                       className={`aur-col-menu-trigger${bloqueHiddenCols.size > 0 ? ' is-active' : ''}`}
                       onClick={handleBloqueColBtnClick}
                       title="Personalizar columnas visibles"
+                      aria-label="Personalizar columnas visibles"
+                      aria-haspopup="menu"
+                      aria-expanded={!!bloqueColMenu}
                     >
-                      <FiSliders size={12} />
+                      <FiSliders size={12} aria-hidden="true" />
                       {bloqueHiddenCols.size > 0 && <span className="aur-col-hidden-badge">{bloqueHiddenCols.size}</span>}
                     </button>
                   </th>
@@ -1234,14 +1260,20 @@ function GrupoManagement() {
 
       {deleteModal && (
         <div className="aur-modal-backdrop" onPointerDown={() => !deleting && setDeleteModal(null)}>
-          <div className="aur-modal aur-modal--wide" onPointerDown={e => e.stopPropagation()}>
+          <div
+            className="aur-modal aur-modal--wide"
+            onPointerDown={e => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="grupo-delete-modal-title"
+          >
             {deleteModal.type === 'aplicada' ? (
               <>
                 <header className="aur-modal-header">
-                  <span className="aur-modal-icon aur-modal-icon--danger">
+                  <span className="aur-modal-icon aur-modal-icon--danger" aria-hidden="true">
                     <FiX size={18} />
                   </span>
-                  <h2 className="aur-modal-title">No es posible eliminar este grupo</h2>
+                  <h2 className="aur-modal-title" id="grupo-delete-modal-title">No es posible eliminar este grupo</h2>
                 </header>
                 <div className="aur-modal-body">
                   <p>
@@ -1262,8 +1294,8 @@ function GrupoManagement() {
             ) : (
               <>
                 <header className="aur-modal-header">
-                  <span className="aur-modal-icon aur-modal-icon--warn">!</span>
-                  <h2 className="aur-modal-title">Hay cédulas pendientes de resolución</h2>
+                  <span className="aur-modal-icon aur-modal-icon--warn" aria-hidden="true">!</span>
+                  <h2 className="aur-modal-title" id="grupo-delete-modal-title">Hay cédulas pendientes de resolución</h2>
                 </header>
                 <div className="aur-modal-body">
                   <p>
@@ -1302,20 +1334,42 @@ function GrupoManagement() {
 
       {/* ── Mobile sticky carousel ── */}
       {selectedGrupo && !showForm && (
-        <div className="lote-carousel" ref={carouselRef}>
-          {grupos.map(grupo => (
-            <button
-              key={grupo.id}
-              className={`lote-bubble${selectedGrupo?.id === grupo.id ? ' lote-bubble--active' : ''}`}
-              onClick={() => selectedGrupo?.id === grupo.id ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
-            >
-              <span className="lote-bubble-avatar">{grupo.nombreGrupo.slice(0, 4)}</span>
-              <span className="lote-bubble-label">{grupo.nombreGrupo}</span>
-            </button>
-          ))}
-          <button className="lote-bubble lote-bubble--add" onClick={handleNewGrupo}>
-            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+        <div className="lote-carousel" ref={carouselRef} aria-label="Grupos">
+          {grupos.map(grupo => {
+            const isActive = selectedGrupo?.id === grupo.id;
+            return (
+              <button
+                key={grupo.id}
+                className={`lote-bubble${isActive ? ' lote-bubble--active' : ''}`}
+                onClick={() => isActive ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
+                aria-pressed={isActive}
+                aria-label={`Grupo ${grupo.nombreGrupo}${isActive ? ' (seleccionado, clic para cerrar)' : ''}`}
+              >
+                <span className="lote-bubble-avatar" aria-hidden="true">{grupo.nombreGrupo.slice(0, 4)}</span>
+                <span className="lote-bubble-label">{grupo.nombreGrupo}</span>
+              </button>
+            );
+          })}
+          <button className="lote-bubble lote-bubble--add" onClick={handleNewGrupo} aria-label="Crear nuevo grupo">
+            <span className="lote-bubble-avatar lote-bubble-avatar--add" aria-hidden="true">+</span>
             <span className="lote-bubble-label">Nuevo</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner de error de carga (algún fetch inicial falló) ── */}
+      {loadError && (
+        <div className="grupo-load-error" role="alert">
+          <FiAlertTriangle size={14} aria-hidden="true" />
+          <span className="grupo-load-error-msg">{loadError}</span>
+          <button
+            type="button"
+            className="grupo-load-error-retry"
+            onClick={reloadAll}
+            disabled={loading}
+          >
+            <FiRefreshCw size={12} aria-hidden="true" />
+            {loading ? 'Cargando…' : 'Reintentar'}
           </button>
         </div>
       )}
@@ -1343,10 +1397,15 @@ function GrupoManagement() {
         {/* Lista compacta */}
         {!showForm && <div className="lote-list-panel">
           {grupos.length === 0 ? (
-            <div className="grupo-cta">
-              <div className="grupo-cta-icon"><FiPlus size={24} /></div>
-              <p className="grupo-cta-title">Sin grupos creados</p>
-            </div>
+            // Si hubo error de carga no mostramos el empty-state — sería
+            // falso, no sabemos si la finca está vacía o si la red murió.
+            // El banner de arriba ya explica qué pasó y tiene Reintentar.
+            loadError ? null : (
+              <div className="grupo-cta">
+                <div className="grupo-cta-icon"><FiPlus size={24} /></div>
+                <p className="grupo-cta-title">Sin grupos creados</p>
+              </div>
+            )
           ) : (
             <ul className="lote-list">
               {grupos.map(grupo => (
