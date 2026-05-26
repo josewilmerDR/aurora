@@ -187,49 +187,36 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
             </div>
           </div>
 
-          {/* ── Columna 3: Calibración ──────────────────────────────
-              Mini-tabla con header oscuro (mismo lenguaje visual que
-              .ca-doc-table de productos). Antes eran 7 pares <span> sin
-              contraste, el aplicador en campo tenía que leer cada par
-              label:value secuencial. Como tabla, el header anuncia la
-              sección y las filas tienen separadores horizontales que
-              ayudan al scaneo rápido. Punto #21 audit. */}
-          <div className="ca-dato-col">
-            <table className="ca-cal-table">
-              <thead>
-                <tr><th colSpan={2}>Calibración</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="ca-cal-label">Tractor</td>
-                  <td>{previewCalTractor?.codigo || previewCal?.tractorNombre || '—'}</td>
-                </tr>
-                <tr>
-                  <td className="ca-cal-label">Aplicador</td>
-                  <td>{previewCalAplicador?.codigo || previewCal?.aplicadorNombre || '—'}</td>
-                </tr>
-                <tr>
-                  <td className="ca-cal-label">RPM Recomendada</td>
-                  <td>{previewCal?.rpmRecomendado || '—'}</td>
-                </tr>
-                <tr>
-                  <td className="ca-cal-label">Marcha Rec.</td>
-                  <td>{previewCal?.marchaRecomendada || '—'}</td>
-                </tr>
-                <tr>
-                  <td className="ca-cal-label">Tipo Boq.</td>
-                  <td>{previewCal?.tipoBoquilla || '—'}</td>
-                </tr>
-                <tr>
-                  <td className="ca-cal-label">Presión Recomendada</td>
-                  <td>{previewCal?.presionRecomendada || '—'}</td>
-                </tr>
-                <tr>
-                  <td className="ca-cal-label">Km/H Recomendados</td>
-                  <td>{previewCal?.velocidadKmH || '—'}</td>
-                </tr>
-              </tbody>
-            </table>
+          {/* Columna 3: Calibración */}
+          <div className="ca-dato ca-dato-col">
+            <div className="ca-dato">
+              <span className="ca-dato-label">Tractor:</span>
+              <span className="ca-dato-value">{previewCalTractor?.codigo || previewCal?.tractorNombre || '—'}</span>
+            </div>
+            <div className="ca-dato">
+              <span className="ca-dato-label">Aplicador:</span>
+              <span className="ca-dato-value">{previewCalAplicador?.codigo || previewCal?.aplicadorNombre || '—'}</span>
+            </div>
+            <div className="ca-dato">
+              <span className="ca-dato-label">RPM Recomendada:</span>
+              <span className="ca-dato-value">{previewCal?.rpmRecomendado || '—'}</span>
+            </div>
+            <div className="ca-dato">
+              <span className="ca-dato-label">Marcha Rec.:</span>
+              <span className="ca-dato-value">{previewCal?.marchaRecomendada || '—'}</span>
+            </div>
+            <div className="ca-dato">
+              <span className="ca-dato-label">Tipo Boq.:</span>
+              <span className="ca-dato-value">{previewCal?.tipoBoquilla || '—'}</span>
+            </div>
+            <div className="ca-dato">
+              <span className="ca-dato-label">Presión Recomendada:</span>
+              <span className="ca-dato-value">{previewCal?.presionRecomendada || '—'}</span>
+            </div>
+            <div className="ca-dato">
+              <span className="ca-dato-label">Km/H Recomendados:</span>
+              <span className="ca-dato-value">{previewCal?.velocidadKmH || '—'}</span>
+            </div>
           </div>
         </div>
 
