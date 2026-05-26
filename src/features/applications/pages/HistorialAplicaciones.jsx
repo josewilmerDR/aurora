@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiFilter, FiX, FiPlusCircle, FiSliders } from 'react-icons/fi';
+import { FiFilter, FiX, FiArrowRight, FiSliders } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import FilterButton from '../../../components/ui/FilterButton';
@@ -548,10 +548,9 @@ function HistorialAplicaciones() {
           />
           <Link
             to="/aplicaciones/cedulas"
-            state={{ openModal: true }}
             className="aur-btn-pill"
           >
-            <FiPlusCircle size={14} /> Nueva cédula
+            Ir a cédulas pendientes <FiArrowRight size={14} />
           </Link>
         </div>
       </header>
@@ -580,7 +579,7 @@ function HistorialAplicaciones() {
             icon={null}
             title={
               cedulas.length === 0
-                ? 'Aún no hay registros que mostrar. Crea el primero en "Nueva cédula"'
+                ? 'Aún no hay registros. Las cédulas aparecerán aquí al marcarse como aplicadas en campo desde "Cédulas pendientes".'
                 : 'Sin resultados para los filtros aplicados.'
             }
           />
