@@ -16,6 +16,46 @@
   animation: app-loading-spin 0.75s linear infinite;
 }
 
+/* ── Banner de error de carga parcial (Promise.allSettled) ─────────────────
+   Análogo a .lote-load-error en lote-management.css. Se muestra cuando uno
+   o más de los 6 fetches iniciales falló — empty-state de "sin grupos"
+   queda suprimido para no mentirle al usuario sobre red caída. */
+.grupo-load-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(204, 51, 255, 0.08);
+  border: 1px solid rgba(204, 51, 255, 0.35);
+  border-radius: 6px;
+  color: var(--aurora-light);
+  font-size: 0.82rem;
+}
+
+.grupo-load-error > svg { color: var(--aurora-magenta); flex-shrink: 0; }
+
+.grupo-load-error-msg { flex: 1; line-height: 1.4; }
+
+.grupo-load-error-retry {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(204, 51, 255, 0.45);
+  color: var(--aurora-light);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: inherit;
+}
+.grupo-load-error-retry:hover:not(:disabled) {
+  background: rgba(204, 51, 255, 0.12);
+  border-color: var(--aurora-magenta);
+}
+.grupo-load-error-retry:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Page empty state ─────────────────────────────────────────────────────── */
 .grupo-empty-state {
   display: flex;

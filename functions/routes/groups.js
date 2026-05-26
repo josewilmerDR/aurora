@@ -580,4 +580,191 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
     }
 });
 
+// Anular cédulas en tránsito y eliminar el grupo en un solo round-trip.
+//
+// Reemplaza el flujo previo del cliente que iteraba PUT /api/cedulas/:id/anular
+// por cada cédula y luego llamaba DELETE /api/grupos/:id. Ese flujo dejaba
+// el estado parcialmente mutado ante cualquier fallo intermedio (cédulas
+// anuladas + inventario revertido + grupo intacto), sin rollback.
+//
+// Reglas:
+//  - Si hay alguna cédula 'aplicada_en_campo' bajo este grupo, 409 — igual
+//    que el DELETE estándar. El cliente debe haber chequeado /delete-check
+//    antes; este guard es defensa en profundidad contra races.
+//  - Cada cédula 'en_transito' revierte inventario como en void.js: suma
+//    stockActual por producto e inserta un movimiento 'ingreso' compensatorio
+//    por cada egreso original (preservación del ledger).
+//  - No se persiste status='anulada' en las cédulas porque inmediatamente
+//    después se borran junto con sus pending tasks (mismo comportamiento
+//    que DELETE estándar — borra todo lo que cuelga de pending tasks).
+//  - Audit: 1 CEDULA_VOID por cédula con inventario revertido +
+//    1 GRUPO_DELETE final con metadata extendida.
+//
+// Chunking: Firestore limita 500 ops por batch. Las ops se acumulan en una
+// lista plana y se comitean en grupos de 450 (margen). Cross-chunk no es
+// atómico, pero el endpoint es idempotente: si una segunda corrida ve las
+// mismas cédulas ya con status='en_transito' false (porque ya no existen),
+// el flujo se completa sin re-revertir inventario.
+router.post('/api/grupos/:id/anular-y-eliminar', authenticate, async (req, res) => {
+    try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete grupos.', 403);
+        }
+        const { id } = req.params;
+        const ownership = await verifyOwnership('grupos', id, req.fincaId);
+        if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+
+        const prevData = ownership.doc.data();
+        const snap_grupoNombre = prevData.nombreGrupo || '';
+
+        // ── 1. Read: tasks del grupo ───────────────────────────────────
+        const allTasksSnap = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
+        const pendingTasks    = allTasksSnap.docs.filter(d => d.data().status === 'pending');
+        const completedTasks  = allTasksSnap.docs.filter(d => d.data().status !== 'pending');
+        const pendingTaskIds  = pendingTasks.map(d => d.id);
+
+        // ── 2. Read: cédulas asociadas + bloqueo si hay aplicada_en_campo
+        const cedulasAsociadas  = [];        // todas se borran junto con sus tasks
+        const cedulasEnTransito = [];        // subset que necesita reversión de inventario
+
+        if (pendingTaskIds.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
+            for (const chunk of chunks) {
+                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                for (const doc of cSnap.docs) {
+                    const d = doc.data();
+                    if (d.status === 'aplicada_en_campo') {
+                        return sendApiError(res, 'CEDULA_APLICADA',
+                            `Cannot delete: cedula ${d.consecutivo || doc.id} already applied in field.`, 409);
+                    }
+                    cedulasAsociadas.push(doc);
+                    if (d.status === 'en_transito') cedulasEnTransito.push({ doc, data: d });
+                }
+            }
+        }
+
+        // ── 3. Read: movimientos por cada cédula a revertir ────────────
+        const cedulaMovs = new Map();
+        for (const { doc } of cedulasEnTransito) {
+            const movSnap = await db.collection('movimientos')
+                .where('cedulaId', '==', doc.id)
+                .where('fincaId', '==', req.fincaId)
+                .get();
+            cedulaMovs.set(doc.id, movSnap.docs);
+        }
+
+        // ── 4. Build ops + audit events diferidos ──────────────────────
+        const ops = [];
+        const cedulaAuditEvents = [];
+
+        for (const { doc: cedDoc, data: cedData } of cedulasEnTransito) {
+            const movs = cedulaMovs.get(cedDoc.id) || [];
+            const reversalPorProducto = {};
+            for (const mov of movs) {
+                const d = mov.data();
+                if (d.tipo === 'egreso' && d.productoId) {
+                    reversalPorProducto[d.productoId] = (reversalPorProducto[d.productoId] || 0) + d.cantidad;
+                }
+            }
+            for (const [productoId, total] of Object.entries(reversalPorProducto)) {
+                const ref = db.collection('productos').doc(productoId);
+                ops.push(b => b.update(ref, { stockActual: FieldValue.increment(total) }));
+            }
+            for (const mov of movs) {
+                const d = mov.data();
+                if (d.tipo !== 'egreso') continue;
+                const newRef = db.collection('movimientos').doc();
+                ops.push(b => b.set(newRef, {
+                    tipo: 'ingreso',
+                    productoId: d.productoId,
+                    nombreComercial: d.nombreComercial,
+                    cantidad: d.cantidad,
+                    unidad: d.unidad,
+                    fecha: Timestamp.now(),
+                    motivo: `Anulación cédula ${cedData.consecutivo} (eliminación de grupo)`,
+                    tareaId: cedData.taskId,
+                    cedulaId: cedDoc.id,
+                    cedulaConsecutivo: cedData.consecutivo,
+                    loteId: d.loteId || null,
+                    grupoId: d.grupoId || null,
+                    loteNombre: d.loteNombre || '',
+                    fincaId: req.fincaId,
+                }));
+            }
+            cedulaAuditEvents.push({
+                action: ACTIONS.CEDULA_VOID,
+                target: { type: 'cedula', id: cedDoc.id },
+                metadata: {
+                    consecutivo: cedData.consecutivo || null,
+                    taskId: cedData.taskId,
+                    previousStatus: 'en_transito',
+                    reversalCount: Object.keys(reversalPorProducto).length,
+                    taskClosedAs: null,
+                    context: 'grupo_anular_y_eliminar',
+                },
+                severity: SEVERITY.WARNING,
+            });
+        }
+
+        // Snap nombre del grupo en tasks históricas
+        for (const t of completedTasks) {
+            ops.push(b => b.update(t.ref, { snap_grupoNombre }));
+        }
+        // Borrar todas las cédulas asociadas a pending tasks
+        for (const c of cedulasAsociadas) {
+            ops.push(b => b.delete(c.ref));
+        }
+        // Borrar pending tasks
+        for (const t of pendingTasks) {
+            ops.push(b => b.delete(t.ref));
+        }
+        // Borrar el grupo
+        ops.push(b => b.delete(db.collection('grupos').doc(id)));
+
+        // ── 5. Commit en chunks de 450 ops ─────────────────────────────
+        const BATCH_SIZE = 450;
+        for (let i = 0; i < ops.length; i += BATCH_SIZE) {
+            const batch = db.batch();
+            for (const op of ops.slice(i, i + BATCH_SIZE)) op(batch);
+            await batch.commit();
+        }
+
+        // ── 6. Audit ───────────────────────────────────────────────────
+        for (const ev of cedulaAuditEvents) {
+            writeAuditEvent({ fincaId: req.fincaId, actor: req, ...ev });
+        }
+        writeAuditEvent({
+            fincaId: req.fincaId,
+            actor: req,
+            action: ACTIONS.GRUPO_DELETE,
+            target: { type: 'grupo', id },
+            metadata: {
+                nombreGrupo: prevData.nombreGrupo || null,
+                cosecha: prevData.cosecha || null,
+                etapa: prevData.etapa || null,
+                bloquesCount: Array.isArray(prevData.bloques) ? prevData.bloques.length : 0,
+                paqueteId: prevData.paqueteId || null,
+                paqueteMuestreoId: prevData.paqueteMuestreoId || null,
+                pendingTasksDeleted: pendingTasks.length,
+                pendingCedulasDeleted: cedulasAsociadas.length,
+                cedulasAnuladas: cedulasEnTransito.length,
+                completedTasksKept: completedTasks.length,
+                context: 'anular_y_eliminar',
+            },
+            severity: SEVERITY.WARNING,
+        });
+
+        res.status(200).json({
+            ok: true,
+            cedulasAnuladas: cedulasEnTransito.length,
+            pendingCedulasDeleted: cedulasAsociadas.length,
+            pendingTasksDeleted: pendingTasks.length,
+        });
+    } catch (error) {
+        console.error('Error en anular-y-eliminar grupo:', error);
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to void cedulas and delete grupo.', 500);
+    }
+});
+
 module.exports = router;
