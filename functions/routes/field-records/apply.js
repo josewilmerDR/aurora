@@ -14,16 +14,19 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldPath } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, getUserIdForUid, writeFeedEvent } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { rateLimit } = require('../../lib/rateLimit');
 const {
   MAX_SHORT, MAX_OBS_LEN, TIME_RE,
   sanitizeStr, sanitizeStrStrict, requireRole,
+  logCtx,
 } = require('./helpers');
 
 const router = Router();
 
-router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
+router.put('/api/cedulas/:id/aplicada', authenticate, rateLimit('cedulas_write', 'write'), async (req, res) => {
   try {
     if (!requireRole(req, res, 'trabajador')) return;
 
@@ -61,6 +64,19 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
 
     const taskDoc = await db.collection('scheduled_tasks').doc(cedula.taskId).get();
     const taskData = taskDoc.exists ? taskDoc.data() : {};
+
+    // Assignment check para trabajador: solo puede aplicar cédulas cuyas
+    // tasks están asignadas a su user doc (mismo gate que PUT /api/tasks/:id
+    // en tasks.js). Sin esto, cualquier trabajador autenticado en la finca
+    // podría firmar la aplicación de cualquier cédula en nombre del operador
+    // asignado — falsifica un registro regulatorio de agroquímicos. Roles
+    // encargado+ pueden aplicar cualquier cédula (supervisión).
+    if (req.userRole === 'trabajador') {
+      const userId = await getUserIdForUid(req.uid, req.fincaId);
+      if (!userId || taskData.activity?.responsableId !== userId) {
+        return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You can only apply cedulas for tasks assigned to you.', 403);
+      }
+    }
 
     let sourceData = null, sourceType = null, sourceId = null;
     if (taskData.loteId) {
@@ -110,7 +126,13 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       for (let i = 0; i < bloqueIds.length; i += 10) {
         const chunk = bloqueIds.slice(i, i + 10);
         const snap = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
-        snap.docs.forEach(d => bloquesList.push({ id: d.id, ...d.data() }));
+        // Defense-in-depth: filtrar por fincaId post-query. Los IDs vienen de
+        // docs ya verificados (task.bloques/source.bloques/cedula.splitBloqueIds)
+        // pero una corrupción upstream con ID foráneo se reflejaría en el
+        // snapshot de bloques de la cédula sin este filtro.
+        snap.docs.forEach(d => {
+          if (d.data().fincaId === req.fincaId) bloquesList.push({ id: d.id, ...d.data() });
+        });
       }
     }
 
@@ -124,7 +146,12 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
     for (let i = 0; i < productoIds.length; i += 10) {
       const chunk = productoIds.slice(i, i + 10);
       const snap = await db.collection('productos').where(FieldPath.documentId(), 'in', chunk).get();
-      snap.docs.forEach(d => { catMap[d.id] = d.data(); });
+      // Defense-in-depth: ignorar productos de otra finca aunque vengan
+      // referenciados en cedula.productosAplicados. Sin este filtro un upstream
+      // bug colaría datos de catálogo cross-tenant en el snapshot histórico.
+      snap.docs.forEach(d => {
+        if (d.data().fincaId === req.fincaId) catMap[d.id] = d.data();
+      });
     }
 
     const areaHa = bloquesList.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0)
@@ -300,9 +327,47 @@ router.put('/api/cedulas/:id/aplicada', authenticate, async (req, res) => {
       });
     }
     await batch.commit();
+
+    // Audit la aplicación en campo. Esta es la pieza más importante del trail
+    // regulatorio: confirma que un agroquímico fue efectivamente aplicado en
+    // un área específica, con dosis y operador concreto. Metadata incluye
+    // datos clave para forensic queries (consecutivo + área + carencia) sin
+    // duplicar todo el snapshot (que ya queda en la cédula).
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.CEDULA_APPLY,
+      target: { type: 'cedula', id: req.params.id },
+      metadata: {
+        consecutivo: cedula.consecutivo || null,
+        taskId: cedula.taskId,
+        activityName: taskData.activity?.name || null,
+        areaHa: areaHa || null,
+        productosCount: productosSnap.length,
+        periodoCarenciaMax: periodoCarenciaMax || null,
+        periodoReingresoMax: periodoReingresoMax || null,
+        operario: operario || null,
+        taskClosed: allSiblingsApplied,
+      },
+      severity: SEVERITY.INFO,
+    });
+
+    // Feed event de aplicación: el evento más importante del lifecycle para
+    // el home de la finca. snap_sourceName cuando aplica (split), si no
+    // sourceData.nombreLote / nombreGrupo.
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      uid: req.uid,
+      userEmail: req.userEmail,
+      eventType: 'cedula_aplicada',
+      activityType: 'aplicacion',
+      title: taskData.activity?.name || cedula.consecutivo || 'Cédula',
+      loteNombre: cedula.splitLoteNombre || sourceData?.nombreLote || sourceData?.nombreGrupo || '',
+    });
+
     res.json({ id: req.params.id, status: 'aplicada_en_campo' });
   } catch (error) {
-    console.error('Error in cedula aplicada:', error);
+    console.error('Error in cedula aplicada', logCtx(req, { cedulaId: req.params.id, err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register the application.', 500);
   }
 });

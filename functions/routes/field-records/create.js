@@ -16,6 +16,8 @@ const { db, Timestamp, FieldPath } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { verifyOwnership, enrichTask } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { rateLimit } = require('../../lib/rateLimit');
 const {
   MAX_ACTIVITY_LEN, MAX_TECNICO_LEN, MAX_PRODUCTOS,
   MAX_BLOQUES, MAX_CANTIDAD_POR_HA, MAX_FUTURE_DAYS,
@@ -23,16 +25,25 @@ const {
   isValidYmd, isWithinFutureLimit, requireRole,
   nextCedulaConsecutivo, nextCedulasConsecutivos,
   serializeCedula, serializeProductoOriginal,
+  logCtx,
 } = require('./helpers');
 
 const router = Router();
 
-router.post('/api/cedulas', authenticate, async (req, res) => {
+// Mismo charset/longitud que tasks.js DOC_ID_RE. Sin el check explícito, IDs
+// con caracteres no-Firestore caían en verifyOwnership → .doc(id).get() que
+// devuelve errores ambiguos 500 en vez de un 400 claro al cliente.
+const DOC_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+router.post('/api/cedulas', authenticate, rateLimit('cedulas_write', 'write'), async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const { taskId } = req.body || {};
     if (typeof taskId !== 'string' || !taskId.trim()) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'taskId is required.', 400);
+    }
+    if (!DOC_ID_RE.test(taskId)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'taskId must be a valid doc id.', 400);
     }
 
     const ownership = await verifyOwnership('scheduled_tasks', taskId, req.fincaId);
@@ -101,6 +112,25 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
             cedulasCreated.push(serializeCedula(ref.id, cedula));
           });
           await batch.commit();
+          // Un audit event por cédula creada — el split-by-lote produce N cédulas
+          // independientes que pueden seguir lifecycles distintos (mezcla/aplica
+          // por separado), así que el trail también debe ser por-cédula.
+          for (const c of cedulasCreated) {
+            writeAuditEvent({
+              fincaId: req.fincaId,
+              actor: req,
+              action: ACTIONS.CEDULA_GENERATE,
+              target: { type: 'cedula', id: c.id },
+              metadata: {
+                consecutivo: c.consecutivo,
+                taskId,
+                split: true,
+                splitLoteNombre: c.splitLoteNombre,
+                productosCount: productosOriginalesSplit.length,
+              },
+              severity: SEVERITY.INFO,
+            });
+          }
           return res.status(201).json(cedulasCreated);
         }
       }
@@ -125,14 +155,27 @@ router.post('/api/cedulas', authenticate, async (req, res) => {
       productosOriginales,
     };
     const docRef = await db.collection('cedulas').add(cedula);
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.CEDULA_GENERATE,
+      target: { type: 'cedula', id: docRef.id },
+      metadata: {
+        consecutivo,
+        taskId,
+        split: false,
+        productosCount: productosOriginales.length,
+      },
+      severity: SEVERITY.INFO,
+    });
     res.status(201).json(serializeCedula(docRef.id, cedula));
   } catch (error) {
-    console.error('Error creating cedula:', error);
+    console.error('Error creating cedula', logCtx(req, { taskId: req.body?.taskId, err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to generate cedula.', 500);
   }
 });
 
-router.post('/api/cedulas/manual', authenticate, async (req, res) => {
+router.post('/api/cedulas/manual', authenticate, rateLimit('cedulas_write', 'write'), async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
 
@@ -197,6 +240,34 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
     } else {
       const o = await verifyOwnership('grupos', grupoId, req.fincaId);
       if (!o.ok) return sendApiError(res, o.code, o.message, o.status);
+    }
+
+    // Verificar ownership de cada bloque enviado. Antes solo se validaba que
+    // fueran strings; un cliente malicioso podía pasar IDs de otra finca y la
+    // suma de hectáreas en mix.js (que cruza siembras por documentId sin
+    // re-filtrar) leakeaba áreas reales de otro tenant al cálculo de
+    // deducción del stock propio. También verificamos que pertenecen al lote
+    // indicado cuando hay loteId — sin esto, un bloque de otro lote propio
+    // contamina las hectáreas planificadas.
+    if (bloques && bloques.length > 0) {
+      for (let i = 0; i < bloques.length; i += 10) {
+        const chunk = bloques.slice(i, i + 10);
+        const snap = await db.collection('siembras')
+          .where(FieldPath.documentId(), 'in', chunk)
+          .get();
+        if (snap.size !== chunk.length) {
+          return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'One or more bloques not found.', 400);
+        }
+        for (const doc of snap.docs) {
+          const d = doc.data();
+          if (d.fincaId !== req.fincaId) {
+            return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Bloque does not belong to this finca.', 400);
+          }
+          if (loteId && d.loteId !== loteId) {
+            return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Bloque does not belong to the specified lote.', 400);
+          }
+        }
+      }
     }
 
     if (calibracionId) {
@@ -324,10 +395,28 @@ router.post('/api/cedulas/manual', authenticate, async (req, res) => {
     };
     const cedulaRef = await db.collection('cedulas').add(cedulaData);
 
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.CEDULA_MANUAL_CREATE,
+      target: { type: 'cedula', id: cedulaRef.id },
+      metadata: {
+        consecutivo,
+        taskId: taskRef.id,
+        activityName,
+        fecha,
+        ...(loteId  ? { loteId  } : {}),
+        ...(grupoId ? { grupoId } : {}),
+        productosCount: enrichedProductos.length,
+        bloquesCount: Array.isArray(bloques) ? bloques.length : 0,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     const enrichedTask = await enrichTask(await taskRef.get());
     res.status(201).json({ cedula: serializeCedula(cedulaRef.id, cedulaData), task: enrichedTask });
   } catch (error) {
-    console.error('Error creating manual cedula:', error);
+    console.error('Error creating manual cedula', logCtx(req, { err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create cedula.', 500);
   }
 });

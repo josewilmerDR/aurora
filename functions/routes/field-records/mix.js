@@ -13,18 +13,21 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldValue, FieldPath } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, writeFeedEvent } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { rateLimit } = require('../../lib/rateLimit');
 const {
   MAX_OBS_MEZCLA_LEN, MAX_NOMBRE_MEZCLA_LEN,
   sanitizeStrStrict, requireRole,
   validateAndEnrichProductosAplicados, computeHuboCambios,
   serializeProductoOriginal,
+  logCtx,
 } = require('./helpers');
 
 const router = Router();
 
-router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
+router.put('/api/cedulas/:id/mezcla-lista', authenticate, rateLimit('cedulas_write', 'write'), async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
@@ -51,7 +54,10 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
         );
       }
     } catch (e) {
-      if (e && e.status && e.message) return res.status(e.status).json({ message: e.message });
+      // Errores de validateAndEnrichProductosAplicados llegan con {status:400, message}.
+      // Pasarlos por sendApiError les pone el ERROR_CODES code que translateApiError
+      // mapea a string en español; sin esto el frontend mostraba el mensaje en inglés.
+      if (e && e.status && e.message) return sendApiError(res, ERROR_CODES.INVALID_INPUT, e.message, e.status);
       throw e;
     }
 
@@ -79,14 +85,33 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
             : taskData.activity?.productos);
     const productosTieneCambios = productosAplicadosEnriched != null;
 
+    // Suma de áreas chunked por 10 (Firestore `in` cap): el código previo
+    // hacía `.slice(0, 10)` y truncaba silenciosamente. Cédulas con >10
+    // bloques (split de grupo grande o manual con muchos bloques) sub-contaban
+    // hectáreas, lo que sub-deducía stock y dejaba el ledger desalineado de
+    // lo aplicado en campo. Filtro extra por fincaId como defensa en
+    // profundidad por si un upstream cuelga un ID foráneo en la lista.
+    const sumAreasByIds = async (ids) => {
+      let total = 0;
+      for (let i = 0; i < ids.length; i += 10) {
+        const chunk = ids.slice(i, i + 10);
+        const snap = await db.collection('siembras')
+          .where(FieldPath.documentId(), 'in', chunk)
+          .get();
+        snap.docs.forEach(d => {
+          if (d.data().fincaId === req.fincaId) {
+            total += parseFloat(d.data().areaCalculada) || 0;
+          }
+        });
+      }
+      return total;
+    };
+
     let hectareas = 1;
     let sourceNombre = '';
     if (cedula.splitBloqueIds?.length > 0) {
       sourceNombre = cedula.splitLoteNombre || '';
-      const splitSnap = await db.collection('siembras')
-        .where(FieldPath.documentId(), 'in', cedula.splitBloqueIds.slice(0, 10))
-        .get();
-      hectareas = splitSnap.docs.reduce((s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0) || 1;
+      hectareas = (await sumAreasByIds(cedula.splitBloqueIds)) || 1;
     } else if (taskData.loteId) {
       const loteDoc = await db.collection('lotes').doc(taskData.loteId).get();
       hectareas = loteDoc.exists ? (parseFloat(loteDoc.data().hectareas) || 1) : 1;
@@ -95,13 +120,10 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
       const grupoDoc = await db.collection('grupos').doc(taskData.grupoId).get();
       sourceNombre = grupoDoc.exists ? (grupoDoc.data().nombreGrupo || '') : '';
       const bloqueIds = (Array.isArray(taskData.bloques) && taskData.bloques.length > 0)
-        ? taskData.bloques.slice(0, 10)
-        : (grupoDoc.exists && Array.isArray(grupoDoc.data().bloques) ? grupoDoc.data().bloques.slice(0, 10) : []);
+        ? taskData.bloques
+        : (grupoDoc.exists && Array.isArray(grupoDoc.data().bloques) ? grupoDoc.data().bloques : []);
       if (bloqueIds.length > 0) {
-        const siembrasSnap = await db.collection('siembras')
-          .where(FieldPath.documentId(), 'in', bloqueIds)
-          .get();
-        hectareas = siembrasSnap.docs.reduce((s, d) => s + (parseFloat(d.data().areaCalculada) || 0), 0) || 1;
+        hectareas = (await sumAreasByIds(bloqueIds)) || 1;
       }
     }
 
@@ -186,6 +208,39 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     batch.update(db.collection('cedulas').doc(req.params.id), cedulaUpdate);
     await batch.commit();
 
+    // Audit la preparación de mezcla. Severidad INFO en el caso normal y
+    // WARNING cuando hubo cambios respecto al programa original (sustituciones
+    // o ajustes de dosis con motivo declarado) — esos cambios alteran la
+    // receta auditable y merecen filtrarse rápido en el dashboard forense.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.CEDULA_MIX_READY,
+      target: { type: 'cedula', id: req.params.id },
+      metadata: {
+        consecutivo: cedula.consecutivo || null,
+        taskId: cedula.taskId,
+        productosCount: Array.isArray(productos) ? productos.length : 0,
+        huboCambios,
+        ...(mezclaListaNombre ? { mezclaListaNombre } : {}),
+      },
+      severity: huboCambios ? SEVERITY.WARNING : SEVERITY.INFO,
+    });
+
+    // Feed event para visibilidad cross-user: que el encargado de finca y el
+    // regente vean en home que la mezcla está lista sin tener que abrir la
+    // página de cédulas. Mismo patrón que tasks.js con eventType convencional
+    // entity_action snake_case.
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      uid: req.uid,
+      userEmail: req.userEmail,
+      eventType: 'cedula_mezcla_lista',
+      activityType: 'aplicacion',
+      title: taskData.activity?.name || cedula.consecutivo || 'Cédula',
+      loteNombre: sourceNombre,
+    });
+
     // Return written fields so the frontend can update local state without
     // reloading. Key: productosAplicados (with enriched fields) is needed so
     // the viewer shows what was actually mixed rather than the original recipe.
@@ -209,7 +264,7 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
     }
     res.json(response);
   } catch (error) {
-    console.error('Error in mezcla-lista:', error);
+    console.error('Error in mezcla-lista', logCtx(req, { cedulaId: req.params.id, err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to process mezcla.', 500);
   }
 });
@@ -218,7 +273,7 @@ router.put('/api/cedulas/:id/mezcla-lista', authenticate, async (req, res) => {
 // Mezcla Lista. Only allowed in 'pendiente' status. Records the editor in
 // editadaAt/editadaPor/editadaPorNombre. Does not touch inventory (the
 // deduction happens later, when mezcla-lista is marked).
-router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) => {
+router.put('/api/cedulas/:id/editar-productos', authenticate, rateLimit('cedulas_write', 'write'), async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
@@ -240,7 +295,7 @@ router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) =
         req.fincaId
       );
     } catch (e) {
-      if (e && e.status && e.message) return res.status(e.status).json({ message: e.message });
+      if (e && e.status && e.message) return sendApiError(res, ERROR_CODES.INVALID_INPUT, e.message, e.status);
       throw e;
     }
 
@@ -284,6 +339,25 @@ router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) =
 
     await db.collection('cedulas').doc(req.params.id).update(cedulaUpdate);
 
+    // Audit la edición de productos. No deduce inventario (eso pasa luego en
+    // mezcla-lista) pero altera la receta auditable de la cédula. WARNING
+    // cuando huboCambios respecto al snapshot original — mismo criterio que
+    // mezcla-lista.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.CEDULA_EDIT,
+      target: { type: 'cedula', id: req.params.id },
+      metadata: {
+        consecutivo: cedula.consecutivo || null,
+        taskId: cedula.taskId,
+        productosCount: productosAplicadosEnriched.length,
+        huboCambios,
+        ...(editadaPorNombre ? { editadaPorNombre } : {}),
+      },
+      severity: huboCambios ? SEVERITY.WARNING : SEVERITY.INFO,
+    });
+
     const response = {
       id: req.params.id,
       productosAplicados: productosAplicadosEnriched,
@@ -297,7 +371,7 @@ router.put('/api/cedulas/:id/editar-productos', authenticate, async (req, res) =
     }
     res.json(response);
   } catch (error) {
-    console.error('Error in editar-productos:', error);
+    console.error('Error in editar-productos', logCtx(req, { cedulaId: req.params.id, err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to edit cedula.', 500);
   }
 });

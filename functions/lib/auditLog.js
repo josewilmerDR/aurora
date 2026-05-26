@@ -96,10 +96,30 @@ const ACTIONS = Object.freeze({
   INCOME_DELETE: 'income.delete',
 
   // Task operations that change ownership, timing, or stock — routine
-  // creation is not audited (too noisy), but these three are.
+  // creation is not audited (too noisy), but these four are.
   TASK_COMPLETE: 'task.complete',
   TASK_RESCHEDULE: 'task.reschedule',
   TASK_REASSIGN: 'task.reassign',
+  // Skip cancela una tarea programada sin generar cédula. Para la página
+  // de Cédulas equivale a "Omitir tarea". Forensicamente relevante porque
+  // significa que una aplicación planificada (potencialmente regulatoria)
+  // no se ejecutó — quién y cuándo lo decidió tiene que quedar.
+  TASK_SKIP: 'task.skip',
+
+  // Cédulas de aplicación — todas las mutaciones quedan auditadas porque
+  // este es el documento auditable de aplicación de agroquímicos: lleva
+  // dosis, hectáreas, operario, condiciones, periodos de carencia/reingreso.
+  // El trail completo (quién generó, quién preparó la mezcla, quién aplicó
+  // en campo, quién anuló) sostiene la compliance regulatoria y permite
+  // forense ante una disputa de inventario o un reclamo de residuos.
+  // GENERATE/MANUAL_CREATE/MIX_READY/EDIT/APPLY van como INFO; VOID como
+  // WARNING porque revierte inventario y cancela un registro regulatorio.
+  CEDULA_GENERATE: 'cedula.generate',
+  CEDULA_MANUAL_CREATE: 'cedula.manual_create',
+  CEDULA_MIX_READY: 'cedula.mix_ready',
+  CEDULA_EDIT: 'cedula.edit',
+  CEDULA_APPLY: 'cedula.apply',
+  CEDULA_VOID: 'cedula.void',
 
   // Autopilot / CEO agent — state-changing or autonomous decisions. Propose
   // stages are NOT audited: they're approved-or-rejected downstream and that

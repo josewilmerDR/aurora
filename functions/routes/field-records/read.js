@@ -11,11 +11,19 @@ const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
-const { serializeCedula } = require('./helpers');
+const { serializeCedula, requireRole, logCtx } = require('./helpers');
 
 const router = Router();
 
+// Listing completo de cédulas de la finca. La página de Cédulas
+// (/aplicaciones/cedulas) está gated a encargado+ en el frontend; sin este
+// check, un trabajador autenticado podía enumerar la historia completa de
+// cédulas (productos, dosis, responsables, fechas) vía API directa. El GET
+// por id queda abierto a cualquier autenticado porque workers acceden a su
+// cédula asignada desde /task/:taskId. Mismo patrón que /api/siembras y
+// /api/grupos (gated en GET listing, abiertos en lecturas puntuales).
 router.get('/api/cedulas', authenticate, async (req, res) => {
+  if (!requireRole(req, res, 'encargado')) return;
   try {
     res.set('Cache-Control', 'no-store');
     const snap = await db.collection('cedulas')
@@ -24,7 +32,7 @@ router.get('/api/cedulas', authenticate, async (req, res) => {
       .get();
     res.json(snap.docs.map(d => serializeCedula(d.id, d.data())));
   } catch (error) {
-    console.error('Error fetching cedulas:', error);
+    console.error('Error fetching cedulas', logCtx(req, { err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch cedulas.', 500);
   }
 });
@@ -55,7 +63,7 @@ router.get('/api/cedulas/:id', authenticate, async (req, res) => {
 
     res.json(cedula);
   } catch (error) {
-    console.error('Error fetching cedula by id:', error);
+    console.error('Error fetching cedula by id', logCtx(req, { cedulaId: req.params.id, err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch cedula.', 500);
   }
 });

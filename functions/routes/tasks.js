@@ -323,6 +323,25 @@ router.put('/api/tasks/:id', authenticate, rateLimit('tasks_write', 'write'), as
       });
     }
 
+    // Skip = "Omitir tarea" en la página de Cédulas. Forensicamente relevante:
+    // una aplicación regulatoria planificada que no se ejecutó debe dejar
+    // rastro de quién y cuándo decidió omitirla. previousStatus permite
+    // diferenciar skips desde 'pending' (decisión proactiva) vs skips post-fecha.
+    if (updateData.status === 'skipped') {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.TASK_SKIP,
+        target: { type: 'scheduled_task', id },
+        metadata: {
+          activityName: taskData.activity?.name || null,
+          activityType: taskData.activity?.type || null,
+          previousStatus: taskData.status || null,
+        },
+        severity: SEVERITY.INFO,
+      });
+    }
+
     await db.collection('scheduled_tasks').doc(id).update(updateData);
     res.status(200).json({ id, ...updateData });
   } catch (error) {

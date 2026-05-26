@@ -15,13 +15,15 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldValue } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, writeFeedEvent } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
-const { requireRole } = require('./helpers');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { rateLimit } = require('../../lib/rateLimit');
+const { requireRole, logCtx } = require('./helpers');
 
 const router = Router();
 
-router.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
+router.put('/api/cedulas/:id/anular', authenticate, rateLimit('cedulas_write', 'write'), async (req, res) => {
   try {
     if (!requireRole(req, res, 'encargado')) return;
     const ownership = await verifyOwnership('cedulas', req.params.id, req.fincaId);
@@ -37,13 +39,16 @@ router.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
 
     const batch = db.batch();
 
+    // reversalPorProducto se declara afuera del if para que el audit event
+    // pueda reportar cuánto inventario fue restaurado (en cédulas pendientes
+    // queda como {} — sin reversión, también es información útil).
+    const reversalPorProducto = {};
     if (cedula.status === 'en_transito') {
       const movSnap = await db.collection('movimientos')
         .where('cedulaId', '==', req.params.id)
         .where('fincaId', '==', req.fincaId)
         .get();
 
-      const reversalPorProducto = {};
       for (const mov of movSnap.docs) {
         const d = mov.data();
         if (d.tipo === 'egreso' && d.productoId) {
@@ -92,18 +97,56 @@ router.put('/api/cedulas/:id/anular', authenticate, async (req, res) => {
       const s = d.data().status;
       return s === 'anulada' || s === 'aplicada_en_campo';
     });
+    let taskClosedAs = null;
     if (allInactive) {
       const anyApplied = siblingsSnap.docs.some(d =>
         d.id !== req.params.id && d.data().status === 'aplicada_en_campo'
       );
+      taskClosedAs = anyApplied ? 'completed_by_user' : 'skipped';
       batch.update(db.collection('scheduled_tasks').doc(cedula.taskId), {
-        status: anyApplied ? 'completed_by_user' : 'skipped',
+        status: taskClosedAs,
       });
     }
     await batch.commit();
+
+    // Audit la anulación. WARNING porque (a) revierte un movimiento de
+    // inventario cuando estaba en_transito y (b) cancela un registro
+    // regulatorio en curso. previousStatus + reversalCount facilitan filtrar
+    // forensicamente "anulaciones con devolución de stock" vs "anulaciones
+    // sin impacto en inventario".
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.CEDULA_VOID,
+      target: { type: 'cedula', id: req.params.id },
+      metadata: {
+        consecutivo: cedula.consecutivo || null,
+        taskId: cedula.taskId,
+        previousStatus: cedula.status,
+        reversalCount: Object.keys(reversalPorProducto).length,
+        taskClosedAs,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
+    // Feed event de anulación. Para evitar otro fetch del task/lote en el
+    // happy path, derivamos el loteNombre de un movimiento (siempre quedan
+    // los originales del egreso aunque haya sido aplicada) o del
+    // splitLoteNombre. Title con consecutivo para que se distinga del
+    // 'cedula_aplicada' en el feed.
+    writeFeedEvent({
+      fincaId: req.fincaId,
+      uid: req.uid,
+      userEmail: req.userEmail,
+      eventType: 'cedula_anulada',
+      activityType: 'aplicacion',
+      title: cedula.consecutivo || 'Cédula anulada',
+      loteNombre: cedula.splitLoteNombre || '',
+    });
+
     res.json({ id: req.params.id, status: 'anulada' });
   } catch (error) {
-    console.error('Error anulando cedula:', error);
+    console.error('Error anulando cedula', logCtx(req, { cedulaId: req.params.id, err: error?.message }));
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to void cedula.', 500);
   }
 });
