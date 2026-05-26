@@ -178,12 +178,25 @@ function GrupoManagement() {
   const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
   const docRef      = useRef(null);
   const carouselRef = useRef(null);
+  // Refs para scroll-to-error en submit fallido. Para el campo de bloques
+  // apuntamos al section header (no es un input enfocable), así que solo
+  // hacemos scrollIntoView, no focus.
+  const nombreGrupoRef    = useRef(null);
+  const fechaCreacionRef  = useRef(null);
+  const bloquesSectionRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const [formData, setFormData] = useState({
     id: null, nombreGrupo: '', cosecha: '', etapa: '',
     fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '',
   });
+  // Validación inline. `touched` se llena cuando el campo pierde foco;
+  // `submitAttempted` cuando el usuario clickea Crear/Actualizar con
+  // errores presentes. Un error solo se renderiza si el campo fue tocado
+  // O hubo intento de submit — así no asustamos con errores en el render
+  // inicial.
+  const [touched, setTouched] = useState(new Set());
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Carga inicial de los 6 recursos en paralelo. Promise.allSettled deja
   // que un fetch caído no bloquee al resto — el usuario ve lo que sí llegó
@@ -506,6 +519,36 @@ function GrupoManagement() {
     setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
   };
 
+  // ── Validación inline del form ────────────────────────────────────────────
+  // Derivado puro: siempre refleja el estado actual de formData. Los errores
+  // se muestran condicionalmente vía shouldShowError() — no en cada render,
+  // solo cuando el usuario interactuó con el campo o intentó submit.
+  const fieldErrors = useMemo(() => {
+    const errors = {};
+    const nombre = (formData.nombreGrupo || '').trim();
+    if (!nombre) errors.nombreGrupo = 'El nombre es requerido.';
+    else if (nombre.length > 16) errors.nombreGrupo = 'Máximo 16 caracteres.';
+
+    if (!formData.fechaCreacion) {
+      errors.fechaCreacion = 'La fecha de creación es requerida.';
+    } else {
+      const maxDate = new Date();
+      maxDate.setDate(maxDate.getDate() + 15);
+      maxDate.setHours(23, 59, 59, 999);
+      if (new Date(formData.fechaCreacion) > maxDate) {
+        errors.fechaCreacion = 'No puede superar 15 días en el futuro.';
+      }
+    }
+
+    if (!formData.bloques || formData.bloques.length === 0) {
+      errors.bloques = 'Seleccioná al menos un bloque.';
+    }
+    return errors;
+  }, [formData.nombreGrupo, formData.fechaCreacion, formData.bloques]);
+
+  const shouldShowError = (field) =>
+    (submitAttempted || touched.has(field)) && !!fieldErrors[field];
+
   // ── Handlers form ─────────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -514,6 +557,11 @@ function GrupoManagement() {
       if (name === 'cosecha' || name === 'etapa') next.paqueteId = '';
       return next;
     });
+  };
+
+  const handleFieldBlur = (e) => {
+    const { name } = e.target;
+    setTouched(prev => prev.has(name) ? prev : new Set(prev).add(name));
   };
 
   const addBloque = (ids) =>
@@ -560,6 +608,8 @@ function GrupoManagement() {
     setShowEnAplicacion(false);
     setMoveModal(null);
     setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
+    setTouched(new Set());
+    setSubmitAttempted(false);
   };
 
   const handleNewGrupo = () => {
@@ -568,6 +618,8 @@ function GrupoManagement() {
     setLastSavedGrupo(null);
     setIsEditing(false);
     setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
+    setTouched(new Set());
+    setSubmitAttempted(false);
     setShowForm(true);
     setSelectedGrupo(null);
   };
@@ -612,6 +664,8 @@ function GrupoManagement() {
       paqueteId:         grupo.paqueteId         || '',
       paqueteMuestreoId: grupo.paqueteMuestreoId || '',
     });
+    setTouched(new Set());
+    setSubmitAttempted(false);
   };
 
   const handleDeleteClick = async (grupo) => {
@@ -678,12 +732,29 @@ function GrupoManagement() {
     // en un input dispara onSubmit sin pasar por el botón — sin esto, dos
     // Enter rápidos antes del re-render se traducen en dos POST.
     if (saving) return;
-    const nombre = formData.nombreGrupo.trim();
-    if (!nombre || nombre.length > 16) { showToast('El nombre del grupo debe tener entre 1 y 16 caracteres.', 'error'); return; }
-    if (!formData.fechaCreacion) { showToast('La fecha de creación es requerida.', 'error'); return; }
-    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + 15); maxDate.setHours(23, 59, 59, 999);
-    if (new Date(formData.fechaCreacion) > maxDate) { showToast('La fecha no puede superar 15 días en el futuro.', 'error'); return; }
-    if (formData.bloques.length === 0) { showToast('Selecciona al menos un bloque.', 'error'); return; }
+    // Validación: si fieldErrors tiene cualquier mensaje, marcamos
+    // submitAttempted (que destapa todos los errores inline) y hacemos
+    // scroll + focus al primero. No usamos toast — el mensaje vive
+    // debajo del campo, persistente y accionable.
+    if (Object.keys(fieldErrors).length > 0) {
+      setSubmitAttempted(true);
+      const order = ['nombreGrupo', 'fechaCreacion', 'bloques'];
+      const firstError = order.find(f => fieldErrors[f]);
+      const refMap = {
+        nombreGrupo:   nombreGrupoRef,
+        fechaCreacion: fechaCreacionRef,
+        bloques:       bloquesSectionRef,
+      };
+      const ref = refMap[firstError]?.current;
+      if (ref) {
+        ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof ref.focus === 'function') {
+          // setTimeout para que el focus no compita con el scroll smooth
+          setTimeout(() => ref.focus({ preventScroll: true }), 300);
+        }
+      }
+      return;
+    }
     const url    = isEditing ? `/api/grupos/${formData.id}` : '/api/grupos';
     const method = isEditing ? 'PUT' : 'POST';
     setSaving(true);
@@ -792,29 +863,51 @@ function GrupoManagement() {
               <div className="aur-list">
                 <div className="aur-row">
                   <label className="aur-row-label" htmlFor="nombreGrupo">Nombre de Grupo</label>
-                  <input
-                    id="nombreGrupo"
-                    name="nombreGrupo"
-                    className="aur-input"
-                    value={formData.nombreGrupo}
-                    onChange={handleInputChange}
-                    placeholder="Ej. G-04-26"
-                    required
-                    maxLength={16}
-                  />
+                  <div>
+                    <input
+                      ref={nombreGrupoRef}
+                      id="nombreGrupo"
+                      name="nombreGrupo"
+                      className={`aur-input${shouldShowError('nombreGrupo') ? ' aur-input--error' : ''}`}
+                      value={formData.nombreGrupo}
+                      onChange={handleInputChange}
+                      onBlur={handleFieldBlur}
+                      placeholder="Ej. G-04-26"
+                      required
+                      maxLength={16}
+                      aria-invalid={shouldShowError('nombreGrupo')}
+                      aria-describedby={shouldShowError('nombreGrupo') ? 'nombreGrupo-error' : undefined}
+                    />
+                    {shouldShowError('nombreGrupo') && (
+                      <span id="nombreGrupo-error" className="aur-field-error" role="alert">
+                        {fieldErrors.nombreGrupo}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="aur-row">
                   <label className="aur-row-label" htmlFor="fechaCreacion">Fecha de Creación</label>
-                  <input
-                    id="fechaCreacion"
-                    name="fechaCreacion"
-                    className="aur-input"
-                    type="date"
-                    value={formData.fechaCreacion}
-                    onChange={handleInputChange}
-                    required
-                    max={(() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()}
-                  />
+                  <div>
+                    <input
+                      ref={fechaCreacionRef}
+                      id="fechaCreacion"
+                      name="fechaCreacion"
+                      className={`aur-input${shouldShowError('fechaCreacion') ? ' aur-input--error' : ''}`}
+                      type="date"
+                      value={formData.fechaCreacion}
+                      onChange={handleInputChange}
+                      onBlur={handleFieldBlur}
+                      required
+                      max={(() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()}
+                      aria-invalid={shouldShowError('fechaCreacion')}
+                      aria-describedby={shouldShowError('fechaCreacion') ? 'fechaCreacion-error' : undefined}
+                    />
+                    {shouldShowError('fechaCreacion') && (
+                      <span id="fechaCreacion-error" className="aur-field-error" role="alert">
+                        {fieldErrors.fechaCreacion}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="aur-row">
                   <label className="aur-row-label" htmlFor="cosecha">Cosecha</label>
@@ -905,11 +998,16 @@ function GrupoManagement() {
             </section>
 
             {/* ── Sección 3: Bloques del grupo ── */}
-            <section className="aur-section">
+            <section className="aur-section" ref={bloquesSectionRef}>
               <div className="aur-section-header">
                 <h3 className="aur-section-title">Bloques del grupo</h3>
                 <span className="aur-section-count">{selectedBlockCount} asignado(s)</span>
               </div>
+              {shouldShowError('bloques') && (
+                <span className="aur-field-error" role="alert" style={{ display: 'block', padding: '4px 14px 0' }}>
+                  {fieldErrors.bloques}
+                </span>
+              )}
 
               {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
                 <div key={loteNombre} className="bloque-lote-group">
