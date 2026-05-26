@@ -105,6 +105,55 @@ router.delete('/api/task-templates/:id', authenticate, async (req, res) => {
 });
 
 // --- API ENDPOINTS: CEDULA TEMPLATES ---
+// Validación de payload para POST /api/cedula-templates. Antes el endpoint
+// solo chequeaba `!nombre`; `productos` viajaba sin shape ni cap y se
+// persistía tal cual (riesgo de grow-bomb del doc Firestore + payloads
+// hostiles). Los caps están alineados con los del dominio cédulas
+// (MAX_ACTIVITY_LEN=64, MAX_PRODUCTOS=50, MAX_CANTIDAD_POR_HA=100000) para
+// que una plantilla no produzca cédulas que el endpoint manual rechazaría.
+const CTPL_NOMBRE_MAX = 64;
+const CTPL_PRODUCTOS_MAX = 50;
+const CTPL_CANT_MAX = 100000;
+function validateCedulaTemplatePayload(body) {
+  const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+  if (!nombre) return 'Template name is required.';
+  if (nombre.length > CTPL_NOMBRE_MAX) return `Template name cannot exceed ${CTPL_NOMBRE_MAX} characters.`;
+  const productos = body.productos;
+  if (productos !== undefined && !Array.isArray(productos)) {
+    return 'productos must be an array.';
+  }
+  const list = Array.isArray(productos) ? productos : [];
+  if (list.length > CTPL_PRODUCTOS_MAX) {
+    return `Maximum ${CTPL_PRODUCTOS_MAX} products per template.`;
+  }
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i] || {};
+    if (typeof p.productoId !== 'string' || !p.productoId.trim()) {
+      return `Product ${i + 1}: productoId is required.`;
+    }
+    if (p.productoId.length > 128) {
+      return `Product ${i + 1}: productoId is too long.`;
+    }
+    const qty = Number(p.cantidadPorHa);
+    if (!Number.isFinite(qty) || qty < 0 || qty > CTPL_CANT_MAX) {
+      return `Product ${i + 1}: cantidadPorHa must be between 0 and ${CTPL_CANT_MAX}.`;
+    }
+    if (p.nombreComercial !== undefined && typeof p.nombreComercial !== 'string') {
+      return `Product ${i + 1}: nombreComercial must be a string.`;
+    }
+    if (typeof p.nombreComercial === 'string' && p.nombreComercial.length > 200) {
+      return `Product ${i + 1}: nombreComercial is too long.`;
+    }
+    if (p.unidad !== undefined && typeof p.unidad !== 'string') {
+      return `Product ${i + 1}: unidad must be a string.`;
+    }
+    if (typeof p.unidad === 'string' && p.unidad.length > 32) {
+      return `Product ${i + 1}: unidad is too long.`;
+    }
+  }
+  return null;
+}
+
 router.get('/api/cedula-templates', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('cedula_templates')
@@ -115,15 +164,26 @@ router.get('/api/cedula-templates', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/cedula-templates', authenticate, async (req, res) => {
+router.post('/api/cedula-templates', authenticate, requireEncargado, async (req, res) => {
   try {
-    const { nombre, productos } = req.body;
-    if (!nombre) {
-      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Template name is required.', 400);
+    const validationError = validateCedulaTemplatePayload(req.body);
+    if (validationError) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationError, 400);
     }
+    const { nombre, productos } = req.body;
     const template = {
-      nombre,
-      productos: productos || [],
+      nombre: nombre.trim(),
+      // Normalizar shape: solo persistir los 4 campos definidos. Antes
+      // `productos: productos || []` aceptaba campos arbitrarios del cliente
+      // (riesgo de payloads hostiles que crecieran el doc en sucesivos PUTs).
+      productos: Array.isArray(productos)
+        ? productos.map(p => ({
+            productoId: String(p.productoId),
+            nombreComercial: typeof p.nombreComercial === 'string' ? p.nombreComercial : '',
+            cantidadPorHa: Number(p.cantidadPorHa) || 0,
+            unidad: typeof p.unidad === 'string' ? p.unidad : '',
+          }))
+        : [],
       fincaId: req.fincaId,
       creadoEn: Timestamp.now(),
     };
@@ -134,7 +194,7 @@ router.post('/api/cedula-templates', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/cedula-templates/:id', authenticate, async (req, res) => {
+router.delete('/api/cedula-templates/:id', authenticate, requireEncargado, async (req, res) => {
   try {
     const ownership = await verifyOwnership('cedula_templates', req.params.id, req.fincaId);
     if (!ownership.ok) {

@@ -14,11 +14,19 @@ const MAX_FUTURE_DAYS = 1825; // tope duro ~5 años
 const WARN_FUTURE_DAYS = 14;  // umbral de alerta "fecha inusual"
 
 // Draft persistence: el form completo se guarda en localStorage bajo el key
-// `aurora_draft_${DRAFT_KEY}` (prefijo añadido por useDraft). Storage = 'local'
-// sobrevive cierres de pestaña — el caso de uso real es el encargado armando
-// varias cédulas seguidas, tocando backdrop por accidente, o cerrando el
-// navegador en medio. Sin esto se pierden hasta 10 productos + bloques + meta.
-const DRAFT_KEY = 'cedula-nueva';
+// `aurora_draft_${DRAFT_KEY_BASE}-${userId}` (prefijo añadido por useDraft).
+// Storage = 'local' sobrevive cierres de pestaña — el caso de uso real es el
+// encargado armando varias cédulas seguidas, tocando backdrop por accidente,
+// o cerrando el navegador en medio. Sin esto se pierden hasta 10 productos +
+// bloques + meta.
+//
+// Namespace por user.id: en equipos compartidos (tablet de bodega, kiosko)
+// el siguiente usuario que abra el modal no debe ver "Borrador restaurado"
+// con el contenido del usuario anterior. clearAllDrafts() en logout (UserContext)
+// cubre el flujo de logout explícito; este sufijo cierra el caso de
+// close-tab-without-logout. Mismo patrón que `aurora_pinned_${uid}` en
+// Favoritos del sidebar.
+const DRAFT_KEY_BASE = 'cedula-nueva';
 
 const todayYmd = () => new Date().toISOString().split('T')[0];
 
@@ -54,9 +62,13 @@ const addDaysYmd = (days) => {
   return d.toISOString().split('T')[0];
 };
 
-function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, onSuccess, onClose, onPreviewDraft }) {
+function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, apiFetch, currentUser, onSuccess, onClose, onPreviewDraft }) {
   const toast = useToast();
-  const [form, setForm, clearFormDraft] = useDraft(DRAFT_KEY, makeInitialForm, { storage: 'local' });
+  // Fallback a 'anon' si el modal montara antes de tener currentUser (no
+  // debería suceder porque la página está gated por ProtectedRoute, pero
+  // mantenemos la guarda para que useDraft siempre reciba un key estable).
+  const draftKey = `${DRAFT_KEY_BASE}-${currentUser?.id || 'anon'}`;
+  const [form, setForm, clearFormDraft] = useDraft(draftKey, makeInitialForm, { storage: 'local' });
 
   // Restored-from-draft: chequeo de una sola vez al montar, antes de que el
   // usuario altere `form` y rompa la heurística. Inspecciona LS directo usando
@@ -64,7 +76,7 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
   // su API interna; si el storage es inaccesible, asumimos "no restaurado".
   const [restoredFromDraft, setRestoredFromDraft] = useState(() => {
     try {
-      const raw = localStorage.getItem(`aurora_draft_${DRAFT_KEY}`);
+      const raw = localStorage.getItem(`aurora_draft_${draftKey}`);
       if (!raw) return false;
       return isFormMeaningful(JSON.parse(raw));
     } catch { return false; }

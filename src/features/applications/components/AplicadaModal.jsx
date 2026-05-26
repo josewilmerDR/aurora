@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTractor } from 'react-icons/fa';
 import { FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
@@ -18,7 +18,6 @@ import { useEscapeClose } from '../../../hooks/useEscapeClose';
 // audit UX/UI). El modal ya era autónomo (recibe lotes, users, currentUser,
 // prefill, onClose, onConfirm) → mudanza limpia sin tocar lógica.
 export default function AplicadaModal({ lotes, users, currentUser, prefill, onClose, onConfirm }) {
-  useEscapeClose(onClose); // Punto #28 audit.
   const [sobrante,          setSobrante]          = useState(false);
   const [sobranteLoteId,    setSobranteLoteId]    = useState('');
   const [condicionesTiempo, setCondicionesTiempo] = useState('');
@@ -50,6 +49,19 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
   const [formError, setFormError] = useState('');
   const [tempError, setTempError] = useState('');
   const [humError,  setHumError]  = useState('');
+
+  // Double-submit guard: el padre cierra el modal al recibir onConfirm
+  // (setAplicadaModal(null)), pero un doble-tap rápido en mobile dispara
+  // dos clicks antes del unmount → dos POSTs en vuelo. El segundo cae con
+  // 409 (cédula ya no en_transito) pero genera ruido + un toast confuso.
+  // Mismo patrón que MezclaListaModal: ref sincronizable para la guarda
+  // (setState es async), state para el disabled del botón.
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // ESC bloqueado durante submit (mismo gate que el backdrop) para evitar
+  // que el usuario cierre el modal mientras la mutación está en vuelo.
+  useEscapeClose(submitting ? null : onClose); // Punto #28 audit.
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -108,7 +120,8 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
     el.focus({ preventScroll: true });
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (submittingRef.current) return;
     setFormError('');
     // Cross-field primero: el banner global sigue siendo el lugar correcto
     // para errores que involucran más de un campo.
@@ -141,30 +154,42 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
     const trimmedFinca      = (encargadoFinca  || '').trim().slice(0, 200);
     const trimmedBodega     = (encargadoBodega || '').trim().slice(0, 200);
     const trimmedSup        = (supAplicaciones || '').trim().slice(0, 200);
-    onConfirm({
-      sobrante,
-      sobranteLoteId:     sobrante ? sobranteLoteId   : null,
-      sobranteLoteNombre: sobrante ? (lotes.find(l => l.id === sobranteLoteId)?.nombreLote || null) : null,
-      condicionesTiempo:  condicionesTiempo || null,
-      temperatura:        tempNum,
-      humedadRelativa:    humNum,
-      horaInicio:         horaInicio  || null,
-      horaFinal:          horaFinal   || null,
-      operario:                trimmedOperario || null,
-      operarioUserId:          trimmedOperario ? (operarioUserId || null) : null,
-      metodoAplicacion:        (metodoAplicacion || '').trim().slice(0, 200) || null,
-      encargadoFinca:          trimmedFinca || null,
-      encargadoFincaUserId:    trimmedFinca ? (encargadoFincaUserId || null) : null,
-      encargadoBodega:         trimmedBodega || null,
-      encargadoBodegaUserId:   trimmedBodega ? (encargadoBodegaUserId || null) : null,
-      supAplicaciones:         trimmedSup || null,
-      supAplicacionesUserId:   trimmedSup ? (supAplicacionesUserId || null) : null,
-      observacionesAplicacion: (observacionesAplicacion || '').trim().slice(0, 500) || null,
-    });
+    submittingRef.current = true;
+    setSubmitting(true);
+    // No envolvemos en try/catch: el padre (submitAplicada) no lanza, maneja
+    // errores con showError y cierra el modal síncronamente con
+    // setAplicadaModal(null). El finally con reset del ref sigue siendo útil
+    // si en el futuro el padre llega a propagar, para no dejar la guarda
+    // colgada y bloquear retries.
+    try {
+      await onConfirm({
+        sobrante,
+        sobranteLoteId:     sobrante ? sobranteLoteId   : null,
+        sobranteLoteNombre: sobrante ? (lotes.find(l => l.id === sobranteLoteId)?.nombreLote || null) : null,
+        condicionesTiempo:  condicionesTiempo || null,
+        temperatura:        tempNum,
+        humedadRelativa:    humNum,
+        horaInicio:         horaInicio  || null,
+        horaFinal:          horaFinal   || null,
+        operario:                trimmedOperario || null,
+        operarioUserId:          trimmedOperario ? (operarioUserId || null) : null,
+        metodoAplicacion:        (metodoAplicacion || '').trim().slice(0, 200) || null,
+        encargadoFinca:          trimmedFinca || null,
+        encargadoFincaUserId:    trimmedFinca ? (encargadoFincaUserId || null) : null,
+        encargadoBodega:         trimmedBodega || null,
+        encargadoBodegaUserId:   trimmedBodega ? (encargadoBodegaUserId || null) : null,
+        supAplicaciones:         trimmedSup || null,
+        supAplicacionesUserId:   trimmedSup ? (supAplicacionesUserId || null) : null,
+        observacionesAplicacion: (observacionesAplicacion || '').trim().slice(0, 500) || null,
+      });
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   };
 
   return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={onClose}>
+    <div className="aur-modal-backdrop" onPointerDown={submitting ? undefined : onClose}>
       <div className="aur-modal aur-modal--lg" onPointerDown={e => e.stopPropagation()}>
         <div className="aur-modal-header">
           <span className="aur-modal-icon">
@@ -365,9 +390,9 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
         </div>
 
         <div className="aur-modal-actions">
-          <button type="button" className="aur-btn-text" onClick={onClose}>Cancelar</button>
-          <button type="button" className="aur-btn-pill" onClick={handleConfirm}>
-            <FiCheckCircle size={14} /> Confirmar
+          <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>Cancelar</button>
+          <button type="button" className="aur-btn-pill" onClick={handleConfirm} disabled={submitting}>
+            <FiCheckCircle size={14} /> {submitting ? 'Registrando…' : 'Confirmar'}
           </button>
         </div>
       </div>

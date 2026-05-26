@@ -399,7 +399,10 @@ function CedulasAplicacion() {
             highlightAndScrollTo([taskId]);
           }
         } else {
-          toast.error(data.message || 'Error al generar la cédula.');
+          // translateApiError mapea el `code` del body al string en español del
+          // diccionario; si el body no trae code (errores legacy), cae al fallback.
+          // Antes mostrábamos `data.message` en crudo (inglés + a veces detalles internos).
+          toast.error(translateApiError(data, 'Error al generar la cédula.'));
         }
         return;
       }
@@ -442,7 +445,9 @@ function CedulasAplicacion() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || 'Error al actualizar la cédula.');
+        // translateApiError sobre el body permite que el modal muestre el
+        // mensaje localizado inline en vez del data.message en inglés crudo.
+        throw new Error(translateApiError(data, 'Error al actualizar la cédula.'));
       }
       setCedulas(prev => prev.map(c =>
         c.id === cedulaId
@@ -484,7 +489,7 @@ function CedulasAplicacion() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || 'Error al editar la cédula.');
+        throw new Error(translateApiError(data, 'Error al editar la cédula.'));
       }
       setCedulas(prev => prev.map(c =>
         c.id === cedulaId
@@ -542,7 +547,11 @@ function CedulasAplicacion() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al registrar la aplicación.'); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showError(translateApiError(err, 'Error al registrar la aplicación.'));
+        return;
+      }
       const taskId = cedulasById.get(cedulaId)?.taskId;
       // Functional updater + selector puro: el siblings.every() del
       // antes leía `cedulas` por closure (stale antes del setCedulas),
@@ -651,7 +660,11 @@ function CedulasAplicacion() {
         addLoading(cedulaId);
         try {
           const res = await apiFetch(`/api/cedulas/${cedulaId}/anular`, { method: 'PUT' });
-          if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al anular la cédula.'); return; }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showError(translateApiError(err, 'Error al anular la cédula.'));
+            return;
+          }
           const taskId = cedulasById.get(cedulaId)?.taskId;
           // Functional updater + selector puro: el cálculo de allInactive/
           // anyApplied antes leía `cedulas` por closure (stale). Idéntica
@@ -687,7 +700,11 @@ function CedulasAplicacion() {
             method: 'PUT',
             body: JSON.stringify({ status: 'skipped' }),
           });
-          if (!res.ok) { const err = await res.json(); showError(err.message || 'Error al omitir la tarea.'); return; }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showError(translateApiError(err, 'Error al omitir la tarea.'));
+            return;
+          }
           setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'skipped' } : t));
           window.dispatchEvent(new CustomEvent('aurora-tasks-changed'));
         } finally { removeLoading(loadingId); }
@@ -788,7 +805,14 @@ function CedulasAplicacion() {
         pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
         y += pageH;
       }
-      const filename = `Cedula-${previewTask.activityName || previewTask.id}.pdf`;
+      // Sanitizar el nombre del archivo: activityName es texto libre del
+       // usuario y puede traer `/`, `\`, `:` u otros caracteres que algunos
+       // browsers/sistemas interpretan como path separators. Reemplazamos
+       // todo lo no alfanumérico/espacio/guión por `_` y truncamos a 64
+       // caracteres para evitar paths excesivos.
+      const rawName = previewTask.activityName || previewTask.id || 'cedula';
+      const safeName = rawName.replace(/[^\w\s-]/g, '_').replace(/\s+/g, '_').slice(0, 64);
+      const filename = `Cedula-${safeName}.pdf`;
       const blob = pdf.output('blob');
       const file = new File([blob], filename, { type: 'application/pdf' });
       if (navigator.canShare?.({ files: [file] })) {
@@ -1017,6 +1041,7 @@ function CedulasAplicacion() {
           productos={productos}
           calibraciones={calibraciones}
           apiFetch={apiFetch}
+          currentUser={currentUser}
           onSuccess={handleNuevaCedulaSuccess}
           onClose={() => setShowNuevaModal(false)}
           onPreviewDraft={handlePreviewDraft}

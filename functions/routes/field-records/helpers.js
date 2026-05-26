@@ -77,6 +77,17 @@ const requireRole = (req, res, min) => {
   return true;
 };
 
+// Correlation fields para logs de error. Mismo shape que tasks.js logCtx
+// para que las queries de Cloud Logging puedan pivotear por uid/fincaId
+// sin tener que grep'ear cuerpos. Antes los console.error del dominio iban
+// con el objeto error pelado y eran difíciles de correlacionar con un
+// usuario / tenant en incidentes.
+const logCtx = (req, extra = {}) => ({
+  uid: req.uid,
+  fincaId: req.fincaId,
+  ...extra,
+});
+
 // ── Atomic consecutive generators (transactional counter) ───────────────────
 
 async function nextCedulaConsecutivo(fincaId) {
@@ -211,6 +222,8 @@ module.exports = {
   isValidYmd, isWithinFutureLimit,
   // Auth
   requireRole,
+  // Logging
+  logCtx,
   // Counters
   nextCedulaConsecutivo, nextCedulasConsecutivos,
   // Serializers
