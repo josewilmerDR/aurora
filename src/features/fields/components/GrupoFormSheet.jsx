@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { FiPlus, FiChevronRight } from 'react-icons/fi';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import NuevoCatalogModal from './NuevoCatalogModal';
-import { formatDateForInput } from '../lib/lotes-helpers';
+import { formatDateForInput, formatHa } from '../lib/lotes-helpers';
 import { consolidateBloquesDisponibles } from '../lib/grupo-bloques-helpers';
 
 const EMPTY_FORM = {
@@ -633,7 +633,7 @@ export default function GrupoFormSheet({
                     <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
                     <span className="bloque-meta">
                       {s.plantas?.toLocaleString()} plantas
-                      {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                      {s.areaCalculada ? ` · ${formatHa(s.areaCalculada)} ha` : ''}
                       {s.variedad ? ` · ${s.variedad}` : ''}
                     </span>
                     <button type="button" className="aur-btn-text" onClick={() => toggleBloque(s.ids)}>
@@ -703,7 +703,7 @@ export default function GrupoFormSheet({
                           <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
                           <span className="bloque-meta">
                             {s.plantas?.toLocaleString()} plantas
-                            {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                            {s.areaCalculada ? ` · ${formatHa(s.areaCalculada)} ha` : ''}
                             {s.variedad ? ` · ${s.variedad}` : ''}
                           </span>
                           <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
@@ -734,7 +734,7 @@ export default function GrupoFormSheet({
                           <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
                           <span className="bloque-meta">
                             {s.plantas?.toLocaleString()} plantas
-                            {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                            {s.areaCalculada ? ` · ${formatHa(s.areaCalculada)} ha` : ''}
                             {s.variedad ? ` · ${s.variedad}` : ''}
                             {s.grupoActualNombre ? ` · Grupo ${s.grupoActualNombre}` : ''}
                             {s.aplicacionesTotales ? ` · ${s.aplicacionesCompletadas}/${s.aplicacionesTotales} aplicaciones` : ''}
@@ -780,7 +780,7 @@ export default function GrupoFormSheet({
                               <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
                               <span className="bloque-meta">
                                 {s.plantas?.toLocaleString()} plantas
-                                {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
+                                {s.areaCalculada ? ` · ${formatHa(s.areaCalculada)} ha` : ''}
                                 {s.variedad ? ` · ${s.variedad}` : ''}
                                 {s.grupoActualNombre ? ` · Grupo ${s.grupoActualNombre}` : ''}
                                 {s.aplicacionesTotales ? ` · ${s.aplicacionesCompletadas}/${s.aplicacionesTotales} aplicaciones` : ''}
