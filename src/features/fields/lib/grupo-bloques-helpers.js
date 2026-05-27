@@ -1,55 +1,128 @@
-// Helpers de dominio para Grupos. Hoy son consumidos por GrupoManagement
-// (lookup en el hub del grupo seleccionado), GrupoPreviewModal (lookup en
-// el documento del PDF) y futuras extracciones del refactor del #12 del
-// audit. Si emergen nuevos consumers que necesitan estas mismas reglas
-// (e.g. dashboard de grupos), importar de acá.
+// Helpers de dominio para Grupos. Consumidos por GrupoManagement,
+// GrupoHub (vía useGrupoBloqueTable), GrupoFormSheet y GrupoPreviewModal.
+// Tener una sola fuente de verdad evita que un fix sobre "cómo se mergean
+// las siembras por bloque" se aplique en un sitio y quede viejo en otro.
 
 import { tsToDate } from './lotes-helpers';
 
-// Consolida un arreglo de siembras (varios registros para el mismo
-// lote+bloque) en una fila única por bloque físico. Las áreas y plantas
-// se suman; los materiales/variedades distintos se concatenan con " · ".
-// Filtra entradas falsy para tolerar `.map(id => siembrasById.get(id))`
-// donde algún id quedó huérfano.
-export function consolidateSiembrasByBloque(siembras) {
+// ── Consolidación por bloque físico (lote, bloque) ──────────────────────────
+// Múltiples siembras pueden compartir un (loteId, bloque) cuando se hicieron
+// capturas parciales o se sembraron materiales distintos. Acá las mergeamos
+// en una fila única por bloque físico: las áreas y plantas se suman, los
+// fields "extra" se controlan vía los hooks del segundo argumento.
+//
+// Los hooks permiten que cada callsite decida qué llevar al output sin
+// duplicar el loop principal:
+//   - initExtras(s)         · campos a sembrar en la entrada nueva del Map.
+//   - mergeExtras(entry, s) · merge in-place al agregar otro registro.
+//   - finalize(entry)       · post-procesamiento (e.g. Set → string joineado).
+//
+// Output base: { id, key, ids, loteId, loteNombre, bloque, plantas,
+//                areaCalculada, ...extras }. `id` y `key` son aliases del
+// string `${loteId}__${bloque}` — los callsites históricos usaban uno u otro.
+export function consolidateByBloque(items, hooks = {}) {
+  const {
+    initExtras   = () => ({}),
+    mergeExtras  = () => {},
+    finalize     = (entry) => entry,
+  } = hooks;
   const map = new Map();
-  for (const s of siembras) {
+  for (const s of items) {
     if (!s) continue;
     const key = `${s.loteId}__${s.bloque}`;
     if (!map.has(key)) {
       map.set(key, {
-        id: `${s.loteId}__${s.bloque}`,
-        siembraIds: [],
+        id: key,
+        key,
+        ids: [],
         loteId: s.loteId,
         loteNombre: s.loteNombre || s.loteId,
         bloque: s.bloque,
         plantas: 0,
         areaCalculada: 0,
-        _materiales: new Set(),
-        _variedades: new Set(),
+        ...initExtras(s),
       });
     }
     const entry = map.get(key);
-    entry.siembraIds.push(s.id);
+    entry.ids.push(s.id);
     entry.plantas += (s.plantas || 0);
     entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
-    if (s.materialNombre) entry._materiales.add(s.materialNombre);
-    if (s.variedad) entry._variedades.add(s.variedad);
+    mergeExtras(entry, s);
   }
-  return [...map.values()].map(e => {
-    const materialNombre = [...e._materiales].join(' · ');
-    const variedad = [...e._variedades].join(' · ');
-    delete e._materiales;
-    delete e._variedades;
-    return { ...e, materialNombre, variedad };
+  return [...map.values()].map(finalize);
+}
+
+// Wrapper para siembras crudas del backend (endpoint /api/siembras).
+// Los materiales y variedades distintos se concatenan con " · " porque un
+// usuario que mira el hub/preview quiere ver TODO lo que se sembró en ese
+// bloque, no solo el primer registro.
+export function consolidateSiembrasByBloque(siembras) {
+  return consolidateByBloque(siembras, {
+    initExtras: () => ({
+      _materiales: new Set(),
+      _variedades: new Set(),
+    }),
+    mergeExtras: (entry, s) => {
+      if (s.materialNombre) entry._materiales.add(s.materialNombre);
+      if (s.variedad) entry._variedades.add(s.variedad);
+    },
+    finalize: (entry) => {
+      const materialNombre = [...entry._materiales].join(' · ');
+      const variedad = [...entry._variedades].join(' · ');
+      delete entry._materiales;
+      delete entry._variedades;
+      return { ...entry, materialNombre, variedad };
+    },
   });
 }
 
-// Calcula la fecha estimada de cosecha sumando días al fechaCreacion según
-// la etapa/cosecha del grupo. Los días por defecto (150 post-forza, 215
-// cosecha II, 250 cosecha I) son sobrescribibles desde empresaConfig en
-// `/config` — esto permite que cada finca calibre sus tiempos sin tocar
-// código.
+// Wrapper para el endpoint /api/siembras/disponibles (enriquecido con
+// metadata del grupo actual, estado de aplicación y conteos). Usado por
+// el picker tabulado del form (libres → fuera de aplicación → en
+// aplicación activa).
+//
+// Reglas distintas a las de siembras crudas:
+//   - material / variedad: primer valor gana (no se concatenan porque el
+//     endpoint ya devuelve uno solo coherente por siembra).
+//   - estado: se promueve al más activo del grupo (en_aplicacion >
+//     fuera_aplicacion > libre). En la práctica todas las siembras de un
+//     (lote, bloque) comparten grupo y el merge es no-op, pero blindamos
+//     el edge case.
+//   - grupoActualId y campos asociados: el primer registro con valor gana.
+export function consolidateBloquesDisponibles(bloquesDisponibles) {
+  return consolidateByBloque(bloquesDisponibles, {
+    initExtras: (s) => ({
+      variedad: s.variedad || '',
+      materialNombre: s.materialNombre || '',
+      estado: 'libre',
+      grupoActualId: null,
+      grupoActualNombre: null,
+      grupoActualEtapa: null,
+      grupoActualCosecha: null,
+      aplicacionesCompletadas: null,
+      aplicacionesTotales: null,
+    }),
+    mergeExtras: (entry, s) => {
+      if (s.estado === 'en_aplicacion') entry.estado = 'en_aplicacion';
+      else if (s.estado === 'fuera_aplicacion' && entry.estado === 'libre') entry.estado = 'fuera_aplicacion';
+
+      if (s.grupoActualId && !entry.grupoActualId) {
+        entry.grupoActualId           = s.grupoActualId;
+        entry.grupoActualNombre       = s.grupoActualNombre;
+        entry.grupoActualEtapa        = s.grupoActualEtapa;
+        entry.grupoActualCosecha      = s.grupoActualCosecha;
+        entry.aplicacionesCompletadas = s.aplicacionesCompletadas;
+        entry.aplicacionesTotales     = s.aplicacionesTotales;
+      }
+    },
+  });
+}
+
+// ── Fecha estimada de cosecha ────────────────────────────────────────────
+// Calcula sumando días al fechaCreacion según la etapa/cosecha del grupo.
+// Los días por defecto (150 post-forza, 215 cosecha II, 250 cosecha I) son
+// sobrescribibles desde empresaConfig en /config — esto permite que cada
+// finca calibre sus tiempos sin tocar código.
 export function calcFechaCosecha(grupo, config) {
   const etapa   = (grupo.etapa   || '').toLowerCase();
   const cosecha = (grupo.cosecha || '').toLowerCase();

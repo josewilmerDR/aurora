@@ -3,6 +3,7 @@ import { FiPlus, FiChevronRight } from 'react-icons/fi';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import NuevoCatalogModal from './NuevoCatalogModal';
 import { formatDateForInput } from '../lib/lotes-helpers';
+import { consolidateBloquesDisponibles } from '../lib/grupo-bloques-helpers';
 
 const EMPTY_FORM = {
   id: null,
@@ -121,51 +122,10 @@ export default function GrupoFormSheet({
   // solo para diferenciar el copy del empty-state cuando no hay nada cerrado.
   const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
 
-  const consolidatedBloques = useMemo(() => {
-    const map = new Map();
-    for (const s of bloquesDisponibles) {
-      const key = `${s.loteId}__${s.bloque}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          ids: [],
-          loteId: s.loteId,
-          loteNombre: s.loteNombre || s.loteId,
-          bloque: s.bloque,
-          plantas: 0,
-          areaCalculada: 0,
-          variedad: s.variedad || '',
-          materialNombre: s.materialNombre || '',
-          estado: 'libre',
-          grupoActualId: null,
-          grupoActualNombre: null,
-          grupoActualEtapa: null,
-          grupoActualCosecha: null,
-          aplicacionesCompletadas: null,
-          aplicacionesTotales: null,
-        });
-      }
-      const entry = map.get(key);
-      entry.ids.push(s.id);
-      entry.plantas += (s.plantas || 0);
-      entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
-
-      // Promote estado to the most "active" of the siembras in this physical
-      // block: en_aplicacion > fuera_aplicacion > libre.
-      if (s.estado === 'en_aplicacion') entry.estado = 'en_aplicacion';
-      else if (s.estado === 'fuera_aplicacion' && entry.estado === 'libre') entry.estado = 'fuera_aplicacion';
-
-      if (s.grupoActualId && !entry.grupoActualId) {
-        entry.grupoActualId        = s.grupoActualId;
-        entry.grupoActualNombre    = s.grupoActualNombre;
-        entry.grupoActualEtapa     = s.grupoActualEtapa;
-        entry.grupoActualCosecha   = s.grupoActualCosecha;
-        entry.aplicacionesCompletadas = s.aplicacionesCompletadas;
-        entry.aplicacionesTotales     = s.aplicacionesTotales;
-      }
-    }
-    return [...map.values()];
-  }, [bloquesDisponibles]);
+  const consolidatedBloques = useMemo(
+    () => consolidateBloquesDisponibles(bloquesDisponibles),
+    [bloquesDisponibles]
+  );
 
   const editingGrupoId = isEditing ? formData.id : null;
 
