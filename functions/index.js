@@ -66,6 +66,7 @@ app.use(require('./routes/autopilot-hr'));
 app.use(require('./routes/rfqs'));
 app.use(require('./routes/analytics'));
 app.use(require('./routes/audit'));
+app.use(require('./routes/weather'));
 
 // Advanced surface (Fases 4–6): mounted only when FEATURES_ADVANCED=true.
 // Mirrors the UX gate in src/App.jsx so deep-link calls 404 in v1 builds.

@@ -528,44 +528,6 @@
   font-size: 0.78rem;
 }
 
-/* Mini-tabla de calibración en la columna 3 del header del documento.
-   Mismo lenguaje visual que .ca-doc-table (header --aur-doc-accent), pero
-   compacta: cell padding más chico, font más pequeña, primera columna
-   con la label en peso 600. El aplicador en campo escanea de arriba a
-   abajo siguiendo la grilla en vez de leer 7 pares <span> sueltos.
-   Punto #21 audit. */
-.ca-cal-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-.ca-cal-table th {
-  background: var(--aur-doc-accent);
-  color: var(--aur-doc-accent-on);
-  padding: 4px 8px;
-  text-align: left;
-  font-weight: 600;
-  font-size: 0.73rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  line-height: 1.2;
-}
-.ca-cal-table td {
-  padding: 3px 8px;
-  border-bottom: 1px solid var(--aur-doc-rule-soft);
-  color: var(--aur-doc-ink-mute);
-  line-height: 1.25;
-}
-.ca-cal-table tbody tr:last-child td {
-  border-bottom: none;
-}
-.ca-cal-label {
-  font-weight: 600;
-  color: var(--aur-doc-ink-soft);
-  font-size: 0.72rem;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
 
 .ca-empty-products {
   color: var(--aur-doc-ink-faint);
@@ -1121,6 +1083,63 @@
     box-shadow: none;
     padding: 20px;
   }
+}
+
+/* ── Banner persistente post-aplicada ──────────────────────────────────────
+   Aparece tras marcar una cédula como aplicada en campo. Análogo a
+   .grupo-save-banner en grupo-management.css. Vive hasta que el usuario
+   navega a Historial o lo cierra explícitamente; no se persiste (un reload
+   limpia, mismo comportamiento que el banner de siembra). */
+.ca-applied-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: var(--aur-accent-tint, rgba(51, 255, 153, 0.08));
+  border: 1px solid rgba(51, 255, 153, 0.28);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+}
+.ca-applied-banner > svg { color: var(--aurora-green); flex-shrink: 0; }
+.ca-applied-banner-msg { flex: 1; line-height: 1.4; }
+.ca-applied-banner-msg strong { font-weight: 600; }
+
+.ca-applied-banner-action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid rgba(51, 255, 153, 0.35);
+  color: var(--aurora-green);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ca-applied-banner-action:hover {
+  background: rgba(51, 255, 153, 0.12);
+  border-color: rgba(51, 255, 153, 0.55);
+}
+
+.ca-applied-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--aur-text-3, #6b819b);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.ca-applied-banner-close:hover {
+  color: var(--aurora-light);
+  background: rgba(230, 242, 255, 0.08);
 }
 
 /* ── Page loading spinner ──────────────────────────────────────────────────── */

@@ -7,6 +7,7 @@ import AuroraField, { TextInput, NumberInput, Select } from '../../../components
 import UserCombo from './UserCombo';
 import { nowTimeStr, CONDICIONES_TIEMPO } from '../lib/cedulas-helpers';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Modal Aplicada en Campo ───────────────────────────────────────────────────
 // Confirma la transición en_transito → aplicada_en_campo de una cédula. El
@@ -18,6 +19,7 @@ import { useEscapeClose } from '../../../hooks/useEscapeClose';
 // audit UX/UI). El modal ya era autónomo (recibe lotes, users, currentUser,
 // prefill, onClose, onConfirm) → mudanza limpia sin tocar lógica.
 export default function AplicadaModal({ lotes, users, currentUser, prefill, onClose, onConfirm }) {
+  const apiFetch = useApiFetch();
   const [sobrante,          setSobrante]          = useState(false);
   const [sobranteLoteId,    setSobranteLoteId]    = useState('');
   const [condicionesTiempo, setCondicionesTiempo] = useState('');
@@ -70,21 +72,20 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude, longitude } }) => {
         try {
-          const r = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m&timezone=auto`
-          );
+          const r = await apiFetch(`/api/weather/current?lat=${latitude}&lon=${longitude}`);
+          if (!r.ok) throw new Error('weather fetch failed');
           const d = await r.json();
           if (cancelled) return;
-          // Seed solo si el campo sigue vacío. open-meteo puede tardar 5-8s y
-          // el usuario suele tipear el valor del termohigrómetro del aplicador
+          // Seed solo si el campo sigue vacío. La API puede tardar varios segundos
+          // y el usuario suele tipear el valor del termohigrómetro del aplicador
           // mientras esperamos — sobreescribirlo silenciosamente altera un dato
           // de auditoría regulatoria. Setter funcional para no race con un
           // teclazo simultáneo entre el read del state y el set.
-          if (d.current?.temperature_2m != null) {
-            setTemperatura(prev => prev || String(d.current.temperature_2m));
+          if (d.temperature != null) {
+            setTemperatura(prev => prev || String(d.temperature));
           }
-          if (d.current?.relative_humidity_2m != null) {
-            setHumedadRelativa(prev => prev || String(d.current.relative_humidity_2m));
+          if (d.humidity != null) {
+            setHumedadRelativa(prev => prev || String(d.humidity));
           }
         } catch { /* sin internet o API no disponible — el usuario llena manualmente */ }
         if (!cancelled) setFetchingWeather(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiPlusCircle, FiSearch, FiX, FiClipboard } from 'react-icons/fi';
+import { FiPlusCircle, FiSearch, FiX, FiClipboard, FiCheck } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -77,6 +77,12 @@ function CedulasAplicacion() {
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null); // cedulaId
   const [mezclaModal,   setMezclaModal]   = useState(null); // cedulaId
+  // Banner persistente post-aplicada. Reemplaza un toast efímero: el usuario
+  // recién marcó la cédula como aplicada en campo (gesto regulatorio, no
+  // trivial) y la confirmación tiene que sobrevivir hasta que él la
+  // descarte o navegue al historial. Pattern: GrupoManagement.lastSavedGrupo.
+  // No se persiste — un reload limpia, igual que en siembra.
+  const [lastAppliedCedula, setLastAppliedCedula] = useState(null);
   const [editModal,     setEditModal]     = useState(null); // { cedulaId }
   const [previewCedulaId, setPreviewCedulaId] = useState(null); // ID of cedula shown in preview modal
   const docRef = useRef(null);
@@ -573,6 +579,11 @@ function CedulasAplicacion() {
         }
         return next;
       });
+      const cedula = cedulasById.get(cedulaId);
+      setLastAppliedCedula({
+        id: cedulaId,
+        consecutivo: cedula?.consecutivo || null,
+      });
     } finally { removeLoading(cedulaId); }
   };
 
@@ -868,6 +879,36 @@ function CedulasAplicacion() {
               )}
             </div>
           </header>
+
+          {/* Banner persistente post-aplicada. Sobrevive hasta clic en
+              "Ver en historial" (navega) o Cerrar (descarta). Replazo de
+              un toast efímero — la confirmación de una aplicación en campo
+              es información que el usuario suele querer verificar
+              después de scrollear, no debe desaparecer sola. */}
+          {lastAppliedCedula && (
+            <div className="ca-applied-banner" role="status" aria-live="polite">
+              <FiCheck size={14} aria-hidden="true" />
+              <span className="ca-applied-banner-msg">
+                Aplicación registrada
+                {lastAppliedCedula.consecutivo && <> para la cédula <strong>{lastAppliedCedula.consecutivo}</strong></>}.
+              </span>
+              <button
+                type="button"
+                className="ca-applied-banner-action"
+                onClick={() => navigate('/aplicaciones/historial')}
+              >
+                Ver en historial →
+              </button>
+              <button
+                type="button"
+                className="ca-applied-banner-close"
+                onClick={() => setLastAppliedCedula(null)}
+                aria-label="Cerrar"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+          )}
 
           <section className="aur-section">
             {aplicacionTasks.length > 0 && (
