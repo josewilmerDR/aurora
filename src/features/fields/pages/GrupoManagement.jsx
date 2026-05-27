@@ -9,6 +9,7 @@ import GrupoHub from '../components/GrupoHub';
 import GrupoFormSheet from '../components/GrupoFormSheet';
 import GrupoPreviewModal from '../components/GrupoPreviewModal';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
+import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -487,18 +488,22 @@ function GrupoManagement() {
       )}
 
       {/* ── Page header ── */}
+      {/* Migrado de JSX manual (.lote-page-header) a <PageHeader>.
+         Las clases ad-hoc seguían funcionando porque legacy-globals.css las
+         tipea, pero la primitiva ya es la canónica (aur-sheet-header-*) y
+         dejarlas vivas acá bloqueaba el lent-die-off de esas clases. Mismo
+         move que LoteManagement. */}
       {!showForm && (
-        <div className="lote-page-header">
-          <div className="lote-page-title-block">
-            <h2 className="lote-page-title">Grupos</h2>
-            <p className="lote-page-hint">
-              Organiza los bloques de siembra cerrados en grupos de producción para gestionar aplicaciones, cosechas y costos de producción.
-            </p>
-          </div>
-          <button className="aur-btn-pill" onClick={handleNewGrupo}>
-            <FiPlus size={14} /> Nuevo Grupo
-          </button>
-        </div>
+        <PageHeader
+          level={2}
+          title="Grupos"
+          subtitle="Organiza los bloques de siembra cerrados en grupos de producción para gestionar aplicaciones, cosechas y costos de producción."
+          actions={
+            <button className="aur-btn-pill" onClick={handleNewGrupo}>
+              <FiPlus size={14} /> Nuevo Grupo
+            </button>
+          }
+        />
       )}
 
       <div className="lote-management-layout">

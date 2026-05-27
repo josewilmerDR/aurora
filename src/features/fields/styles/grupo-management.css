@@ -139,8 +139,30 @@
     display: none;
   }
 
-  .grupo-page--selected .lote-page-header {
+  /* Tras migrar a <PageHeader>, el header se renderiza como
+     `.aur-sheet-header`. Replicamos la regla legacy que escondía
+     `.lote-page-header` en mobile cuando había grupo seleccionado:
+     sin esto, en mobile el header + el carousel sticky duplican la
+     barra de acciones. Mismo move que LoteManagement. */
+  .grupo-page--selected .aur-sheet-header {
     display: none;
+  }
+}
+
+/* `.aur-sheet-header` trae un `margin-bottom: 24px` que se suma al `gap`
+   del wrapper `.grupo-page` — queda demasiado aire entre header y body.
+   Igual que en LoteManagement, anulamos el margin para dejar al gap
+   como único separador. */
+.grupo-page .aur-sheet-header {
+  margin-bottom: 0;
+}
+
+/* En mobile el default de aurora.css alinea `.aur-sheet-header-actions`
+   a `flex-start`. Forzamos `flex-end` para que el botón "Nuevo Grupo"
+   quede a la derecha igual que en el resto de páginas migradas. */
+@media (max-width: 768px) {
+  .grupo-page .aur-sheet-header-actions {
+    justify-content: flex-end;
   }
 }
 
