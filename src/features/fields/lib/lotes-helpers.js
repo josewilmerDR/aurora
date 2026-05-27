@@ -45,6 +45,18 @@ export function formatDateForInput(timestamp) {
   return d.toISOString().split('T')[0];
 }
 
+// Hectáreas con 2 decimales para superficies en listas, tablas del hub
+// y pickers. Los 4 decimales se reservan al PDF / cédula imprimible, que
+// es registro fitosanitario y necesita la precisión real del catastro.
+// En UI 0.3215 ha lee peor que 0.32 ha y la diferencia rara vez cambia
+// una decisión visual rápida. Mantenemos el contrato falsy→'—' para que
+// los callsites no tengan que duplicar el guard.
+export function formatHa(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return '—';
+  return n.toFixed(2);
+}
+
 // Comparador genérico case-insensitive con localeCompare es-ES. Si ambos
 // valores son numéricos hace resta directa para mantener orden numérico
 // real (no "10" antes que "2").

@@ -6,7 +6,7 @@ import {
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import EmptyState from '../../../components/ui/EmptyState';
 import BloqueSortTh from './BloqueSortTh';
-import { formatDateLong } from '../lib/lotes-helpers';
+import { formatDateLong, formatHa } from '../lib/lotes-helpers';
 import { calcFechaCosecha } from '../lib/grupo-bloques-helpers';
 import useGrupoBloqueTable from '../hooks/useGrupoBloqueTable';
 
@@ -214,7 +214,7 @@ export default function GrupoHub({
                 <tr key={b.id}>
                   {!hiddenCols.has('loteNombre') && <td>{b.loteNombre || '—'}</td>}
                   {!hiddenCols.has('bloque')     && <td>{b.bloque || '—'}</td>}
-                  {!hiddenCols.has('ha')         && <td className="aur-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
+                  {!hiddenCols.has('ha')         && <td className="aur-td-num">{formatHa(b.ha)}</td>}
                   {!hiddenCols.has('plantas')    && <td className="aur-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
                   {!hiddenCols.has('material')   && <td>{b.material || '—'}</td>}
                   {!hiddenCols.has('kg')         && <td className="aur-td-num">{b.kg ? b.kg.toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>}
@@ -227,7 +227,7 @@ export default function GrupoHub({
                 <tr>
                   {!hiddenCols.has('loteNombre') && <td><strong>Totales</strong></td>}
                   {!hiddenCols.has('bloque')     && <td />}
-                  {!hiddenCols.has('ha')         && <td className="aur-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
+                  {!hiddenCols.has('ha')         && <td className="aur-td-num"><strong>{formatHa(filtTotalHa)}</strong></td>}
                   {!hiddenCols.has('plantas')    && <td className="aur-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
                   {!hiddenCols.has('material')   && <td />}
                   {!hiddenCols.has('kg')         && <td className="aur-td-num"><strong>{filtTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>}
