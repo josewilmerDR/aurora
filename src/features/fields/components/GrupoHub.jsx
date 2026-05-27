@@ -1,0 +1,257 @@
+import { createPortal } from 'react-dom';
+import {
+  FiArrowLeft, FiEye, FiEdit, FiTrash2,
+  FiCalendar, FiLayers, FiPackage, FiX, FiSliders,
+} from 'react-icons/fi';
+import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import BloqueSortTh from './BloqueSortTh';
+import { formatDateLong } from '../lib/lotes-helpers';
+import { calcFechaCosecha } from '../lib/grupo-bloques-helpers';
+import useGrupoBloqueTable from '../hooks/useGrupoBloqueTable';
+
+const BLOQUE_COLS = [
+  { id: 'loteNombre', label: 'Lote'     },
+  { id: 'bloque',     label: 'Bloque'   },
+  { id: 'ha',         label: 'Ha.',     filterType: 'number' },
+  { id: 'plantas',    label: 'Plantas', filterType: 'number' },
+  { id: 'material',   label: 'Material' },
+  { id: 'kg',         label: 'Kg Est.', filterType: 'number' },
+];
+
+/**
+ * GrupoHub — panel central del grupo seleccionado.
+ *
+ * Extraído de GrupoManagement.jsx como parte del refactor del #12 (12b).
+ * Encapsula todo lo que el usuario ve cuando hay un grupo elegido: back
+ * button, header de acciones (preview / edit / delete), pills de metadata
+ * (fecha, cosecha, etapa, conteo de bloques, paquetes, fecha estimada
+ * de cosecha) y la tabla de bloques con su estado completo vía
+ * useGrupoBloqueTable.
+ *
+ * Props:
+ *   - grupo              object · grupo activo (parent ya filtra cuando es null)
+ *   - siembrasById       Map    · índice id → siembra (parent lo memoiza)
+ *   - packages           array  · resuelve grupo.paqueteId → nombre del paquete
+ *                                  + marca como archivado si corresponde
+ *   - monitoreoPackages  array  · idem para paqueteMuestreoId
+ *   - empresaConfig      object · días por etapa/cosecha para calcFechaCosecha
+ *   - onBack             fn     · cerrar el hub ("Todos los grupos")
+ *   - onEdit             fn(g)  · abrir el form de editar grupo
+ *   - onDelete           fn(g)  · abrir el flujo de eliminar (con guardia)
+ *   - onPreview          fn(g)  · abrir el modal de vista previa / PDF
+ */
+export default function GrupoHub({
+  grupo,
+  siembrasById,
+  packages,
+  monitoreoPackages,
+  empresaConfig,
+  onBack,
+  onEdit,
+  onDelete,
+  onPreview,
+}) {
+  const {
+    selectedBloques,
+    sortedRows,
+    filtTotalHa, filtTotalPlantas, filtTotalKg,
+    sorts, setSorts,
+    colFilters, setColFilter, clearColFilters, hasActiveFilters,
+    filterPop, setFilterPop,
+    hiddenCols, toggleHiddenCol, resetHiddenCols,
+    colMenu, openColMenu, closeColMenu,
+  } = useGrupoBloqueTable({ selectedGrupo: grupo, siembrasById });
+
+  const fechaCosecha = calcFechaCosecha(grupo, empresaConfig);
+
+  const grupoPkg      = grupo.paqueteId ? packages.find(p => p.id === grupo.paqueteId) : null;
+  const isArchivedPkg = !!(grupoPkg && grupoPkg.archivedAt);
+  const grupoPkgName  = grupoPkg?.nombrePaquete || '—';
+  const monitoreoPkg  = grupo.paqueteMuestreoId ? monitoreoPackages.find(p => p.id === grupo.paqueteMuestreoId) : null;
+  const monitoreoPkgName = monitoreoPkg?.nombrePaquete || '—';
+
+  // Bundle compartido por las 6 cabeceras sortables. Mismo pattern que
+  // LoteHub.sortThProps.
+  const sortThProps = { sorts, setSorts, colFilters, filterPop, setFilterPop };
+
+  return (
+    <div className="grupo-hub">
+      <button className="grupo-hub-back" onClick={onBack}>
+        <FiArrowLeft size={13} /> Todos los grupos
+      </button>
+      <div className="hub-header">
+        <div className="hub-title-block">
+          <h2 className="hub-lote-code">{grupo.nombreGrupo}</h2>
+        </div>
+        <div className="hub-header-actions">
+          <button onClick={() => onPreview(grupo)} className="aur-icon-btn" title="Vista previa / PDF" aria-label="Vista previa / PDF del grupo">
+            <FiEye size={16} aria-hidden="true" />
+          </button>
+          <button onClick={() => onEdit(grupo)} className="aur-icon-btn" title="Editar" aria-label="Editar grupo">
+            <FiEdit size={16} aria-hidden="true" />
+          </button>
+          <button onClick={() => onDelete(grupo)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar" aria-label="Eliminar grupo">
+            <FiTrash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <div className="hub-info-pills">
+        <span className="aur-badge">
+          <FiCalendar size={13} />
+          {formatDateLong(grupo.fechaCreacion)}
+        </span>
+        {grupo.cosecha && <span className="aur-badge aur-badge--violet">{grupo.cosecha}</span>}
+        {grupo.etapa   && <span className="aur-badge aur-badge--blue">{grupo.etapa}</span>}
+        {selectedBloques.length > 0 && (
+          <span className="aur-badge aur-badge--green">
+            <FiLayers size={13} />
+            {selectedBloques.length} bloque(s)
+          </span>
+        )}
+        {grupo.paqueteId && (
+          <span
+            className={`aur-badge${isArchivedPkg ? ' aur-badge--archived' : ''}`}
+            title={isArchivedPkg ? 'El paquete técnico asignado a este grupo está archivado.' : undefined}
+          >
+            <FiPackage size={13} />
+            {grupoPkgName}
+            {isArchivedPkg && <span className="aur-badge-archived-tag">archivado</span>}
+          </span>
+        )}
+        {grupo.paqueteMuestreoId && (
+          <span className="aur-badge">
+            <FiPackage size={13} />
+            {monitoreoPkgName}
+          </span>
+        )}
+        {fechaCosecha && (
+          <span className="aur-badge aur-badge--yellow">
+            Cosecha est.: {formatDateLong(fechaCosecha)}
+          </span>
+        )}
+      </div>
+
+      <div className="grupo-hub-bloques-header">
+        <p className="grupo-hub-bloques-title">Bloques</p>
+        {hasActiveFilters && (
+          <button className="aur-btn-text" onClick={clearColFilters}>
+            <FiX size={11} /> Limpiar filtros
+          </button>
+        )}
+      </div>
+      {selectedBloques.length === 0 ? (
+        <p className="empty-state">Este grupo no tiene bloques asignados.</p>
+      ) : (
+        <div className="aur-table-wrap">
+          <table className="aur-table grupo-hub-table">
+            <thead>
+              <tr>
+                {!hiddenCols.has('loteNombre') && <BloqueSortTh {...sortThProps} field="loteNombre">Lote</BloqueSortTh>}
+                {!hiddenCols.has('bloque')     && <BloqueSortTh {...sortThProps} field="bloque">Bloque</BloqueSortTh>}
+                {!hiddenCols.has('ha')         && <BloqueSortTh {...sortThProps} field="ha" filterType="number">Ha.</BloqueSortTh>}
+                {!hiddenCols.has('plantas')    && <BloqueSortTh {...sortThProps} field="plantas" filterType="number">Plantas</BloqueSortTh>}
+                {!hiddenCols.has('material')   && <BloqueSortTh {...sortThProps} field="material">Material</BloqueSortTh>}
+                {!hiddenCols.has('kg')         && <BloqueSortTh {...sortThProps} field="kg" filterType="number">Kg Est.</BloqueSortTh>}
+                <th className="aur-th-col-menu">
+                  <button
+                    className={`aur-col-menu-trigger${hiddenCols.size > 0 ? ' is-active' : ''}`}
+                    onClick={openColMenu}
+                    title="Personalizar columnas visibles"
+                    aria-label="Personalizar columnas visibles"
+                    aria-haspopup="menu"
+                    aria-expanded={!!colMenu}
+                  >
+                    <FiSliders size={12} aria-hidden="true" />
+                    {hiddenCols.size > 0 && <span className="aur-col-hidden-badge">{hiddenCols.size}</span>}
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map(b => (
+                <tr key={b.id}>
+                  {!hiddenCols.has('loteNombre') && <td>{b.loteNombre || '—'}</td>}
+                  {!hiddenCols.has('bloque')     && <td>{b.bloque || '—'}</td>}
+                  {!hiddenCols.has('ha')         && <td className="aur-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
+                  {!hiddenCols.has('plantas')    && <td className="aur-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
+                  {!hiddenCols.has('material')   && <td>{b.material || '—'}</td>}
+                  {!hiddenCols.has('kg')         && <td className="aur-td-num">{b.kg ? b.kg.toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>}
+                  <td />
+                </tr>
+              ))}
+            </tbody>
+            {sortedRows.length > 0 && (
+              <tfoot>
+                <tr>
+                  {!hiddenCols.has('loteNombre') && <td><strong>Totales</strong></td>}
+                  {!hiddenCols.has('bloque')     && <td />}
+                  {!hiddenCols.has('ha')         && <td className="aur-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
+                  {!hiddenCols.has('plantas')    && <td className="aur-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
+                  {!hiddenCols.has('material')   && <td />}
+                  {!hiddenCols.has('kg')         && <td className="aur-td-num"><strong>{filtTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>}
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+
+      {/* Popover de filtro por columna — fixed position vía portal interno
+         de AuroraFilterPopover. Se rendea fuera de la tabla porque flota. */}
+      {filterPop && (
+        filterPop.filterType !== 'text' ? (
+          <AuroraFilterPopover
+            x={filterPop.x}
+            y={filterPop.y}
+            filterType={filterPop.filterType}
+            fromValue={colFilters[filterPop.field]?.from || ''}
+            toValue={colFilters[filterPop.field]?.to || ''}
+            onFromChange={(from) => setColFilter(filterPop.field, { type: 'range', from, to: colFilters[filterPop.field]?.to || '' })}
+            onToChange={(to) => setColFilter(filterPop.field, { type: 'range', from: colFilters[filterPop.field]?.from || '', to })}
+            onClear={() => setColFilter(filterPop.field, null)}
+            onClose={() => setFilterPop(null)}
+          />
+        ) : (
+          <AuroraFilterPopover
+            x={filterPop.x}
+            y={filterPop.y}
+            filterType="text"
+            textValue={colFilters[filterPop.field]?.value || ''}
+            onTextChange={(value) => setColFilter(filterPop.field, { type: 'text', value })}
+            onClear={() => setColFilter(filterPop.field, null)}
+            onClose={() => setFilterPop(null)}
+          />
+        )
+      )}
+
+      {/* Menú de columnas visibles — portal a body porque debe escapar
+         del overflow de la tabla. */}
+      {colMenu && createPortal(
+        <>
+          <div className="aur-filter-backdrop" onClick={closeColMenu} />
+          <div className="aur-col-menu" style={{ left: colMenu.x, top: colMenu.y }}>
+            <div className="aur-col-menu-title">Columnas visibles</div>
+            {BLOQUE_COLS.map(col => (
+              <label key={col.id} className="aur-col-menu-item">
+                <input
+                  type="checkbox"
+                  checked={!hiddenCols.has(col.id)}
+                  onChange={() => toggleHiddenCol(col.id)}
+                />
+                <span>{col.label}</span>
+              </label>
+            ))}
+            {hiddenCols.size > 0 && (
+              <button className="aur-col-menu-reset" onClick={() => { resetHiddenCols(); closeColMenu(); }}>
+                Mostrar todas
+              </button>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}

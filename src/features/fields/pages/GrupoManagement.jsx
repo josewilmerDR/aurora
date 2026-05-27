@@ -1,33 +1,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiEye, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiEdit, FiPlus, FiX, FiChevronRight, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
-import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
-import BloqueSortTh from '../components/BloqueSortTh';
+import GrupoHub from '../components/GrupoHub';
 import GrupoPreviewModal from '../components/GrupoPreviewModal';
-import { tsToDate, formatDateLong, formatDateForInput, multiSort } from '../lib/lotes-helpers';
-import { consolidateSiembrasByBloque, calcFechaCosecha } from '../lib/grupo-bloques-helpers';
+import { formatDateForInput } from '../lib/lotes-helpers';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-// formatDateLong, tsToDate, formatDateForInput y multiSort vienen de
-// lib/lotes-helpers. consolidateSiembrasByBloque y calcFechaCosecha viven
-// en lib/grupo-bloques-helpers — mismas funciones, ahora compartidas con
-// GrupoPreviewModal y futuras extracciones del refactor del #12.
-
-// ── Tabla de bloques: configuración de columnas ─────────────────────────────
-const BLOQUE_COLS = [
-  { id: 'loteNombre', label: 'Lote'     },
-  { id: 'bloque',     label: 'Bloque'   },
-  { id: 'ha',         label: 'Ha.',     filterType: 'number' },
-  { id: 'plantas',    label: 'Plantas', filterType: 'number' },
-  { id: 'material',   label: 'Material' },
-  { id: 'kg',         label: 'Kg Est.', filterType: 'number' },
-];
+// Los helpers de fechas/sort viven en lib/lotes-helpers. La consolidación
+// de siembras y cálculo de fecha de cosecha viven en lib/grupo-bloques-helpers.
+// La tabla del hub vive en components/GrupoHub + hooks/useGrupoBloqueTable.
+// El preview/PDF vive en components/GrupoPreviewModal.
 
 // ── New catalog value modal (cosecha / etapa) ───────────────────────────────
 function NuevoCatalogModal({ field, onConfirm, onCancel }) {
@@ -97,11 +84,6 @@ function GrupoManagement() {
   const [saving,        setSaving]        = useState(false);
   const [deleteModal,   setDeleteModal]   = useState(null);
   const [previewGrupo,     setPreviewGrupo]     = useState(null);
-  const [bloqueSorts,      setBloqueSorts]      = useState([{ field: 'loteNombre', dir: 'asc' }]);
-  const [bloqueColFilters, setBloqueColFilters] = useState({});
-  const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
-  const [bloqueHiddenCols, setBloqueHiddenCols] = useState(new Set());
-  const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
   const carouselRef = useRef(null);
   // Refs para scroll-to-error en submit fallido. Para el campo de bloques
   // apuntamos al section header (no es un input enfocable), así que solo
@@ -224,11 +206,9 @@ function GrupoManagement() {
   const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
 
   // Índices id → doc para lookup O(1). Los consumen selectedBlockCount,
-  // selectedBloques y GrupoPreviewModal (vía prop) que antes hacían .find()
-  // lineal sobre arrays de cientos de items por cada bloque-id del grupo.
-  // Cada keystroke de filtro/sort de la tabla del hub recalcula esos
-  // derivados — sin el índice eran O(N·M) por render, perceptible como
-  // lag en mobile mid-range.
+  // GrupoHub (vía useGrupoBloqueTable) y GrupoPreviewModal — cada uno
+  // resuelve siembraIds del grupo. Sin el índice serían O(N·M) por render,
+  // perceptible como lag al filtrar/ordenar la tabla del hub.
   const siembrasById = useMemo(
     () => new Map(siembras.map(s => [s.id, s])),
     [siembras]
@@ -375,89 +355,6 @@ function GrupoManagement() {
     if (!cur) return null;
     return filteredPackages.find(p => p.id === cur.id) ? null : cur;
   }, [packages, formData.paqueteId, filteredPackages]);
-
-  // ── Datos del grupo seleccionado (hub) ────────────────────────────────────
-  // Un mismo bloque físico (lote+bloque) puede tener varias siembras (registros
-  // separados con materiales distintos o capturas parciales). El hub presenta
-  // una fila por bloque físico con las plantas y el área sumadas, no una fila
-  // por registro de siembra.
-  const selectedBloques = useMemo(() => {
-    if (!selectedGrupo) return [];
-    const owned = (selectedGrupo.bloques || [])
-      .map(id => siembrasById.get(id))
-      .filter(Boolean);
-    return consolidateSiembrasByBloque(owned);
-  }, [selectedGrupo, siembrasById]);
-
-  const selectedFechaCosecha = useMemo(
-    () => selectedGrupo ? calcFechaCosecha(selectedGrupo, empresaConfig) : null,
-    [selectedGrupo, empresaConfig]
-  );
-
-  const selectedTotalHa      = selectedBloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
-  const selectedTotalPlantas = selectedBloques.reduce((s, b) => s + (b.plantas || 0), 0);
-  const selectedTotalKg      = selectedTotalPlantas * 1.6;
-
-  // ── Tabla de bloques: normalizar, filtrar, ordenar ────────────────────────
-  const selectedBloquesNorm = useMemo(() =>
-    selectedBloques.map(b => ({
-      ...b,
-      ha:       parseFloat(b.areaCalculada) || 0,
-      material: b.materialNombre || b.variedad || '',
-      kg:       (b.plantas || 0) * 1.6,
-    })),
-  [selectedBloques]);
-
-  const bloqueFiltered = useMemo(() => {
-    const active = Object.entries(bloqueColFilters).filter(([, f]) => {
-      if (!f) return false;
-      if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
-      return !!f.value?.trim();
-    });
-    if (!active.length) return selectedBloquesNorm;
-    return selectedBloquesNorm.filter(r => {
-      for (const [field, filter] of active) {
-        const cell = r[field];
-        if (filter.type === 'range') {
-          if (cell == null || cell === '') return false;
-          const num = Number(cell);
-          if (!isNaN(num)) {
-            if (filter.from !== '' && filter.from != null && num < Number(filter.from)) return false;
-            if (filter.to   !== '' && filter.to   != null && num > Number(filter.to))   return false;
-          } else {
-            const str = String(cell);
-            if (filter.from && str < filter.from) return false;
-            if (filter.to   && str > filter.to)   return false;
-          }
-        } else {
-          if (cell == null) return false;
-          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
-        }
-      }
-      return true;
-    });
-  }, [selectedBloquesNorm, bloqueColFilters]);
-
-  const bloqueSorted = useMemo(() => multiSort(bloqueFiltered, bloqueSorts), [bloqueFiltered, bloqueSorts]);
-
-  const filtTotalHa      = bloqueSorted.reduce((s, b) => s + (b.ha || 0), 0);
-  const filtTotalPlantas = bloqueSorted.reduce((s, b) => s + (b.plantas || 0), 0);
-  const filtTotalKg      = filtTotalPlantas * 1.6;
-
-  const setBloqueColFilter = (field, filterObj) => {
-    const empty = !filterObj ||
-      (filterObj.type === 'range' ? !filterObj.from?.trim() && !filterObj.to?.trim() : !filterObj.value?.trim());
-    setBloqueColFilters(prev => empty
-      ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
-      : { ...prev, [field]: filterObj }
-    );
-  };
-
-  const handleBloqueColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    setBloqueColMenu(prev => prev ? null : { x: r.right - 190, y: r.bottom + 4 });
-  };
 
   // ── Validación inline del form ────────────────────────────────────────────
   // Derivado puro: siempre refleja el estado actual de formData. Los errores
@@ -722,9 +619,6 @@ function GrupoManagement() {
       setSaving(false);
     }
   };
-
-  const getPackageName = (id) => packages.find(p => p.id === id)?.nombrePaquete || '—';
-  const getMonitoreoPackageName = (id) => monitoreoPackages.find(p => p.id === id)?.nombrePaquete || '—';
 
   // ── Panel principal (hub o formulario) ───────────────────────────────────
   const renderPanel = () => {
@@ -1077,142 +971,18 @@ function GrupoManagement() {
 
     if (!selectedGrupo) return null;
 
-    const sortThProps = {
-      sorts:        bloqueSorts,
-      setSorts:     setBloqueSorts,
-      colFilters:   bloqueColFilters,
-      filterPop:    bloqueFilterPop,
-      setFilterPop: setBloqueFilterPop,
-    };
-
     return (
-      <div className="grupo-hub">
-        <button className="grupo-hub-back" onClick={() => setSelectedGrupo(null)}>
-          <FiArrowLeft size={13} /> Todos los grupos
-        </button>
-        <div className="hub-header">
-          <div className="hub-title-block">
-            <h2 className="hub-lote-code">{selectedGrupo.nombreGrupo}</h2>
-          </div>
-          <div className="hub-header-actions">
-            <button onClick={() => setPreviewGrupo(selectedGrupo)} className="aur-icon-btn" title="Vista previa / PDF" aria-label="Vista previa / PDF del grupo">
-              <FiEye size={16} aria-hidden="true" />
-            </button>
-            <button onClick={() => handleEdit(selectedGrupo)} className="aur-icon-btn" title="Editar" aria-label="Editar grupo">
-              <FiEdit size={16} aria-hidden="true" />
-            </button>
-            <button onClick={() => handleDeleteClick(selectedGrupo)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar" aria-label="Eliminar grupo">
-              <FiTrash2 size={16} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-
-        <div className="hub-info-pills">
-          <span className="aur-badge">
-            <FiCalendar size={13} />
-            {formatDateLong(selectedGrupo.fechaCreacion)}
-          </span>
-          {selectedGrupo.cosecha && <span className="aur-badge aur-badge--violet">{selectedGrupo.cosecha}</span>}
-          {selectedGrupo.etapa   && <span className="aur-badge aur-badge--blue">{selectedGrupo.etapa}</span>}
-          {selectedBloques.length > 0 && (
-            <span className="aur-badge aur-badge--green">
-              <FiLayers size={13} />
-              {selectedBloques.length} bloque(s)
-            </span>
-          )}
-          {selectedGrupo.paqueteId && (() => {
-            const grupoPkg = packages.find(p => p.id === selectedGrupo.paqueteId);
-            const isArchivedPkg = !!(grupoPkg && grupoPkg.archivedAt);
-            return (
-              <span
-                className={`aur-badge${isArchivedPkg ? ' aur-badge--archived' : ''}`}
-                title={isArchivedPkg ? 'El paquete técnico asignado a este grupo está archivado.' : undefined}
-              >
-                <FiPackage size={13} />
-                {getPackageName(selectedGrupo.paqueteId)}
-                {isArchivedPkg && <span className="aur-badge-archived-tag">archivado</span>}
-              </span>
-            );
-          })()}
-          {selectedGrupo.paqueteMuestreoId && (
-            <span className="aur-badge">
-              <FiPackage size={13} />
-              {getMonitoreoPackageName(selectedGrupo.paqueteMuestreoId)}
-            </span>
-          )}
-          {selectedFechaCosecha && (
-            <span className="aur-badge aur-badge--yellow">
-              Cosecha est.: {formatDateLong(selectedFechaCosecha)}
-            </span>
-          )}
-        </div>
-
-        <div className="grupo-hub-bloques-header">
-          <p className="grupo-hub-bloques-title">Bloques</p>
-          {Object.values(bloqueColFilters).some(f => f && (f.type === 'range' ? f.from?.trim() || f.to?.trim() : f.value?.trim())) && (
-            <button className="aur-btn-text" onClick={() => setBloqueColFilters({})}>
-              <FiX size={11} /> Limpiar filtros
-            </button>
-          )}
-        </div>
-        {selectedBloques.length === 0 ? (
-          <p className="empty-state">Este grupo no tiene bloques asignados.</p>
-        ) : (
-          <div className="aur-table-wrap">
-            <table className="aur-table grupo-hub-table">
-              <thead>
-                <tr>
-                  {!bloqueHiddenCols.has('loteNombre') && <BloqueSortTh {...sortThProps} field="loteNombre">Lote</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('bloque')     && <BloqueSortTh {...sortThProps} field="bloque">Bloque</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('ha')         && <BloqueSortTh {...sortThProps} field="ha" filterType="number">Ha.</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('plantas')    && <BloqueSortTh {...sortThProps} field="plantas" filterType="number">Plantas</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('material')   && <BloqueSortTh {...sortThProps} field="material">Material</BloqueSortTh>}
-                  {!bloqueHiddenCols.has('kg')         && <BloqueSortTh {...sortThProps} field="kg" filterType="number">Kg Est.</BloqueSortTh>}
-                  <th className="aur-th-col-menu">
-                    <button
-                      className={`aur-col-menu-trigger${bloqueHiddenCols.size > 0 ? ' is-active' : ''}`}
-                      onClick={handleBloqueColBtnClick}
-                      title="Personalizar columnas visibles"
-                      aria-label="Personalizar columnas visibles"
-                      aria-haspopup="menu"
-                      aria-expanded={!!bloqueColMenu}
-                    >
-                      <FiSliders size={12} aria-hidden="true" />
-                      {bloqueHiddenCols.size > 0 && <span className="aur-col-hidden-badge">{bloqueHiddenCols.size}</span>}
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {bloqueSorted.map(b => (
-                  <tr key={b.id}>
-                    {!bloqueHiddenCols.has('loteNombre') && <td>{b.loteNombre || '—'}</td>}
-                    {!bloqueHiddenCols.has('bloque')     && <td>{b.bloque || '—'}</td>}
-                    {!bloqueHiddenCols.has('ha')         && <td className="aur-td-num">{b.ha ? b.ha.toFixed(4) : '—'}</td>}
-                    {!bloqueHiddenCols.has('plantas')    && <td className="aur-td-num">{b.plantas?.toLocaleString() ?? '—'}</td>}
-                    {!bloqueHiddenCols.has('material')   && <td>{b.material || '—'}</td>}
-                    {!bloqueHiddenCols.has('kg')         && <td className="aur-td-num">{b.kg ? b.kg.toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>}
-                    <td />
-                  </tr>
-                ))}
-              </tbody>
-              {bloqueSorted.length > 0 && (
-                <tfoot>
-                  <tr>
-                    {!bloqueHiddenCols.has('loteNombre') && <td><strong>Totales</strong></td>}
-                    {!bloqueHiddenCols.has('bloque')     && <td />}
-                    {!bloqueHiddenCols.has('ha')         && <td className="aur-td-num"><strong>{filtTotalHa.toFixed(4)}</strong></td>}
-                    {!bloqueHiddenCols.has('plantas')    && <td className="aur-td-num"><strong>{filtTotalPlantas.toLocaleString()}</strong></td>}
-                    {!bloqueHiddenCols.has('material')   && <td />}
-                    {!bloqueHiddenCols.has('kg')         && <td className="aur-td-num"><strong>{filtTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>}
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-      </div>
+      <GrupoHub
+        grupo={selectedGrupo}
+        siembrasById={siembrasById}
+        packages={packages}
+        monitoreoPackages={monitoreoPackages}
+        empresaConfig={empresaConfig}
+        onBack={() => setSelectedGrupo(null)}
+        onEdit={handleEdit}
+        onDelete={handleDeleteClick}
+        onPreview={setPreviewGrupo}
+      />
     );
   };
 
@@ -1493,62 +1263,8 @@ function GrupoManagement() {
         />
       )}
 
-      {/* ── Filter popover (tabla de bloques) ── */}
-      {bloqueFilterPop && (
-        bloqueFilterPop.filterType !== 'text' ? (
-          <AuroraFilterPopover
-            x={bloqueFilterPop.x}
-            y={bloqueFilterPop.y}
-            filterType={bloqueFilterPop.filterType}
-            fromValue={bloqueColFilters[bloqueFilterPop.field]?.from || ''}
-            toValue={bloqueColFilters[bloqueFilterPop.field]?.to || ''}
-            onFromChange={(from) => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from, to: bloqueColFilters[bloqueFilterPop.field]?.to || '' })}
-            onToChange={(to) => setBloqueColFilter(bloqueFilterPop.field, { type: 'range', from: bloqueColFilters[bloqueFilterPop.field]?.from || '', to })}
-            onClear={() => setBloqueColFilter(bloqueFilterPop.field, null)}
-            onClose={() => setBloqueFilterPop(null)}
-          />
-        ) : (
-          <AuroraFilterPopover
-            x={bloqueFilterPop.x}
-            y={bloqueFilterPop.y}
-            filterType="text"
-            textValue={bloqueColFilters[bloqueFilterPop.field]?.value || ''}
-            onTextChange={(value) => setBloqueColFilter(bloqueFilterPop.field, { type: 'text', value })}
-            onClear={() => setBloqueColFilter(bloqueFilterPop.field, null)}
-            onClose={() => setBloqueFilterPop(null)}
-          />
-        )
-      )}
-
-      {/* ── Column menu (tabla de bloques) ── */}
-      {bloqueColMenu && createPortal(
-        <>
-          <div className="aur-filter-backdrop" onClick={() => setBloqueColMenu(null)} />
-          <div className="aur-col-menu" style={{ left: bloqueColMenu.x, top: bloqueColMenu.y }}>
-            <div className="aur-col-menu-title">Columnas visibles</div>
-            {BLOQUE_COLS.map(col => (
-              <label key={col.id} className="aur-col-menu-item">
-                <input
-                  type="checkbox"
-                  checked={!bloqueHiddenCols.has(col.id)}
-                  onChange={() => setBloqueHiddenCols(prev => {
-                    const next = new Set(prev);
-                    next.has(col.id) ? next.delete(col.id) : next.add(col.id);
-                    return next;
-                  })}
-                />
-                <span>{col.label}</span>
-              </label>
-            ))}
-            {bloqueHiddenCols.size > 0 && (
-              <button className="aur-col-menu-reset" onClick={() => { setBloqueHiddenCols(new Set()); setBloqueColMenu(null); }}>
-                Mostrar todas
-              </button>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
+      {/* El filter popover y el column menu del hub ahora viven dentro
+          de GrupoHub — sus state se gestionan en useGrupoBloqueTable. */}
     </div>
   );
 }
