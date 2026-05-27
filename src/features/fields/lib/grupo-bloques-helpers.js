@@ -12,10 +12,19 @@ import { tsToDate } from './lotes-helpers';
 // fields "extra" se controlan vía los hooks del segundo argumento.
 //
 // Los hooks permiten que cada callsite decida qué llevar al output sin
-// duplicar el loop principal:
-//   - initExtras(s)         · campos a sembrar en la entrada nueva del Map.
-//   - mergeExtras(entry, s) · merge in-place al agregar otro registro.
-//   - finalize(entry)       · post-procesamiento (e.g. Set → string joineado).
+// duplicar el loop principal. Hay dos pistas separadas a propósito:
+//   - Públicas (entry): viven en el objeto final.
+//       initExtras(s)         · campos iniciales en la entrada nueva.
+//       mergeExtras(entry, s) · mutación in-place de campos públicos.
+//   - Privadas (acc): vivían como underscore-props mutables sobre la
+//     entry (e.g. _materiales: new Set) hasta que finalize las borraba.
+//     Ese patrón era frágil — un caller que leyera del Map entre el
+//     loop y el .map(finalize) veía Sets, y un dev podía agregar otra
+//     prop con el mismo nombre por accidente. Ahora viven en un Map
+//     paralelo, completamente fuera de la entry pública.
+//       initAcc(s)            · seed del acumulador privado por clave.
+//       mergeAcc(acc, s)      · mutación in-place del acumulador.
+//   - finalize(entry, acc)    · combina ambos en el objeto de salida.
 //
 // Output base: { id, key, ids, loteId, loteNombre, bloque, plantas,
 //                areaCalculada, ...extras }. `id` y `key` son aliases del
@@ -23,10 +32,13 @@ import { tsToDate } from './lotes-helpers';
 export function consolidateByBloque(items, hooks = {}) {
   const {
     initExtras   = () => ({}),
+    initAcc      = () => null,
     mergeExtras  = () => {},
+    mergeAcc     = () => {},
     finalize     = (entry) => entry,
   } = hooks;
-  const map = new Map();
+  const map  = new Map();
+  const accs = new Map();
   for (const s of items) {
     if (!s) continue;
     const key = `${s.loteId}__${s.bloque}`;
@@ -42,37 +54,40 @@ export function consolidateByBloque(items, hooks = {}) {
         areaCalculada: 0,
         ...initExtras(s),
       });
+      accs.set(key, initAcc(s));
     }
     const entry = map.get(key);
+    const acc   = accs.get(key);
     entry.ids.push(s.id);
     entry.plantas += (s.plantas || 0);
     entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
     mergeExtras(entry, s);
+    mergeAcc(acc, s);
   }
-  return [...map.values()].map(finalize);
+  return [...map.entries()].map(([key, entry]) => finalize(entry, accs.get(key)));
 }
 
 // Wrapper para siembras crudas del backend (endpoint /api/siembras).
 // Los materiales y variedades distintos se concatenan con " · " porque un
 // usuario que mira el hub/preview quiere ver TODO lo que se sembró en ese
-// bloque, no solo el primer registro.
+// bloque, no solo el primer registro. Los Sets viven fuera de la entry
+// pública en el Map paralelo de acumuladores — finalize() los lee de
+// ahí, no necesita borrar nada de la entry.
 export function consolidateSiembrasByBloque(siembras) {
   return consolidateByBloque(siembras, {
-    initExtras: () => ({
-      _materiales: new Set(),
-      _variedades: new Set(),
+    initAcc: () => ({
+      materiales: new Set(),
+      variedades: new Set(),
     }),
-    mergeExtras: (entry, s) => {
-      if (s.materialNombre) entry._materiales.add(s.materialNombre);
-      if (s.variedad) entry._variedades.add(s.variedad);
+    mergeAcc: (acc, s) => {
+      if (s.materialNombre) acc.materiales.add(s.materialNombre);
+      if (s.variedad)       acc.variedades.add(s.variedad);
     },
-    finalize: (entry) => {
-      const materialNombre = [...entry._materiales].join(' · ');
-      const variedad = [...entry._variedades].join(' · ');
-      delete entry._materiales;
-      delete entry._variedades;
-      return { ...entry, materialNombre, variedad };
-    },
+    finalize: (entry, acc) => ({
+      ...entry,
+      materialNombre: [...acc.materiales].join(' · '),
+      variedad:       [...acc.variedades].join(' · '),
+    }),
   });
 }
 
