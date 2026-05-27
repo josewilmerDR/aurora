@@ -7,6 +7,7 @@ import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import GrupoHub from '../components/GrupoHub';
 import GrupoPreviewModal from '../components/GrupoPreviewModal';
+import NuevoCatalogModal from '../components/NuevoCatalogModal';
 import { formatDateForInput } from '../lib/lotes-helpers';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -15,40 +16,6 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 // de siembras y cálculo de fecha de cosecha viven en lib/grupo-bloques-helpers.
 // La tabla del hub vive en components/GrupoHub + hooks/useGrupoBloqueTable.
 // El preview/PDF vive en components/GrupoPreviewModal.
-
-// ── New catalog value modal (cosecha / etapa) ───────────────────────────────
-function NuevoCatalogModal({ field, onConfirm, onCancel }) {
-  const [nombre, setNombre] = useState('');
-  const label = field === 'cosecha' ? 'cosecha' : 'etapa';
-  const placeholder = field === 'cosecha' ? 'Ej. Cosecha I 2024' : 'Ej. Desarrollo';
-  return (
-    <AuroraConfirmModal
-      title={`Nueva ${label}`}
-      icon={<FiPlus size={16} />}
-      iconVariant="neutral"
-      confirmLabel="Agregar"
-      confirmDisabled={!nombre.trim()}
-      onConfirm={() => onConfirm(nombre.trim())}
-      onCancel={onCancel}
-    >
-      <div className="aur-field">
-        <label className="aur-field-label" htmlFor="catalog-nombre">
-          Nombre
-        </label>
-        <input
-          id="catalog-nombre"
-          className="aur-input"
-          placeholder={placeholder}
-          value={nombre}
-          onChange={e => setNombre(e.target.value)}
-          maxLength={32}
-          autoFocus
-          onKeyDown={e => { if (e.key === 'Enter' && nombre.trim()) onConfirm(nombre.trim()); }}
-        />
-      </div>
-    </AuroraConfirmModal>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 function GrupoManagement() {
