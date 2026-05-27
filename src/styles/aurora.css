@@ -1376,6 +1376,16 @@ html[data-theme="light"] .aur-modal-actions {
   border-bottom: none;
 }
 
+/* Fila clickeable: AuroraDataTable agrega esta clase cuando la página pasa
+   onRowClick. Cursor + hover refuerzan la affordance — sin esto el usuario
+   no descubre que la fila entera es navegable. Punto #15 audit Historial. */
+.aur-table tbody tr.aur-tr-clickable {
+  cursor: pointer;
+}
+.aur-table tbody tr.aur-tr-clickable:hover {
+  background: var(--aur-bg-hover);
+}
+
 .aur-td-num {
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -1440,7 +1450,18 @@ html[data-theme="light"] .aur-modal-actions {
   border: 0;
   padding: 0;
   font: inherit;
+  /* Position relative habilita el ::before que expande el hit area sin
+     mover el ícono visual. Punto #26 audit Historial. */
+  position: relative;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+/* Hit area extendida: el ícono mide 18×18 pero el área clickeable es ~32×32,
+   suficiente para tap en táctil sin agrandar visualmente. No afecta el
+   layout horizontal porque ::before es absoluto. */
+.aur-th-funnel::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
 }
 .aur-th-sortable:hover .aur-th-funnel {
   opacity: 0.8;
