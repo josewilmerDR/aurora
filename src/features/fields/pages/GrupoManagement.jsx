@@ -1,23 +1,30 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import '../styles/grupo-management.css';
-import { FiEdit, FiPlus, FiX, FiChevronRight, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiX, FiAlertTriangle, FiRefreshCw, FiCheck, FiChevronRight } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import GrupoHub from '../components/GrupoHub';
+import GrupoFormSheet from '../components/GrupoFormSheet';
 import GrupoPreviewModal from '../components/GrupoPreviewModal';
-import NuevoCatalogModal from '../components/NuevoCatalogModal';
-import { formatDateForInput } from '../lib/lotes-helpers';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-// Los helpers de fechas/sort viven en lib/lotes-helpers. La consolidación
-// de siembras y cálculo de fecha de cosecha viven en lib/grupo-bloques-helpers.
-// La tabla del hub vive en components/GrupoHub + hooks/useGrupoBloqueTable.
-// El preview/PDF vive en components/GrupoPreviewModal.
-
 // ─────────────────────────────────────────────────────────────────────────────
+// El estado del form sheet vive en GrupoFormSheet — el padre solo decide
+// cuándo montarlo y cómo reaccionar al éxito/cancel.
+//
+// Helpers de dominio:
+//  - lib/lotes-helpers           — formatters de fecha + multiSort.
+//  - lib/grupo-bloques-helpers   — consolidateSiembrasByBloque + calcFechaCosecha.
+//
+// Componentes hijos:
+//  - components/GrupoHub          + hooks/useGrupoBloqueTable (panel del grupo).
+//  - components/GrupoFormSheet                                 (crear/editar).
+//  - components/GrupoPreviewModal                              (PDF / impresión).
+//  - components/NuevoCatalogModal                              (nueva cosecha/etapa).
+//  - components/BloqueSortTh                                   (cabecera ordenable).
+//
 function GrupoManagement() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
@@ -28,14 +35,11 @@ function GrupoManagement() {
   const [monitoreoPackages, setMonitoreoPackages] = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
   const [selectedGrupo, setSelectedGrupo] = useState(null);
-  const [showForm,      setShowForm]      = useState(false);
-  const [showLibres,    setShowLibres]    = useState(false);
-  const [showEnAplicacion, setShowEnAplicacion] = useState(false);
-  const [moveModal,     setMoveModal]     = useState(null);
-  const [isEditing,     setIsEditing]     = useState(false);
-  const [catalogModal,  setCatalogModal]  = useState(null);
-  const [localCosechas, setLocalCosechas] = useState([]);
-  const [localEtapas,   setLocalEtapas]   = useState([]);
+  // formMode = null | { mode: 'create', preloadIds?, preloadLoteCode? }
+  //                 | { mode: 'edit',   grupo }
+  // Reemplaza el par showForm + isEditing + formData previo, alineado al
+  // patrón modalState de LoteManagement.
+  const [formMode,      setFormMode]      = useState(null);
   const [loading,       setLoading]       = useState(true);
   const [loadError,     setLoadError]     = useState(null);
   const [toast,         setToast]         = useState(null);
@@ -43,34 +47,15 @@ function GrupoManagement() {
   // visual del guardado — vive hasta que el usuario lo cierre, clickee Abrir,
   // o arranque otro flujo de crear/editar. Shape:
   //   { id, label, action: 'created' | 'updated', tasksGenerated: boolean }
-  // `tasksGenerated` distingue el caso "Grupo creado y tareas programadas"
-  // que hoy aparecía en el toast cuando el grupo se creaba con paqueteId.
   const [lastSavedGrupo, setLastSavedGrupo] = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
-  const [saving,        setSaving]        = useState(false);
   const [deleteModal,   setDeleteModal]   = useState(null);
   const [previewGrupo,     setPreviewGrupo]     = useState(null);
   const carouselRef = useRef(null);
-  // Refs para scroll-to-error en submit fallido. Para el campo de bloques
-  // apuntamos al section header (no es un input enfocable), así que solo
-  // hacemos scrollIntoView, no focus.
-  const nombreGrupoRef    = useRef(null);
-  const fechaCreacionRef  = useRef(null);
-  const bloquesSectionRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  const [formData, setFormData] = useState({
-    id: null, nombreGrupo: '', cosecha: '', etapa: '',
-    fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '',
-  });
-  // Validación inline. `touched` se llena cuando el campo pierde foco;
-  // `submitAttempted` cuando el usuario clickea Crear/Actualizar con
-  // errores presentes. Un error solo se renderiza si el campo fue tocado
-  // O hubo intento de submit — así no asustamos con errores en el render
-  // inicial.
-  const [touched, setTouched] = useState(new Set());
-  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const showForm = formMode !== null;
 
   // Carga inicial de los 6 recursos en paralelo. Promise.allSettled deja
   // que un fetch caído no bloquee al resto — el usuario ve lo que sí llegó
@@ -139,22 +124,14 @@ function GrupoManagement() {
       // data). Si algún id fue movido a otro grupo mientras tanto, el move
       // modal del propio form maneja el conflicto al guardar.
       deepLinkProcessedRef.current = true;
-      setIsEditing(false);
       setSelectedGrupo(null);
-      setFormData({
-        id: null,
-        nombreGrupo: '',
-        cosecha: '',
-        etapa: '',
-        fechaCreacion: '',
-        bloques: incomingPreloadIds,
-        paqueteId: '',
-        paqueteMuestreoId: '',
+      setFormMode({
+        mode: 'create',
+        preloadIds: incomingPreloadIds,
+        preloadLoteCode: incomingPreloadLote || null,
       });
-      setShowForm(true);
-      if (incomingPreloadLote) {
-        showToast(`Creá un grupo con los bloques sin agrupar de ${incomingPreloadLote}.`, 'info');
-      }
+      // El toast informativo lo dispara GrupoFormSheet al montar cuando
+      // recibe preloadIds + preloadLoteCode — evitamos duplicarlo acá.
     }
   }, [grupos, incomingSelectGrupoId, incomingPreloadIds, incomingPreloadLote]);
 
@@ -165,15 +142,8 @@ function GrupoManagement() {
     active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [selectedGrupo]);
 
-  // ── Bloques eligibles ─────────────────────────────────────────────────────
-  // Backward-compat: still expose cerradoSiembras for the empty-state copy
-  // ("ciérralos desde el Historial de Siembra"). Selection now flows through
-  // bloquesDisponibles (enriched with grupo state) instead of recomputing
-  // from raw siembras.
-  const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
-
-  // Índices id → doc para lookup O(1). Los consumen selectedBlockCount,
-  // GrupoHub (vía useGrupoBloqueTable) y GrupoPreviewModal — cada uno
+  // ── Índices id → doc para lookup O(1). Los consumen GrupoHub (vía
+  // useGrupoBloqueTable), GrupoPreviewModal y GrupoFormSheet — cada uno
   // resuelve siembraIds del grupo. Sin el índice serían O(N·M) por render,
   // perceptible como lag al filtrar/ordenar la tabla del hub.
   const siembrasById = useMemo(
@@ -185,284 +155,45 @@ function GrupoManagement() {
     [bloquesDisponibles]
   );
 
-  const consolidatedBloques = useMemo(() => {
-    const map = new Map();
-    for (const s of bloquesDisponibles) {
-      const key = `${s.loteId}__${s.bloque}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          ids: [],
-          loteId: s.loteId,
-          loteNombre: s.loteNombre || s.loteId,
-          bloque: s.bloque,
-          plantas: 0,
-          areaCalculada: 0,
-          variedad: s.variedad || '',
-          materialNombre: s.materialNombre || '',
-          estado: 'libre',
-          grupoActualId: null,
-          grupoActualNombre: null,
-          grupoActualEtapa: null,
-          grupoActualCosecha: null,
-          aplicacionesCompletadas: null,
-          aplicacionesTotales: null,
-        });
-      }
-      const entry = map.get(key);
-      entry.ids.push(s.id);
-      entry.plantas += (s.plantas || 0);
-      entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
-
-      // Promote estado to the most "active" of the siembras in this physical
-      // block: en_aplicacion > fuera_aplicacion > libre. In practice all
-      // siembras of a (lote, bloque) share the same grupo so the merge is
-      // a no-op, but guard for the edge case.
-      if (s.estado === 'en_aplicacion') entry.estado = 'en_aplicacion';
-      else if (s.estado === 'fuera_aplicacion' && entry.estado === 'libre') entry.estado = 'fuera_aplicacion';
-
-      if (s.grupoActualId && !entry.grupoActualId) {
-        entry.grupoActualId        = s.grupoActualId;
-        entry.grupoActualNombre    = s.grupoActualNombre;
-        entry.grupoActualEtapa     = s.grupoActualEtapa;
-        entry.grupoActualCosecha   = s.grupoActualCosecha;
-        entry.aplicacionesCompletadas = s.aplicacionesCompletadas;
-        entry.aplicacionesTotales     = s.aplicacionesTotales;
-      }
-    }
-    return [...map.values()];
-  }, [bloquesDisponibles]);
-
-  const editingGrupoId = isEditing ? formData.id : null;
-
-  const byLoteSeleccionados = useMemo(() => {
-    const sel = consolidatedBloques.filter(b => b.ids.some(id => formData.bloques.includes(id)));
-    return sel.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
-  }, [consolidatedBloques, formData.bloques]);
-
-  // A bloque is "free for the picker" when it doesn't belong to any other
-  // grupo. Bloques whose grupoActualId matches the grupo being edited are
-  // also treated as free here — they live in form.bloques when selected,
-  // and reappear in this list (rather than in "Otros grupos") if the user
-  // unticks them, since their effective destination after save is "no group".
-  const unselectedBloques = useMemo(
-    () => consolidatedBloques.filter(b => !b.ids.some(id => formData.bloques.includes(id))),
-    [consolidatedBloques, formData.bloques]
-  );
-
-  const byLoteLibres = useMemo(() => {
-    const list = unselectedBloques.filter(b =>
-      !b.grupoActualId || b.grupoActualId === editingGrupoId
-    );
-    return list.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
-  }, [unselectedBloques, editingGrupoId]);
-
-  const byLoteFueraAplicacion = useMemo(() => {
-    const list = unselectedBloques.filter(b =>
-      b.grupoActualId && b.grupoActualId !== editingGrupoId && b.estado === 'fuera_aplicacion'
-    );
-    return list.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
-  }, [unselectedBloques, editingGrupoId]);
-
-  const byLoteEnAplicacion = useMemo(() => {
-    const list = unselectedBloques.filter(b =>
-      b.grupoActualId && b.grupoActualId !== editingGrupoId && b.estado === 'en_aplicacion'
-    );
-    return list.reduce((acc, s) => { if (!acc[s.loteNombre]) acc[s.loteNombre] = []; acc[s.loteNombre].push(s); return acc; }, {});
-  }, [unselectedBloques, editingGrupoId]);
-
-  const libresCount   = Object.values(byLoteLibres).reduce((sum, arr) => sum + arr.length, 0);
-  const fueraCount    = Object.values(byLoteFueraAplicacion).reduce((sum, arr) => sum + arr.length, 0);
-  const enAplicacionCount = Object.values(byLoteEnAplicacion).reduce((sum, arr) => sum + arr.length, 0);
-
-  const selectedBlockCount = useMemo(() => {
-    const keys = new Set();
-    for (const id of formData.bloques) {
-      const s = bloquesDisponiblesById.get(id) || siembrasById.get(id);
-      if (s) keys.add(`${s.loteId}__${s.bloque}`);
-    }
-    return keys.size;
-  }, [formData.bloques, bloquesDisponiblesById, siembrasById]);
-
-  // ── Paquetes filtrados ────────────────────────────────────────────────────
-  const cosechasCatalog = useMemo(() =>
-    [...new Set([
-      ...grupos.map(g => g.cosecha).filter(Boolean),
-      ...packages.map(p => p.tipoCosecha).filter(Boolean),
-      ...localCosechas,
-    ])].sort(),
-  [grupos, packages, localCosechas]);
-
-  const etapasCatalog = useMemo(() =>
-    [...new Set([
-      ...grupos.map(g => g.etapa).filter(Boolean),
-      ...packages.map(p => p.etapaCultivo).filter(Boolean),
-      ...localEtapas,
-    ])].sort(),
-  [grupos, packages, localEtapas]);
-
-  // Solo paquetes activos (no archivados) y que matcheen cosecha/etapa del
-  // grupo. Si el grupo ya tenía un paquete archivado asignado previamente,
-  // ese valor se conserva en el select vía un fallback option (ver más abajo)
-  // para no perder la asociación al editar.
-  const filteredPackages = useMemo(() =>
-    packages.filter(p =>
-      !p.archivedAt &&
-      (!formData.cosecha || p.tipoCosecha === formData.cosecha) &&
-      (!formData.etapa   || p.etapaCultivo === formData.etapa)
-    ),
-  [packages, formData.cosecha, formData.etapa]);
-
-  // Paquete actualmente asignado al grupo en edición. Si está archivado o no
-  // matchea los filtros activos, no aparecería en `filteredPackages`, dejando
-  // el select sin opción visible. Lo emitimos como fallback option marcado.
-  const archivedCurrentPackage = useMemo(() => {
-    if (!formData.paqueteId) return null;
-    const cur = packages.find(p => p.id === formData.paqueteId);
-    if (!cur) return null;
-    return filteredPackages.find(p => p.id === cur.id) ? null : cur;
-  }, [packages, formData.paqueteId, filteredPackages]);
-
-  // ── Validación inline del form ────────────────────────────────────────────
-  // Derivado puro: siempre refleja el estado actual de formData. Los errores
-  // se muestran condicionalmente vía shouldShowError() — no en cada render,
-  // solo cuando el usuario interactuó con el campo o intentó submit.
-  const fieldErrors = useMemo(() => {
-    const errors = {};
-    const nombre = (formData.nombreGrupo || '').trim();
-    if (!nombre) errors.nombreGrupo = 'El nombre es requerido.';
-    else if (nombre.length > 16) errors.nombreGrupo = 'Máximo 16 caracteres.';
-
-    if (!formData.fechaCreacion) {
-      errors.fechaCreacion = 'La fecha de creación es requerida.';
-    } else {
-      const maxDate = new Date();
-      maxDate.setDate(maxDate.getDate() + 15);
-      maxDate.setHours(23, 59, 59, 999);
-      if (new Date(formData.fechaCreacion) > maxDate) {
-        errors.fechaCreacion = 'No puede superar 15 días en el futuro.';
-      }
-    }
-
-    if (!formData.bloques || formData.bloques.length === 0) {
-      errors.bloques = 'Seleccioná al menos un bloque.';
-    }
-    return errors;
-  }, [formData.nombreGrupo, formData.fechaCreacion, formData.bloques]);
-
-  const shouldShowError = (field) =>
-    (submitAttempted || touched.has(field)) && !!fieldErrors[field];
-
-  // ── Handlers form ─────────────────────────────────────────────────────────
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => {
-      const next = { ...prev, [name]: value };
-      if (name === 'cosecha' || name === 'etapa') next.paqueteId = '';
-      return next;
-    });
-  };
-
-  const handleFieldBlur = (e) => {
-    const { name } = e.target;
-    setTouched(prev => prev.has(name) ? prev : new Set(prev).add(name));
-  };
-
-  const addBloque = (ids) =>
-    setFormData(prev => {
-      const newIds = ids.filter(id => !prev.bloques.includes(id));
-      return { ...prev, bloques: [...prev.bloques, ...newIds] };
-    });
-
-  const removeBloque = (ids) =>
-    setFormData(prev => ({ ...prev, bloques: prev.bloques.filter(id => !ids.includes(id)) }));
-
-  const toggleBloque = (ids) =>
-    setFormData(prev => {
-      const allSelected = ids.every(id => prev.bloques.includes(id));
-      if (allSelected) {
-        return { ...prev, bloques: prev.bloques.filter(id => !ids.includes(id)) };
-      }
-      const newIds = ids.filter(id => !prev.bloques.includes(id));
-      return { ...prev, bloques: [...prev.bloques, ...newIds] };
-    });
-
-  // Handles "Agregar" clicks on the picker. If the bloque belongs to another
-  // grupo (and the user is not just re-adding one of the editing grupo's
-  // own bloques), open a confirmation modal so the move is explicit and
-  // auditable. Otherwise, add directly.
-  const handleAddBloque = (bloque) => {
-    if (bloque.grupoActualId && bloque.grupoActualId !== editingGrupoId) {
-      setMoveModal(bloque);
-      return;
-    }
-    addBloque(bloque.ids);
-  };
-
-  const confirmMoveBloque = () => {
-    if (!moveModal) return;
-    addBloque(moveModal.ids);
-    setMoveModal(null);
-  };
-
-  const resetForm = () => {
-    setIsEditing(false);
-    setShowForm(false);
-    setShowLibres(false);
-    setShowEnAplicacion(false);
-    setMoveModal(null);
-    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
-    setTouched(new Set());
-    setSubmitAttempted(false);
-  };
-
+  // Iniciar un flujo nuevo invalida el banner del save previo — es
+  // intención nueva del usuario, no queremos mezclar evidencias.
   const handleNewGrupo = () => {
-    // Iniciar un flujo nuevo invalida el banner del save previo — es
-    // intención nueva del usuario, no queremos mezclar evidencias.
     setLastSavedGrupo(null);
-    setIsEditing(false);
-    setFormData({ id: null, nombreGrupo: '', cosecha: '', etapa: '', fechaCreacion: '', bloques: [], paqueteId: '', paqueteMuestreoId: '' });
-    setTouched(new Set());
-    setSubmitAttempted(false);
-    setShowForm(true);
+    setFormMode({ mode: 'create' });
     setSelectedGrupo(null);
   };
 
   const handleSelectGrupo = (grupo) => {
     setSelectedGrupo(grupo);
-    setShowForm(false);
+    setFormMode(null);
     if (window.innerWidth <= 768)
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCatalogConfirm = (nombre) => {
-    const { field } = catalogModal;
-    if (field === 'cosecha') {
-      setLocalCosechas(prev => [...new Set([...prev, nombre])]);
-      setFormData(prev => ({ ...prev, cosecha: nombre, paqueteId: '' }));
-    } else {
-      setLocalEtapas(prev => [...new Set([...prev, nombre])]);
-      setFormData(prev => ({ ...prev, etapa: nombre, paqueteId: '' }));
-    }
-    setCatalogModal(null);
-  };
-
   const handleEdit = (grupo) => {
     setLastSavedGrupo(null);
-    setIsEditing(true);
-    setShowForm(true);
-    setFormData({
-      id:            grupo.id,
-      nombreGrupo:   grupo.nombreGrupo  || '',
-      cosecha:       grupo.cosecha      || '',
-      etapa:         grupo.etapa        || '',
-      fechaCreacion: grupo.fechaCreacion ? formatDateForInput(grupo.fechaCreacion) : '',
-      bloques:       Array.isArray(grupo.bloques) ? grupo.bloques : [],
-      paqueteId:         grupo.paqueteId         || '',
-      paqueteMuestreoId: grupo.paqueteMuestreoId || '',
-    });
-    setTouched(new Set());
-    setSubmitAttempted(false);
+    setFormMode({ mode: 'edit', grupo });
+  };
+
+  // Invocado por GrupoFormSheet tras un POST/PUT exitoso. Hacemos
+  // refreshAfterMutation, auto-seleccionamos el grupo guardado y armamos
+  // el banner persistente con los datos que el form nos pasó.
+  const handleFormSuccess = async ({ savedId, action, tasksGenerated }) => {
+    const newGrupos = await refreshAfterMutation();
+    let foundGrupo = null;
+    if (savedId && newGrupos) {
+      foundGrupo = newGrupos.find(g => g.id === savedId) || null;
+      if (foundGrupo) setSelectedGrupo(foundGrupo);
+    }
+    setFormMode(null);
+    if (foundGrupo) {
+      setLastSavedGrupo({
+        id: foundGrupo.id,
+        label: foundGrupo.nombreGrupo || savedId,
+        action,
+        tasksGenerated,
+      });
+    }
   };
 
   const handleDeleteClick = async (grupo) => {
@@ -523,416 +254,26 @@ function GrupoManagement() {
     } finally { setDeleting(false); }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Guard re-entry: el botón ya queda disabled durante saving, pero Enter
-    // en un input dispara onSubmit sin pasar por el botón — sin esto, dos
-    // Enter rápidos antes del re-render se traducen en dos POST.
-    if (saving) return;
-    // Validación: si fieldErrors tiene cualquier mensaje, marcamos
-    // submitAttempted (que destapa todos los errores inline) y hacemos
-    // scroll + focus al primero. No usamos toast — el mensaje vive
-    // debajo del campo, persistente y accionable.
-    if (Object.keys(fieldErrors).length > 0) {
-      setSubmitAttempted(true);
-      const order = ['nombreGrupo', 'fechaCreacion', 'bloques'];
-      const firstError = order.find(f => fieldErrors[f]);
-      const refMap = {
-        nombreGrupo:   nombreGrupoRef,
-        fechaCreacion: fechaCreacionRef,
-        bloques:       bloquesSectionRef,
-      };
-      const ref = refMap[firstError]?.current;
-      if (ref) {
-        ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (typeof ref.focus === 'function') {
-          // setTimeout para que el focus no compita con el scroll smooth
-          setTimeout(() => ref.focus({ preventScroll: true }), 300);
-        }
-      }
-      return;
-    }
-    const url    = isEditing ? `/api/grupos/${formData.id}` : '/api/grupos';
-    const method = isEditing ? 'PUT' : 'POST';
-    setSaving(true);
-    try {
-      const { id: _id, ...payload } = formData;
-      payload.nombreGrupo = payload.nombreGrupo.trim();
-      const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error();
-      const saved     = await res.json();
-      const newGrupos = await refreshAfterMutation();
-      const savedId   = isEditing ? formData.id : saved.id;
-      let foundGrupo = null;
-      if (savedId && newGrupos) {
-        foundGrupo = newGrupos.find(g => g.id === savedId) || null;
-        if (foundGrupo) setSelectedGrupo(foundGrupo);
-      }
-      resetForm();
-      // Banner persistente reemplaza el toast efímero. El toast de error
-      // (catch) sigue vivo porque ahí queremos algo que llame la atención
-      // y desaparezca solo cuando el usuario reintenta.
-      if (foundGrupo) {
-        setLastSavedGrupo({
-          id: foundGrupo.id,
-          label: foundGrupo.nombreGrupo || savedId,
-          action: isEditing ? 'updated' : 'created',
-          tasksGenerated: !isEditing && !!formData.paqueteId,
-        });
-      }
-    } catch {
-      showToast('Ocurrió un error al guardar.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // ── Panel principal (hub o formulario) ───────────────────────────────────
   const renderPanel = () => {
-    if (showForm) {
+    if (formMode) {
       return (
-        <div className="aur-sheet">
-          <header className="aur-sheet-header">
-            <div className="aur-sheet-header-text">
-              <h1 className="aur-sheet-title">{isEditing ? 'Editar Grupo' : 'Crear Nuevo Grupo'}</h1>
-            </div>
-          </header>
-          <form onSubmit={handleSubmit} noValidate>
-            <section className="aur-section">
-              <div className="aur-section-header">
-                <h3 className="aur-section-title">Identificación</h3>
-              </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="nombreGrupo">Nombre de Grupo</label>
-                  <div>
-                    <input
-                      ref={nombreGrupoRef}
-                      id="nombreGrupo"
-                      name="nombreGrupo"
-                      className={`aur-input${shouldShowError('nombreGrupo') ? ' aur-input--error' : ''}`}
-                      value={formData.nombreGrupo}
-                      onChange={handleInputChange}
-                      onBlur={handleFieldBlur}
-                      placeholder="Ej. G-04-26"
-                      required
-                      maxLength={16}
-                      aria-invalid={shouldShowError('nombreGrupo')}
-                      aria-describedby={shouldShowError('nombreGrupo') ? 'nombreGrupo-error' : undefined}
-                    />
-                    {shouldShowError('nombreGrupo') && (
-                      <span id="nombreGrupo-error" className="aur-field-error" role="alert">
-                        {fieldErrors.nombreGrupo}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="fechaCreacion">Fecha de Creación</label>
-                  <div>
-                    <input
-                      ref={fechaCreacionRef}
-                      id="fechaCreacion"
-                      name="fechaCreacion"
-                      className={`aur-input${shouldShowError('fechaCreacion') ? ' aur-input--error' : ''}`}
-                      type="date"
-                      value={formData.fechaCreacion}
-                      onChange={handleInputChange}
-                      onBlur={handleFieldBlur}
-                      required
-                      max={(() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()}
-                      aria-invalid={shouldShowError('fechaCreacion')}
-                      aria-describedby={shouldShowError('fechaCreacion') ? 'fechaCreacion-error' : undefined}
-                    />
-                    {shouldShowError('fechaCreacion') && (
-                      <span id="fechaCreacion-error" className="aur-field-error" role="alert">
-                        {fieldErrors.fechaCreacion}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="cosecha">Cosecha</label>
-                  <select
-                    id="cosecha"
-                    name="cosecha"
-                    className="aur-select"
-                    value={formData.cosecha}
-                    onChange={e => {
-                      if (e.target.value === '__nueva__') {
-                        setCatalogModal({ field: 'cosecha' });
-                      } else {
-                        handleInputChange(e);
-                      }
-                    }}
-                  >
-                    <option value="">— Seleccionar —</option>
-                    {cosechasCatalog.map(c => <option key={c} value={c}>{c}</option>)}
-                    <option value="__nueva__">＋ Nueva cosecha</option>
-                  </select>
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="etapa">Etapa</label>
-                  <select
-                    id="etapa"
-                    name="etapa"
-                    className="aur-select"
-                    value={formData.etapa}
-                    onChange={e => {
-                      if (e.target.value === '__nueva__') {
-                        setCatalogModal({ field: 'etapa' });
-                      } else {
-                        handleInputChange(e);
-                      }
-                    }}
-                  >
-                    <option value="">— Seleccionar —</option>
-                    {etapasCatalog.map(e => <option key={e} value={e}>{e}</option>)}
-                    <option value="__nueva__">＋ Nueva etapa</option>
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            <section className="aur-section">
-              <div className="aur-section-header">
-                <h3 className="aur-section-title">Paquetes</h3>
-              </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="paqueteId">Aplicaciones</label>
-                  <select
-                    id="paqueteId"
-                    name="paqueteId"
-                    className="aur-select"
-                    value={formData.paqueteId}
-                    onChange={handleInputChange}
-                    disabled={filteredPackages.length === 0 && !archivedCurrentPackage}
-                  >
-                    <option value="">{filteredPackages.length === 0 && !archivedCurrentPackage ? '— Sin paquetes para esta cosecha/etapa —' : '— Seleccionar Paquete —'}</option>
-                    {filteredPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
-                    {/* Fallback para preservar el valor cuando el paquete
-                        asignado quedó archivado (o cambiaron los filtros).
-                        Sin esto, el select pierde su selección al editar. */}
-                    {archivedCurrentPackage && (
-                      <option value={archivedCurrentPackage.id}>
-                        {archivedCurrentPackage.nombrePaquete}
-                        {archivedCurrentPackage.archivedAt ? ' (archivado)' : ' (no coincide con filtros)'}
-                      </option>
-                    )}
-                  </select>
-                </div>
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="paqueteMuestreoId">Muestreos</label>
-                  <select
-                    id="paqueteMuestreoId"
-                    name="paqueteMuestreoId"
-                    className="aur-select"
-                    value={formData.paqueteMuestreoId}
-                    onChange={handleInputChange}
-                    disabled={monitoreoPackages.length === 0}
-                  >
-                    <option value="">{monitoreoPackages.length === 0 ? '— Sin paquetes de muestreo —' : '— Seleccionar Paquete —'}</option>
-                    {monitoreoPackages.map(p => <option key={p.id} value={p.id}>{p.nombrePaquete}</option>)}
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            {/* ── Sección 3: Bloques del grupo ── */}
-            <section className="aur-section" ref={bloquesSectionRef}>
-              <div className="aur-section-header">
-                <h3 className="aur-section-title">Bloques del grupo</h3>
-                <span className="aur-section-count">{selectedBlockCount} asignado(s)</span>
-              </div>
-              {shouldShowError('bloques') && (
-                <span className="aur-field-error" role="alert" style={{ display: 'block', padding: '4px 14px 0' }}>
-                  {fieldErrors.bloques}
-                </span>
-              )}
-
-              {Object.entries(byLoteSeleccionados).map(([loteNombre, registros]) => (
-                <div key={loteNombre} className="bloque-lote-group">
-                  <div className="bloque-lote-label">{loteNombre}</div>
-                  {registros.map(s => (
-                    <div key={s.key} className="bloque-checkbox-row checked">
-                      <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                      <span className="bloque-meta">
-                        {s.plantas?.toLocaleString()} plantas
-                        {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                        {s.variedad ? ` · ${s.variedad}` : ''}
-                      </span>
-                      <button type="button" className="aur-btn-text" onClick={() => toggleBloque(s.ids)}>
-                        Quitar
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-
-              {selectedBlockCount === 0 && (
-                <div className="bloques-empty-wrap">
-                  <p className="bloques-empty">
-                    {cerradoSiembras.length === 0
-                      ? 'No hay bloques cerrados. Ciérralos desde el Historial de Siembra.'
-                      : (libresCount + fueraCount + enAplicacionCount === 0
-                          ? 'No hay bloques disponibles para crear este grupo.'
-                          : 'Sin bloques asignados aún.')}
-                  </p>
-                  {(libresCount + fueraCount + enAplicacionCount) > 0 && (
-                    <button
-                      type="button"
-                      className="aur-chip"
-                      onClick={() => setShowLibres(v => !v)}
-                    >
-                      <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {selectedBlockCount > 0 && (libresCount + fueraCount + enAplicacionCount) > 0 && (
-                <div className="bloques-agregar-wrap">
-                  <button
-                    type="button"
-                    className="aur-chip"
-                    onClick={() => setShowLibres(v => !v)}
-                  >
-                    <FiPlus size={13} /> {showLibres ? 'Cerrar' : 'Agregar bloques'}
-                  </button>
-                </div>
-              )}
-            </section>
-
-            {/* ── Sección 4: Picker tabulado (libres → fuera → en aplicación) ── */}
-            {showLibres && (libresCount + fueraCount + enAplicacionCount) > 0 && (
-              <section className="aur-section">
-                <div className="aur-section-header">
-                  <h3 className="aur-section-title">Bloques disponibles</h3>
-                  <span className="aur-section-count">
-                    {libresCount + fueraCount + enAplicacionCount} en total
-                  </span>
-                </div>
-
-                {/* 4a — Libres / sin grupo */}
-                {libresCount > 0 && (
-                  <div className="bloque-tier">
-                    <div className="bloque-tier-header">
-                      <span className="bloque-tier-title">Sin grupo</span>
-                      <span className="bloque-tier-count">{libresCount}</span>
-                    </div>
-                    {Object.entries(byLoteLibres).map(([loteNombre, registros]) => (
-                      <div key={loteNombre} className="bloque-lote-group">
-                        <div className="bloque-lote-label">{loteNombre}</div>
-                        {registros.map(s => (
-                          <div key={s.key} className="bloque-checkbox-row">
-                            <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                            <span className="bloque-meta">
-                              {s.plantas?.toLocaleString()} plantas
-                              {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                              {s.variedad ? ` · ${s.variedad}` : ''}
-                            </span>
-                            <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
-                              Agregar
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 4b — Fuera de aplicación */}
-                {fueraCount > 0 && (
-                  <div className="bloque-tier bloque-tier--warn">
-                    <div className="bloque-tier-header">
-                      <span className="bloque-tier-title">Fuera de aplicación</span>
-                      <span className="bloque-tier-count">{fueraCount}</span>
-                    </div>
-                    <p className="bloque-tier-hint">
-                      Pertenecen a otros grupos cuyo paquete ya completó todas las aplicaciones. Pueden moverse aquí sin interrumpir aplicaciones pendientes.
-                    </p>
-                    {Object.entries(byLoteFueraAplicacion).map(([loteNombre, registros]) => (
-                      <div key={loteNombre} className="bloque-lote-group">
-                        <div className="bloque-lote-label">{loteNombre}</div>
-                        {registros.map(s => (
-                          <div key={s.key} className="bloque-checkbox-row">
-                            <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                            <span className="bloque-meta">
-                              {s.plantas?.toLocaleString()} plantas
-                              {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                              {s.variedad ? ` · ${s.variedad}` : ''}
-                              {s.grupoActualNombre ? ` · Grupo ${s.grupoActualNombre}` : ''}
-                              {s.aplicacionesTotales ? ` · ${s.aplicacionesCompletadas}/${s.aplicacionesTotales} aplicaciones` : ''}
-                            </span>
-                            <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
-                              Agregar
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 4c — En aplicación activa (colapsado por default) */}
-                {enAplicacionCount > 0 && (
-                  <div className="bloque-tier bloque-tier--danger">
-                    <button
-                      type="button"
-                      className="bloque-tier-toggle"
-                      onClick={() => setShowEnAplicacion(v => !v)}
-                      aria-expanded={showEnAplicacion}
-                      aria-controls="bloque-tier-en-aplicacion-content"
-                    >
-                      <span className="bloque-tier-title">En aplicación activa</span>
-                      <span className="bloque-tier-count">{enAplicacionCount}</span>
-                      <FiChevronRight
-                        size={14}
-                        className={`bloque-tier-chevron${showEnAplicacion ? ' is-open' : ''}`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    {showEnAplicacion && (
-                      <div id="bloque-tier-en-aplicacion-content">
-                        <p className="bloque-tier-hint">
-                          Pertenecen a otros grupos con paquete pendiente. Moverlos aquí interrumpe las aplicaciones programadas — usar con precaución.
-                        </p>
-                        {Object.entries(byLoteEnAplicacion).map(([loteNombre, registros]) => (
-                          <div key={loteNombre} className="bloque-lote-group">
-                            <div className="bloque-lote-label">{loteNombre}</div>
-                            {registros.map(s => (
-                              <div key={s.key} className="bloque-checkbox-row">
-                                <span className="bloque-nombre">Bloque {s.bloque || '—'}</span>
-                                <span className="bloque-meta">
-                                  {s.plantas?.toLocaleString()} plantas
-                                  {s.areaCalculada ? ` · ${s.areaCalculada.toFixed(4)} ha` : ''}
-                                  {s.variedad ? ` · ${s.variedad}` : ''}
-                                  {s.grupoActualNombre ? ` · Grupo ${s.grupoActualNombre}` : ''}
-                                  {s.aplicacionesTotales ? ` · ${s.aplicacionesCompletadas}/${s.aplicacionesTotales} aplicaciones` : ''}
-                                </span>
-                                <button type="button" className="aur-btn-text" onClick={() => handleAddBloque(s)}>
-                                  Agregar
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            )}
-
-            <div className="aur-form-actions">
-              <button type="button" onClick={resetForm} className="aur-btn-text" disabled={saving}>Cancelar</button>
-              <button type="submit" className="aur-btn-pill" disabled={saving}>
-                <FiPlus size={14} /> {saving ? 'Guardando…' : (isEditing ? 'Actualizar Grupo' : 'Crear Grupo')}
-              </button>
-            </div>
-          </form>
-        </div>
+        <GrupoFormSheet
+          mode={formMode.mode}
+          grupoToEdit={formMode.mode === 'edit' ? formMode.grupo : null}
+          preloadIds={formMode.mode === 'create' ? formMode.preloadIds : null}
+          preloadLoteCode={formMode.mode === 'create' ? formMode.preloadLoteCode : null}
+          apiFetch={apiFetch}
+          siembras={siembras}
+          bloquesDisponibles={bloquesDisponibles}
+          bloquesDisponiblesById={bloquesDisponiblesById}
+          grupos={grupos}
+          packages={packages}
+          monitoreoPackages={monitoreoPackages}
+          showToast={showToast}
+          onSuccess={handleFormSuccess}
+          onCancel={() => setFormMode(null)}
+        />
       );
     }
 
@@ -953,37 +294,15 @@ function GrupoManagement() {
     );
   };
 
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className={`grupo-page${selectedGrupo && !showForm ? ' grupo-page--selected' : ''}${showForm ? ' grupo-page--form' : ''}`}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {catalogModal && (
-        <NuevoCatalogModal
-          field={catalogModal.field}
-          onConfirm={handleCatalogConfirm}
-          onCancel={() => setCatalogModal(null)}
-        />
-      )}
-      {moveModal && (
-        <AuroraConfirmModal
-          danger={moveModal.estado === 'en_aplicacion'}
-          title={`¿Mover este bloque desde "${moveModal.grupoActualNombre}"?`}
-          body={(() => {
-            const ubic = `Bloque ${moveModal.bloque || '—'} de ${moveModal.loteNombre || '—'}`;
-            const apl  = (moveModal.aplicacionesTotales != null && moveModal.aplicacionesTotales > 0)
-              ? ` Lleva ${moveModal.aplicacionesCompletadas}/${moveModal.aplicacionesTotales} aplicaciones del paquete.`
-              : '';
-            const aviso = moveModal.estado === 'en_aplicacion'
-              ? ' El paquete del grupo origen sigue activo: al mover este bloque dejará de recibir las aplicaciones pendientes de ese grupo.'
-              : ' El paquete del grupo origen ya completó sus aplicaciones, así que mover este bloque no interrumpe nada en curso.';
-            return `${ubic} pertenece al grupo "${moveModal.grupoActualNombre}".${apl}${aviso} La transición quedará registrada en el historial.`;
-          })()}
-          confirmLabel={moveModal.estado === 'en_aplicacion' ? 'Mover de todas formas' : 'Mover bloque'}
-          onConfirm={confirmMoveBloque}
-          onCancel={() => setMoveModal(null)}
-        />
-      )}
+      {/* catalogModal y moveModal viven dentro de GrupoFormSheet — son
+          modales anidados del flujo de crear/editar. */}
+
       {confirmModal && (
         <AuroraConfirmModal
           danger
