@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { multiSort } from '../lib/lotes-helpers';
-import { consolidateSiembrasByBloque } from '../lib/grupo-bloques-helpers';
+import { consolidateSiembrasByBloque, getKgPorPlanta } from '../lib/grupo-bloques-helpers';
 
 /**
  * useGrupoBloqueTable — state + derivaciones de la tabla de bloques del hub
@@ -20,11 +20,17 @@ import { consolidateSiembrasByBloque } from '../lib/grupo-bloques-helpers';
  *                    vacío sin reventar.
  *   siembrasById  — Map<id, siembra> indexado por id. El padre ya lo
  *                    mantiene memoizado a nivel página (lookup O(1)).
+ *   empresaConfig — config de la finca; usado para resolver kgPorPlanta
+ *                    con fallback 1.6. Opcional — si no llega usa el default.
  *
  * Returns un objeto destructurable con todo lo necesario para renderizar
  * la tabla, su footer, los popovers de filtro y el menú de columnas.
  */
-export default function useGrupoBloqueTable({ selectedGrupo, siembrasById }) {
+export default function useGrupoBloqueTable({ selectedGrupo, siembrasById, empresaConfig }) {
+  // Override por finca con fallback al 1.6 histórico. Resolvemos una sola
+  // vez por render para que la columna y el footer no diverjan.
+  const kgPorPlanta = getKgPorPlanta(empresaConfig);
+
   const [sorts, setSorts] = useState([{ field: 'loteNombre', dir: 'asc' }]);
   const [colFilters, setColFiltersInternal] = useState({});
   const [filterPop, setFilterPop] = useState(null);
@@ -42,15 +48,15 @@ export default function useGrupoBloqueTable({ selectedGrupo, siembrasById }) {
   }, [selectedGrupo, siembrasById]);
 
   // Normaliza con campos derivados que la tabla muestra/ordena/filtra
-  // (ha numérico, material string, kg = plantas * 1.6).
+  // (ha numérico, material string, kg = plantas * kgPorPlanta).
   const normalizedRows = useMemo(() =>
     selectedBloques.map(b => ({
       ...b,
       ha:       parseFloat(b.areaCalculada) || 0,
       material: b.materialNombre || b.variedad || '',
-      kg:       (b.plantas || 0) * 1.6,
+      kg:       (b.plantas || 0) * kgPorPlanta,
     })),
-  [selectedBloques]);
+  [selectedBloques, kgPorPlanta]);
 
   // Aplica los filtros activos. Soporta texto (includes case-insensitive)
   // y rango numérico (from / to opcionales). Ignora filtros vacíos.
@@ -89,7 +95,7 @@ export default function useGrupoBloqueTable({ selectedGrupo, siembrasById }) {
   // Totales del subset que el usuario está viendo después de filtrar.
   const filtTotalHa      = sortedRows.reduce((s, b) => s + (b.ha || 0), 0);
   const filtTotalPlantas = sortedRows.reduce((s, b) => s + (b.plantas || 0), 0);
-  const filtTotalKg      = filtTotalPlantas * 1.6;
+  const filtTotalKg      = filtTotalPlantas * kgPorPlanta;
 
   // setColFilter con auto-clear si el filtro queda vacío. Mantiene
   // colFilters libre de entradas no-op que ensucien el state.

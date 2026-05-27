@@ -61,7 +61,7 @@ export default function GrupoHub({
     filterPop, setFilterPop,
     hiddenCols, toggleHiddenCol, resetHiddenCols,
     colMenu, openColMenu, closeColMenu,
-  } = useGrupoBloqueTable({ selectedGrupo: grupo, siembrasById });
+  } = useGrupoBloqueTable({ selectedGrupo: grupo, siembrasById, empresaConfig });
 
   const fechaCosecha = calcFechaCosecha(grupo, empresaConfig);
 

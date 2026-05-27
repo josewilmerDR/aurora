@@ -118,6 +118,20 @@ export function consolidateBloquesDisponibles(bloquesDisponibles) {
   });
 }
 
+// ── Kg estimados por planta ──────────────────────────────────────────────
+// Default 1.6 kg por planta. Cada finca puede sobrescribirlo desde
+// empresaConfig.kgPorPlanta en /config (Parameters > Cultivo). Antes el
+// 1.6 vivía hardcoded en 4 sitios (tabla del hub, footer del hub, preview
+// totales, preview por fila) — un ajuste de promedio forzaba a tocar todo
+// sin tipo compartido. Nota: CosechaProyeccion usa kgPorPlanta /
+// kgPorPlantaII / kgPorPlantaIII según el tipo de cosecha; acá usamos
+// solo el valor base porque la tabla muestra una proyección rápida sin
+// distinguir cosecha. Si en algún momento se quiere refinar por cosecha,
+// el call-site queda centralizado en un solo helper.
+export function getKgPorPlanta(config) {
+  return config?.kgPorPlanta ?? 1.6;
+}
+
 // ── Fecha estimada de cosecha ────────────────────────────────────────────
 // Calcula sumando días al fechaCreacion según la etapa/cosecha del grupo.
 // Los días por defecto (150 post-forza, 215 cosecha II, 250 cosecha I) son
