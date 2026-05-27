@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
@@ -15,6 +16,13 @@ const router = Router();
 // "both" case.
 router.get('/api/block-transitions', authenticate, async (req, res) => {
   try {
+    // Simétrico con el resto del dominio `grupos` (gated a encargado+). Sin este
+    // gate, cualquier autenticado podía leer el historial completo de moves de
+    // bloques: quién movió qué entre qué grupos, cuándo, con metadata de origen
+    // y destino.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read block transitions.', 403);
+    }
     const { grupoId } = req.query;
     const direction = (req.query.direction || 'both').toLowerCase();
     const rawLimit = parseInt(req.query.limit, 10);
