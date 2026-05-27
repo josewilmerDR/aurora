@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import '../styles/grupo-management.css';
-import { FiPlus, FiX, FiAlertTriangle, FiRefreshCw, FiCheck, FiChevronRight } from 'react-icons/fi';
+import { FiPlus, FiX, FiAlertTriangle, FiRefreshCw, FiCheck, FiChevronRight, FiLayers } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -9,6 +9,7 @@ import GrupoHub from '../components/GrupoHub';
 import GrupoFormSheet from '../components/GrupoFormSheet';
 import GrupoPreviewModal from '../components/GrupoPreviewModal';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
+import EmptyState from '../../../components/ui/EmptyState';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
@@ -524,10 +525,17 @@ function GrupoManagement() {
             // falso, no sabemos si la finca está vacía o si la red murió.
             // El banner de arriba ya explica qué pasó y tiene Reintentar.
             loadError ? null : (
-              <div className="grupo-cta">
-                <div className="grupo-cta-icon"><FiPlus size={24} /></div>
-                <p className="grupo-cta-title">Sin grupos creados</p>
-              </div>
+              <EmptyState
+                variant="compact"
+                icon={FiLayers}
+                title="Aún no hay grupos"
+                subtitle="Agrupá los bloques de siembra cerrados para gestionar aplicaciones, cosechas y costos de producción."
+                action={
+                  <button type="button" className="aur-btn-pill" onClick={handleNewGrupo}>
+                    <FiPlus size={14} /> Crear primer grupo
+                  </button>
+                }
+              />
             )
           ) : (
             <ul className="lote-list">
