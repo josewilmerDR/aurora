@@ -156,6 +156,18 @@ export default function AuroraDataTable({
   // Reset page si la fuente externa cambia.
   useEffect(() => { setPage(1); }, [resetPaginationKey]);
 
+  // Cerrar el filter popover si el usuario scrollea cualquier contenedor
+  // (capture: true para captar scroll de descendants — las tablas anchas
+  // viven dentro de `.aur-table-wrap` con scroll horizontal propio). Sin
+  // esto, el popover queda flotando sobre celdas que ya no son las suyas
+  // tras un scroll. Punto #11 audit Historial.
+  useEffect(() => {
+    if (!filterPopover) return;
+    const close = () => setFilterPopover(null);
+    window.addEventListener('scroll', close, true);
+    return () => window.removeEventListener('scroll', close, true);
+  }, [filterPopover]);
+
   // Permite al parent reaccionar a la data filtrada+ordenada (ej. stats arriba
   // de la tabla que deben reflejar filtros de columna, export/preview que
   // respetan la vista actual).

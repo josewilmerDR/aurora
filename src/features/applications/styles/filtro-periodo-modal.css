@@ -1,0 +1,45 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FiltroPeriodoModal — CSS local al componente (antes vivía en cedulas.css,
+   movido acá para que cualquier consumer del modal — CedulasAplicacion,
+   HistorialAplicaciones, etc. — herede estos estilos sin importar todo
+   cedulas.css).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ca-periodo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+.ca-periodo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ca-periodo-field > label {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* Selector opcional "Filtrar por" (Historial lo usa para elegir el campo de
+   fecha base — programada / cosecha / aplicación / edición). Se renderiza
+   ocupando todo el ancho arriba de los inputs Desde/Hasta. */
+.ca-periodo-field--full {
+  grid-column: 1 / -1;
+}
+
+/* Contador live "X cédulas en el periodo / total". Texto sutil, sin
+   text-transform uppercase del .aur-field-hint base — leer "12 CÉDULAS"
+   en gritón rompe la sensación de feedback suave. Punto #17 audit. */
+.ca-periodo-count {
+  margin-right: auto;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.78rem;
+  opacity: 1;
+  color: var(--aur-text-2, var(--aurora-light));
+}

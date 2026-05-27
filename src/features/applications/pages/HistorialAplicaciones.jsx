@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiFilter, FiX, FiArrowRight, FiDownload } from 'react-icons/fi';
+import { FiX, FiArrowRight, FiDownload, FiSearch, FiClipboard, FiPlusCircle } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
 import AuroraDataTable from '../../../components/AuroraDataTable';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import FilterButton from '../../../components/ui/FilterButton';
+import FiltroPeriodoModal from '../components/FiltroPeriodoModal';
 import '../styles/historial.css';
 
 const DATE_FIELDS = [
@@ -347,6 +348,11 @@ function HistorialAplicaciones() {
   const [filterTo,        setFilterTo]        = useState('');
   const [mostrarFiltros,  setMostrarFiltros]  = useState(false);
 
+  // Búsqueda libre sobre el listing. Filtra antes que el rango de fechas para
+  // que el contador "X en el periodo" del modal refleje también el search.
+  // No persiste — cada visita arranca limpia. Punto #8 audit.
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Observaciones con toggle "ver más" — UI puro de celda, no participa en
   // sort/filter/export. Las keys son `${rowKey}-m|a`.
   const [expandedObs, setExpandedObs] = useState(() => new Set());
@@ -532,11 +538,29 @@ function HistorialAplicaciones() {
     });
   }, [cedulas]);
 
-  // Pre-filtro por rango global de fechas (header). El resultado es el `data`
-  // que entra a AuroraDataTable; sus filtros de columna se aplican encima.
+  // Pipeline de filtrado del header (antes de pasar a AuroraDataTable):
+  //   flattened → searchFiltered → periodFiltered → AuroraDataTable
+  // Separar search de period mantiene el contador live del FiltroPeriodoModal
+  // ("X filas en el periodo") respondiendo al search también; el orden
+  // search → period es más natural: primero acotás qué buscás, luego filtrás
+  // por rango.
+  const searchFiltered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return flattened;
+    return flattened.filter(row =>
+      (row.consecutivo        || '').toLowerCase().includes(q) ||
+      (row.snap_activityName  || '').toLowerCase().includes(q) ||
+      (row.snap_sourceName    || '').toLowerCase().includes(q) ||
+      (row._lotesStr          || '').toLowerCase().includes(q) ||
+      (row._bloquesStr        || '').toLowerCase().includes(q) ||
+      (row._prodNombre        || '').toLowerCase().includes(q) ||
+      (row.operario           || '').toLowerCase().includes(q)
+    );
+  }, [flattened, searchQuery]);
+
   const periodFiltered = useMemo(() => {
-    if (!filterFrom && !filterTo) return flattened;
-    return flattened.filter(row => {
+    if (!filterFrom && !filterTo) return searchFiltered;
+    return searchFiltered.filter(row => {
       const raw = row[filterDateField];
       if (!raw) return false;
       const d = new Date(raw);
@@ -544,7 +568,7 @@ function HistorialAplicaciones() {
       if (filterTo   && d > new Date(filterTo   + 'T23:59:59')) return false;
       return true;
     });
-  }, [flattened, filterDateField, filterFrom, filterTo]);
+  }, [searchFiltered, filterDateField, filterFrom, filterTo]);
 
   // getColVal alimenta sort + filter de AuroraDataTable. Para text devolvemos
   // lowercase porque el filter del componente sólo lowercase del input, no del
@@ -608,17 +632,32 @@ function HistorialAplicaciones() {
     XLSX.writeFile(wb, `historial-aplicaciones_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const clearPeriodFilter = () => { setFilterFrom(''); setFilterTo(''); };
   const hasPeriodFilter = !!(filterFrom || filterTo);
   const hasData = periodFiltered.length > 0;
 
-  return (
-    <>
-      {/* ── Spinner de carga ── */}
-      {loading && <div className="historial-page-loading" />}
+  // Empty-state diferenciado: cuando el dataset entero está vacío (cédulas
+  // === 0) mostramos un EmptyState completo con icono + subtitle + CTA al
+  // listing de cédulas activas. Cuando hay datos pero los filtros descartan
+  // todo (search/periodo/columna), un compact sin icon. Punto #10 audit.
+  const emptyProps = cedulas.length === 0
+    ? {
+        emptyIcon: FiClipboard,
+        emptyText: 'Aún no hay registros que mostrar',
+        emptySubtitle: 'Las cédulas aparecen aquí al marcarse como aplicadas en campo desde Cédulas pendientes.',
+        emptyAction: (
+          <Link to="/aplicaciones/cedulas" className="aur-btn-pill">
+            <FiPlusCircle size={14} /> Ir a cédulas pendientes
+          </Link>
+        ),
+      }
+    : {
+        emptyIcon: null,
+        emptyText: searchQuery.trim()
+          ? `No hay resultados para «${searchQuery.trim()}».`
+          : 'Sin resultados para los filtros aplicados.',
+      };
 
-      {/* ── Contenido principal ── */}
-      {!loading && (
+  return (
     <div className="aur-sheet ha-page">
 
       <header className="aur-sheet-header">
@@ -632,12 +671,13 @@ function HistorialAplicaciones() {
           <FilterButton
             active={hasPeriodFilter}
             onClick={() => setMostrarFiltros(true)}
+            disabled={loading}
           />
           <button
             type="button"
             className="aur-chip aur-chip--ghost ha-btn-export"
             onClick={exportXLSX}
-            disabled={!hasData}
+            disabled={loading || !hasData}
             title={hasData ? 'Descargar Excel con los registros filtrados' : 'Sin registros para exportar'}
             aria-label="Descargar Excel"
           >
@@ -653,125 +693,85 @@ function HistorialAplicaciones() {
         </div>
       </header>
 
-      <AuroraDataTable
-        columns={ALL_COLUMNS}
-        data={periodFiltered}
-        getColVal={getColVal}
-        initialSort={{ field: 'aplicadaAt', dir: 'desc' }}
-        firstClickDir="desc"
-        visibleCols={visibleColsRecord}
-        onToggleVisibleCol={toggleColumn}
-        renderRow={renderRow}
-        rowClassName={(r) => r._prodCambio ? 'historial-row-changed' : ''}
-        rowKey={(r) => r._rowKey}
-        pageSize={50}
-        // Resetea pagination cuando cambia el filtro de periodo del header.
-        // Sin esto, un usuario en pagina 3 que aplica filtro corto puede no
-        // ver la transición.
-        resetPaginationKey={`${filterDateField}|${filterFrom}|${filterTo}`}
-        tableClassName="ha-table"
-        wrapClassName="ha-table-wrap"
-        emptyText={
-          cedulas.length === 0
-            ? 'Aún no hay registros. Las cédulas aparecerán aquí al marcarse como aplicadas en campo desde "Cédulas pendientes".'
-            : 'Sin resultados para los filtros aplicados.'
-        }
-        emptyIcon={null}
-        onDisplayDataChange={setDisplayData}
-      />
+      {/* Loading: rendereamos header siempre (con buttons disabled) y solo
+          la zona de datos cae en skeleton. Da contexto inmediato al usuario
+          y evita el "spinner sobre fondo vacío" antiguo. Punto #12 audit. */}
+      {loading ? (
+        <div className="ha-loading-wrap">
+          <AuroraSkeleton variant="row" count={8} label="Cargando historial…" />
+        </div>
+      ) : (
+        <>
+          {/* Búsqueda libre — aparece solo si hay dataset (sin datos no tiene
+              sentido el input). Filtra por consecutivo, actividad, grupo,
+              lote, bloques, producto, operario. Punto #8 audit. */}
+          {cedulas.length > 0 && (
+            <div className="ha-list-search">
+              <FiSearch size={13} aria-hidden="true" />
+              <input
+                type="search"
+                className="ha-list-search-input"
+                placeholder="Buscar por consecutivo, actividad, lote, grupo, producto u operario…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                aria-label="Buscar en historial"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="ha-list-search-clear"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Limpiar búsqueda"
+                >
+                  <FiX size={12} />
+                </button>
+              )}
+            </div>
+          )}
 
-    </div>
+          <AuroraDataTable
+            columns={ALL_COLUMNS}
+            data={periodFiltered}
+            getColVal={getColVal}
+            initialSort={{ field: 'aplicadaAt', dir: 'desc' }}
+            firstClickDir="desc"
+            visibleCols={visibleColsRecord}
+            onToggleVisibleCol={toggleColumn}
+            renderRow={renderRow}
+            rowClassName={(r) => r._prodCambio ? 'historial-row-changed' : ''}
+            rowKey={(r) => r._rowKey}
+            pageSize={50}
+            // Resetea pagination cuando cambia search o el filtro de periodo
+            // del header — sin esto un usuario en pagina 3 que aplica filtro
+            // corto puede no ver la transición.
+            resetPaginationKey={`${filterDateField}|${filterFrom}|${filterTo}|${searchQuery}`}
+            tableClassName="ha-table"
+            wrapClassName="ha-table-wrap"
+            {...emptyProps}
+            onDisplayDataChange={setDisplayData}
+          />
+        </>
       )}
 
-    {/* ── Filtro de Periodo Modal ── */}
-    {mostrarFiltros && createPortal(
-      <div
-        className="aur-modal-backdrop"
-        onClick={() => setMostrarFiltros(false)}
-      >
-        <div
-          className="aur-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ha-filtro-modal-title"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="aur-modal-header">
-            <span className="aur-modal-icon">
-              <FiFilter size={16} />
-            </span>
-            <h3 className="aur-modal-title" id="ha-filtro-modal-title">
-              Filtrar por periodo
-            </h3>
-            <button
-              type="button"
-              className="aur-icon-btn aur-modal-close"
-              onClick={() => setMostrarFiltros(false)}
-              aria-label="Cerrar"
-            >
-              <FiX size={16} />
-            </button>
-          </div>
-          <div className="aur-modal-content">
-            <div className="ha-filtro-grid">
-              <div className="ha-filtro-field ha-filtro-field--full">
-                <label htmlFor="ha-field">Filtrar por</label>
-                <select
-                  id="ha-field"
-                  className="aur-select"
-                  value={filterDateField}
-                  onChange={e => setFilterDateField(e.target.value)}
-                >
-                  {DATE_FIELDS.map(f => (
-                    <option key={f.value} value={f.value}>{f.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="ha-filtro-field">
-                <label htmlFor="ha-from">Desde</label>
-                <input
-                  id="ha-from"
-                  type="date"
-                  className="aur-input"
-                  value={filterFrom}
-                  onChange={e => setFilterFrom(e.target.value)}
-                />
-              </div>
-              <div className="ha-filtro-field">
-                <label htmlFor="ha-to">Hasta</label>
-                <input
-                  id="ha-to"
-                  type="date"
-                  className="aur-input"
-                  value={filterTo}
-                  onChange={e => setFilterTo(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="aur-modal-actions">
-            {hasPeriodFilter && (
-              <button
-                type="button"
-                className="aur-chip aur-chip--ghost"
-                onClick={clearPeriodFilter}
-              >
-                <FiX size={12} /> Limpiar
-              </button>
-            )}
-            <button
-              type="button"
-              className="aur-btn-pill"
-              onClick={() => setMostrarFiltros(false)}
-            >
-              Listo
-            </button>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )}
-    </>
+      {/* Filtro de Periodo — componente compartido con CedulasAplicacion.
+          Tiene useEscapeClose + live count integrados. Le pasamos los date
+          fields para que renderice el selector "Filtrar por" arriba de los
+          inputs (Historial filtra por uno de varios campos de fecha). */}
+      {mostrarFiltros && (
+        <FiltroPeriodoModal
+          dateFrom={filterFrom}
+          setDateFrom={setFilterFrom}
+          dateTo={filterTo}
+          setDateTo={setFilterTo}
+          matchCount={periodFiltered.length}
+          recordWord="fila"
+          dateField={filterDateField}
+          setDateField={setFilterDateField}
+          dateFields={DATE_FIELDS}
+          onClose={() => setMostrarFiltros(false)}
+        />
+      )}
+    </div>
   );
 }
 
