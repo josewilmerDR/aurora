@@ -95,23 +95,6 @@
 }
 .grupo-load-error-retry:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ── Page empty state ─────────────────────────────────────────────────────── */
-.grupo-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 60vh;
-  color: rgba(230, 242, 255, 0.3);
-  text-align: center;
-}
-.grupo-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.45);
-  margin: 0;
-}
-
 /* ── Layout ──────────────────────────────────────────────────────────────── */
 .grupo-page {
   display: flex;
