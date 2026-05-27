@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiShare2, FiPrinter } from 'react-icons/fi';
 import { formatDateLong, tsToDate } from '../lib/lotes-helpers';
-import { consolidateSiembrasByBloque, calcFechaCosecha } from '../lib/grupo-bloques-helpers';
+import { consolidateSiembrasByBloque, calcFechaCosecha, getKgPorPlanta } from '../lib/grupo-bloques-helpers';
 
 // Las clases gp-preview-* / gp-doc-* viven históricamente en
 // grupo-management.css (de acá nació el patrón antes de que Lotes lo
@@ -50,7 +50,8 @@ export default function GrupoPreviewModal({
 
   const totalHa      = bloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
   const totalPlantas = bloques.reduce((s, b) => s + (b.plantas || 0), 0);
-  const totalKg      = totalPlantas * 1.6;
+  const kgPorPlanta  = getKgPorPlanta(empresaConfig);
+  const totalKg      = totalPlantas * kgPorPlanta;
 
   const handleCompartir = async () => {
     if (!docRef.current) return;
@@ -164,7 +165,7 @@ export default function GrupoPreviewModal({
                   <td className="gp-col-num">{b.areaCalculada ?? '—'}</td>
                   <td className="gp-col-num">{b.plantas?.toLocaleString() ?? '—'}</td>
                   <td>{b.materialNombre || b.variedad || '—'}</td>
-                  <td className="gp-col-num">{b.plantas ? (b.plantas * 1.6).toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>
+                  <td className="gp-col-num">{b.plantas ? (b.plantas * kgPorPlanta).toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>
                 </tr>
               ))}
             </tbody>
