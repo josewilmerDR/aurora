@@ -93,15 +93,24 @@ export default function GrupoHub({
         <div className="hub-title-block">
           <h2 className="hub-lote-code">{grupo.nombreGrupo}</h2>
         </div>
+        {/* En mobile chico (<480px) los 3 botones quedan como íconos
+           (los aria-labels los identifican para screen readers). De
+           ahí en adelante mostramos la etiqueta visual al lado del
+           ícono — sin esto, en touch el usuario tenía que adivinar
+           cuál era el rojo de "eliminar" sin más feedback que el
+           glyph + color. */}
         <div className="hub-header-actions">
-          <button onClick={() => onPreview(grupo)} className="aur-icon-btn" title="Vista previa / PDF" aria-label="Vista previa / PDF del grupo">
+          <button onClick={() => onPreview(grupo)} className="aur-icon-btn hub-action-btn" title="Vista previa / PDF" aria-label="Vista previa / PDF del grupo">
             <FiEye size={16} aria-hidden="true" />
+            <span className="hub-action-label">Vista previa</span>
           </button>
-          <button onClick={() => onEdit(grupo)} className="aur-icon-btn" title="Editar" aria-label="Editar grupo">
+          <button onClick={() => onEdit(grupo)} className="aur-icon-btn hub-action-btn" title="Editar" aria-label="Editar grupo">
             <FiEdit size={16} aria-hidden="true" />
+            <span className="hub-action-label">Editar</span>
           </button>
-          <button onClick={() => onDelete(grupo)} className="aur-icon-btn aur-icon-btn--danger" title="Eliminar" aria-label="Eliminar grupo">
+          <button onClick={() => onDelete(grupo)} className="aur-icon-btn aur-icon-btn--danger hub-action-btn" title="Eliminar" aria-label="Eliminar grupo">
             <FiTrash2 size={16} aria-hidden="true" />
+            <span className="hub-action-label">Eliminar</span>
           </button>
         </div>
       </div>

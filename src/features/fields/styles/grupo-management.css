@@ -408,6 +408,33 @@
    silenciosamente cuando esta hoja no se cargaba. */
 
 /* ── Hub del grupo ───────────────────────────────────────────────────────── */
+
+/* Botones de acción del header (vista previa / editar / eliminar). Por
+   defecto mantienen el shape cuadrado de .aur-icon-btn (30x30) — en
+   viewports muy chicos el título y los 3 íconos comparten una sola línea.
+   A partir de 480px (aproximadamente landscape de un teléfono y todo
+   tablet/desktop) el botón se expande y aparece la etiqueta visible al
+   lado del ícono, así el usuario no tiene que adivinar cuál es cuál en
+   touch (los aria-labels los identifican para screen readers pero no
+   resuelven el caso visual). */
+.hub-action-label {
+  display: none;
+}
+
+@media (min-width: 481px) {
+  .hub-header-actions .hub-action-btn {
+    width: auto;
+    padding: 0 12px;
+    gap: 6px;
+  }
+  .hub-action-label {
+    display: inline;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1;
+  }
+}
+
 .grupo-hub-back {
   display: inline-flex;
   align-items: center;
