@@ -3,11 +3,10 @@ import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiShare2, FiPrinter } from 'react-icons/fi';
 import { formatDateLong, tsToDate } from '../lib/lotes-helpers';
 import { consolidateSiembrasByBloque, calcFechaCosecha, getKgPorPlanta } from '../lib/grupo-bloques-helpers';
-
-// Las clases gp-preview-* / gp-doc-* viven históricamente en
-// grupo-management.css (de acá nació el patrón antes de que Lotes lo
-// adoptara). Mientras no se mueva a un stylesheet compartido, este
-// componente depende de que la página padre haya importado ese CSS.
+// Chrome del modal + estilos del documento imprimible. Compartido con
+// LotePreviewModal. Importado acá para que la dependencia viaje con el
+// componente, no con la página que lo monta.
+import '../styles/document-preview.css';
 
 /**
  * GrupoPreviewModal — vista imprimible / PDF de un grupo y sus bloques.

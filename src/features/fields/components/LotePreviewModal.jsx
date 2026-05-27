@@ -2,14 +2,13 @@ import { useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiShare2, FiPrinter } from 'react-icons/fi';
 import { formatDateLong } from '../lib/lotes-helpers';
-// Las clases `.gp-preview-*` y `.gp-doc-*` viven en grupo-management.css
-// — históricamente la vista previa nació en la página de Grupos y el modal
-// de Lotes la heredó cuando aún era inline. Al extraer este componente
-// (PR #676) la CSS quedó en su archivo de origen; en la página de Lotes
-// se rompía silenciosamente porque ese stylesheet no se cargaba. Lo
-// importamos acá para que la dependencia viaje con el componente.
-// TODO: mover el bloque `.gp-*` a un stylesheet compartido propio.
-import '../styles/grupo-management.css';
+// Chrome del modal + estilos del documento imprimible. Compartido con
+// GrupoPreviewModal. Importado acá para que la dependencia viaje con el
+// componente, no con la página que lo monta — antes este modal heredaba
+// el CSS desde grupo-management.css y se rompía en silencio si esa hoja
+// no estaba cargada (PR #676 lo arregló parchando el import; el #26 del
+// audit cerró el TODO moviendo el bloque a su archivo propio).
+import '../styles/document-preview.css';
 
 /**
  * LotePreviewModal — vista imprimible / PDF de un lote y sus bloques.
