@@ -539,21 +539,33 @@ function GrupoManagement() {
             )
           ) : (
             <ul className="lote-list">
-              {grupos.map(grupo => (
-                <li
-                  key={grupo.id}
-                  className={`lote-list-item${selectedGrupo?.id === grupo.id && !showForm ? ' active' : ''}`}
-                  onClick={() => selectedGrupo?.id === grupo.id && !showForm ? setSelectedGrupo(null) : handleSelectGrupo(grupo)}
-                >
-                  <div className="lote-list-info">
-                    <span className="lote-list-code">{grupo.nombreGrupo}</span>
-                    {(grupo.cosecha || grupo.etapa) && (
-                      <span className="lote-list-name">{[grupo.cosecha, grupo.etapa].filter(Boolean).join(' · ')}</span>
-                    )}
-                  </div>
-                  <FiChevronRight size={14} className="lote-list-arrow" />
-                </li>
-              ))}
+              {grupos.map(grupo => {
+                const isActive = selectedGrupo?.id === grupo.id && !showForm;
+                return (
+                  <li
+                    key={grupo.id}
+                    className={`lote-list-item${isActive ? ' active' : ''}`}
+                    // Click en la card activa = no-op. Antes toggleaba off y
+                    // los usuarios clickeaban "ver más detalle" pensando que
+                    // entraban, pero el panel se cerraba sin warning. El
+                    // affordance claro para volver a la lista es el botón
+                    // "Todos los grupos" del header del hub. El carousel
+                    // sticky en mobile sí mantiene el toggle porque ahí la
+                    // burbuja activa es el único punto donde el gesto "cerrar"
+                    // tiene sentido.
+                    onClick={() => { if (!isActive) handleSelectGrupo(grupo); }}
+                    aria-current={isActive ? 'true' : undefined}
+                  >
+                    <div className="lote-list-info">
+                      <span className="lote-list-code">{grupo.nombreGrupo}</span>
+                      {(grupo.cosecha || grupo.etapa) && (
+                        <span className="lote-list-name">{[grupo.cosecha, grupo.etapa].filter(Boolean).join(' · ')}</span>
+                      )}
+                    </div>
+                    <FiChevronRight size={14} className="lote-list-arrow" />
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>}
