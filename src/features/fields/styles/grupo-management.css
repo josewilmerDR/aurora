@@ -200,6 +200,76 @@
   margin-top: 8px;
 }
 
+/* ── Listado de aplicaciones pendientes (moveModal del FormSheet) ────────
+   Aparece al mover un bloque desde un grupo "en aplicación activa".
+   Detalla qué tareas quedarán sin ejecutar para que el usuario decida
+   con info concreta, no con copy genérico. */
+.grupo-move-pending {
+  margin: 0 22px 14px 22px;
+}
+
+.grupo-move-pending-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin: 0 0 6px 0;
+}
+
+.grupo-move-pending-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--aurora-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.18);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.grupo-move-pending-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  border-bottom: 1px solid var(--aurora-border);
+}
+
+.grupo-move-pending-list li:last-child { border-bottom: none; }
+
+.grupo-move-pending-day {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--aurora-light);
+  opacity: 0.45;
+  text-transform: uppercase;
+  min-width: 48px;
+}
+
+.grupo-move-pending-name { flex: 1; }
+
+.grupo-move-pending-date {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: var(--aurora-light);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.grupo-move-pending-hint {
+  font-size: 0.78rem;
+  opacity: 0.55;
+  font-style: italic;
+  margin: 0 22px 14px 22px;
+}
+
 /* ── Bloques selector: estados vacíos y wrappers de agregar ──────────────── */
 .bloques-empty {
   padding: 14px 4px;

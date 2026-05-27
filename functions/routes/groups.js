@@ -453,6 +453,66 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
     }
 });
 
+// Listado de aplicaciones pendientes del grupo — usado por el moveModal del
+// form de Grupos cuando se mueve un bloque desde un grupo "en aplicación
+// activa". Permite mostrar el impacto concreto ("Quedarán pendientes:
+// APL-4 (12 mar), APL-5 (19 mar)…") en vez del genérico "dejará de recibir
+// las aplicaciones pendientes". Filtra tasks tipo REMINDER_DUE_DAY con
+// status='pending', ordenadas por executeAt ascendente. Devuelve también
+// los conteos completed/total por contexto, aunque el frontend ya los
+// tiene de /api/siembras/disponibles, así el modal no tiene que cruzar
+// dos fuentes.
+router.get('/api/grupos/:id/aplicaciones-pendientes', authenticate, async (req, res) => {
+    try {
+        if (!hasMinRoleBE(req.userRole, 'encargado')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read grupo applications.', 403);
+        }
+        const { id } = req.params;
+        const ownership = await verifyOwnership('grupos', id, req.fincaId);
+        if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+
+        const tasksSnap = await db.collection('scheduled_tasks')
+            .where('grupoId', '==', id)
+            .where('type', '==', 'REMINDER_DUE_DAY')
+            .get();
+
+        let completadas = 0;
+        const pendientes = [];
+        for (const doc of tasksSnap.docs) {
+            const d = doc.data();
+            if (d.status === 'completed_by_user' || d.status === 'skipped') {
+                completadas++;
+                continue;
+            }
+            if (d.status !== 'pending') continue;
+            const activity = d.activity || {};
+            pendientes.push({
+                id: doc.id,
+                activityName: activity.name || 'Aplicación',
+                day: typeof activity.day === 'number' || typeof activity.day === 'string'
+                    ? activity.day
+                    : null,
+                executeAt: d.executeAt?.toDate?.()?.toISOString() ?? null,
+            });
+        }
+        // Orden cronológico: el usuario quiere ver primero lo que vence antes.
+        pendientes.sort((a, b) => {
+            if (!a.executeAt) return 1;
+            if (!b.executeAt) return -1;
+            return a.executeAt.localeCompare(b.executeAt);
+        });
+
+        res.json({
+            pendientes,
+            completadas,
+            totales: completadas + pendientes.length,
+        });
+    } catch (error) {
+        console.error('Error fetching aplicaciones pendientes:', error);
+        sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch pending applications.', 500);
+    }
+});
+
 router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {

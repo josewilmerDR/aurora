@@ -16,6 +16,62 @@ const EMPTY_FORM = {
   paqueteMuestreoId: '',
 };
 
+// Formatea una fecha ISO a "12 mar" para el listado de aplicaciones
+// pendientes en el moveModal. Si el ISO viene null, devuelve "—".
+const formatPendienteDate = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+};
+
+// Sub-componente del moveModal. Renderea el detalle de aplicaciones
+// pendientes del grupo origen — el usuario ve qué exactamente quedará
+// sin ejecutar antes de confirmar el move. Maneja tres estados:
+//   - loading       → "Cargando…" mientras llega el fetch.
+//   - pendientes=[] → mensaje neutro (no debería pasar para estado
+//                     en_aplicacion, pero blindamos por si la lista
+//                     llegó vacía por race condition).
+//   - pendientes>0  → lista ordenada por executeAt asc, "Día N — Nombre
+//                     (fecha)".
+function PendingAplicacionesList({ loading, pendientes }) {
+  if (loading) {
+    return (
+      <p className="grupo-move-pending-hint" role="status" aria-live="polite">
+        Cargando aplicaciones pendientes…
+      </p>
+    );
+  }
+  if (!pendientes) {
+    // Fetch falló — degradado silencioso: el usuario igual ve el texto
+    // del body con el conteo total, solo pierde el detalle.
+    return null;
+  }
+  if (pendientes.length === 0) {
+    return (
+      <p className="grupo-move-pending-hint">
+        No hay aplicaciones pendientes registradas para este grupo.
+      </p>
+    );
+  }
+  return (
+    <div className="grupo-move-pending">
+      <p className="grupo-move-pending-title">
+        Quedarán sin ejecutar ({pendientes.length}):
+      </p>
+      <ul className="grupo-move-pending-list">
+        {pendientes.map(p => (
+          <li key={p.id}>
+            {p.day != null && <span className="grupo-move-pending-day">Día {p.day}</span>}
+            <span className="grupo-move-pending-name">{p.activityName}</span>
+            <span className="grupo-move-pending-date">{formatPendienteDate(p.executeAt)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 const grupoToForm = (grupo) => ({
   id:                grupo.id,
   nombreGrupo:       grupo.nombreGrupo  || '',
@@ -269,13 +325,37 @@ export default function GrupoFormSheet({
     });
 
   // Si el bloque pertenece a otro grupo (y no es uno de los del grupo en
-  // edición), abrimos modal de confirmación. Si no, agregamos directo.
+  // edición), abrimos modal de confirmación. Para bloques "en aplicación
+  // activa" disparamos un fetch lazy con el detalle de aplicaciones
+  // pendientes — el usuario ve qué exactamente quedará sin ejecutar antes
+  // de confirmar el move.
   const handleAddBloque = (bloque) => {
-    if (bloque.grupoActualId && bloque.grupoActualId !== editingGrupoId) {
-      setMoveModal(bloque);
+    if (!bloque.grupoActualId || bloque.grupoActualId === editingGrupoId) {
+      addBloque(bloque.ids);
       return;
     }
-    addBloque(bloque.ids);
+    if (bloque.estado === 'en_aplicacion') {
+      // Mostramos el modal con loading inmediatamente para evitar el delay
+      // visual entre click y aparición. Si el fetch falla, el modal queda
+      // sin la lista pero el flujo no se rompe (degraded gracefully).
+      setMoveModal({ ...bloque, loadingPendientes: true, pendientes: null });
+      apiFetch(`/api/grupos/${bloque.grupoActualId}/aplicaciones-pendientes`)
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => {
+          // El usuario puede haber cerrado el modal mientras cargaba.
+          // Verificamos contra el bloque del modal actual antes de pisar.
+          setMoveModal(prev => prev && prev.grupoActualId === bloque.grupoActualId
+            ? { ...prev, loadingPendientes: false, pendientes: data.pendientes || [] }
+            : prev);
+        })
+        .catch(() => {
+          setMoveModal(prev => prev && prev.grupoActualId === bloque.grupoActualId
+            ? { ...prev, loadingPendientes: false, pendientes: null }
+            : prev);
+        });
+      return;
+    }
+    setMoveModal(bloque);
   };
 
   const confirmMoveBloque = () => {
@@ -375,7 +455,14 @@ export default function GrupoFormSheet({
           confirmLabel={moveModal.estado === 'en_aplicacion' ? 'Mover de todas formas' : 'Mover bloque'}
           onConfirm={confirmMoveBloque}
           onCancel={() => setMoveModal(null)}
-        />
+        >
+          {moveModal.estado === 'en_aplicacion' && (
+            <PendingAplicacionesList
+              loading={moveModal.loadingPendientes}
+              pendientes={moveModal.pendientes}
+            />
+          )}
+        </AuroraConfirmModal>
       )}
 
       <div className="aur-sheet">
