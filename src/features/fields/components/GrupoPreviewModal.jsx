@@ -46,7 +46,14 @@ export default function GrupoPreviewModal({
   }, [grupo, siembrasById]);
 
   const fechaCreacion = tsToDate(grupo.fechaCreacion);
-  const fechaCosecha  = calcFechaCosecha(grupo, empresaConfig);
+  // Si /api/config no cargó (allSettled silenciosamente lo permite) el
+  // cálculo cae a defaults 150/215/250 sin avisar. En el PDF, que se
+  // comparte y se imprime, no queremos mostrar una fecha "autoritativa"
+  // derivada de defaults — el lector externo no tiene cómo saberlo. La
+  // ocultamos via la rama '—' del render. GrupoHub sí muestra el badge
+  // con tooltip porque el usuario ve la atenuación en pantalla.
+  const configLoaded  = !!empresaConfig?.id;
+  const fechaCosecha  = configLoaded ? calcFechaCosecha(grupo, empresaConfig) : null;
 
   const totalHa      = bloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
   const totalPlantas = bloques.reduce((s, b) => s + (b.plantas || 0), 0);
