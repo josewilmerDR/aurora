@@ -8,19 +8,14 @@ import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import BloqueSortTh from '../components/BloqueSortTh';
+import { tsToDate, formatDateLong, formatDateForInput, multiSort } from '../lib/lotes-helpers';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatDateLong = (date) => {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
-};
-
-const tsToDate = (timestamp) => {
-  if (!timestamp) return null;
-  if (timestamp._seconds) return new Date(timestamp._seconds * 1000);
-  return new Date(timestamp);
-};
+// formatDateLong, tsToDate, formatDateForInput y multiSort vienen de
+// lib/lotes-helpers — el callsite previo tenía formatDateLong inline que
+// NO sabía procesar Firestore Timestamps y exigía envolver con tsToDate en
+// cada uso. El lib lo maneja internamente.
 
 const calcFechaCosecha = (grupo, config) => {
   const etapa   = (grupo.etapa   || '').toLowerCase();
@@ -77,24 +72,7 @@ function consolidateSiembrasByBloque(siembras) {
   });
 }
 
-// ── Tabla de bloques: helpers de ordenamiento / filtrado ─────────────────────
-function compare(a, b, field) {
-  const av = a[field] ?? '';
-  const bv = b[field] ?? '';
-  if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-  return String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
-}
-function multiSort(records, sorts) {
-  const active = sorts.filter(s => s.field);
-  if (!active.length) return [...records];
-  return [...records].sort((a, b) => {
-    for (const s of active) {
-      const r = compare(a, b, s.field);
-      if (r !== 0) return s.dir === 'desc' ? -r : r;
-    }
-    return 0;
-  });
-}
+// ── Tabla de bloques: configuración de columnas ─────────────────────────────
 const BLOQUE_COLS = [
   { id: 'loteNombre', label: 'Lote'     },
   { id: 'bloque',     label: 'Bloque'   },
@@ -656,13 +634,6 @@ function GrupoManagement() {
       setFormData(prev => ({ ...prev, etapa: nombre, paqueteId: '' }));
     }
     setCatalogModal(null);
-  };
-
-  const formatDateForInput = (ts) => {
-    const date = tsToDate(ts);
-    if (!date) return '';
-    date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-    return date.toISOString().split('T')[0];
   };
 
   const handleEdit = (grupo) => {
@@ -1244,7 +1215,7 @@ function GrupoManagement() {
         <div className="hub-info-pills">
           <span className="aur-badge">
             <FiCalendar size={13} />
-            {formatDateLong(tsToDate(selectedGrupo.fechaCreacion))}
+            {formatDateLong(selectedGrupo.fechaCreacion)}
           </span>
           {selectedGrupo.cosecha && <span className="aur-badge aur-badge--violet">{selectedGrupo.cosecha}</span>}
           {selectedGrupo.etapa   && <span className="aur-badge aur-badge--blue">{selectedGrupo.etapa}</span>}
