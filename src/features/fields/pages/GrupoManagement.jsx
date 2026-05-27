@@ -12,6 +12,7 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import EmptyState from '../../../components/ui/EmptyState';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // El estado del form sheet vive en GrupoFormSheet — el padre solo decide
@@ -53,6 +54,12 @@ function GrupoManagement() {
   const [lastSavedGrupo, setLastSavedGrupo] = useState(null);
   const [confirmModal,  setConfirmModal]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
+  // ID del grupo cuyo delete-check está en vuelo. El handler usa esto
+  // para (a) ignorar clicks duplicados mientras el fetch resuelve, y
+  // (b) deshabilitar el botón Trash en el hub para que el usuario vea
+  // que algo está pasando. Sin esto, en red lenta el click se sentía
+  // como "no respondió" y la gente clickeaba dos veces.
+  const [checkingDeleteId, setCheckingDeleteId] = useState(null);
   const [deleteModal,   setDeleteModal]   = useState(null);
   const [previewGrupo,     setPreviewGrupo]     = useState(null);
   const carouselRef = useRef(null);
@@ -209,8 +216,19 @@ function GrupoManagement() {
   };
 
   const handleDeleteClick = async (grupo) => {
+    if (checkingDeleteId) return; // doble-click guard
+    setCheckingDeleteId(grupo.id);
     try {
       const res = await apiFetch(`/api/grupos/${grupo.id}/delete-check`);
+      if (!res.ok) {
+        // Antes el handler asumía res.ok y crasheaba al leer .cedulasAplicadas
+        // de un body de error. El catch se tragaba el throw con un toast
+        // genérico. Ahora parseamos el body y traducimos vía translateApiError
+        // para que el usuario vea la razón real (403, 404, 429, etc).
+        const body = await res.json().catch(() => null);
+        showToast(translateApiError(body, 'Error al verificar dependencias del grupo.'), 'error');
+        return;
+      }
       const data = await res.json();
       if (data.cedulasAplicadas.length > 0) {
         setDeleteModal({ type: 'aplicada', grupoId: grupo.id, grupoName: grupo.nombreGrupo, cedulasAplicadas: data.cedulasAplicadas, cedulasEnTransito: [] });
@@ -220,7 +238,9 @@ function GrupoManagement() {
         setConfirmModal({ grupoId: grupo.id, grupoName: grupo.nombreGrupo });
       }
     } catch {
-      showToast('Error al verificar dependencias.', 'error');
+      showToast('Error de conexión al verificar dependencias del grupo.', 'error');
+    } finally {
+      setCheckingDeleteId(null);
     }
   };
 
@@ -228,13 +248,17 @@ function GrupoManagement() {
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/grupos/${confirmModal.grupoId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        showToast(translateApiError(body, 'Error al eliminar el grupo.'), 'error');
+        return;
+      }
       if (selectedGrupo?.id === confirmModal.grupoId) setSelectedGrupo(null);
       setConfirmModal(null);
       refreshAfterMutation();
       showToast('Grupo eliminado correctamente');
     } catch {
-      showToast('Error al eliminar el grupo.', 'error');
+      showToast('Error de conexión al eliminar el grupo.', 'error');
     } finally { setDeleting(false); }
   };
 
@@ -249,11 +273,13 @@ function GrupoManagement() {
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         // CEDULA_APLICADA: race entre el delete-check del modal y este POST
-        // (alguien aplicó una cédula entre medio). Invitar a recargar para
-        // ver el modal correcto ("No es posible eliminar — hay aplicadas").
+        // (alguien aplicó una cédula entre medio). Mensaje custom porque
+        // tiene un call-to-action distinto al resto ("recargar"). Para
+        // cualquier otro code el translateApiError lee body.code del
+        // contrato del backend.
         const msg = body?.code === 'CEDULA_APLICADA'
           ? 'Alguna cédula fue aplicada en campo desde que abriste este modal. Recargá para ver el estado actualizado.'
-          : 'Error al eliminar el grupo.';
+          : translateApiError(body, 'Error al eliminar el grupo.');
         showToast(msg, 'error');
         return;
       }
@@ -262,7 +288,7 @@ function GrupoManagement() {
       refreshAfterMutation();
       showToast('Cédulas anuladas y grupo eliminado correctamente');
     } catch {
-      showToast('Error al eliminar el grupo.', 'error');
+      showToast('Error de conexión al eliminar el grupo.', 'error');
     } finally { setDeleting(false); }
   };
 
@@ -302,6 +328,7 @@ function GrupoManagement() {
         onEdit={handleEdit}
         onDelete={handleDeleteClick}
         onPreview={setPreviewGrupo}
+        checkingDelete={checkingDeleteId === selectedGrupo.id}
       />
     );
   };

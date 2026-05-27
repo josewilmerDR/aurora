@@ -4,6 +4,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import NuevoCatalogModal from './NuevoCatalogModal';
 import { formatDateForInput, formatHa } from '../lib/lotes-helpers';
 import { consolidateBloquesDisponibles } from '../lib/grupo-bloques-helpers';
+import { translateApiError } from '../../../lib/errorMessages';
 
 const EMPTY_FORM = {
   id: null,
@@ -411,7 +412,16 @@ export default function GrupoFormSheet({
       const { id: _id, ...payload } = formData;
       payload.nombreGrupo = payload.nombreGrupo.trim();
       const res = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // translateApiError lee body.code y devuelve el mensaje en
+        // español del diccionario; el segundo arg es el fallback si el
+        // backend no mandó code reconocible. Antes el throw + catch
+        // genérico ocultaba al usuario razones útiles (ya existe un
+        // grupo con ese nombre, sin permisos, validation failed, etc).
+        const body = await res.json().catch(() => null);
+        showToast(translateApiError(body, 'Ocurrió un error al guardar el grupo.'), 'error');
+        return;
+      }
       const saved = await res.json();
       const savedId = isEditing ? formData.id : saved.id;
       // El padre maneja: refreshAfterMutation, setSelectedGrupo, banner
@@ -423,7 +433,7 @@ export default function GrupoFormSheet({
         tasksGenerated: !isEditing && !!formData.paqueteId,
       });
     } catch {
-      showToast('Ocurrió un error al guardar.', 'error');
+      showToast('Error de conexión al guardar el grupo.', 'error');
     } finally {
       setSaving(false);
     }

@@ -64,6 +64,11 @@ export default function BloqueSortTh({
     ? `Ordenado ${dir === 'asc' ? 'ascendente' : 'descendente'} · clic para invertir`
     : 'Clic para ordenar por esta columna';
 
+  // El embudo ahora es un <button> en vez de <span>: Tab lo alcanza,
+  // Enter/Space lo activa, y los screen readers lo anuncian con el
+  // aria-label dinámico. Antes el <span onClick> quedaba mudo y
+  // skipped por keyboard.
+  const labelText = typeof children === 'string' ? children : field;
   return (
     <th
       className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}`}
@@ -73,13 +78,17 @@ export default function BloqueSortTh({
       <span className="aur-th-content">
         {children}
         <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-        <span
+        <button
+          type="button"
           className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
           title="Filtrar columna"
+          aria-label={`Filtrar columna ${labelText}`}
+          aria-haspopup="dialog"
+          aria-expanded={filterPop?.field === field}
           onClick={handleFunnelClick}
         >
-          <FiFilter size={10} />
-        </span>
+          <FiFilter size={10} aria-hidden="true" />
+        </button>
       </span>
     </th>
   );
