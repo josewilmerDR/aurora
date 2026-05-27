@@ -173,7 +173,12 @@ function GrupoManagement() {
   const handleSelectGrupo = (grupo) => {
     setSelectedGrupo(grupo);
     setFormMode(null);
-    if (window.innerWidth <= 768)
+    // matchMedia lee el mismo breakpoint que las @media queries de
+    // grupo-management.css (768px). Antes hardcodeábamos window.innerWidth
+    // <= 768 acá, así que si el breakpoint del CSS cambiaba el scroll
+    // mobile-only quedaba desincronizado. Mismo patrón que
+    // OnboardingChecklist.useResponsiveViewSize.
+    if (window.matchMedia('(max-width: 768px)').matches)
       document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
