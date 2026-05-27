@@ -102,7 +102,9 @@ function GrupoManagement() {
   //   - state.preloadSiembraIds  → abrir el form de nuevo grupo con esos
   //                                 siembraIds ya marcados como bloques
   //                                 (flujo "Crear grupo con estos bloques")
-  // La ref evita re-aplicar el deep-link si `grupos` se refetchea después.
+  // La ref evita re-aplicar el deep-link si `grupos` se refetchea después,
+  // y el navigate(replace) limpia el history entry: sin eso, navegar a otra
+  // ruta y volver con back re-disparaba el preload con bloques fantasma.
   const location = useLocation();
   const incomingSelectGrupoId  = location.state?.selectGrupoId;
   const incomingPreloadIds     = location.state?.preloadSiembraIds;
@@ -116,6 +118,7 @@ function GrupoManagement() {
       if (!found) return;
       deepLinkProcessedRef.current = true;
       setSelectedGrupo(found);
+      navigate(location.pathname, { replace: true, state: {} });
       return;
     }
     if (Array.isArray(incomingPreloadIds) && incomingPreloadIds.length > 0) {
@@ -130,10 +133,11 @@ function GrupoManagement() {
         preloadIds: incomingPreloadIds,
         preloadLoteCode: incomingPreloadLote || null,
       });
+      navigate(location.pathname, { replace: true, state: {} });
       // El toast informativo lo dispara GrupoFormSheet al montar cuando
       // recibe preloadIds + preloadLoteCode — evitamos duplicarlo acá.
     }
-  }, [grupos, incomingSelectGrupoId, incomingPreloadIds, incomingPreloadLote]);
+  }, [grupos, incomingSelectGrupoId, incomingPreloadIds, incomingPreloadLote, location.pathname, navigate]);
 
   // Centra la burbuja activa en el carousel cuando cambia el grupo seleccionado
   useEffect(() => {
