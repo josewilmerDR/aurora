@@ -31,6 +31,12 @@ export default function useGrupoBloqueTable({ selectedGrupo, siembrasById, empre
   // vez por render para que la columna y el footer no diverjan.
   const kgPorPlanta = getKgPorPlanta(empresaConfig);
 
+  // Aunque guardamos un array y multiSort soporta varios criterios, la
+  // UI actual solo permite ordenar por una columna (click en otro <th>
+  // reemplaza el sort en sorts[0], no lo apila). El shape array vive así
+  // por compatibilidad con multiSort y deja la puerta abierta a un
+  // "shift+click para añadir sort secundario" sin tocar callers. Hoy es
+  // single-sort de facto.
   const [sorts, setSorts] = useState([{ field: 'loteNombre', dir: 'asc' }]);
   const [colFilters, setColFiltersInternal] = useState({});
   const [filterPop, setFilterPop] = useState(null);

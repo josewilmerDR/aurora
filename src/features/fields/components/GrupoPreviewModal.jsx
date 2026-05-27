@@ -168,7 +168,7 @@ export default function GrupoPreviewModal({
                 <tr key={b.id}>
                   <td>{b.loteNombre || '—'}</td>
                   <td>{b.bloque || '—'}</td>
-                  <td className="gp-col-num">{b.areaCalculada ?? '—'}</td>
+                  <td className="gp-col-num">{b.areaCalculada ? b.areaCalculada.toFixed(4) : '—'}</td>
                   <td className="gp-col-num">{b.plantas?.toLocaleString() ?? '—'}</td>
                   <td>{b.materialNombre || b.variedad || '—'}</td>
                   <td className="gp-col-num">{b.plantas ? (b.plantas * kgPorPlanta).toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>

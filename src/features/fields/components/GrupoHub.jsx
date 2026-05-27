@@ -51,6 +51,10 @@ export default function GrupoHub({
   onEdit,
   onDelete,
   onPreview,
+  // True mientras el delete-check del padre está en vuelo. Deshabilita
+  // el botón Trash para evitar dobles disparos cuando la red está lenta
+  // (~500ms entre el click y el modal aparecer).
+  checkingDelete = false,
 }) {
   const {
     selectedBloques,
@@ -108,9 +112,16 @@ export default function GrupoHub({
             <FiEdit size={16} aria-hidden="true" />
             <span className="hub-action-label">Editar</span>
           </button>
-          <button onClick={() => onDelete(grupo)} className="aur-icon-btn aur-icon-btn--danger hub-action-btn" title="Eliminar" aria-label="Eliminar grupo">
+          <button
+            onClick={() => onDelete(grupo)}
+            className="aur-icon-btn aur-icon-btn--danger hub-action-btn"
+            title="Eliminar"
+            aria-label="Eliminar grupo"
+            disabled={checkingDelete}
+            aria-busy={checkingDelete}
+          >
             <FiTrash2 size={16} aria-hidden="true" />
-            <span className="hub-action-label">Eliminar</span>
+            <span className="hub-action-label">{checkingDelete ? 'Verificando…' : 'Eliminar'}</span>
           </button>
         </div>
       </div>
