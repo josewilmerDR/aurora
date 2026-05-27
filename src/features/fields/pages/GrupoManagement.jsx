@@ -8,6 +8,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import GrupoHub from '../components/GrupoHub';
 import GrupoFormSheet from '../components/GrupoFormSheet';
 import GrupoPreviewModal from '../components/GrupoPreviewModal';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -402,9 +403,6 @@ function GrupoManagement() {
         </AuroraModal>
       )}
 
-      {/* ── Spinner de carga ── */}
-      {loading && <div className="grupo-page-loading" />}
-
       {/* ── Mobile sticky carousel ── */}
       {selectedGrupo && !showForm && (
         <div className="lote-carousel" ref={carouselRef} aria-label="Grupos">
@@ -489,7 +487,7 @@ function GrupoManagement() {
       )}
 
       {/* ── Page header ── */}
-      {!loading && !showForm && (
+      {!showForm && (
         <div className="lote-page-header">
           <div className="lote-page-title-block">
             <h2 className="lote-page-title">Grupos</h2>
@@ -503,14 +501,20 @@ function GrupoManagement() {
         </div>
       )}
 
-      {!loading && <div className="lote-management-layout">
+      <div className="lote-management-layout">
 
         {/* Hub o formulario */}
         {renderPanel()}
 
         {/* Lista compacta */}
         {!showForm && <div className="lote-list-panel">
-          {grupos.length === 0 ? (
+          {loading ? (
+            // Skeleton de filas en vez del spinner pelado anterior — el
+            // usuario percibe el shape de la lista mientras los 6 fetches
+            // del reloadAll resuelven, mejor sensación de velocidad y
+            // alineado con LoteManagement.
+            <AuroraSkeleton variant="row" count={6} label="Cargando grupos…" />
+          ) : grupos.length === 0 ? (
             // Si hubo error de carga no mostramos el empty-state — sería
             // falso, no sabemos si la finca está vacía o si la red murió.
             // El banner de arriba ya explica qué pasó y tiene Reintentar.
@@ -541,7 +545,7 @@ function GrupoManagement() {
           )}
         </div>}
 
-      </div>}
+      </div>
 
       {previewGrupo && (
         <GrupoPreviewModal
