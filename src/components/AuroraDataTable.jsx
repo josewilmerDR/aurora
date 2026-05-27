@@ -21,6 +21,8 @@ export default function AuroraDataTable({
   initialSort = null,
   firstClickDir = 'desc',
   initialVisibleCols,
+  visibleCols: controlledVisibleCols,
+  onToggleVisibleCol,
   pageSize = null,
   resultLabel,
   toolbarActions = null,
@@ -43,7 +45,14 @@ export default function AuroraDataTable({
     () => Object.fromEntries(columns.map(c => [c.key, true])),
     [columns],
   );
-  const [visibleCols, setVisibleCols] = useState(() => initialVisibleCols || allVisible);
+  // Modo controlled: si el parent pasa `visibleCols` + `onToggleVisibleCol`,
+  // la persistencia (p.ej. useTableColumnPreset) vive arriba. Si no, mantenemos
+  // el state interno legacy — todos los callers existentes siguen funcionando.
+  const [internalVisibleCols, setInternalVisibleCols] = useState(() => initialVisibleCols || allVisible);
+  const visibleCols = controlledVisibleCols ?? internalVisibleCols;
+  const toggleCol = onToggleVisibleCol ?? ((key) =>
+    setInternalVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))
+  );
 
   const [sortField, setSortField] = useState(initialSort?.field || null);
   const [sortDir, setSortDir]     = useState(initialSort?.dir   || null);
@@ -52,9 +61,6 @@ export default function AuroraDataTable({
   const [filterPopover, setFilterPopover] = useState(null);
   const [colMenu, setColMenu]             = useState(null);
   const [page, setPage]                   = useState(1);
-
-  const toggleCol = (key) =>
-    setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
 
   const handleColBtnClick = (e) => {
     e.stopPropagation();
