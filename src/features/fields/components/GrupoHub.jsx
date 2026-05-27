@@ -1,9 +1,10 @@
 import { createPortal } from 'react-dom';
 import {
   FiArrowLeft, FiEye, FiEdit, FiTrash2,
-  FiCalendar, FiLayers, FiPackage, FiX, FiSliders,
+  FiCalendar, FiLayers, FiPackage, FiX, FiSliders, FiFilter,
 } from 'react-icons/fi';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import EmptyState from '../../../components/ui/EmptyState';
 import BloqueSortTh from './BloqueSortTh';
 import { formatDateLong } from '../lib/lotes-helpers';
 import { calcFechaCosecha } from '../lib/grupo-bloques-helpers';
@@ -142,6 +143,23 @@ export default function GrupoHub({
       </div>
       {selectedBloques.length === 0 ? (
         <p className="empty-state">Este grupo no tiene bloques asignados.</p>
+      ) : sortedRows.length === 0 ? (
+        // Filtros activos pero ningún bloque coincide. Sin este estado el
+        // usuario percibe la tabla como "rota" — headers + tfoot ausentes
+        // y cero filas. La acción del EmptyState dispara el mismo clear
+        // que el botón del header, duplicado a propósito para que esté al
+        // alcance sin tener que rastrear con la vista.
+        <EmptyState
+          variant="compact"
+          icon={FiFilter}
+          title="Ningún bloque coincide con los filtros"
+          subtitle="Ajustá o limpiá los filtros aplicados para volver a ver los bloques del grupo."
+          action={
+            <button className="aur-btn-pill" onClick={clearColFilters}>
+              <FiX size={11} aria-hidden="true" /> Limpiar filtros
+            </button>
+          }
+        />
       ) : (
         <div className="aur-table-wrap">
           <table className="aur-table grupo-hub-table">
