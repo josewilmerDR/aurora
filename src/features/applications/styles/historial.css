@@ -89,9 +89,24 @@
   vertical-align: middle;
 }
 
-/* Filas marcadas como cambiadas — left-border tinted en lugar de opacity */
+/* Filas marcadas como cambiadas — tint suave en toda la fila + ancla visual
+   en la primera columna. El tint resuelve el caso de scroll horizontal
+   (3400px de tabla): leyendo columnas al final, el usuario sigue viendo que
+   la fila tiene un cambio respecto al plan. El inset 2px en first-child
+   funciona como anchor cuando la columna está visible. Punto #16 audit.
+
+   color-mix garantiza que el tint hereda el accent del tema (no hardcode).
+   4% es suficiente para distinguir sin competir con el hover state. */
+.historial-row-changed {
+  background: color-mix(in srgb, var(--aur-accent) 4%, transparent);
+}
 .historial-row-changed td:first-child {
   box-shadow: inset 2px 0 0 var(--aur-accent);
+}
+/* Hover sobre fila cambiada: subir el tint para que se note igual que en
+   filas normales (el bg-hover del default queda comido por el tint). */
+.aur-table tbody tr.historial-row-changed:hover {
+  background: color-mix(in srgb, var(--aur-accent) 8%, var(--aur-bg-hover));
 }
 
 /* Consecutivo */

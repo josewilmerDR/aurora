@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { FiX, FiArrowRight, FiDownload, FiSearch, FiClipboard, FiPlusCircle } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -46,9 +46,16 @@ const fmt = (iso) => {
   });
 };
 
+// Formato numérico: con `decimals` explícito → toFixed(d). Sin él →
+// toLocaleString con hasta 2 decimales y sin trailing zeros, evitando casos
+// como "5.500000000001" que aparecían cuando la API devolvía flotantes
+// (#20 audit). Si v no es número finito, '—'.
 const n = (v, decimals) => {
   if (v == null) return '—';
-  return decimals != null ? Number(v).toFixed(decimals) : String(v);
+  const num = Number(v);
+  if (!Number.isFinite(num)) return '—';
+  if (decimals != null) return num.toFixed(decimals);
+  return num.toLocaleString('es-ES', { maximumFractionDigits: 2 });
 };
 
 // Formato de costo con separador de miles y 2 decimales, opcionalmente con moneda.
@@ -58,12 +65,59 @@ const fmtCosto = (v, moneda) => {
   return moneda ? `${str} ${moneda}` : str;
 };
 
-// Si supera este umbral el texto se trunca a 1 línea y aparece "ver más".
-const OBS_TRUNCATE_AT = 70;
-
 const prodLabel = (p) => p
   ? [p.nombreComercial, p.ingredienteActivo].filter(Boolean).join(' — ')
   : '';
+
+// ObsCell — celda de observaciones con toggle "ver más / menos" basado en
+// overflow REAL (ResizeObserver), no en charcount. El umbral fijo de 70
+// caracteres tenía falsos positivos/negativos cuando el ancho de la celda
+// cambia con el preset de columnas o el viewport. Punto #19 audit.
+function ObsCell({ text, expanded, onToggle }) {
+  const textRef = useRef(null);
+  // hadOverflow: si una vez detectamos overflow, queda en true hasta que
+  // cambie el texto. Sin esto, al expandir se quita el clamp y un re-cálculo
+  // en vivo da scrollHeight === clientHeight → el toggle "ver menos"
+  // desaparecería justo cuando es más útil.
+  const [hadOverflow, setHadOverflow] = useState(false);
+
+  useEffect(() => {
+    setHadOverflow(false);
+    const el = textRef.current;
+    if (!el) return;
+    const check = () => {
+      // scrollHeight > clientHeight con un buffer de 1px para evitar
+      // false positives por sub-pixel rounding en zooms.
+      if (el.scrollHeight > el.clientHeight + 1) setHadOverflow(true);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  if (!text) return '—';
+  return (
+    <div className={`historial-obs-cell${expanded ? ' is-expanded' : ''}`}>
+      <span
+        ref={textRef}
+        className="historial-obs-text"
+        title={hadOverflow && !expanded ? text : undefined}
+      >
+        {text}
+      </span>
+      {hadOverflow && (
+        <button
+          type="button"
+          className="historial-obs-toggle"
+          onClick={onToggle}
+        >
+          {expanded ? 'ver menos' : 'ver más'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 // Columnas — para AuroraDataTable:
 //   - key       · id de la columna (también campo del row salvo agregados)
@@ -181,6 +235,14 @@ const ALL_COLUMNS = [
   {
     key: '_prodIdProducto', label: 'Id Producto', type: 'text',
     render: (row) => row._prodIdProducto || '—',
+    // Si idProducto legible falta, exponemos el productoId Firestore en el
+    // title para soporte / debugging — antes lo mostrábamos crudo en la
+    // celda y el usuario lo confundía con un bug. Punto #23 audit.
+    tdProps: (row) => (
+      !row._prodIdProducto && row._prod?.productoId
+        ? { title: `Sin Id legible — productoId interno: ${row._prod.productoId}` }
+        : undefined
+    ),
   },
   {
     key: '_prodNombre', label: 'Nombre Comercial — Ing. Activo', type: 'text',
@@ -211,6 +273,9 @@ const ALL_COLUMNS = [
     key: '_prodOrigIdProducto', label: 'Id Prod. Original', type: 'text',
     render: (row) => row._prodOrigIdProducto || '—',
   },
+  // Nota: `_prodOrigIdProducto` se completa desde el plan original que sí
+  // suele tener `idProducto` legible. Si en el futuro aparecen casos sin él,
+  // espejar el tdProps del título de `_prodIdProducto`.
   {
     key: '_prodOrigNombre', label: 'Prod. Original', type: 'text',
     render: (row) => row._prodOrigNombre || '—',
@@ -305,13 +370,31 @@ const ALL_COLUMNS = [
   },
   {
     key: 'observacionesMezcla', label: 'Obs. Mezcla', type: 'text',
-    render: (row, ctx) => ctx.renderObs(row.observacionesMezcla, `${row._rowKey}-m`),
+    render: (row, ctx) => {
+      const key = `${row._rowKey}-m`;
+      return (
+        <ObsCell
+          text={row.observacionesMezcla}
+          expanded={ctx.expandedObs.has(key)}
+          onToggle={() => ctx.toggleObs(key)}
+        />
+      );
+    },
     exportFmt: (r) => r.observacionesMezcla || '',
     tdClass: 'historial-td-obs',
   },
   {
     key: 'observacionesAplicacion', label: 'Obs. Aplicación', type: 'text',
-    render: (row, ctx) => ctx.renderObs(row.observacionesAplicacion, `${row._rowKey}-a`),
+    render: (row, ctx) => {
+      const key = `${row._rowKey}-a`;
+      return (
+        <ObsCell
+          text={row.observacionesAplicacion}
+          expanded={ctx.expandedObs.has(key)}
+          onToggle={() => ctx.toggleObs(key)}
+        />
+      );
+    },
     exportFmt: (r) => r.observacionesAplicacion || '',
     tdClass: 'historial-td-obs',
   },
@@ -337,6 +420,7 @@ const COLUMNS_WITH_ID = ALL_COLUMNS.map(c => ({ ...c, id: c.key }));
 // ─────────────────────────────────────────────────────────────────────────────
 function HistorialAplicaciones() {
   const apiFetch = useApiFetch();
+  const navigate = useNavigate();
   const { currentUser } = useUser();
   const [cedulas, setCedulas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -377,39 +461,14 @@ function HistorialAplicaciones() {
     [isVisible],
   );
 
-  const toggleObs = (key) => {
+  const toggleObs = useCallback((key) => {
     setExpandedObs(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
-  };
-
-  const renderObs = (text, key) => {
-    if (!text) return '—';
-    const hasToggle  = text.length > OBS_TRUNCATE_AT;
-    const isExpanded = hasToggle && expandedObs.has(key);
-    return (
-      <div className={`historial-obs-cell${isExpanded ? ' is-expanded' : ''}`}>
-        <span
-          className="historial-obs-text"
-          title={hasToggle && !isExpanded ? text : undefined}
-        >
-          {text}
-        </span>
-        {hasToggle && (
-          <button
-            type="button"
-            className="historial-obs-toggle"
-            onClick={() => toggleObs(key)}
-          >
-            {isExpanded ? 'ver menos' : 'ver más'}
-          </button>
-        )}
-      </div>
-    );
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -485,18 +544,27 @@ function HistorialAplicaciones() {
           // Costo snapshot = total aplicado × precioUnitario congelado al
           // momento de la aplicación (ambos viven en snap_productos[]). Si
           // alguno falta, el costo queda null y se renderiza como '—'.
+          //
+          // NO redondear acá: precioUnitario puede tener 4+ decimales (dólares
+          // por gramo de ingrediente activo) y total 3 decimales. El truncado
+          // a 2 que vivía aquí perdía precisión en el snapshot persistido —
+          // dejamos el float completo y `fmtCosto` se encarga del display.
+          // Punto #21 audit.
           const _prodTotalNum      = parseFloat(prod?.total);
           const _prodPrecioUnitNum = parseFloat(prod?.precioUnitario);
           const _prodCostoTotal =
             Number.isFinite(_prodTotalNum) && Number.isFinite(_prodPrecioUnitNum)
-              ? parseFloat((_prodTotalNum * _prodPrecioUnitNum).toFixed(2))
+              ? _prodTotalNum * _prodPrecioUnitNum
               : null;
 
           rows.push({
             ...c, ...base,
             _rowKey: `${c.id}::a::${prod?.productoId ?? `i${prodIdx}`}`,
             _prod: prod,
-            _prodIdProducto: prod?.idProducto ?? prod?.productoId ?? '',
+            // Solo el id legible (idProducto). Si falta, dejamos vacío y la
+            // columna muestra '—' + el productoId Firestore va en title via
+            // tdProps. Punto #23 audit.
+            _prodIdProducto: prod?.idProducto ?? '',
             _prodNombre:     prodLabel(prod),
             _prodCantidad:   prod?.cantidadPorHa ?? null,
             _prodUnidad:     prod?.unidad ?? '',
@@ -518,8 +586,11 @@ function HistorialAplicaciones() {
         rows.push({
           ...c, ...base,
           _rowKey: `${c.id}::r::${o.productoId}`,
-          _prod: null,
-          _prodIdProducto: o.idProducto ?? o.productoId ?? '',
+          // _prod referencia el original para que el tdProps de
+          // `_prodIdProducto` pueda exponer el productoId Firestore en title
+          // si idProducto legible falta.
+          _prod: o,
+          _prodIdProducto: o.idProducto ?? '',
           _prodNombre:     prodLabel(o),
           _prodCantidad:   o.cantidadPorHa ?? null,
           _prodUnidad:     o.unidad ?? '',
@@ -590,8 +661,9 @@ function HistorialAplicaciones() {
   }, []);
 
   // renderRow itera sólo columnas visibles (vc viene de AuroraDataTable) y
-  // delega al `render` de cada columna. El ctx expone `renderObs` para las
-  // celdas de observaciones con toggle local.
+  // delega al `render` de cada columna. El ctx expone `expandedObs` +
+  // `toggleObs` para las celdas de observaciones (componente <ObsCell/>
+  // mide el overflow real con ResizeObserver — #19 audit).
   const renderRow = (row, vc) => (
     <>
       {ALL_COLUMNS.map(col => {
@@ -599,7 +671,7 @@ function HistorialAplicaciones() {
         const extraProps = col.tdProps ? col.tdProps(row) : null;
         return (
           <td key={col.key} className={col.tdClass} {...extraProps}>
-            {col.render(row, { renderObs })}
+            {col.render(row, { expandedObs, toggleObs })}
           </td>
         );
       })}
@@ -634,6 +706,30 @@ function HistorialAplicaciones() {
 
   const hasPeriodFilter = !!(filterFrom || filterTo);
   const hasData = periodFiltered.length > 0;
+
+  // Contador de cédulas únicas en la vista actual — "Registros N" contaba
+  // filas (cedula × producto) y un usuario lee "Registros 200" como 200
+  // cédulas. Punto #14 audit.
+  const cedulaCount = useMemo(
+    () => new Set(displayData.map(r => r.id)).size,
+    [displayData],
+  );
+  const resultLabel = useCallback((filtered /* , total */) => {
+    const cedWord  = cedulaCount === 1 ? 'cédula'  : 'cédulas';
+    const lineWord = filtered === 1    ? 'línea'   : 'líneas';
+    return `${cedulaCount} ${cedWord} · ${filtered} ${lineWord}`;
+  }, [cedulaCount]);
+
+  // Click en fila → navega al CedulaViewer. Solo aplica a filas con cédula
+  // aplicada (la página filtra status=aplicada_en_campo, así que esto es
+  // 100% de los casos hoy; el guard queda por si algún día cambia). Punto
+  // #15 audit. El consecutivo (Link en la celda) sigue siendo el atajo
+  // formal — el row.onClick es affordance redundante para descubrimiento.
+  const handleRowClick = useCallback((row) => {
+    if (row?.id && row.status === 'aplicada_en_campo') {
+      navigate(`/aplicaciones/cedula/${row.id}`);
+    }
+  }, [navigate]);
 
   // Empty-state diferenciado: cuando el dataset entero está vacío (cédulas
   // === 0) mostramos un EmptyState completo con icono + subtitle + CTA al
@@ -740,6 +836,8 @@ function HistorialAplicaciones() {
             renderRow={renderRow}
             rowClassName={(r) => r._prodCambio ? 'historial-row-changed' : ''}
             rowKey={(r) => r._rowKey}
+            onRowClick={handleRowClick}
+            resultLabel={resultLabel}
             pageSize={50}
             // Resetea pagination cuando cambia search o el filtro de periodo
             // del header — sin esto un usuario en pagina 3 que aplica filtro

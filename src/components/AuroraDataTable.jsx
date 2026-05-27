@@ -32,6 +32,7 @@ export default function AuroraDataTable({
   rowClassName,
   rowKey = (row) => row.id || row._id,
   renderRow,
+  onRowClick,
   emptyText = 'No hay registros con los filtros aplicados.',
   emptyIcon,
   emptySubtitle,
@@ -127,7 +128,10 @@ export default function AuroraDataTable({
           if (!col) continue;
           const val = getColVal(d, key);
           if (col.type === 'text') {
-            if (fv.text && !String(val).includes(fv.text.toLowerCase())) return false;
+            // Trim para que " mancozeb " matchee "mancozeb" — usuarios pegan
+            // términos del search/clipboard con espacios accidentales.
+            const needle = fv.text.trim().toLowerCase();
+            if (needle && !String(val).includes(needle)) return false;
           } else if (col.type === 'date') {
             if (!val) return false;
             if (fv.from && val < fv.from) return false;
@@ -240,12 +244,16 @@ export default function AuroraDataTable({
                     }
                     const isSort  = sortField === col.key;
                     const hasFilt = !!colFilters[col.key];
+                    const ariaSort = isSort
+                      ? (sortDir === 'desc' ? 'descending' : 'ascending')
+                      : 'none';
                     return (
                       <th
                         key={col.key}
                         className={`aur-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-filter' : ''}`}
                         style={col.align === 'right' ? { textAlign: 'right' } : undefined}
                         onClick={() => handleSort(col.key)}
+                        aria-sort={ariaSort}
                       >
                         <span className="aur-th-content">
                           {col.label}
@@ -287,9 +295,28 @@ export default function AuroraDataTable({
               </thead>
               <tbody>
                 {visibleData.map(row => {
-                  const cls = rowClassName ? rowClassName(row) : '';
+                  const customCls = rowClassName ? rowClassName(row) : '';
+                  // Si la página pasó onRowClick, marcamos la fila como
+                  // clickeable (CSS le pinta cursor:pointer + hover state).
+                  // El handler ignora clicks originados en buttons/links/
+                  // inputs/labels — esos elementos ya tienen su propia
+                  // semántica (toggle obs, link al viewer, checkbox del
+                  // col-menu si llegara a aparecer). Punto #15 audit Historial.
+                  const tableCls = onRowClick
+                    ? (customCls ? `${customCls} aur-tr-clickable` : 'aur-tr-clickable')
+                    : customCls;
+                  const handleRowClick = onRowClick
+                    ? (e) => {
+                        if (e.target.closest('button, a, input, label, select, textarea')) return;
+                        onRowClick(row);
+                      }
+                    : undefined;
                   return (
-                    <tr key={rowKey(row)} className={cls || undefined}>
+                    <tr
+                      key={rowKey(row)}
+                      className={tableCls || undefined}
+                      onClick={handleRowClick}
+                    >
                       {renderRow(row, visibleCols)}
                       {trailingCell ? trailingCell(row) : null}
                       <td />
@@ -397,6 +424,8 @@ export default function AuroraDataTable({
 
 function ColMenu({ x, y, columns, visibleCols, onToggle, onClose }) {
   const menuRef = useRef(null);
+  const firstInputRef = useRef(null);
+
   useEffect(() => {
     const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
     const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
@@ -408,22 +437,38 @@ function ColMenu({ x, y, columns, visibleCols, onToggle, onClose }) {
     };
   }, [onClose]);
 
+  // Mover focus al primer checkbox al abrir: keyboard users pueden navegar
+  // con Tab / Space sin tocar el mouse. Punto #28 audit Historial.
+  useEffect(() => {
+    firstInputRef.current?.focus();
+  }, []);
+
   const visibleCount = Object.values(visibleCols).filter(Boolean).length;
 
   return createPortal(
-    <div ref={menuRef} className="aur-col-menu" style={{ position: 'fixed', top: y, left: x }}>
-      <div className="aur-col-menu-title">Columnas visibles</div>
-      {columns.map(col => {
+    <div
+      ref={menuRef}
+      className="aur-col-menu"
+      style={{ position: 'fixed', top: y, left: x }}
+      role="menu"
+      aria-label="Columnas visibles"
+    >
+      <div className="aur-col-menu-title" aria-hidden="true">Columnas visibles</div>
+      {columns.map((col, idx) => {
         const checked = visibleCols[col.key];
         const isLast  = checked && visibleCount === 1;
         return (
           <label
             key={col.key}
             className={`aur-col-menu-item${isLast ? ' aur-col-menu-item--disabled' : ''}`}
+            role="menuitemcheckbox"
+            aria-checked={!!checked}
+            aria-disabled={isLast || undefined}
           >
             <input
+              ref={idx === 0 ? firstInputRef : undefined}
               type="checkbox"
-              checked={checked}
+              checked={!!checked}
               disabled={isLast}
               onChange={() => !isLast && onToggle(col.key)}
             />
