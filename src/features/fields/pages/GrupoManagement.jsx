@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
 import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import BloqueSortTh from '../components/BloqueSortTh';
@@ -1392,75 +1393,87 @@ function GrupoManagement() {
         />
       )}
 
-      {deleteModal && (
-        <div className="aur-modal-backdrop" onPointerDown={() => !deleting && setDeleteModal(null)}>
-          <div
-            className="aur-modal aur-modal--wide"
-            onPointerDown={e => e.stopPropagation()}
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="grupo-delete-modal-title"
-          >
-            {deleteModal.type === 'aplicada' ? (
-              <>
-                <header className="aur-modal-header">
-                  <span className="aur-modal-icon aur-modal-icon--danger" aria-hidden="true">
-                    <FiX size={18} />
-                  </span>
-                  <h2 className="aur-modal-title" id="grupo-delete-modal-title">No es posible eliminar este grupo</h2>
-                </header>
-                <div className="aur-modal-body">
-                  <p>
-                    El grupo <strong>"{deleteModal.grupoName}"</strong> tiene cédulas ya <strong>aplicadas en campo</strong>.
-                    Estas forman parte del registro fitosanitario y no pueden eliminarse.
-                  </p>
-                  <p className="grupo-delete-modal__section-label">Cédulas aplicadas</p>
-                  <ul className="grupo-delete-modal__list">
-                    {deleteModal.cedulasAplicadas.map(c => (
-                      <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="aur-modal-actions">
-                  <button className="aur-btn-pill" onClick={() => setDeleteModal(null)}>Entendido</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <header className="aur-modal-header">
-                  <span className="aur-modal-icon aur-modal-icon--warn" aria-hidden="true">!</span>
-                  <h2 className="aur-modal-title" id="grupo-delete-modal-title">Hay cédulas pendientes de resolución</h2>
-                </header>
-                <div className="aur-modal-body">
-                  <p>
-                    Las siguientes cédulas del grupo <strong>"{deleteModal.grupoName}"</strong> están en estado <strong>Mezcla lista</strong>.
-                    Debes resolverlas antes de poder eliminar el grupo.
-                  </p>
-                  <p className="grupo-delete-modal__section-label">Cédulas en Mezcla lista</p>
-                  <ul className="grupo-delete-modal__list">
-                    {deleteModal.cedulasEnTransito.map(c => (
-                      <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
-                    ))}
-                  </ul>
-                  <p className="grupo-delete-modal__hint">
-                    Puedes anularlas ahora (se revertirá el inventario descontado) o ir a Cédulas de Aplicación para marcarlas como aplicadas en campo.
-                  </p>
-                </div>
-                <div className="aur-modal-actions">
-                  <button className="aur-btn-text" onClick={() => setDeleteModal(null)} disabled={deleting}>
-                    Cancelar
-                  </button>
-                  <button className="aur-btn-text" onClick={() => { setDeleteModal(null); navigate('/aplicaciones/cedulas'); }} disabled={deleting}>
-                    Ir a Cédulas
-                  </button>
-                  <button className="aur-btn-pill aur-btn-pill--danger" onClick={handleAnularYEliminar} disabled={deleting}>
-                    {deleting ? 'Anulando…' : 'Anular y eliminar'}
-                  </button>
-                </div>
-              </>
-            )}
+      {/* Migrado de modal hand-rolled a AuroraModal — hereda focus trap,
+          ESC (con preventClose durante el anular), focus restore al cerrar,
+          backdrop close robusto y aria-labelledby auto-generado. Antes el
+          contenedor era un <div className="aur-modal-backdrop"> manual que
+          dejaba el foco tabular fuera del modal hacia la página de atrás. */}
+      {deleteModal?.type === 'aplicada' && (
+        <AuroraModal
+          title="No es posible eliminar este grupo"
+          icon={<FiX size={18} />}
+          iconVariant="danger"
+          size="wide"
+          showCloseButton={false}
+          onClose={() => setDeleteModal(null)}
+          footer={
+            <button className="aur-btn-pill" onClick={() => setDeleteModal(null)}>
+              Entendido
+            </button>
+          }
+        >
+          <div className="aur-modal-body">
+            <p>
+              El grupo <strong>"{deleteModal.grupoName}"</strong> tiene cédulas ya <strong>aplicadas en campo</strong>.
+              Estas forman parte del registro fitosanitario y no pueden eliminarse.
+            </p>
+            <p className="grupo-delete-modal__section-label">Cédulas aplicadas</p>
+            <ul className="grupo-delete-modal__list">
+              {deleteModal.cedulasAplicadas.map(c => (
+                <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
+              ))}
+            </ul>
           </div>
-        </div>
+        </AuroraModal>
+      )}
+
+      {deleteModal?.type === 'en_transito' && (
+        <AuroraModal
+          title="Hay cédulas pendientes de resolución"
+          icon={<FiAlertTriangle size={16} />}
+          iconVariant="warn"
+          size="wide"
+          showCloseButton={false}
+          preventClose={deleting}
+          onClose={() => setDeleteModal(null)}
+          footer={
+            <>
+              <button className="aur-btn-text" onClick={() => setDeleteModal(null)} disabled={deleting}>
+                Cancelar
+              </button>
+              <button
+                className="aur-btn-text"
+                onClick={() => { setDeleteModal(null); navigate('/aplicaciones/cedulas'); }}
+                disabled={deleting}
+              >
+                Ir a Cédulas
+              </button>
+              <button
+                className="aur-btn-pill aur-btn-pill--danger"
+                onClick={handleAnularYEliminar}
+                disabled={deleting}
+              >
+                {deleting ? 'Anulando…' : 'Anular y eliminar'}
+              </button>
+            </>
+          }
+        >
+          <div className="aur-modal-body">
+            <p>
+              Las siguientes cédulas del grupo <strong>"{deleteModal.grupoName}"</strong> están en estado <strong>Mezcla lista</strong>.
+              Debes resolverlas antes de poder eliminar el grupo.
+            </p>
+            <p className="grupo-delete-modal__section-label">Cédulas en Mezcla lista</p>
+            <ul className="grupo-delete-modal__list">
+              {deleteModal.cedulasEnTransito.map(c => (
+                <li key={c.id}>{c.consecutivo}{c.lote ? ` — ${c.lote}` : ''}</li>
+              ))}
+            </ul>
+            <p className="grupo-delete-modal__hint">
+              Puedes anularlas ahora (se revertirá el inventario descontado) o ir a Cédulas de Aplicación para marcarlas como aplicadas en campo.
+            </p>
+          </div>
+        </AuroraModal>
       )}
 
       {/* ── Spinner de carga ── */}
