@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTractor } from 'react-icons/fa';
-import { FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiInfo } from 'react-icons/fi';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import AuroraField, { TextInput, NumberInput, Select } from '../../../components/AuroraField';
 import UserCombo from './UserCombo';
@@ -44,6 +44,11 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
   const [supAplicacionesUserId,   setSupAplicacionesUserId]   = useState(() => prefill?.supAplicacionesUserId || null);
   const [observacionesAplicacion, setObservacionesAplicacion] = useState('');
   const [fetchingWeather,   setFetchingWeather]   = useState(false);
+  // Mensaje informativo cuando el seed automático de temp/humedad falla. Es
+  // un hint, NO un error de validación — el usuario puede igual confirmar
+  // llenando manualmente. Diferenciado por causa para que la acción sugerida
+  // sea accionable (activar permiso vs. reintentar vs. nada que hacer).
+  const [weatherHint,       setWeatherHint]       = useState('');
 
   // formError = error cross-field (sobrante sin lote, hora-rango invertida).
   // Single-field errors viven inline al lado del input para que el usuario
@@ -66,7 +71,12 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
   useEscapeClose(submitting ? null : onClose); // Punto #28 audit.
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      // Contexto inseguro (HTTP no-localhost) o browser viejo. No hay acción
+      // que el usuario pueda tomar desde el modal — solo avisarle.
+      setWeatherHint('Tu navegador no permite obtener la ubicación. Llená temperatura y humedad manualmente.');
+      return;
+    }
     let cancelled = false;
     setFetchingWeather(true);
     navigator.geolocation.getCurrentPosition(
@@ -87,10 +97,28 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
           if (d.humidity != null) {
             setHumedadRelativa(prev => prev || String(d.humidity));
           }
-        } catch { /* sin internet o API no disponible — el usuario llena manualmente */ }
+        } catch {
+          // Open-Meteo caído, upstream 502, o sin conexión. El usuario llena
+          // manualmente — solo le decimos que el autocompletado no funcionó
+          // por si estaba esperando los valores.
+          if (!cancelled) setWeatherHint('No se pudo consultar el clima ahora. Llená temperatura y humedad manualmente.');
+        }
         if (!cancelled) setFetchingWeather(false);
       },
-      () => { if (!cancelled) setFetchingWeather(false); },
+      (err) => {
+        if (cancelled) return;
+        setFetchingWeather(false);
+        // PositionError.code: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT.
+        // Diferenciamos solo el caso accionable (permiso bloqueado) para que el
+        // usuario sepa que activando la ubicación recupera el seed automático.
+        // El resto cae al mensaje genérico — los caracteres del modal son
+        // limitados y "GPS sin señal" vs "tardó 8s" tienen la misma acción.
+        if (err?.code === 1) {
+          setWeatherHint('Activá los permisos de ubicación del navegador para autocompletar temperatura y humedad.');
+        } else {
+          setWeatherHint('No se pudo obtener tu ubicación. Llená temperatura y humedad manualmente.');
+        }
+      },
       { timeout: 8000 }
     );
     return () => { cancelled = true; };
@@ -244,6 +272,13 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 {CONDICIONES_TIEMPO.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </AuroraField>
+
+            {weatherHint && !fetchingWeather && (
+              <div className="aur-banner aur-banner--info" role="status" aria-live="polite">
+                <FiInfo size={14} />
+                <span>{weatherHint}</span>
+              </div>
+            )}
 
             <AuroraField
               layout="row"
