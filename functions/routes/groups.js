@@ -3,6 +3,7 @@ const { db, Timestamp, FieldValue, FieldPath } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, sendNotificationWithLink, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
@@ -55,12 +56,23 @@ async function applyBlockTransitions({ fincaId, transitions, destGrupoId, destGr
 
   // Fetch siembra metadata so each transition record carries
   // human-readable lote/bloque descriptions (Firestore "in" caps at 30).
+  //
+  // Defense in depth: the `documentId() in` query cannot be combined with a
+  // `where('fincaId','==',fincaId)` clause without a special index, so we
+  // post-filter the snapshot. Without this, a request that supplied siembraIds
+  // from another finca (via the bloques[] field) would leak those docs'
+  // loteNombre/bloque into this finca's block_transitions audit trail.
+  // validateBloquesOwnership in POST/PUT already rejects such requests up-front;
+  // this is belt-and-suspenders for any code path that ever bypasses it.
   const allSiembraIds = transitions.flatMap(t => t.siembraIds);
   const siembraMap = new Map();
   for (let i = 0; i < allSiembraIds.length; i += 30) {
     const chunk = allSiembraIds.slice(i, i + 30);
     const snap = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
-    snap.docs.forEach(d => siembraMap.set(d.id, d.data()));
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (data.fincaId === fincaId) siembraMap.set(d.id, data);
+    });
   }
 
   const batch = db.batch();
@@ -111,6 +123,28 @@ const MAX_NOMBRE_LEN    = 16;
 const MAX_CATALOG_LEN   = 32;
 const MAX_FUTURE_DAYS   = 15;
 const MAX_BLOQUES       = 500;
+
+// Reject the request if any siembraId in bloques[] does not belong to fincaId.
+// Without this, an encargado could persist foreign-finca siembraIds inside
+// their own grupos.bloques[] (and into block_transitions.bloquesDescritos),
+// corrupting tenant boundaries even if the data never resolves in the UI.
+// Chunked at 30 (Firestore `in` cap on documentId queries).
+async function validateBloquesOwnership(fincaId, bloqueIds) {
+  if (!Array.isArray(bloqueIds) || bloqueIds.length === 0) return { ok: true };
+  const found = new Set();
+  for (let i = 0; i < bloqueIds.length; i += 30) {
+    const chunk = bloqueIds.slice(i, i + 30);
+    const snap = await db.collection('siembras').where(FieldPath.documentId(), 'in', chunk).get();
+    snap.docs.forEach(d => {
+      if (d.data().fincaId === fincaId) found.add(d.id);
+    });
+  }
+  const missing = bloqueIds.filter(id => !found.has(id));
+  if (missing.length > 0) {
+    return { ok: false, missing };
+  }
+  return { ok: true };
+}
 
 function validateGrupoBody(body, { requireFields = false } = {}) {
     const errors = [];
@@ -178,7 +212,7 @@ router.get('/api/grupos', authenticate, async (req, res) => {
     }
 });
 
-router.post('/api/grupos', authenticate, async (req, res) => {
+router.post('/api/grupos', authenticate, rateLimit('grupos_write', 'write'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create grupos.', 403);
@@ -190,6 +224,14 @@ router.post('/api/grupos', authenticate, async (req, res) => {
 
         const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = req.body;
         const incomingBloques = Array.isArray(bloques) ? bloques : [];
+
+        // Tenant boundary check: reject any siembraId that doesn't belong to
+        // this finca. validateGrupoBody only checks shape (string array, ≤500),
+        // so without this a caller could persist foreign-finca IDs in bloques[].
+        const ownershipCheck = await validateBloquesOwnership(req.fincaId, incomingBloques);
+        if (!ownershipCheck.ok) {
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'One or more bloques do not belong to this finca.', 400);
+        }
 
         // Detect blocks that currently belong to another grupo so we can
         // remove them from their origin and audit the transition.
@@ -301,7 +343,7 @@ router.post('/api/grupos', authenticate, async (req, res) => {
     }
 });
 
-router.put('/api/grupos/:id', authenticate, async (req, res) => {
+router.put('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update grupos.', 403);
@@ -333,6 +375,12 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
         // name if it was renamed in the same request.
         let transitions = [];
         if (Array.isArray(grupoData.bloques)) {
+            // Tenant boundary check — same as POST. Skip when bloques wasn't
+            // provided (partial update of name/cosecha/etapa only).
+            const ownershipCheck = await validateBloquesOwnership(req.fincaId, grupoData.bloques);
+            if (!ownershipCheck.ok) {
+                return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'One or more bloques do not belong to this finca.', 400);
+            }
             transitions = await findBlockOrigins(req.fincaId, grupoData.bloques, id);
         }
 
@@ -359,11 +407,18 @@ router.put('/api/grupos/:id', authenticate, async (req, res) => {
             && originalData.paqueteMuestreoId !== grupoData.paqueteMuestreoId;
 
         if (hasDateChanged || hasPackageChanged || hasMuestreoPackageChanged) {
-            // Delete previous tasks for this grupo
+            // Delete previous tasks for this grupo.
+            // Defense in depth: post-filter by fincaId. verifyOwnership already
+            // scoped the grupo, so all related tasks SHOULD carry the same
+            // fincaId — but never delete docs from another finca if a legacy
+            // seed/bug ever drifted that invariant. (Composite index
+            // (fincaId, grupoId) isn't deployed; post-filter avoids that
+            // deploy dependency.)
             const tasksSnapshot = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
-            const tasksDeletedCount = tasksSnapshot.size;
+            const tasksOfFinca = tasksSnapshot.docs.filter(d => d.data().fincaId === req.fincaId);
+            const tasksDeletedCount = tasksOfFinca.length;
             const deleteBatch = db.batch();
-            tasksSnapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
+            tasksOfFinca.forEach(doc => deleteBatch.delete(doc.ref));
             await deleteBatch.commit();
 
             // Audit del cambio destructivo: wipe + regen de scheduled_tasks por
@@ -476,9 +531,12 @@ router.get('/api/grupos/:id/aplicaciones-pendientes', authenticate, async (req, 
             .where('type', '==', 'REMINDER_DUE_DAY')
             .get();
 
+        // Defense in depth: post-filter by fincaId. See PUT handler for the
+        // rationale (composite index not deployed; cross-tenant drift guard).
+        const tasksOfFinca = tasksSnap.docs.filter(d => d.data().fincaId === req.fincaId);
         let completadas = 0;
         const pendientes = [];
-        for (const doc of tasksSnap.docs) {
+        for (const doc of tasksOfFinca) {
             const d = doc.data();
             if (d.status === 'completed_by_user' || d.status === 'skipped') {
                 completadas++;
@@ -527,7 +585,12 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
             .where('status', '==', 'pending')
             .get();
 
-        const pendingTaskIds = tasksSnap.docs.map(d => d.id);
+        // Defense in depth: post-filter by fincaId. Composite index
+        // (fincaId, grupoId, status) isn't deployed; post-filter avoids that
+        // dependency while still rejecting cross-tenant drift.
+        const pendingTaskIds = tasksSnap.docs
+            .filter(d => d.data().fincaId === req.fincaId)
+            .map(d => d.id);
         const cedulasAplicadas = [];
         const cedulasEnTransito = [];
 
@@ -535,7 +598,11 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
             for (const chunk of chunks) {
-                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                // Index (fincaId, taskId) exists; safe to add the explicit where.
+                const cSnap = await db.collection('cedulas')
+                    .where('fincaId', '==', req.fincaId)
+                    .where('taskId', 'in', chunk)
+                    .get();
                 cSnap.docs.forEach(doc => {
                     const d = doc.data();
                     if (d.status === 'aplicada_en_campo') {
@@ -554,7 +621,7 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
     }
 });
 
-router.delete('/api/grupos/:id', authenticate, async (req, res) => {
+router.delete('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete grupos.', 403);
@@ -568,9 +635,12 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
         const prevData = ownership.doc.data();
         const snap_grupoNombre = prevData.nombreGrupo || '';
 
+        // Defense in depth: post-filter scheduled_tasks by fincaId so we never
+        // mutate or delete a doc from another finca even if data ever drifted.
         const allTasksSnap = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
-        const pendingTasks    = allTasksSnap.docs.filter(d => d.data().status === 'pending');
-        const completedTasks  = allTasksSnap.docs.filter(d => d.data().status !== 'pending');
+        const allTasksOfFinca = allTasksSnap.docs.filter(d => d.data().fincaId === req.fincaId);
+        const pendingTasks    = allTasksOfFinca.filter(d => d.data().status === 'pending');
+        const completedTasks  = allTasksOfFinca.filter(d => d.data().status !== 'pending');
         const pendingTaskIds  = pendingTasks.map(d => d.id);
 
         // Reject if there are cedulas in a blocking state
@@ -578,7 +648,11 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
             for (const chunk of chunks) {
-                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                // Index (fincaId, taskId) exists; explicit where + tenant safety.
+                const cSnap = await db.collection('cedulas')
+                    .where('fincaId', '==', req.fincaId)
+                    .where('taskId', 'in', chunk)
+                    .get();
                 for (const doc of cSnap.docs) {
                     const s = doc.data().status;
                     if (s === 'aplicada_en_campo') return sendApiError(res, 'CEDULA_APLICADA', 'There are cedulas applied in the field.', 409);
@@ -600,7 +674,10 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
             for (const chunk of chunks) {
-                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                const cSnap = await db.collection('cedulas')
+                    .where('fincaId', '==', req.fincaId)
+                    .where('taskId', 'in', chunk)
+                    .get();
                 cSnap.docs.forEach(doc => batch.delete(doc.ref));
                 pendingCedulasDeleted += cSnap.size;
             }
@@ -665,7 +742,7 @@ router.delete('/api/grupos/:id', authenticate, async (req, res) => {
 // atómico, pero el endpoint es idempotente: si una segunda corrida ve las
 // mismas cédulas ya con status='en_transito' false (porque ya no existen),
 // el flujo se completa sin re-revertir inventario.
-router.post('/api/grupos/:id/anular-y-eliminar', authenticate, async (req, res) => {
+router.post('/api/grupos/:id/anular-y-eliminar', authenticate, rateLimit('grupos_write', 'write'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete grupos.', 403);
@@ -678,9 +755,12 @@ router.post('/api/grupos/:id/anular-y-eliminar', authenticate, async (req, res) 
         const snap_grupoNombre = prevData.nombreGrupo || '';
 
         // ── 1. Read: tasks del grupo ───────────────────────────────────
+        // Defense in depth: post-filter by fincaId (composite index for
+        // (fincaId, grupoId) not deployed; cross-tenant drift guard).
         const allTasksSnap = await db.collection('scheduled_tasks').where('grupoId', '==', id).get();
-        const pendingTasks    = allTasksSnap.docs.filter(d => d.data().status === 'pending');
-        const completedTasks  = allTasksSnap.docs.filter(d => d.data().status !== 'pending');
+        const allTasksOfFinca = allTasksSnap.docs.filter(d => d.data().fincaId === req.fincaId);
+        const pendingTasks    = allTasksOfFinca.filter(d => d.data().status === 'pending');
+        const completedTasks  = allTasksOfFinca.filter(d => d.data().status !== 'pending');
         const pendingTaskIds  = pendingTasks.map(d => d.id);
 
         // ── 2. Read: cédulas asociadas + bloqueo si hay aplicada_en_campo
@@ -691,7 +771,11 @@ router.post('/api/grupos/:id/anular-y-eliminar', authenticate, async (req, res) 
             const chunks = [];
             for (let i = 0; i < pendingTaskIds.length; i += 10) chunks.push(pendingTaskIds.slice(i, i + 10));
             for (const chunk of chunks) {
-                const cSnap = await db.collection('cedulas').where('taskId', 'in', chunk).get();
+                // Index (fincaId, taskId) exists; explicit where + tenant safety.
+                const cSnap = await db.collection('cedulas')
+                    .where('fincaId', '==', req.fincaId)
+                    .where('taskId', 'in', chunk)
+                    .get();
                 for (const doc of cSnap.docs) {
                     const d = doc.data();
                     if (d.status === 'aplicada_en_campo') {

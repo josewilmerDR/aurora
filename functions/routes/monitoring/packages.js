@@ -16,14 +16,21 @@
 const { Router } = require('express');
 const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { sanitizePaquete } = require('./helpers');
 
 const router = Router();
 
+// La página `/monitoreo/paquetes` está gated a supervisor y `/grupos` (encargado+)
+// consume el GET para el selector de paquete de muestreo. Sin estos gates a nivel
+// backend, un trabajador con token válido podía enumerar el catálogo y
+// crear/modificar/borrar paquetes vía API directa — bypasseando ambos gates de UI.
 router.get('/api/muestreos/paquetes', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read monitoring packages.', 403);
+    }
     const snap = await db.collection('monitoreo_paquetes').where('fincaId', '==', req.fincaId).get();
     res.status(200).json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   } catch (error) {
@@ -33,6 +40,9 @@ router.get('/api/muestreos/paquetes', authenticate, async (req, res) => {
 
 router.get('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read monitoring packages.', 403);
+    }
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -44,6 +54,9 @@ router.get('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
 
 router.post('/api/muestreos/paquetes', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can manage monitoring packages.', 403);
+    }
     const parsed = sanitizePaquete(req.body);
     if (!parsed.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, parsed.message, 400);
     const pkg = { ...parsed.value, fincaId: req.fincaId };
@@ -56,6 +69,9 @@ router.post('/api/muestreos/paquetes', authenticate, async (req, res) => {
 
 router.put('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can manage monitoring packages.', 403);
+    }
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -70,6 +86,9 @@ router.put('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
 
 router.delete('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can manage monitoring packages.', 403);
+    }
     const { id } = req.params;
     const ownership = await verifyOwnership('monitoreo_paquetes', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
