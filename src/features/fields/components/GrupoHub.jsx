@@ -64,6 +64,15 @@ export default function GrupoHub({
   } = useGrupoBloqueTable({ selectedGrupo: grupo, siembrasById, empresaConfig });
 
   const fechaCosecha = calcFechaCosecha(grupo, empresaConfig);
+  // Si /api/config falló al cargar (reloadAll usa allSettled — fallos
+  // silenciosos por diseño), empresaConfig queda en su valor inicial {}
+  // y calcFechaCosecha cae a los defaults 150/215/250 sin avisar. El
+  // backend devuelve {id, fincaId, updatedAt, ...} cuando el doc existe;
+  // {} para fincas sin config seteado o si el fetch reventó. Usamos
+  // `.id` como discriminador: false → marcamos el badge como atenuado
+  // con tooltip para que el usuario sepa que el dato es ballpark, no
+  // dato calibrado para esta finca.
+  const configLoaded = !!empresaConfig?.id;
 
   const grupoPkg      = grupo.paqueteId ? packages.find(p => p.id === grupo.paqueteId) : null;
   const isArchivedPkg = !!(grupoPkg && grupoPkg.archivedAt);
@@ -127,7 +136,12 @@ export default function GrupoHub({
           </span>
         )}
         {fechaCosecha && (
-          <span className="aur-badge aur-badge--yellow">
+          <span
+            className={`aur-badge aur-badge--yellow${!configLoaded ? ' aur-badge--archived' : ''}`}
+            title={!configLoaded
+              ? 'Configuración no cargada — fecha estimada con valores por defecto (150/215/250 días). Ajustá los parámetros de cultivo en /config para una proyección calibrada.'
+              : undefined}
+          >
             Cosecha est.: {formatDateLong(fechaCosecha)}
           </span>
         )}
