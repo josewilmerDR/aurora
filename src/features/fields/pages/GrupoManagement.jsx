@@ -2,75 +2,22 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/grupo-management.css';
-import { FiEdit, FiTrash2, FiPlus, FiEye, FiShare2, FiPrinter, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiPlus, FiEye, FiX, FiArrowLeft, FiCalendar, FiLayers, FiPackage, FiChevronRight, FiSliders, FiAlertTriangle, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import BloqueSortTh from '../components/BloqueSortTh';
+import GrupoPreviewModal from '../components/GrupoPreviewModal';
 import { tsToDate, formatDateLong, formatDateForInput, multiSort } from '../lib/lotes-helpers';
+import { consolidateSiembrasByBloque, calcFechaCosecha } from '../lib/grupo-bloques-helpers';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // formatDateLong, tsToDate, formatDateForInput y multiSort vienen de
-// lib/lotes-helpers — el callsite previo tenía formatDateLong inline que
-// NO sabía procesar Firestore Timestamps y exigía envolver con tsToDate en
-// cada uso. El lib lo maneja internamente.
-
-const calcFechaCosecha = (grupo, config) => {
-  const etapa   = (grupo.etapa   || '').toLowerCase();
-  const cosecha = (grupo.cosecha || '').toLowerCase();
-  let dias;
-  if (etapa.includes('postforza') || etapa.includes('post forza')) {
-    dias = config.diasPostForza ?? 150;
-  } else if (cosecha.includes('ii') || cosecha.includes('2')) {
-    dias = config.diasIIDesarrollo ?? 215;
-  } else {
-    dias = config.diasIDesarrollo ?? 250;
-  }
-  const base = tsToDate(grupo.fechaCreacion);
-  if (!base) return null;
-  const result = new Date(base);
-  result.setDate(result.getDate() + dias);
-  return result;
-};
-
-// Consolida un arreglo de siembras (varios registros para el mismo lote+bloque)
-// en una fila única por bloque físico. Las áreas y plantas se suman; los
-// materiales/variedades distintos se concatenan con " · ".
-function consolidateSiembrasByBloque(siembras) {
-  const map = new Map();
-  for (const s of siembras) {
-    if (!s) continue;
-    const key = `${s.loteId}__${s.bloque}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        id: `${s.loteId}__${s.bloque}`,
-        siembraIds: [],
-        loteId: s.loteId,
-        loteNombre: s.loteNombre || s.loteId,
-        bloque: s.bloque,
-        plantas: 0,
-        areaCalculada: 0,
-        _materiales: new Set(),
-        _variedades: new Set(),
-      });
-    }
-    const entry = map.get(key);
-    entry.siembraIds.push(s.id);
-    entry.plantas += (s.plantas || 0);
-    entry.areaCalculada += (parseFloat(s.areaCalculada) || 0);
-    if (s.materialNombre) entry._materiales.add(s.materialNombre);
-    if (s.variedad) entry._variedades.add(s.variedad);
-  }
-  return [...map.values()].map(e => {
-    const materialNombre = [...e._materiales].join(' · ');
-    const variedad = [...e._variedades].join(' · ');
-    delete e._materiales;
-    delete e._variedades;
-    return { ...e, materialNombre, variedad };
-  });
-}
+// lib/lotes-helpers. consolidateSiembrasByBloque y calcFechaCosecha viven
+// en lib/grupo-bloques-helpers — mismas funciones, ahora compartidas con
+// GrupoPreviewModal y futuras extracciones del refactor del #12.
 
 // ── Tabla de bloques: configuración de columnas ─────────────────────────────
 const BLOQUE_COLS = [
@@ -155,7 +102,6 @@ function GrupoManagement() {
   const [bloqueFilterPop,  setBloqueFilterPop]  = useState(null);
   const [bloqueHiddenCols, setBloqueHiddenCols] = useState(new Set());
   const [bloqueColMenu,    setBloqueColMenu]     = useState(null);
-  const docRef      = useRef(null);
   const carouselRef = useRef(null);
   // Refs para scroll-to-error en submit fallido. Para el campo de bloques
   // apuntamos al section header (no es un input enfocable), así que solo
@@ -278,10 +224,11 @@ function GrupoManagement() {
   const cerradoSiembras = useMemo(() => siembras.filter(s => s.cerrado), [siembras]);
 
   // Índices id → doc para lookup O(1). Los consumen selectedBlockCount,
-  // selectedBloques y previewBloques que antes hacían .find() lineal sobre
-  // arrays de cientos de items por cada bloque-id del grupo. Cada keystroke
-  // de filtro/sort de la tabla del hub recalcula esos derivados — sin el
-  // índice eran O(N·M) por render, perceptible como lag en mobile mid-range.
+  // selectedBloques y GrupoPreviewModal (vía prop) que antes hacían .find()
+  // lineal sobre arrays de cientos de items por cada bloque-id del grupo.
+  // Cada keystroke de filtro/sort de la tabla del hub recalcula esos
+  // derivados — sin el índice eran O(N·M) por render, perceptible como
+  // lag en mobile mid-range.
   const siembrasById = useMemo(
     () => new Map(siembras.map(s => [s.id, s])),
     [siembras]
@@ -775,58 +722,6 @@ function GrupoManagement() {
       setSaving(false);
     }
   };
-
-  // ── Preview (PDF / print) ────────────────────────────────────────────────
-  const handleCompartir = async () => {
-    if (!docRef.current) return;
-    try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const canvas  = await html2canvas(docRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW   = pdf.internal.pageSize.getWidth();
-      const pageH   = pdf.internal.pageSize.getHeight();
-      const imgH    = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
-      const filename = `Grupo-${previewGrupo?.nombreGrupo || 'doc'}.pdf`;
-      const blob     = pdf.output('blob');
-      const file     = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.canShare?.({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: filename }); } catch {}
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        URL.revokeObjectURL(url);
-        showToast('PDF descargado');
-      }
-    } catch {
-      showToast('No se pudo generar el PDF.', 'error');
-    }
-  };
-
-  const previewBloques = useMemo(() => {
-    if (!previewGrupo) return [];
-    const owned = (previewGrupo.bloques || [])
-      .map(id => siembrasById.get(id))
-      .filter(Boolean);
-    return consolidateSiembrasByBloque(owned);
-  }, [previewGrupo, siembrasById]);
-
-  const previewFechaCosecha  = previewGrupo ? calcFechaCosecha(previewGrupo, empresaConfig) : null;
-  const previewFechaCreacion = previewGrupo ? tsToDate(previewGrupo.fechaCreacion) : null;
-
-  const pvTotalHa      = previewBloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
-  const pvTotalPlantas = previewBloques.reduce((s, b) => s + (b.plantas || 0), 0);
-  const pvTotalKg      = pvTotalPlantas * 1.6;
 
   const getPackageName = (id) => packages.find(p => p.id === id)?.nombrePaquete || '—';
   const getMonitoreoPackageName = (id) => monitoreoPackages.find(p => p.id === id)?.nombrePaquete || '—';
@@ -1588,105 +1483,14 @@ function GrupoManagement() {
 
       </div>}
 
-      {/* ── Preview modal (PDF / impresión) ── */}
-      {previewGrupo && createPortal(
-        <div className="gp-preview-backdrop">
-
-          <div className="gp-preview-toolbar">
-            <button className="aur-chip gp-toolbar-icon-btn" onClick={() => setPreviewGrupo(null)}>
-              <FiArrowLeft size={15} /> <span className="gp-toolbar-btn-text">Volver</span>
-            </button>
-            <span className="gp-preview-toolbar-title">Grupo — {previewGrupo.nombreGrupo}</span>
-            <div className="gp-preview-toolbar-actions">
-              <button className="aur-chip gp-toolbar-icon-btn" onClick={handleCompartir}>
-                <FiShare2 size={15} /> <span className="gp-toolbar-btn-text">Compartir</span>
-              </button>
-              <button className="aur-chip gp-toolbar-icon-btn" onClick={() => window.print()}>
-                <FiPrinter size={15} /> <span className="gp-toolbar-btn-text">Imprimir</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="gp-doc-wrap">
-            <div className="gp-document" ref={docRef}>
-
-                <div className="gp-doc-header">
-                  <div className="gp-doc-brand">
-                    {empresaConfig.logoUrl
-                      ? <img src={empresaConfig.logoUrl} alt="Logo" className="gp-doc-logo-img" />
-                      : <div className="gp-doc-logo">AU</div>}
-                    <div className="gp-doc-brand-info">
-                      <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
-                      {empresaConfig.identificacion && <div className="gp-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
-                      {empresaConfig.whatsapp       && <div className="gp-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
-                      {empresaConfig.correo         && <div className="gp-doc-brand-sub">{empresaConfig.correo}</div>}
-                      {empresaConfig.direccion      && <div className="gp-doc-brand-sub">{empresaConfig.direccion}</div>}
-                    </div>
-                  </div>
-                  <div className="gp-doc-date">
-                    Fecha: <strong>{formatDateLong(new Date())}</strong>
-                  </div>
-                </div>
-
-                <hr className="gp-doc-divider" />
-
-                <div className="gp-doc-grupo-info">
-                  <div className="gp-doc-grupo-title">GRUPO: {previewGrupo.nombreGrupo}</div>
-                  <div className="gp-doc-grupo-meta">
-                    <span><strong>Fecha de creación:</strong> {formatDateLong(previewFechaCreacion)}</span>
-                    <span><strong>Fecha estimada de cosecha:</strong> {previewFechaCosecha ? formatDateLong(previewFechaCosecha) : '—'}</span>
-                    {(previewGrupo.cosecha || previewGrupo.etapa) && (
-                      <span><strong>Cosecha / Etapa:</strong> {[previewGrupo.cosecha, previewGrupo.etapa].filter(Boolean).join(' · ')}</span>
-                    )}
-                  </div>
-                </div>
-
-                <table className="gp-doc-table">
-                  <thead>
-                    <tr>
-                      <th>Lote</th>
-                      <th>Bloque</th>
-                      <th className="gp-col-num">Ha.</th>
-                      <th className="gp-col-num">Plantas</th>
-                      <th>Material</th>
-                      <th className="gp-col-num">Kg Estimados</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewBloques.length === 0 && (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '12px', color: '#999' }}>Sin bloques</td></tr>
-                    )}
-                    {previewBloques.map(b => (
-                      <tr key={b.id}>
-                        <td>{b.loteNombre || '—'}</td>
-                        <td>{b.bloque || '—'}</td>
-                        <td className="gp-col-num">{b.areaCalculada ?? '—'}</td>
-                        <td className="gp-col-num">{b.plantas?.toLocaleString() ?? '—'}</td>
-                        <td>{b.materialNombre || b.variedad || '—'}</td>
-                        <td className="gp-col-num">{b.plantas ? (b.plantas * 1.6).toLocaleString('es-CR', { maximumFractionDigits: 0 }) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  {previewBloques.length > 0 && (
-                    <tfoot>
-                      <tr>
-                        <td colSpan={2}><strong>Totales</strong></td>
-                        <td className="gp-col-num"><strong>{pvTotalHa.toFixed(4)}</strong></td>
-                        <td className="gp-col-num"><strong>{pvTotalPlantas.toLocaleString()}</strong></td>
-                        <td></td>
-                        <td className="gp-col-num"><strong>{pvTotalKg.toLocaleString('es-CR', { maximumFractionDigits: 0 })}</strong></td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-
-                <div className="gp-doc-footer">
-                  Documento generado por Sistema Aurora
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
+      {previewGrupo && (
+        <GrupoPreviewModal
+          grupo={previewGrupo}
+          siembrasById={siembrasById}
+          empresaConfig={empresaConfig}
+          onClose={() => setPreviewGrupo(null)}
+          onShareError={() => showToast('No se pudo generar el PDF.', 'error')}
+        />
       )}
 
       {/* ── Filter popover (tabla de bloques) ── */}
