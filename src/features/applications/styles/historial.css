@@ -1,27 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    HISTORIAL APLICACIONES — page-specific overrides on top of .aur-* primitives
-   El sheet, secciones, settings list, table, badge, chip, filter popover
-   vienen de aurora.css. Aquí solo viven los pedazos únicos de la página:
+   El sheet, secciones, table, badge, chip, filter popover y col-menu vienen
+   de aurora.css (vía AuroraDataTable). Aquí solo viven los pedazos únicos:
    tabla muy ancha (41 columnas → min-width 3400px), helpers de celdas,
    filas marcadas como cambiadas, y cell de observaciones con toggle.
    ═══════════════════════════════════════════════════════════════════════════ */
-
-.ha-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-  color: var(--aur-text-2);
-}
-.ha-empty > svg {
-  color: var(--aur-text-3);
-}
-.ha-empty > p {
-  font-size: 14px;
-  margin: 0;
-  letter-spacing: -0.01em;
-}
 
 /* ── Grid del modal de filtros ────────────────────────────────────────── */
 .ha-filtro-grid {
@@ -44,15 +27,6 @@
   color: var(--aur-text-3);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-}
-
-/* Contador "Registros N" en texto normal junto al h3 (sin pill) */
-.ha-section-count {
-  font-size: 13px;
-  color: var(--aur-text-2);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
 }
 
 /* ── Tabla ancha (override de .aur-table para 41 columnas) ──────────────── */
@@ -80,11 +54,6 @@
   padding: 10px 12px;
   white-space: nowrap;
   vertical-align: middle;
-}
-
-/* Primeras 2 columnas (consecutivo + estado) ligeramente destacadas */
-.ha-table .historial-th-group {
-  background: var(--aur-bg-hover);
 }
 
 /* Filas marcadas como cambiadas — left-border tinted en lugar de opacity */
@@ -169,11 +138,10 @@
   opacity: 0.75;
 }
 
-/* Load more */
-.ha-load-more {
-  display: flex;
-  justify-content: center;
-  margin-top: 12px;
+/* Botón Excel del header — el [disabled] gris lo provee aur-chip, pero le
+   bajamos el cursor para reforzar que está inerte cuando no hay registros. */
+.ha-btn-export[disabled] {
+  cursor: not-allowed;
 }
 
 /* ── Page loading spinner (reuses @keyframes app-loading-spin from App.css) ── */
@@ -193,17 +161,6 @@
   animation: app-loading-spin 0.75s linear infinite;
 }
 
-/* Link "Ir a Cédulas de aplicación" inline al final del subtítulo */
-.ha-header-link {
-  color: var(--aurora-green);
-  text-decoration: none;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.ha-header-link:hover {
-  text-decoration: underline;
-}
-
 /* Mobile: la tabla sigue requiriendo scroll horizontal — solo ajustamos padding */
 @media (max-width: 640px) {
   .ha-table-wrap {
@@ -215,40 +172,22 @@
   }
 }
 
-/* En móvil el default de aurora.css hace wrap del aur-sheet-header-actions
-   y manda los botones (Filtro + "Nueva cédula") al flex-start (izquierda).
-   Los forzamos al extremo derecho para alinearnos con el patrón ya
-   establecido en SiembraHistorial y PackageManagement.
-
-   Reparto 40/60 del ancho — mismo share que en SiembraHistorial —
-   restando 4px a cada lado para compartir el gap de 8px del contenedor
-   y sumar exactamente 100%, así nunca colapsa a una segunda fila. */
+/* Header actions: el default de aurora.css hace flex-start en mobile. Lo
+   forzamos a flex-end para alinear con SiembraHistorial / PackageManagement.
+   Antes había un reparto 40/60 hardcodeado para 2 elementos; ahora son 3
+   (Filtro + Excel + "Ir a cédulas pendientes") así que dejamos que el flex
+   los acomode naturalmente, permitiendo wrap si la pantalla es muy estrecha. */
 @media (max-width: 768px) {
   .ha-page .aur-sheet-header-actions {
     justify-content: flex-end;
-    flex-wrap: nowrap;
-  }
-  .ha-page .aur-sheet-header-actions > .aur-chip {
-    flex: 0 0 calc(40% - 4px);
-    min-width: 0;
-    justify-content: center;
-  }
-  .ha-page .aur-sheet-header-actions > .aur-btn-pill {
-    flex: 0 0 calc(60% - 4px);
-    min-width: 0;
-    justify-content: center;
   }
 }
 
 /* El default global de aurora.css colapsa el FilterButton a solo-ícono en
-   ≤640px. En esta página el botón comparte la fila de acciones del header
-   con "Nueva cédula" en un reparto 40/60, así que conservamos la palabra
-   "Filtro" para que el botón no se vea desproporcionadamente vacío.
-
-   El mismo media query global también pone gap: 0 en .aur-btn-filter
-   (porque solo-ícono no necesita separación); como aquí el label sí se
-   muestra, restauramos el gap heredado de .aur-chip (6px) para que el
-   ícono y la palabra queden separados. */
+   ≤640px. En esta página, con tres elementos en el header, preferimos que
+   el label "Filtro" se siga viendo para que el botón no quede igual al de
+   Excel (también un chip con ícono). Restaurar el gap heredado de .aur-chip
+   (6px) que el override global pone en 0 para el solo-ícono. */
 @media (max-width: 640px) {
   .ha-page .aur-btn-filter-label {
     display: inline;

@@ -1,43 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { FiFilter, FiX, FiArrowRight, FiSliders } from 'react-icons/fi';
+import { FiFilter, FiX, FiArrowRight, FiDownload } from 'react-icons/fi';
+import * as XLSX from 'xlsx';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import { useUser } from '../../../contexts/UserContext';
+import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import FilterButton from '../../../components/ui/FilterButton';
-import EmptyState from '../../../components/ui/EmptyState';
 import '../styles/historial.css';
-
-// Filtro por columna: 'date' y 'number' usan rango (De/A), el resto texto.
-const COLUMN_FILTER_TYPES = {
-  snap_dueDate:             'date',
-  snap_fechaCosecha:        'date',
-  snap_fechaCreacionGrupo:  'date',
-  aplicadaAt:               'date',
-  editadaAt:                'date',
-  snap_periodoCarenciaMax:  'number',
-  snap_periodoReingresoMax: 'number',
-  snap_areaHa:              'number',
-  snap_totalPlantas:        'number',
-  snap_volumenPorHa:        'number',
-  snap_litrosAplicador:     'number',
-  snap_totalBoones:         'number',
-  _prodCantidad:            'number',
-  _prodTotal:               'number',
-  _prodOrigCantidad:        'number',
-  _prodCostoTotal:          'number',
-  temperatura:              'number',
-  humedadRelativa:          'number',
-};
-const getFilterType = (field) => COLUMN_FILTER_TYPES[field] || 'text';
-
-const hasFilterValue = (f) => {
-  if (!f) return false;
-  if (f.type === 'range') return !!((f.from || '').trim() || (f.to || '').trim());
-  return !!(f.value || '').trim();
-};
-
-const PAGE_SIZE = 50;
 
 const DATE_FIELDS = [
   { value: 'snap_dueDate',             label: 'F. Prog. Aplicación' },
@@ -46,7 +17,6 @@ const DATE_FIELDS = [
   { value: 'aplicadaAt',               label: 'Fecha Aplicación' },
   { value: 'editadaAt',                label: 'Fecha Edición' },
 ];
-
 
 const STATUS_LABEL = {
   pendiente:         'Pendiente',
@@ -58,6 +28,14 @@ const STATUS_CLASS = {
   pendiente:         'aur-badge--yellow',
   en_transito:       'aur-badge--blue',
   aplicada_en_campo: 'aur-badge--green',
+};
+
+const CAMBIO_BADGE_CLASS = {
+  'Sustitución':     'aur-badge--blue',
+  'Ajuste de dosis': 'aur-badge--yellow',
+  'Añadido':         'aur-badge--green',
+  'Retirado':        'aur-badge--gray',
+  'Otro':            'aur-badge--violet',
 };
 
 const fmt = (iso) => {
@@ -79,151 +57,319 @@ const fmtCosto = (v, moneda) => {
   return moneda ? `${str} ${moneda}` : str;
 };
 
-const CAMBIO_BADGE_CLASS = {
-  'Sustitución':     'aur-badge--blue',
-  'Ajuste de dosis': 'aur-badge--yellow',
-  'Añadido':         'aur-badge--green',
-  'Retirado':        'aur-badge--gray',
-  'Otro':            'aur-badge--violet',
-};
-
-// Character threshold: if the text is longer, the "see more" button appears.
-// Row height defaults to 1 line (see CSS), so at ~480px wide
-// con font 0.78rem caben aproximadamente 70-80 caracteres antes de truncar.
+// Si supera este umbral el texto se trunca a 1 línea y aparece "ver más".
 const OBS_TRUNCATE_AT = 70;
 
 const prodLabel = (p) => p
   ? [p.nombreComercial, p.ingredienteActivo].filter(Boolean).join(' — ')
   : '';
 
-// Metadata de columnas: orden de render, label, clases y función render por fila.
-// `ctx` expone helpers que dependen del componente (renderObs con estado de toggle).
-const COLUMNS = [
-  { key: 'consecutivo', label: 'Consecutivo', thClass: 'historial-th-group', tdClass: 'historial-consecutivo',
+// Columnas — para AuroraDataTable:
+//   - key       · id de la columna (también campo del row salvo agregados)
+//   - label     · header visible
+//   - type      · 'text' | 'date' | 'number' (define UI del filter popover)
+//   - accessor  · opcional, valor crudo usado para sort/filter/export. Default
+//                 lee row[key]. Definir cuando el valor es derivado (status
+//                 label en vez de código) o necesita slice (fecha YYYY-MM-DD).
+//   - render    · cómo se renderiza la celda en la tabla
+//   - exportFmt · opcional, valor formateado para Excel. Default usa accessor.
+//   - tdClass   · clase extra en la celda
+//   - tdProps   · props extra (típicamente `title` para overflow visual)
+const ALL_COLUMNS = [
+  {
+    key: 'consecutivo', label: 'Consecutivo', type: 'text',
+    accessor: (r) => r.consecutivo || '',
     render: (row) => row.status === 'aplicada_en_campo'
       ? <Link to={`/aplicaciones/cedula/${row.id}`} className="historial-cedula-link">{row.consecutivo}</Link>
-      : row.consecutivo },
-  { key: 'status', label: 'Estado', thClass: 'historial-th-group',
-    render: (row) => <span className={`aur-badge ${STATUS_CLASS[row.status] || ''}`}>{STATUS_LABEL[row.status] || row.status}</span> },
-  { key: 'snap_activityName', label: 'Aplicación', tdClass: 'historial-td-nowrap',
-    render: (row) => row.snap_activityName || '—' },
-  { key: 'snap_dueDate', label: 'F. Prog. Aplic.', tdClass: 'historial-td-nowrap',
-    render: (row) => fmt(row.snap_dueDate) },
-  { key: 'snap_fechaCosecha', label: 'F. Prog. Cosecha', tdClass: 'historial-td-nowrap',
-    render: (row) => fmt(row.snap_fechaCosecha) },
-  { key: 'snap_fechaCreacionGrupo', label: 'F. Creación Grupo', tdClass: 'historial-td-nowrap',
-    render: (row) => fmt(row.snap_fechaCreacionGrupo) },
-  { key: 'snap_periodoCarenciaMax', label: 'Per. Carencia (d)',
-    render: (row) => n(row.snap_periodoCarenciaMax) },
-  { key: 'snap_periodoReingresoMax', label: 'Per. Reingreso (h)',
-    render: (row) => n(row.snap_periodoReingresoMax) },
-  { key: 'metodoAplicacion', label: 'Método Aplicación',
-    render: (row) => row.metodoAplicacion || '—' },
-  { key: 'snap_paqueteTecnico', label: 'Paq. Técnico',
-    render: (row) => row.snap_paqueteTecnico || '—' },
-  { key: 'snap_sourceName', label: 'Grupo', tdClass: 'historial-td-nowrap',
-    render: (row) => row.snap_sourceName || '—' },
-  { key: '_etapaStr', label: 'Etapa', tdClass: 'historial-td-nowrap',
-    render: (row) => row._etapaStr || '—' },
-  { key: 'snap_areaHa', label: 'Área (ha)',
-    render: (row) => n(row.snap_areaHa, 2) },
-  { key: 'snap_totalPlantas', label: 'Total Plantas',
-    render: (row) => row.snap_totalPlantas ? Number(row.snap_totalPlantas).toLocaleString('es-ES') : '—' },
-  { key: 'snap_volumenPorHa', label: 'Volumen (Lt/Ha)',
-    render: (row) => n(row.snap_volumenPorHa) },
-  { key: 'snap_litrosAplicador', label: 'Litros Aplicador',
-    render: (row) => n(row.snap_litrosAplicador) },
-  { key: 'snap_totalBoones', label: 'Tanques (boom)',
-    render: (row) => n(row.snap_totalBoones, 2) },
-  { key: 'snap_calibracionNombre', label: 'Calibración', tdClass: 'historial-td-nowrap',
-    render: (row) => row.snap_calibracionNombre || '—' },
-  { key: '_lotesStr', label: 'Lote', tdClass: 'historial-td-nowrap',
-    render: (row) => row._lotesStr || '—' },
-  { key: '_bloquesStr', label: 'Bloques', tdClass: 'historial-td-bloques',
+      : row.consecutivo,
+    tdClass: 'historial-consecutivo',
+  },
+  {
+    key: 'status', label: 'Estado', type: 'text',
+    accessor: (r) => STATUS_LABEL[r.status] || r.status || '',
+    render: (row) => <span className={`aur-badge ${STATUS_CLASS[row.status] || ''}`}>{STATUS_LABEL[row.status] || row.status}</span>,
+  },
+  {
+    key: 'snap_activityName', label: 'Aplicación', type: 'text',
+    render: (row) => row.snap_activityName || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'snap_dueDate', label: 'F. Prog. Aplic.', type: 'date',
+    accessor: (r) => r.snap_dueDate ? String(r.snap_dueDate).slice(0, 10) : '',
+    render: (row) => fmt(row.snap_dueDate),
+    exportFmt: (r) => fmt(r.snap_dueDate),
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'snap_fechaCosecha', label: 'F. Prog. Cosecha', type: 'date',
+    accessor: (r) => r.snap_fechaCosecha ? String(r.snap_fechaCosecha).slice(0, 10) : '',
+    render: (row) => fmt(row.snap_fechaCosecha),
+    exportFmt: (r) => fmt(r.snap_fechaCosecha),
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'snap_fechaCreacionGrupo', label: 'F. Creación Grupo', type: 'date',
+    accessor: (r) => r.snap_fechaCreacionGrupo ? String(r.snap_fechaCreacionGrupo).slice(0, 10) : '',
+    render: (row) => fmt(row.snap_fechaCreacionGrupo),
+    exportFmt: (r) => fmt(r.snap_fechaCreacionGrupo),
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'snap_periodoCarenciaMax', label: 'Per. Carencia (d)', type: 'number',
+    render: (row) => n(row.snap_periodoCarenciaMax),
+  },
+  {
+    key: 'snap_periodoReingresoMax', label: 'Per. Reingreso (h)', type: 'number',
+    render: (row) => n(row.snap_periodoReingresoMax),
+  },
+  {
+    key: 'metodoAplicacion', label: 'Método Aplicación', type: 'text',
+    render: (row) => row.metodoAplicacion || '—',
+  },
+  {
+    key: 'snap_paqueteTecnico', label: 'Paq. Técnico', type: 'text',
+    render: (row) => row.snap_paqueteTecnico || '—',
+  },
+  {
+    key: 'snap_sourceName', label: 'Grupo', type: 'text',
+    render: (row) => row.snap_sourceName || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: '_etapaStr', label: 'Etapa', type: 'text',
+    render: (row) => row._etapaStr || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'snap_areaHa', label: 'Área (ha)', type: 'number',
+    render: (row) => n(row.snap_areaHa, 2),
+  },
+  {
+    key: 'snap_totalPlantas', label: 'Total Plantas', type: 'number',
+    render: (row) => row.snap_totalPlantas ? Number(row.snap_totalPlantas).toLocaleString('es-ES') : '—',
+  },
+  {
+    key: 'snap_volumenPorHa', label: 'Volumen (Lt/Ha)', type: 'number',
+    render: (row) => n(row.snap_volumenPorHa),
+  },
+  {
+    key: 'snap_litrosAplicador', label: 'Litros Aplicador', type: 'number',
+    render: (row) => n(row.snap_litrosAplicador),
+  },
+  {
+    key: 'snap_totalBoones', label: 'Tanques (boom)', type: 'number',
+    render: (row) => n(row.snap_totalBoones, 2),
+  },
+  {
+    key: 'snap_calibracionNombre', label: 'Calibración', type: 'text',
+    render: (row) => row.snap_calibracionNombre || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: '_lotesStr', label: 'Lote', type: 'text',
+    render: (row) => row._lotesStr || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: '_bloquesStr', label: 'Bloques', type: 'text',
+    render: (row) => row._bloquesStr || '—',
+    tdClass: 'historial-td-bloques',
     tdProps: (row) => ({ title: row._bloquesStr || undefined }),
-    render: (row) => row._bloquesStr || '—' },
-  { key: '_prodIdProducto', label: 'Id Producto',
-    render: (row) => row._prodIdProducto || '—' },
-  { key: '_prodNombre', label: 'Nombre Comercial — Ing. Activo', tdClass: 'historial-td-producto',
+  },
+  {
+    key: '_prodIdProducto', label: 'Id Producto', type: 'text',
+    render: (row) => row._prodIdProducto || '—',
+  },
+  {
+    key: '_prodNombre', label: 'Nombre Comercial — Ing. Activo', type: 'text',
+    render: (row) => row._prodNombre || '—',
+    tdClass: 'historial-td-producto',
     tdProps: (row) => ({ title: row._prodNombre || undefined }),
-    render: (row) => row._prodNombre || '—' },
-  { key: '_prodCantidad', label: 'Cant./Ha',
-    render: (row) => row._prodCantidad != null ? n(row._prodCantidad) : '—' },
-  { key: '_prodUnidad', label: 'Unidad',
-    render: (row) => row._prodUnidad || '—' },
-  { key: '_prodTotal', label: 'Total Prod.',
-    render: (row) => row._prodTotal != null ? n(row._prodTotal, 3) : '—' },
-  { key: '_prodCambio', label: 'Cambio',
+  },
+  {
+    key: '_prodCantidad', label: 'Cant./Ha', type: 'number',
+    render: (row) => row._prodCantidad != null ? n(row._prodCantidad) : '—',
+  },
+  {
+    key: '_prodUnidad', label: 'Unidad', type: 'text',
+    render: (row) => row._prodUnidad || '—',
+  },
+  {
+    key: '_prodTotal', label: 'Total Prod.', type: 'number',
+    render: (row) => row._prodTotal != null ? n(row._prodTotal, 3) : '—',
+  },
+  {
+    key: '_prodCambio', label: 'Cambio', type: 'text',
     render: (row) => row._prodCambio
       ? <span className={`aur-badge ${CAMBIO_BADGE_CLASS[row._prodCambio] || ''}`}>{row._prodCambio}</span>
-      : '—' },
-  { key: '_prodOrigIdProducto', label: 'Id Prod. Original',
-    render: (row) => row._prodOrigIdProducto || '—' },
-  { key: '_prodOrigNombre', label: 'Prod. Original', tdClass: 'historial-td-producto',
+      : '—',
+    exportFmt: (r) => r._prodCambio || '',
+  },
+  {
+    key: '_prodOrigIdProducto', label: 'Id Prod. Original', type: 'text',
+    render: (row) => row._prodOrigIdProducto || '—',
+  },
+  {
+    key: '_prodOrigNombre', label: 'Prod. Original', type: 'text',
+    render: (row) => row._prodOrigNombre || '—',
+    tdClass: 'historial-td-producto',
     tdProps: (row) => ({ title: row._prodOrigNombre || undefined }),
-    render: (row) => row._prodOrigNombre || '—' },
-  { key: '_prodOrigCantidad', label: 'Cant. Orig./Ha',
-    render: (row) => row._prodOrigCantidad != null ? n(row._prodOrigCantidad) : '—' },
-  { key: '_prodOrigUnidad', label: 'Unid. Orig.',
-    render: (row) => row._prodOrigUnidad || '—' },
-  { key: '_prodCostoTotal', label: 'Total Costo', tdClass: 'historial-td-nowrap',
-    render: (row) => fmtCosto(row._prodCostoTotal, row._prodMoneda) },
-  { key: 'sobrante', label: 'Sobrante',
-    render: (row) => row.sobrante === true ? 'Sí' : row.sobrante === false ? 'No' : '—' },
-  { key: 'sobranteLoteNombre', label: 'Depositado en', tdClass: 'historial-td-nowrap',
-    render: (row) => row.sobranteLoteNombre || '—' },
-  { key: 'condicionesTiempo', label: 'Cond. del Tiempo', tdClass: 'historial-td-nowrap',
-    render: (row) => row.condicionesTiempo || '—' },
-  { key: 'temperatura', label: 'Temperatura',
-    render: (row) => row.temperatura != null ? `${row.temperatura}°C` : '—' },
-  { key: 'humedadRelativa', label: '% Hum. Relativa',
-    render: (row) => row.humedadRelativa != null ? `${row.humedadRelativa}%` : '—' },
-  { key: 'aplicadaAt', label: 'Fecha Aplicación', tdClass: 'historial-td-nowrap',
-    render: (row) => fmt(row.aplicadaAt) },
-  { key: 'horaInicio', label: 'Hora Inicial',
-    render: (row) => row.horaInicio || '—' },
-  { key: 'horaFinal', label: 'Hora Final',
-    render: (row) => row.horaFinal || '—' },
-  { key: 'operario', label: 'Operario', tdClass: 'historial-td-nowrap',
-    render: (row) => row.operario || '—' },
-  { key: 'encargadoFinca', label: 'Enc. de Finca', tdClass: 'historial-td-nowrap',
-    render: (row) => row.encargadoFinca || '—' },
-  { key: 'encargadoBodega', label: 'Enc. de Bodega', tdClass: 'historial-td-nowrap',
-    render: (row) => row.encargadoBodega || '—' },
-  { key: 'supAplicaciones', label: 'Sup. Aplicaciones / Regente', tdClass: 'historial-td-nowrap',
-    render: (row) => row.supAplicaciones || '—' },
-  { key: 'editadaAt', label: 'F. Edición', tdClass: 'historial-td-nowrap',
-    render: (row) => fmt(row.editadaAt) },
-  { key: 'editadaPorNombre', label: 'Editada Por', tdClass: 'historial-td-nowrap',
-    render: (row) => row.editadaPorNombre || '—' },
-  { key: 'observacionesMezcla', label: 'Obs. Mezcla', tdClass: 'historial-td-obs',
-    render: (row, ctx) => ctx.renderObs(row.observacionesMezcla, `${row._rowKey}-m`) },
-  { key: 'observacionesAplicacion', label: 'Obs. Aplicación', tdClass: 'historial-td-obs',
-    render: (row, ctx) => ctx.renderObs(row.observacionesAplicacion, `${row._rowKey}-a`) },
+  },
+  {
+    key: '_prodOrigCantidad', label: 'Cant. Orig./Ha', type: 'number',
+    render: (row) => row._prodOrigCantidad != null ? n(row._prodOrigCantidad) : '—',
+  },
+  {
+    key: '_prodOrigUnidad', label: 'Unid. Orig.', type: 'text',
+    render: (row) => row._prodOrigUnidad || '—',
+  },
+  {
+    key: '_prodCostoTotal', label: 'Total Costo', type: 'number',
+    render: (row) => fmtCosto(row._prodCostoTotal, row._prodMoneda),
+    exportFmt: (r) => fmtCosto(r._prodCostoTotal, r._prodMoneda),
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'sobrante', label: 'Sobrante', type: 'text',
+    accessor: (r) => r.sobrante === true ? 'Sí' : r.sobrante === false ? 'No' : '',
+    render: (row) => row.sobrante === true ? 'Sí' : row.sobrante === false ? 'No' : '—',
+  },
+  {
+    key: 'sobranteLoteNombre', label: 'Depositado en', type: 'text',
+    render: (row) => row.sobranteLoteNombre || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'condicionesTiempo', label: 'Cond. del Tiempo', type: 'text',
+    render: (row) => row.condicionesTiempo || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'temperatura', label: 'Temperatura', type: 'number',
+    render: (row) => row.temperatura != null ? `${row.temperatura}°C` : '—',
+    exportFmt: (r) => r.temperatura != null ? `${r.temperatura}°C` : '',
+  },
+  {
+    key: 'humedadRelativa', label: '% Hum. Relativa', type: 'number',
+    render: (row) => row.humedadRelativa != null ? `${row.humedadRelativa}%` : '—',
+    exportFmt: (r) => r.humedadRelativa != null ? `${r.humedadRelativa}%` : '',
+  },
+  {
+    key: 'aplicadaAt', label: 'Fecha Aplicación', type: 'date',
+    accessor: (r) => r.aplicadaAt ? String(r.aplicadaAt).slice(0, 10) : '',
+    render: (row) => fmt(row.aplicadaAt),
+    exportFmt: (r) => fmt(r.aplicadaAt),
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'horaInicio', label: 'Hora Inicial', type: 'text',
+    render: (row) => row.horaInicio || '—',
+  },
+  {
+    key: 'horaFinal', label: 'Hora Final', type: 'text',
+    render: (row) => row.horaFinal || '—',
+  },
+  {
+    key: 'operario', label: 'Operario', type: 'text',
+    render: (row) => row.operario || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'encargadoFinca', label: 'Enc. de Finca', type: 'text',
+    render: (row) => row.encargadoFinca || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'encargadoBodega', label: 'Enc. de Bodega', type: 'text',
+    render: (row) => row.encargadoBodega || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'supAplicaciones', label: 'Sup. Aplicaciones / Regente', type: 'text',
+    render: (row) => row.supAplicaciones || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'editadaAt', label: 'F. Edición', type: 'date',
+    accessor: (r) => r.editadaAt ? String(r.editadaAt).slice(0, 10) : '',
+    render: (row) => fmt(row.editadaAt),
+    exportFmt: (r) => fmt(r.editadaAt),
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'editadaPorNombre', label: 'Editada Por', type: 'text',
+    render: (row) => row.editadaPorNombre || '—',
+    tdClass: 'historial-td-nowrap',
+  },
+  {
+    key: 'observacionesMezcla', label: 'Obs. Mezcla', type: 'text',
+    render: (row, ctx) => ctx.renderObs(row.observacionesMezcla, `${row._rowKey}-m`),
+    exportFmt: (r) => r.observacionesMezcla || '',
+    tdClass: 'historial-td-obs',
+  },
+  {
+    key: 'observacionesAplicacion', label: 'Obs. Aplicación', type: 'text',
+    render: (row, ctx) => ctx.renderObs(row.observacionesAplicacion, `${row._rowKey}-a`),
+    exportFmt: (r) => r.observacionesAplicacion || '',
+    tdClass: 'historial-td-obs',
+  },
 ];
+
+// Preset compacto: 8 columnas que cubren la lectura operativa del día a día
+// (consecutivo + estado + qué se aplicó + cuándo + dónde + qué producto + cuánto).
+// El resto sigue disponible vía el menú "Personalizar columnas" del table.
+const COMPACT_COLUMN_IDS = [
+  'consecutivo',
+  'status',
+  'snap_activityName',
+  'aplicadaAt',
+  'snap_sourceName',
+  '_lotesStr',
+  '_prodNombre',
+  '_prodTotal',
+];
+
+// useTableColumnPreset usa `id`; AuroraDataTable usa `key`. Mantenemos ambos.
+const COLUMNS_WITH_ID = ALL_COLUMNS.map(c => ({ ...c, id: c.key }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 function HistorialAplicaciones() {
   const apiFetch = useApiFetch();
-  const [cedulas,  setCedulas]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [page,     setPage]     = useState(1);
+  const { currentUser } = useUser();
+  const [cedulas, setCedulas] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Filtro global por rango de fechas (header modal). El filtro de columna
+  // lo maneja AuroraDataTable internamente.
   const [filterDateField, setFilterDateField] = useState('snap_dueDate');
   const [filterFrom,      setFilterFrom]      = useState('');
   const [filterTo,        setFilterTo]        = useState('');
+  const [mostrarFiltros,  setMostrarFiltros]  = useState(false);
 
-  const [sorts, setSorts] = useState([{ field: 'generadaAt', dir: 'desc' }]);
+  // Observaciones con toggle "ver más" — UI puro de celda, no participa en
+  // sort/filter/export. Las keys son `${rowKey}-m|a`.
+  const [expandedObs, setExpandedObs] = useState(() => new Set());
 
-  // colFilters: { [field]: { type: 'range', from, to } | { type: 'text', value } | null }
-  const [colFilters,    setColFilters]    = useState({});
-  const [filterPopover, setFilterPopover] = useState(null); // { field, x, y }
-  const [expandedObs,   setExpandedObs]   = useState(() => new Set()); // keys "rowId-idx-m|a"
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [visibleCols, setVisibleCols] = useState(() =>
-    Object.fromEntries(COLUMNS.map(c => [c.key, true]))
+  // Snapshot post-filter/sort que sale de AuroraDataTable. Lo usamos para que
+  // el export Excel respete filtros + orden del usuario sin recomputar.
+  const [displayData, setDisplayData] = useState([]);
+
+  // Visibilidad persistida por usuario. Storage key incluye uid para no
+  // compartir preferencias entre cuentas en el mismo browser.
+  const uid = currentUser?.id || 'anon';
+  const { isVisible, toggleColumn } = useTableColumnPreset(
+    COLUMNS_WITH_ID,
+    COMPACT_COLUMN_IDS,
+    `aurora_historial_aplicaciones_cols_${uid}`,
   );
-  const [colMenu, setColMenu] = useState(null); // { x, y }
+
+  // Adaptador del hook → Record<key, bool> que espera AuroraDataTable.
+  // Re-derivar cuando cambia `isVisible` (toggle individual o cambio de modo).
+  const visibleColsRecord = useMemo(
+    () => Object.fromEntries(ALL_COLUMNS.map(c => [c.key, isVisible(c.key)])),
+    [isVisible],
+  );
 
   const toggleObs = (key) => {
     setExpandedObs(prev => {
@@ -271,9 +417,9 @@ function HistorialAplicaciones() {
     return () => { cancelled = true; };
   }, [apiFetch]);
 
-  // Flatten: one row per (cedula × product). Each row is enriched with the
-  // product originally prescribed by the system (when there was a substitution /
-  // ajuste de dosis) y con una marca de cambio (`_prodCambio`). Los productos
+  // Flatten: una fila por (cédula × producto). Cada row se enriquece con el
+  // producto originalmente prescrito por el sistema (cuando hubo sustitución /
+  // ajuste de dosis) y con la marca de cambio (`_prodCambio`). Los productos
   // que estaban en el plan original pero no fueron aplicados generan filas
   // fantasma marcadas como "Retirado" para preservar el audit trail.
   const flattened = useMemo(() => {
@@ -295,7 +441,6 @@ function HistorialAplicaciones() {
       const touchedOriginalIds = new Set();
 
       if (aplicados.length === 0) {
-        // Cedula with no applied products: keep the current placeholder row.
         rows.push({
           ...c, ...base,
           _rowKey: `${c.id}::empty`,
@@ -331,9 +476,9 @@ function HistorialAplicaciones() {
             _prodCambio = 'Ajuste de dosis';
           }
 
-          // Costo snapshot = total aplicado × precioUnitario congelado en el momento
-          // of the application (both live in snap_productos[]). If either is missing,
-          // el costo es null (se renderiza como '—').
+          // Costo snapshot = total aplicado × precioUnitario congelado al
+          // momento de la aplicación (ambos viven en snap_productos[]). Si
+          // alguno falta, el costo queda null y se renderiza como '—'.
           const _prodTotalNum      = parseFloat(prod?.total);
           const _prodPrecioUnitNum = parseFloat(prod?.precioUnitario);
           const _prodCostoTotal =
@@ -373,7 +518,7 @@ function HistorialAplicaciones() {
           _prodCantidad:   o.cantidadPorHa ?? null,
           _prodUnidad:     o.unidad ?? '',
           _prodTotal:      null,
-          _prodCostoTotal: null, // producto no aplicado → sin costo real
+          _prodCostoTotal: null,
           _prodMoneda:     '',
           _prodCambio:          'Retirado',
           _prodOrigIdProducto:  o.idProducto ?? o.productoId ?? '',
@@ -387,143 +532,85 @@ function HistorialAplicaciones() {
     });
   }, [cedulas]);
 
-  // Period filtering
-  const filtered = useMemo(() => {
-    const activeCol = Object.entries(colFilters).filter(([, f]) => hasFilterValue(f));
+  // Pre-filtro por rango global de fechas (header). El resultado es el `data`
+  // que entra a AuroraDataTable; sus filtros de columna se aplican encima.
+  const periodFiltered = useMemo(() => {
+    if (!filterFrom && !filterTo) return flattened;
     return flattened.filter(row => {
-      if (filterFrom || filterTo) {
-        const raw = row[filterDateField];
-        if (!raw) return false;
-        const d = new Date(raw);
-        if (filterFrom && d < new Date(filterFrom + 'T00:00:00')) return false;
-        if (filterTo   && d > new Date(filterTo   + 'T23:59:59')) return false;
-      }
-      for (const [field, filter] of activeCol) {
-        const cell = row[field];
-        if (cell == null) return false;
-        if (filter.type === 'range') {
-          const colType = getFilterType(field);
-          if (colType === 'date') {
-            const cellD = new Date(cell);
-            if (Number.isNaN(cellD.getTime())) return false;
-            if (filter.from) {
-              const fromD = new Date(filter.from + 'T00:00:00');
-              if (cellD < fromD) return false;
-            }
-            if (filter.to) {
-              const toD = new Date(filter.to + 'T23:59:59');
-              if (cellD > toD) return false;
-            }
-          } else {
-            const num = Number(cell);
-            if (Number.isNaN(num)) return false;
-            if (filter.from && Number.isFinite(Number(filter.from)) && num < Number(filter.from)) return false;
-            if (filter.to   && Number.isFinite(Number(filter.to))   && num > Number(filter.to))   return false;
-          }
-        } else {
-          if (!String(cell).toLowerCase().includes(filter.value.toLowerCase())) return false;
-        }
-      }
+      const raw = row[filterDateField];
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (filterFrom && d < new Date(filterFrom + 'T00:00:00')) return false;
+      if (filterTo   && d > new Date(filterTo   + 'T23:59:59')) return false;
       return true;
     });
-  }, [flattened, filterDateField, filterFrom, filterTo, colFilters]);
+  }, [flattened, filterDateField, filterFrom, filterTo]);
 
-  // Multi-level sorting (on cedula fields)
-  const sorted = useMemo(() => {
-    const active = sorts.filter(s => s.field);
-    if (active.length === 0) return filtered;
-    return [...filtered].sort((a, b) => {
-      for (const { field, dir } of active) {
-        const va = a[field] ?? '';
-        const vb = b[field] ?? '';
-        let cmp = 0;
-        if (typeof va === 'string' && typeof vb === 'string') {
-          cmp = va.localeCompare(vb, 'es');
-        } else {
-          cmp = va < vb ? -1 : va > vb ? 1 : 0;
-        }
-        if (cmp !== 0) return dir === 'desc' ? -cmp : cmp;
-      }
-      return 0;
-    });
-  }, [filtered, sorts]);
+  // getColVal alimenta sort + filter de AuroraDataTable. Para text devolvemos
+  // lowercase porque el filter del componente sólo lowercase del input, no del
+  // val (#29 audit). Para date YYYY-MM-DD así matchea exacto contra el
+  // `<input type="date">` del popover.
+  //
+  // useCallback: AuroraDataTable usa getColVal como dep del useMemo de
+  // `displayData`. Una arrow nueva cada render invalida el memo en cada paso,
+  // que dispara `onDisplayDataChange` en loop con setDisplayData. ALL_COLUMNS
+  // es módulo-constante, así que no hay deps reales.
+  const getColVal = useCallback((row, key) => {
+    const col = ALL_COLUMNS.find(c => c.key === key);
+    if (!col) return '';
+    const raw = col.accessor ? col.accessor(row) : row[key];
+    if (col.type === 'text')   return String(raw ?? '').toLowerCase();
+    if (col.type === 'date')   return raw ? String(raw) : '';
+    if (col.type === 'number') return raw == null || raw === '' ? '' : Number(raw);
+    return raw ?? '';
+  }, []);
 
-  const visible = useMemo(() => sorted.slice(0, page * PAGE_SIZE), [sorted, page]);
-  const hasMore = visible.length < sorted.length;
+  // renderRow itera sólo columnas visibles (vc viene de AuroraDataTable) y
+  // delega al `render` de cada columna. El ctx expone `renderObs` para las
+  // celdas de observaciones con toggle local.
+  const renderRow = (row, vc) => (
+    <>
+      {ALL_COLUMNS.map(col => {
+        if (!vc[col.key]) return null;
+        const extraProps = col.tdProps ? col.tdProps(row) : null;
+        return (
+          <td key={col.key} className={col.tdClass} {...extraProps}>
+            {col.render(row, { renderObs })}
+          </td>
+        );
+      })}
+    </>
+  );
 
-  const handleThSort = (field) => {
-    setSorts(prev => {
-      const next = [...prev];
-      next[0] = next[0].field === field
-        ? { field, dir: next[0].dir === 'asc' ? 'desc' : 'asc' }
-        : { field, dir: 'asc' };
-      return next;
-    });
-    setPage(1);
-  };
-
-  const openFilter = (e, field) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (filterPopover?.field === field) { setFilterPopover(null); return; }
-    const th   = e.currentTarget.closest('th') ?? e.currentTarget;
-    const rect = th.getBoundingClientRect();
-    // Clamp al viewport para que el popover no se desborde en pantallas estrechas.
-    const POPOVER_WIDTH = 260;
-    const MARGIN        = 8;
-    const maxLeft       = Math.max(MARGIN, window.innerWidth - POPOVER_WIDTH - MARGIN);
-    const x             = Math.min(Math.max(rect.left, MARGIN), maxLeft);
-    setFilterPopover({ field, x, y: rect.bottom + 4 });
-  };
-
-  const setColFilter = (field, filter) => {
-    setColFilters(prev => {
-      const next = { ...prev };
-      if (filter == null || !hasFilterValue(filter)) delete next[field];
-      else next[field] = filter;
-      return next;
-    });
-    setPage(1);
-  };
-
-  const SortTh = ({ field, children, className }) => {
-    const active    = sorts[0].field === field;
-    const dir       = active ? sorts[0].dir : null;
-    const hasFilter = hasFilterValue(colFilters[field]);
-    return (
-      <th
-        className={`aur-th-sortable${active ? ' is-sorted' : ''}${hasFilter ? ' has-filter' : ''}${className ? ' ' + className : ''}`}
-        onClick={() => handleThSort(field)}
-        onContextMenu={e => openFilter(e, field)}
-      >
-        <span className="aur-th-content">
-          {children}
-          <span className="aur-th-arrow">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
-          <span
-            className={`aur-th-funnel${hasFilter ? ' is-active' : ''}`}
-            onClick={e => openFilter(e, field)}
-            title="Filtrar columna (o click derecho)"
-          >
-            <FiFilter size={10} />
-          </span>
-        </span>
-      </th>
+  // Export Excel — respeta orden + filtros + columnas visibles actuales
+  // (displayData ya viene post-filtered/post-sorted desde AuroraDataTable).
+  // Para campos con formato custom usamos exportFmt; el resto cae al accessor
+  // o row[key] crudo.
+  const exportXLSX = () => {
+    const visible = ALL_COLUMNS.filter(c => isVisible(c.key));
+    const headers = visible.map(c => c.label);
+    const rows = displayData.map(row =>
+      visible.map(c => {
+        if (c.exportFmt) return c.exportFmt(row) ?? '';
+        const raw = c.accessor ? c.accessor(row) : row[c.key];
+        return raw == null ? '' : raw;
+      }),
     );
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = headers.map((h, i) => ({
+      wch: Math.max(
+        String(h).length,
+        ...rows.map(r => String(r[i] ?? '').length),
+      ) + 2,
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Historial');
+    XLSX.writeFile(wb, `historial-aplicaciones_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const clearFilters = () => { setFilterFrom(''); setFilterTo(''); setPage(1); };
-
-  const visibleColumns = useMemo(() => COLUMNS.filter(c => visibleCols[c.key] !== false), [visibleCols]);
-  const hiddenCount = COLUMNS.length - visibleColumns.length;
-  const toggleCol = (key) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
-  const handleColBtnClick = (e) => {
-    if (colMenu) { setColMenu(null); return; }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const MENU_W = 240;
-    const MARGIN = 8;
-    const x = Math.min(Math.max(rect.right - MENU_W, MARGIN), window.innerWidth - MENU_W - MARGIN);
-    setColMenu({ x, y: rect.bottom + 4 });
-  };
+  const clearPeriodFilter = () => { setFilterFrom(''); setFilterTo(''); };
+  const hasPeriodFilter = !!(filterFrom || filterTo);
+  const hasData = periodFiltered.length > 0;
 
   return (
     <>
@@ -543,9 +630,20 @@ function HistorialAplicaciones() {
         </div>
         <div className="aur-sheet-header-actions">
           <FilterButton
-            active={!!(filterFrom || filterTo)}
+            active={hasPeriodFilter}
             onClick={() => setMostrarFiltros(true)}
           />
+          <button
+            type="button"
+            className="aur-chip aur-chip--ghost ha-btn-export"
+            onClick={exportXLSX}
+            disabled={!hasData}
+            title={hasData ? 'Descargar Excel con los registros filtrados' : 'Sin registros para exportar'}
+            aria-label="Descargar Excel"
+          >
+            <FiDownload size={12} />
+            <span className="aur-btn-filter-label">Excel</span>
+          </button>
           <Link
             to="/aplicaciones/cedulas"
             className="aur-btn-pill"
@@ -555,100 +653,32 @@ function HistorialAplicaciones() {
         </div>
       </header>
 
-      <section className="aur-section">
-        {sorted.length > 0 && (
-          <div className="aur-section-header">
-            <span className="ha-section-count">Registros {sorted.length}</span>
-            {Object.values(colFilters).some(hasFilterValue) && (
-              <div className="aur-section-actions">
-                <button
-                  type="button"
-                  className="aur-chip aur-chip--ghost"
-                  onClick={() => { setColFilters({}); setPage(1); }}
-                >
-                  <FiX size={11} /> Limpiar filtros de columna
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {sorted.length === 0 && (
-          <EmptyState
-            variant="compact"
-            icon={null}
-            title={
-              cedulas.length === 0
-                ? 'Aún no hay registros. Las cédulas aparecerán aquí al marcarse como aplicadas en campo desde "Cédulas pendientes".'
-                : 'Sin resultados para los filtros aplicados.'
-            }
-          />
-        )}
-
-      {/* ── Tabla ── */}
-      {sorted.length > 0 && (
-        <>
-          <div className="ha-table-wrap">
-            <table className="aur-table ha-table">
-              <thead>
-                <tr>
-                  {visibleColumns.map(c => (
-                    <SortTh key={c.key} field={c.key} className={c.thClass}>{c.label}</SortTh>
-                  ))}
-                  <th className="aur-th-col-menu">
-                    <button
-                      type="button"
-                      className={`aur-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
-                      onClick={handleColBtnClick}
-                      title="Personalizar columnas"
-                      aria-label={hiddenCount > 0
-                        ? `Personalizar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
-                        : 'Personalizar columnas'}
-                      aria-haspopup="menu"
-                    >
-                      <FiSliders size={12} />
-                      {hiddenCount > 0 && (
-                        <span className="aur-col-hidden-badge" aria-hidden="true">{hiddenCount}</span>
-                      )}
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((row) => (
-                  <tr
-                    key={row._rowKey}
-                    className={row._prodCambio ? 'historial-row-changed' : ''}
-                  >
-                    {visibleColumns.map(c => {
-                      const extraProps = c.tdProps ? c.tdProps(row) : null;
-                      return (
-                        <td key={c.key} className={c.tdClass} {...extraProps}>
-                          {c.render(row, { renderObs })}
-                        </td>
-                      );
-                    })}
-                    <td />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {hasMore && (
-            <div className="ha-load-more">
-              <button
-                type="button"
-                className="aur-chip aur-chip--ghost"
-                onClick={() => setPage(p => p + 1)}
-              >
-                Ver más — {sorted.length - visible.length} restante{sorted.length - visible.length !== 1 ? 's' : ''}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-      </section>
+      <AuroraDataTable
+        columns={ALL_COLUMNS}
+        data={periodFiltered}
+        getColVal={getColVal}
+        initialSort={{ field: 'aplicadaAt', dir: 'desc' }}
+        firstClickDir="desc"
+        visibleCols={visibleColsRecord}
+        onToggleVisibleCol={toggleColumn}
+        renderRow={renderRow}
+        rowClassName={(r) => r._prodCambio ? 'historial-row-changed' : ''}
+        rowKey={(r) => r._rowKey}
+        pageSize={50}
+        // Resetea pagination cuando cambia el filtro de periodo del header.
+        // Sin esto, un usuario en pagina 3 que aplica filtro corto puede no
+        // ver la transición.
+        resetPaginationKey={`${filterDateField}|${filterFrom}|${filterTo}`}
+        tableClassName="ha-table"
+        wrapClassName="ha-table-wrap"
+        emptyText={
+          cedulas.length === 0
+            ? 'Aún no hay registros. Las cédulas aparecerán aquí al marcarse como aplicadas en campo desde "Cédulas pendientes".'
+            : 'Sin resultados para los filtros aplicados.'
+        }
+        emptyIcon={null}
+        onDisplayDataChange={setDisplayData}
+      />
 
     </div>
       )}
@@ -690,7 +720,7 @@ function HistorialAplicaciones() {
                   id="ha-field"
                   className="aur-select"
                   value={filterDateField}
-                  onChange={e => { setFilterDateField(e.target.value); setPage(1); }}
+                  onChange={e => setFilterDateField(e.target.value)}
                 >
                   {DATE_FIELDS.map(f => (
                     <option key={f.value} value={f.value}>{f.label}</option>
@@ -704,7 +734,7 @@ function HistorialAplicaciones() {
                   type="date"
                   className="aur-input"
                   value={filterFrom}
-                  onChange={e => { setFilterFrom(e.target.value); setPage(1); }}
+                  onChange={e => setFilterFrom(e.target.value)}
                 />
               </div>
               <div className="ha-filtro-field">
@@ -714,17 +744,17 @@ function HistorialAplicaciones() {
                   type="date"
                   className="aur-input"
                   value={filterTo}
-                  onChange={e => { setFilterTo(e.target.value); setPage(1); }}
+                  onChange={e => setFilterTo(e.target.value)}
                 />
               </div>
             </div>
           </div>
           <div className="aur-modal-actions">
-            {(filterFrom || filterTo) && (
+            {hasPeriodFilter && (
               <button
                 type="button"
                 className="aur-chip aur-chip--ghost"
-                onClick={clearFilters}
+                onClick={clearPeriodFilter}
               >
                 <FiX size={12} /> Limpiar
               </button>
@@ -741,71 +771,6 @@ function HistorialAplicaciones() {
       </div>,
       document.body
     )}
-
-    {/* ── Menú "Personalizar columnas" ── */}
-    {colMenu && createPortal(
-      <>
-        <div className="aur-filter-backdrop" onClick={() => setColMenu(null)} />
-        <div
-          className="aur-col-menu"
-          style={{ position: 'fixed', top: colMenu.y, left: colMenu.x }}
-        >
-          <div className="aur-col-menu-title">Columnas visibles</div>
-          {COLUMNS.map(col => {
-            const checked   = visibleCols[col.key] !== false;
-            const isLastOne = checked && (COLUMNS.length - hiddenCount) === 1;
-            return (
-              <label
-                key={col.key}
-                className={`aur-col-menu-item${isLastOne ? ' aur-col-menu-item--disabled' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={isLastOne}
-                  onChange={() => !isLastOne && toggleCol(col.key)}
-                />
-                <span>{col.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      </>,
-      document.body
-    )}
-
-    {/* ── Popover filtro de columna ── */}
-    {filterPopover && (() => {
-      const field = filterPopover.field;
-      const colType = getFilterType(field);
-      const filter  = colFilters[field];
-      if (colType !== 'text') {
-        return (
-          <AuroraFilterPopover
-            x={filterPopover.x}
-            y={filterPopover.y}
-            filterType={colType}
-            fromValue={filter?.from || ''}
-            toValue={filter?.to || ''}
-            onFromChange={(from) => setColFilter(field, { type: 'range', from, to: filter?.to || '' })}
-            onToChange={(to)   => setColFilter(field, { type: 'range', from: filter?.from || '', to })}
-            onClear={() => setColFilter(field, null)}
-            onClose={() => setFilterPopover(null)}
-          />
-        );
-      }
-      return (
-        <AuroraFilterPopover
-          x={filterPopover.x}
-          y={filterPopover.y}
-          filterType="text"
-          textValue={filter?.value || ''}
-          onTextChange={(value) => setColFilter(field, { type: 'text', value })}
-          onClear={() => setColFilter(field, null)}
-          onClose={() => setFilterPopover(null)}
-        />
-      );
-    })()}
     </>
   );
 }
