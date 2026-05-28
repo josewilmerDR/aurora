@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { z } = require('zod');
 const { db, Timestamp, FieldValue, FieldPath } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, sendNotificationWithLink, hasMinRoleBE } = require('../lib/helpers');
@@ -17,9 +18,37 @@ const router = Router();
 
 async function findBlockOrigins(fincaId, newBloques, destinationGrupoId) {
   if (!Array.isArray(newBloques) || newBloques.length === 0) return [];
-  const gruposSnap = await db.collection('grupos').where('fincaId', '==', fincaId).get();
+
+  // Only the grupos that actually own one of the incoming bloques can produce
+  // a transition, so query for those instead of scanning the whole collection
+  // on every grupo write. `array-contains-any` caps at 10 disjuncts, hence the
+  // chunking; a siembraId lives in at most one grupo, but we dedup by grupo id
+  // anyway since a single grupo can match several chunks.
+  //
+  // Fallback: the (fincaId, bloques array-contains) composite index may not be
+  // live yet (index builds lag a deploy). If the targeted query throws, fall
+  // back to the full-collection scan so grupo writes never break on a missing
+  // index. Safe to remove the fallback once the index is confirmed in prod.
+  let candidateDocs;
+  try {
+    const grupoMap = new Map();
+    for (let i = 0; i < newBloques.length; i += 10) {
+      const chunk = newBloques.slice(i, i + 10);
+      const snap = await db.collection('grupos')
+        .where('fincaId', '==', fincaId)
+        .where('bloques', 'array-contains-any', chunk)
+        .get();
+      snap.docs.forEach(d => grupoMap.set(d.id, d));
+    }
+    candidateDocs = [...grupoMap.values()];
+  } catch (err) {
+    console.warn('[findBlockOrigins] array-contains-any failed, falling back to full scan:', err?.message || err);
+    const snap = await db.collection('grupos').where('fincaId', '==', fincaId).get();
+    candidateDocs = snap.docs;
+  }
+
   const transitions = [];
-  for (const g of gruposSnap.docs) {
+  for (const g of candidateDocs) {
     if (g.id === destinationGrupoId) continue;
     const data = g.data();
     const owned = Array.isArray(data.bloques) ? data.bloques : [];
@@ -146,50 +175,57 @@ async function validateBloquesOwnership(fincaId, bloqueIds) {
   return { ok: true };
 }
 
-function validateGrupoBody(body, { requireFields = false } = {}) {
-    const errors = [];
-    const { nombreGrupo, cosecha, etapa, fechaCreacion, bloques, paqueteId, paqueteMuestreoId } = body;
-
-    if (requireFields) {
-        if (typeof nombreGrupo !== 'string' || !nombreGrupo.trim()) errors.push('nombreGrupo is required.');
-        if (!fechaCreacion) errors.push('fechaCreacion is required.');
-    }
-
-    if (nombreGrupo !== undefined) {
-        if (typeof nombreGrupo !== 'string') errors.push('nombreGrupo must be a string.');
-        else if (nombreGrupo.trim().length > MAX_NOMBRE_LEN) errors.push(`nombreGrupo max ${MAX_NOMBRE_LEN} characters.`);
-    }
-
-    if (cosecha !== undefined && cosecha !== '') {
-        if (typeof cosecha !== 'string') errors.push('cosecha must be a string.');
-        else if (cosecha.length > MAX_CATALOG_LEN) errors.push(`cosecha max ${MAX_CATALOG_LEN} characters.`);
-    }
-
-    if (etapa !== undefined && etapa !== '') {
-        if (typeof etapa !== 'string') errors.push('etapa must be a string.');
-        else if (etapa.length > MAX_CATALOG_LEN) errors.push(`etapa max ${MAX_CATALOG_LEN} characters.`);
-    }
-
-    if (fechaCreacion !== undefined) {
-        const d = new Date(fechaCreacion);
-        if (isNaN(d.getTime())) {
-            errors.push('fechaCreacion is not a valid date.');
-        } else {
+// Shape + range validation for the grupo payload (Zod, CLAUDE.md §3). All
+// fields are optional here so the same schema serves create and update; the
+// `requireFields` branch in validateGrupoBody enforces presence for POST.
+// Handlers still own the transforms (trim, Timestamp.fromDate, tenant checks
+// like validateBloquesOwnership) — this schema only validates, it does not
+// mutate the doc that gets persisted.
+const grupoBodySchema = z.object({
+    // nombreGrupo cap is on the trimmed length, mirroring the handler's .trim().
+    nombreGrupo: z.string('nombreGrupo must be a string.')
+        .refine(s => s.trim().length <= MAX_NOMBRE_LEN, `nombreGrupo max ${MAX_NOMBRE_LEN} characters.`)
+        .optional(),
+    cosecha: z.string('cosecha must be a string.')
+        .max(MAX_CATALOG_LEN, `cosecha max ${MAX_CATALOG_LEN} characters.`)
+        .optional(),
+    etapa: z.string('etapa must be a string.')
+        .max(MAX_CATALOG_LEN, `etapa max ${MAX_CATALOG_LEN} characters.`)
+        .optional(),
+    fechaCreacion: z.union([z.string(), z.date()])
+        .refine(v => !isNaN(new Date(v).getTime()), 'fechaCreacion is not a valid date.')
+        .refine(v => {
             const limit = new Date();
             limit.setDate(limit.getDate() + MAX_FUTURE_DAYS);
             limit.setHours(23, 59, 59, 999);
-            if (d > limit) errors.push(`fechaCreacion cannot exceed ${MAX_FUTURE_DAYS} days in the future.`);
+            return new Date(v) <= limit;
+        }, `fechaCreacion cannot exceed ${MAX_FUTURE_DAYS} days in the future.`)
+        .optional(),
+    bloques: z.array(z.string('Each bloque must be a string ID.'), 'bloques must be an array.')
+        .max(MAX_BLOQUES, `bloques cannot exceed ${MAX_BLOQUES} elements.`)
+        .optional(),
+    paqueteId: z.string('paqueteId must be a string.').optional(),
+    paqueteMuestreoId: z.string('paqueteMuestreoId must be a string.').optional(),
+});
+
+function validateGrupoBody(body, { requireFields = false } = {}) {
+    const b = body || {};
+    const errors = [];
+
+    // Presence checks (POST). Kept outside the schema so create/update share
+    // one schema and the "is required" wording matches the legacy contract.
+    if (requireFields) {
+        if (typeof b.nombreGrupo !== 'string' || !b.nombreGrupo.trim()) errors.push('nombreGrupo is required.');
+        if (!b.fechaCreacion) errors.push('fechaCreacion is required.');
+    }
+
+    const parsed = grupoBodySchema.safeParse(b);
+    if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+            const path = issue.path.length > 0 ? `${issue.path.join('.')}: ` : '';
+            errors.push(`${path}${issue.message}`);
         }
     }
-
-    if (bloques !== undefined) {
-        if (!Array.isArray(bloques)) errors.push('bloques must be an array.');
-        else if (bloques.length > MAX_BLOQUES) errors.push(`bloques cannot exceed ${MAX_BLOQUES} elements.`);
-        else if (bloques.some(b => typeof b !== 'string')) errors.push('Each bloque must be a string ID.');
-    }
-
-    if (paqueteId !== undefined && paqueteId !== '' && typeof paqueteId !== 'string') errors.push('paqueteId must be a string.');
-    if (paqueteMuestreoId !== undefined && paqueteMuestreoId !== '' && typeof paqueteMuestreoId !== 'string') errors.push('paqueteMuestreoId must be a string.');
 
     return errors;
 }
@@ -343,7 +379,7 @@ router.post('/api/grupos', authenticate, rateLimit('grupos_write', 'write'), asy
 
         res.status(201).json({ id: grupoRef.id, code: 'GRUPO_CREATED' });
     } catch (error) {
-        console.error('[ERROR] Creating grupo:', error);
+        console.error('Error creating grupo:', error?.message || error);
         sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create grupo.', 500);
     }
 });
@@ -510,7 +546,7 @@ router.put('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), 
 
         res.status(200).json({ id, ...grupoData });
     } catch (error) {
-        console.error('Error updating grupo:', error);
+        console.error('Error updating grupo:', error?.message || error);
         sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update grupo.', 500);
     }
 });
@@ -573,7 +609,7 @@ router.get('/api/grupos/:id/aplicaciones-pendientes', authenticate, async (req, 
             totales: completadas + pendientes.length,
         });
     } catch (error) {
-        console.error('Error fetching aplicaciones pendientes:', error);
+        console.error('Error fetching aplicaciones pendientes:', error?.message || error);
         sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch pending applications.', 500);
     }
 });
@@ -623,7 +659,7 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
 
         res.json({ cedulasAplicadas, cedulasEnTransito });
     } catch (error) {
-        console.error('Error checking grupo delete:', error);
+        console.error('Error checking grupo delete:', error?.message || error);
         sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to check dependencies.', 500);
     }
 });
@@ -719,7 +755,7 @@ router.delete('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'
 
         res.status(200).json({ ok: true });
     } catch (error) {
-        console.error('Error deleting grupo:', error);
+        console.error('Error deleting grupo:', error?.message || error);
         sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete grupo.', 500);
     }
 });
@@ -913,7 +949,7 @@ router.post('/api/grupos/:id/anular-y-eliminar', authenticate, rateLimit('grupos
             pendingTasksDeleted: pendingTasks.length,
         });
     } catch (error) {
-        console.error('Error en anular-y-eliminar grupo:', error);
+        console.error('Error en anular-y-eliminar grupo:', error?.message || error);
         sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to void cedulas and delete grupo.', 500);
     }
 });

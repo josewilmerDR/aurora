@@ -49,6 +49,7 @@
     { "collectionGroup": "bodegas",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "orden",          "order": "ASCENDING"  }] },
     { "collectionGroup": "siembras",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "loteId",         "order": "ASCENDING"  }, { "fieldPath": "bloque", "order": "ASCENDING" }] },
     { "collectionGroup": "scheduled_tasks",      "queryScope": "COLLECTION", "fields": [{ "fieldPath": "grupoId", "order": "ASCENDING" }, { "fieldPath": "status",         "order": "ASCENDING"  }] },
+    { "collectionGroup": "grupos",               "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "bloques",        "arrayConfig": "CONTAINS" }] },
     { "collectionGroup": "block_transitions",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha",          "order": "DESCENDING" }] },
     { "collectionGroup": "block_transitions",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "origenGrupoId",  "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
     { "collectionGroup": "block_transitions",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "destinoGrupoId", "order": "ASCENDING"  }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
