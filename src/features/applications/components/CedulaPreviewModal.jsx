@@ -59,8 +59,11 @@ export default function CedulaPreviewModal({
             {previewTask.isDraft
               ? <span className="ca-toolbar-draft-badge">BORRADOR</span>
               : activeCedula && (
+                // Label "Cédula" inline: antes el consecutivo flotaba como
+                // código sin contexto. Punto #20 audit (mismo fix que en
+                // CedulaViewer, ambos lugares mostraban el dato pelado).
                 <span className="ca-toolbar-consecutivo">
-                  {activeCedula.consecutivo}
+                  Cédula {activeCedula.consecutivo}
                 </span>
               )
             }

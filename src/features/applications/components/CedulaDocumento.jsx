@@ -1,6 +1,18 @@
 import { forwardRef, useMemo } from 'react';
 import { tsToDate, formatDateLong, calcFechaCosecha, deriveCambiosLineas } from '../lib/cedulas-helpers';
 
+// Iniciales del nombre de la finca como fallback cuando no hay logoUrl.
+// Antes el placeholder estático "AU" sugería "Aurora" en cédulas de fincas
+// que tenían su propio nombreEmpresa configurado — quedaba como branding
+// confuso. Punto #23 audit. Devuelve max 2 chars en mayúsculas.
+const fincaInitials = (nombreEmpresa) => {
+  const txt = (nombreEmpresa || '').trim();
+  if (!txt) return 'AU';
+  const words = txt.split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
 // ── CedulaDocumento ──────────────────────────────────────────────────────────
 // El papel blanco con el documento auditable de la cédula que se renderiza
 // dentro del preview modal y que html2canvas captura para exportar a PDF.
@@ -86,7 +98,7 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
               // y toDataURL() lanzaba SecurityError → el botón "Compartir"
               // caía silencioso. Punto #13 audit.
               ? <img src={config.logoUrl} alt="Logo" className="ca-doc-logo-img" crossOrigin="anonymous" />
-              : <div className="ca-doc-logo">AU</div>
+              : <div className="ca-doc-logo">{fincaInitials(config.nombreEmpresa)}</div>
             }
             <div className="ca-doc-brand-info">
               <div className="ca-doc-brand-name">{config.nombreEmpresa || 'Finca Aurora'}</div>
@@ -456,8 +468,12 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
           </div>
         </div>
 
+        {/* Footer: distinguir "generado" de "impreso". Antes mostraba
+            {today} sin label, sugiriendo falsamente que la cédula es nueva
+            cuando se imprime un histórico de meses atrás (problema
+            regulatorio en auditorías). Punto #19 audit. */}
         <div className="ca-doc-footer">
-          Documento generado por Sistema Aurora · {new Date().toLocaleDateString('es-ES')}
+          Documento emitido por Sistema Aurora · Impreso: {new Date().toLocaleDateString('es-ES')}
         </div>
       </div>
     </div>

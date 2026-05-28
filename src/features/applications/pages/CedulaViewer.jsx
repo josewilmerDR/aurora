@@ -5,12 +5,14 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { usePageTitle } from '../../../hooks/usePageTitle';
 import { translateApiError } from '../../../lib/errorMessages';
 import { tsToDate } from '../lib/cedulas-helpers';
 import CedulaDocumento from '../components/CedulaDocumento';
 import CedulaFlowAction from '../components/CedulaFlowAction';
 import MezclaListaModal from '../components/MezclaListaModal';
 import AplicadaModal from '../components/AplicadaModal';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import '../styles/cedulas.css';
 import '../styles/cedula-viewer.css';
 
@@ -84,7 +86,14 @@ export default function CedulaViewer() {
         apiFetch(`/api/cedulas/${id}`),
         apiFetch('/api/config'),
       ]);
-      if (!cRes.ok) { setError('Cédula no encontrada o sin acceso.'); return; }
+      if (!cRes.ok) {
+        // Liberar el body de cfRes para no dejar el stream colgado cuando
+        // salimos temprano por el error de cRes — la promise sigue
+        // resolviendo igual, pero el body se descarta limpio. Punto #29.
+        cfRes.body?.cancel?.().catch(() => {});
+        setError('Cédula no encontrada o sin acceso.');
+        return;
+      }
       const [c, cf] = await Promise.all([cRes.json(), cfRes.json().catch(() => ({}))]);
       setCedula(c);
       setConfig(cf || {});
@@ -113,6 +122,11 @@ export default function CedulaViewer() {
   }, [location.key, navigate]);
 
   useEscapeClose(handleBack);
+
+  // Tab title con consecutivo: tres viewers abiertos en tabs distintas ya
+  // se pueden distinguir sin pasar el mouse. Sin cédula cargada aún cae al
+  // título genérico del useAutoPageTitle. Punto #28 audit.
+  usePageTitle(cedula?.consecutivo ? `Cédula ${cedula.consecutivo}` : 'Cédula de aplicación');
 
   // Lazy load de productos/users/lotes — solo si el status habilita alguna
   // acción que vaya a abrir un modal. Cualquier 4xx degrada silenciosamente
@@ -362,28 +376,14 @@ export default function CedulaViewer() {
     }
   };
 
-  if (loading) return (
-    <div className="aur-sheet aur-sheet--empty">
-      <p className="cv-state-text" role="status" aria-live="polite">Cargando cédula…</p>
-    </div>
-  );
-  if (error) return (
-    <div className="aur-sheet aur-sheet--empty">
-      <div className="cv-state">
-        <p className="cv-state-text cv-state-text--error" role="alert">{error}</p>
-        {/* Retry inline (#7 audit): un timeout de red en finca 4G no debería
-            forzar al usuario a navegar afuera y volver a entrar. */}
-        <div className="cv-state-actions">
-          <button type="button" className="aur-btn-pill" onClick={load}>
-            <FiRefreshCw size={14} /> Reintentar
-          </button>
-          <button type="button" className="aur-chip aur-chip--ghost" onClick={handleBack}>
-            <FiArrowLeft size={14} /> Volver
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  // La chrome (toolbar) ahora se renderea siempre — durante loading el
+  // usuario sigue teniendo el botón Volver disponible (antes la lectura del
+  // backend lo dejaba atrapado durante 3-5s con sólo el back nativo del
+  // navegador) y el title comunica contexto inmediato. El body switchea
+  // entre skeleton, error y documento. Punto #17 + #26 audit.
+  const showFlowAction = cedula
+    && cedula.status !== 'aplicada_en_campo'
+    && cedula.status !== 'anulada';
 
   return (
     <div className="cedula-viewer">
@@ -399,19 +399,26 @@ export default function CedulaViewer() {
           <FiArrowLeft size={12} /> Volver
         </button>
         <div className="cv-toolbar-info">
-          <h2 className="cv-toolbar-title">{cedula.snap_activityName || 'Cédula de aplicación'}</h2>
+          {/* Título de la chrome estático: el activityName vive abajo en el
+              subtitle del documento — repetirlo acá creaba ruido sin
+              aportar contexto. La tab del browser ya muestra el consecutivo
+              vía usePageTitle. Punto #18 audit. */}
+          <h2 className="cv-toolbar-title">Cédula de aplicación</h2>
           <div className="cv-toolbar-meta">
-            <span className="cv-toolbar-consecutivo">{cedula.consecutivo}</span>
-            <StatusBadge status={cedula.status} />
+            {/* Label "Cédula" inline + Status: ambos sólo aparecen cuando
+                la cédula ya cargó. Durante loading la meta queda vacía y
+                el AuroraSkeleton abajo comunica el estado. Punto #20
+                audit. */}
+            {cedula && (
+              <>
+                <span className="cv-toolbar-consecutivo">Cédula {cedula.consecutivo}</span>
+                <StatusBadge status={cedula.status} />
+              </>
+            )}
           </div>
         </div>
         <div className="cv-toolbar-actions">
-          {/* CedulaFlowAction comparte la chrome de acciones con el preview
-              modal del listing. Para aplicada / anulada no rendea nada acá
-              (el StatusBadge ya comunica el estado terminal); para
-              pendiente / en_transito muestra el botón de avanzar el flujo
-              respetando el rol del usuario. Punto #5 audit. */}
-          {cedula.status !== 'aplicada_en_campo' && cedula.status !== 'anulada' && (
+          {showFlowAction && (
             <CedulaFlowAction
               cedula={cedula}
               actionLoading={actionLoading}
@@ -424,7 +431,7 @@ export default function CedulaViewer() {
             type="button"
             className="aur-chip"
             onClick={handleShare}
-            disabled={sharing}
+            disabled={!cedula || sharing}
             aria-label="Compartir cédula como PDF"
           >
             <FiShare2 size={12} /> {sharing ? 'Generando…' : 'Compartir'}
@@ -433,6 +440,7 @@ export default function CedulaViewer() {
             type="button"
             className="aur-chip"
             onClick={() => window.print()}
+            disabled={!cedula}
             aria-label="Imprimir cédula"
           >
             <FiPrinter size={12} /> Imprimir
@@ -440,8 +448,27 @@ export default function CedulaViewer() {
         </div>
       </header>
 
-      {/* ── Documento (delegado a CedulaDocumento — punto #2 audit) ── */}
-      {docProps && <CedulaDocumento ref={docRef} {...docProps} />}
+      {/* ── Body: loading / error / documento ── */}
+      {loading && (
+        <div className="ca-doc-wrap cv-loading-body">
+          <AuroraSkeleton variant="card" label="Cargando cédula…" />
+        </div>
+      )}
+      {!loading && error && (
+        <div className="cv-state cv-state--block">
+          <p className="cv-state-text cv-state-text--error" role="alert">{error}</p>
+          {/* Retry inline (#7 audit): un timeout de red en finca 4G no
+              debería forzar al usuario a navegar afuera. Volver ya vive en
+              la toolbar — no se duplica acá. */}
+          <div className="cv-state-actions">
+            <button type="button" className="aur-btn-pill" onClick={load}>
+              <FiRefreshCw size={14} /> Reintentar
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Documento (delegado a CedulaDocumento — punto #2 audit) */}
+      {!loading && !error && docProps && <CedulaDocumento ref={docRef} {...docProps} />}
 
       {/* ── Modales del flujo (montados solo cuando se abren) ── */}
       {mezclaModal && (

@@ -12,7 +12,11 @@
 .cedula-viewer {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  /* min-height: 100% requería un parent con altura definida — sin eso era
+     no-op. 100dvh garantiza que el fondo gris del documento llena el
+     viewport incluso cuando el contenido es corto (cédula con 1 producto).
+     Punto #25 audit. */
+  min-height: 100dvh;
 }
 
 /* ── Toolbar (chrome translúcida sticky) ───────────────────────────────── */
@@ -28,9 +32,10 @@
   border-bottom: 1px solid var(--aur-divider);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
-  font-feature-settings: 'ss01', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* font-feature-settings 'ss01'/'cv11' eran OpenType features de SF Pro;
+     Segoe UI / Roboto las ignoran. Eliminadas en #24 audit. */
 }
 
 .cv-toolbar-back {
@@ -113,6 +118,32 @@
   justify-content: center;
 }
 
+/* Variant block: el error state ahora vive bajo el toolbar (no como early
+   return de la página entera). Necesita padding y altura mínima para
+   centrar verticalmente sin saltar. Punto #17 audit. */
+.cv-state--block {
+  padding: 80px 24px;
+  min-height: 50vh;
+  justify-content: center;
+}
+
+/* Wrapper del skeleton durante el loading: hereda el fondo gris doc-wrap
+   y limita el ancho a la columna del papel (~760px) para mantener la
+   silueta visual del documento. Punto #17/#27 audit. */
+.cv-loading-body {
+  display: flex;
+  justify-content: center;
+}
+.cv-loading-body > .aur-skeleton {
+  width: 100%;
+  max-width: 760px;
+  background: var(--aur-doc-paper);
+  padding: 36px 40px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  min-height: 60vh;
+}
+
 /* ── Mobile (≤600px) ────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .cv-toolbar {
@@ -134,6 +165,15 @@
     justify-content: flex-end;
     margin-left: 0;
     flex-wrap: wrap;
+  }
+  /* Hit-area táctil ≥44px (WCAG 2.5.5 target size). En finca + guantes
+     los chips default de ~28px eran frustrantes y el target acumulado
+     de Volver+Compartir+Imprimir hacía clicks accidentales. Punto #16
+     audit. Aplica a TODOS los chips de la toolbar, no a los chips del
+     documento (.ca-*) que viven sobre el papel blanco. */
+  .cv-toolbar .aur-chip {
+    min-height: 44px;
+    padding: 10px 14px;
   }
 }
 
