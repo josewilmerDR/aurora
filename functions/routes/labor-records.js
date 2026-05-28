@@ -7,6 +7,10 @@ const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
+// Mantener en sync con src/features/admin/pages/LaborList.jsx:21-23. Si
+// cambian los límites en uno, actualizar también el otro — la UI trunca con
+// maxLength y muestra contador en base a éstos, y el backend reaplica un slice
+// para defensa en profundidad. Drift = límites visuales inconsistentes.
 const MAX_CODIGO = 30;
 const MAX_DESCRIPCION = 200;
 const MAX_OBSERVACION = 1000;
