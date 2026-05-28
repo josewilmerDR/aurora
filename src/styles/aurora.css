@@ -114,6 +114,15 @@
      col-menu, tp-dropdown). In dark mode reuses --aurora-dark-blue tinted
      translucent; in light mode flips to white tinted translucent. */
   --aur-bg-popover-solid: rgba(13, 26, 38, 0.96);
+  /* Sunken surface para bloques de código (`<code>`, `<pre>`). Necesita ser
+     más oscuro que --aur-bg-input para que el código se lea como "hundido".
+     En dark mode oscurece, en light mode tinta hacia navy. Reemplaza el
+     rgba(0,0,0,.25) hardcodeado que muchas pages duplican. */
+  --aur-bg-code:          rgba(0, 0, 0, 0.25);
+  /* Stack monoespaciada compartida — antes hardcodeada en 13 archivos como
+     'Menlo','Consolas',monospace. Centralizada acá para que un cambio futuro
+     de fuente (p.ej. JetBrains Mono) no tenga que tocar cada CSS. */
+  --aur-font-mono:        'Menlo', 'Consolas', monospace;
   /* color-scheme used by inputs/textarea/select to match native UI affordances
      (date pickers, scrollbars). */
   --aur-color-scheme: dark;
@@ -227,6 +236,7 @@ html[data-theme="light"] {
 
   /* Theme-flippable surfaces */
   --aur-bg-popover-solid: rgba(255, 255, 255, 0.96);
+  --aur-bg-code:          rgba(13, 26, 38, 0.06);
   --aur-color-scheme: light;
 }
 
