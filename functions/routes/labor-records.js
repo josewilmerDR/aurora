@@ -1,8 +1,9 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -40,8 +41,13 @@ router.get('/api/labores', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/labores', authenticate, async (req, res) => {
+router.post('/api/labores', authenticate, rateLimit('labores_write', 'write'), async (req, res) => {
   try {
+    // Writes match the only UI caller (/admin/labores = supervisor) and
+    // InitialSetup (admin). GET stays open — horímetro/bodega/payroll need it.
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can create labores.', 403);
+    }
     const { error, data } = buildLaborDoc(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
@@ -69,8 +75,11 @@ router.post('/api/labores', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/labores/:id', authenticate, async (req, res) => {
+router.put('/api/labores/:id', authenticate, rateLimit('labores_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can update labores.', 403);
+    }
     const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
@@ -84,8 +93,11 @@ router.put('/api/labores/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/labores/:id', authenticate, async (req, res) => {
+router.delete('/api/labores/:id', authenticate, rateLimit('labores_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can delete labores.', 403);
+    }
     const ownership = await verifyOwnership('labores', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('labores').doc(req.params.id).delete();

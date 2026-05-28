@@ -140,6 +140,10 @@ const ENTIDADES = [
     descripcion: 'Cuentas de acceso al sistema — nombre, email, teléfono y rol de cada usuario.',
     icon: FiUsers,
     endpoint: '/api/users',
+    // Para contar evitamos GET /api/users (devuelve email/teléfono/rol/restrictedTo
+    // de toda la finca solo para hacer .length). /api/users/lite expone únicamente
+    // {id, nombre, empleadoPlanilla, tieneAcceso} — suficiente para el badge.
+    countEndpoint: '/api/users/lite',
     adminPath: '/users',
     excelHeaders: ['Nombre Completo', 'Email', 'Teléfono', 'Rol'],
     sampleRow:    ['Juan Pérez', 'juan@finca.com', '+506 8888-0000', 'trabajador'],
@@ -506,7 +510,9 @@ function EntidadCard({ entidad }) {
   const bulk = useBulkImport({
     countStorageKey: entidad.key,
     loadCount: async (apiFetch) => {
-      const data = await fetchJsonSafe(apiFetch, entidad.endpoint, null);
+      // entidad.countEndpoint permite contar sin sobre-traer datos sensibles
+      // (caso usuarios → /api/users/lite). Fallback al endpoint canónico.
+      const data = await fetchJsonSafe(apiFetch, entidad.countEndpoint || entidad.endpoint, null);
       return Array.isArray(data) ? data.length : null;
     },
     parse: (rows) => {
@@ -853,7 +859,9 @@ function EmpleadosCard() {
   const bulk = useBulkImport({
     countStorageKey: 'empleados',
     loadCount: async (apiFetch) => {
-      const data = await fetchJsonSafe(apiFetch, '/api/users', null);
+      // /api/users/lite ya expone empleadoPlanilla, así que el filter funciona
+      // sin sobre-traer email/teléfono/rol de toda la finca solo para contar.
+      const data = await fetchJsonSafe(apiFetch, '/api/users/lite', null);
       return Array.isArray(data) ? data.filter(u => u.empleadoPlanilla).length : null;
     },
     parse: (rows) => {

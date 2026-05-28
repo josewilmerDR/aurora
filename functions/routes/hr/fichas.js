@@ -13,6 +13,7 @@ const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
 const { TIME_RE, DATE_RE } = require('./helpers');
 
 const router = Router();
@@ -105,6 +106,12 @@ function validateFichaPayload(body) {
 
 router.get('/api/hr/fichas', authenticate, async (req, res) => {
   try {
+    // Fichas carry salaries, cédula and emergency contacts. Gate to encargado+
+    // so a trabajador can't enumerate the finca's payroll via direct API call
+    // (the UI already gates every ficha/payroll/cost page to encargado+).
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read HR fichas.', 403);
+    }
     const snap = await db.collection('hr_fichas')
       .where('fincaId', '==', req.fincaId).get();
     const data = snap.docs.map(d => ({ userId: d.id, ...d.data() }));
@@ -116,6 +123,9 @@ router.get('/api/hr/fichas', authenticate, async (req, res) => {
 
 router.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read an HR ficha.', 403);
+    }
     const userDoc = await db.collection('users').doc(req.params.userId).get();
     if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);
@@ -131,8 +141,14 @@ router.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/hr/fichas/:userId', authenticate, async (req, res) => {
+router.put('/api/hr/fichas/:userId', authenticate, rateLimit('hr_fichas_write', 'write'), async (req, res) => {
   try {
+    // Writing a ficha sets salary/cédula/emergency contact — encargado+ only,
+    // matching the EmployeeProfile page (the sole UI caller) and blocking a
+    // trabajador from tampering with payroll via direct API call.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can write an HR ficha.', 403);
+    }
     const userDoc = await db.collection('users').doc(req.params.userId).get();
     if (!userDoc.exists || userDoc.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Unauthorized access.', 403);

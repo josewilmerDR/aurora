@@ -1,8 +1,9 @@
 const { Router } = require('express');
 const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -89,8 +90,14 @@ router.get('/api/proveedores', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/proveedores', authenticate, async (req, res) => {
+router.post('/api/proveedores', authenticate, rateLimit('proveedores_write', 'write'), async (req, res) => {
   try {
+    // Proveedores carry bank account + credit terms; a low-priv member must not
+    // create/alter them via direct API. encargado+ matches the contabilidad
+    // module floor (Procurement / Recepción). GET stays open for selectors.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create proveedores.', 403);
+    }
     const { error, data } = buildProveedorDoc(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     // Upsert por RUC: re-subir la planilla de proveedores actualiza en vez de
@@ -119,8 +126,11 @@ router.post('/api/proveedores', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/proveedores/:id', authenticate, async (req, res) => {
+router.put('/api/proveedores/:id', authenticate, rateLimit('proveedores_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update proveedores.', 403);
+    }
     const ownership = await verifyOwnership('proveedores', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
@@ -133,8 +143,11 @@ router.put('/api/proveedores/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/proveedores/:id', authenticate, async (req, res) => {
+router.delete('/api/proveedores/:id', authenticate, rateLimit('proveedores_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete proveedores.', 403);
+    }
     const ownership = await verifyOwnership('proveedores', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('proveedores').doc(req.params.id).delete();

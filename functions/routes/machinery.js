@@ -1,8 +1,9 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -93,8 +94,14 @@ router.get('/api/maquinaria', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/maquinaria', authenticate, async (req, res) => {
+router.post('/api/maquinaria', authenticate, rateLimit('maquinaria_write', 'write'), async (req, res) => {
   try {
+    // Writes match the only UI caller (/admin/maquinaria = supervisor) and
+    // InitialSetup (admin). GET stays open — Cosecha/BodegaGenerica/horímetro
+    // need it at trabajador level.
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can create maquinaria.', 403);
+    }
     const { error, data } = buildMaquinariaDoc(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
@@ -121,8 +128,11 @@ router.post('/api/maquinaria', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/maquinaria/:id', authenticate, async (req, res) => {
+router.put('/api/maquinaria/:id', authenticate, rateLimit('maquinaria_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can update maquinaria.', 403);
+    }
     const ownership = await verifyOwnership('maquinaria', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
@@ -139,8 +149,11 @@ router.put('/api/maquinaria/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/maquinaria/:id', authenticate, async (req, res) => {
+router.delete('/api/maquinaria/:id', authenticate, rateLimit('maquinaria_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can delete maquinaria.', 403);
+    }
     const ownership = await verifyOwnership('maquinaria', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('maquinaria').doc(req.params.id).delete();

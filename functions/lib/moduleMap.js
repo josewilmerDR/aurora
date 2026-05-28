@@ -28,8 +28,13 @@ const PUBLIC_PREFIXES = [
 // Module ids must match MODULES[].id in src/components/Sidebar.jsx.
 const MODULE_PREFIXES = {
   campo: [
-    '/api/lotes', '/api/grupos', '/api/siembra', '/api/cosecha',
-    '/api/packages', '/api/cedulas', '/api/horimetro', '/api/templates',
+    // Prefijos matchean por igualdad o por `path.startsWith(prefix + '/')`,
+    // así que tienen que ser el path real del endpoint. `/api/siembra` (sin s)
+    // no matcheaba ningún endpoint vivo — los reales son `/api/siembras` y
+    // `/api/materiales-siembra`. Sin estos, al flipear STRICT=true en
+    // moduleMap, ambos quedarían denegados para usuarios con restrictedTo.
+    '/api/lotes', '/api/grupos', '/api/siembras', '/api/materiales-siembra',
+    '/api/cosecha', '/api/packages', '/api/cedulas', '/api/horimetro', '/api/templates',
   ],
   bodega: [
     '/api/productos', '/api/bodegas', '/api/movimientos', '/api/recepciones',
@@ -53,7 +58,10 @@ const MODULE_PREFIXES = {
     '/api/analytics',
   ],
   admin: [
-    '/api/users', '/api/maquinaria', '/api/labores', '/api/unidades',
+    // `/api/unidades` (sin -medida) no matcheaba el endpoint real
+    // `/api/unidades-medida`; sin esta corrección, al flipear STRICT quedaba
+    // denegado para todos los usuarios con restrictedTo, incluso admin-only.
+    '/api/users', '/api/maquinaria', '/api/labores', '/api/unidades-medida',
     '/api/calibraciones', '/api/config', '/api/combustible',
     '/api/meta', '/api/autopilot', '/api/autopilot-control',
     '/api/autopilot-orchestrator', '/api/audit',

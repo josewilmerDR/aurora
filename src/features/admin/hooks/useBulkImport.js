@@ -118,6 +118,11 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
   const confirmImport = async () => {
     const pending = pendingRef.current;
     if (!pending) return;
+    // Re-entry guard: setCommitting(true) es async, así que un doble-click muy
+    // rápido podía disparar dos loops de commit antes de que el botón se
+    // deshabilitara. abortRef se setea sincrónicamente en cada commit y se
+    // limpia en finally — sirve como flag confiable de "ya hay uno en vuelo".
+    if (abortRef.current) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setCommitting(true);

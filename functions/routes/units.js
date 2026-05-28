@@ -1,8 +1,9 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { verifyOwnership } = require('../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -18,8 +19,13 @@ router.get('/api/unidades-medida', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/unidades-medida', authenticate, async (req, res) => {
+router.post('/api/unidades-medida', authenticate, rateLimit('unidades_medida_write', 'write'), async (req, res) => {
   try {
+    // Writes match the only UI caller (/admin/unidades-medida = supervisor)
+    // and InitialSetup (admin). GET stays open for product/cosecha selectors.
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can create unidades de medida.', 403);
+    }
     const { nombre, descripcion, precio, labor, factorConversion, unidadBase } = req.body;
     if (!nombre?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
     const data = {
@@ -50,8 +56,11 @@ router.post('/api/unidades-medida', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/unidades-medida/:id', authenticate, async (req, res) => {
+router.put('/api/unidades-medida/:id', authenticate, rateLimit('unidades_medida_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can update unidades de medida.', 403);
+    }
     const ownership = await verifyOwnership('unidades_medida', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const { nombre, descripcion, precio, labor, factorConversion, unidadBase } = req.body;
@@ -71,8 +80,11 @@ router.put('/api/unidades-medida/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/unidades-medida/:id', authenticate, async (req, res) => {
+router.delete('/api/unidades-medida/:id', authenticate, rateLimit('unidades_medida_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can delete unidades de medida.', 403);
+    }
     const ownership = await verifyOwnership('unidades_medida', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('unidades_medida').doc(req.params.id).delete();
