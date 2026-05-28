@@ -103,6 +103,16 @@
   color: var(--aur-danger);
 }
 
+/* Row con Reintentar + Volver en el error state. El retry es primary
+   (aur-btn-pill verde), Volver queda como ghost — el flujo esperado tras un
+   error transitorio es reintentar, no abandonar. Punto #7 audit. */
+.cv-state-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 /* ── Mobile (≤600px) ────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .cv-toolbar {
@@ -110,15 +120,20 @@
     padding: 10px 12px;
     gap: 8px;
   }
-  .cv-toolbar-info {
-    order: 3;
-    width: 100%;
-  }
+  /* Fila 1: Volver + info (título + meta) compartiendo el ancho disponible.
+     Fila 2: acciones (Compartir / Imprimir / FlowAction) full-width
+     alineadas a la derecha. Antes info iba en order:3 y actions tomaban
+     todo el ancho de la fila 1 — el usuario leía "Compartir / Imprimir"
+     ANTES del activityName, invirtiendo la jerarquía. Punto #14 audit. */
   .cv-toolbar-title {
     font-size: var(--aur-fs-body);
   }
   .cv-toolbar-actions {
-    margin-left: auto;
+    order: 3;
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+    flex-wrap: wrap;
   }
 }
 

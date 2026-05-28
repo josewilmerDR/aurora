@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle } from 'react-icons/fi';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle, FiRefreshCw } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { translateApiError } from '../../../lib/errorMessages';
 import { tsToDate } from '../lib/cedulas-helpers';
 import CedulaDocumento from '../components/CedulaDocumento';
@@ -36,6 +37,7 @@ function StatusBadge({ status }) {
 export default function CedulaViewer() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const toast = useToast();
@@ -45,6 +47,11 @@ export default function CedulaViewer() {
   const [config, setConfig]   = useState({});
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+  // Guard contra doble click en "Compartir". html2canvas con scale:2 tarda
+  // 1-3s en mobile y un doble-tap antes del unmount dispara dos PDFs +
+  // dos share-sheets nativos (en iOS Safari el segundo pisa al primero y
+  // bloquea el UI). Punto #9 audit.
+  const [sharing, setSharing] = useState(false);
 
   // Catálogos lazy para las acciones del flujo (MezclaLista / Aplicada en
   // Campo). Solo se cargan si el status de la cédula permite alguna acción —
@@ -63,25 +70,49 @@ export default function CedulaViewer() {
   const addLoading    = (i) => setActionLoading(prev => { const n = new Set(prev); n.add(i); return n; });
   const removeLoading = (i) => setActionLoading(prev => { if (!prev.has(i)) return prev; const n = new Set(prev); n.delete(i); return n; });
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [cRes, cfRes] = await Promise.all([
-          apiFetch(`/api/cedulas/${id}`),
-          apiFetch('/api/config'),
-        ]);
-        if (!cRes.ok) { setError('Cédula no encontrada o sin acceso.'); return; }
-        const [c, cf] = await Promise.all([cRes.json(), cfRes.json().catch(() => ({}))]);
-        setCedula(c);
-        setConfig(cf || {});
-      } catch {
-        setError('Error al cargar la cédula.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // load() vive como useCallback para que el botón "Reintentar" del error
+  // state lo invoque sin re-disparar el useEffect; el efecto re-ejecuta
+  // solo cuando cambian `id` o `apiFetch` (este último cambia si el user
+  // switchea de finca con el viewer abierto — antes la closure quedaba
+  // stale y el ownership check del backend bloqueaba con la finca vieja).
+  // Punto #7 y #12 audit.
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [cRes, cfRes] = await Promise.all([
+        apiFetch(`/api/cedulas/${id}`),
+        apiFetch('/api/config'),
+      ]);
+      if (!cRes.ok) { setError('Cédula no encontrada o sin acceso.'); return; }
+      const [c, cf] = await Promise.all([cRes.json(), cfRes.json().catch(() => ({}))]);
+      setCedula(c);
+      setConfig(cf || {});
+    } catch {
+      setError('Error al cargar la cédula.');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, apiFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // ── Back-aware navigation ────────────────────────────────────────────────
+  // Si el usuario llegó por deep-link (WhatsApp / push notification / link
+  // compartido en tab nueva), `location.key` es 'default' — no hay history
+  // del SPA al cual volver. navigate(-1) ahí saca al usuario afuera, a
+  // about:blank o la URL anterior del browser. Fallback al listing. Para
+  // navegaciones internas (location.key !== 'default') sí usamos -1. Punto
+  // #6 audit. También se invoca desde el handler de ESC. Punto #15 audit.
+  const handleBack = useCallback(() => {
+    if (location.key === 'default') {
+      navigate('/aplicaciones/cedulas');
+    } else {
+      navigate(-1);
+    }
+  }, [location.key, navigate]);
+
+  useEscapeClose(handleBack);
 
   // Lazy load de productos/users/lotes — solo si el status habilita alguna
   // acción que vaya a abrir un modal. Cualquier 4xx degrada silenciosamente
@@ -105,7 +136,7 @@ export default function CedulaViewer() {
       setActionLotes(Array.isArray(lotes)    ? lotes  : []);
     });
     return () => { cancelled = true; };
-  }, [cedula?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cedula?.status, apiFetch]); // Punto #12 audit: apiFetch reacciona a finca switch.
 
   // ── Adapter cedula → props CedulaDocumento ────────────────────────────────
   // El cuerpo del documento (~360 LOC) ahora vive en CedulaDocumento. El
@@ -271,9 +302,21 @@ export default function CedulaViewer() {
     }
   };
 
-  // ── PDF share (sin cambios funcionales — sigue siendo el mismo flujo) ────
+  // ── PDF share ────────────────────────────────────────────────────────────
+  // Endurecido respecto a la versión original (puntos #8-#11 audit):
+  //   #8 toast en falla — antes el catch hacía solo console.error y el
+  //      botón se veía muerto (causas frecuentes: html2canvas tropieza con
+  //      CORS del logo externo, jsPDF revienta en mobile viejo, dynamic
+  //      import bloqueado offline).
+  //   #9 guard contra re-entrancia — sin esto un doble-tap en mobile
+  //      dispara dos PDFs y dos share-sheets en paralelo.
+  //   #10 sanitize del filename — un consecutivo con `/` o `:` se
+  //       interpretaba como subdir en algunos sistemas.
+  //   #11 revoke del object URL inmediato — antes setTimeout(1000) y en
+  //       mobile con CPU lenta el revoke pisaba el download a medio.
   const handleShare = async () => {
-    if (!docRef.current || !cedula) return;
+    if (sharing || !docRef.current || !cedula) return;
+    setSharing(true);
     try {
       const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
         import('html2canvas'),
@@ -291,34 +334,53 @@ export default function CedulaViewer() {
         pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
         y += pageH;
       }
-      const filename = `Cedula-${cedula.consecutivo || cedula.id}.pdf`;
+      // Sanitizar: el consecutivo (texto del backend) puede traer `/`, `:`
+      // o caracteres no-ASCII que algunos OS interpretan como path
+      // separators o reemplazan silenciosamente. Mismo regex que el
+      // handleShare del listing.
+      const raw  = cedula.consecutivo || cedula.id || 'cedula';
+      const safe = String(raw).replace(/[^\w\s-]/g, '_').replace(/\s+/g, '_').slice(0, 64);
+      const filename = `Cedula-${safe}.pdf`;
       const blob = pdf.output('blob');
       const file = new File([blob], filename, { type: 'application/pdf' });
       if (navigator.canShare?.({ files: [file] })) {
+        // navigator.share rechaza con AbortError cuando el usuario cancela
+        // la hoja nativa — esa rama no es un error, no notificar.
         try { await navigator.share({ files: [file], title: filename }); } catch {}
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = filename; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        // Revoke inmediato: el browser ya capturó la ref del blob al .click().
+        URL.revokeObjectURL(url);
       }
     } catch (e) {
-      console.error('Error generando PDF:', e);
+      console.error('[handleShare] failed to generate/share PDF:', e);
+      toast.error('No se pudo generar el PDF. Probá Imprimir desde el navegador.');
+    } finally {
+      setSharing(false);
     }
   };
 
   if (loading) return (
     <div className="aur-sheet aur-sheet--empty">
-      <p className="cv-state-text">Cargando cédula…</p>
+      <p className="cv-state-text" role="status" aria-live="polite">Cargando cédula…</p>
     </div>
   );
   if (error) return (
     <div className="aur-sheet aur-sheet--empty">
       <div className="cv-state">
-        <p className="cv-state-text cv-state-text--error">{error}</p>
-        <button type="button" className="aur-btn-pill" onClick={() => navigate(-1)}>
-          <FiArrowLeft size={14} /> Volver
-        </button>
+        <p className="cv-state-text cv-state-text--error" role="alert">{error}</p>
+        {/* Retry inline (#7 audit): un timeout de red en finca 4G no debería
+            forzar al usuario a navegar afuera y volver a entrar. */}
+        <div className="cv-state-actions">
+          <button type="button" className="aur-btn-pill" onClick={load}>
+            <FiRefreshCw size={14} /> Reintentar
+          </button>
+          <button type="button" className="aur-chip aur-chip--ghost" onClick={handleBack}>
+            <FiArrowLeft size={14} /> Volver
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -331,7 +393,8 @@ export default function CedulaViewer() {
         <button
           type="button"
           className="aur-chip aur-chip--ghost cv-toolbar-back"
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
+          aria-label="Volver"
         >
           <FiArrowLeft size={12} /> Volver
         </button>
@@ -357,10 +420,21 @@ export default function CedulaViewer() {
               onAplicada={handleAplicada}
             />
           )}
-          <button type="button" className="aur-chip" onClick={handleShare}>
-            <FiShare2 size={12} /> Compartir
+          <button
+            type="button"
+            className="aur-chip"
+            onClick={handleShare}
+            disabled={sharing}
+            aria-label="Compartir cédula como PDF"
+          >
+            <FiShare2 size={12} /> {sharing ? 'Generando…' : 'Compartir'}
           </button>
-          <button type="button" className="aur-chip" onClick={() => window.print()}>
+          <button
+            type="button"
+            className="aur-chip"
+            onClick={() => window.print()}
+            aria-label="Imprimir cédula"
+          >
             <FiPrinter size={12} /> Imprimir
           </button>
         </div>
