@@ -80,6 +80,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Conteo que no se pudo refrescar: se atenúa para no aparentar dato fresco. */
+.ci-card-count--stale {
+  opacity: 0.55;
+  cursor: help;
+}
+
 /* ── Descripción ─────────────────────────────────────────────────────────── */
 .ci-card-desc {
   margin: 0;
@@ -108,6 +114,49 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* ── Preview / confirmación de import (dentro de AuroraConfirmModal) ──────── */
+.ci-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ci-preview-summary {
+  margin: 0;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  line-height: 1.45;
+}
+
+.ci-preview-skipped {
+  margin: 0;
+  padding: 8px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--aur-warn-tint);
+  border-radius: var(--aur-r-input);
+  font-size: var(--aur-fs-caption, 12px);
+  color: var(--aur-text-2);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* ── Barra de progreso del commit ────────────────────────────────────────── */
+.ci-preview-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--aur-divider);
+  overflow: hidden;
+}
+.ci-preview-progress-bar {
+  height: 100%;
+  background: var(--aur-accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
 }
 
 /* ── Mobile ──────────────────────────────────────────────────────────────── */

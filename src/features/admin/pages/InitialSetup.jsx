@@ -3,6 +3,8 @@ import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPl
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import '../styles/initial-setup.css';
 
 // ── Import guardrails ────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ const ENTIDADES = [
       observacion: String(row['Observación']       || '').trim(),
     }),
     isValid: (r) => !!r.descripcion,
+    requeridoLabel: 'Descripción',
     countLabel: 'activos',
   },
   {
@@ -112,6 +115,7 @@ const ENTIDADES = [
       observacion:           String(row['Observación']        || '').trim(),
     }),
     isValid: (r) => !!r.nombreComercial,
+    requeridoLabel: 'Nombre Comercial',
     countLabel: 'productos',
   },
   {
@@ -134,6 +138,7 @@ const ENTIDADES = [
       _laborNombre:     String(row['Labor']                 || '').trim(),
     }),
     isValid: (r) => !!r.nombre,
+    requeridoLabel: 'Nombre',
     countLabel: 'unidades',
     prepareItems: async (items, apiFetch) => {
       const labores = await fetchJsonSafe(apiFetch, '/api/labores', []);
@@ -165,6 +170,7 @@ const ENTIDADES = [
       observacion: String(row['Observación'] || '').trim(),
     }),
     isValid: (r) => !!r.descripcion,
+    requeridoLabel: 'Descripción',
     countLabel: 'labores',
   },
   {
@@ -190,6 +196,7 @@ const ENTIDADES = [
       tieneAcceso: true,
     }),
     isValid: (r) => !!(r.nombre && r.email),
+    requeridoLabel: 'Nombre Completo y Email',
     countLabel: 'usuarios',
   },
   {
@@ -243,6 +250,7 @@ const ENTIDADES = [
       };
     },
     isValid: (r) => !!r.nombre,
+    requeridoLabel: 'Nombre',
     countLabel: 'proveedores',
   },
   {
@@ -289,35 +297,80 @@ const ENTIDADES = [
       };
     },
     isValid: (r) => !!r.name,
+    requeridoLabel: 'Nombre',
     countLabel: 'compradores',
   },
 ];
 
 // ── Subcomponentes presentacionales reutilizables ────────────────────────────
 
-function CardHeader({ icon: Icon, title, count, countLabel, counts, link, linkTitle = 'Ir a gestión completa' }) {
+function CardHeader({ icon: Icon, title, count, countLabel, counts, stale, link, linkTitle = 'Ir a gestión completa' }) {
+  // Cuando el refresh del conteo falló, el badge se atenúa y avisa por title
+  // que muestra el último valor conocido en vez de aparentar dato fresco.
+  const staleProps = stale
+    ? { className: 'aur-badge aur-badge--green ci-card-count ci-card-count--stale', title: 'No se pudo actualizar el conteo; mostrando el último valor conocido.' }
+    : { className: 'aur-badge aur-badge--green ci-card-count' };
   return (
     <div className="ci-card-header">
       <span className="ci-card-icon"><Icon size={18} /></span>
       <span className="ci-card-title">{title}</span>
       {counts
         ? counts.filter(c => c.value !== null && c.value !== undefined).map((c, i) => (
-            <span key={i} className="aur-badge aur-badge--green ci-card-count">
+            <span key={i} {...staleProps}>
               {c.value} {c.label}
             </span>
           ))
         : count !== null && (
-            <span className="aur-badge aur-badge--green ci-card-count">
+            <span {...staleProps}>
               {count}{countLabel ? ` ${countLabel}` : ''}
             </span>
           )
       }
       {link && (
-        <Link to={link} className="aur-icon-btn aur-icon-btn--sm" title={linkTitle}>
+        <Link to={link} className="aur-icon-btn aur-icon-btn--sm" title={linkTitle} aria-label={linkTitle}>
           <FiExternalLink size={13} />
         </Link>
       )}
     </div>
+  );
+}
+
+// Modal de confirmación con preview del import: muestra filas válidas vs
+// saltadas ANTES de escribir nada, y durante el commit se transforma en
+// barra de progreso con botón para cancelar (AbortController). Construido
+// sobre AuroraConfirmModal → hereda focus trap, ESC y role="dialog".
+function ImportPreviewModal({ entityName, validCount, skipped, committing, progress, onConfirm, onCancel, onAbort }) {
+  const total = validCount + skipped.length;
+  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+  return (
+    <AuroraConfirmModal
+      title={committing ? `Importando ${entityName}…` : `Confirmar importación`}
+      icon={<FiUpload size={16} />}
+      iconVariant="neutral"
+      confirmLabel={committing ? `Procesando ${progress.done}/${progress.total}…` : `Crear ${validCount} registro(s)`}
+      confirmDisabled={committing || validCount === 0}
+      cancelLabel="Cancelar"
+      onConfirm={onConfirm}
+      onCancel={committing ? onAbort : onCancel}
+    >
+      <div className="ci-preview">
+        <p className="ci-preview-summary">
+          Se importarán <strong>{validCount}</strong> de {total} fila(s) hacia <strong>{entityName}</strong>.
+          {skipped.length > 0 && <> {skipped.length} fila(s) se omitirán por datos faltantes.</>}
+        </p>
+        {skipped.length > 0 && (
+          <ul className="ci-preview-skipped">
+            {skipped.slice(0, 5).map((s, i) => <li key={i}>{s}</li>)}
+            {skipped.length > 5 && <li>… y {skipped.length - 5} más</li>}
+          </ul>
+        )}
+        {committing && (
+          <div className="ci-preview-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="ci-preview-progress-bar" style={{ width: `${pct}%` }} />
+          </div>
+        )}
+      </div>
+    </AuroraConfirmModal>
   );
 }
 
@@ -387,24 +440,42 @@ function NavPrompt({ entityName, targetPath, onConfirm, onDismiss }) {
 function EntidadCard({ entidad }) {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const storageKey = `aurora_initsetup_count_${entidad.key}`;
-  const [count, setCount] = useState(() => {
-    const v = localStorage.getItem(storageKey);
-    return v !== null ? Number(v) : null;
-  });
-  const [importing, setImporting] = useState(false);
+  const { activeFincaId } = useUser();
+  const storageKey = `aurora_initsetup_count_${activeFincaId}_${entidad.key}`;
+  const [count, setCount] = useState(null);
+  const [countStale, setCountStale] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [preview, setPreview] = useState(null); // { validas: [...], skipped: [...] }
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
+  const abortRef = useRef(null);
 
+  // Refresh directo (sin fetchJsonSafe) para distinguir "no se pudo refrescar"
+  // de "colección vacía" y no dejar un conteo viejo aparentando ser fresco.
   const refreshCount = async () => {
-    const data = await fetchJsonSafe(apiFetch, entidad.endpoint, null);
-    if (!Array.isArray(data)) return;
-    setCount(data.length);
-    localStorage.setItem(storageKey, String(data.length));
+    try {
+      const res = await apiFetch(entidad.endpoint);
+      if (!res.ok) { setCountStale(true); return; }
+      const data = await res.json();
+      if (!Array.isArray(data)) { setCountStale(true); return; }
+      setCount(data.length);
+      setCountStale(false);
+      localStorage.setItem(storageKey, String(data.length));
+    } catch { setCountStale(true); }
   };
 
-  useEffect(() => { refreshCount(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  // Al montar y al cambiar de finca: muestro el cacheado de ESA finca al
+  // instante y luego refresco. La key incluye fincaId, así que el conteo no
+  // se filtra entre fincas.
+  useEffect(() => {
+    const v = localStorage.getItem(storageKey);
+    setCount(v !== null ? Number(v) : null);
+    setCountStale(false);
+    refreshCount();
+  }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([entidad.excelHeaders, entidad.sampleRow]);
@@ -414,58 +485,109 @@ function EntidadCard({ entidad }) {
     XLSX.writeFile(wb, entidad.fileName);
   };
 
-  const handleImport = async (e) => {
+  // Fase 1: leer y parsear el archivo, separar válidas de saltadas (con razón)
+  // y abrir el preview. No escribe nada todavía.
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true);
+    setParsing(true);
     setImportResult(null);
+    setShowNavPrompt(false);
     try {
       const rows = await readExcelRows(file);
-      let validas = rows.map(entidad.parseRow).filter(entidad.isValid);
-      if (entidad.prepareItems) validas = await entidad.prepareItems(validas, apiFetch);
+      const validas = [];
+      const skipped = [];
+      rows.forEach((row, idx) => {
+        const parsed = entidad.parseRow(row);
+        if (entidad.isValid(parsed)) validas.push(parsed);
+        else skipped.push(`Fila ${idx + 2}: falta ${entidad.requeridoLabel}`);
+      });
       if (!validas.length) {
-        setImportResult({ error: true });
+        setImportResult({
+          error: true,
+          msg: skipped.length
+            ? `Ninguna fila válida. ${skipped.slice(0, 3).join(' · ')}`
+            : 'El archivo no contiene filas de datos.',
+        });
         return;
       }
-      let creados = 0, actualizados = 0, errores = 0;
-      for (const item of validas) {
-        try {
-          const res = await apiFetch(entidad.endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item),
-          });
-          if (!res.ok) { errores++; continue; }
-          const data = await res.json();
-          data.merged ? actualizados++ : creados++;
-        } catch { errores++; }
-      }
-      const parts = [
-        creados      > 0 && `${creados} creado(s)`,
-        actualizados > 0 && `${actualizados} actualizado(s)`,
-        errores      > 0 && `${errores} con error`,
-      ].filter(Boolean).join(' · ');
-      setImportResult({ ok: true, msg: parts });
-      setShowNavPrompt(true);
-      refreshCount();
+      setPreview({ validas, skipped });
     } catch (err) {
-      setImportResult({ error: true, msg: err?.message });
+      setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
     } finally {
-      setImporting(false);
+      setParsing(false);
       e.target.value = '';
     }
   };
 
+  // Fase 2: confirmado el preview, escribe con progreso y cancelación.
+  const commitImport = async () => {
+    if (!preview) return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setCommitting(true);
+    let items = preview.validas;
+    setProgress({ done: 0, total: items.length });
+    try {
+      if (entidad.prepareItems) items = await entidad.prepareItems(items, apiFetch);
+    } catch { /* prepareItems es best-effort; seguimos con lo que haya */ }
+
+    let creados = 0, actualizados = 0, omitidos = 0, errores = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (ctrl.signal.aborted) break;
+      try {
+        const res = await apiFetch(entidad.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(items[i]),
+          signal: ctrl.signal,
+        });
+        if (res.status === 409) omitidos++;          // ya existe (p.ej. email de usuario)
+        else if (!res.ok) errores++;
+        else { const data = await res.json(); data.merged ? actualizados++ : creados++; }
+      } catch {
+        if (ctrl.signal.aborted) break;
+        errores++;
+      }
+      setProgress({ done: i + 1, total: items.length });
+    }
+
+    const aborted = ctrl.signal.aborted;
+    const didWrite = creados + actualizados > 0;
+    const parts = [
+      creados      > 0 && `${creados} creado(s)`,
+      actualizados > 0 && `${actualizados} actualizado(s)`,
+      omitidos     > 0 && `${omitidos} ya existían (omitidos)`,
+      errores      > 0 && `${errores} con error`,
+    ].filter(Boolean).join(' · ');
+    const advert = [
+      preview.skipped.length > 0 && `${preview.skipped.length} fila(s) saltada(s)`,
+      aborted && 'cancelado',
+    ].filter(Boolean).join(' · ');
+
+    if (!didWrite && (errores > 0 || aborted)) {
+      setImportResult({ error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' });
+    } else {
+      setImportResult({ ok: true, msg: (parts || 'Sin cambios nuevos.') + (advert ? ` ⚠ ${advert}` : '') });
+      setShowNavPrompt(didWrite);
+      if (didWrite) refreshCount();
+    }
+
+    abortRef.current = null;
+    setCommitting(false);
+    setPreview(null);
+  };
+
   return (
     <div className="ci-card">
-      <CardHeader icon={entidad.icon} title={entidad.nombre} count={count} countLabel={entidad.countLabel} link={entidad.adminPath} />
+      <CardHeader icon={entidad.icon} title={entidad.nombre} count={count} countLabel={entidad.countLabel} stale={countStale} link={entidad.adminPath} />
       <p className="ci-card-desc">{entidad.descripcion}</p>
       <ImportButtons
         onDownload={handleDownloadTemplate}
         onImportClick={() => fileInputRef.current?.click()}
-        importing={importing}
+        importing={parsing || committing}
         fileInputRef={fileInputRef}
-        onFileChange={handleImport}
+        onFileChange={handleFileChange}
       />
       <ImportResultBanner result={importResult} />
       {showNavPrompt && (
@@ -474,6 +596,18 @@ function EntidadCard({ entidad }) {
           targetPath={entidad.adminPath}
           onConfirm={() => navigate(entidad.adminPath)}
           onDismiss={() => setShowNavPrompt(false)}
+        />
+      )}
+      {preview && (
+        <ImportPreviewModal
+          entityName={entidad.nombre}
+          validCount={preview.validas.length}
+          skipped={preview.skipped}
+          committing={committing}
+          progress={progress}
+          onConfirm={commitImport}
+          onCancel={() => setPreview(null)}
+          onAbort={() => abortRef.current?.abort()}
         />
       )}
     </div>
@@ -535,35 +669,47 @@ const LGB_SAMPLE = [
 function LotesGruposCard() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [loteCount, setLoteCount] = useState(() => {
-    const v = localStorage.getItem('aurora_initsetup_count_lotes');
-    return v !== null ? Number(v) : null;
-  });
-  const [grupoCount, setGrupoCount] = useState(() => {
-    const v = localStorage.getItem('aurora_initsetup_count_grupos');
-    return v !== null ? Number(v) : null;
-  });
-  const [importing, setImporting] = useState(false);
+  const { activeFincaId } = useUser();
+  const loteKey = `aurora_initsetup_count_${activeFincaId}_lotes`;
+  const grupoKey = `aurora_initsetup_count_${activeFincaId}_grupos`;
+  const [loteCount, setLoteCount] = useState(null);
+  const [grupoCount, setGrupoCount] = useState(null);
+  const [countStale, setCountStale] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [preview, setPreview] = useState(null); // { parsed, filasSaltadas }
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
+  const abortRef = useRef(null);
 
   const refreshCounts = async () => {
-    const [lotes, grupos] = await Promise.all([
-      fetchJsonSafe(apiFetch, '/api/lotes', null),
-      fetchJsonSafe(apiFetch, '/api/grupos', null),
-    ]);
-    if (Array.isArray(lotes)) {
-      setLoteCount(lotes.length);
-      localStorage.setItem('aurora_initsetup_count_lotes', String(lotes.length));
-    }
-    if (Array.isArray(grupos)) {
-      setGrupoCount(grupos.length);
-      localStorage.setItem('aurora_initsetup_count_grupos', String(grupos.length));
-    }
+    try {
+      const [lotesRes, gruposRes] = await Promise.all([apiFetch('/api/lotes'), apiFetch('/api/grupos')]);
+      let stale = false;
+      if (lotesRes.ok) {
+        const lotes = await lotesRes.json();
+        if (Array.isArray(lotes)) { setLoteCount(lotes.length); localStorage.setItem(loteKey, String(lotes.length)); }
+        else stale = true;
+      } else stale = true;
+      if (gruposRes.ok) {
+        const grupos = await gruposRes.json();
+        if (Array.isArray(grupos)) { setGrupoCount(grupos.length); localStorage.setItem(grupoKey, String(grupos.length)); }
+        else stale = true;
+      } else stale = true;
+      setCountStale(stale);
+    } catch { setCountStale(true); }
   };
 
-  useEffect(() => { refreshCounts(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    const l = localStorage.getItem(loteKey);
+    const g = localStorage.getItem(grupoKey);
+    setLoteCount(l !== null ? Number(l) : null);
+    setGrupoCount(g !== null ? Number(g) : null);
+    setCountStale(false);
+    refreshCounts();
+  }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([LGB_HEADERS, LGB_SAMPLE]);
@@ -573,22 +719,21 @@ function LotesGruposCard() {
     XLSX.writeFile(wb, 'plantilla_lotes_grupos_bloques.xlsx');
   };
 
-  const handleImport = async (e) => {
+  // Fase 1: parsear y separar filas válidas de saltadas; abrir preview.
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true);
+    setParsing(true);
     setImportResult(null);
+    setShowNavPrompt(false);
     try {
       const rows = await readExcelRows(file);
-
       if (!rows.length) {
-        setImportResult({ error: true, msg: 'El archivo está vacío.' });
+        setImportResult({ error: true, msg: 'El archivo no contiene filas de datos.' });
         return;
       }
-
       const today = new Date().toISOString().slice(0, 10);
       const filasSaltadas = [];
-
       const parsed = rows.map((row, idx) => {
         const cerradoVal = String(row['Cerrado'] || '').trim().toUpperCase();
         const esCerrado = ['SI', 'TRUE', '1', 'YES'].includes(cerradoVal);
@@ -622,37 +767,64 @@ function LotesGruposCard() {
       });
 
       if (!parsed.length) {
-        const detalle = filasSaltadas.slice(0, 3).join(' | ');
-        setImportResult({ error: true, msg: `Sin filas válidas. ${detalle}` });
+        setImportResult({ error: true, msg: `Ninguna fila válida. ${filasSaltadas.slice(0, 3).join(' · ')}` });
         return;
       }
+      setPreview({ parsed, filasSaltadas });
+    } catch (err) {
+      setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
+    } finally {
+      setParsing(false);
+      e.target.value = '';
+    }
+  };
 
+  // Fase 2: confirmado el preview, crea materiales → lotes → siembras → grupos
+  // con progreso y cancelación. Los bloques se deduplican por (loteId, bloque)
+  // contra los existentes y dentro del propio archivo, para que re-subir la
+  // planilla no duplique siembras.
+  const commitImport = async () => {
+    if (!preview) return;
+    const { parsed, filasSaltadas } = preview;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setCommitting(true);
+
+    const uniqueMateriales = new Map();
+    for (const r of parsed) {
+      if (r.materialNombre && !uniqueMateriales.has(r.materialNombre))
+        uniqueMateriales.set(r.materialNombre, { variedad: r.variedad, rangoPesos: r.rangoPesos });
+    }
+    const uniqueLotes = new Map();
+    for (const r of parsed) {
+      if (!uniqueLotes.has(r.codigoLote))
+        uniqueLotes.set(r.codigoLote, { nombreLote: r.nombreLote, fechaCreacion: r.fechaCreacionLote });
+    }
+    const distinctGrupos = new Set(parsed.map(r => r.nombreGrupo)).size;
+    const totalOps = uniqueMateriales.size + uniqueLotes.size + parsed.length + distinctGrupos;
+    let done = 0;
+    const tick = () => { done++; setProgress({ done, total: totalOps }); };
+    setProgress({ done: 0, total: totalOps });
+
+    try {
       // ── Phase 0: Materiales de siembra ─────────────────────────────────────
       const existingMateriales = await fetchJsonSafe(apiFetch, '/api/materiales-siembra', []);
-      const materialMap = {}; // nombre → { id }
+      const materialMap = {};
       for (const m of existingMateriales) {
         if (m.nombre) materialMap[m.nombre] = { id: m.id };
       }
-
-      const uniqueMateriales = new Map();
-      for (const r of parsed) {
-        if (r.materialNombre && !uniqueMateriales.has(r.materialNombre))
-          uniqueMateriales.set(r.materialNombre, { variedad: r.variedad, rangoPesos: r.rangoPesos });
-      }
-
       let materialesCreados = 0;
       for (const [nombre, { variedad, rangoPesos }] of uniqueMateriales) {
-        if (materialMap[nombre]) continue;
+        if (ctrl.signal.aborted) break;
+        if (materialMap[nombre]) { tick(); continue; }
         try {
           const res = await apiFetch('/api/materiales-siembra', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, variedad, rangoPesos }),
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, variedad, rangoPesos }), signal: ctrl.signal,
           });
-          if (!res.ok) continue;
-          materialMap[nombre] = { id: (await res.json()).id };
-          materialesCreados++;
+          if (res.ok) { materialMap[nombre] = { id: (await res.json()).id }; materialesCreados++; }
         } catch { /* non-blocking */ }
+        tick();
       }
 
       // ── Phase 1: Lotes ──────────────────────────────────────────────────────
@@ -661,34 +833,48 @@ function LotesGruposCard() {
       for (const l of existingLotes) {
         if (l.codigoLote) loteMap[l.codigoLote] = l.id;
       }
-
-      const uniqueLotes = new Map();
-      for (const r of parsed) {
-        if (!uniqueLotes.has(r.codigoLote))
-          uniqueLotes.set(r.codigoLote, { nombreLote: r.nombreLote, fechaCreacion: r.fechaCreacionLote });
-      }
-
       let lotesCreados = 0, lotesExistentes = 0, lotesError = 0;
       for (const [codigoLote, { nombreLote, fechaCreacion }] of uniqueLotes) {
-        if (loteMap[codigoLote]) { lotesExistentes++; continue; }
+        if (ctrl.signal.aborted) break;
+        if (loteMap[codigoLote]) { lotesExistentes++; tick(); continue; }
         try {
           const res = await apiFetch('/api/lotes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion }),
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion }), signal: ctrl.signal,
           });
-          if (!res.ok) { lotesError++; continue; }
-          loteMap[codigoLote] = (await res.json()).id;
-          lotesCreados++;
-        } catch { lotesError++; }
+          if (!res.ok) lotesError++;
+          else { loteMap[codigoLote] = (await res.json()).id; lotesCreados++; }
+        } catch { if (!ctrl.signal.aborted) lotesError++; }
+        tick();
       }
 
-      // ── Phase 2: Siembras (bloques) ─────────────────────────────────────────
+      // ── Phase 2: Siembras (bloques), deduplicadas por (loteId, bloque) ──────
+      const existingSiembras = await fetchJsonSafe(apiFetch, '/api/siembras', []);
+      const siembraKeyToId = {}; // `${loteId}|${bloque}` → id (existentes + creadas en este import)
+      for (const s of (Array.isArray(existingSiembras) ? existingSiembras : [])) {
+        if (s.loteId && s.bloque) siembraKeyToId[`${s.loteId}|${String(s.bloque).trim()}`] = s.id;
+      }
       const grupoQueue = {};
-      let siembrasCreadas = 0, siembrasError = 0;
+      let siembrasCreadas = 0, siembrasReutilizadas = 0, siembrasError = 0;
+      const pushToGrupo = (r, siembraId) => {
+        if (!grupoQueue[r.nombreGrupo]) {
+          grupoQueue[r.nombreGrupo] = { fechaCreacion: r.fechaCreacionGrupo, cosecha: r.cosecha, etapa: r.etapa, siembraIds: [] };
+        }
+        grupoQueue[r.nombreGrupo].siembraIds.push(siembraId);
+      };
       for (const r of parsed) {
+        if (ctrl.signal.aborted) break;
         const loteId = loteMap[r.codigoLote];
-        if (!loteId) { siembrasError++; continue; }
+        if (!loteId) { siembrasError++; tick(); continue; }
+        // Bloque con nombre: deduplica. Bloque vacío: siempre crea (preserva
+        // el comportamiento previo, no se puede distinguir uno de otro).
+        const key = r.bloque ? `${loteId}|${r.bloque}` : null;
+        if (key && siembraKeyToId[key]) {
+          pushToGrupo(r, siembraKeyToId[key]);
+          siembrasReutilizadas++;
+          tick();
+          continue;
+        }
         try {
           const mat = r.materialNombre ? materialMap[r.materialNombre] : null;
           const payload = {
@@ -706,18 +892,18 @@ function LotesGruposCard() {
             ...(r.cerrado && r.fechaCierre ? { fechaCierre: r.fechaCierre } : {}),
           };
           const res = await apiFetch('/api/siembras', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload), signal: ctrl.signal,
           });
-          if (!res.ok) { siembrasError++; continue; }
-          const data = await res.json();
-          if (!grupoQueue[r.nombreGrupo]) {
-            grupoQueue[r.nombreGrupo] = { fechaCreacion: r.fechaCreacionGrupo, cosecha: r.cosecha, etapa: r.etapa, siembraIds: [] };
+          if (!res.ok) siembrasError++;
+          else {
+            const data = await res.json();
+            if (key) siembraKeyToId[key] = data.id;
+            pushToGrupo(r, data.id);
+            siembrasCreadas++;
           }
-          grupoQueue[r.nombreGrupo].siembraIds.push(data.id);
-          siembrasCreadas++;
-        } catch { siembrasError++; }
+        } catch { if (!ctrl.signal.aborted) siembrasError++; }
+        tick();
       }
 
       // ── Phase 3: Grupos ─────────────────────────────────────────────────────
@@ -726,18 +912,17 @@ function LotesGruposCard() {
       for (const g of existingGrupos) {
         if (g.nombreGrupo) grupoMap[g.nombreGrupo] = g;
       }
-
       let gruposCreados = 0, gruposActualizados = 0, gruposError = 0;
       for (const [nombreGrupo, { fechaCreacion, cosecha, etapa, siembraIds }] of Object.entries(grupoQueue)) {
-        if (!siembraIds.length) continue;
+        if (ctrl.signal.aborted) break;
+        if (!siembraIds.length) { tick(); continue; }
         try {
           if (grupoMap[nombreGrupo]) {
             const existing = grupoMap[nombreGrupo];
             const newBloques = [...new Set([...(existing.bloques || []), ...siembraIds])];
             const existingFecha = timestampToDateStr(existing.fechaCreacion) || fechaCreacion;
             const res = await apiFetch(`/api/grupos/${existing.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 nombreGrupo,
                 cosecha: existing.cosecha || cosecha,
@@ -745,45 +930,45 @@ function LotesGruposCard() {
                 fechaCreacion: existingFecha,
                 paqueteId: existing.paqueteId || '',
                 bloques: newBloques,
-              }),
+              }), signal: ctrl.signal,
             });
-            if (!res.ok) { gruposError++; continue; }
-            gruposActualizados++;
+            if (!res.ok) gruposError++; else gruposActualizados++;
           } else {
             const res = await apiFetch('/api/grupos', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ nombreGrupo, cosecha, etapa, fechaCreacion, bloques: siembraIds }),
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombreGrupo, cosecha, etapa, fechaCreacion, bloques: siembraIds }), signal: ctrl.signal,
             });
-            if (!res.ok) { gruposError++; continue; }
-            gruposCreados++;
+            if (!res.ok) gruposError++; else gruposCreados++;
           }
-        } catch { gruposError++; }
+        } catch { if (!ctrl.signal.aborted) gruposError++; }
+        tick();
       }
 
+      const aborted = ctrl.signal.aborted;
       const totalErrors = lotesError + siembrasError + gruposError;
       const totalCreados = lotesCreados + siembrasCreadas + gruposCreados + gruposActualizados;
 
       const partesExito = [
-        materialesCreados  > 0 && `${materialesCreados} material(es)`,
-        lotesCreados       > 0 && `${lotesCreados} lote(s)`,
-        lotesExistentes    > 0 && `${lotesExistentes} lote(s) ya existían`,
-        siembrasCreadas    > 0 && `${siembrasCreadas} bloque(s)`,
-        gruposCreados      > 0 && `${gruposCreados} grupo(s)`,
-        gruposActualizados > 0 && `${gruposActualizados} grupo(s) actualizado(s)`,
+        materialesCreados    > 0 && `${materialesCreados} material(es)`,
+        lotesCreados         > 0 && `${lotesCreados} lote(s)`,
+        lotesExistentes      > 0 && `${lotesExistentes} lote(s) ya existían`,
+        siembrasCreadas      > 0 && `${siembrasCreadas} bloque(s)`,
+        siembrasReutilizadas > 0 && `${siembrasReutilizadas} bloque(s) ya existían`,
+        gruposCreados        > 0 && `${gruposCreados} grupo(s)`,
+        gruposActualizados   > 0 && `${gruposActualizados} grupo(s) actualizado(s)`,
       ].filter(Boolean).join(' · ');
 
       const advertencias = [
         ...filasSaltadas.slice(0, 3),
         totalErrors > 0 && `${totalErrors} registro(s) con error al guardar`,
+        aborted && 'importación cancelada',
       ].filter(Boolean);
 
-      if (totalCreados === 0 && totalErrors > 0) {
-        const detalle = advertencias.join(' | ');
-        setImportResult({ error: true, msg: `No se creó ningún registro. Posible causa: fechas en formato incorrecto o datos inválidos. Detalle: ${detalle}` });
+      if (totalCreados === 0 && (totalErrors > 0 || aborted)) {
+        setImportResult({ error: true, msg: `No se creó ningún registro. ${advertencias.join(' · ')}` });
       } else {
         const msgOk = partesExito ? `Creados: ${partesExito}` : 'Sin cambios nuevos.';
-        const msgWarn = advertencias.length ? ` ⚠ ${advertencias.join(' | ')}` : '';
+        const msgWarn = advertencias.length ? ` ⚠ ${advertencias.join(' · ')}` : '';
         setImportResult({ ok: true, msg: msgOk + msgWarn });
         setShowNavPrompt(totalCreados > 0);
         if (totalCreados > 0) refreshCounts();
@@ -791,8 +976,9 @@ function LotesGruposCard() {
     } catch (err) {
       setImportResult({ error: true, msg: err?.message || 'Error inesperado al procesar el archivo.' });
     } finally {
-      setImporting(false);
-      e.target.value = '';
+      abortRef.current = null;
+      setCommitting(false);
+      setPreview(null);
     }
   };
 
@@ -805,6 +991,7 @@ function LotesGruposCard() {
           { value: loteCount, label: 'lotes' },
           { value: grupoCount, label: 'grupos' },
         ]}
+        stale={countStale}
         link="/lotes"
         linkTitle="Ir a Gestión de Lotes"
       />
@@ -814,9 +1001,9 @@ function LotesGruposCard() {
       <ImportButtons
         onDownload={handleDownloadTemplate}
         onImportClick={() => fileInputRef.current?.click()}
-        importing={importing}
+        importing={parsing || committing}
         fileInputRef={fileInputRef}
-        onFileChange={handleImport}
+        onFileChange={handleFileChange}
       />
       <ImportResultBanner result={importResult} />
       {showNavPrompt && (
@@ -825,6 +1012,18 @@ function LotesGruposCard() {
           targetPath="/lotes"
           onConfirm={() => navigate('/lotes')}
           onDismiss={() => setShowNavPrompt(false)}
+        />
+      )}
+      {preview && (
+        <ImportPreviewModal
+          entityName="Lotes, Grupos y Bloques"
+          validCount={preview.parsed.length}
+          skipped={preview.filasSaltadas}
+          committing={committing}
+          progress={progress}
+          onConfirm={commitImport}
+          onCancel={() => setPreview(null)}
+          onAbort={() => abortRef.current?.abort()}
         />
       )}
     </div>
@@ -846,24 +1045,38 @@ const EMP_SAMPLE = [
 function EmpleadosCard() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const [count, setCount] = useState(() => {
-    const v = localStorage.getItem('aurora_initsetup_count_empleados');
-    return v !== null ? Number(v) : null;
-  });
-  const [importing, setImporting] = useState(false);
+  const { activeFincaId } = useUser();
+  const storageKey = `aurora_initsetup_count_${activeFincaId}_empleados`;
+  const [count, setCount] = useState(null);
+  const [countStale, setCountStale] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [preview, setPreview] = useState(null); // { parsed: [...], skipped: [...] }
   const [importResult, setImportResult] = useState(null);
   const [showNavPrompt, setShowNavPrompt] = useState(false);
   const fileInputRef = useRef(null);
+  const abortRef = useRef(null);
 
   const refreshCount = async () => {
-    const data = await fetchJsonSafe(apiFetch, '/api/users', null);
-    if (!Array.isArray(data)) return;
-    const newCount = data.filter(u => u.empleadoPlanilla).length;
-    setCount(newCount);
-    localStorage.setItem('aurora_initsetup_count_empleados', String(newCount));
+    try {
+      const res = await apiFetch('/api/users');
+      if (!res.ok) { setCountStale(true); return; }
+      const data = await res.json();
+      if (!Array.isArray(data)) { setCountStale(true); return; }
+      const newCount = data.filter(u => u.empleadoPlanilla).length;
+      setCount(newCount);
+      setCountStale(false);
+      localStorage.setItem(storageKey, String(newCount));
+    } catch { setCountStale(true); }
   };
 
-  useEffect(() => { refreshCount(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    const v = localStorage.getItem(storageKey);
+    setCount(v !== null ? Number(v) : null);
+    setCountStale(false);
+    refreshCount();
+  }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([EMP_HEADERS, EMP_SAMPLE]);
@@ -873,15 +1086,19 @@ function EmpleadosCard() {
     XLSX.writeFile(wb, 'plantilla_empleados.xlsx');
   };
 
-  const handleImport = async (e) => {
+  // Fase 1: parsear, separar válidas de saltadas y abrir preview.
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true);
+    setParsing(true);
     setImportResult(null);
+    setShowNavPrompt(false);
     try {
       const rows = await readExcelRows(file);
-      const parsed = rows
-        .map(row => ({
+      const parsed = [];
+      const skipped = [];
+      rows.forEach((row, idx) => {
+        const r = {
           nombre:              String(row['Nombre Completo']       || '').trim(),
           email:               String(row['Email']                 || '').trim(),
           telefono:            String(row['Teléfono']              || '').trim(),
@@ -897,71 +1114,113 @@ function EmpleadosCard() {
           contactoEmergencia:  String(row['Contacto Emergencia']   || '').trim(),
           telefonoEmergencia:  String(row['Teléfono Emergencia']   || '').trim(),
           notas:               String(row['Notas']                 || '').trim(),
-        }))
-        .filter(r => r.nombre && r.email);
+        };
+        if (r.nombre && r.email) parsed.push(r);
+        else skipped.push(`Fila ${idx + 2}: falta Nombre Completo y/o Email`);
+      });
 
       if (!parsed.length) {
-        setImportResult({ error: true });
+        setImportResult({
+          error: true,
+          msg: skipped.length ? `Ninguna fila válida. ${skipped.slice(0, 3).join(' · ')}` : 'El archivo no contiene filas de datos.',
+        });
         return;
       }
-
-      let creados = 0, actualizados = 0, errores = 0;
-      for (const item of parsed) {
-        const { cedula, puesto, departamento, fechaIngreso, tipoContrato, salarioBase,
-                precioHora, direccion, contactoEmergencia, telefonoEmergencia, notas, ...userData } = item;
-        // normalizeRol defaults to 'trabajador' for any missing/unknown value,
-        // so a row whose rol is not 'ninguno' represents a person who should
-        // also have system access. Sending tieneAcceso explicitly avoids the
-        // backend default-to-false that would otherwise hide the row from
-        // UserManagement after bulk import.
-        const tieneAcceso = userData.rol && userData.rol !== 'ninguno';
-        try {
-          const res = await apiFetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...userData, empleadoPlanilla: true, tieneAcceso }),
-          });
-          if (!res.ok) { errores++; continue; }
-          const { id, merged } = await res.json();
-          merged ? actualizados++ : creados++;
-          await apiFetch(`/api/hr/fichas/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cedula, puesto, departamento, fechaIngreso, tipoContrato,
-                                   salarioBase, precioHora, direccion, contactoEmergencia,
-                                   telefonoEmergencia, notas }),
-          }).catch(() => {});
-        } catch { errores++; }
-      }
-
-      const parts = [
-        creados      > 0 && `${creados} creado(s)`,
-        actualizados > 0 && `${actualizados} actualizado(s)`,
-        errores      > 0 && `${errores} con error`,
-      ].filter(Boolean).join(' · ');
-      setImportResult({ ok: true, msg: parts });
-      setShowNavPrompt(creados + actualizados > 0);
-      refreshCount();
+      setPreview({ parsed, skipped });
     } catch (err) {
-      setImportResult({ error: true, msg: err?.message });
+      setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
     } finally {
-      setImporting(false);
+      setParsing(false);
       e.target.value = '';
     }
   };
 
+  // Fase 2: crea usuario + ficha laboral con progreso y cancelación. El PUT de
+  // la ficha se verifica: si falla, el usuario queda creado pero se cuenta como
+  // ficha incompleta (antes el error se tragaba en silencio).
+  const commitImport = async () => {
+    if (!preview) return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setCommitting(true);
+    const parsed = preview.parsed;
+    setProgress({ done: 0, total: parsed.length });
+
+    let creados = 0, actualizados = 0, omitidos = 0, errores = 0, fichasIncompletas = 0;
+    for (let i = 0; i < parsed.length; i++) {
+      if (ctrl.signal.aborted) break;
+      const { cedula, puesto, departamento, fechaIngreso, tipoContrato, salarioBase,
+              precioHora, direccion, contactoEmergencia, telefonoEmergencia, notas, ...userData } = parsed[i];
+      // El template de planilla representa personas con acceso al sistema por
+      // construcción, así que declaramos tieneAcceso=true para que el backend
+      // no las oculte de UserManagement (default-to-false).
+      const tieneAcceso = true;
+      try {
+        const res = await apiFetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...userData, empleadoPlanilla: true, tieneAcceso }),
+          signal: ctrl.signal,
+        });
+        if (res.status === 409) { omitidos++; setProgress({ done: i + 1, total: parsed.length }); continue; }
+        if (!res.ok) { errores++; setProgress({ done: i + 1, total: parsed.length }); continue; }
+        const { id, merged } = await res.json();
+        merged ? actualizados++ : creados++;
+        const fres = await apiFetch(`/api/hr/fichas/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cedula, puesto, departamento, fechaIngreso, tipoContrato,
+                                 salarioBase, precioHora, direccion, contactoEmergencia,
+                                 telefonoEmergencia, notas }),
+          signal: ctrl.signal,
+        }).catch(() => null);
+        if (!fres || !fres.ok) fichasIncompletas++;
+      } catch {
+        if (ctrl.signal.aborted) break;
+        errores++;
+      }
+      setProgress({ done: i + 1, total: parsed.length });
+    }
+
+    const aborted = ctrl.signal.aborted;
+    const didWrite = creados + actualizados > 0;
+    const parts = [
+      creados      > 0 && `${creados} creado(s)`,
+      actualizados > 0 && `${actualizados} actualizado(s)`,
+      omitidos     > 0 && `${omitidos} ya existían (omitidos)`,
+      errores      > 0 && `${errores} con error`,
+    ].filter(Boolean).join(' · ');
+    const advert = [
+      preview.skipped.length > 0 && `${preview.skipped.length} fila(s) saltada(s)`,
+      fichasIncompletas > 0 && `${fichasIncompletas} ficha(s) sin completar`,
+      aborted && 'cancelado',
+    ].filter(Boolean).join(' · ');
+
+    if (!didWrite && (errores > 0 || aborted)) {
+      setImportResult({ error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' });
+    } else {
+      setImportResult({ ok: true, msg: (parts || 'Sin cambios nuevos.') + (advert ? ` ⚠ ${advert}` : '') });
+      setShowNavPrompt(didWrite);
+      if (didWrite) refreshCount();
+    }
+
+    abortRef.current = null;
+    setCommitting(false);
+    setPreview(null);
+  };
+
   return (
     <div className="ci-card">
-      <CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={count} countLabel="empleados" link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />
+      <CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={count} countLabel="empleados" stale={countStale} link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />
       <p className="ci-card-desc">
         Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso.
       </p>
       <ImportButtons
         onDownload={handleDownloadTemplate}
         onImportClick={() => fileInputRef.current?.click()}
-        importing={importing}
+        importing={parsing || committing}
         fileInputRef={fileInputRef}
-        onFileChange={handleImport}
+        onFileChange={handleFileChange}
       />
       <ImportResultBanner result={importResult} />
       {showNavPrompt && (
@@ -970,6 +1229,18 @@ function EmpleadosCard() {
           targetPath="/hr/ficha"
           onConfirm={() => navigate('/hr/ficha')}
           onDismiss={() => setShowNavPrompt(false)}
+        />
+      )}
+      {preview && (
+        <ImportPreviewModal
+          entityName="Empleados (Planilla)"
+          validCount={preview.parsed.length}
+          skipped={preview.skipped}
+          committing={committing}
+          progress={progress}
+          onConfirm={commitImport}
+          onCancel={() => setPreview(null)}
+          onAbort={() => abortRef.current?.abort()}
         />
       )}
     </div>
@@ -992,8 +1263,9 @@ function InitialSetup() {
       <div className="aur-banner aur-banner--info ci-intro">
         <FiSettings size={14} />
         <span>
-          Descarga la plantilla de cada entidad, complétala y súbela. Si un registro ya existe
-          (mismo ID o código), se actualizará en lugar de duplicarse.
+          Descargá la plantilla de cada entidad, completala y subila. Antes de guardar verás un
+          resumen para confirmar. Si un registro ya existe (mismo ID, código, nombre o RUC) se
+          actualiza en lugar de duplicarse; las cuentas de usuario con email repetido se omiten.
         </span>
       </div>
 
