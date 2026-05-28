@@ -4,6 +4,7 @@ const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 const {
   ROLES_VALIDOS,
   cleanRestrictedTo,
@@ -26,7 +27,7 @@ const router = Router();
 
 function requireAdmin(req, res, next) {
   if (!hasMinRoleBE(req.userRole, 'administrador')) {
-    return res.status(403).json({ message: 'Solo administradores pueden gestionar usuarios.' });
+    return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only administrators can manage users.', 403);
   }
   next();
 }
@@ -38,7 +39,7 @@ router.get('/api/users', authenticate, async (req, res) => {
     const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener usuarios.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch users.', 500);
   }
 });
 
@@ -72,14 +73,14 @@ router.get('/api/users/lite', authenticate, async (req, res) => {
     });
     res.status(200).json(lite);
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener directorio.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch user directory.', 500);
   }
 });
 
-router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
+router.post('/api/users', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { errs, clean } = validateUserPayload(req.body, { mode: 'create' });
-    if (errs.length) return res.status(400).json({ message: errs.join(' ') });
+    if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
 
     // Email uniqueness only matters for personas who actually use the email
     // to log in. Two non-system "people" with the same emergency email is fine.
@@ -87,7 +88,7 @@ router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
       const dup = await db.collection('users')
         .where('fincaId', '==', req.fincaId)
         .where('email', '==', clean.email).limit(1).get();
-      if (!dup.empty) return res.status(409).json({ message: 'Ese email ya está registrado.' });
+      if (!dup.empty) return sendApiError(res, ERROR_CODES.ALREADY_EXISTS, 'Email already registered.', 409);
     }
 
     const restrictedTo = clean.tieneAcceso ? (cleanRestrictedTo(req.body.restrictedTo) || []) : [];
@@ -126,7 +127,7 @@ router.post('/api/users', authenticate, requireAdmin, async (req, res) => {
 
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear usuario.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create user.', 500);
   }
 });
 
@@ -134,7 +135,7 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const userData = pick(req.body, [
       'nombre', 'email', 'telefono', 'rol',
       'tieneAcceso', 'empleadoPlanilla', 'restrictedTo',
@@ -156,15 +157,15 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
     };
 
     if (isSelf && userData.rol !== undefined && userData.rol !== current.rol) {
-      return res.status(403).json({ message: 'No puedes cambiar tu propio rol.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You cannot change your own role.', 403);
     }
     if (isSelf && userData.tieneAcceso === false) {
-      return res.status(403).json({ message: 'No puedes revocarte el acceso al sistema a ti mismo.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You cannot revoke your own system access.', 403);
     }
     if (isSelf && userData.restrictedTo !== undefined) {
       const cleaned = cleanRestrictedTo(userData.restrictedTo) || [];
       if (cleaned.length > 0 && !cleaned.includes('admin')) {
-        return res.status(403).json({ message: 'No puedes restringir tu propio acceso al módulo de administración.' });
+        return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You cannot restrict your own access to the admin module.', 403);
       }
     }
 
@@ -172,19 +173,22 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
     // forces callers to use revoke-access / revoke-planilla, which carry the
     // right side-effects (audit, fechaSalidaPlanilla, membership deletion).
     if (!merged.tieneAcceso && !merged.empleadoPlanilla) {
-      return res.status(400).json({
-        message: 'No se puede dejar a la persona sin acceso y sin planilla. Use los endpoints específicos de revocación.',
-      });
+      return sendApiError(
+        res,
+        ERROR_CODES.VALIDATION_FAILED,
+        'A person cannot be left without access and without payroll. Use the dedicated revoke endpoints instead.',
+        400,
+      );
     }
 
     const { errs, clean } = validateUserPayload(merged, { mode: 'update' });
-    if (errs.length) return res.status(400).json({ message: errs.join(' ') });
+    if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
 
     if (userData.email && clean.email) {
       const dup = await db.collection('users')
         .where('fincaId', '==', req.fincaId)
         .where('email', '==', clean.email).limit(1).get();
-      if (!dup.empty && dup.docs[0].id !== id) return res.status(409).json({ message: 'Ese email ya está registrado.' });
+      if (!dup.empty && dup.docs[0].id !== id) return sendApiError(res, ERROR_CODES.ALREADY_EXISTS, 'Email already registered.', 409);
     }
 
     const updates = {};
@@ -286,7 +290,7 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
     res.status(200).json({ id, ...updates });
   } catch (error) {
     console.error('[users:put]', error);
-    res.status(500).json({ message: 'Error al actualizar usuario.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update user.', 500);
   }
 });
 
@@ -294,11 +298,11 @@ router.delete('/api/users/:id', authenticate, requireAdmin, async (req, res) => 
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const doomed = ownership.doc.data();
     const targetEmail = (doomed.email || '').toLowerCase();
     if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
-      return res.status(403).json({ message: 'No puedes eliminar tu propio usuario.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You cannot delete your own user.', 403);
     }
 
     // Hard-delete is reserved for people with no HR footprint. Anything else
@@ -327,9 +331,9 @@ router.delete('/api/users/:id', authenticate, requireAdmin, async (req, res) => 
       severity: SEVERITY.WARNING,
     });
 
-    res.status(200).json({ message: 'Usuario eliminado correctamente.' });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar usuario.' });
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete user.', 500);
   }
 });
 

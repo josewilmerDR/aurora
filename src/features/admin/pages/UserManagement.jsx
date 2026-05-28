@@ -297,7 +297,10 @@ function UserManagement() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Error al guardar');
+        // Use the code → Spanish map (errorMessages.js) so the user sees a
+        // localized message; the backend now sends English devMessages keyed
+        // by ERROR_CODES (e.g., VALIDATION_FAILED, ALREADY_EXISTS, FORBIDDEN).
+        throw new Error(translateApiError(data, 'Error al guardar'));
       }
       const saved = await res.json();
       const savedId = isEditing ? formData.id : saved.id;

@@ -1,7 +1,7 @@
 // Handlers CRUD para `buyers`. Capa delgada: parse → validate → repository → respond.
 // Toda la persistencia vive en repository.js.
 
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { buildBuyerDoc } = require('./validator');
 const repo = require('./repository');
@@ -18,6 +18,11 @@ async function listBuyers(req, res) {
 
 async function createBuyer(req, res) {
   try {
+    // Buyers carry credit limit + payment terms; gate writes to encargado+
+    // (the /finance/compradores page floor). listBuyers stays open for selectors.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create buyers.', 403);
+    }
     const { error, data } = buildBuyerDoc(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
@@ -42,6 +47,9 @@ async function createBuyer(req, res) {
 
 async function updateBuyer(req, res) {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update buyers.', 403);
+    }
     const ownership = await verifyOwnership('buyers', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
@@ -58,6 +66,9 @@ async function updateBuyer(req, res) {
 
 async function deleteBuyer(req, res) {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete buyers.', 403);
+    }
     const ownership = await verifyOwnership('buyers', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 

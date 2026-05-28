@@ -14,8 +14,9 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldValue } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { pick, verifyOwnership } = require('../../lib/helpers');
+const { pick, verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { PRODUCT_FIELDS, validateProducto } = require('./helpers');
 
@@ -31,8 +32,14 @@ router.get('/api/productos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/productos', authenticate, async (req, res) => {
+router.post('/api/productos', authenticate, rateLimit('productos_write', 'write'), async (req, res) => {
   try {
+    // Creating a producto can also write the inventory ledger (movimientos) and
+    // raise stock — encargado+ only. GET stays open (dashboard/tasks need it),
+    // but writes match the Bodega module floor and block a trabajador via API.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create productos.', 403);
+    }
     const valErrors = validateProducto(req.body, true);
     if (valErrors.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, valErrors.join('; '), 400);
 
@@ -112,8 +119,11 @@ router.post('/api/productos', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/productos/:id', authenticate, async (req, res) => {
+router.put('/api/productos/:id', authenticate, rateLimit('productos_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update productos.', 403);
+    }
     const valErrors = validateProducto(req.body, false);
     if (valErrors.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, valErrors.join('; '), 400);
 
@@ -128,8 +138,14 @@ router.put('/api/productos/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/productos/:id', authenticate, async (req, res) => {
+router.delete('/api/productos/:id', authenticate, rateLimit('productos_write', 'write'), async (req, res) => {
   try {
+    // Gate matches the consuming UI (Existencias / ProductosCatalogo, both
+    // encargado+). Tightening to supervisor would break those encargado
+    // delete flows; raising it is a separate policy decision.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete productos.', 403);
+    }
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -159,8 +175,11 @@ router.delete('/api/productos/:id', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/productos/:id/inactivar', authenticate, async (req, res) => {
+router.put('/api/productos/:id/inactivar', authenticate, rateLimit('productos_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can deactivate productos.', 403);
+    }
     const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const stock = ownership.doc.data().stockActual ?? 0;
@@ -174,8 +193,11 @@ router.put('/api/productos/:id/inactivar', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/productos/:id/activar', authenticate, async (req, res) => {
+router.put('/api/productos/:id/activar', authenticate, rateLimit('productos_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can activate productos.', 403);
+    }
     const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('productos').doc(req.params.id).update({ activo: true });
