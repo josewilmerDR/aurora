@@ -1,7 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { readExcelRows } from '../lib/bulkImport';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lock global de la página: mientras alguna tarjeta está escribiendo (commit),
+// se deshabilitan los disparadores de import del resto, para no lanzar varios
+// loops secuenciales compitiendo por la misma sesión/finca. Es un contador
+// (no un booleano) para tolerar commits concurrentes correctamente.
+//
+// La Provider se monta en InitialSetup (jsx); este archivo .js sólo exporta el
+// contexto y lo consume, para no meter JSX en un módulo de hook.
+// ─────────────────────────────────────────────────────────────────────────────
+export const BulkImportLockContext = createContext(null);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useBulkImport — estado-máquina compartido de las tarjetas de carga masiva.
@@ -29,6 +40,7 @@ import { readExcelRows } from '../lib/bulkImport';
 export function useBulkImport({ countStorageKey, loadCount, parse, commit, emptyMessage = 'El archivo no contiene filas de datos.' }) {
   const apiFetch = useApiFetch();
   const { activeFincaId } = useUser();
+  const lock = useContext(BulkImportLockContext);
   const storageKey = `aurora_initsetup_count_${activeFincaId}_${countStorageKey}`;
 
   const [count, setCount] = useState(null);
@@ -42,6 +54,10 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const pendingRef = useRef(null); // { payload, skipped } entre preview y commit
+
+  // Otra tarjeta está escribiendo: el lock cuenta los commits activos; si yo
+  // estoy commiteando, uno de ellos soy yo (ya me deshabilita `committing`).
+  const othersBusy = lock ? lock.busyCount > (committing ? 1 : 0) : false;
 
   // Refresh directo del conteo: distingue "no se pudo refrescar" (→ stale) de
   // "colección vacía", para no dejar un número viejo aparentando ser fresco.
@@ -67,8 +83,8 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
   }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fase 1: leer + parsear el archivo y abrir el preview. No escribe nada.
-  const onFileChange = async (e) => {
-    const file = e.target.files?.[0];
+  // Compartida por el <input type=file> y el drop de drag-and-drop.
+  const importFile = async (file) => {
     if (!file) return;
     setParsing(true);
     setImportResult(null);
@@ -89,8 +105,13 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
       setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
     } finally {
       setParsing(false);
-      e.target.value = '';
     }
+  };
+
+  const onFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    await importFile(file);
+    e.target.value = '';
   };
 
   // Fase 2: confirmado el preview, ejecuta el commit con progreso y cancelación.
@@ -100,6 +121,7 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setCommitting(true);
+    lock?.incBusy();
     setProgress({ done: 0, total: pending.payload.length });
     try {
       const res = await commit({
@@ -119,6 +141,7 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
     } catch (err) {
       setImportResult({ error: true, msg: err?.message || 'Error inesperado al procesar el archivo.' });
     } finally {
+      lock?.decBusy();
       abortRef.current = null;
       pendingRef.current = null;
       setCommitting(false);
@@ -131,6 +154,7 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
     countStale,
     parsing,
     committing,
+    othersBusy,
     progress,
     preview,
     importResult,
@@ -138,6 +162,7 @@ export function useBulkImport({ countStorageKey, loadCount, parse, commit, empty
     fileInputRef,
     onImportClick: () => fileInputRef.current?.click(),
     onFileChange,
+    importFile,
     confirmImport,
     cancelPreview: () => { pendingRef.current = null; setPreview(null); },
     abortCommit: () => abortRef.current?.abort(),
