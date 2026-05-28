@@ -151,3 +151,74 @@ export const nowTimeStr = () => {
   const n = new Date();
   return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// deriveCambiosLineas
+//
+// Reduce el par (productosOriginales, productosAplicados) a líneas de texto
+// que describen qué cambió respecto al programa original: sustituciones,
+// ajustes de dosis, productos añadidos y retirados. Las líneas se imprimen
+// en el bloque "Observaciones / Ajustes" del documento auditable.
+//
+// Antes esto vivía duplicado entre CedulaDocumento.jsx (preview) y
+// CedulaViewer.jsx (historial). Cualquier evolución del audit trail tenía
+// que tocarse en dos lugares — y un motivo nuevo en el futuro se omitía sin
+// aviso. Punto #3 audit.
+//
+// Pura, idempotente — apta para llamar inline en el render del documento o
+// desde tests.
+// ─────────────────────────────────────────────────────────────────────────────
+export const deriveCambiosLineas = ({ originales, aplicados } = {}) => {
+  const orig = Array.isArray(originales) ? originales : [];
+  const apl  = Array.isArray(aplicados)  ? aplicados  : [];
+  if (orig.length === 0) return [];
+
+  const origById = {};
+  orig.forEach(o => { if (o?.productoId) origById[o.productoId] = o; });
+  const aplicadosByOrig = {};
+  apl.forEach(a => {
+    if (a?.productoOriginalId) aplicadosByOrig[a.productoOriginalId] = a;
+  });
+
+  const lineas = [];
+  const touchedOriginalIds = new Set();
+
+  apl.forEach(a => {
+    if (!a) return;
+    const origRef = a.productoOriginalId
+      ? origById[a.productoOriginalId]
+      : origById[a.productoId];
+    if (origRef) touchedOriginalIds.add(origRef.productoId);
+
+    if (a.productoOriginalId && a.productoOriginalId !== a.productoId) {
+      const o = origById[a.productoOriginalId];
+      // El default es 'Sustitución' cuando el id realmente cambió pero no se
+      // especificó motivo (compat con cédulas viejas). 'otro' y 'ajuste_dosis'
+      // se distinguen explícitamente.
+      const motivo = a.motivoCambio === 'ajuste_dosis' ? 'Ajuste de dosis'
+                   : a.motivoCambio === 'otro'         ? 'Otro'
+                   : 'Sustitución';
+      lineas.push(
+        `${o?.nombreComercial || o?.productoId || '—'} (${o?.cantidadPorHa ?? '—'} ${o?.unidad || ''}/Ha) sustituido por ${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) — ${motivo}`
+      );
+    } else if (origRef && parseFloat(origRef.cantidadPorHa) !== parseFloat(a.cantidadPorHa)) {
+      lineas.push(
+        `${a.nombreComercial || a.productoId}: dosis ajustada de ${origRef.cantidadPorHa ?? '—'} a ${a.cantidadPorHa ?? '—'} ${a.unidad || origRef.unidad || ''}/Ha — Ajuste de dosis`
+      );
+    } else if (!origRef) {
+      lineas.push(
+        `${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) añadido respecto al programa original`
+      );
+    }
+  });
+
+  orig.forEach(o => {
+    if (!touchedOriginalIds.has(o.productoId) && !aplicadosByOrig[o.productoId]) {
+      lineas.push(
+        `${o.nombreComercial || o.productoId} (${o.cantidadPorHa ?? '—'} ${o.unidad || ''}/Ha) retirado respecto al programa original`
+      );
+    }
+  });
+
+  return lineas;
+};

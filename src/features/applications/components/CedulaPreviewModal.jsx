@@ -1,8 +1,7 @@
 import { createPortal } from 'react-dom';
-import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle } from 'react-icons/fi';
-import { FaTractor } from 'react-icons/fa';
-import { hasMinRole } from '../../../contexts/UserContext';
+import { FiArrowLeft, FiShare2, FiPrinter } from 'react-icons/fi';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import CedulaFlowAction from './CedulaFlowAction';
 
 // ── CedulaPreviewModal ────────────────────────────────────────────────────────
 // Full-screen preview overlay para una cédula. Contiene:
@@ -67,9 +66,9 @@ export default function CedulaPreviewModal({
             }
           </span>
           <div className="ca-preview-toolbar-actions">
-            <ToolbarFlowAction
-              previewTask={previewTask}
-              activeCedula={activeCedula}
+            <CedulaFlowAction
+              cedula={activeCedula}
+              isDraft={previewTask.isDraft}
               actionLoading={actionLoading}
               currentUser={currentUser}
               onMezclaLista={onMezclaLista}
@@ -91,63 +90,4 @@ export default function CedulaPreviewModal({
     </div>,
     document.body
   );
-}
-
-// ── ToolbarFlowAction ────────────────────────────────────────────────────────
-// La acción contextual del flujo de la cédula que aparece a la izquierda de
-// Compartir/Imprimir. Antes era un IIFE inline en el toolbar — ahora es un
-// pequeño componente para que cada rama (aplicada/pendiente/en_transito) sea
-// legible por separado y testeable individualmente.
-//
-// Reglas:
-//   - Borrador → no muestra nada (la cédula aún no existe).
-//   - Sin cédula → no muestra nada.
-//   - Aplicada → badge verde "Aplicada", sin acción.
-//   - Pendiente + rol >= encargado → botón "Mezcla Lista".
-//   - En tránsito + rol >= trabajador → botón "Aplicada en Campo".
-function ToolbarFlowAction({
-  previewTask,
-  activeCedula,
-  actionLoading,
-  currentUser,
-  onMezclaLista,
-  onAplicada,
-}) {
-  if (previewTask.isDraft) return null;
-  if (!activeCedula) return null;
-
-  const isLdg = actionLoading.has(activeCedula.id);
-
-  if (activeCedula.status === 'aplicada_en_campo') {
-    return (
-      <span className="ca-toolbar-applied-badge">
-        <FiCheckCircle size={14} /> Aplicada
-      </span>
-    );
-  }
-  if (activeCedula.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado')) {
-    return (
-      <button
-        className="aur-btn-pill"
-        onClick={() => onMezclaLista(activeCedula.id)}
-        disabled={isLdg}
-      >
-        <FiCheckCircle size={14} />
-        {isLdg ? 'Procesando…' : 'Mezcla Lista'}
-      </button>
-    );
-  }
-  if (activeCedula.status === 'en_transito' && hasMinRole(currentUser?.rol, 'trabajador')) {
-    return (
-      <button
-        className="aur-btn-pill"
-        onClick={() => onAplicada(activeCedula.id)}
-        disabled={isLdg}
-      >
-        <FaTractor size={14} />
-        {isLdg ? 'Registrando…' : 'Aplicada en Campo'}
-      </button>
-    );
-  }
-  return null;
 }
