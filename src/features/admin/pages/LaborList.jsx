@@ -5,6 +5,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/labor-list.css';
 
 const EMPTY_FORM = {
@@ -14,9 +15,17 @@ const EMPTY_FORM = {
   observacion: '',
 };
 
+// Mantener en sync con functions/routes/labor-records.js:10-12. Si cambian
+// los límites en uno, actualizar también el otro — el backend trunca con
+// el suyo y la UI con éste. Drift = límites visuales inconsistentes.
 const MAX_CODIGO = 30;
 const MAX_DESCRIPCION = 200;
 const MAX_OBSERVACION = 1000;
+
+// Normaliza para búsqueda i18n-safe: quita acentos y baja a lowercase.
+// "aplicación" matchea "aplicacion" y viceversa.
+const normalize = (s) =>
+  (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 // Borrador: sólo persiste mientras el alta está abierta. En edición no
 // tocamos sessionStorage para no pisar un draft previo ni recordar valores
@@ -50,6 +59,7 @@ function LaborList() {
   const [items, setItems] = useState([]);
   const [unidades, setUnidades] = useState([]); // sólo para contar impacto al borrar
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isEditing, setIsEditing] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -65,14 +75,23 @@ function LaborList() {
   const [recentId, setRecentId] = useState(null);
   const descripcionRef = useRef(null);
   const recentTimerRef = useRef(null);
+  const formRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  const fetchItems = () =>
-    apiFetch('/api/labores')
-      .then(r => r.json())
-      .then(data => setItems(Array.isArray(data) ? data : []))
-      .catch(() => showToast('Error al cargar la lista de labores.', 'error'))
-      .finally(() => setLoading(false));
+  const fetchItems = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await apiFetch('/api/labores');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setItems(Array.isArray(data) ? data : []);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchUnidades = () =>
     apiFetch('/api/unidades-medida')
@@ -80,10 +99,9 @@ function LaborList() {
       .then(data => setUnidades(Array.isArray(data) ? data : []))
       .catch(() => {}); // count opcional — si falla, el modal queda sin número pero igual honesto
 
+  // Restauración de borrador: sólo al montar. No queremos repetirlo si cambia
+  // la finca activa porque el draft es local a esta sesión, no a la finca.
   useEffect(() => {
-    fetchItems();
-    fetchUnidades();
-    // Restaurar borrador si quedó un alta a medio escribir.
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -94,7 +112,14 @@ function LaborList() {
         setShowForm(true);
       }
     } catch { /* ignore */ }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Carga de datos: reacciona al cambio de finca. apiFetch se rebuilds cuando
+  // activeFincaId cambia (useApiFetch:15), así que [apiFetch] cubre ese caso.
+  useEffect(() => {
+    fetchItems();
+    fetchUnidades();
+  }, [apiFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Foco al primer input requerido cuando se abre el form.
   useEffect(() => {
@@ -171,7 +196,12 @@ function LaborList() {
     });
     setIsEditing(true);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scrollear al form respeta el contenedor real (a diferencia de window.scrollTo
+    // que asume que la página es el scroll root y queda no-op si vivimos en un
+    // wrapper con overflow: auto). El defer asegura que el section ya está montado.
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const handleNew = () => {
@@ -196,15 +226,18 @@ function LaborList() {
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/labores/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(translateApiError(body, 'Error al eliminar.'));
+      }
       // Optimistic local: sacamos la fila sin esperar refetch. unidades se
       // re-fetcha por si el conteo del próximo modal de borrado cambió.
       setItems(prev => prev.filter(it => it.id !== id));
       fetchUnidades();
       showToast('Labor eliminada.');
       setConfirmDelete(null);
-    } catch {
-      showToast('Error al eliminar.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al eliminar.', 'error');
     } finally {
       setDeleting(false);
     }
@@ -221,18 +254,29 @@ function LaborList() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(translateApiError(errBody, 'Error al guardar.'));
+      }
       const body = await res.json().catch(() => ({}));
       const id = targetId ?? body.id ?? null;
       if (id) {
         setItems(prev => upsertLocal(prev, { id, ...payload }));
         flashRecent(id);
       }
-      showToast(successMsg);
+      // Si hay filtro activo y la fila guardada no matchea, anexamos al toast
+      // de éxito (en un solo render — dos showToast seguidos se pisan por el
+      // batching de React). Así el usuario no piensa que se perdió la labor.
+      const mismatch = id && filter && !matchesFilter({ ...payload }, filter);
+      if (mismatch) {
+        showToast(`${successMsg} No coincide con la búsqueda actual.`, 'info');
+      } else {
+        showToast(successMsg);
+      }
       resetForm();
       setMergeTarget(null);
-    } catch {
-      showToast('Error al guardar.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al guardar.', 'error');
     } finally {
       setSaving(false);
     }
@@ -289,13 +333,28 @@ function LaborList() {
     });
   };
 
-  const q = filter.toLowerCase();
-  const filtered = items.filter(item =>
-    !q ||
-    item.descripcion?.toLowerCase().includes(q) ||
-    item.codigo?.toLowerCase().includes(q) ||
-    item.observacion?.toLowerCase().includes(q)
-  );
+  // matchesFilter usa normalize() para que "aplicación" matchee "aplicacion".
+  // Definido en el cuerpo del componente para cerrar sobre la `query` actual
+  // (vs items, que sería ruidoso pasar como arg).
+  const matchesFilter = (item, query) => {
+    if (!query) return true;
+    const q = normalize(query);
+    return (
+      normalize(item.descripcion).includes(q) ||
+      normalize(item.codigo).includes(q) ||
+      normalize(item.observacion).includes(q)
+    );
+  };
+  const filtered = items.filter(item => matchesFilter(item, filter));
+
+  // Warning suave si la descripción tipeada coincide con otra labor existente.
+  // El backend no bloquea duplicados de descripción (sólo de código), así que
+  // sólo lo notificamos para evitar entradas confusas en el combobox de
+  // UnidadesMedida.
+  const trimmedDesc = form.descripcion.trim();
+  const descDuplicate = trimmedDesc
+    ? items.find(it => it.id !== form.id && normalize(it.descripcion) === normalize(trimmedDesc))
+    : null;
 
   return (
     <>
@@ -392,7 +451,7 @@ function LaborList() {
         </header>
 
         {showForm && (
-          <section className="aur-section">
+          <section className="aur-section" ref={formRef}>
             <div className="aur-section-header">
               <h3>{isEditing ? 'Editar labor' : 'Nueva labor'}</h3>
               <div className="aur-section-actions">
@@ -402,6 +461,7 @@ function LaborList() {
                   onClick={requestReset}
                   title="Cancelar"
                   aria-label="Cerrar formulario"
+                  disabled={saving}
                 >
                   <FiX size={14} />
                 </button>
@@ -448,6 +508,12 @@ function LaborList() {
                         {form.descripcion.length} / {MAX_DESCRIPCION}
                       </span>
                     )}
+                    {descDuplicate && (
+                      <span className="lab-field-warn" aria-live="polite">
+                        <FiAlertTriangle size={11} /> Ya existe una labor con esta descripción
+                        {descDuplicate.codigo ? ` (${descDuplicate.codigo})` : ''}. Podés guardarla, pero el combobox las mostrará indistinguibles.
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="aur-row aur-row--multiline">
@@ -490,6 +556,17 @@ function LaborList() {
         <section className="aur-section">
           {loading ? (
             <div className="aur-page-loading" />
+          ) : loadError ? (
+            <EmptyState
+              icon={FiAlertTriangle}
+              title="No se pudo cargar la lista."
+              subtitle="Probablemente hay un problema de conexión. Probá reintentar."
+              action={(
+                <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={fetchItems}>
+                  Reintentar
+                </button>
+              )}
+            />
           ) : items.length === 0 ? (
             <EmptyState
               icon={FiList}
@@ -540,7 +617,9 @@ function LaborList() {
                       {filtered.map(item => (
                         <tr
                           key={item.id}
-                          className={item.id === recentId ? 'lab-row--just-saved' : undefined}
+                          className={`lab-row-clickable${item.id === recentId ? ' lab-row--just-saved' : ''}`}
+                          onClick={() => handleEdit(item)}
+                          title="Editar"
                         >
                           <td className="lab-td-code">{item.codigo || <span className="lab-td-empty">—</span>}</td>
                           <td className="lab-td-desc">{item.descripcion}</td>
@@ -549,7 +628,7 @@ function LaborList() {
                             <button
                               type="button"
                               className="aur-icon-btn aur-icon-btn--sm"
-                              onClick={() => handleEdit(item)}
+                              onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
                               title="Editar"
                               aria-label={`Editar labor ${item.descripcion}`}
                             >
@@ -558,7 +637,10 @@ function LaborList() {
                             <button
                               type="button"
                               className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                              onClick={() => setConfirmDelete({ id: item.id, descripcion: item.descripcion })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDelete({ id: item.id, descripcion: item.descripcion });
+                              }}
                               title="Eliminar"
                               aria-label={`Eliminar labor ${item.descripcion}`}
                             >
