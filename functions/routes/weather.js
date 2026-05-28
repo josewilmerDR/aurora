@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { authenticate } = require('../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 
 const router = Router();
 
@@ -8,7 +9,12 @@ const router = Router();
 // El browser no puede llamar directo: Open-Meteo intermitentemente responde sin
 // headers CORS (rate-limit / política regional) y la fetch se cae con 409+CORS,
 // dejando el modal en "obteniendo…". Server-to-server elimina la barrera.
-router.get('/api/weather/current', authenticate, async (req, res) => {
+//
+// Rate-limited: aunque el endpoint es authenticated, un token comprometido o un
+// bot autenticado podría agotar la cuota de Open-Meteo de Aurora con polleo.
+// Una llamada por mount de AplicadaModal (~decenas/día por usuario activo) está
+// muy por debajo del cap.
+router.get('/api/weather/current', authenticate, rateLimit('weather_read', 'public_read'), async (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lon = parseFloat(req.query.lon);
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 ||

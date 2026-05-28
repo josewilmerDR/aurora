@@ -72,7 +72,11 @@ function buildLoteUpdatePayload(body) {
 }
 
 // --- API ENDPOINTS: LOTES ---
-router.get('/api/lotes', authenticate, async (req, res) => {
+// Rate-limited: mismo bucket que /api/lotes/:id/task-count (línea ~176) para
+// que el budget del dominio quede compartido. El listing es liviano pero un
+// autenticado podía polearlo para enumerar la estructura productiva de la
+// finca (códigos, hectáreas, fincaId).
+router.get('/api/lotes', authenticate, rateLimit('lotes_read', 'public_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('lotes').where('fincaId', '==', req.fincaId).get();
     const lotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

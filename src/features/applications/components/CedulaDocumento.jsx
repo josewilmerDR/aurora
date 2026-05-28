@@ -13,6 +13,14 @@ const fincaInitials = (nombreEmpresa) => {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 };
 
+// Validamos el scheme del logoUrl antes de renderizarlo como <img>. config.js
+// solo genera URLs http(s) desde Firebase Storage, pero una escritura directa
+// vía Admin SDK (chat tool, autopilot, consola Firestore manual) podría
+// colgar un data:, javascript: o file: que el browser cargaría sin chequeo.
+// Default-deny todo lo que no sea http/https — el fallback es el placeholder
+// de iniciales. L8 audit.
+const isSafeImgUrl = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
+
 // ── CedulaDocumento ──────────────────────────────────────────────────────────
 // El papel blanco con el documento auditable de la cédula que se renderiza
 // dentro del preview modal y que html2canvas captura para exportar a PDF.
@@ -92,7 +100,7 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
         {/* ── Encabezado ── */}
         <div className="ca-doc-header">
           <div className="ca-doc-brand">
-            {config.logoUrl
+            {isSafeImgUrl(config.logoUrl)
               // crossOrigin="anonymous" pareado con html2canvas useCORS:true.
               // Sin esto, un logo hosteado en CDN externo taintaba el canvas
               // y toDataURL() lanzaba SecurityError → el botón "Compartir"

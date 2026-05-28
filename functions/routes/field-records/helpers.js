@@ -120,15 +120,30 @@ async function nextCedulasConsecutivos(fincaId, count) {
 
 // ── Serializers ─────────────────────────────────────────────────────────────
 
-const serializeCedula = (id, data) => ({
-  id,
-  ...data,
-  generadaAt:        data.generadaAt?.toDate?.()?.toISOString()        || null,
-  mezclaListaAt:     data.mezclaListaAt?.toDate?.()?.toISOString()     || null,
-  aplicadaAt:        data.aplicadaAt?.toDate?.()?.toISOString()        || null,
-  modificadaEnMezclaAt: data.modificadaEnMezclaAt?.toDate?.()?.toISOString() || null,
-  editadaAt:         data.editadaAt?.toDate?.()?.toISOString()         || null,
-});
+// Por defecto strip precioUnitario/moneda de snap_productos. Solo
+// HistorialAplicaciones necesita pricing para calcular costo snapshot, y lo
+// pide vía ?include=costs explícito (read.js lo traduce a includeCosts:true).
+// El viewer y el listing de cédulas nunca renderizan precios — sin este
+// gate, el pricing histórico viajaba al cliente de cualquier consumer y
+// quedaba embebido en el PDF auditable que se comparte externo a la finca
+// (regente, MAG, etc.). Default-deny para campos sensibles. M2 audit.
+const serializeCedula = (id, data, { includeCosts = false } = {}) => {
+  const out = {
+    id,
+    ...data,
+    generadaAt:        data.generadaAt?.toDate?.()?.toISOString()        || null,
+    mezclaListaAt:     data.mezclaListaAt?.toDate?.()?.toISOString()     || null,
+    aplicadaAt:        data.aplicadaAt?.toDate?.()?.toISOString()        || null,
+    modificadaEnMezclaAt: data.modificadaEnMezclaAt?.toDate?.()?.toISOString() || null,
+    editadaAt:         data.editadaAt?.toDate?.()?.toISOString()         || null,
+  };
+  if (!includeCosts && Array.isArray(out.snap_productos)) {
+    out.snap_productos = out.snap_productos.map(
+      ({ precioUnitario, moneda, ...rest }) => rest
+    );
+  }
+  return out;
+};
 
 // Snapshot of a product from the original plan (task.activity.productos) to
 // store in cedula.productosOriginales when the cédula is created. Never changes afterwards.
