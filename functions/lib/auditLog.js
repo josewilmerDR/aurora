@@ -54,6 +54,10 @@ const ACTIONS = Object.freeze({
   // Security signals
   PROMPT_INJECTION_DETECTED: 'security.prompt_injection.detected',
   TOKEN_REJECTED: 'security.token.rejected',
+  // Exfiltración masiva: cuando un admin descarga el CSV del registro forense.
+  // El CSV puede contener IPs, emails, montos, vendor names — su salida del
+  // sistema debe quedar registrada (qué filtros, cuántos eventos, cuándo).
+  AUDIT_EXPORT: 'audit.export',
 
   // High-value business operations — logged only where "who+when" has
   // forensic or recovery value. Routine creates/updates are intentionally
