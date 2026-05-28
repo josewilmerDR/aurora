@@ -7,8 +7,17 @@ const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const router = Router();
 
 // --- API ENDPOINTS: ACCOUNT CONFIGURATION ---
+// Lectura gateada a encargado+. El doc incluye identidad legal/fiscal de la
+// finca, contactos, logoUrl y parámetros de cultivo (proyecciones de cosecha
+// y costos). Todos los consumers de UI ya son encargado+ (Grupos, Lotes,
+// Cédulas, Siembra, Cosecha, Planilla, Compras) y la página de ajustes de
+// cuenta es administrador. Sin gate, un trabajador podía leer todo eso vía
+// API directa.
 router.get('/api/config', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read finca config.', 403);
+    }
     const doc = await db.collection('config').doc(req.fincaId).get();
     res.status(200).json(doc.exists ? { id: doc.id, ...doc.data() } : {});
   } catch (error) {

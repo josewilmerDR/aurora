@@ -118,6 +118,11 @@ const ROUTE_MIN_ROLE = {
     ALL_ITEMS.filter(item => item.to).map(item => [item.to, item.minRole || 'trabajador'])
   ),
   // Sub-routes not listed directly in MODULES
+  // Account/company settings: read needs encargado+ at the API, but the page
+  // is admin-only (PUT /api/config is administrador, and both UI entry points
+  // already gate to administrador). Match that here so a deep-link can't load
+  // the form for sub-admins.
+  '/config/cuenta': 'administrador',
   '/productos/todos': 'encargado',
   '/bodega/agroquimicos/existencias': 'encargado',
   '/bodega/agroquimicos/recepcion': 'encargado',
@@ -372,7 +377,7 @@ function App() {
             <Route path="/operaciones/horimetro" element={<Horimetro />} />
             <Route path="/operaciones/horimetro/registro" element={<RegistroHorimetro />} />
             <Route path="/operaciones/horimetro/historial" element={<HistorialHorimetros />} />
-            <Route path="/config/cuenta" element={<AccountSettings />} />
+            <Route path="/config/cuenta" element={<RoleRoute path="/config/cuenta"><AccountSettings /></RoleRoute>} />
             <Route path="/mi-perfil" element={<Profile />} />
             {/* encargado+ */}
             <Route path="/users" element={<RoleRoute path="/users"><UserManagement /></RoleRoute>} />

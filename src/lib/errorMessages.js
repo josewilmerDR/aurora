@@ -24,6 +24,12 @@ export const ERROR_MESSAGES = {
   CONFLICT: 'Conflicto con el estado actual del recurso.',
   RESOURCE_REFERENCED: 'No se puede eliminar: aún hay registros que lo referencian. Quítalo de ellos antes de borrarlo.',
   USER_HAS_HR_HISTORY: 'No se puede eliminar: la persona tiene historial laboral. Usa "Rescindir contrato" y/o "Quitar acceso" en su lugar.',
+  // Grupos: bloqueo de eliminación por cédulas asociadas (ver functions/routes/groups.js).
+  // El DELETE estándar puede toparse con estos estados en una race entre el
+  // delete-check y el confirm; sin traducción, el toast mostraba el mensaje
+  // dev en inglés ("There are cedulas applied in the field.").
+  CEDULA_APLICADA: 'Una cédula del grupo ya fue aplicada en campo. Forma parte del registro fitosanitario y no puede eliminarse.',
+  CEDULA_EN_TRANSITO: 'Hay cédulas del grupo en estado "Mezcla lista". Resuélvelas (aplícalas o anúlalas) antes de eliminar el grupo.',
 
   // Input
   VALIDATION_FAILED: 'Los datos enviados no son válidos.',

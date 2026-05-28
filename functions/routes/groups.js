@@ -258,10 +258,14 @@ router.post('/api/grupos', authenticate, rateLimit('grupos_write', 'write'), asy
             });
         }
 
-        // If a package is assigned, create tasks (same logic as lotes)
+        // If a package is assigned, create tasks (same logic as lotes).
+        // Tenant guard: only spawn tasks when the package belongs to this finca.
+        // A foreign-finca paqueteId (or a deleted one) is treated like "not
+        // found" — the grupo is still created, no tasks are generated from
+        // another finca's activities[].
         if (paqueteId) {
             const paqueteDoc = await db.collection('packages').doc(paqueteId).get();
-            if (paqueteDoc.exists) {
+            if (paqueteDoc.exists && paqueteDoc.data().fincaId === req.fincaId) {
                 const paqueteData = paqueteDoc.data();
                 const grupoCreationDate = new Date(fechaCreacion);
                 const tasksBatch = db.batch();
@@ -310,10 +314,11 @@ router.post('/api/grupos', authenticate, rateLimit('grupos_write', 'write'), asy
             }
         }
 
-        // If a monitoring package is assigned, create monitoring orders
+        // If a monitoring package is assigned, create monitoring orders.
+        // Same tenant guard as the technical package above.
         if (paqueteMuestreoId) {
             const muestreoDoc = await db.collection('monitoreo_paquetes').doc(paqueteMuestreoId).get();
-            if (muestreoDoc.exists) {
+            if (muestreoDoc.exists && muestreoDoc.data().fincaId === req.fincaId) {
                 const muestreoData = muestreoDoc.data();
                 const grupoCreationDate = new Date(fechaCreacion);
                 const muestreoBatch = db.batch();
@@ -453,7 +458,8 @@ router.put('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), 
             // Create new application tasks if there is a technical package
             if (grupoData.paqueteId) {
                 const paqueteDoc = await db.collection('packages').doc(grupoData.paqueteId).get();
-                if (paqueteDoc.exists) {
+                // Tenant guard — see POST handler. Foreign/deleted package → no tasks.
+                if (paqueteDoc.exists && paqueteDoc.data().fincaId === req.fincaId) {
                     const paqueteData = paqueteDoc.data();
                     const grupoCreationDate = grupoData.fechaCreacion.toDate();
                     const tasksBatch = db.batch();
@@ -477,7 +483,8 @@ router.put('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), 
             // Create new monitoring orders if there is a monitoring package
             if (grupoData.paqueteMuestreoId) {
                 const muestreoDoc = await db.collection('monitoreo_paquetes').doc(grupoData.paqueteMuestreoId).get();
-                if (muestreoDoc.exists) {
+                // Tenant guard — see POST handler. Foreign/deleted package → no orders.
+                if (muestreoDoc.exists && muestreoDoc.data().fincaId === req.fincaId) {
                     const muestreoData = muestreoDoc.data();
                     const grupoCreationDate = grupoData.fechaCreacion.toDate();
                     const muestreoBatch = db.batch();
