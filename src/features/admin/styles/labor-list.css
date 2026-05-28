@@ -98,6 +98,49 @@
   gap: 4px;
 }
 
+/* ── Merge diff (modal de colisión de código) ────────────────────────────── */
+.lab-merge-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 6px 0 4px;
+}
+.lab-merge-col {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lab-merge-col--new {
+  border-color: var(--aur-accent);
+  box-shadow: 0 0 0 1px var(--aur-accent-tint) inset;
+}
+.lab-merge-col-title {
+  font-size: var(--aur-fs-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aur-text-3);
+  font-weight: 600;
+}
+.lab-merge-col--new .lab-merge-col-title {
+  color: var(--aur-accent);
+}
+.lab-merge-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  word-break: break-word;
+}
+.lab-merge-label {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+}
+
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .lab-toolbar {
@@ -110,5 +153,18 @@
   }
   .lab-td-obs {
     max-width: 160px;
+  }
+  /* Hit area ≥40px en móvil: los icon-btn de fila se agrandan y el gap entre
+     Editar / Eliminar sube para que el dedo no apunte al botón equivocado. */
+  .lab-td-actions {
+    gap: 10px;
+  }
+  .lab-td-actions .aur-icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+  }
+  .lab-merge-diff {
+    grid-template-columns: 1fr;
   }
 }

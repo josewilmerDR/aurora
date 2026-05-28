@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSearch } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSearch, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import '../styles/labor-list.css';
 
 const EMPTY_FORM = {
@@ -16,9 +17,21 @@ const MAX_CODIGO = 30;
 const MAX_DESCRIPCION = 200;
 const MAX_OBSERVACION = 1000;
 
+// Borrador: sólo persiste mientras el alta está abierta. En edición no
+// tocamos sessionStorage para no pisar un draft previo ni recordar valores
+// que ya están en DB.
+const DRAFT_KEY = 'aurora_draft_labor-form';
+const DRAFT_FLAG = 'labor-form';
+
+const isDirty = (form) =>
+  !!(form.codigo.trim() || form.descripcion.trim() || form.observacion.trim());
+
+const codigoMatches = (a, b) => (a || '').trim() === (b || '').trim();
+
 function LaborList() {
   const apiFetch = useApiFetch();
   const [items, setItems] = useState([]);
+  const [unidades, setUnidades] = useState([]); // sólo para contar impacto al borrar
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isEditing, setIsEditing] = useState(false);
@@ -28,6 +41,10 @@ function LaborList() {
   const [filter, setFilter] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, descripcion }
   const [deleting, setDeleting] = useState(false);
+  // Cuando el código tipeado choca con otra labor: { existing, payload }
+  const [mergeTarget, setMergeTarget] = useState(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const descripcionRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchItems = () =>
@@ -37,17 +54,81 @@ function LaborList() {
       .catch(() => showToast('Error al cargar la lista de labores.', 'error'))
       .finally(() => setLoading(false));
 
-  useEffect(() => { fetchItems(); }, []);
+  const fetchUnidades = () =>
+    apiFetch('/api/unidades-medida')
+      .then(r => r.json())
+      .then(data => setUnidades(Array.isArray(data) ? data : []))
+      .catch(() => {}); // count opcional — si falla, el modal queda sin número pero igual honesto
+
+  useEffect(() => {
+    fetchItems();
+    fetchUnidades();
+    // Restaurar borrador si quedó un alta a medio escribir.
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft && isDirty(draft)) {
+        setForm({ ...EMPTY_FORM, ...draft, id: null });
+        setIsEditing(false);
+        setShowForm(true);
+      }
+    } catch { /* ignore */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Foco al primer input requerido cuando se abre el form.
+  useEffect(() => {
+    if (showForm) setTimeout(() => descripcionRef.current?.focus(), 50);
+  }, [showForm]);
+
+  // Persistir borrador SÓLO mientras el form de alta está abierto. Si el
+  // usuario lo cierra sin descartar (showForm=false), el draft queda intacto
+  // hasta que vuelva a abrirlo.
+  useEffect(() => {
+    if (!showForm || isEditing) return;
+    if (isDirty(form)) {
+      try {
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+          codigo: form.codigo,
+          descripcion: form.descripcion,
+          observacion: form.observacion,
+        }));
+      } catch { /* ignore */ }
+      markDraftActive(DRAFT_FLAG);
+    } else {
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      clearDraftActive(DRAFT_FLAG);
+    }
+  }, [form, isEditing, showForm]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const resetForm = () => {
+  const closeForm = () => {
     setForm(EMPTY_FORM);
     setIsEditing(false);
     setShowForm(false);
+  };
+
+  // resetForm = "todo limpio": tras un save o un descarte explícito borramos
+  // también el borrador. Si sólo cerrás el form (sin descartar), usar closeForm
+  // y el draft queda preservado.
+  const resetForm = () => {
+    try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    clearDraftActive(DRAFT_FLAG);
+    closeForm();
+  };
+
+  // Cancelar: en alta dirty pide confirmación; en edición o alta vacía cierra
+  // directo y preserva cualquier draft previo.
+  const requestReset = () => {
+    if (!isEditing && isDirty(form)) {
+      setConfirmDiscard(true);
+      return;
+    }
+    closeForm();
   };
 
   const handleEdit = (item) => {
@@ -63,7 +144,17 @@ function LaborList() {
   };
 
   const handleNew = () => {
-    setForm(EMPTY_FORM);
+    // Si quedó un borrador, lo restauramos para que "Nueva labor" no abra el
+    // form en blanco pisando lo que el usuario había tipeado antes.
+    let restored = null;
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && isDirty(draft)) restored = draft;
+      }
+    } catch { /* ignore */ }
+    setForm(restored ? { ...EMPTY_FORM, ...restored, id: null } : EMPTY_FORM);
     setIsEditing(false);
     setShowForm(true);
   };
@@ -77,6 +168,7 @@ function LaborList() {
       showToast('Labor eliminada.');
       setConfirmDelete(null);
       fetchItems();
+      fetchUnidades();
     } catch {
       showToast('Error al eliminar.', 'error');
     } finally {
@@ -84,7 +176,28 @@ function LaborList() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  // Save real, separado para reutilizar después de confirmar un merge.
+  const persist = async ({ url, method, payload, successMsg }) => {
+    setSaving(true);
+    try {
+      const res = await apiFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error();
+      showToast(successMsg);
+      resetForm();
+      setMergeTarget(null);
+      fetchItems();
+    } catch {
+      showToast('Error al guardar.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     const payload = {
       codigo: form.codigo.trim().slice(0, MAX_CODIGO),
@@ -95,24 +208,42 @@ function LaborList() {
       showToast('La descripción es obligatoria.', 'error');
       return;
     }
-    setSaving(true);
-    try {
-      const url = isEditing ? `/api/labores/${form.id}` : '/api/labores';
-      const method = isEditing ? 'PUT' : 'POST';
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error();
-      showToast(isEditing ? 'Labor actualizada.' : 'Labor registrada.');
-      resetForm();
-      fetchItems();
-    } catch {
-      showToast('Error al guardar.', 'error');
-    } finally {
-      setSaving(false);
+    // Detectar colisión de código antes de pegarle al backend. Sin código no
+    // hay riesgo de upsert silencioso porque el backend sólo deduplica con
+    // código presente.
+    if (payload.codigo) {
+      const collision = items.find(it =>
+        it.id !== form.id && codigoMatches(it.codigo, payload.codigo)
+      );
+      if (collision) {
+        if (isEditing) {
+          // En edición un PUT con código duplicado deja dos docs con mismo
+          // código, no es "merge" — paramos y forzamos elegir otro.
+          showToast(`El código "${payload.codigo}" ya lo usa "${collision.descripcion}".`, 'error');
+          return;
+        }
+        // En alta el POST haría upsert silencioso: mostramos diff y pedimos
+        // confirmación explícita.
+        setMergeTarget({ existing: collision, payload });
+        return;
+      }
     }
+    persist({
+      url: isEditing ? `/api/labores/${form.id}` : '/api/labores',
+      method: isEditing ? 'PUT' : 'POST',
+      payload,
+      successMsg: isEditing ? 'Labor actualizada.' : 'Labor registrada.',
+    });
+  };
+
+  const handleMergeConfirm = () => {
+    if (!mergeTarget) return;
+    persist({
+      url: `/api/labores/${mergeTarget.existing.id}`,
+      method: 'PUT',
+      payload: mergeTarget.payload,
+      successMsg: 'Labor existente actualizada.',
+    });
   };
 
   const q = filter.toLowerCase();
@@ -126,16 +257,76 @@ function LaborList() {
     <>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {confirmDelete && (
+      {confirmDelete && (() => {
+        const refCount = unidades.filter(u => u.labor === confirmDelete.id).length;
+        // Trunca el nombre del title para no romper el modal en mobile (420px).
+        const shortDesc = confirmDelete.descripcion.length > 60
+          ? confirmDelete.descripcion.slice(0, 57) + '…'
+          : confirmDelete.descripcion;
+        return (
+          <AuroraConfirmModal
+            danger
+            title={`¿Eliminar "${shortDesc}"?`}
+            body={(
+              <>
+                Esta acción no se puede deshacer.
+                {refCount > 0 && (
+                  <>
+                    {' '}
+                    <strong>{refCount} {refCount === 1 ? 'unidad de medida queda' : 'unidades de medida quedan'}</strong>
+                    {' '}sin labor asociada y la referencia mostrará el id crudo hasta reasignarla.
+                  </>
+                )}
+                {' '}Los registros de horímetro existentes conservan el nombre como texto, así que no se borran — pero ya no aparecerán bajo esta labor en filtros futuros.
+              </>
+            )}
+            confirmLabel="Eliminar"
+            loading={deleting}
+            loadingLabel="Eliminando…"
+            onConfirm={handleDeleteConfirm}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        );
+      })()}
+
+      {mergeTarget && (
+        <AuroraConfirmModal
+          icon={<FiAlertTriangle size={16} />}
+          iconVariant="warn"
+          size="wide"
+          title={`Ya existe una labor con código "${mergeTarget.payload.codigo}"`}
+          body="Si confirmás, se sobrescriben los datos de la labor existente con los nuevos. Si no querés perderlos, cancelá y cambiá el código."
+          confirmLabel="Actualizar existente"
+          cancelLabel="Volver y cambiar código"
+          loading={saving}
+          loadingLabel="Guardando…"
+          onConfirm={handleMergeConfirm}
+          onCancel={() => setMergeTarget(null)}
+        >
+          <div className="lab-merge-diff">
+            <div className="lab-merge-col">
+              <div className="lab-merge-col-title">Actual</div>
+              <div className="lab-merge-row"><span className="lab-merge-label">Descripción</span><span>{mergeTarget.existing.descripcion || '—'}</span></div>
+              <div className="lab-merge-row"><span className="lab-merge-label">Observación</span><span>{mergeTarget.existing.observacion || '—'}</span></div>
+            </div>
+            <div className="lab-merge-col lab-merge-col--new">
+              <div className="lab-merge-col-title">Nuevo</div>
+              <div className="lab-merge-row"><span className="lab-merge-label">Descripción</span><span>{mergeTarget.payload.descripcion || '—'}</span></div>
+              <div className="lab-merge-row"><span className="lab-merge-label">Observación</span><span>{mergeTarget.payload.observacion || '—'}</span></div>
+            </div>
+          </div>
+        </AuroraConfirmModal>
+      )}
+
+      {confirmDiscard && (
         <AuroraConfirmModal
           danger
-          title={`¿Eliminar "${confirmDelete.descripcion}"?`}
-          body="Esta acción no se puede deshacer. La labor desaparecerá de los registros y de las unidades de medida que la referencian."
-          confirmLabel="Eliminar"
-          loading={deleting}
-          loadingLabel="Eliminando…"
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setConfirmDelete(null)}
+          title="¿Descartar la labor a medio escribir?"
+          body="Vas a perder lo que ya tipeaste en este formulario."
+          confirmLabel="Descartar"
+          cancelLabel="Seguir editando"
+          onConfirm={() => { setConfirmDiscard(false); resetForm(); }}
+          onCancel={() => setConfirmDiscard(false)}
         />
       )}
 
@@ -161,7 +352,13 @@ function LaborList() {
             <div className="aur-section-header">
               <h3>{isEditing ? 'Editar labor' : 'Nueva labor'}</h3>
               <div className="aur-section-actions">
-                <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={resetForm} title="Cancelar">
+                <button
+                  type="button"
+                  className="aur-icon-btn aur-icon-btn--sm"
+                  onClick={requestReset}
+                  title="Cancelar"
+                  aria-label="Cerrar formulario"
+                >
                   <FiX size={14} />
                 </button>
               </div>
@@ -190,6 +387,7 @@ function LaborList() {
                   <div className="aur-field">
                     <input
                       id="lab-descripcion"
+                      ref={descripcionRef}
                       className="aur-input"
                       name="descripcion"
                       value={form.descripcion}
@@ -218,7 +416,7 @@ function LaborList() {
               </div>
 
               <div className="aur-form-actions">
-                <button type="button" className="aur-btn-text" onClick={resetForm}>
+                <button type="button" className="aur-btn-text" onClick={requestReset} disabled={saving}>
                   Cancelar
                 </button>
                 <button type="submit" className="aur-btn-pill aur-btn-pill--sm" disabled={saving}>
@@ -282,6 +480,7 @@ function LaborList() {
                               className="aur-icon-btn aur-icon-btn--sm"
                               onClick={() => handleEdit(item)}
                               title="Editar"
+                              aria-label={`Editar labor ${item.descripcion}`}
                             >
                               <FiEdit size={13} />
                             </button>
@@ -290,6 +489,7 @@ function LaborList() {
                               className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
                               onClick={() => setConfirmDelete({ id: item.id, descripcion: item.descripcion })}
                               title="Eliminar"
+                              aria-label={`Eliminar labor ${item.descripcion}`}
                             >
                               <FiTrash2 size={13} />
                             </button>
