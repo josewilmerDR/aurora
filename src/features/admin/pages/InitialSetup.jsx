@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX, FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
-import { useBulkImport } from '../hooks/useBulkImport';
+import { useBulkImport, BulkImportLockContext } from '../hooks/useBulkImport';
 import {
   downloadTemplate, fetchJsonSafe, toDateStr, timestampToDateStr,
   normalizeTipo, normalizeRol, normalizeCategoriaProv, normalizeTipoPago,
@@ -358,7 +359,10 @@ function ImportPreviewModal({ entityName, validCount, skipped, committing, progr
   );
 }
 
-function ImportButtons({ onDownload, onImportClick, importing, fileInputRef, onFileChange }) {
+// `importing` controla SÓLO el label (esta tarjeta está procesando); `disabled`
+// puede activarse además por el lock global (otra tarjeta escribiendo), sin
+// mentir con "Importando…" en una tarjeta que no lo está.
+function ImportButtons({ onDownload, onImportClick, importing, disabled, fileInputRef, onFileChange }) {
   return (
     <div className="ci-import-row">
       <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={onDownload}>
@@ -368,7 +372,7 @@ function ImportButtons({ onDownload, onImportClick, importing, fileInputRef, onF
         type="button"
         className="aur-btn-pill aur-btn-pill--sm"
         onClick={onImportClick}
-        disabled={importing}
+        disabled={disabled}
       >
         <FiUpload size={13} /> {importing ? 'Importando…' : 'Importar Excel'}
       </button>
@@ -438,20 +442,40 @@ function NavPrompt({ entityName, targetPath, onConfirm, onDismiss }) {
 
 // Chrome compartido de las 3 tarjetas: header (lo arma cada card por sus counts
 // distintos) + descripción + botones + banner de resultado + NavPrompt + modal
-// de preview. Todo el estado lo maneja el hook useBulkImport.
-function BulkImportCard({ bulk, header, descripcion, onDownload, entityName, navEntityName, navTarget }) {
+// de preview. Todo el estado lo maneja el hook useBulkImport. La tarjeta entera
+// es zona de drop (drag-and-drop); el botón "Importar" sigue disponible.
+function BulkImportCard({ bulk, header, descripcion, emptyHint, onDownload, entityName, navEntityName, navTarget }) {
   const navigate = useNavigate();
+  const [dragging, setDragging] = useState(false);
+  const busy = bulk.parsing || bulk.committing || bulk.othersBusy;
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    if (busy || bulk.preview) return; // no pisar un import en curso ni el modal abierto
+    const file = e.dataTransfer?.files?.[0];
+    if (file) bulk.importFile(file);
+  };
+
   return (
-    <div className="ci-card">
+    <div
+      className={`ci-card${dragging ? ' ci-card--drag' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); if (!busy && !bulk.preview) setDragging(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
+      onDrop={handleDrop}
+    >
       {header}
       <p className="ci-card-desc">{descripcion}</p>
+      {emptyHint && <p className="ci-card-empty-hint">{emptyHint}</p>}
       <ImportButtons
         onDownload={onDownload}
         onImportClick={bulk.onImportClick}
         importing={bulk.parsing || bulk.committing}
+        disabled={busy}
         fileInputRef={bulk.fileInputRef}
         onFileChange={bulk.onFileChange}
       />
+      <p className="ci-import-hint">o arrastrá el archivo Excel aquí</p>
       <ImportResultBanner result={bulk.importResult} />
       {bulk.showNavPrompt && (
         <NavPrompt
@@ -528,6 +552,7 @@ function EntidadCard({ entidad }) {
       bulk={bulk}
       header={<CardHeader icon={entidad.icon} title={entidad.nombre} count={bulk.count} countLabel={entidad.countLabel} stale={bulk.countStale} link={entidad.adminPath} />}
       descripcion={entidad.descripcion}
+      emptyHint={bulk.count === 0 ? `Aún sin ${entidad.countLabel}: descargá la plantilla para empezar.` : null}
       onDownload={() => downloadTemplate({ headers: entidad.excelHeaders, sampleRow: entidad.sampleRow, sheetName: entidad.sheetName, fileName: entidad.fileName })}
       entityName={entidad.nombre}
       navEntityName={entidad.nombre}
@@ -803,6 +828,7 @@ function LotesGruposCard() {
         />
       }
       descripcion="Carga combinada: lotes, grupos de producción y bloques de siembra. Un grupo se crea una sola vez aunque aparezca en varios renglones."
+      emptyHint={bulk.count && bulk.count.lotes === 0 && bulk.count.grupos === 0 ? 'Aún sin lotes ni grupos: descargá la plantilla para empezar.' : null}
       onDownload={() => downloadTemplate({ headers: LGB_HEADERS, sampleRow: LGB_SAMPLE, sheetName: 'Lotes-Grupos-Bloques', fileName: 'plantilla_lotes_grupos_bloques.xlsx', colWidth: 18 })}
       entityName="Lotes, Grupos y Bloques"
       navEntityName="Gestión de Lotes"
@@ -908,6 +934,7 @@ function EmpleadosCard() {
       bulk={bulk}
       header={<CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={bulk.count} countLabel="empleados" stale={bulk.countStale} link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />}
       descripcion="Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso."
+      emptyHint={bulk.count === 0 ? 'Aún sin empleados: descargá la plantilla para empezar.' : null}
       onDownload={() => downloadTemplate({ headers: EMP_HEADERS, sampleRow: EMP_SAMPLE, sheetName: 'Empleados', fileName: 'plantilla_empleados.xlsx' })}
       entityName="Empleados (Planilla)"
       navEntityName="Ficha del Trabajador"
@@ -921,7 +948,16 @@ const EXTRA_CARDS = [LotesGruposCard, EmpleadosCard];
 
 // ── Página principal ──────────────────────────────────────────────────────────
 function InitialSetup() {
+  // Lock contado a nivel página: deshabilita los disparadores de import del
+  // resto de las tarjetas mientras alguna está escribiendo (#26).
+  const [busyCount, setBusyCount] = useState(0);
+  const lockValue = {
+    busyCount,
+    incBusy: () => setBusyCount(c => c + 1),
+    decBusy: () => setBusyCount(c => Math.max(0, c - 1)),
+  };
   return (
+    <BulkImportLockContext.Provider value={lockValue}>
     <div className="aur-sheet">
       <header className="aur-sheet-header">
         <div className="aur-sheet-header-text">
@@ -954,6 +990,7 @@ function InitialSetup() {
         </div>
       </section>
     </div>
+    </BulkImportLockContext.Provider>
   );
 }
 

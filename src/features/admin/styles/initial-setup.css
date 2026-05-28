@@ -6,22 +6,26 @@
    aur-badge--green (count chip).
 
    Aquí queda slim sólo:
-     · ci-grid       — grid responsive auto-fill que arregla las 9 cards en
+     · ci-grid       — grid responsive auto-fill que arregla las cards en
                        columnas. aur-list es para iOS rows verticales, no
                        para card-grid; ningún primitive cubre auto-fill grid.
-     · ci-card       — chrome de tarjeta (bg + border + radius + padding).
-                       aur-section es layout sin chrome; aquí necesitamos un
-                       contenedor visual independiente por entidad.
-     · ci-card-header / -icon / -title / -count — composición del header de
+     · ci-card (+ --drag) — chrome de tarjeta (bg + border + radius + padding)
+                       y highlight de drop al arrastrar un archivo encima.
+     · ci-card-header / -icon / -title / -link — composición del header de
                        cada card (icono verde + título + count badge + link
                        externo). aur-badge--green provee el chip; el resto es
                        layout slim.
+     · ci-card-count--stale — atenúa el chip cuando no se pudo refrescar.
      · ci-card-desc  — texto descriptivo de la tarjeta (gray, 1.45 line-height).
-     · ci-import-row — fila de los 2 botones Plantilla + Importar Excel.
+     · ci-card-empty-hint — nudge tenue cuando la colección está vacía.
+     · ci-import-row / -hint — fila de botones Plantilla + Importar y el hint
+                       de drag-and-drop.
      · ci-intro      — afina margin del aur-banner intro al estar inmediatamente
                        después del aur-sheet-header.
-     · ci-nav-prompt / -body / -actions — afinaciones sobre aur-banner para
+     · ci-nav-prompt-body / -actions — afinaciones sobre aur-banner para
                        que el body acomode texto + acciones en columna.
+     · ci-preview / -summary / -skipped / -progress(-bar) — contenido del modal
+                       de confirmación + barra de progreso del commit.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Intro banner: afina margin después del header ───────────────────────── */
@@ -50,6 +54,11 @@
 .ci-card:hover {
   border-color: var(--aur-divider-2);
 }
+/* Highlight mientras se arrastra un archivo sobre la tarjeta (drag-and-drop). */
+.ci-card--drag {
+  border-color: var(--aur-accent);
+  background: var(--aur-accent-tint);
+}
 
 /* ── Header del card ─────────────────────────────────────────────────────── */
 .ci-card-header {
@@ -74,12 +83,8 @@
   letter-spacing: -0.01em;
 }
 
-/* aur-badge--green ya provee bg/color/padding/radius; aquí sólo añadimos
-   tabular-nums (el badge default ya lo tiene; redundante pero explícito). */
-.ci-card-count {
-  font-variant-numeric: tabular-nums;
-}
-
+/* El chip de conteo usa aur-badge--green tal cual (bg/color/padding/radius +
+   tabular-nums ya vienen del badge). Acá sólo modela la variante "stale". */
 /* Conteo que no se pudo refrescar: se atenúa para no aparentar dato fresco. */
 .ci-card-count--stale {
   opacity: 0.55;
@@ -94,11 +99,29 @@
   line-height: 1.45;
 }
 
+/* Nudge de onboarding cuando la colección está vacía: empuja a empezar por
+   la plantilla sin gritar (tenue, itálica). */
+.ci-card-empty-hint {
+  margin: 0;
+  font-size: var(--aur-fs-caption, 12px);
+  color: var(--aur-text-2);
+  opacity: 0.85;
+  font-style: italic;
+}
+
 /* ── Fila de botones de import ──────────────────────────────────────────── */
 .ci-import-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Hint de drag-and-drop: descubre la zona de drop sin robar protagonismo. */
+.ci-import-hint {
+  margin: 0;
+  font-size: var(--aur-fs-caption, 12px);
+  color: var(--aur-text-2);
+  opacity: 0.7;
 }
 
 /* ── Nav prompt: el aur-banner default es flex-row; necesitamos columna
@@ -159,14 +182,11 @@
   transition: width 0.2s ease;
 }
 
-/* ── Mobile ──────────────────────────────────────────────────────────────── */
-@media (max-width: 480px) {
-  .ci-grid {
-    grid-template-columns: 1fr;
-  }
-  /* Hit-area táctil ≥44px: los botones de import son --sm (~33px) y el link
-     externo es icon-btn--sm (26px), por debajo del mínimo para el dedo. En
-     mobile los agrandamos sin tocar las primitivas globales. */
+/* ── Mobile (breakpoint alineado al DS) ──────────────────────────────────────
+   El grid ya colapsa a 1 columna por minmax(280px) debajo de ~576px, así que
+   no hace falta forzar grid-template-columns acá. Sólo subimos los targets
+   táctiles a ≥44px (los botones son --sm ~33px y el link icon-btn--sm 26px). */
+@media (max-width: 560px) {
   .ci-import-row .aur-btn-pill {
     min-height: 44px;
     flex: 1 1 auto;

@@ -39,10 +39,11 @@ export const normalizeTipo = (val) => {
   return TIPOS_PRODUCTO.find(t => t.toLowerCase() === s.toLowerCase()) ?? s;
 };
 
-// Quita acentos/diacríticos para comparar contra catálogos en minúsculas.
-// ̀-ͯ = rango Unicode de marcas combinantes (acentos).
+// Quita acentos/diacríticos para comparar contra catálogos sin acentos.
+// NFD separa la letra de su acento; \p{M} (marcas combinantes, flag u) borra
+// el acento. Property-escape en vez de un rango literal frágil de codepoints.
 const stripDiacritics = (val) =>
-  String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  String(val || '').trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 
 // ── Normalización rol de usuario ─────────────────────────────────────────────
 export const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
