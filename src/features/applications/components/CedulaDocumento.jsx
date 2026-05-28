@@ -81,7 +81,11 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
         <div className="ca-doc-header">
           <div className="ca-doc-brand">
             {config.logoUrl
-              ? <img src={config.logoUrl} alt="Logo" className="ca-doc-logo-img" />
+              // crossOrigin="anonymous" pareado con html2canvas useCORS:true.
+              // Sin esto, un logo hosteado en CDN externo taintaba el canvas
+              // y toDataURL() lanzaba SecurityError → el botón "Compartir"
+              // caía silencioso. Punto #13 audit.
+              ? <img src={config.logoUrl} alt="Logo" className="ca-doc-logo-img" crossOrigin="anonymous" />
               : <div className="ca-doc-logo">AU</div>
             }
             <div className="ca-doc-brand-info">
