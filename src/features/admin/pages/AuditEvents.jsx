@@ -481,7 +481,7 @@ function AuditEvents() {
                     </span>
                   </button>
                   {summary && (
-                    // Resumen "qué cambió" derivado del metadata por auditSummary.js.
+                    // Resumen "qué cambió" derivado del metadata por auditSummary.jsx.
                     // Si el renderer produjo solo nulls (metadata vacío), el :empty
                     // del CSS la oculta — así no queda un strip en blanco.
                     <div className="audit-event-summary">{summary}</div>
