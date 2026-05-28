@@ -1,15 +1,18 @@
 const { Router } = require('express');
+const { z } = require('zod');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { hasMinRoleBE } = require('../lib/helpers');
+const { rateLimit } = require('../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
 // GET /api/audit/events — admin-only query over audit_events.
 //
 // Query params (all optional):
-//   action    — exact action string (e.g. 'user.role.change')
+//   action    — dotted lowercase identifier (e.g. 'user.role.change')
 //   severity  — info | warning | critical
 //   since     — ISO timestamp (preferred) or YYYY-MM-DD. The UI sends ISO with
 //               the user's TZ offset baked in (local midnight) so the filter
@@ -30,60 +33,96 @@ const router = Router();
 // message — we surface that as INDEX_REQUIRED instead of a vanilla 500 so the
 // frontend can show a clearer message and the dev follows the link from logs.
 
-function parseClientDate(v) {
-  if (!v) return null;
-  // Accepts ISO (with or without offset) or bare YYYY-MM-DD. `new Date` is
-  // tolerant of both. We validate the result is a real date before using it.
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
+// Zod query schema. Whitelist enforcement (action regex, severity enum) cierra
+// la puerta a strings arbitrarios que llegaban directo a Firestore .where(),
+// y `coerce` normaliza limit cuando Express lo entrega como string. Las fechas
+// se parsean a Date acá; el handler las convierte a Timestamp solo si pasan.
+//
+// `.passthrough()` no se usa: cualquier query key inesperada se ignora — la
+// página solo envía las claves listadas, así que un extra es señal de tampering
+// y no merece roundtrip al backend.
+const ACTION_RE = /^[a-z][a-z0-9_.]{0,63}$/;
+const dateString = z
+  .string()
+  .max(40)
+  .refine((s) => !Number.isNaN(new Date(s).getTime()), {
+    message: 'Invalid date.',
+  });
+
+const querySchema = z.object({
+  action:   z.string().max(64).regex(ACTION_RE).optional(),
+  severity: z.enum([SEVERITY.INFO, SEVERITY.WARNING, SEVERITY.CRITICAL]).optional(),
+  since:    dateString.optional(),
+  until:    dateString.optional(),
+  after:    dateString.optional(),
+  limit:    z.coerce.number().int().positive().max(500).default(100),
+});
+
+// Whitelist explícito de campos serializados al cliente. Antes hacíamos
+// `...data` y todo el doc se filtraba — agregar un campo sensible a
+// audit_events lo habría leakeado automáticamente. Esta lista es el contrato
+// público del audit log: si querés exponer algo nuevo, agrégalo acá a propósito.
+function serializeEvent(d) {
+  const data = d.data();
+  return {
+    id: d.id,
+    fincaId: data.fincaId ?? null,
+    action: data.action,
+    severity: data.severity,
+    target: data.target ?? null,
+    metadata: data.metadata ?? {},
+    actorUid: data.actorUid ?? null,
+    actorEmail: data.actorEmail ?? null,
+    actorRole: data.actorRole ?? null,
+    timestamp: data.timestamp?.toDate().toISOString() ?? null,
+  };
 }
 
-router.get('/api/audit/events', authenticate, async (req, res) => {
-  if (!hasMinRoleBE(req.userRole, 'administrador')) {
-    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Only administrators can read audit events.', 403);
-  }
-
-  try {
-    const { action, severity, since, until, after } = req.query;
-    const parsedLimit = parseInt(req.query.limit, 10);
-    const limit = Math.min(Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100, 500);
-
-    let query = db.collection('audit_events').where('fincaId', '==', req.fincaId);
-    if (action)   query = query.where('action', '==', action);
-    if (severity) query = query.where('severity', '==', severity);
-    const sinceTs = parseClientDate(since);
-    const untilTs = parseClientDate(until);
-    if (sinceTs) query = query.where('timestamp', '>=', sinceTs);
-    if (untilTs) query = query.where('timestamp', '<=', untilTs);
-    query = query.orderBy('timestamp', 'desc');
-    // Cursor de paginación. startAfter debe ir entre orderBy y limit. El valor
-    // pasado debe coincidir con el tipo del campo del orderBy — un Timestamp.
-    const afterTs = parseClientDate(after);
-    if (afterTs) query = query.startAfter(afterTs);
-    query = query.limit(limit);
-
-    const snap = await query.get();
-    const events = snap.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        ...data,
-        timestamp: data.timestamp?.toDate().toISOString() || null,
-      };
-    });
-    res.status(200).json(events);
-  } catch (err) {
-    console.error('[audit:list]', err);
-    // Firestore admin SDK throws gRPC FAILED_PRECONDITION (code 9) when the
-    // composite index for the requested filter combo doesn't exist; the message
-    // includes the console URL to create it. Surface as a distinct code so the
-    // UI shows "missing index" and the dev can click the URL from logs.
-    const missingIndex = err?.code === 9 || /requires an index/i.test(err?.message || '');
-    if (missingIndex) {
-      return sendApiError(res, 'INDEX_REQUIRED', 'Audit query needs a composite index — see the Firebase console URL in function logs.', 500);
+router.get(
+  '/api/audit/events',
+  authenticate,
+  // Rate limit aunque sea admin-only: un token comprometido podría paginar
+  // todo audit_events (500 reads × N páginas) facturablemente. `public_read`
+  // (60/min, 1000/día) es holgado para uso humano y corta el abuso.
+  rateLimit('audit_read', 'public_read'),
+  async (req, res) => {
+    if (!hasMinRoleBE(req.userRole, 'administrador')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Only administrators can read audit events.', 403);
     }
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch audit events.', 500);
-  }
-});
+
+    const parsed = querySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid audit query parameters.', 400);
+    }
+    const { action, severity, since, until, after, limit } = parsed.data;
+
+    try {
+      let query = db.collection('audit_events').where('fincaId', '==', req.fincaId);
+      if (action)   query = query.where('action', '==', action);
+      if (severity) query = query.where('severity', '==', severity);
+      if (since) query = query.where('timestamp', '>=', Timestamp.fromDate(new Date(since)));
+      if (until) query = query.where('timestamp', '<=', Timestamp.fromDate(new Date(until)));
+      query = query.orderBy('timestamp', 'desc');
+      // Cursor de paginación. startAfter debe ir entre orderBy y limit. El valor
+      // pasado debe coincidir con el tipo del campo del orderBy — un Timestamp.
+      if (after) query = query.startAfter(Timestamp.fromDate(new Date(after)));
+      query = query.limit(limit);
+
+      const snap = await query.get();
+      res.status(200).json(snap.docs.map(serializeEvent));
+    } catch (err) {
+      console.error('[audit:list]', err);
+      // Firestore admin SDK throws gRPC FAILED_PRECONDITION (code 9) when the
+      // composite index for the requested filter combo doesn't exist; the message
+      // includes the console URL to create it. Surface as a distinct code so the
+      // UI shows "missing index" and the dev can click the URL from logs.
+      const missingIndex = err?.code === 9 || /requires an index/i.test(err?.message || '');
+      if (missingIndex) {
+        return sendApiError(res, 'INDEX_REQUIRED', 'Audit query needs a composite index — see the Firebase console URL in function logs.', 500);
+      }
+      return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch audit events.', 500);
+    }
+  },
+);
 
 module.exports = router;
