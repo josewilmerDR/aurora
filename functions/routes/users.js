@@ -33,7 +33,11 @@ function requireAdmin(req, res, next) {
 }
 
 // --- API ENDPOINTS: USERS ---
-router.get('/api/users', authenticate, async (req, res) => {
+// Rate-limited (compartido con /api/users/lite): el directorio expone email,
+// teléfono, rol y empleadoPlanilla — un autenticado podía polearlo para
+// extraer PII de toda la finca. Mismo bucket que la variante /lite para que
+// el budget total quede acotado por usuario sin importar qué endpoint use.
+router.get('/api/users', authenticate, rateLimit('users_read', 'public_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('users').where('fincaId', '==', req.fincaId).get();
     const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -59,7 +63,7 @@ router.get('/api/users', authenticate, async (req, res) => {
 // queda abierta a cualquier autenticado (igual que /api/users), porque
 // trabajadores legítimos necesitan resolver nombres de responsables en sus
 // propias pantallas.
-router.get('/api/users/lite', authenticate, async (req, res) => {
+router.get('/api/users/lite', authenticate, rateLimit('users_read', 'public_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('users').where('fincaId', '==', req.fincaId).get();
     const lite = snapshot.docs.map(doc => {

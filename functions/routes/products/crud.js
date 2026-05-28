@@ -22,7 +22,10 @@ const { PRODUCT_FIELDS, validateProducto } = require('./helpers');
 
 const router = Router();
 
-router.get('/api/productos', authenticate, async (req, res) => {
+// Rate-limited: el catálogo expone stockActual, precioUnitario, periodos de
+// carencia/reingreso, proveedor — un autenticado con token podía polearlo
+// para extraer pricing y niveles de inventario.
+router.get('/api/productos', authenticate, rateLimit('productos_read', 'public_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('productos').where('fincaId', '==', req.fincaId).get();
     const productos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

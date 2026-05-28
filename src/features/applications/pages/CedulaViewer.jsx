@@ -291,7 +291,6 @@ export default function CedulaViewer() {
   };
 
   const submitAplicada = async (cedulaId, data) => {
-    setAplicadaModal(null);
     addLoading(cedulaId);
     try {
       const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, {
@@ -300,9 +299,14 @@ export default function CedulaViewer() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
+        // Re-throw para que el modal muestre el error inline en vez de
+        // cerrarse perdiendo los 10+ campos que el operador llenó a mano
+        // (operario, encargados, horas, condiciones, observaciones). Antes
+        // se cerraba al inicio del handler con toast.error — un 409 por
+        // race con otra aplicación o un 429 dejaba al usuario re-tipeando
+        // todo. Mismo patrón que submitMezclaLista. M4 audit.
         const err = await res.json().catch(() => ({}));
-        toast.error(translateApiError(err, 'Error al registrar la aplicación.'));
-        return;
+        throw new Error(translateApiError(err, 'Error al registrar la aplicación.'));
       }
       setCedula(prev => prev ? {
         ...prev,
@@ -310,6 +314,7 @@ export default function CedulaViewer() {
         aplicadaAt: new Date().toISOString(),
         ...data,
       } : prev);
+      setAplicadaModal(null);
       toast.success('Aplicación registrada.');
     } finally {
       removeLoading(cedulaId);
@@ -368,8 +373,12 @@ export default function CedulaViewer() {
         // Revoke inmediato: el browser ya capturó la ref del blob al .click().
         URL.revokeObjectURL(url);
       }
-    } catch (e) {
-      console.error('[handleShare] failed to generate/share PDF:', e);
+    } catch {
+      // No logueamos el error object: toast comunica el fallo al usuario y
+      // el stack en consola del navegador no aporta diagnóstico accionable
+      // (los failure modes son html2canvas + CORS / jsPDF + mobile viejo /
+      // dynamic import offline — todos visibles abriendo devtools en el
+      // intento de reproducción). L7 audit.
       toast.error('No se pudo generar el PDF. Probá Imprimir desde el navegador.');
     } finally {
       setSharing(false);

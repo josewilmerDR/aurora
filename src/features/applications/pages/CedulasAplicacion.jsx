@@ -545,7 +545,6 @@ function CedulasAplicacion() {
   };
 
   const submitAplicada = async (cedulaId, data) => {
-    setAplicadaModal(null);
     addLoading(cedulaId);
     try {
       const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, {
@@ -554,9 +553,15 @@ function CedulasAplicacion() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
+        // Re-throw para que el modal muestre el error inline en vez de
+        // cerrarse perdiendo los 10+ campos que el operador llenó a mano
+        // (operario, encargados, horas, condiciones). Antes el handler
+        // cerraba el modal al inicio y usaba showError, así que un 409
+        // por race o un 429 forzaba a re-tipear todo. Simétrico con
+        // submitMezclaLista de esta misma página y con CedulaViewer. M4
+        // audit (extendido al listing en tanda 4).
         const err = await res.json().catch(() => ({}));
-        showError(translateApiError(err, 'Error al registrar la aplicación.'));
-        return;
+        throw new Error(translateApiError(err, 'Error al registrar la aplicación.'));
       }
       const taskId = cedulasById.get(cedulaId)?.taskId;
       // Functional updater + selector puro: el siblings.every() del
@@ -584,6 +589,7 @@ function CedulasAplicacion() {
         id: cedulaId,
         consecutivo: cedula?.consecutivo || null,
       });
+      setAplicadaModal(null);
     } finally { removeLoading(cedulaId); }
   };
 

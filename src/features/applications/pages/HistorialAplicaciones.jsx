@@ -472,7 +472,10 @@ function HistorialAplicaciones() {
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch('/api/cedulas').then(r => r.json())
+    // include=costs opt-in: snap_productos[].precioUnitario + moneda solo
+    // viajan al cliente cuando la página los pide explícito. El viewer y el
+    // listing de cédulas reciben respuesta sin pricing por default. M2 audit.
+    apiFetch('/api/cedulas?include=costs').then(r => r.json())
       .then(c => {
         if (cancelled) return;
         setCedulas(Array.isArray(c) ? c.filter(ced => ced.status === 'aplicada_en_campo') : []);

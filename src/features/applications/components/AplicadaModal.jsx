@@ -175,21 +175,24 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
     // que el chequeo de overflow legacy era dead code — eliminado.
     const tempNum = temperatura      !== '' && temperatura      != null ? Number(temperatura)      : null;
     const humNum  = humedadRelativa  !== '' && humedadRelativa  != null ? Number(humedadRelativa)  : null;
-    // El nombre tipeado es la fuente de verdad para el documento auditable. El
-    // *UserId companion viaja en paralelo para que el backend lo persista
-    // cuando agreguemos el campo a la schema — hoy lo ignora (lee solo lo que
-    // extrae con sanitizeStr), así que es un no-op en este release.
+    // El nombre tipeado es la fuente de verdad para el documento auditable.
+    // El estado *UserId* local sigue alimentando el ✓ del UserCombo
+    // (feedback visual "vinculado al directorio") pero NO se envía al
+    // backend — apply.js no tiene campos para persistirlo y mandarlo creaba
+    // contrato sin consumer. Cuando la schema agregue userId companions,
+    // re-sumar acá y validar cada uid contra users/{id} en el handler. L3
+    // audit.
     const trimmedOperario   = (operario        || '').trim().slice(0, 200);
     const trimmedFinca      = (encargadoFinca  || '').trim().slice(0, 200);
     const trimmedBodega     = (encargadoBodega || '').trim().slice(0, 200);
     const trimmedSup        = (supAplicaciones || '').trim().slice(0, 200);
     submittingRef.current = true;
     setSubmitting(true);
-    // No envolvemos en try/catch: el padre (submitAplicada) no lanza, maneja
-    // errores con showError y cierra el modal síncronamente con
-    // setAplicadaModal(null). El finally con reset del ref sigue siendo útil
-    // si en el futuro el padre llega a propagar, para no dejar la guarda
-    // colgada y bloquear retries.
+    // submitAplicada lanza en error backend (4xx/5xx). Capturamos y lo
+    // pintamos inline vía formError — el modal queda abierto con los 10+
+    // campos llenos y el usuario puede reintentar o ajustar. Antes el padre
+    // cerraba el modal antes del fetch y la falla solo dejaba un toast,
+    // forzando re-tipear todo. Mismo patrón que MezclaListaModal. M4 audit.
     try {
       await onConfirm({
         sobrante,
@@ -201,16 +204,14 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
         horaInicio:         horaInicio  || null,
         horaFinal:          horaFinal   || null,
         operario:                trimmedOperario || null,
-        operarioUserId:          trimmedOperario ? (operarioUserId || null) : null,
         metodoAplicacion:        (metodoAplicacion || '').trim().slice(0, 200) || null,
         encargadoFinca:          trimmedFinca || null,
-        encargadoFincaUserId:    trimmedFinca ? (encargadoFincaUserId || null) : null,
         encargadoBodega:         trimmedBodega || null,
-        encargadoBodegaUserId:   trimmedBodega ? (encargadoBodegaUserId || null) : null,
         supAplicaciones:         trimmedSup || null,
-        supAplicacionesUserId:   trimmedSup ? (supAplicacionesUserId || null) : null,
         observacionesAplicacion: (observacionesAplicacion || '').trim().slice(0, 500) || null,
       });
+    } catch (e) {
+      setFormError(e?.message || 'Error al registrar la aplicación.');
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
