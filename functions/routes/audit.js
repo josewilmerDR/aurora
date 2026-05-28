@@ -5,7 +5,7 @@ const { authenticate } = require('../lib/middleware');
 const { hasMinRoleBE } = require('../lib/helpers');
 const { rateLimit } = require('../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
-const { SEVERITY } = require('../lib/auditLog');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
 
@@ -49,12 +49,17 @@ const dateString = z
     message: 'Invalid date.',
   });
 
+// Firestore doc IDs son alfanuméricos + algunos signos; el SDK los genera con
+// 20 chars [A-Za-z0-9]. Damos margen y aceptamos 1-128 chars del subset seguro.
+const DOC_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
 const querySchema = z.object({
   action:   z.string().max(64).regex(ACTION_RE).optional(),
   severity: z.enum([SEVERITY.INFO, SEVERITY.WARNING, SEVERITY.CRITICAL]).optional(),
   since:    dateString.optional(),
   until:    dateString.optional(),
   after:    dateString.optional(),
+  afterId:  z.string().regex(DOC_ID_RE).optional(),
   limit:    z.coerce.number().int().positive().max(500).default(100),
 });
 
@@ -94,7 +99,7 @@ router.get(
     if (!parsed.success) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid audit query parameters.', 400);
     }
-    const { action, severity, since, until, after, limit } = parsed.data;
+    const { action, severity, since, until, after, afterId, limit } = parsed.data;
 
     try {
       let query = db.collection('audit_events').where('fincaId', '==', req.fincaId);
@@ -103,9 +108,19 @@ router.get(
       if (since) query = query.where('timestamp', '>=', Timestamp.fromDate(new Date(since)));
       if (until) query = query.where('timestamp', '<=', Timestamp.fromDate(new Date(until)));
       query = query.orderBy('timestamp', 'desc');
-      // Cursor de paginación. startAfter debe ir entre orderBy y limit. El valor
-      // pasado debe coincidir con el tipo del campo del orderBy — un Timestamp.
-      if (after) query = query.startAfter(Timestamp.fromDate(new Date(after)));
+      // Cursor de paginación. Preferimos DocumentSnapshot cuando viene afterId
+      // porque rompe empates por __name__ implícito — un cursor solo-timestamp
+      // pierde docs adyacentes que comparten timestamp con el cursor (raro
+      // pero posible: batch writes, cron sweeps). Si solo viene `after`,
+      // fallback al cursor por valor para mantener compatibilidad.
+      if (afterId) {
+        const cursorDoc = await db.collection('audit_events').doc(afterId).get();
+        if (cursorDoc.exists && cursorDoc.get('fincaId') === req.fincaId) {
+          query = query.startAfter(cursorDoc);
+        }
+      } else if (after) {
+        query = query.startAfter(Timestamp.fromDate(new Date(after)));
+      }
       query = query.limit(limit);
 
       const snap = await query.get();
@@ -122,6 +137,58 @@ router.get(
       }
       return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch audit events.', 500);
     }
+  },
+);
+
+// POST /api/audit/exports — registra que un admin exfiltró el CSV.
+//
+// El CSV se genera client-side a partir de los eventos ya cargados; lo único
+// que el backend ve es esta llamada de "notificación". Forensicamente vale: si
+// un admin con credenciales comprometidas descarga el log completo, queda
+// rastro de quién lo hizo, con qué filtros y cuántas filas. Best-effort desde
+// el cliente: si falla, el CSV igual se descarga (no bloquear UX por audit).
+const exportBodySchema = z.object({
+  count: z.coerce.number().int().min(0).max(10_000),
+  filters: z.object({
+    action:   z.string().max(64).regex(ACTION_RE).nullish(),
+    severity: z.enum([SEVERITY.INFO, SEVERITY.WARNING, SEVERITY.CRITICAL]).nullish(),
+    since:    z.string().max(40).nullish(),
+    until:    z.string().max(40).nullish(),
+  }).optional().default({}),
+});
+
+router.post(
+  '/api/audit/exports',
+  authenticate,
+  rateLimit('audit_export', 'write'),
+  async (req, res) => {
+    if (!hasMinRoleBE(req.userRole, 'administrador')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Only administrators can export audit events.', 403);
+    }
+
+    const parsed = exportBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid audit export payload.', 400);
+    }
+    const { count, filters } = parsed.data;
+
+    // writeAuditEvent es fail-open (no throws). La respuesta 204 no le promete
+    // al cliente que el evento se persistió, solo que el endpoint lo aceptó.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.AUDIT_EXPORT,
+      target: { type: 'collection', id: 'audit_events' },
+      metadata: {
+        count,
+        action: filters.action ?? null,
+        severity: filters.severity ?? null,
+        since: filters.since ?? null,
+        until: filters.until ?? null,
+      },
+      severity: SEVERITY.WARNING,
+    });
+    res.status(204).end();
   },
 );
 

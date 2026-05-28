@@ -32,6 +32,7 @@ export const ACTION_OPTIONS = [
   // Señales de seguridad
   { value: 'security.prompt_injection.detected', label: 'Inyección de prompt' },
   { value: 'security.token.rejected',       label: 'Token rechazado' },
+  { value: 'audit.export',                  label: 'Exportación del registro' },
 
   // Operaciones de negocio de alto valor
   { value: 'producto.delete',               label: 'Eliminación de producto' },

