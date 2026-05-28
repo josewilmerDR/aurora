@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSearch, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import '../styles/labor-list.css';
@@ -28,6 +29,22 @@ const isDirty = (form) =>
 
 const codigoMatches = (a, b) => (a || '').trim() === (b || '').trim();
 
+// Mismo orden que el backend (labor-records.js:36): código natural-sort
+// case-insensitive. Replicado client-side para poder hacer updates optimistas
+// sin tener que re-fetchear toda la lista.
+const sortByCodigo = (a, b) =>
+  (a.codigo || '').localeCompare(b.codigo || '', undefined, { numeric: true, sensitivity: 'base' });
+
+const upsertLocal = (list, doc) => {
+  const idx = list.findIndex(x => x.id === doc.id);
+  const next = idx === -1 ? [...list, doc] : list.map(x => x.id === doc.id ? { ...x, ...doc } : x);
+  return next.slice().sort(sortByCodigo);
+};
+
+// Threshold del contador de caracteres: a partir del 85% del máximo el contador
+// aparece y se vuelve "warn" para avisar al usuario que está cerca del corte.
+const COUNTER_THRESHOLD = 0.85;
+
 function LaborList() {
   const apiFetch = useApiFetch();
   const [items, setItems] = useState([]);
@@ -44,7 +61,10 @@ function LaborList() {
   // Cuando el código tipeado choca con otra labor: { existing, payload }
   const [mergeTarget, setMergeTarget] = useState(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // id de la fila recién creada/editada para resaltarla unos segundos.
+  const [recentId, setRecentId] = useState(null);
   const descripcionRef = useRef(null);
+  const recentTimerRef = useRef(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchItems = () =>
@@ -80,6 +100,17 @@ function LaborList() {
   useEffect(() => {
     if (showForm) setTimeout(() => descripcionRef.current?.focus(), 50);
   }, [showForm]);
+
+  // Limpiar el timer del highlight si el componente se desmonta antes del fade.
+  useEffect(() => () => {
+    if (recentTimerRef.current) clearTimeout(recentTimerRef.current);
+  }, []);
+
+  const flashRecent = (id) => {
+    setRecentId(id);
+    if (recentTimerRef.current) clearTimeout(recentTimerRef.current);
+    recentTimerRef.current = setTimeout(() => setRecentId(null), 2500);
+  };
 
   // Persistir borrador SÓLO mientras el form de alta está abierto. Si el
   // usuario lo cierra sin descartar (showForm=false), el draft queda intacto
@@ -161,14 +192,17 @@ function LaborList() {
 
   const handleDeleteConfirm = async () => {
     if (!confirmDelete) return;
+    const { id } = confirmDelete;
     setDeleting(true);
     try {
-      const res = await apiFetch(`/api/labores/${confirmDelete.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/labores/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
+      // Optimistic local: sacamos la fila sin esperar refetch. unidades se
+      // re-fetcha por si el conteo del próximo modal de borrado cambió.
+      setItems(prev => prev.filter(it => it.id !== id));
+      fetchUnidades();
       showToast('Labor eliminada.');
       setConfirmDelete(null);
-      fetchItems();
-      fetchUnidades();
     } catch {
       showToast('Error al eliminar.', 'error');
     } finally {
@@ -176,8 +210,10 @@ function LaborList() {
     }
   };
 
-  // Save real, separado para reutilizar después de confirmar un merge.
-  const persist = async ({ url, method, payload, successMsg }) => {
+  // Save real, separado para reutilizar después de confirmar un merge. Sin
+  // refetch: con el id devuelto + el payload reconstruimos el doc localmente
+  // y lo merge-amos en la lista ya ordenada.
+  const persist = async ({ url, method, payload, successMsg, targetId }) => {
     setSaving(true);
     try {
       const res = await apiFetch(url, {
@@ -186,10 +222,15 @@ function LaborList() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
+      const body = await res.json().catch(() => ({}));
+      const id = targetId ?? body.id ?? null;
+      if (id) {
+        setItems(prev => upsertLocal(prev, { id, ...payload }));
+        flashRecent(id);
+      }
       showToast(successMsg);
       resetForm();
       setMergeTarget(null);
-      fetchItems();
     } catch {
       showToast('Error al guardar.', 'error');
     } finally {
@@ -233,6 +274,7 @@ function LaborList() {
       method: isEditing ? 'PUT' : 'POST',
       payload,
       successMsg: isEditing ? 'Labor actualizada.' : 'Labor registrada.',
+      targetId: isEditing ? form.id : null, // POST devuelve id en body
     });
   };
 
@@ -243,6 +285,7 @@ function LaborList() {
       method: 'PUT',
       payload: mergeTarget.payload,
       successMsg: 'Labor existente actualizada.',
+      targetId: mergeTarget.existing.id,
     });
   };
 
@@ -250,7 +293,8 @@ function LaborList() {
   const filtered = items.filter(item =>
     !q ||
     item.descripcion?.toLowerCase().includes(q) ||
-    item.codigo?.toLowerCase().includes(q)
+    item.codigo?.toLowerCase().includes(q) ||
+    item.observacion?.toLowerCase().includes(q)
   );
 
   return (
@@ -396,6 +440,14 @@ function LaborList() {
                       maxLength={MAX_DESCRIPCION}
                       required
                     />
+                    {form.descripcion.length > MAX_DESCRIPCION * COUNTER_THRESHOLD && (
+                      <span
+                        className={`lab-char-counter${form.descripcion.length >= MAX_DESCRIPCION ? ' lab-char-counter--max' : ''}`}
+                        aria-live="polite"
+                      >
+                        {form.descripcion.length} / {MAX_DESCRIPCION}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="aur-row aur-row--multiline">
@@ -408,9 +460,17 @@ function LaborList() {
                       value={form.observacion}
                       onChange={handleChange}
                       placeholder="Notas adicionales sobre esta labor…"
-                      rows={2}
+                      rows={4}
                       maxLength={MAX_OBSERVACION}
                     />
+                    {form.observacion.length > MAX_OBSERVACION * COUNTER_THRESHOLD && (
+                      <span
+                        className={`lab-char-counter${form.observacion.length >= MAX_OBSERVACION ? ' lab-char-counter--max' : ''}`}
+                        aria-live="polite"
+                      >
+                        {form.observacion.length} / {MAX_OBSERVACION}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -431,10 +491,16 @@ function LaborList() {
           {loading ? (
             <div className="aur-page-loading" />
           ) : items.length === 0 ? (
-            <div className="empty-state">
-              <FiList size={36} />
-              <p>No hay labores registradas.</p>
-            </div>
+            <EmptyState
+              icon={FiList}
+              title="No hay labores registradas."
+              subtitle="Las labores son tipos de trabajo que después se asocian a lotes y maquinaria desde Horímetro o Unidades de medida."
+              action={(
+                <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
+                  <FiPlus size={14} /> Crear primera labor
+                </button>
+              )}
+            />
           ) : (
             <>
               <div className="aur-table-toolbar lab-toolbar">
@@ -443,7 +509,8 @@ function LaborList() {
                   <input
                     type="search"
                     className="aur-input lab-search"
-                    placeholder="Buscar por descripción o código…"
+                    placeholder="Buscar…"
+                    aria-label="Buscar labores"
                     value={filter}
                     onChange={e => setFilter(e.target.value)}
                   />
@@ -453,10 +520,11 @@ function LaborList() {
                 </span>
               </div>
               {filtered.length === 0 ? (
-                <div className="lab-empty-state">
-                  <FiList size={32} />
-                  <p>Sin resultados para la búsqueda.</p>
-                </div>
+                <EmptyState
+                  variant="compact"
+                  icon={FiList}
+                  title="Sin resultados para la búsqueda."
+                />
               ) : (
                 <div className="aur-table-wrap">
                   <table className="aur-table">
@@ -465,12 +533,15 @@ function LaborList() {
                         <th>Código</th>
                         <th>Descripción</th>
                         <th>Observación</th>
-                        <th className="lab-th-actions"></th>
+                        <th className="lab-th-actions" aria-label="Acciones"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.map(item => (
-                        <tr key={item.id}>
+                        <tr
+                          key={item.id}
+                          className={item.id === recentId ? 'lab-row--just-saved' : undefined}
+                        >
                           <td className="lab-td-code">{item.codigo || <span className="lab-td-empty">—</span>}</td>
                           <td className="lab-td-desc">{item.descripcion}</td>
                           <td className="lab-td-obs">{item.observacion || <span className="lab-td-empty">—</span>}</td>
