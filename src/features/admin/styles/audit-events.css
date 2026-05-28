@@ -267,7 +267,7 @@
 
 /* ── Resumen forense en línea (audit-event-summary) ──────────────────────── */
 /* Sale debajo del header del evento, siempre visible (sin expandir). Pinta
-   en una línea el "qué cambió" derivado del metadata por auditSummary.js.
+   en una línea el "qué cambió" derivado del metadata por auditSummary.jsx.
    :empty oculta el strip si el renderer no encontró ningún campo útil. */
 .audit-event-summary {
   display: flex;
